@@ -1670,6 +1670,19 @@ export const InvoiceDocumentType = {
   recovery_invoice: 'recovery_invoice',
 } as const;
 
+/**
+ * 2026-09-22, opening items only: the previous solution's e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).
+ * @nullable
+ */
+export type InvoiceOpeningEinvoicingStatus = typeof InvoiceOpeningEinvoicingStatus[keyof typeof InvoiceOpeningEinvoicingStatus] | null;
+
+
+export const InvoiceOpeningEinvoicingStatus = {
+  cleared: 'cleared',
+  reported: 'reported',
+  pre_einvoicing: 'pre_einvoicing',
+} as const;
+
 export type BadDebtReliefSource = typeof BadDebtReliefSource[keyof typeof BadDebtReliefSource];
 
 
@@ -1679,10 +1692,16 @@ export const BadDebtReliefSource = {
 } as const;
 
 export interface BadDebtRelief {
-  /** YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. */
-  claimedOn: string;
-  /** The Output Tax relieved (the VAT share of the unpaid consideration). */
-  vatAmount: number;
+  /**
+     * YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.
+     * @nullable
+     */
+  claimedOn: string | null;
+  /**
+     * The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.
+     * @nullable
+     */
+  vatAmount: number | null;
   /**
      * YYYY-MM of the return the relief was (or is to be) claimed in.
      * @nullable
@@ -1832,6 +1851,21 @@ export interface Invoice {
      * @nullable
      */
   advancePaymentId: number | null;
+  /**
+     * 2026-09-22, opening items only: the previous solution's e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).
+     * @nullable
+     */
+  openingEinvoicingStatus?: InvoiceOpeningEinvoicingStatus;
+  /**
+     * 2026-09-22, opening items only: the previous solution's document UUID.
+     * @nullable
+     */
+  openingSourceUuid?: string | null;
+  /**
+     * 2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.
+     * @nullable
+     */
+  openingCorrectionJournalEntryId?: number | null;
   /** 2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none. */
   writtenOffAmount: number;
   /** 2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform's return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here. */
@@ -5278,10 +5312,21 @@ export interface MigrationHistoricalVat {
      */
   reportedPeriod?: string | null;
   /**
-     * VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.
+     * VAT Implementing Regulations Art. 40(7): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). 2026-09-22: a STRUCTURED fact — at commit it lands on the opening receivable (badDebtRelief.source = migrated) and an Art. 40(9) recovery document is declared from it when money arrives. It never restricts a payment or an allocation.
      * @nullable
      */
   badDebtReliefClaimed?: boolean | null;
+  /**
+     * YYYY-MM-DD: the period the previous system claimed the relief in, when known. Only with badDebtReliefClaimed = true.
+     * @nullable
+     */
+  badDebtReliefClaimedOn?: string | null;
+  /**
+     * The Output Tax the previous system relieved, when known. Only with badDebtReliefClaimed = true.
+     * @minimum 0
+     * @nullable
+     */
+  badDebtReliefVatAmount?: number | null;
 }
 
 export type MigrationOpenItemInputItemType = typeof MigrationOpenItemInputItemType[keyof typeof MigrationOpenItemInputItemType];
@@ -5290,6 +5335,19 @@ export type MigrationOpenItemInputItemType = typeof MigrationOpenItemInputItemTy
 export const MigrationOpenItemInputItemType = {
   ar: 'ar',
   ap: 'ap',
+} as const;
+
+/**
+ * 2026-09-22 (AR only): what the previous solution did with this tax invoice — cleared (standard), reported (simplified), or pre_einvoicing (issued before the obligation applied). Empty = NOT STATED, which is not a guess: a credit note against the item is refused until it is stated. Never invented.
+ * @nullable
+ */
+export type MigrationOpenItemInputEinvoicingStatus = typeof MigrationOpenItemInputEinvoicingStatus[keyof typeof MigrationOpenItemInputEinvoicingStatus] | null;
+
+
+export const MigrationOpenItemInputEinvoicingStatus = {
+  cleared: 'cleared',
+  reported: 'reported',
+  pre_einvoicing: 'pre_einvoicing',
 } as const;
 
 export interface MigrationOpenItemInput {
@@ -5326,6 +5384,17 @@ export interface MigrationOpenItemInput {
   compositionUnknown?: boolean;
   historicalVat?: MigrationHistoricalVat | null;
   /**
+     * 2026-09-22 (AR only): what the previous solution did with this tax invoice — cleared (standard), reported (simplified), or pre_einvoicing (issued before the obligation applied). Empty = NOT STATED, which is not a guess: a credit note against the item is refused until it is stated. Never invented.
+     * @nullable
+     */
+  einvoicingStatus?: MigrationOpenItemInputEinvoicingStatus;
+  /**
+     * 2026-09-22 (AR only): the previous solution's document UUID, verbatim — required for cleared/reported; the identity a credit note through Fatoora keeps. Never invented.
+     * @maxLength 64
+     * @nullable
+     */
+  sourceUuid?: string | null;
+  /**
      * @maxLength 500
      * @nullable
      */
@@ -5348,9 +5417,45 @@ export const MigrationOpenItemItemType = {
   ap: 'ap',
 } as const;
 
+/**
+ * Before commit: as staged. After commit: the LIVE ledger row's identity (staged, or recorded once afterwards).
+ * @nullable
+ */
+export type MigrationOpenItemEinvoicingStatus = typeof MigrationOpenItemEinvoicingStatus[keyof typeof MigrationOpenItemEinvoicingStatus] | null;
+
+
+export const MigrationOpenItemEinvoicingStatus = {
+  cleared: 'cleared',
+  reported: 'reported',
+  pre_einvoicing: 'pre_einvoicing',
+} as const;
+
 export interface MigrationOpenItem {
   id: number;
   itemType: MigrationOpenItemItemType;
+  /**
+     * Before commit: as staged. After commit: the LIVE ledger row's identity (staged, or recorded once afterwards).
+     * @nullable
+     */
+  einvoicingStatus: MigrationOpenItemEinvoicingStatus;
+  /** @nullable */
+  sourceUuid: string | null;
+  /**
+     * 2026-09-22: after commit, the LIVE ledger row (the last replacement in the item's correction chain); null before commit or when the migration was reversed.
+     * @nullable
+     */
+  liveDocumentId: number | null;
+  /** @nullable */
+  liveDocumentNumber: string | null;
+  /**
+     * The live row's total (an opening item's outstanding at cut-off, as corrected).
+     * @nullable
+     */
+  liveOutstanding: number | null;
+  /** How many item-level corrections the item has had (each a reversed original + a replacement + a retained-earnings entry). */
+  corrections: number;
+  /** Whether the live ledger row carries its e-invoicing identity (from staging or recorded afterwards). */
+  liveIdentityRecorded: boolean;
   sourceId: string;
   partySourceId: string;
   /**
@@ -5643,6 +5748,88 @@ export interface MigrationValidation {
   contentHash: string | null;
   /** @nullable */
   validatedAt: string | null;
+}
+
+export interface CorrectMigratedOpenItemInput {
+  /**
+     * The corrected outstanding amount of the item (what the previous system's document truly was).
+     * @exclusiveMinimum 0
+     */
+  correctOutstanding: number;
+  /**
+     * The audit trail's explanation (a transfer error, a wrong figure in the previous system, …).
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+  /**
+     * YYYY-MM-DD, default today; an open month on or after the opening date.
+     * @nullable
+     */
+  date?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export type MigratedOpenItemCorrectionOriginal = {
+  id: number;
+  number: string;
+  total: number;
+};
+
+export type MigratedOpenItemCorrectionReplacement = {
+  id: number;
+  number: string;
+  total: number;
+};
+
+export interface MigratedOpenItemCorrection {
+  original: MigratedOpenItemCorrectionOriginal;
+  replacement: MigratedOpenItemCorrectionReplacement;
+  /** correct − previous (negative for a decrease). */
+  delta: number;
+  journalEntryId: number;
+  entryNumber: string;
+  date: string;
+}
+
+export type RecordMigratedOpenItemIdentityInputEinvoicingStatus = typeof RecordMigratedOpenItemIdentityInputEinvoicingStatus[keyof typeof RecordMigratedOpenItemIdentityInputEinvoicingStatus];
+
+
+export const RecordMigratedOpenItemIdentityInputEinvoicingStatus = {
+  cleared: 'cleared',
+  reported: 'reported',
+  pre_einvoicing: 'pre_einvoicing',
+} as const;
+
+export interface RecordMigratedOpenItemIdentityInput {
+  einvoicingStatus: RecordMigratedOpenItemIdentityInputEinvoicingStatus;
+  /**
+     * Required for cleared / reported.
+     * @maxLength 64
+     * @nullable
+     */
+  sourceUuid?: string | null;
+}
+
+export type MigratedOpenItemIdentityEinvoicingStatus = typeof MigratedOpenItemIdentityEinvoicingStatus[keyof typeof MigratedOpenItemIdentityEinvoicingStatus];
+
+
+export const MigratedOpenItemIdentityEinvoicingStatus = {
+  cleared: 'cleared',
+  reported: 'reported',
+  pre_einvoicing: 'pre_einvoicing',
+} as const;
+
+export interface MigratedOpenItemIdentity {
+  invoiceId: number;
+  invoiceNumber: string;
+  einvoicingStatus: MigratedOpenItemIdentityEinvoicingStatus;
+  /** @nullable */
+  sourceUuid: string | null;
 }
 
 export interface ReverseMigrationBatchInput {

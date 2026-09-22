@@ -324,6 +324,30 @@ export const migrationRepository = {
   },
   // ── Policy C (pack §16.12.1): the reversal MARKS; nothing here deletes. ──
   /** Mark opening invoices reversed by `batchId` — once; the DB trigger refuses any other writer, any other batch, any non-opening row. */
+  /**
+   * 2026-09-22: per staging item, its LIVE ledger row (not reversed) and how
+   * many corrections it has had (reversed rows carrying a correction entry).
+   */
+  async liveRowsOfItems(itemIds: number[]): Promise<Map<number, { id: number; number: string; total: number; corrections: number; identityRecorded: boolean; einvoicingStatus: string | null; sourceUuid: string | null }>> {
+    const out = new Map<number, { id: number; number: string; total: number; corrections: number; identityRecorded: boolean; einvoicingStatus: string | null; sourceUuid: string | null }>();
+    if (itemIds.length === 0) return out;
+    const list = sql.join(itemIds.map((x) => sql`${x}`), sql`, `);
+    const rows = await db.execute<{ item_id: number; id: number; number: string; total: string; corrections: string; status: string | null; uuid: string | null }>(sql`
+      SELECT x.item_id, x.id, x.number, x.total, x.corrections, x.status, x.uuid FROM (
+        SELECT i.migration_open_item_id AS item_id, i.id, i.invoice_number AS number, i.total::text AS total,
+               (SELECT count(*)::text FROM invoices r WHERE r.migration_open_item_id = i.migration_open_item_id AND r.opening_correction_journal_entry_id IS NOT NULL) AS corrections,
+               i.opening_einvoicing_status AS status, i.opening_source_uuid AS uuid
+          FROM invoices i WHERE i.migration_open_item_id IN (${list}) AND i.reversed_at IS NULL
+        UNION ALL
+        SELECT b.migration_open_item_id, b.id, b.bill_number, b.total::text,
+               (SELECT count(*)::text FROM bills r WHERE r.migration_open_item_id = b.migration_open_item_id AND r.opening_correction_journal_entry_id IS NOT NULL),
+               NULL, NULL
+          FROM bills b WHERE b.migration_open_item_id IN (${list}) AND b.reversed_at IS NULL
+      ) x`);
+    for (const r of rows.rows) out.set(r.item_id, { id: r.id, number: r.number, total: Number(r.total), corrections: Number(r.corrections), identityRecorded: r.status != null, einvoicingStatus: r.status ?? null, sourceUuid: r.uuid ?? null });
+    return out;
+  },
+
   markInvoicesReversed(ids: number[], batchId: number, at: Date) {
     if (ids.length === 0) return Promise.resolve([]);
     return db.update(invoicesTable).set({ reversedAt: at, reversedByMigrationBatchId: batchId }).where(and(inArray(invoicesTable.id, ids), isNull(invoicesTable.reversedAt))).returning({ id: invoicesTable.id });

@@ -11,6 +11,7 @@ import { invoicesRepository } from "../repositories/invoices.repository";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { INVOICE_IN_BOOKS_STATUSES, ADVANCE_CREDIT_NOTE_TYPE, isAdvanceInvoiceType } from "@workspace/shared";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
+import { migrationCorrectionService } from "./migrationCorrection.service";
 
 /**
  * AP-3: `advance_credit_note` is a note (ZATCA 381 with a billing reference
@@ -92,20 +93,20 @@ export async function assertNoteIsValid(input: {
 
   assertNotReversedOpening(original, `Invoice ${original.invoiceNumber}`, `corrected by a ${label}`);
 
-  // Batch 1C, Issue 1 — FAIL CLOSED. An opening item is in the books but it is
-  // not a tax invoice this system issued: no hash, no ICV, no QR, and the
-  // document it stands for was issued by the previous system. Whether a note
-  // may reference a previous-system invoice at all — and what it must carry
-  // if so — is an OPEN question on the accountant and ZATCA (decision pack
-  // §16.14.9); until it is answered, no note is minted against one.
+  // 2026-09-22 (accountant answer 3; Batch 1C pack §17): a credit note against
+  // an invoice the PREVIOUS solution issued is issued HERE, electronically,
+  // through Fatoora — never a manual route — naming the original's own
+  // number (BT-25, Art. 54(4)). It is gated on the original's e-invoicing
+  // identity being STATED (cleared / reported with the UUID, or
+  // pre_einvoicing); an unstated identity refuses by name, so nothing is
+  // minted against a document nobody has described. A reversed original
+  // (Policy C history) is refused earlier, at the write boundary every
+  // opening-row act shares (openingReversed.ts → opening_item_reversed).
   if (original.isOpening) {
-    throw new BusinessRuleError(409, {
-      code: "note_original_is_opening_item",
-      error:
-        `${original.invoiceNumber} is an opening balance item migrated from the previous system, not a tax invoice issued here, ` +
-        `so it cannot be corrected by a ${label} in this system today (an open question — decision pack §16.14.9).`,
-      field: "originalInvoiceId",
-    });
+    const eligibility = await migrationCorrectionService.noteEligibility(original);
+    if (!eligibility.eligible) {
+      throw new BusinessRuleError(409, { code: eligibility.code, error: eligibility.error, field: "originalInvoiceId" });
+    }
   }
 
   if (isNoteType(original.documentType)) {

@@ -2326,3 +2326,36 @@ and 5 call for (pack §18).
 
 State: CLOSED at the document; AP-4 is the gate before a taxpayer that
 receives advances. Current state authority: CLAUDE.md §2.
+
+## THE MIGRATION FOLLOW-UPS — CLOSED 2026-09-22 (the accountant's answers 3 and 5 applied inside Policy C)
+
+Found: Batch 1C left three things it could not decide alone — a migrated
+tax invoice carried no e-invoicing identity, so a credit note against it
+was refused outright; a wrong migrated amount could only be fixed by
+reversing the whole batch; and the bad-debt-relief flag was information
+nobody read. The accountant answered on 2026-09-22 (advance-payments pack
+§17): a note against a previous-system invoice is issued electronically
+through Fatoora, never manually; a correction's other side is opening
+retained earnings, never an opening-balance-equity plug.
+
+Built (`feat/migration-followups`, migration `0086`; 1C pack §17): the
+identity at staging and on the ledger row, recorded once (a trigger refuses
+a change); `POST /migration/open-items/{itemId}/correct` — the original
+stays reversed and frozen, a replacement `OPEN-<batch>-<seq>` carries the
+corrected amount, one `opening_correction` entry moves the delta against
+retained earnings, a touched item is refused by name
+(`opening_item_partly_settled` — §16.12.5 is still open); the migrated
+relief as a structured fact the Art. 40(9) recovery reads; the credit-note
+gate keyed on the identity, the BillingReference naming the previous
+system's number. Two Batch 1C constructions had to admit the chain: the
+per-item unique index (one LIVE row per staged item) and the A4 marker
+trigger (a replacement is linked to its batch by the staging id). Found on
+the way: `substring(x from $1)` with an untyped bound parameter resolves to
+the REGEX form and matches nothing — the sequence allocator minted the same
+number twice until `split_part` replaced it.
+
+Verified: `migration-followups.test.ts` (4, real rows: identity, gate,
+correction incl. locked month and before-opening refusals, migrated relief
+→ recovery) and the migration workspace e2e in four modes by real clicks.
+
+State: CLOSED. Current state authority: CLAUDE.md §2.

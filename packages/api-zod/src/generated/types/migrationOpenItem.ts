@@ -6,11 +6,35 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MigrationHistoricalVat } from './migrationHistoricalVat';
+import type { MigrationOpenItemEinvoicingStatus } from './migrationOpenItemEinvoicingStatus';
 import type { MigrationOpenItemItemType } from './migrationOpenItemItemType';
 
 export interface MigrationOpenItem {
   id: number;
   itemType: MigrationOpenItemItemType;
+  /**
+     * Before commit: as staged. After commit: the LIVE ledger row's identity (staged, or recorded once afterwards).
+     * @nullable
+     */
+  einvoicingStatus: MigrationOpenItemEinvoicingStatus;
+  /** @nullable */
+  sourceUuid: string | null;
+  /**
+     * 2026-09-22: after commit, the LIVE ledger row (the last replacement in the item's correction chain); null before commit or when the migration was reversed.
+     * @nullable
+     */
+  liveDocumentId: number | null;
+  /** @nullable */
+  liveDocumentNumber: string | null;
+  /**
+     * The live row's total (an opening item's outstanding at cut-off, as corrected).
+     * @nullable
+     */
+  liveOutstanding: number | null;
+  /** How many item-level corrections the item has had (each a reversed original + a replacement + a retained-earnings entry). */
+  corrections: number;
+  /** Whether the live ledger row carries its e-invoicing identity (from staging or recorded afterwards). */
+  liveIdentityRecorded: boolean;
   sourceId: string;
   partySourceId: string;
   /**

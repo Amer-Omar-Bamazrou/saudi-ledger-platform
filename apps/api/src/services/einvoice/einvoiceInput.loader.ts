@@ -21,6 +21,7 @@ import { customersRepository } from "../../repositories/customers.repository";
 import { assembleEInvoiceInput } from "./einvoiceInput.assembler";
 import { advanceInvoicesRepository } from "../../repositories/advanceInvoices.repository";
 import { paymentsRepository } from "../../repositories/payments.repository";
+import { migrationCorrectionService } from "../migrationCorrection.service";
 import type { EInvoiceInput } from "./types";
 
 /**
@@ -57,9 +58,15 @@ export async function loadEInvoiceInput(
     : null;
 
   // The note's original — the FK, resolved to the row, so the billing reference
-  // can never name a document that does not exist.
-  const original = invoice.originalInvoiceId
+  // can never name a document that does not exist. 2026-09-22: an OPENING
+  // original is named by the previous system's own number (the staging row's
+  // document_number — the number ZATCA knows it by), never by its ledger
+  // OPEN-… number; the gate in creditNotes.ts made sure that identity exists.
+  const originalRow = invoice.originalInvoiceId
     ? (await invoicesRepository.findById(invoice.originalInvoiceId))[0] ?? null
+    : null;
+  const original = originalRow
+    ? { invoiceNumber: originalRow.isOpening ? (await migrationCorrectionService.noteEligibility(originalRow).then((e) => (e.eligible ? e.referenceNumber : originalRow.invoiceNumber))) : originalRow.invoiceNumber }
     : null;
 
   // AP-2: the final invoice's prepayment adjustment rows, each with the

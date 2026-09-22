@@ -1,6 +1,6 @@
 # Batch 1C decision pack — migration and opening balances (2026-09-17)
 
-**Status (2026-09-20): Phases 1–3 of Batch 1C are BUILT on `feat/batch-1c-migration-opening-balances` (no UI). The accountant's decisions on the two correction-policy questions (§16.9) were received on 2026-09-20 and are recorded in §16.12 as invariants A4 and A5; §16.7–§16.8's provisional consequences are superseded where §16.12 says so — in particular, 🔴 §16.8's "reuse the original document number" consequence is WITHDRAWN. The one remaining accountant question is §16.12.5 (a partly-settled opening item), researched to a sharper question in §16.13.5 and, against the Saudi primary sources retrieved live, in §16.14 (credit notes against previous-system invoices lead that section; the questions to send are §16.14.9); the ZATCA-artefact coupling that blocked collecting an opening receivable is surveyed in §16.13.1–§16.13.3 and 🔴 **CLOSED as built in §16.15 (Issue 1, 2026-09-20)** — an opening receivable now collects through every D-4 path and mints no artefact; 🔴 **the migration workspace UI (Phase 4) is BUILT and walked — §16.16 (2026-09-20)**; Issue 2 and credit notes against opening items stay blocked as §16.14.13 says. §9 and §12 are superseded by §15.7; the ZATCA PIH question (§15.2 B) stays with ZATCA. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-20): Phases 1–3 of Batch 1C are BUILT on `feat/batch-1c-migration-opening-balances` (no UI). The accountant's decisions on the two correction-policy questions (§16.9) were received on 2026-09-20 and are recorded in §16.12 as invariants A4 and A5; §16.7–§16.8's provisional consequences are superseded where §16.12 says so — in particular, 🔴 §16.8's "reuse the original document number" consequence is WITHDRAWN. The one remaining accountant question is §16.12.5 (a partly-settled opening item), researched to a sharper question in §16.13.5 and, against the Saudi primary sources retrieved live, in §16.14 (credit notes against previous-system invoices lead that section; the questions to send are §16.14.9); the ZATCA-artefact coupling that blocked collecting an opening receivable is surveyed in §16.13.1–§16.13.3 and 🔴 **CLOSED as built in §16.15 (Issue 1, 2026-09-20)** — an opening receivable now collects through every D-4 path and mints no artefact; 🔴 **the migration workspace UI (Phase 4) is BUILT and walked — §16.16 (2026-09-20)**; 🔴 **the migration follow-ups are BUILT — §17 (2026-09-22)**: the previous solution's e-invoicing identity on every opening receivable, the item-level correction (100,000 → 90,000) with opening retained earnings on the other side, the migrated bad-debt relief as a structured fact, and credit notes against identified opening items issued through Fatoora (the accountant's answers 3 and 5); §16.14.13's remaining blocker is only the PARTLY-SETTLED item (§16.12.5), refused by name. §9 and §12 are superseded by §15.7; the ZATCA PIH question (§15.2 B) stays with ZATCA. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 🔴 **Reading order for a future session:** §15.1 (the decisions A1–A5), §15.5–§15.6 (the model and the gates, as amended 2026-09-20), §16.12 (the correction policy as decided). Everything in §16.7–§16.9 that §16.12 contradicts is history, kept for the reasoning.
 
@@ -1178,9 +1178,9 @@ The e-invoice rule is therefore **not** automatically the rule for an opening re
 
 A credit note against an opening item, if ZATCA's answer permits it: the note enters Saudi Ledger's sequence (own UUID/ICV/PIH from the preceding Saudi Ledger document), carries the opening item's source number and date in the billing reference, adjusts output VAT in the current return only, and never touches the opening item's own row beyond its `credited_amount`; the opening item itself still carries no hash/ICV/QR. Whether a bad-debt relief was claimed on a migrated item must be a staged fact before Art. 40(9) can be honoured.
 
-## 16.14.13 Blockers (unchanged)
+## 16.14.13 Blockers
 
-~~Collecting an opening receivable (Issue 1, §16.13.3 — awaiting approval)~~ *(built 2026-09-20, §16.15)*; item-level correction of a settled opening item (Q1/Q3/Q4 above — awaiting the accountant); credit notes against opening items (ZATCA enquiry item 3 — refuse until answered).
+~~Collecting an opening receivable (Issue 1, §16.13.3 — awaiting approval)~~ *(built 2026-09-20, §16.15)*; item-level correction of a settled opening item (Q1/Q3/Q4 above — awaiting the accountant; **an UNTOUCHED item is correctable since 2026-09-22, §17.2**); ~~credit notes against opening items (ZATCA enquiry item 3 — refuse until answered)~~ *(the accountant answered 2026-09-22 — through Fatoora, never a manual route; built, §17.4)*.
 
 ---
 
@@ -1212,7 +1212,7 @@ The outstanding balance stays each caller's own condition. For an invoice this s
 ## 16.15.3 The two guards that follow from "not a tax invoice"
 
 - **Renderer** — `buildInvoiceDocModel` refuses an `is_opening` row: 409 `opening_item_not_a_tax_invoice` ("… not a tax invoice issued here; there is no tax-invoice document to render. The customer statement shows the balance."). Chosen over re-titling: the renderer's whole output (the Article 53 layout, the compliance title, the translation banner "the Arabic document is the tax invoice", the seller VAT identity) manufactures a tax-invoice identity, and a document that merely says "opening balance item" in the title still looks designed. What an opening item's printout should be — if anything beyond the statement — is a product question, not decided here.
-- **Credit / debit notes** — `assertNoteIsValid` refuses an original with `is_opening`: 409 `note_original_is_opening_item`, FAIL CLOSED, after the reversed-row check and before the note-on-note check. The ZATCA question (§16.14.1, enquiry item 3) is not decided by this; when it is answered the guard is where the answer lands.
+- **Credit / debit notes** — ~~`assertNoteIsValid` refuses an original with `is_opening`: 409 `note_original_is_opening_item`, FAIL CLOSED~~ *(superseded 2026-09-22, §17.4: the guard is keyed on the original's e-invoicing identity — `opening_item_einvoicing_identity_missing` / `opening_item_source_uuid_missing` — and an identified opening item is allowed through Fatoora).* The ZATCA question (§16.14.1, enquiry item 3) is not decided by this; when it is answered the guard is where the answer lands.
 
 ## 16.15.4 Art. 40(9) — the bad-debt-relief flag, captured and not acted on
 
@@ -1264,3 +1264,45 @@ Summary of the fixes and what remains:
 ## 16.16.4 Backend finding — a committed batch's own items read as collisions
 
 `migrationStaging.service.ts` `openItemProblems` checked each item's number against the company's invoices/bills; after the commit that set contains the row the item itself became, so a committed batch's AR/AP sections showed every item BLOCKED with "document number … already exists". Read-side only (the staging is frozen; nothing acts on the problems of a committed batch), fixed by exempting a materialised item (`resolvedInvoiceId` / `resolvedBillId` set) from the taken-number check; pinned in the Issue 1 suite. Policy C's reversal blocker was observed to count a reversed (unallocated) allocation as a touch — conservative and deliberate (an audit trail exists); not changed.
+
+---
+
+# 17. The migration follow-ups as built — identity, item-level correction, migrated relief, credit notes through Fatoora (2026-09-22)
+
+**Status (2026-09-22): BUILT on `feat/migration-followups` (after PR #166's Phase 1); migration `0086`. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+
+The accountant's answers received 2026-09-22 (the advance-payments pack §17 carries the full set): **(3)** a credit note against an invoice the previous solution issued is issued here, electronically, through Fatoora — no manual route; **(5)** the other side of a migrated-amount correction is **opening retained earnings** — never an opening-balance-equity plug. Both are applied inside Policy C (§16.12): nothing is edited, nothing is deleted.
+
+## 17.1 The historical invoice's identity (answer 3, the precondition)
+
+- **Staging** (`migration_open_items.einvoicing_status` ∈ cleared · reported · pre_einvoicing, `source_uuid`): AR only (a payable never carries one — refused at import); a cleared/reported document REQUIRES its UUID; empty means NOT STATED, which is not a guess. Three CHECKs pin it.
+- **The ledger row** (`invoices.opening_einvoicing_status`, `opening_source_uuid`): written at commit from staging; for an item the migration did not describe, `PUT /migration/open-items/{itemId}/identity` records it ONCE — trigger `refuse_opening_identity_change` refuses any later change (`opening_identity_already_recorded`). The UUID is the previous solution's, verbatim; nothing here invents one.
+- **The read** (`MigrationOpenItem`): before commit the staged identity; after commit the LIVE row's (`liveIdentityRecorded`), with `liveDocumentId/Number/Outstanding` and `corrections` — the row an operator acts on is the one the read shows.
+
+## 17.2 The item-level correction (answer 5, inside A4)
+
+`POST /migration/open-items/{itemId}/correct` — keyed on the STAGING row, the migrated document's identity across corrections:
+
+1. The original ledger row STAYS, marked reversed by its own batch (`reversed_by_migration_batch_id`, the A4 marker) and carrying `opening_correction_journal_entry_id`; the Batch 1C trigger then freezes it.
+2. A REPLACEMENT row — `OPEN-<batch>-<seq>`, the corrected amount, every fact of the original (dates, party, identity, relief) — links back through `replaces_invoice_id` / `replaces_bill_id` and keeps `migration_open_item_id`; the per-item uniqueness is now **one LIVE row per staged item** (the 0077 indexes narrowed to `reversed_at IS NULL`), and the A4 marker trigger admits the chain (a replacement is linked to its batch by the staging id, not only by `resolved_invoice_id`).
+3. ONE entry, source `opening_correction`, dated the correction date (an open month on or after the opening date; a locked month fails closed with `period_closed`; earlier than the opening refused `opening_correction_before_opening`): a receivable decrease is **Dr Retained earnings / Cr AR (customer)**; an increase the reverse; payables mirror. The customer's AR sub-ledger moves by the delta; the opening journal is untouched.
+4. Refused by name: `opening_item_partly_settled` — an item acted on since the migration (an allocation, a credit note, a payment) is still §16.12.5's open question; until the accountant answers, it is corrected by dated journals, not here. Also `opening_correction_no_change`, `migration_not_committed`, `opening_item_not_live` (the migration was reversed).
+5. Audit: `opening_item_correct` with the original, the replacement, the delta, the reason, the entry and the staging item. Ledger invariants: a replacement's coverage is the `opening_correction` AR/AP line (`opening_correction_shape`).
+
+A second correction chains on the replacement; three rows for one item are three rows — nothing is deleted.
+
+## 17.3 The migrated bad-debt relief as a structured fact (Art. 40(7) → 40(9))
+
+`historicalVat.badDebtReliefClaimed` was information only; it is now written at commit onto the opening receivable as `bad_debt_relief_source = 'migrated'` with `bad_debt_relief_claimed_on` / `bad_debt_relief_vat_amount` when the previous system recorded them (the CHECK admits a migrated relief without a journal entry and with a null date/amount; a relief RECORDED here still requires all three). The Art. 40(9) recovery document (Phase 1) reads it: after a receipt is allocated to the item, the recovery invoice declares the VAT leg at the migration's historical rate (or an explicit `vatRate`; never a default — `recovery_rate_unknown`). The write-off act stays refused on a migrated item (`opening_item_relief_is_migration_fact`).
+
+## 17.4 Credit notes against opening items, through Fatoora (answer 3)
+
+`creditNotes.ts` no longer refuses an opening original as such. It refuses by name while the identity is unstated (`opening_item_einvoicing_identity_missing`) or a cleared/reported original lacks its UUID (`opening_item_source_uuid_missing`); a reversed original is refused earlier, at the shared opening-row write boundary (`opening_item_reversed`). Once identified, the note is an ordinary Saudi Ledger credit note (381, its own ICV, the chain) whose `BillingReference` names the PREVIOUS SYSTEM's document number (staging `document_number`, not the `OPEN-` ledger number); a pre-e-invoicing original needs only its number. The credit-notes picker offers an identified, live opening item and nothing else. **Reasoned, not verified:** whether ZATCA's validator accepts a BillingReference to a number outside our chain is exactly what the sandbox cannot attest (§16.14.1); the construction is validated locally and stands until the enquiry answers.
+
+## 17.5 The UI and the walk
+
+`OpenItemsSection` (committed batch, migration permission): the identity badge or *e-invoicing identity not stated*; *live row · N correction(s)* and the live outstanding beside the staged one; **Correct amount** (`CorrectOpenItemDialog` — the entry previewed BEFORE the act, in words: Dr/Cr, the accounts, the amount) and **Record identity** (`RecordIdentityDialog`, once). Staging gains the identity and relief columns in the import/editor field specs. Walked by `e2e/migration-workspace.spec.ts` in four modes by real clicks: the staged identity read back, 8,000 → 7,000 through the dialog (original reversed and frozen, replacement live, the OPEN-CORR entry against retained earnings, journal count +1), the collected item refused by name with nothing written, the identity recorded once and the second recording refused, the picker offering the replacement and INV-1001 and none of the unidentified, the note created (201) and the reversed original refused; Arabic labels and no sideways scroll; the dialog inside a 390-px phone.
+
+## 17.6 What this did not do
+
+The partly-settled correction (§16.12.5) — still the accountant's; the ZATCA enquiry on BillingReference to a previous-system number (§16.14.9 item 3) — still ZATCA's; a payable's e-invoicing identity — none exists (the supplier issued it); the historical VAT of a correction — the delta moves AR against retained earnings only, because the previous system's VAT was filed there (§16.12 A5's reasoning); if a corrected amount changes a FILED VAT figure, that is a return correction, not a migration act, and is recorded as such by the accountant.

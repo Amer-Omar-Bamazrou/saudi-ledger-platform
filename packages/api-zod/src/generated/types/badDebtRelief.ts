@@ -8,10 +8,16 @@
 import type { BadDebtReliefSource } from './badDebtReliefSource';
 
 export interface BadDebtRelief {
-  /** YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. */
-  claimedOn: string;
-  /** The Output Tax relieved (the VAT share of the unpaid consideration). */
-  vatAmount: number;
+  /**
+     * YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.
+     * @nullable
+     */
+  claimedOn: string | null;
+  /**
+     * The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.
+     * @nullable
+     */
+  vatAmount: number | null;
   /**
      * YYYY-MM of the return the relief was (or is to be) claimed in.
      * @nullable

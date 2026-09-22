@@ -937,10 +937,13 @@ export const ConvertQuotationResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -5223,10 +5226,13 @@ export const ListInvoicesResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -5360,10 +5366,13 @@ export const CreateInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -5440,10 +5449,13 @@ export const GetInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -5566,10 +5578,13 @@ export const UpdateInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -6391,10 +6406,13 @@ export const CreateAdvanceInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -7382,6 +7400,8 @@ export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin = 0;
 
 export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax = 40;
 
+export const getMigrationOpenItemsResponseRowsItemHistoricalVatOneBadDebtReliefVatAmountMin = 0;
+
 
 
 export const GetMigrationOpenItemsResponse = zod.object({
@@ -7389,6 +7409,13 @@ export const GetMigrationOpenItemsResponse = zod.object({
   "rows": zod.array(zod.object({
   "id": zod.number(),
   "itemType": zod.enum(['ar', 'ap']),
+  "einvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullable().describe('Before commit: as staged. After commit: the LIVE ledger row\'s identity (staged, or recorded once afterwards).'),
+  "sourceUuid": zod.string().nullable(),
+  "liveDocumentId": zod.number().nullable().describe('2026-09-22: after commit, the LIVE ledger row (the last replacement in the item\'s correction chain); null before commit or when the migration was reversed.'),
+  "liveDocumentNumber": zod.string().nullable(),
+  "liveOutstanding": zod.number().nullable().describe('The live row\'s total (an opening item\'s outstanding at cut-off, as corrected).'),
+  "corrections": zod.number().describe('How many item-level corrections the item has had (each a reversed original + a replacement + a retained-earnings entry).'),
+  "liveIdentityRecorded": zod.boolean().describe('Whether the live ledger row carries its e-invoicing identity (from staging or recorded afterwards).'),
   "sourceId": zod.string(),
   "partySourceId": zod.string(),
   "partyName": zod.string().nullable().describe('From the staged party, when it exists.'),
@@ -7405,7 +7432,9 @@ export const GetMigrationOpenItemsResponse = zod.object({
   "taxableAmount": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
   "amount": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin).nullish(),
   "reportedPeriod": zod.string().max(getMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.'),
-  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.')
+  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(7): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). 2026-09-22: a STRUCTURED fact — at commit it lands on the opening receivable (badDebtRelief.source = migrated) and an Art. 40(9) recovery document is declared from it when money arrives. It never restricts a payment or an allocation.'),
+  "badDebtReliefClaimedOn": zod.string().nullish().describe('YYYY-MM-DD: the period the previous system claimed the relief in, when known. Only with badDebtReliefClaimed = true.'),
+  "badDebtReliefVatAmount": zod.number().min(getMigrationOpenItemsResponseRowsItemHistoricalVatOneBadDebtReliefVatAmountMin).nullish().describe('The Output Tax the previous system relieved, when known. Only with badDebtReliefClaimed = true.')
 }).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]),
   "description": zod.string().nullable(),
   "resolvedId": zod.number().nullable().describe('After commit: the opening invoice (ar) or bill (ap) row.'),
@@ -7460,6 +7489,10 @@ export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneAmountMin = 0;
 
 export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneReportedPeriodMax = 40;
 
+export const importMigrationOpenItemsBodyRowsItemHistoricalVatOneBadDebtReliefVatAmountMin = 0;
+
+export const importMigrationOpenItemsBodyRowsItemSourceUuidMax = 64;
+
 export const importMigrationOpenItemsBodyRowsItemDescriptionMax = 500;
 
 export const importMigrationOpenItemsBodyRowsMax = 50000;
@@ -7483,8 +7516,12 @@ export const ImportMigrationOpenItemsBody = zod.object({
   "taxableAmount": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
   "amount": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneAmountMin).nullish(),
   "reportedPeriod": zod.string().max(importMigrationOpenItemsBodyRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.'),
-  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.')
+  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(7): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). 2026-09-22: a STRUCTURED fact — at commit it lands on the opening receivable (badDebtRelief.source = migrated) and an Art. 40(9) recovery document is declared from it when money arrives. It never restricts a payment or an allocation.'),
+  "badDebtReliefClaimedOn": zod.string().nullish().describe('YYYY-MM-DD: the period the previous system claimed the relief in, when known. Only with badDebtReliefClaimed = true.'),
+  "badDebtReliefVatAmount": zod.number().min(importMigrationOpenItemsBodyRowsItemHistoricalVatOneBadDebtReliefVatAmountMin).nullish().describe('The Output Tax the previous system relieved, when known. Only with badDebtReliefClaimed = true.')
 }).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]).optional(),
+  "einvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22 (AR only): what the previous solution did with this tax invoice — cleared (standard), reported (simplified), or pre_einvoicing (issued before the obligation applied). Empty = NOT STATED, which is not a guess: a credit note against the item is refused until it is stated. Never invented.'),
+  "sourceUuid": zod.string().max(importMigrationOpenItemsBodyRowsItemSourceUuidMax).nullish().describe('2026-09-22 (AR only): the previous solution\'s document UUID, verbatim — required for cleared\/reported; the identity a credit note through Fatoora keeps. Never invented.'),
   "description": zod.string().max(importMigrationOpenItemsBodyRowsItemDescriptionMax).nullish()
 })).min(1).max(importMigrationOpenItemsBodyRowsMax)
 })
@@ -7500,6 +7537,8 @@ export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin =
 
 export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax = 40;
 
+export const importMigrationOpenItemsResponseRowsItemHistoricalVatOneBadDebtReliefVatAmountMin = 0;
+
 
 
 export const ImportMigrationOpenItemsResponse = zod.object({
@@ -7507,6 +7546,13 @@ export const ImportMigrationOpenItemsResponse = zod.object({
   "rows": zod.array(zod.object({
   "id": zod.number(),
   "itemType": zod.enum(['ar', 'ap']),
+  "einvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullable().describe('Before commit: as staged. After commit: the LIVE ledger row\'s identity (staged, or recorded once afterwards).'),
+  "sourceUuid": zod.string().nullable(),
+  "liveDocumentId": zod.number().nullable().describe('2026-09-22: after commit, the LIVE ledger row (the last replacement in the item\'s correction chain); null before commit or when the migration was reversed.'),
+  "liveDocumentNumber": zod.string().nullable(),
+  "liveOutstanding": zod.number().nullable().describe('The live row\'s total (an opening item\'s outstanding at cut-off, as corrected).'),
+  "corrections": zod.number().describe('How many item-level corrections the item has had (each a reversed original + a replacement + a retained-earnings entry).'),
+  "liveIdentityRecorded": zod.boolean().describe('Whether the live ledger row carries its e-invoicing identity (from staging or recorded afterwards).'),
   "sourceId": zod.string(),
   "partySourceId": zod.string(),
   "partyName": zod.string().nullable().describe('From the staged party, when it exists.'),
@@ -7523,7 +7569,9 @@ export const ImportMigrationOpenItemsResponse = zod.object({
   "taxableAmount": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneTaxableAmountMin).nullish(),
   "amount": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneAmountMin).nullish(),
   "reportedPeriod": zod.string().max(importMigrationOpenItemsResponseRowsItemHistoricalVatOneReportedPeriodMax).nullish().describe('The return period the document\'s VAT was reported in by the old system.'),
-  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.')
+  "badDebtReliefClaimed": zod.boolean().nullish().describe('VAT Implementing Regulations Art. 40(7): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null \/ absent). 2026-09-22: a STRUCTURED fact — at commit it lands on the opening receivable (badDebtRelief.source = migrated) and an Art. 40(9) recovery document is declared from it when money arrives. It never restricts a payment or an allocation.'),
+  "badDebtReliefClaimedOn": zod.string().nullish().describe('YYYY-MM-DD: the period the previous system claimed the relief in, when known. Only with badDebtReliefClaimed = true.'),
+  "badDebtReliefVatAmount": zod.number().min(importMigrationOpenItemsResponseRowsItemHistoricalVatOneBadDebtReliefVatAmountMin).nullish().describe('The Output Tax the previous system relieved, when known. Only with badDebtReliefClaimed = true.')
 }).describe('The VAT facts of the historical document, as data. Never posted; never a VAT event here.'),zod.null()]),
   "description": zod.string().nullable(),
   "resolvedId": zod.number().nullable().describe('After commit: the opening invoice (ar) or bill (ap) row.'),
@@ -7962,6 +8010,72 @@ export const ReverseMigrationBatchResponse = zod.object({
 
 
 /**
+ * The original ledger row STAYS (marked reversed by its own batch, carrying the correction entry, frozen); a REPLACEMENT row with a new OPEN-<batch>-<seq> number and the corrected amount links back to it; ONE entry dated the correction date in an open month — a receivable decrease: Dr Retained earnings / Cr AR (customer); an increase the reverse; payables mirror. Never an OBE plug, never an edit, never a delete. Refused by name when the item has been acted on since the migration (opening_item_partly_settled — the accountant's open question, Batch 1C pack §16.12.5), when the batch is not committed, when the item's migration was reversed, or when the date precedes the opening.
+ * @summary 2026-09-22 (accountant answer 5, inside A4): correct a COMMITTED migrated item's amount — 100,000 → 90,000 — with retained earnings on the other side
+ */
+export const CorrectMigratedOpenItemParams = zod.object({
+  "itemId": zod.coerce.number().describe('The STAGING row (migration_open_items.id) — the migrated document\'s identity across corrections.')
+})
+
+export const correctMigratedOpenItemBodyCorrectOutstandingExclusiveMin = 0;
+
+export const correctMigratedOpenItemBodyReasonMax = 1000;
+
+export const correctMigratedOpenItemBodyIdempotencyKeyMax = 120;
+
+
+
+export const CorrectMigratedOpenItemBody = zod.object({
+  "correctOutstanding": zod.number().gt(correctMigratedOpenItemBodyCorrectOutstandingExclusiveMin).describe('The corrected outstanding amount of the item (what the previous system\'s document truly was).'),
+  "reason": zod.string().min(1).max(correctMigratedOpenItemBodyReasonMax).describe('The audit trail\'s explanation (a transfer error, a wrong figure in the previous system, …).'),
+  "date": zod.string().nullish().describe('YYYY-MM-DD, default today; an open month on or after the opening date.'),
+  "idempotencyKey": zod.string().max(correctMigratedOpenItemBodyIdempotencyKeyMax).nullish()
+})
+
+export const CorrectMigratedOpenItemResponse = zod.object({
+  "original": zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "total": zod.number()
+}),
+  "replacement": zod.object({
+  "id": zod.number(),
+  "number": zod.string(),
+  "total": zod.number()
+}),
+  "delta": zod.number().describe('correct − previous (negative for a decrease).'),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string()
+})
+
+
+/**
+ * cleared / reported (with the previous solution's UUID) or pre_einvoicing — the facts a credit note through Fatoora needs to name the original. Set once on the live ledger row; a trigger refuses any later change (opening_identity_already_recorded). Never guessed.
+ * @summary 2026-09-22 (accountant answer 3): record, ONCE, the previous solution's e-invoicing identity of a migrated receivable the migration did not carry
+ */
+export const RecordMigratedOpenItemIdentityParams = zod.object({
+  "itemId": zod.coerce.number()
+})
+
+export const recordMigratedOpenItemIdentityBodySourceUuidMax = 64;
+
+
+
+export const RecordMigratedOpenItemIdentityBody = zod.object({
+  "einvoicingStatus": zod.enum(['cleared', 'reported', 'pre_einvoicing']),
+  "sourceUuid": zod.string().max(recordMigratedOpenItemIdentityBodySourceUuidMax).nullish().describe('Required for cleared \/ reported.')
+})
+
+export const RecordMigratedOpenItemIdentityResponse = zod.object({
+  "invoiceId": zod.number(),
+  "invoiceNumber": zod.string(),
+  "einvoicingStatus": zod.enum(['cleared', 'reported', 'pre_einvoicing']),
+  "sourceUuid": zod.string().nullable()
+})
+
+
+/**
  * ONE act, because the relief presupposes the write-off (Art. 40(7)(d)). Refused by name unless every condition holds: an issued tax invoice or debit note with a customer (bad_debt_not_issued, bad_debt_requires_customer), not a migrated opening item (opening_item_relief_is_migration_fact, the previous system's fact), not already written off, twelve months since the supply (bad_debt_relief_too_early, with the earliest date), a certificate reference, and legal-procedure evidence above SAR 100,000 (bad_debt_legal_procedures_required). Posts, dated claimedOn in an open month: Dr Bad debts (net), Dr VAT Payable (the relief) / Cr AR (the unpaid consideration); the invoice stays issued with writtenOffAmount and badDebtRelief set; the return shows the relief in box 7 for that period.
  * @summary 2026-09-22: write off an issued invoice's unpaid consideration as a bad debt and claim the Art. 40(7) VAT relief
  */
@@ -8019,10 +8133,13 @@ export const WriteOffBadDebtResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -8117,10 +8234,13 @@ export const CreateBadDebtRecoveryResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -8214,10 +8334,13 @@ export const CreateAdvanceCreditNoteResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -8307,10 +8430,13 @@ export const PayInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -8671,10 +8797,13 @@ export const SubmitInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -8756,10 +8885,13 @@ export const SendBackInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
@@ -8837,10 +8969,13 @@ export const ApproveInvoiceResponse = zod.object({
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
   "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
   "badDebtRelief": zod.union([zod.object({
-  "claimedOn": zod.string().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to.'),
-  "vatAmount": zod.number().describe('The Output Tax relieved (the VAT share of the unpaid consideration).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
   "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),

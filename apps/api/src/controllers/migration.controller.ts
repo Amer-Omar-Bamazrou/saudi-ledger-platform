@@ -2,8 +2,9 @@ import type { Request, Response } from "express";
 import {
   CreateMigrationBatchBody, UpdateMigrationBatchBody, ImportMigrationChartBody, DecideMigrationChartRowBody,
   ImportMigrationPartiesBody, DecideMigrationPartyBody, ImportMigrationOpenItemsBody, ImportMigrationAdvancesBody,
-  ReverseMigrationBatchBody,
+  ReverseMigrationBatchBody, CorrectMigratedOpenItemBody, RecordMigratedOpenItemIdentityBody,
 } from "@workspace/api-zod";
+import { migrationCorrectionService } from "../services/migrationCorrection.service";
 import { migrationCommitService } from "../services/migrationCommit.service";
 import { migrationService } from "../services/migration.service";
 import { migrationStagingService } from "../services/migrationStaging.service";
@@ -20,6 +21,11 @@ function parseOr400<T>(result: { success: true; data: T } | { success: false; er
 function rowIdParam(req: Request): number {
   const n = Number(req.params.rowId);
   if (!Number.isInteger(n) || n <= 0) throw new BadRequestError("rowId must be a positive integer");
+  return n;
+}
+function itemIdParam(req: Request): number {
+  const n = Number(req.params.itemId);
+  if (!Number.isInteger(n) || n <= 0) throw new BadRequestError("itemId must be a positive integer");
   return n;
 }
 
@@ -96,5 +102,15 @@ export const migrationController = {
   async reverse(req: Request, res: Response) {
     const body = parseOr400(ReverseMigrationBatchBody.safeParse(req.body));
     res.json(await migrationCommitService.reverse(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  /** 2026-09-22 — answer 5 inside A4: correct a committed item's amount against retained earnings. */
+  async correctOpenItem(req: Request, res: Response) {
+    const body = parseOr400(CorrectMigratedOpenItemBody.safeParse(req.body));
+    res.json(await migrationCorrectionService.correctOpenItem(itemIdParam(req), body, req.session?.userId ?? null));
+  },
+  /** 2026-09-22 — answer 3: the previous solution's e-invoicing identity, recorded once. */
+  async recordOpenItemIdentity(req: Request, res: Response) {
+    const body = parseOr400(RecordMigratedOpenItemIdentityBody.safeParse(req.body));
+    res.json(await migrationCorrectionService.recordIdentity(itemIdParam(req), body, req.session?.userId ?? null));
   },
 };

@@ -93,13 +93,14 @@ export default function CreditNotes() {
 
   const notes = all.filter((i) => i.documentType === "credit_note" || i.documentType === "debit_note");
   // Only ISSUED invoices can be corrected — a draft has nothing in the books.
-  // Batch 1C, Issue 1 carry-over: an OPENING item (a historical record from the
-  // previous system) is never offered as an original. Whether a note may ever
-  // reference a previous-system invoice is an open ZATCA / accountant question;
-  // the server refuses it fail-closed (409 note_original_is_opening_item) and
-  // the picker does not lead the user to that refusal.
+  // 2026-09-22 (accountant answer 3): a credit note against an invoice the
+  // PREVIOUS solution issued is issued here, through Fatoora, naming the
+  // original — so an OPENING item is offered once its e-invoicing identity is
+  // recorded (Migration → open items → Record identity) and it is the live
+  // row of its correction chain; the server refuses the rest by name
+  // (opening_item_einvoicing_identity_missing, opening_item_reversed).
   const correctable = all.filter(
-    (i) => i.documentType === "invoice" && ["sent", "paid"].includes(i.status) && !i.isOpening,
+    (i) => i.documentType === "invoice" && ["sent", "paid"].includes(i.status) && (!i.isOpening || (!!i.openingEinvoicingStatus && i.reversedAt == null)),
   );
 
   const create = useMutation({
@@ -160,7 +161,7 @@ export default function CreditNotes() {
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button disabled={correctable.length === 0}>
+            <Button disabled={correctable.length === 0} data-testid="new-note">
               <Plus className="h-4 w-4 me-2" />
               {t("New note", "إشعار جديد")}
             </Button>
@@ -195,7 +196,7 @@ export default function CreditNotes() {
                   value={form.originalInvoiceId}
                   onValueChange={(v) => setForm({ ...form, originalInvoiceId: v })}
                 >
-                  <SelectTrigger><SelectValue placeholder={t("Select an issued invoice", "اختر فاتورة صادرة")} /></SelectTrigger>
+                  <SelectTrigger data-testid="note-original"><SelectValue placeholder={t("Select an issued invoice", "اختر فاتورة صادرة")} /></SelectTrigger>
                   <SelectContent>
                     {correctable.map((i) => (
                       <SelectItem key={i.id} value={String(i.id)}>

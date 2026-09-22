@@ -59,7 +59,10 @@ export type OpenItemInput = {
   outstandingAmount: number;
   compositionUnknown?: boolean;
   /** Art. 40(9) `badDebtReliefClaimed`: true / false / null, INFORMATION ONLY — stored with the historical VAT facts, echoed back, carried onto the opening receivable as provenance text; nothing acts on it. */
-  historicalVat?: { category?: string | null; rate?: number | null; taxableAmount?: number | null; amount?: number | null; reportedPeriod?: string | null; badDebtReliefClaimed?: boolean | null } | null;
+  historicalVat?: { category?: string | null; rate?: number | null; taxableAmount?: number | null; amount?: number | null; reportedPeriod?: string | null; badDebtReliefClaimed?: boolean | null; badDebtReliefClaimedOn?: string | null; badDebtReliefVatAmount?: number | null } | null;
+  /** 2026-09-22 (answer 3): the previous solution's e-invoicing identity of an AR document — `cleared` / `reported` (with the UUID) / `pre_einvoicing`; NULL = not stated (gates a credit note; never guessed). */
+  sourceUuid?: string | null;
+  einvoicingStatus?: "cleared" | "reported" | "pre_einvoicing" | null;
   description?: string | null;
 };
 
@@ -212,11 +215,22 @@ function toPartyOut(p: MigrationParty, c: StagedContent, candidates: Candidate[]
   };
 }
 
-function toOpenItemOut(i: MigrationOpenItem, c: StagedContent) {
+type LiveRow = { id: number; number: string; total: number; corrections: number; identityRecorded: boolean; einvoicingStatus: string | null; sourceUuid: string | null } | null;
+
+function toOpenItemOut(i: MigrationOpenItem, c: StagedContent, live: LiveRow = null) {
   const party = partyIndex(c.parties).get(partyKey(i.itemType === "ar" ? "customer" : "vendor", i.partySourceId));
   return {
     id: i.id,
     itemType: i.itemType as "ar" | "ap",
+    // the identity: the staging row's before commit; after commit the LIVE row's (it may have been recorded there afterwards, once)
+    einvoicingStatus: (live ? live.einvoicingStatus : (i.einvoicingStatus ?? null)) as "cleared" | "reported" | "pre_einvoicing" | null,
+    sourceUuid: live ? live.sourceUuid : (i.sourceUuid ?? null),
+    // 2026-09-22: the LIVE ledger row after commit (the last replacement in the item's correction chain)
+    liveDocumentId: live?.id ?? null,
+    liveDocumentNumber: live?.number ?? null,
+    liveOutstanding: live?.total ?? null,
+    corrections: live?.corrections ?? 0,
+    liveIdentityRecorded: live?.identityRecorded ?? false,
     sourceId: i.sourceId,
     partySourceId: i.partySourceId,
     partyName: party?.name ?? null,
@@ -413,7 +427,8 @@ export const migrationStagingService = {
   async getOpenItems(batchId: number) {
     const batch = await migrationService.requireBatch(batchId);
     const c = await readStagedContent(batch);
-    const rows = c.items.map((i) => toOpenItemOut(i, c));
+    const liveRows = batch.status === "committed" || batch.status === "reversed" ? await migrationRepository.liveRowsOfItems(c.items.map((i) => i.id)) : new Map<number, LiveRow>();
+    const rows = c.items.map((i) => toOpenItemOut(i, c, liveRows.get(i.id) ?? null));
     return {
       batchId,
       rows,
@@ -457,7 +472,10 @@ export const migrationStagingService = {
           if (v[k] != null && (!Number.isFinite(num(v[k])) || num(v[k]) < 0)) throw new BadRequestError(`${where}.historicalVat.${k} must be a non-negative number.`);
         }
         if (v.rate != null && num(v.rate) > 100) throw new BadRequestError(`${where}.historicalVat.rate must be a percentage.`);
-        if (v.badDebtReliefClaimed != null && typeof v.badDebtReliefClaimed !== "boolean") throw new BadRequestError(`${where}.historicalVat.badDebtReliefClaimed must be true, false or null — whether the previous system claimed VAT bad-debt relief (Art. 40(9)) on this document; it is recorded, never acted on.`);
+        if (v.badDebtReliefClaimed != null && typeof v.badDebtReliefClaimed !== "boolean") throw new BadRequestError(`${where}.historicalVat.badDebtReliefClaimed must be true, false or null — whether the previous system claimed VAT bad-debt relief (Art. 40(7)) on this document; a later recovery is declared under Art. 40(9) from it.`);
+        if (v.badDebtReliefClaimedOn != null && !isIsoDate(v.badDebtReliefClaimedOn)) throw new BadRequestError(`${where}.historicalVat.badDebtReliefClaimedOn must be YYYY-MM-DD (the period the previous system claimed the relief in).`);
+        if (v.badDebtReliefVatAmount != null && (!Number.isFinite(num(v.badDebtReliefVatAmount)) || num(v.badDebtReliefVatAmount) < 0)) throw new BadRequestError(`${where}.historicalVat.badDebtReliefVatAmount must be a non-negative number.`);
+        if ((v.badDebtReliefClaimedOn != null || v.badDebtReliefVatAmount != null) && v.badDebtReliefClaimed !== true) throw new BadRequestError(`${where}.historicalVat: a relief date or amount is stated only when badDebtReliefClaimed is true.`);
         historicalVat = {
           category: v.category ?? null,
           rate: v.rate == null ? null : round2(num(v.rate)),
@@ -465,8 +483,17 @@ export const migrationStagingService = {
           amount: v.amount == null ? null : round2(num(v.amount)),
           reportedPeriod: v.reportedPeriod?.trim() || null,
           badDebtReliefClaimed: v.badDebtReliefClaimed ?? null,
+          badDebtReliefClaimedOn: v.badDebtReliefClaimedOn ?? null,
+          badDebtReliefVatAmount: v.badDebtReliefVatAmount == null ? null : round2(num(v.badDebtReliefVatAmount)),
         };
       }
+      // 2026-09-22 (answer 3): the original's e-invoicing identity — stated or absent, never guessed; AR only.
+      const einvoicingStatus = (r.einvoicingStatus as string | null | undefined) == null || (r.einvoicingStatus as string) === "" ? null : (r.einvoicingStatus as "cleared" | "reported" | "pre_einvoicing");
+      if (einvoicingStatus != null && !["cleared", "reported", "pre_einvoicing"].includes(String(einvoicingStatus))) throw new BadRequestError(`${where}.einvoicingStatus must be cleared, reported, pre_einvoicing or empty (not stated).`);
+      const sourceUuid = typeof r.sourceUuid === "string" && r.sourceUuid.trim() ? r.sourceUuid.trim() : null;
+      if (sourceUuid != null && sourceUuid.length > 64) throw new BadRequestError(`${where}.sourceUuid is too long.`);
+      if (r.itemType === "ap" && (einvoicingStatus != null || sourceUuid != null)) throw new BadRequestError(`${where}: an e-invoicing identity belongs to a tax invoice the previous solution issued (an AR item), not to a payable.`);
+      if ((einvoicingStatus === "cleared" || einvoicingStatus === "reported") && sourceUuid == null) throw new BadRequestError(`${where}: a ${einvoicingStatus} document carries the previous solution's UUID (sourceUuid); it is required for the day a credit note names it through Fatoora.`);
       return {
         batchId,
         sourceSystem: batch.sourceSystem,
@@ -478,6 +505,8 @@ export const migrationStagingService = {
         dueDate: r.dueDate,
         originalAmount: fmt(original),
         outstandingAmount: fmt(outstanding),
+        sourceUuid,
+        einvoicingStatus,
         currency: "SAR",
         compositionUnknown: !!r.compositionUnknown,
         historicalVat,

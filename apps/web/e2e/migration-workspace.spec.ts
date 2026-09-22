@@ -36,13 +36,16 @@ const PARTIES_CSV = [
   "vendor,V1,Delta Supplies,,",
 ].join("\n");
 // INV-1004 is DELIBERATELY dated after the opening date (2024-12-31): the server's OPEN_ITEMS control must block it.
+// 2026-09-22: INV-1001 carries the previous solution's e-invoicing identity (cleared, with its UUID);
+// INV-1002 states nothing — the follow-ups test records it ONCE through the UI before a credit note is allowed.
+const UUID_1001 = "6f9619ff-8b86-4d11-b42d-00c04fc964ff";
 const ITEMS_CSV = [
-  "itemType,sourceId,partySourceId,documentNumber,issueDate,dueDate,originalAmount,outstandingAmount,historicalVat.category,historicalVat.rate,historicalVat.badDebtReliefClaimed",
-  "ar,SI-1001,C1,INV-1001,2024-11-10,2024-12-10,10000,10000,S,15,yes",
-  "ar,SI-1002,C1,INV-1002,2024-12-01,2024-12-31,8000,8000,,,no",
-  "ar,SI-1003,C2,INV-1003,2024-12-10,2025-01-09,4000,4000,,,",
-  "ar,SI-1004,C2,INV-1004,2025-01-15,2025-02-14,3000,3000,,,",
-  "ap,PI-77,V1,BILL-77,2024-10-15,2024-11-14,7000,7000,,,",
+  "itemType,sourceId,partySourceId,documentNumber,issueDate,dueDate,originalAmount,outstandingAmount,historicalVat.category,historicalVat.rate,historicalVat.badDebtReliefClaimed,einvoicingStatus,sourceUuid",
+  `ar,SI-1001,C1,INV-1001,2024-11-10,2024-12-10,10000,10000,S,15,yes,cleared,${UUID_1001}`,
+  "ar,SI-1002,C1,INV-1002,2024-12-01,2024-12-31,8000,8000,,,no,,",
+  "ar,SI-1003,C2,INV-1003,2024-12-10,2025-01-09,4000,4000,,,,,",
+  "ar,SI-1004,C2,INV-1004,2025-01-15,2025-02-14,3000,3000,,,,,",
+  "ap,PI-77,V1,BILL-77,2024-10-15,2024-11-14,7000,7000,,,,,",
 ].join("\n");
 
 async function importSet(page: Page, kind: "chart" | "parties" | "ar", csv: string) {
@@ -232,25 +235,25 @@ test.describe.serial("the migration, end to end", () => {
     await expect(row.getByRole("button", { name: "Mark Paid" })).toBeVisible();
     // an ordinary issued invoice would show the PDF link — the note is not hiding it for everyone (there is none here, so assert the class on the seeded smoke tenant is out of scope; the unit of proof is the row)
 
-    // credit notes: the picker never offers an opening item as an original
+    // credit notes: the picker offers no original yet — INV-1001 is cleared (identity known) but INV-1002..1004 state nothing;
+    // INV-1001 IS offered (accountant answer 3: a note against a previous-system invoice goes through Fatoora once it is identified)
     await page.goto("/credit-notes");
     await expect(page.locator("main")).toContainText(/credit/i);
-    const pickerTrigger = page.locator('[role="combobox"]').first();
-    if (await page.getByRole("button", { name: /new credit note|credit note/i }).first().isVisible().catch(() => false)) {
-      await page.getByRole("button", { name: /new credit note|credit note/i }).first().click();
-    }
-    if (await pickerTrigger.isVisible().catch(() => false)) {
-      await pickerTrigger.click();
-      const opts = await page.getByRole("option").allTextContents();
-      expect(opts.join(" | ")).not.toMatch(/INV-100[1-4]/);
-      await page.keyboard.press("Escape");
-    }
+    await expect(page.getByTestId("new-note")).toBeEnabled();
+    await page.getByTestId("new-note").click();
+    await page.getByTestId("note-original").click();
+    const opts0 = await page.getByRole("option").allTextContents();
+    expect(opts0.join(" | ")).toContain("INV-1001");
+    expect(opts0.join(" | ")).not.toMatch(/INV-100[2-4]/);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
     // the server's fail-closed guard, exercised from the same session
     const inv = await (await page.request.get("/api/invoices?limit=50")).json();
     const target = inv.items.find((i: { invoiceNumber: string }) => i.invoiceNumber === "INV-1002");
+    // 2026-09-22 (accountant answer 3): the refusal names the MISSING IDENTITY, not the opening item as such
     const refused = await page.request.post("/api/invoices", { data: { invoiceNumber: "CN-E2E-1", documentType: "credit_note", originalInvoiceId: target.id, noteReason: "test", date: "2025-02-01", dueDate: "2025-02-01", customerId: target.customerId, items: [{ description: "x", quantity: 1, unitPrice: 10, vatRate: 15 }] } });
     expect(refused.status()).toBe(409);
-    expect((await refused.json()).code).toBe("note_original_is_opening_item");
+    expect((await refused.json()).code).toBe("opening_item_einvoicing_identity_missing");
     const pdf = await page.request.get(`/api/invoices/${target.id}/document?lang=ar`);
     expect(pdf.status()).toBe(409);
 
@@ -277,6 +280,96 @@ test.describe.serial("the migration, end to end", () => {
     await expect(page.getByTestId("open-reverse")).toBeDisabled();
   });
 
+  test("🔴 migration follow-ups (2026-09-22): the identity badges; INV-1002 8,000 → 7,000 through the dialog (the original stays, a replacement OPEN number, retained earnings on the other side); the collected item is refused by name; the identity recorded ONCE unlocks a credit note through Fatoora and is then never changed", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto(`/migration/${batchId}?section=ar`);
+    // identity as staged: INV-1001 cleared + UUID; INV-1002 not stated
+    await expect(page.getByTestId("identity-INV-1001")).toContainText("cleared");
+    await expect(page.getByTestId("identity-INV-1001")).toContainText(UUID_1001);
+    await expect(page.getByTestId("identity-missing-INV-1002")).toBeVisible();
+    await expect(page.getByTestId("live-number-INV-1002")).toHaveCount(0);
+
+    // the correction, through the dialog
+    const jeBefore = (await (await page.request.get("/api/journal-entries?limit=5")).json()).page.total as number;
+    await page.getByTestId("correct-amount-INV-1002").click();
+    const dlg = page.getByTestId("correct-open-item-dialog");
+    await expect(dlg).toBeVisible();
+    await expect(dlg.getByTestId("correct-current")).toContainText("8,000.00");
+    await expect(dlg.getByTestId("correct-submit")).toBeDisabled();
+    await dlg.getByTestId("correct-amount").fill("7000");
+    await dlg.getByTestId("correct-date").fill("2025-02-10");
+    await dlg.getByTestId("correct-reason").fill("transfer error: the previous system's invoice was 7,000");
+    await expect(dlg.getByTestId("correct-preview")).toContainText("Dr Retained earnings SAR 1,000.00 / Cr Accounts receivable SAR 1,000.00");
+    await dlg.getByTestId("correct-submit").click();
+    await expect(dlg).toBeHidden({ timeout: 15_000 });
+    await expect(page.getByTestId("live-number-INV-1002")).toContainText(`OPEN-${batchId}-`);
+    await expect(page.getByTestId("live-number-INV-1002")).toContainText("1 correction(s)");
+    await expect(page.getByTestId("live-outstanding-INV-1002")).toContainText("7,000.00");
+    // the books: the original stays (reversed), the replacement is live for 7,000, ONE new entry against retained earnings
+    // the reversed original leaves the LIVE list (Batch 1C); it is still there by id
+    type Row = { id: number; invoiceNumber: string; total: number; isOpening: boolean; reversedAt: string | null; replacesInvoiceId?: number | null; openingCorrectionJournalEntryId?: number | null; customerId: number };
+    const inv = (await (await page.request.get("/api/invoices?limit=50")).json()).items as Row[];
+    expect(inv.find((i) => i.invoiceNumber === "INV-1002")).toBeUndefined();
+    const replacement = inv.find((i) => i.replacesInvoiceId != null && i.isOpening)!;
+    const original = (await (await page.request.get(`/api/invoices/${replacement.replacesInvoiceId}`)).json()) as Row;
+    expect(original.invoiceNumber).toBe("INV-1002");
+    expect(original.reversedAt).not.toBeNull();
+    expect(original.total).toBe(8000);
+    expect(original.openingCorrectionJournalEntryId).toEqual(expect.any(Number));
+    expect(replacement.invoiceNumber).toMatch(new RegExp(`^OPEN-${batchId}-\\d+$`));
+    expect([replacement.total, replacement.isOpening, replacement.reversedAt]).toEqual([7000, true, null]);
+    const je = await (await page.request.get("/api/journal-entries?limit=5")).json();
+    expect(je.page.total).toBe(jeBefore + 1);
+    const corr = await (await page.request.get(`/api/journal-entries/${original.openingCorrectionJournalEntryId}`)).json();
+    expect(corr.entryNumber).toMatch(/^OPEN-CORR-/);
+    expect(corr.reference).toBe(`migration:${batchId}`);
+    const byCode = Object.fromEntries((corr.lines as { systemCode?: string | null; accountCode?: string; debitAmount: number; creditAmount: number; accountName: string }[]).map((l) => [l.accountName, [l.debitAmount, l.creditAmount]]));
+    expect(byCode["Retained earnings"] ?? byCode["Retained Earnings"]).toEqual([1000, 0]);
+    expect(byCode["Accounts Receivable"] ?? byCode["Accounts receivable"]).toEqual([0, 1000]);
+
+    // the collected item (INV-1003, paid in the previous test): refused BY NAME, nothing written
+    const items = (await (await page.request.get(`/api/migration/batches/${batchId}/open-items`)).json()).rows as { id: number; documentNumber: string; liveIdentityRecorded: boolean; corrections: number }[];
+    const s1003 = items.find((r) => r.documentNumber === "INV-1003")!;
+    const refused = await page.request.post(`/api/migration/open-items/${s1003.id}/correct`, { data: { correctOutstanding: 3500, reason: "x" } });
+    expect(refused.status()).toBe(409);
+    expect((await refused.json()).code).toBe("opening_item_partly_settled");
+    expect((await (await page.request.get("/api/journal-entries?limit=5")).json()).page.total).toBe(jeBefore + 1);
+
+    // the identity, recorded ONCE through the dialog — on the live replacement row of INV-1002
+    await page.getByTestId("record-identity-INV-1002").click();
+    const idDlg = page.getByTestId("record-identity-dialog");
+    await expect(idDlg).toBeVisible();
+    await expect(idDlg.getByTestId("identity-submit")).toBeDisabled();
+    await idDlg.getByTestId("identity-status").click();
+    await pickOption(page, /Issued before e-invoicing/);
+    await expect(idDlg.getByTestId("identity-uuid")).toHaveCount(0); // pre-e-invoicing: no UUID exists to record
+    await idDlg.getByTestId("identity-submit").click();
+    await expect(idDlg).toBeHidden({ timeout: 15_000 });
+    await expect(page.getByTestId("identity-INV-1002")).toContainText("pre-e-invoicing");
+    await expect(page.getByTestId("record-identity-INV-1002")).toHaveCount(0);
+    // never changed: the second recording is refused at the API
+    const s1002 = items.find((r) => r.documentNumber === "INV-1002")!;
+    const again = await page.request.put(`/api/migration/open-items/${s1002.id}/identity`, { data: { einvoicingStatus: "cleared", sourceUuid: "not-invented-here" } });
+    expect(again.status()).toBe(409);
+    expect((await again.json()).code).toBe("opening_identity_already_recorded");
+    // the credit note is now ALLOWED against the live row — through the picker, which offers it — and names the previous system's number
+    await page.goto("/credit-notes");
+    await page.getByTestId("new-note").click();
+    await page.getByTestId("note-original").click();
+    const opts = await page.getByRole("option").allTextContents();
+    expect(opts.join(" | ")).toContain(replacement.invoiceNumber);
+    expect(opts.join(" | ")).toContain("INV-1001");
+    expect(opts.join(" | ")).not.toMatch(/INV-1002|INV-1003|INV-1004/);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    const cn = await page.request.post("/api/invoices", { data: { invoiceNumber: "CN-E2E-2", documentType: "credit_note", originalInvoiceId: replacement.id, noteReason: "Price adjustment", date: "2025-02-11", dueDate: "2025-02-11", customerId: replacement.customerId, items: [{ description: "Adj", quantity: 1, unitPrice: 100, vatRate: 15 }] } });
+    expect(cn.status(), await cn.text()).toBe(201);
+    // the reversed original stays refused by name (the Batch 1C write boundary, before any note rule)
+    const onOriginal = await page.request.post("/api/invoices", { data: { invoiceNumber: "CN-E2E-3", documentType: "credit_note", originalInvoiceId: original.id, noteReason: "x", date: "2025-02-11", dueDate: "2025-02-11", customerId: original.customerId, items: [{ description: "x", quantity: 1, unitPrice: 10, vatRate: 15 }] } });
+    expect(onOriginal.status()).toBe(409);
+    expect((await onOriginal.json()).code).toBe("opening_item_reversed");
+  });
+
   test("Arabic / RTL: the workspace reads right-to-left with Arabic labels, and nothing scrolls sideways", async ({ page }) => {
     await page.goto(`/migration/${batchId}?section=overview`);
     await page.evaluate(() => localStorage.setItem("ksa_lang", "ar"));
@@ -292,6 +385,13 @@ test.describe.serial("the migration, end to end", () => {
     await expect(page.getByTestId("relief-INV-1001").or(page.getByTestId("section-commit"))).toBeVisible();
     await page.getByTestId("tab-ar").click();
     await expect(page.getByTestId("relief-INV-1001")).toContainText("نعم");
+    await expect(page.getByTestId("identity-INV-1001")).toContainText("معتمدة");
+    await expect(page.getByTestId("identity-INV-1002")).toContainText("قبل الفوترة الإلكترونية");
+    await expect(page.getByTestId("live-number-INV-1002")).toContainText("الصف الحي");
+    await page.getByTestId("correct-amount-INV-1001").click();
+    await expect(page.getByTestId("correct-open-item-dialog")).toContainText("تصحيح المبلغ المرحَّل");
+    await noHorizontalScroll(page, "ar correct dialog");
+    await page.keyboard.press("Escape");
     await page.goto("/invoices");
     await expect(page.locator("tr", { hasText: "INV-1001" }).first().getByTestId("opening-record-note")).toContainText("سجل تاريخي");
     await page.evaluate(() => localStorage.setItem("ksa_lang", "en"));
@@ -308,6 +408,14 @@ test.describe.serial("the migration, end to end", () => {
       await expect(page.getByTestId(`section-${s}`)).toBeVisible();
       await noHorizontalScroll(page, `phone ${s}`);
     }
+    // the follow-up dialogs fit a phone too (opened by a real click on the AR section's row action)
+    await page.goto(`/migration/${batchId}?section=ar`);
+    await page.getByTestId("correct-amount-INV-1001").click();
+    const corr = page.getByTestId("correct-open-item-dialog");
+    await expect(corr).toBeVisible();
+    await expect.poll(async () => { const box = await corr.boundingBox(); return !!box && box.x >= 0 && box.x + box.width <= 391; }, { message: "the correction dialog fits a 390px phone", timeout: 5_000 }).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(corr).toBeHidden();
     await page.goto("/migration");
     await noHorizontalScroll(page, "phone list");
     await page.getByTestId("new-migration").click();

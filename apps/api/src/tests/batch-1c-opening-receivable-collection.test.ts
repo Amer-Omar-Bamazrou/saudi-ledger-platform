@@ -230,8 +230,8 @@ describeMaybe("Batch 1C — Issue 1: opening receivables collect through D-4 and
     // The staged rows echo the flag exactly as staged, and an item without it reads null.
     const staged = await inTenant(() => migrationStagingService.importOpenItems(b0.id, { rows: ITEMS }, userId));
     const s = (sid: string) => staged.rows.find((r) => r.sourceId === sid)!;
-    expect(s("SI-1001").historicalVat).toEqual({ category: "S", rate: 15, taxableAmount: 8695.65, amount: 1304.35, reportedPeriod: "2026-Q2", badDebtReliefClaimed: true });
-    expect(s("SI-1002").historicalVat).toEqual({ category: null, rate: null, taxableAmount: null, amount: null, reportedPeriod: null, badDebtReliefClaimed: false });
+    expect(s("SI-1001").historicalVat).toEqual({ category: "S", rate: 15, taxableAmount: 8695.65, amount: 1304.35, reportedPeriod: "2026-Q2", badDebtReliefClaimed: true, badDebtReliefClaimedOn: null, badDebtReliefVatAmount: null });
+    expect(s("SI-1002").historicalVat).toEqual({ category: null, rate: null, taxableAmount: null, amount: null, reportedPeriod: null, badDebtReliefClaimed: false, badDebtReliefClaimedOn: null, badDebtReliefVatAmount: null });
     expect(s("SI-1003").historicalVat).toBeNull();
     expect(s("SI-1004").historicalVat).toMatchObject({ category: "S", badDebtReliefClaimed: null });
     expect(staged.rows.every((r) => r.problems.length === 0)).toBe(true);
@@ -380,7 +380,7 @@ describeMaybe("Batch 1C — Issue 1: opening receivables collect through D-4 and
     expect(bill).toMatchObject({ status: "paid", paidAmount: 7000 });
   });
 
-  it("🔴 not a tax invoice — an opening receivable cannot be RENDERED as one, and cannot be the ORIGINAL of a credit or debit note (fail-closed, named); the ordinary invoice renders and can be corrected", async () => {
+  it("🔴 not a tax invoice — an opening receivable cannot be RENDERED as one, and cannot be the ORIGINAL of a credit or debit note while its e-invoicing identity is unstated (fail-closed, named — accountant answer 3, 2026-09-22; the allowed case is in migration-followups.test.ts); the ordinary invoice renders and can be corrected", async () => {
     await expectRefusal(inTenant(() => buildInvoiceDocModel(ids["INV-1001"], "en")), 409, "opening_item_not_a_tax_invoice");
     await expectRefusal(inTenant(() => buildInvoiceDocModel(ids["INV-1002"], "ar")), 409, "opening_item_not_a_tax_invoice");
     const slId = (await invoiceRow("SL-2026-001")).id;
@@ -388,8 +388,8 @@ describeMaybe("Batch 1C — Issue 1: opening receivables collect through D-4 and
     expect(model).toMatchObject({ documentType: "invoice", invoiceNumber: "SL-2026-001" });
     expect(model.qrDataUrl).toBeTruthy();
     const note = (original: number, number: string) => ({ invoiceNumber: number, documentType: "credit_note", originalInvoiceId: original, noteReason: "Goods returned", date: "2026-07-23", dueDate: "2026-07-23", customerId: alphaId, items: [{ description: "Return", quantity: 1, unitPrice: 100, vatRate: 15 }] });
-    await expectRefusal(inTenant(() => invoicesService.create(note(ids["INV-1001"], "CN-OPEN-1"), userId)), 409, "note_original_is_opening_item");
-    await expectRefusal(inTenant(() => invoicesService.create({ ...note(ids["INV-1002"], "DN-OPEN-1"), documentType: "debit_note" }, userId)), 409, "note_original_is_opening_item");
+    await expectRefusal(inTenant(() => invoicesService.create(note(ids["INV-1001"], "CN-OPEN-1"), userId)), 409, "opening_item_einvoicing_identity_missing");
+    await expectRefusal(inTenant(() => invoicesService.create({ ...note(ids["INV-1002"], "DN-OPEN-1"), documentType: "debit_note" }, userId)), 409, "opening_item_einvoicing_identity_missing");
     const cn = await inTenant(() => invoicesService.create(note(slId, "CN-SL-1"), userId));
     expect(cn).toMatchObject({ documentType: "credit_note", originalInvoiceId: slId, status: "draft" });
     expect((await pool.query(`SELECT count(*)::int n FROM invoices WHERE company_id = $1 AND document_type IN ('credit_note','debit_note')`, [companyId])).rows[0].n).toBe(1);

@@ -419,7 +419,7 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
     const [recovered] = await invoiceSettlementRepository.lockInvoices([inv.recoversInvoiceId!]);
     const [payment] = await paymentsRepository.lockPayment(inv.recoveryPaymentId!);
     if (!recovered || !payment) throw new BusinessRuleError(409, { code: "recovery_source_missing", error: `The receivable or the receipt this recovery invoice declares no longer exists.` });
-    if (!recovered.badDebtReliefClaimedOn) throw new BusinessRuleError(409, { code: "recovery_requires_relief", error: `${recovered.invoiceNumber} no longer carries bad-debt relief; the recovery invoice cannot be issued.` });
+    if (!recovered.badDebtReliefSource) throw new BusinessRuleError(409, { code: "recovery_requires_relief", error: `${recovered.invoiceNumber} no longer carries bad-debt relief; the recovery invoice cannot be issued.` });
     await assertTaxPointPeriodOpen({ id: payment.id, paidAt: payment.paidAt });
     const party = { type: "customer" as const, customerId: inv.customerId! };
     const writtenOffHere = toNum(recovered.writtenOffAmount) > 0.005 && recovered.badDebtReliefSource === "recorded";

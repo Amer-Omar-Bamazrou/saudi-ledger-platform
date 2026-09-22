@@ -58,8 +58,8 @@ When in doubt, favor evolving the existing system over replacing it.
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "the decision-free pool", "THE FIVE PILOT BLOCKERS", "BULK ACCEPT INTO A CLOSED MONTH"; findings file, "THE SECOND CORE-PATH WALK", "THE SEVEN-WORKFLOW AUDIT", "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
-**2026-09-20** — 🔴 **BATCH 1B + 1C MERGED** (PR #164, `a290d079`): D-4 payments with UI; the correction policy A4/A5 as invariants (§4); open — Issue 2 (accountant), the PIH question (ZATCA). Records: [`batch-1c-…-decision-pack.md`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §16.12–§16.16; known-issues file, "BATCH 1B — CLOSED".
-**2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165, `77fcf3f4`): deposit classification, the 386, the prepayment adjustment, the 381 against a 386; all three shapes CLEARED by the sandbox from real rows (pack §14–§16). **THE ACCOUNTANT'S ANSWERS APPLIED** (`feat/ap-accounting-period-correction`, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed under Art. 63); four customer-money liabilities on four accounts; bad-debt relief (Art. 40(7)) structured and posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), both shapes CLEARED. Open: Z1.
+**2026-09-20** — 🔴 **BATCH 1B + 1C MERGED** (PR #164, `a290d079`): D-4 payments with UI; A4/A5 as invariants (§4). **FOLLOW-UPS BUILT** (2026-09-22, `feat/migration-followups`, [`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17): the historical invoice's e-invoicing identity, the item-level correction against RETAINED EARNINGS (original reversed + `OPEN-` replacement, no OBE), migrated bad-debt relief structured, credit notes against identified opening items through Fatoora. Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
+**2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165, `77fcf3f4`): the 386 / 388-adjustment / 381-against-386 CLEARED by the sandbox from real rows (pack §14–§16). **THE ACCOUNTANT'S ANSWERS APPLIED** (PR #166, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed under Art. 63); four customer-money liabilities; bad-debt relief (Art. 40(7)) structured and posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), both shapes CLEARED. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -505,8 +505,7 @@ advisor · mail provider · R1 design · deployment + Groq.
 🔴 **Two ERPNext findings still await the OWNER'S RANKING** — withholding tax
 (LEGAL exposure) and fixed-assets GL (wrong statements today) — costed in
 [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md)'s
-triage addendum. (Advance payments closed in Batch 1B; migration onboarding
-is Batch 1C, §2.)
+triage addendum.
 
 ### Blocking, by their own nature
 

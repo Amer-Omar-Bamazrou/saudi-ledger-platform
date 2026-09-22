@@ -3982,6 +3982,62 @@ paths:
         "422":
           description: "`migration_reversal_blocked` — the blockers are named; unwind them first, or post dated correction journals instead"
 
+  /migration/open-items/{itemId}/correct:
+    post:
+      operationId: correctMigratedOpenItem
+      tags: [migration]
+      summary: "2026-09-22 (accountant answer 5, inside A4): correct a COMMITTED migrated item's amount — 100,000 → 90,000 — with retained earnings on the other side"
+      description: >
+        The original ledger row STAYS (marked reversed by its own batch, carrying
+        the correction entry, frozen); a REPLACEMENT row with a new
+        OPEN-<batch>-<seq> number and the corrected amount links back to it;
+        ONE entry dated the correction date in an open month — a receivable
+        decrease: Dr Retained earnings / Cr AR (customer); an increase the
+        reverse; payables mirror. Never an OBE plug, never an edit, never a
+        delete. Refused by name when the item has been acted on since the
+        migration (opening_item_partly_settled — the accountant's open question,
+        Batch 1C pack §16.12.5), when the batch is not committed, when the
+        item's migration was reversed, or when the date precedes the opening.
+      parameters:
+        - { in: path, name: itemId, required: true, schema: { type: integer }, description: "The STAGING row (migration_open_items.id) — the migrated document's identity across corrections." }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CorrectMigratedOpenItemInput" }
+      responses:
+        "200":
+          description: The original, the replacement and the entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigratedOpenItemCorrection" }
+        "404":
+          description: Not found
+  /migration/open-items/{itemId}/identity:
+    put:
+      operationId: recordMigratedOpenItemIdentity
+      tags: [migration]
+      summary: "2026-09-22 (accountant answer 3): record, ONCE, the previous solution's e-invoicing identity of a migrated receivable the migration did not carry"
+      description: >
+        cleared / reported (with the previous solution's UUID) or
+        pre_einvoicing — the facts a credit note through Fatoora needs to name
+        the original. Set once on the live ledger row; a trigger refuses any
+        later change (opening_identity_already_recorded). Never guessed.
+      parameters:
+        - { in: path, name: itemId, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecordMigratedOpenItemIdentityInput" }
+      responses:
+        "200":
+          description: The identity as recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigratedOpenItemIdentity" }
+        "404":
+          description: Not found
   /invoices/{id}/bad-debt-relief:
     post:
       operationId: writeOffBadDebt
@@ -6778,6 +6834,9 @@ components:
         advancePaymentId:
           type: ["integer", "null"]
           description: "AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise."
+        openingEinvoicingStatus: { type: ["string", "null"], enum: [cleared, reported, pre_einvoicing, null], description: "2026-09-22, opening items only: the previous solution's e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded)." }
+        openingSourceUuid: { type: ["string", "null"], description: "2026-09-22, opening items only: the previous solution's document UUID." }
+        openingCorrectionJournalEntryId: { type: ["integer", "null"], description: "2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings." }
         writtenOffAmount:
           type: number
           description: "2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none."
@@ -6834,8 +6893,8 @@ components:
       type: object
       required: [claimedOn, vatAmount, returnPeriod, certificateRef, legalRef, source, journalEntryId]
       properties:
-        claimedOn: { type: string, description: "YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to." }
-        vatAmount: { type: number, description: "The Output Tax relieved (the VAT share of the unpaid consideration)." }
+        claimedOn: { type: ["string", "null"], description: "YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record." }
+        vatAmount: { type: ["number", "null"], description: "The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded." }
         returnPeriod: { type: ["string", "null"], description: "YYYY-MM of the return the relief was (or is to be) claimed in." }
         certificateRef: { type: ["string", "null"], description: "The certified accountant's write-off certificate (Art. 40(7)(d))." }
         legalRef: { type: ["string", "null"], description: "Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e))." }
@@ -9022,7 +9081,9 @@ components:
         taxableAmount: { type: ["number", "null"], minimum: 0 }
         amount: { type: ["number", "null"], minimum: 0 }
         reportedPeriod: { type: ["string", "null"], maxLength: 40, description: "The return period the document's VAT was reported in by the old system." }
-        badDebtReliefClaimed: { type: ["boolean", "null"], description: "VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation." }
+        badDebtReliefClaimed: { type: ["boolean", "null"], description: "VAT Implementing Regulations Art. 40(7): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). 2026-09-22: a STRUCTURED fact — at commit it lands on the opening receivable (badDebtRelief.source = migrated) and an Art. 40(9) recovery document is declared from it when money arrives. It never restricts a payment or an allocation." }
+        badDebtReliefClaimedOn: { type: ["string", "null"], description: "YYYY-MM-DD: the period the previous system claimed the relief in, when known. Only with badDebtReliefClaimed = true." }
+        badDebtReliefVatAmount: { type: ["number", "null"], minimum: 0, description: "The Output Tax the previous system relieved, when known. Only with badDebtReliefClaimed = true." }
 
     MigrationOpenItemInput:
       type: object
@@ -9041,6 +9102,8 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/MigrationHistoricalVat" }
             - { type: "null" }
+        einvoicingStatus: { type: ["string", "null"], enum: [cleared, reported, pre_einvoicing, null], description: "2026-09-22 (AR only): what the previous solution did with this tax invoice — cleared (standard), reported (simplified), or pre_einvoicing (issued before the obligation applied). Empty = NOT STATED, which is not a guess: a credit note against the item is refused until it is stated. Never invented." }
+        sourceUuid: { type: ["string", "null"], maxLength: 64, description: "2026-09-22 (AR only): the previous solution's document UUID, verbatim — required for cleared/reported; the identity a credit note through Fatoora keeps. Never invented." }
         description: { type: ["string", "null"], maxLength: 500 }
 
     ImportMigrationOpenItemsInput:
@@ -9055,10 +9118,17 @@ components:
 
     MigrationOpenItem:
       type: object
-      required: [id, itemType, sourceId, partySourceId, partyName, documentNumber, ledgerDocumentNumber, issueDate, dueDate, originalAmount, outstandingAmount, compositionUnknown, historicalVat, description, resolvedId, problems]
+      required: [id, itemType, sourceId, partySourceId, partyName, documentNumber, ledgerDocumentNumber, issueDate, dueDate, originalAmount, outstandingAmount, compositionUnknown, historicalVat, description, resolvedId, problems, einvoicingStatus, sourceUuid, liveDocumentId, liveDocumentNumber, liveOutstanding, corrections, liveIdentityRecorded]
       properties:
         id: { type: integer }
         itemType: { type: string, enum: [ar, ap] }
+        einvoicingStatus: { type: ["string", "null"], enum: [cleared, reported, pre_einvoicing, null], description: "Before commit: as staged. After commit: the LIVE ledger row's identity (staged, or recorded once afterwards)." }
+        sourceUuid: { type: ["string", "null"] }
+        liveDocumentId: { type: ["integer", "null"], description: "2026-09-22: after commit, the LIVE ledger row (the last replacement in the item's correction chain); null before commit or when the migration was reversed." }
+        liveDocumentNumber: { type: ["string", "null"] }
+        liveOutstanding: { type: ["number", "null"], description: "The live row's total (an opening item's outstanding at cut-off, as corrected)." }
+        corrections: { type: integer, description: "How many item-level corrections the item has had (each a reversed original + a replacement + a retained-earnings entry)." }
+        liveIdentityRecorded: { type: boolean, description: "Whether the live ledger row carries its e-invoicing identity (from staging or recorded afterwards)." }
         sourceId: { type: string }
         partySourceId: { type: string }
         partyName: { type: ["string", "null"], description: "From the staged party, when it exists." }
@@ -9276,6 +9346,42 @@ components:
           items: { $ref: "#/components/schemas/MigrationControlCheck" }
         contentHash: { type: ["string", "null"] }
         validatedAt: { type: ["string", "null"] }
+
+    CorrectMigratedOpenItemInput:
+      type: object
+      required: [correctOutstanding, reason]
+      properties:
+        correctOutstanding: { type: number, exclusiveMinimum: 0, description: "The corrected outstanding amount of the item (what the previous system's document truly was)." }
+        reason: { type: string, minLength: 1, maxLength: 1000, description: "The audit trail's explanation (a transfer error, a wrong figure in the previous system, …)." }
+        date: { type: ["string", "null"], description: "YYYY-MM-DD, default today; an open month on or after the opening date." }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    MigratedOpenItemCorrection:
+      type: object
+      required: [original, replacement, delta, journalEntryId, entryNumber, date]
+      properties:
+        original: { type: object, required: [id, number, total], properties: { id: { type: integer }, number: { type: string }, total: { type: number } } }
+        replacement: { type: object, required: [id, number, total], properties: { id: { type: integer }, number: { type: string }, total: { type: number } } }
+        delta: { type: number, description: "correct − previous (negative for a decrease)." }
+        journalEntryId: { type: integer }
+        entryNumber: { type: string }
+        date: { type: string }
+
+    RecordMigratedOpenItemIdentityInput:
+      type: object
+      required: [einvoicingStatus]
+      properties:
+        einvoicingStatus: { type: string, enum: [cleared, reported, pre_einvoicing] }
+        sourceUuid: { type: ["string", "null"], maxLength: 64, description: "Required for cleared / reported." }
+
+    MigratedOpenItemIdentity:
+      type: object
+      required: [invoiceId, invoiceNumber, einvoicingStatus, sourceUuid]
+      properties:
+        invoiceId: { type: integer }
+        invoiceNumber: { type: string }
+        einvoicingStatus: { type: string, enum: [cleared, reported, pre_einvoicing] }
+        sourceUuid: { type: ["string", "null"] }
 
     ReverseMigrationBatchInput:
       type: object

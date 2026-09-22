@@ -61,6 +61,7 @@ import type {
   CompanyLogoState,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
+  CorrectMigratedOpenItemInput,
   CreateAdvanceCreditNoteInput,
   CreateAdvanceInvoiceInput,
   CreateAssetInput,
@@ -165,6 +166,8 @@ import type {
   ListVendorsParams,
   MatchOverrideInput,
   MatchingApplyResult,
+  MigratedOpenItemCorrection,
+  MigratedOpenItemIdentity,
   MigrationAdvances,
   MigrationBatch,
   MigrationBatchDetail,
@@ -199,6 +202,7 @@ import type {
   QuotationConversion,
   QuotationConversionResult,
   ReceivePaymentInput,
+  RecordMigratedOpenItemIdentityInput,
   RecurringRule,
   RecurringRuleWithHealth,
   RecurringRun,
@@ -14525,6 +14529,152 @@ export const useReverseMigrationBatch = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReverseMigrationBatchMutationOptions(options));
+    }
+
+export const getCorrectMigratedOpenItemUrl = (itemId: number,) => {
+
+
+
+
+  return `/api/migration/open-items/${itemId}/correct`
+}
+
+/**
+ * The original ledger row STAYS (marked reversed by its own batch, carrying the correction entry, frozen); a REPLACEMENT row with a new OPEN-<batch>-<seq> number and the corrected amount links back to it; ONE entry dated the correction date in an open month — a receivable decrease: Dr Retained earnings / Cr AR (customer); an increase the reverse; payables mirror. Never an OBE plug, never an edit, never a delete. Refused by name when the item has been acted on since the migration (opening_item_partly_settled — the accountant's open question, Batch 1C pack §16.12.5), when the batch is not committed, when the item's migration was reversed, or when the date precedes the opening.
+ * @summary 2026-09-22 (accountant answer 5, inside A4): correct a COMMITTED migrated item's amount — 100,000 → 90,000 — with retained earnings on the other side
+ */
+export const correctMigratedOpenItem = async (itemId: number,
+    correctMigratedOpenItemInput: CorrectMigratedOpenItemInput, options?: RequestInit): Promise<MigratedOpenItemCorrection> => {
+
+  return customFetch<MigratedOpenItemCorrection>(getCorrectMigratedOpenItemUrl(itemId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(correctMigratedOpenItemInput)
+  }
+);}
+
+
+
+
+
+export const getCorrectMigratedOpenItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof correctMigratedOpenItem>>, TError,{itemId: number;data: BodyType<CorrectMigratedOpenItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof correctMigratedOpenItem>>, TError,{itemId: number;data: BodyType<CorrectMigratedOpenItemInput>}, TContext> => {
+
+const mutationKey = ['correctMigratedOpenItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof correctMigratedOpenItem>>, {itemId: number;data: BodyType<CorrectMigratedOpenItemInput>}> = (props) => {
+          const {itemId,data} = props ?? {};
+
+          return  correctMigratedOpenItem(itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CorrectMigratedOpenItemMutationResult = NonNullable<Awaited<ReturnType<typeof correctMigratedOpenItem>>>
+    export type CorrectMigratedOpenItemMutationBody = BodyType<CorrectMigratedOpenItemInput>
+    export type CorrectMigratedOpenItemMutationError = ErrorType<void>
+
+    /**
+ * @summary 2026-09-22 (accountant answer 5, inside A4): correct a COMMITTED migrated item's amount — 100,000 → 90,000 — with retained earnings on the other side
+ */
+export const useCorrectMigratedOpenItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof correctMigratedOpenItem>>, TError,{itemId: number;data: BodyType<CorrectMigratedOpenItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof correctMigratedOpenItem>>,
+        TError,
+        {itemId: number;data: BodyType<CorrectMigratedOpenItemInput>},
+        TContext
+      > => {
+      return useMutation(getCorrectMigratedOpenItemMutationOptions(options));
+    }
+
+export const getRecordMigratedOpenItemIdentityUrl = (itemId: number,) => {
+
+
+
+
+  return `/api/migration/open-items/${itemId}/identity`
+}
+
+/**
+ * cleared / reported (with the previous solution's UUID) or pre_einvoicing — the facts a credit note through Fatoora needs to name the original. Set once on the live ledger row; a trigger refuses any later change (opening_identity_already_recorded). Never guessed.
+ * @summary 2026-09-22 (accountant answer 3): record, ONCE, the previous solution's e-invoicing identity of a migrated receivable the migration did not carry
+ */
+export const recordMigratedOpenItemIdentity = async (itemId: number,
+    recordMigratedOpenItemIdentityInput: RecordMigratedOpenItemIdentityInput, options?: RequestInit): Promise<MigratedOpenItemIdentity> => {
+
+  return customFetch<MigratedOpenItemIdentity>(getRecordMigratedOpenItemIdentityUrl(itemId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordMigratedOpenItemIdentityInput)
+  }
+);}
+
+
+
+
+
+export const getRecordMigratedOpenItemIdentityMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordMigratedOpenItemIdentity>>, TError,{itemId: number;data: BodyType<RecordMigratedOpenItemIdentityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordMigratedOpenItemIdentity>>, TError,{itemId: number;data: BodyType<RecordMigratedOpenItemIdentityInput>}, TContext> => {
+
+const mutationKey = ['recordMigratedOpenItemIdentity'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordMigratedOpenItemIdentity>>, {itemId: number;data: BodyType<RecordMigratedOpenItemIdentityInput>}> = (props) => {
+          const {itemId,data} = props ?? {};
+
+          return  recordMigratedOpenItemIdentity(itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordMigratedOpenItemIdentityMutationResult = NonNullable<Awaited<ReturnType<typeof recordMigratedOpenItemIdentity>>>
+    export type RecordMigratedOpenItemIdentityMutationBody = BodyType<RecordMigratedOpenItemIdentityInput>
+    export type RecordMigratedOpenItemIdentityMutationError = ErrorType<void>
+
+    /**
+ * @summary 2026-09-22 (accountant answer 3): record, ONCE, the previous solution's e-invoicing identity of a migrated receivable the migration did not carry
+ */
+export const useRecordMigratedOpenItemIdentity = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordMigratedOpenItemIdentity>>, TError,{itemId: number;data: BodyType<RecordMigratedOpenItemIdentityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordMigratedOpenItemIdentity>>,
+        TError,
+        {itemId: number;data: BodyType<RecordMigratedOpenItemIdentityInput>},
+        TContext
+      > => {
+      return useMutation(getRecordMigratedOpenItemIdentityMutationOptions(options));
     }
 
 export const getWriteOffBadDebtUrl = (id: number,) => {

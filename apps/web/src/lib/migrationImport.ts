@@ -112,9 +112,17 @@ export const OPEN_ITEM_FIELDS: readonly FieldSpec[] = [
   { name: "historicalVat.amount", label: "Historical VAT amount", labelAr: "مبلغ الضريبة التاريخي", kind: "number" },
   { name: "historicalVat.reportedPeriod", label: "Reported in return period", labelAr: "الفترة الضريبية المبلَّغ فيها", kind: "text" },
   {
-    name: "historicalVat.badDebtReliefClaimed", label: "Bad-debt relief claimed (Art. 40(9))", labelAr: "المطالبة بإعفاء الديون المعدومة (المادة 40(9))", kind: "select", options: yesNoUnknown,
-    hint: "Historical information only — recorded for the accountant; nothing in Saudi Ledger acts on it.", hintAr: "معلومة تاريخية فقط — تُسجَّل للمحاسب؛ ولا يتصرف النظام بناءً عليها.",
+    name: "historicalVat.badDebtReliefClaimed", label: "Bad-debt relief claimed (Art. 40(7))", labelAr: "المطالبة بإعفاء الديون المعدومة (المادة 40(7))", kind: "select", options: yesNoUnknown,
+    hint: "A structured fact on the opening receivable: when money later arrives, the Art. 40(9) recovery document is declared from it. It never restricts a payment.", hintAr: "حقيقة مهيكلة على الذمة الافتتاحية: عند وصول المال لاحقًا يُعلن مستند الاسترداد (المادة 40(9)) منها. ولا تقيّد أبدًا أي دفعة.",
   },
+  { name: "historicalVat.badDebtReliefClaimedOn", label: "Relief claimed on (YYYY-MM-DD)", labelAr: "تاريخ المطالبة بالإعفاء", kind: "date", hint: "Only with relief claimed = yes.", hintAr: "فقط مع المطالبة بالإعفاء = نعم." },
+  { name: "historicalVat.badDebtReliefVatAmount", label: "Relief VAT amount", labelAr: "مبلغ ضريبة الإعفاء", kind: "number", hint: "The Output Tax the previous system relieved, when known.", hintAr: "ضريبة المخرجات التي أعفاها النظام السابق، إن عُرفت." },
+  {
+    name: "einvoicingStatus", label: "E-invoicing status (AR only)", labelAr: "حالة الفوترة الإلكترونية (الذمم المدينة فقط)", kind: "select",
+    options: [{ value: "", label: "Not stated", labelAr: "غير مذكورة" }, { value: "cleared", label: "Cleared (standard)", labelAr: "معتمدة (قياسية)" }, { value: "reported", label: "Reported (simplified)", labelAr: "مبلَّغ عنها (مبسَّطة)" }, { value: "pre_einvoicing", label: "Issued before e-invoicing", labelAr: "صدرت قبل الفوترة الإلكترونية" }],
+    hint: "What the previous solution did with this tax invoice. Not stated is not a guess: a credit note against the item is refused until it is stated. Never invented.", hintAr: "ما فعله الحل السابق بهذه الفاتورة الضريبية. «غير مذكورة» ليست تخمينًا: يُرفض أي إشعار دائن على البند حتى تُذكر. ولا تُختلق أبدًا.",
+  },
+  { name: "sourceUuid", label: "Previous solution's UUID (AR only)", labelAr: "معرّف UUID في الحل السابق (الذمم المدينة فقط)", kind: "text", hint: "Verbatim; required for cleared / reported.", hintAr: "حرفيًا؛ مطلوب للمعتمدة / المبلَّغ عنها." },
 ];
 
 export const ADVANCE_FIELDS: readonly FieldSpec[] = [
