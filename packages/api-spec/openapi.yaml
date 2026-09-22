@@ -3955,6 +3955,53 @@ paths:
         "409":
           description: "`migration_batch_immutable`"
 
+  /migration/batches/{id}/assets:
+    get:
+      operationId: getMigrationAssets
+      tags: [migration]
+      summary: "FA-D: the staged FIXED ASSETS the previous system held at cut-off, with each row's problems and the register's totals"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Assets and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationAssets" }
+    put:
+      operationId: importMigrationAssets
+      tags: [migration]
+      summary: "Replace the batch's staged fixed assets. They create NO journal line — the register must RECONCILE to the trial balance."
+      description: >
+        A migrated asset's cost and accumulated depreciation are already in the
+        staged trial balance (A5 — one balanced opening position, never a plug),
+        so the register ties to the accounts its CATEGORY names: the control
+        FIXED_ASSETS_CONTROL refuses a commit where the two disagree, exactly
+        as open items must equal the AR/AP control balance. Each asset names an
+        existing asset category (which carries its accounts, its Income Tax Law
+        Art. 17 group and its VAT Art. 52 class), the accumulated depreciation
+        the previous system had booked and over how many periods; the schedule
+        resumes the month AFTER the opening date over the remaining life. An
+        asset still inside its Art. 52 adjustment period must carry its input-tax
+        facts, or the adjustment could never be computed.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportMigrationAssetsInput" }
+      responses:
+        "200":
+          description: The imported assets and summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MigrationAssets" }
+        "400":
+          description: Malformed rows (duplicate source id, a non-positive cost, accumulated above the depreciable amount, a 0 % recovery with no Art. 50 reason)
+        "409":
+          description: "`migration_batch_immutable`"
+
   /migration/batches/{id}/opening-position:
     get:
       operationId: getMigrationOpeningPosition
@@ -5417,10 +5464,19 @@ components:
 
     Category:
       type: object
-      required: [id, name, nameAr, type, vatApplicable]
+      required: [id, name, nameAr, type, vatApplicable, isPlatformSystemAccount]
       properties:
         id:
           type: integer
+        isPlatformSystemAccount:
+          type: boolean
+          description: >
+            FA-D (2026-09-22): true when the code is one of the PLATFORM's own system
+            accounts — the set the migration mapper's `map_to_system` accepts — as opposed
+            to a seeded DEFAULT that merely carries a code (FIXED_ASSETS, INVENTORY…),
+            which `merge_into` accepts. Without it the two doors of the mapper disagreed
+            with the server: one offered targets the server refuses, the other hid targets
+            it accepts. One definition (SYSTEM_ACCOUNTS, server-side), read by the client.
         systemCode:
           type: ["string", "null"]
           description: >
@@ -9668,6 +9724,85 @@ components:
         vatRate: { type: ["number", "null"], minimum: 0, maximum: 100 }
         vatAmount: { type: ["number", "null"], minimum: 0 }
 
+    MigrationAssetInput:
+      type: object
+      required: [sourceId, name, categoryName, acquisitionDate, availableForUseDate, cost, usefulLifeMonths, openingAccumulatedDepreciation, openingPeriodsBooked]
+      properties:
+        sourceId: { type: string, minLength: 1, maxLength: 80, description: "The previous system's identifier — provenance, and the register row's source reference." }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        nameAr: { type: ["string", "null"], maxLength: 200 }
+        serialNumber: { type: ["string", "null"], maxLength: 120 }
+        categoryName: { type: string, minLength: 1, maxLength: 120, description: "An EXISTING asset category of this company, by name — it carries the accounts, the Art. 17 group and the Art. 52 class." }
+        acquisitionDate: { type: string, description: "YYYY-MM-DD — the VAT Art. 52 adjustment clock." }
+        availableForUseDate: { type: string, description: "YYYY-MM-DD — on or before the opening date; an asset that entered service after the cut-off is bought in the product, not migrated." }
+        cost: { type: number, exclusiveMinimum: 0 }
+        residualValue: { type: ["number", "null"], minimum: 0 }
+        usefulLifeMonths: { type: integer, minimum: 1, maximum: 1200 }
+        depreciationMethod: { type: ["string", "null"], enum: [straight_line, declining_balance, units_of_production, null] }
+        openingAccumulatedDepreciation: { type: number, minimum: 0, description: "What the previous system had depreciated at the opening date — already in the trial balance." }
+        openingPeriodsBooked: { type: integer, minimum: 0, description: "Over how many periods, so the schedule resumes at the right sequence." }
+        vatInputTaxAmount: { type: ["number", "null"], minimum: 0, description: "Required while the asset is inside its Art. 52 adjustment period." }
+        vatInitialRecoveryPct: { type: ["number", "null"], minimum: 0, maximum: 100 }
+        vatNonDeductibleReason: { type: ["string", "null"], maxLength: 500, description: "Required at a 0 % recovery (Art. 50) — it decides how a later sale is taxed." }
+        location: { type: ["string", "null"], maxLength: 200 }
+        description: { type: ["string", "null"], maxLength: 2000 }
+
+    ImportMigrationAssetsInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/MigrationAssetInput" }
+
+    MigrationAsset:
+      type: object
+      required: [id, sourceId, name, nameAr, serialNumber, categoryName, acquisitionDate, availableForUseDate, cost, residualValue, usefulLifeMonths, depreciationMethod,
+                 openingAccumulatedDepreciation, openingPeriodsBooked, netBookValue, vatInputTaxAmount, vatInitialRecoveryPct, vatNonDeductibleReason, location, description, resolvedAssetId, problems]
+      properties:
+        id: { type: integer }
+        sourceId: { type: string }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        serialNumber: { type: ["string", "null"] }
+        categoryName: { type: string }
+        acquisitionDate: { type: string }
+        availableForUseDate: { type: string }
+        cost: { type: number }
+        residualValue: { type: number }
+        usefulLifeMonths: { type: integer }
+        depreciationMethod: { type: string }
+        openingAccumulatedDepreciation: { type: number }
+        openingPeriodsBooked: { type: integer }
+        netBookValue: { type: number, description: "cost − opening accumulated depreciation: what the Zakat base deducts (Zakat Regs Art. 48(1)(b))." }
+        vatInputTaxAmount: { type: ["number", "null"] }
+        vatInitialRecoveryPct: { type: ["number", "null"] }
+        vatNonDeductibleReason: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        resolvedAssetId: { type: ["integer", "null"], description: "The register row this became at commit." }
+        problems:
+          type: array
+          items: { type: string }
+
+    MigrationAssets:
+      type: object
+      required: [rows, summary]
+      properties:
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/MigrationAsset" }
+        summary:
+          type: object
+          required: [assets, cost, accumulated, netBookValue, blocked]
+          properties:
+            assets: { type: integer }
+            cost: { type: number }
+            accumulated: { type: number }
+            netBookValue: { type: number }
+            blocked: { type: integer }
+
     ImportMigrationAdvancesInput:
       type: object
       required: [rows]
@@ -9775,7 +9910,7 @@ components:
 
     MigrationOpeningPosition:
       type: object
-      required: [batchId, openingDate, lines, totals, arByCustomer, apByVendor, depositsByCustomer, banks, controls]
+      required: [batchId, openingDate, lines, totals, assetControl, arByCustomer, apByVendor, depositsByCustomer, banks, controls]
       properties:
         batchId: { type: integer }
         openingDate: { type: string }
@@ -9793,6 +9928,16 @@ components:
             ytdIncome: { type: number }
             ytdExpense: { type: number }
             ytdResult: { type: number, description: "Income − expense of the imported YTD balances (A2)." }
+        assetControl:
+          type: object
+          description: "FA-D: what the register says against what the trial balance maps — the two must agree (FIXED_ASSETS_CONTROL)."
+          required: [assets, registerCost, registerAccumulated, mappedCost, mappedAccumulated]
+          properties:
+            assets: { type: integer }
+            registerCost: { type: number }
+            registerAccumulated: { type: number }
+            mappedCost: { type: number }
+            mappedAccumulated: { type: number }
         arByCustomer:
           type: array
           items: { $ref: "#/components/schemas/MigrationPartyBalance" }

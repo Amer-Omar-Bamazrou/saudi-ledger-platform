@@ -8,6 +8,7 @@
 import type { MigrationBankOpening } from './migrationBankOpening';
 import type { MigrationControlCheck } from './migrationControlCheck';
 import type { MigrationOpeningLine } from './migrationOpeningLine';
+import type { MigrationOpeningPositionAssetControl } from './migrationOpeningPositionAssetControl';
 import type { MigrationOpeningPositionTotals } from './migrationOpeningPositionTotals';
 import type { MigrationPartyBalance } from './migrationPartyBalance';
 
@@ -16,6 +17,8 @@ export interface MigrationOpeningPosition {
   openingDate: string;
   lines: MigrationOpeningLine[];
   totals: MigrationOpeningPositionTotals;
+  /** FA-D: what the register says against what the trial balance maps — the two must agree (FIXED_ASSETS_CONTROL). */
+  assetControl: MigrationOpeningPositionAssetControl;
   arByCustomer: MigrationPartyBalance[];
   apByVendor: MigrationPartyBalance[];
   depositsByCustomer: MigrationPartyBalance[];

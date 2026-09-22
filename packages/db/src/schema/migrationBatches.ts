@@ -377,3 +377,68 @@ export type MigrationChartRow = typeof migrationChartRowsTable.$inferSelect;
 export type MigrationParty = typeof migrationPartiesTable.$inferSelect;
 export type MigrationOpenItem = typeof migrationOpenItemsTable.$inferSelect;
 export type MigrationAdvance = typeof migrationAdvancesTable.$inferSelect;
+
+/**
+ * Batch 1C + FA-D (2026-09-22): the FIXED ASSETS the previous system held at
+ * cut-off. Record: fixed-assets-decision-pack.md §10, §23.
+ *
+ * What a migrated asset IS: the register's facts of an asset already in
+ * service — its original cost, the accumulated depreciation the previous
+ * system booked, how many periods that was, and the Saudi classifications
+ * every asset carries (the Income Tax Law Art. 17 group and the VAT Art. 52
+ * class, which come from the asset CATEGORY it lands in).
+ *
+ * 🔴 It creates NO journal line of its own. The cost and the accumulated
+ * depreciation are already in the staged trial balance (A5: one balanced
+ * opening position, no plug), so the register must RECONCILE to those mapped
+ * balances — a control, exactly as open items reconcile to AR/AP. The
+ * register rows are created at commit and carry the opening journal as their
+ * capitalisation entry; their schedule resumes the month AFTER the opening
+ * date.
+ */
+export const migrationAssetsTable = pgTable(
+  "migration_assets",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgCol(),
+    companyId: companyCol(),
+    batchId: integer("batch_id")
+      .notNull()
+      .references(() => migrationBatchesTable.id, { onDelete: "cascade" }),
+    sourceSystem: text("source_system").notNull(),
+    sourceId: text("source_id").notNull(),
+    name: text("name").notNull(),
+    nameAr: text("name_ar"),
+    serialNumber: text("serial_number"),
+    /** The asset CATEGORY this asset lands in, by NAME — resolved at validation against the company's own categories (it carries the accounts, the Art. 17 group and the Art. 52 class). */
+    categoryName: text("category_name").notNull(),
+    acquisitionDate: date("acquisition_date").notNull(),
+    availableForUseDate: date("available_for_use_date").notNull(),
+    cost: numeric("cost", { precision: 15, scale: 2 }).notNull(),
+    residualValue: numeric("residual_value", { precision: 15, scale: 2 }).notNull().default("0"),
+    usefulLifeMonths: integer("useful_life_months").notNull(),
+    depreciationMethod: text("depreciation_method").notNull().default("straight_line"),
+    /** What the previous system had already depreciated at the opening date, and over how many periods. */
+    openingAccumulatedDepreciation: numeric("opening_accumulated_depreciation", { precision: 15, scale: 2 }).notNull(),
+    openingPeriodsBooked: integer("opening_periods_booked").notNull(),
+    /** VAT IR Art. 52: REQUIRED while the asset is still inside its adjustment period (the validator says so); optional for an older one. */
+    vatInputTaxAmount: numeric("vat_input_tax_amount", { precision: 15, scale: 2 }),
+    vatInitialRecoveryPct: numeric("vat_initial_recovery_pct", { precision: 5, scale: 2 }),
+    vatNonDeductibleReason: text("vat_non_deductible_reason"),
+    location: text("location"),
+    description: text("description"),
+    resolvedAssetId: integer("resolved_asset_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("migration_assets_identity_unq").on(t.batchId, t.sourceId),
+    index("migration_assets_batch_idx").on(t.batchId),
+    check("migration_assets_money_chk", sql`cost >= 0 AND residual_value >= 0 AND residual_value <= cost AND opening_accumulated_depreciation >= 0 AND opening_accumulated_depreciation <= cost - residual_value`),
+    check("migration_assets_life_chk", sql`useful_life_months > 0 AND opening_periods_booked >= 0 AND opening_periods_booked <= useful_life_months`),
+    check("migration_assets_method_chk", sql`depreciation_method IN ('straight_line', 'declining_balance', 'units_of_production')`),
+    check("migration_assets_dates_chk", sql`available_for_use_date >= acquisition_date`),
+    check("migration_assets_vat_chk", sql`(vat_input_tax_amount IS NULL OR vat_input_tax_amount >= 0) AND (vat_initial_recovery_pct IS NULL OR vat_initial_recovery_pct BETWEEN 0 AND 100)`),
+  ],
+);
+
+export type MigrationAsset = typeof migrationAssetsTable.$inferSelect;

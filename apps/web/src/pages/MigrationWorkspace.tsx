@@ -29,6 +29,7 @@ import { ChartSection } from "@/components/migration/ChartSection";
 import { PartiesSection } from "@/components/migration/PartiesSection";
 import { OpenItemsSection } from "@/components/migration/OpenItemsSection";
 import { AdvancesSection } from "@/components/migration/AdvancesSection";
+import { AssetsSection } from "@/components/migration/AssetsSection";
 import { BanksSection, TrialBalanceSection, VatSection } from "@/components/migration/BalancesSections";
 import { ReconciliationSection, ValidationSection } from "@/components/migration/ControlsSections";
 import { CommitSection } from "@/components/migration/CommitSection";
@@ -145,6 +146,7 @@ export default function MigrationWorkspace() {
         {section === "ar" && <OpenItemsSection batchId={batch.id} editable={editable} side="ar" openingDate={batch.openingDate} committed={committed} />}
         {section === "ap" && <OpenItemsSection batchId={batch.id} editable={editable} side="ap" openingDate={batch.openingDate} committed={committed} />}
         {section === "advances" && <AdvancesSection batchId={batch.id} editable={editable} />}
+        {section === "assets" && <AssetsSection batchId={batch.id} editable={editable} />}
         {section === "banks" && <BanksSection batchId={batch.id} openingDate={batch.openingDate} />}
         {section === "vat" && <VatSection batch={batch} editable={editable} />}
         {section === "trial-balance" && <TrialBalanceSection batchId={batch.id} openingDate={batch.openingDate} />}

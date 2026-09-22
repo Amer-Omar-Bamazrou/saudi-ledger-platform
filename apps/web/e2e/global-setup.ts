@@ -454,6 +454,8 @@ export default async function globalSetup(): Promise<void> {
   const migLogin = await migAdmin.post("/api/auth/login", { data: { email: E2E_MIGRATION.adminEmail, password: E2E_MIGRATION.password } });
   if (!migLogin.ok()) throw new Error(`e2e migration admin login failed: ${migLogin.status()}`);
   const migBank = await api(migAdmin, "POST", "/bank-accounts", { name: "Riyad Main", bankName: "Riyad Bank", currency: "SAR" });
+  // FA-D: a migrated asset names an EXISTING asset category (its accounts, its Art. 17 group and its Art. 52 class).
+  await api(migAdmin, "POST", "/asset-categories", { name: "Migrated equipment", nameAr: "معدات مرحَّلة", defaultUsefulLifeMonths: 50, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" });
   await migAdmin.storageState({ path: E2E_MIGRATION.adminState });
   await migAdmin.dispose();
   const migAcct = await request.newContext({ baseURL: API });

@@ -157,11 +157,13 @@ describeMaybe("FA-B — capitalisation, the monthly run, the estimate change (re
     await expectRefusal(inTenant(() => assetCapitalisationService.depreciate(laptopId, { period: "2026-06" }, userId)), 409, "depreciation_out_of_order");
     await expectRefusal(inTenant(() => assetCapitalisationService.depreciate(laptopId, { period: "2025-01" }, userId)), 409, "depreciation_period_not_scheduled");
     expect((await pool.query(`SELECT count(*)::int n FROM journal_entries WHERE organization_id = $1`, [orgId])).rows[0].n).toBe(jeCount);
-    // the register and the ledger agree: Σ posted rows = the expense postings for this asset
+    // the register and the ledger agree: Σ posted rows = the expense postings for this asset.
+    // 🔴 `reference` is an asset CODE, and every org's first asset is FA-00001 — so this
+    // subquery is scoped to THIS org, or a parallel fork's own FA-00001 lands in the sum.
     const [{ rows_sum, gl_sum }] = (await pool.query(
       `SELECT (SELECT coalesce(sum(amount),0)::text FROM asset_depreciation_schedule WHERE asset_id = $1 AND journal_entry_id IS NOT NULL) rows_sum,
               (SELECT coalesce(sum(l.debit_amount),0)::text FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
-                WHERE e.reference = $2 AND c.system_code = 'DEPRECIATION_EXPENSE') gl_sum`, [laptopId, "FA-00001"])).rows;
+                WHERE e.organization_id = $3 AND e.reference = $2 AND c.system_code = 'DEPRECIATION_EXPENSE') gl_sum`, [laptopId, "FA-00001", orgId])).rows;
     expect(Number(rows_sum)).toBe(Number(gl_sum));
     expect(Number(rows_sum)).toBe(1875);
   }, 60_000);

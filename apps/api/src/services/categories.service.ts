@@ -7,6 +7,10 @@ import {
 import { BadRequestError } from "../lib/errors";
 import { auditService } from "./audit.service";
 import { categoriesRepository } from "../repositories/categories.repository";
+import { SYSTEM_ACCOUNTS } from "@workspace/db";
+
+/** The platform's own system accounts — what `map_to_system` accepts (one definition, in @workspace/db). */
+const PLATFORM_SYSTEM_CODES = new Set<string>(Object.values(SYSTEM_ACCOUNTS));
 
 type CreateCategoryInput = ReturnType<(typeof CreateCategoryBody)["parse"]>;
 
@@ -29,6 +33,16 @@ export const categoriesService = {
         parentId: r.parentId ?? null,
         bankAccountId: r.bankAccountId ?? null,
         isPosting: r.isPosting,
+        /**
+         * 🔴 FA-D (2026-09-22): whether the code is one of the PLATFORM's own
+         * system accounts (the posting path resolves against them), as opposed
+         * to a seeded DEFAULT that merely carries a code (FIXED_ASSETS,
+         * INVENTORY…). The migration mapper's two doors disagreed with the
+         * server without it: the UI offered `map_to_system` for accounts the
+         * server refuses, and hid `merge_into` for accounts it accepts. ONE
+         * definition — SYSTEM_ACCOUNTS — read by the client.
+         */
+        isPlatformSystemAccount: r.systemCode != null && PLATFORM_SYSTEM_CODES.has(r.systemCode),
         description: r.description ?? null,
       })),
     );
@@ -68,6 +82,7 @@ export const categoriesService = {
       parentId: inserted.parentId ?? null,
       bankAccountId: inserted.bankAccountId ?? null,
       isPosting: inserted.isPosting,
+      isPlatformSystemAccount: inserted.systemCode != null && PLATFORM_SYSTEM_CODES.has(inserted.systemCode),
       description: inserted.description ?? null,
     });
   },

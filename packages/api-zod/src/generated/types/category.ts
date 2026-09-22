@@ -10,6 +10,8 @@ import type { CategoryType } from './categoryType';
 
 export interface Category {
   id: number;
+  /** FA-D (2026-09-22): true when the code is one of the PLATFORM's own system accounts — the set the migration mapper's `map_to_system` accepts — as opposed to a seeded DEFAULT that merely carries a code (FIXED_ASSETS, INVENTORY…), which `merge_into` accepts. Without it the two doors of the mapper disagreed with the server: one offered targets the server refuses, the other hid targets it accepts. One definition (SYSTEM_ACCOUNTS, server-side), read by the client. */
+  isPlatformSystemAccount: boolean;
   /**
      * The account's system role (AR, AP, VAT_OUTPUT, …) when it is a system account; null for ordinary accounts. Exposed (N3) so the manual-JE form can require a party on control-account lines. The Categories UI still cannot EDIT system accounts — that trap (§5) is about write routes, which do not exist.
      * @nullable

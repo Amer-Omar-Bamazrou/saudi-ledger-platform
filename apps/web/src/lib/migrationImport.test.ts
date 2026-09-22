@@ -55,15 +55,23 @@ describe("read-side labels and maps", () => {
   });
   it("🔴 OPENING_BALANCE_EQUITY and CASH can never be offered as a system target, whatever the org's chart carries", () => {
     const cats = [
-      { id: 1, systemCode: "AR", name: "Receivables", nameAr: "الذمم", type: "asset" },
-      { id: 2, systemCode: "CASH", name: "Cash", nameAr: "نقد", type: "asset" },
-      { id: 3, systemCode: "OPENING_BALANCE_EQUITY", name: "OBE", nameAr: "OBE", type: "equity" },
-      { id: 4, systemCode: "RETAINED_EARNINGS", name: "RE", nameAr: "RE", type: "equity" },
-      { id: 5, systemCode: null, name: "Rent", nameAr: "إيجار", type: "expense" },
+      { id: 1, systemCode: "AR", name: "Receivables", nameAr: "الذمم", type: "asset", isPlatformSystemAccount: true },
+      { id: 2, systemCode: "CASH", name: "Cash", nameAr: "نقد", type: "asset", isPlatformSystemAccount: true },
+      { id: 3, systemCode: "OPENING_BALANCE_EQUITY", name: "OBE", nameAr: "OBE", type: "equity", isPlatformSystemAccount: true },
+      { id: 4, systemCode: "RETAINED_EARNINGS", name: "RE", nameAr: "RE", type: "equity", isPlatformSystemAccount: true },
+      { id: 5, systemCode: null, name: "Rent", nameAr: "إيجار", type: "expense", isPlatformSystemAccount: false },
+      // 🔴 FA-D: a SEEDED DEFAULT carries a code but is NOT one of the platform's
+      // own system accounts. `map_to_system` refuses it and `merge_into` accepts it,
+      // so it must appear under exactly one of the two doors — the disagreement that
+      // left an "Equipment at cost" row with no reachable target at all.
+      { id: 6, systemCode: "FIXED_ASSETS", name: "Equipment at cost", nameAr: "معدات", type: "asset", isPlatformSystemAccount: false },
     ] as const;
     expect(systemTargets(cats).map((c) => c.code)).toEqual(["AR", "RETAINED_EARNINGS"]);
     expect(systemTargets(cats, "equity").map((c) => c.code)).toEqual(["RETAINED_EARNINGS"]);
-    expect(mergeTargets(cats.map((c) => ({ ...c, isPosting: true })), "expense").map((c) => c.id)).toEqual([5]);
+    expect(systemTargets(cats, "asset").map((c) => c.code)).toEqual(["AR"]); // FIXED_ASSETS is NOT here…
+    const posting = cats.map((c) => ({ ...c, isPosting: true }));
+    expect(mergeTargets(posting, "expense").map((c) => c.id)).toEqual([5]);
+    expect(mergeTargets(posting, "asset").map((c) => c.id)).toEqual([6]); // …it is HERE, and CASH/AR are not
   });
   it("every server control points at a section, and the unknown ones fall back to the validation view", () => {
     for (const id of Object.keys(CHECK_SECTION)) expect(sectionForCheck(id)).toBe(CHECK_SECTION[id]);

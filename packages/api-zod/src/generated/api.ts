@@ -2210,6 +2210,7 @@ export const DeleteTransactionResponse = zod.void()
  */
 export const ListCategoriesResponseItem = zod.object({
   "id": zod.number(),
+  "isPlatformSystemAccount": zod.boolean().describe('FA-D (2026-09-22): true when the code is one of the PLATFORM\'s own system accounts — the set the migration mapper\'s `map_to_system` accepts — as opposed to a seeded DEFAULT that merely carries a code (FIXED_ASSETS, INVENTORY…), which `merge_into` accepts. Without it the two doors of the mapper disagreed with the server: one offered targets the server refuses, the other hid targets it accepts. One definition (SYSTEM_ACCOUNTS, server-side), read by the client.\n'),
   "systemCode": zod.string().nullish().describe('The account\'s system role (AR, AP, VAT_OUTPUT, …) when it is a system account; null for ordinary accounts. Exposed (N3) so the manual-JE form can require a party on control-account lines. The Categories UI still cannot EDIT system accounts — that trap (§5) is about write routes, which do not exist.\n'),
   "name": zod.string(),
   "nameAr": zod.string(),
@@ -2238,6 +2239,7 @@ export const CreateCategoryBody = zod.object({
 
 export const CreateCategoryResponse = zod.object({
   "id": zod.number(),
+  "isPlatformSystemAccount": zod.boolean().describe('FA-D (2026-09-22): true when the code is one of the PLATFORM\'s own system accounts — the set the migration mapper\'s `map_to_system` accepts — as opposed to a seeded DEFAULT that merely carries a code (FIXED_ASSETS, INVENTORY…), which `merge_into` accepts. Without it the two doors of the mapper disagreed with the server: one offered targets the server refuses, the other hid targets it accepts. One definition (SYSTEM_ACCOUNTS, server-side), read by the client.\n'),
   "systemCode": zod.string().nullish().describe('The account\'s system role (AR, AP, VAT_OUTPUT, …) when it is a system account; null for ordinary accounts. Exposed (N3) so the manual-JE form can require a party on control-account lines. The Categories UI still cannot EDIT system accounts — that trap (§5) is about write routes, which do not exist.\n'),
   "name": zod.string(),
   "nameAr": zod.string(),
@@ -8316,6 +8318,148 @@ export const ImportMigrationAdvancesResponse = zod.object({
 
 
 /**
+ * @summary FA-D: the staged FIXED ASSETS the previous system held at cut-off, with each row's problems and the register's totals
+ */
+export const GetMigrationAssetsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMigrationAssetsResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceId": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "categoryName": zod.string(),
+  "acquisitionDate": zod.string(),
+  "availableForUseDate": zod.string(),
+  "cost": zod.number(),
+  "residualValue": zod.number(),
+  "usefulLifeMonths": zod.number(),
+  "depreciationMethod": zod.string(),
+  "openingAccumulatedDepreciation": zod.number(),
+  "openingPeriodsBooked": zod.number(),
+  "netBookValue": zod.number().describe('cost − opening accumulated depreciation: what the Zakat base deducts (Zakat Regs Art. 48(1)(b)).'),
+  "vatInputTaxAmount": zod.number().nullable(),
+  "vatInitialRecoveryPct": zod.number().nullable(),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "location": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "resolvedAssetId": zod.number().nullable().describe('The register row this became at commit.'),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "assets": zod.number(),
+  "cost": zod.number(),
+  "accumulated": zod.number(),
+  "netBookValue": zod.number(),
+  "blocked": zod.number()
+})
+})
+
+
+/**
+ * A migrated asset's cost and accumulated depreciation are already in the staged trial balance (A5 — one balanced opening position, never a plug), so the register ties to the accounts its CATEGORY names: the control FIXED_ASSETS_CONTROL refuses a commit where the two disagree, exactly as open items must equal the AR/AP control balance. Each asset names an existing asset category (which carries its accounts, its Income Tax Law Art. 17 group and its VAT Art. 52 class), the accumulated depreciation the previous system had booked and over how many periods; the schedule resumes the month AFTER the opening date over the remaining life. An asset still inside its Art. 52 adjustment period must carry its input-tax facts, or the adjustment could never be computed.
+ * @summary Replace the batch's staged fixed assets. They create NO journal line — the register must RECONCILE to the trial balance.
+ */
+export const ImportMigrationAssetsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const importMigrationAssetsBodyRowsItemSourceIdMax = 80;
+
+export const importMigrationAssetsBodyRowsItemNameMax = 200;
+
+export const importMigrationAssetsBodyRowsItemNameArMax = 200;
+
+export const importMigrationAssetsBodyRowsItemSerialNumberMax = 120;
+
+export const importMigrationAssetsBodyRowsItemCategoryNameMax = 120;
+
+export const importMigrationAssetsBodyRowsItemCostExclusiveMin = 0;
+
+export const importMigrationAssetsBodyRowsItemResidualValueMin = 0;
+
+export const importMigrationAssetsBodyRowsItemUsefulLifeMonthsMax = 1200;
+
+export const importMigrationAssetsBodyRowsItemOpeningAccumulatedDepreciationMin = 0;
+
+export const importMigrationAssetsBodyRowsItemOpeningPeriodsBookedMin = 0;
+
+export const importMigrationAssetsBodyRowsItemVatInputTaxAmountMin = 0;
+
+export const importMigrationAssetsBodyRowsItemVatInitialRecoveryPctMin = 0;
+export const importMigrationAssetsBodyRowsItemVatInitialRecoveryPctMax = 100;
+
+export const importMigrationAssetsBodyRowsItemVatNonDeductibleReasonMax = 500;
+
+export const importMigrationAssetsBodyRowsItemLocationMax = 200;
+
+export const importMigrationAssetsBodyRowsItemDescriptionMax = 2000;
+
+
+
+
+export const ImportMigrationAssetsBody = zod.object({
+  "rows": zod.array(zod.object({
+  "sourceId": zod.string().min(1).max(importMigrationAssetsBodyRowsItemSourceIdMax).describe('The previous system\'s identifier — provenance, and the register row\'s source reference.'),
+  "name": zod.string().min(1).max(importMigrationAssetsBodyRowsItemNameMax),
+  "nameAr": zod.string().max(importMigrationAssetsBodyRowsItemNameArMax).nullish(),
+  "serialNumber": zod.string().max(importMigrationAssetsBodyRowsItemSerialNumberMax).nullish(),
+  "categoryName": zod.string().min(1).max(importMigrationAssetsBodyRowsItemCategoryNameMax).describe('An EXISTING asset category of this company, by name — it carries the accounts, the Art. 17 group and the Art. 52 class.'),
+  "acquisitionDate": zod.string().describe('YYYY-MM-DD — the VAT Art. 52 adjustment clock.'),
+  "availableForUseDate": zod.string().describe('YYYY-MM-DD — on or before the opening date; an asset that entered service after the cut-off is bought in the product, not migrated.'),
+  "cost": zod.number().gt(importMigrationAssetsBodyRowsItemCostExclusiveMin),
+  "residualValue": zod.number().min(importMigrationAssetsBodyRowsItemResidualValueMin).nullish(),
+  "usefulLifeMonths": zod.number().min(1).max(importMigrationAssetsBodyRowsItemUsefulLifeMonthsMax),
+  "depreciationMethod": zod.union([zod.literal('straight_line'),zod.literal('declining_balance'),zod.literal('units_of_production'),zod.literal(null)]).nullish(),
+  "openingAccumulatedDepreciation": zod.number().min(importMigrationAssetsBodyRowsItemOpeningAccumulatedDepreciationMin).describe('What the previous system had depreciated at the opening date — already in the trial balance.'),
+  "openingPeriodsBooked": zod.number().min(importMigrationAssetsBodyRowsItemOpeningPeriodsBookedMin).describe('Over how many periods, so the schedule resumes at the right sequence.'),
+  "vatInputTaxAmount": zod.number().min(importMigrationAssetsBodyRowsItemVatInputTaxAmountMin).nullish().describe('Required while the asset is inside its Art. 52 adjustment period.'),
+  "vatInitialRecoveryPct": zod.number().min(importMigrationAssetsBodyRowsItemVatInitialRecoveryPctMin).max(importMigrationAssetsBodyRowsItemVatInitialRecoveryPctMax).nullish(),
+  "vatNonDeductibleReason": zod.string().max(importMigrationAssetsBodyRowsItemVatNonDeductibleReasonMax).nullish().describe('Required at a 0 % recovery (Art. 50) — it decides how a later sale is taxed.'),
+  "location": zod.string().max(importMigrationAssetsBodyRowsItemLocationMax).nullish(),
+  "description": zod.string().max(importMigrationAssetsBodyRowsItemDescriptionMax).nullish()
+})).min(1)
+})
+
+export const ImportMigrationAssetsResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceId": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "categoryName": zod.string(),
+  "acquisitionDate": zod.string(),
+  "availableForUseDate": zod.string(),
+  "cost": zod.number(),
+  "residualValue": zod.number(),
+  "usefulLifeMonths": zod.number(),
+  "depreciationMethod": zod.string(),
+  "openingAccumulatedDepreciation": zod.number(),
+  "openingPeriodsBooked": zod.number(),
+  "netBookValue": zod.number().describe('cost − opening accumulated depreciation: what the Zakat base deducts (Zakat Regs Art. 48(1)(b)).'),
+  "vatInputTaxAmount": zod.number().nullable(),
+  "vatInitialRecoveryPct": zod.number().nullable(),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "location": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "resolvedAssetId": zod.number().nullable().describe('The register row this became at commit.'),
+  "problems": zod.array(zod.string())
+})),
+  "summary": zod.object({
+  "assets": zod.number(),
+  "cost": zod.number(),
+  "accumulated": zod.number(),
+  "netBookValue": zod.number(),
+  "blocked": zod.number()
+})
+})
+
+
+/**
  * @summary The opening position the staged content implies, by target account — what the opening journal will post — with the AR / AP / deposit subledgers derived from the items and the control checks between them. Computed; nothing is written.
  */
 export const GetMigrationOpeningPositionParams = zod.object({
@@ -8347,6 +8491,13 @@ export const GetMigrationOpeningPositionResponse = zod.object({
   "ytdExpense": zod.number(),
   "ytdResult": zod.number().describe('Income − expense of the imported YTD balances (A2).')
 }),
+  "assetControl": zod.object({
+  "assets": zod.number(),
+  "registerCost": zod.number(),
+  "registerAccumulated": zod.number(),
+  "mappedCost": zod.number(),
+  "mappedAccumulated": zod.number()
+}).describe('FA-D: what the register says against what the trial balance maps — the two must agree (FIXED_ASSETS_CONTROL).'),
   "arByCustomer": zod.array(zod.object({
   "partySourceId": zod.string(),
   "partyName": zod.string().nullable(),

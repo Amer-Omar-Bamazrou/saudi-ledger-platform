@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import {
   CreateMigrationBatchBody, UpdateMigrationBatchBody, ImportMigrationChartBody, DecideMigrationChartRowBody,
-  ImportMigrationPartiesBody, DecideMigrationPartyBody, ImportMigrationOpenItemsBody, ImportMigrationAdvancesBody,
+  ImportMigrationPartiesBody, DecideMigrationPartyBody, ImportMigrationOpenItemsBody, ImportMigrationAdvancesBody, ImportMigrationAssetsBody,
   ReverseMigrationBatchBody, CorrectMigratedOpenItemBody, RecordMigratedOpenItemIdentityBody,
 } from "@workspace/api-zod";
 import { migrationCorrectionService } from "../services/migrationCorrection.service";
@@ -84,6 +84,13 @@ export const migrationController = {
   async importAdvances(req: Request, res: Response) {
     const body = parseOr400(ImportMigrationAdvancesBody.safeParse(req.body));
     res.json(await migrationStagingService.importAdvances(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  async getAssets(req: Request, res: Response) {
+    res.json(await migrationStagingService.getAssets(requireIdParam(req)));
+  },
+  async importAssets(req: Request, res: Response) {
+    const body = parseOr400(ImportMigrationAssetsBody.safeParse(req.body));
+    res.json(await migrationStagingService.importAssets(requireIdParam(req), body, req.session?.userId ?? null));
   },
   async openingPosition(req: Request, res: Response) {
     res.json(await migrationValidationService.getOpeningPosition(requireIdParam(req)));

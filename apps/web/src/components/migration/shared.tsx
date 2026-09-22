@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, CircleSlash, Info } from "lucide-react";
 import { SECTIONS, type WorkspaceSection, verdictOf, verdictLabel, type CheckVerdict } from "@/lib/migrationImport";
 import type {
-  MigrationAdvances, MigrationBatch, MigrationBatchDetail, MigrationChart, MigrationControlCheck, MigrationOpenItems, MigrationOpeningPosition, MigrationParties,
+  MigrationAdvances, MigrationAssets, MigrationBatch, MigrationBatchDetail, MigrationChart, MigrationControlCheck, MigrationOpenItems, MigrationOpeningPosition, MigrationParties,
   MigrationReconciliationRecord, MigrationValidationRecord,
 } from "@workspace/api-client-react";
 
@@ -35,6 +35,7 @@ export const migrationKeys = {
   parties: (id: number) => ["migration", "parties", id] as const,
   openItems: (id: number) => ["migration", "open-items", id] as const,
   advances: (id: number) => ["migration", "advances", id] as const,
+  assets: (id: number) => ["migration", "assets", id] as const,
   position: (id: number) => ["migration", "opening-position", id] as const,
   reversal: (id: number) => ["migration", "reversal-preview", id] as const,
 };
@@ -63,6 +64,9 @@ export function useOpenItems(id: number, enabled = true) {
 }
 export function useAdvances(id: number, enabled = true) {
   return useQuery<MigrationAdvances>({ queryKey: migrationKeys.advances(id), queryFn: () => apiFetch(`/migration/batches/${id}/advances`), enabled });
+}
+export function useMigrationAssets(id: number, enabled = true) {
+  return useQuery<MigrationAssets>({ queryKey: migrationKeys.assets(id), queryFn: () => apiFetch(`/migration/batches/${id}/assets`), enabled });
 }
 export function useOpeningPosition(id: number, enabled = true) {
   return useQuery<MigrationOpeningPosition>({ queryKey: migrationKeys.position(id), queryFn: () => apiFetch(`/migration/batches/${id}/opening-position`), enabled });
@@ -218,6 +222,7 @@ export const SECTION_LABELS: Record<WorkspaceSection, [string, string]> = {
   ar: ["AR Open Items", "الذمم المدينة المفتوحة"],
   ap: ["AP Open Items", "الذمم الدائنة المفتوحة"],
   advances: ["Customer Advances", "دفعات العملاء المقدمة"],
+  assets: ["Fixed Assets", "الأصول الثابتة"],
   banks: ["Bank Opening Balances", "أرصدة البنوك الافتتاحية"],
   vat: ["VAT & Tax Balances", "أرصدة الضريبة"],
   "trial-balance": ["Opening Trial Balance", "ميزان المراجعة الافتتاحي"],
