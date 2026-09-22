@@ -127,6 +127,14 @@ test.describe.serial("the fixed-asset area, reached by clicking", () => {
     // 🔴 the page shows the asset that was clicked, not merely an asset
     await expect(page.getByText(number).first()).toBeVisible();
     await expect(page.getByText("Nav walk asset").first()).toBeVisible();
+
+    // 🔴 Cancel the draft the walk made. It is a DRAFT, so it moved nothing in
+    // the books — but a spec that leaves a row behind on every run grows the
+    // tenant's register without limit, and the next reader cannot tell which
+    // rows are the product's and which are the test's.
+    const id = Number(page.url().split("/").pop());
+    const cancelled = await request.post(`/api/assets/${id}/cancel`, { data: { reason: "E2E navigation walk" } });
+    expect(cancelled.ok(), await cancelled.text()).toBe(true);
   });
 
   test("🔴 Arabic, desktop: every surface is reachable by clicking its ARABIC label and renders right-to-left, with no sideways scroll", async ({ page }) => {
