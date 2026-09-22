@@ -5263,6 +5263,145 @@ export interface AssetDisposalRecord {
   reason: string | null;
 }
 
+export type RecognitionScheduleKind = typeof RecognitionScheduleKind[keyof typeof RecognitionScheduleKind];
+
+
+export const RecognitionScheduleKind = {
+  accrual: 'accrual',
+  prepayment: 'prepayment',
+} as const;
+
+export type RecognitionScheduleStatus = typeof RecognitionScheduleStatus[keyof typeof RecognitionScheduleStatus];
+
+
+export const RecognitionScheduleStatus = {
+  draft: 'draft',
+  active: 'active',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface RecognitionSchedule {
+  id: number;
+  reference: string;
+  kind: RecognitionScheduleKind;
+  description: string;
+  /** @nullable */
+  descriptionAr: string | null;
+  /** @nullable */
+  vendorId: number | null;
+  expenseAccountId: number;
+  balanceAccountId: number;
+  totalAmount: number;
+  periods: number;
+  startPeriod: string;
+  status: RecognitionScheduleStatus;
+  /** DERIVED from the posted rows, never stored. */
+  recognisedAmount: number;
+  remainingAmount: number;
+  postedPeriods: number;
+  plannedPeriods: number;
+  /** @nullable */
+  nextPeriod: string | null;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  cancelReason: string | null;
+  createdAt: string;
+}
+
+export interface RecognitionScheduleRow {
+  id: number;
+  period: string;
+  sequence: number;
+  amount: number;
+  /**
+     * NULL = planned; set = posted, and then frozen.
+     * @nullable
+     */
+  journalEntryId: number | null;
+  /** @nullable */
+  postedAt: string | null;
+}
+
+export type RecognitionScheduleDetail = RecognitionSchedule & {
+  rows: RecognitionScheduleRow[];
+};
+
+export type CreateRecognitionScheduleInputKind = typeof CreateRecognitionScheduleInputKind[keyof typeof CreateRecognitionScheduleInputKind];
+
+
+export const CreateRecognitionScheduleInputKind = {
+  accrual: 'accrual',
+  prepayment: 'prepayment',
+} as const;
+
+export interface CreateRecognitionScheduleInput {
+  kind: CreateRecognitionScheduleInputKind;
+  reference?: string;
+  /** @minLength 1 */
+  description: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @nullable */
+  vendorId?: number | null;
+  expenseAccountId: number;
+  balanceAccountId: number;
+  /** @exclusiveMinimum 0 */
+  totalAmount: number;
+  /** @minimum 1 */
+  periods: number;
+  /** @pattern ^[0-9]{4}-(0[1-9]|1[0-2])$ */
+  startPeriod: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface RecognisePeriodInput {
+  /** YYYY-MM; the next unposted period when omitted. */
+  period?: string;
+}
+
+export interface RunRecognitionInput {
+  /** YYYY-MM; the current business month when omitted. */
+  period?: string;
+}
+
+export interface CancelRecognitionInput {
+  /** @minLength 1 */
+  reason: string;
+}
+
+export interface RecognitionResult {
+  scheduleId: number;
+  period: string;
+  amount: number;
+  journalEntryId: number;
+  /** The LAST DAY of the period recognised. */
+  date: string;
+}
+
+export type RecognitionRunResultPostedItem = {
+  scheduleId: number;
+  reference: string;
+  amount: number;
+  journalEntryId: number;
+};
+
+export type RecognitionRunResultSkippedItem = {
+  scheduleId: number;
+  reference: string;
+  reason: string;
+};
+
+export interface RecognitionRunResult {
+  period: string;
+  postedTotal: number;
+  posted: RecognitionRunResultPostedItem[];
+  /** Every skip carries its reason — silence would be indistinguishable from nothing to do. */
+  skipped: RecognitionRunResultSkippedItem[];
+}
+
 export type FixedAssetControlId = typeof FixedAssetControlId[keyof typeof FixedAssetControlId];
 
 
@@ -7859,6 +7998,40 @@ period_to?: string;
  */
 as_of?: string;
 customer_id?: number;
+};
+
+export type ListRecognitionSchedulesParams = {
+kind?: ListRecognitionSchedulesKind;
+status?: ListRecognitionSchedulesStatus;
+};
+
+export type ListRecognitionSchedulesKind = typeof ListRecognitionSchedulesKind[keyof typeof ListRecognitionSchedulesKind];
+
+
+export const ListRecognitionSchedulesKind = {
+  accrual: 'accrual',
+  prepayment: 'prepayment',
+} as const;
+
+export type ListRecognitionSchedulesStatus = typeof ListRecognitionSchedulesStatus[keyof typeof ListRecognitionSchedulesStatus];
+
+
+export const ListRecognitionSchedulesStatus = {
+  draft: 'draft',
+  active: 'active',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export type ListRecognitionSchedules200 = {
+  items: RecognitionSchedule[];
+};
+
+export type CancelRecognitionSchedule200 = {
+  id: number;
+  cancelled: number;
+  keptPosted: number;
+  reason: string;
 };
 
 export type GetFixedAssetReportParams = {
