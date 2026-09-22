@@ -1,6 +1,6 @@
 # Fixed Assets & Depreciation — research and decision pack
 
-**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A…FA-G are BUILT — §20 the foundation, §21 capitalisation and the monthly run, §22 disposal, §23 migrated assets, §24 the Art. 17 income-tax pool, §25 the VAT Art. 52 adjustment, §26 the reports and the register-to-GL reconciliation.** Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A…FA-G are BUILT — §20 the foundation, §21 capitalisation and the monthly run, §22 disposal, §23 migrated assets, §24 the Art. 17 income-tax pool, §25 the VAT Art. 52 adjustment, §26 the reports and the register-to-GL reconciliation, §27 the area reached by CLICKING.** Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md): every accounting claim below carries its class — `AUTHORITATIVE (Saudi)`, `STANDARD (IFRS)`, `ODOO`, `ERPNEXT`, `PRODUCT DECISION`, or `ACCOUNTANT DECISION REQUIRED` — and nothing from Odoo or ERPNext is presented as a Saudi requirement. Primary texts were fetched and read in this pass (§18); the two Saudi texts read in English are ZATCA's own translations, which state that the Arabic prevails — readings that turn on wording are marked *reasoned-not-verified*.
 
@@ -901,3 +901,60 @@ downloaded figure asserts. The reconciliation does not yet run in
 `scripts/ledgerInvariants.ts` alongside the D-4 invariants; it is the same three
 questions and belongs there, which is the next mechanical step rather than part
 of this one.
+
+---
+
+## 27. FA-H — the area reached by CLICKING (2026-09-22)
+
+### 27.1 🔴 Why a separate file, when every page already has a walk
+
+Every other spec in this area arrives by `goto`. That is the right thing for
+testing a page, and it is also what hides a whole class of defect: a `goto`
+builds the URL the test wants, so a navigation entry pointing at the wrong path,
+a link that loses the scope the user chose, or a page that is simply not
+reachable from anywhere all stay invisible. `e2e/fixed-assets-navigation.spec.ts`
+is the one file that only ever **clicks**.
+
+It walks the five surfaces the fixed-asset work added or touched —
+
+> register → schedule → movement & reconciliation → Art. 17 income-tax pool →
+> VAT Art. 52 adjustments
+
+— from the navigation and from each page's own cross-links, in **English and
+Arabic**, on a **desktop and a phone**, and asserts each one **RENDERED** rather
+than that a URL changed. The 404 branch is a real page with a real URL, so a nav
+entry pointing at nothing lands on it and every URL assertion still passes.
+
+### 27.2 What clicking found that a `goto` could not
+
+- **The sections past the first three start collapsed**, so an entry inside one is not in the DOM until a human opens it. The walk opens them through the app's own controls (the bounded helper `rtl-direction.spec.ts` already uses), which is itself a check that the disclosure works.
+- **On a phone the navigation is behind the hamburger**, and the drawer must CLOSE on navigation — a drawer left open over the page is a dead end that no desktop test can see.
+- **`dir="rtl"` must survive every navigation, not only the first** (the B-8 shape: a value React does not own can be reverted by something inside its tree). A `goto` repairs the loss before it can be seen; this file asserts `dir` and `lang` after each click.
+- **The three working papers each link back to the register**, because a reader who finds a figure odd goes to the rows behind it. A cross-link that lost its way would break no test that arrives by `goto`.
+
+### 27.3 🔴 A leg that skips is a pass reported for a narrower thing
+
+The register-row leg originally skipped when the tenant happened to have no
+assets — and it is the one leg that proves the register's rows are links at all.
+It now **creates** an asset through the product's own API first, so the
+assertion always runs. This is the second time in this programme that a walk
+was found quietly reporting less than its name claimed (the first was FA-F's,
+pack §25.5); both are now built so the fixture cannot be absent.
+
+### 27.4 Verified
+
+`e2e/fixed-assets-navigation.spec.ts` (6, all clicked): every surface reachable
+from the navigation and rendering, English desktop; the three cross-links; the
+register row opening **that** asset by number and name; Arabic desktop with
+`dir`/`lang` held after each click and no sideways scroll; the phone drawer in
+English and in Arabic, closing on navigation, everything inside 390 px.
+
+The whole browser suite was run, not only the new file. `pnpm run verify`:
+green.
+
+### 27.5 What this did not do
+
+It does not assert *appearance* — spacing, contrast, where a figure sits. Those
+belong to the UI redesign, which inherits `components/ui/**` and the RTL
+override layer (`design-pass-inherited-decisions.md`), and none of the pages
+added here introduce a new primitive.
