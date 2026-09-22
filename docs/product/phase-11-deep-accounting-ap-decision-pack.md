@@ -53,4 +53,127 @@ and they need no new architecture.
 
 ---
 
+---
+
+## 2. Research — accruals and prepayments (A2, A3)
+
+Conducted under the escalation protocol: Saudi Ledger first, then the
+open-source implementations **from their source with citations**, then the
+standards, and every conclusion classified.
+
+### 2.1 What governs this in Saudi Arabia
+
+`AUTHORITATIVE (Saudi)` — **SOCPA adopts IFRS as issued by the IASB**, plus
+requirements and disclosures SOCPA adds, through an endorsement process that
+includes technical, Sharia and legal review. Full IFRS applies to publicly
+accountable entities (since 2017); **IFRS for SMEs was adopted in 2018** for
+smaller private companies, which is this platform's scope. So the governing
+text for accruals and prepayments is the SOCPA-endorsed IFRS / IFRS for SMEs
+accrual basis — not a Saudi-specific rule. *(IFRS Foundation jurisdiction
+profile for Saudi Arabia; SOCPA.)*
+
+🔴 There is **no Saudi tax or ZATCA consequence in the recognition itself**. An
+accrual and a prepayment are book entries: no tax invoice is issued, no input
+or output VAT arises, nothing enters the ZATCA chain. VAT arises on the
+underlying **supply** and its tax invoice, which is the bill's business and
+already built. This is why A2/A3 need no VAT treatment of their own, and it is
+stated here so a later reader does not go looking for one.
+
+### 2.2 The distinction that decides the accounts — `STANDARD (IFRS)`
+
+**IAS 37.11** is the authority, and it is explicit:
+
+> "Accruals are liabilities to pay for goods or services that have been
+> **received or supplied but have not been paid, invoiced or formally agreed
+> with the supplier** … Although it is sometimes necessary to estimate the
+> amount or timing of accruals, **the uncertainty is generally much less than
+> for provisions**."
+
+and, in the same paragraph, that **trade payables** are liabilities for goods
+or services "that have been received or supplied **and have been invoiced** or
+formally agreed with the supplier".
+
+Three things follow, and the first is the most important decision in this batch:
+
+1. 🔴 **AN ACCRUAL MUST NOT POST TO ACCOUNTS PAYABLE.** AP is the trade-payable
+   control account — the invoiced liability, reconciled to supplier statements,
+   aged in AP ageing, and settled by supplier payments. An accrual has **no
+   invoice and no vendor document**; posting it to AP would put a payable in
+   the supplier's balance that no statement can match and no payment can
+   settle. It posts to a separate **accrued liabilities** account.
+2. **A provision is not in scope.** IAS 37's uncertainty test separates them,
+   and the brief asks for accruals. Provisions are named as out of scope
+   rather than quietly folded in.
+3. **A prepayment is an asset**, recognised because payment precedes the
+   benefit, and released to expense over the period the benefit is received.
+
+### 2.3 ERPNext — `ERPNEXT IMPLEMENTATION` (source, cited)
+
+`erpnext/accounts/deferred_revenue.py` (sparse clone of `frappe/erpnext`):
+
+| Fact | Citation |
+| --- | --- |
+| Deferral is an attribute of an invoice **line**, driven by `service_start_date` / `service_end_date` on the item | `:92–93`, `:399` |
+| Purchase side recognition is `credit_account, debit_account = item.deferred_expense_account, item.expense_account` — i.e. **Dr expense / Cr deferred expense** | `:397` |
+| Sales side is the mirror: Dr deferred revenue / Cr income | `:394` |
+| Monthly amount with a **prorate factor** for partial first/last months | `:225–238` |
+| The booked total is **capped** so it can never exceed the line's net amount | `:248–250` |
+| Recognition runs as a scheduled process (`Process Deferred Accounting`) | `:487` |
+
+ERPNext has **no separate "accrual" document**: an accrual there is an ordinary
+Journal Entry, and the deferral machinery is for *deferred* revenue/expense.
+
+### 2.4 Odoo — 🔴 **could not be located**
+
+`addons/account` of `odoo/odoo` (sparse clone, current `main`) contains **no
+deferred-expense or accrual implementation**: `grep -rn "deferred"` over
+`addons/account/models` returns nothing, and the only hits in the module are
+translation catalogues and a generic chart-of-accounts CSV. Odoo's deferred
+revenue/expense management ships in **Enterprise** (`account_accountant`),
+which is not open source and is not in this repository.
+
+Per the protocol, a claim that cannot be cited is **not reported**: nothing is
+asserted here about how Odoo implements deferrals. What Odoo's community
+edition *does* have, and what is cited below, is its lock-date model (§5).
+
+### 2.5 The comparison, and the decision
+
+| Question | Saudi Ledger today | ERPNext (cited) | Odoo | Source | Decision |
+| --- | --- | --- | --- | --- | --- |
+| Where does a deferral live? | nowhere | on the invoice **line** (`:92`, `:399`) | not locatable | — | `SAUDI LEDGER PRODUCT DECISION`: a **standalone schedule document**, not a bill-line attribute |
+| Recognition direction (prepayment) | — | Dr expense / Cr deferred expense (`:397`) | — | IAS 1 accrual basis | the same |
+| Recognition direction (accrual) | — | (no accrual doctype) | — | IAS 37.11 | Dr expense / Cr **accrued liabilities**, never AP |
+| Partial first/last period | — | prorate factor (`:238`) | — | — | 🔴 **not** prorated — see below |
+| Over-recognition | — | capped at the line's net (`:249`) | — | — | the same guarantee, by construction |
+
+🔴 **Why a standalone document rather than ERPNext's line attribute.** Our bill
+lines carry no service dates, and adding them would put a recognition schedule
+on every purchase line in the product. More importantly a prepayment does not
+always come from a bill — rent paid by bank transfer with no vendor invoice is
+the ordinary case. The shape this codebase has already proven for exactly this
+problem is the **fixed-asset register**: a document holding the facts, a
+**stored schedule** with one row per period, posted rows frozen, figures
+DERIVED from the posted rows, and every effect through `postJournalEntry` after
+`checkPeriodOpen`. A2/A3 reuse that shape rather than inventing a second one.
+
+🔴 **Why whole periods rather than ERPNext's prorate factor.** ERPNext spreads a
+partial first month by day count. Saudi Ledger recognises in **whole periods**,
+because the schedule is generated once and frozen, and a day-count proration
+makes the first and last rows depend on a convention the user cannot see. The
+user chooses the number of periods and the start period; the last row absorbs
+the rounding residue, exactly as `generateStraightLineSchedule` already does
+for depreciation (FA-A), so there is **one** rounding convention in the
+product rather than two. This is a `SAUDI LEDGER PRODUCT DECISION` with no
+Saudi, VAT or ZATCA consequence — and by the protocol's own rule it is adopted
+rather than escalated.
+
+### 2.6 What was NOT decided here
+
+`ACCOUNTANT DECISION REQUIRED` — none for A2/A3. The recognition pattern is
+IFRS accrual basis, the account classification follows IAS 37.11 directly, and
+no Saudi/VAT/ZATCA consequence attaches. Provisions (IAS 37 proper) are **out
+of scope** and are not approximated.
+
+---
+
 *(As-built records for each batch are appended below as they land.)*

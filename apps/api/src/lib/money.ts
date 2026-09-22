@@ -46,3 +46,24 @@ export const round2 = (n: number): number => Math.round(n * 100) / 100;
  * column, so the value stored is exactly the value the arithmetic checked.
  */
 export const money2 = (n: number): string => round2(n).toFixed(2);
+
+/**
+ * Split a total into `parts` rounded addends that sum EXACTLY to the total.
+ *
+ * 🔴 ONE DEFINITION OF THE CONVENTION (Phase 11, 2026-09-22). Every equal
+ * addend is `round2(total / parts)` and the LAST one absorbs the residue, so
+ * Σ rows = the total to the halala with no drift and no plug. This is the rule
+ * the fixed-asset depreciation schedule has used since FA-A; it lives here now
+ * because the accrual and prepayment schedules need the same one, and two
+ * copies of a formula diverge invisibly until something joins them.
+ *
+ * Throws on a non-positive `parts`: a schedule of zero periods is not a
+ * schedule, and returning [] would let a caller believe it had recognised
+ * something.
+ */
+export const spreadOverPeriods = (total: number, parts: number): number[] => {
+  const n = Math.trunc(parts);
+  if (!(n > 0)) throw new RangeError("A schedule needs at least one period.");
+  const each = round2(total / n);
+  return Array.from({ length: n }, (_, i) => (i === n - 1 ? round2(total - round2(each * (n - 1))) : each));
+};

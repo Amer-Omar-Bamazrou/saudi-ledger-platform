@@ -18,7 +18,7 @@
  * `declining_balance` and `units_of_production` are representable in the
  * schema and REFUSED here by name until built (pack §12).
  */
-import { round2 } from "../../lib/money";
+import { round2, spreadOverPeriods } from "../../lib/money";
 import { BusinessRuleError } from "../../lib/errors";
 
 export type ScheduleInput = {
@@ -96,12 +96,16 @@ export function generateStraightLineSchedule(input: ScheduleInput): ScheduleRow[
   if (remaining === 0) return []; // fully depreciated on arrival — still on the balance sheet, no rows
   // period 1 is the month of the available-for-use date; a migrated asset resumes the month after the opening date
   const first = input.openingDate ? shiftPeriod(periodOf(input.openingDate), 1) : periodOf(input.availableForUseDate);
-  const perPeriod = round2(depreciable / remaining);
+  // 🔴 The split convention lives in `lib/money.ts` (Phase 11): equal rounded
+  // addends with the LAST absorbing the residue, so Σ rows = the depreciable
+  // amount exactly. It was written here first; it is shared now because the
+  // accrual and prepayment schedules recognise on the same rule, and two
+  // copies of one formula diverge invisibly.
+  const addends = spreadOverPeriods(depreciable, remaining);
   const rows: ScheduleRow[] = [];
   let accumulated = openingAccumulated;
   for (let i = 0; i < remaining; i++) {
-    const isLast = i === remaining - 1;
-    const amount = isLast ? round2(depreciable - round2(perPeriod * (remaining - 1))) : perPeriod;
+    const amount = addends[i]!;
     accumulated = round2(accumulated + amount);
     rows.push({
       sequence: booked + i + 1,
