@@ -1,6 +1,6 @@
 # Fixed Assets & Depreciation — research and decision pack
 
-**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A is BUILT — §20; FA-B (capitalisation, the monthly run, the estimate change) — §21; FA-C (disposal) — §22; FA-D (migrated assets) — §23.** FA-E and FA-F follow. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A is BUILT — §20; FA-B (capitalisation, the monthly run, the estimate change) — §21; FA-C (disposal) — §22; FA-D (migrated assets) — §23; FA-E (the Art. 17 income-tax pool) — §24.** FA-F (the VAT Art. 52 engine) follows. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md): every accounting claim below carries its class — `AUTHORITATIVE (Saudi)`, `STANDARD (IFRS)`, `ODOO`, `ERPNEXT`, `PRODUCT DECISION`, or `ACCOUNTANT DECISION REQUIRED` — and nothing from Odoo or ERPNext is presented as a Saudi requirement. Primary texts were fetched and read in this pass (§18); the two Saudi texts read in English are ZATCA's own translations, which state that the Arabic prevails — readings that turn on wording are marked *reasoned-not-verified*.
 
@@ -554,3 +554,153 @@ in `openInvoice.test.ts`, `statementParser.test.ts` and their neighbours (string
 literals where the generated types now say `number`), which is why the exclusion
 is still there. Closing it is a standalone cleanup, and it belongs on the queue
 rather than inside a fixed-assets PR.
+
+---
+
+## 24. FA-E — the Income Tax Law Art. 17 pool, as built (2026-09-22)
+
+`AUTHORITATIVE (Saudi)` for every rule; `PRODUCT DECISION` for how the missing
+inputs are obtained. Accountant FA-1: the pooled income-tax depreciation **is**
+in scope and is computed **separately** from the book basis.
+
+### 24.1 The primary text was read in this pass, and it settled the open question
+
+The Income Tax Law (Royal Decree M/1, 15/1/1425H) was fetched and read directly
+— the English text as deposited with the WTO, whose Arabic prevails. Art. 17(e)
+answers the one question §8.3 left implicit, in terms:
+
+> "…and fifty percent (50%) of the cost base of assets **in use** added to the
+> group in the current and previous taxable years after the deduction of fifty
+> percent (50%) of the compensation received from the assets disposed of during
+> the current and previous taxable years, provided that the balance does not
+> become in the negative."
+
+**"assets IN USE added"** — so an asset enters its pool in the tax year it became
+**available for use**, not the year it was bought, which Art. 17(a) corroborates
+("wholly or partly used in the generation of taxable income"). The register has
+stored both dates since FA-A, so the two readings are distinguishable and this
+one is the text's. A fixture whose purchase and in-service dates straddle a year
+end pins it (`income-tax-pool.test.ts`).
+
+Three further precisions the condensed §8.3 table did not carry:
+
+| Article | What the text actually says | Consequence here |
+| --- | --- | --- |
+| 17(h) | the balance is compared to SAR 1,000 **"after allowing for the deduction in accordance with paragraph (d)"** | the threshold is tested on the POST-deduction balance, not the year-end balance |
+| 17(h), 17(i) | both say the amount **"MAY be deducted"** | they are ELECTIONS. The engine computes what is available and does **not** take it |
+| 17(g) | "regardless of the amount of such compensation, the value of the group shall be reduced to zero and the excess is included in the taxpayer's taxable income" | the excess is an income figure, reported by name — never a negative pool and never a deduction |
+
+### 24.2 A report over the register, with exactly two declared inputs
+
+Nothing about the pool is stored, for the reason the VAT return is not stored: a
+second value space beside the rows that produce it drifts. `computePoolYear`
+(`services/assets/incomeTaxPool.ts`) is **pure** — every input is passed in — and
+`incomeTaxPool.service.ts` is the part that knows about companies, fiscal years
+and rows. The tax year is the company's own fiscal year through `lib/fiscalYear.ts`
+(Art. 22(a)–(b) takes the taxpayer's twelve-month period); there is no second
+definition of a year.
+
+Two inputs are **not** in the register, and `asset_tax_pool_declarations` is
+where the taxpayer states them. Neither is ever assumed:
+
+1. **The opening ANCHOR.** A group's balance at the end of an already-filed year
+   is a fact of the taxpayer's own return — a declining-balance figure no book
+   register can produce, and Art. 81(a) puts pre-Law assets in at cost less
+   depreciation previously allowed. Without one the report returns
+   `anchor_not_declared` and computes nothing. A company with no pool history
+   declares a **nil** anchor, which is an ACT and is audited as one. The anchor
+   carries its own year's additions and disposals too, because Art. 17(e) reaches
+   back one year — and derivation then starts strictly AFTER the anchor year, so
+   the same addition can never be counted twice.
+2. **Art. 18 repairs.** Repair and improvement expenditure is deductible up to
+   4 % of the group's year-end balance and the excess is ADDED to the pool. The
+   platform cannot attribute repair expense to an Art. 17 group — it is ordinary
+   expense in the GL, not an asset — so the taxpayer declares the year's figure
+   per group and the engine does the Art. 18 arithmetic. **Undeclared reads
+   UNDECLARED**, never zero, on the report and on the page.
+
+**Order of operations, and why.** 17(e)/17(g) first (the balance, or the excess);
+then Art. 18; then 17(d)'s rate; then the elections, because 17(h) is defined on
+the post-(d) balance. Art. 18(b)'s cap is "4 % of the balance … at the end of
+that year", which is circular once 18(c)'s excess is added to that balance — so
+the cap is taken on the Art. 17(e) balance **before** the add-back. *Reasoned-
+not-verified*: the alternative reading yields a slightly larger cap and is not
+derivable from the English text, so the smaller, non-circular base is used and
+the choice is stated on the report itself.
+
+### 24.3 Four refusals, each naming the act that resolves it
+
+| `status` | When | Why not a figure |
+| --- | --- | --- |
+| `regime_not_declared` | the non-Saudi/non-GCC share is NULL | Art. 17 applies only to persons subject to the Income Tax Law (Art. 2; Zakat Regs Art. 6(1) mirrors it). Assuming 0 hides the regime from a taxpayer who owes it; assuming otherwise invents a tax for a Zakat payer |
+| `not_applicable` | the share is 0 % | a Zakat payer has ONE basis and it is the book basis (Zakat Regs Art. 48(1)(b), 63(2)) |
+| `fiscal_year_not_declared` | no fiscal year | there is no taxable year to compute over (Art. 22) |
+| `anchor_not_declared` | no anchor | §24.2 |
+
+### 24.4 🔴 A column with no writer, found by its own reader
+
+`companies.foreign_ownership_pct` has existed since FA-A and **nothing wrote
+it**. The pool READS it — so the refusal above would have told the tenant to
+declare the share in Company Settings, where no such control existed: a refusal
+that hides the control, which is worse than no refusal. FA-E adds the writer
+(Company Settings, `PATCH /companies/current`, spec + generated types), and it
+is checked **against** `ownershipType` because the Law reads them together:
+SAUDI_GCC means 0 %, FOREIGN means 100 %, MIXED is strictly between. A pair
+stating two different facts is refused with a sentence rather than merged —
+the same rule `companies_foreign_ownership_pct_chk` has pinned at the write
+boundary since migration 0088, which until now no service explained.
+
+### 24.5 🔴 The frame is part of the count
+
+`frameLimits` travels with the figures, in the API and on the page, because five
+things Art. 17 contemplates are outside what the register can see: 17(a) land is
+not depreciable and the register has no land marker; 17(f) a conversion to
+personal use is a deemed disposal AT MARKET VALUE, which no disposal kind
+captures (each such disposal is listed with a `deemedValueMissing` flag rather
+than contributing a silent zero); 17(k) partial business use; 17(j) land bought
+or sold with constructions on it; 17(l) BOT/BOOT contracts.
+
+### 24.6 Verified
+
+`tests/income-tax-pool-arithmetic.test.ts` (10, pure): the five rates; the
+half-year convention across three years with the property that the cost base
+enters **exactly once**; disposals moving the balance DOWN by the stated amount;
+17(g) at the boundary (equal is not an excess); Art. 18 over and under the cap,
+and undeclared distinguished from a declared zero; 17(h) and 17(i) OFFERED and
+not taken, unavailable elections changing nothing when elected, and the two never
+both applied; every group at its own rate on identical facts; and the pool
+behaving as a pool (two assets are indistinguishable in it).
+
+`tests/income-tax-pool.test.ts` (7, real rows): the four refusals in sequence on
+one company; three named declaration refusals with nothing stored; the chain
+computed from the anchor with an asset bought **2025-12-20** and in service
+**2026-01-05** entering the 2026 pool and leaving 2025 unchanged; a scrap taking
+no compensation out while making Art. 17(i) available at 5,400 and not taking it;
+Art. 18 moving the pool and the deduction together by the amounts the Law gives;
+an anchor correction re-computing the chain as ONE row, not two; and the
+company-scoped isolation with presence, absence AND movement — the other org's
+asset capitalised through its own bill path so its 500,000 really moves while
+ours stays 200,000.
+
+`tests/zakat-scope.test.ts` gains four (the share's writer): the round-trip and
+its withdrawal, the consistency refusal in all four directions with the refused
+value never landing, the range refusal, and the DB CHECK refusing the same pairs.
+
+`e2e/income-tax-pool.spec.ts` (6, clicked): the page refusing with no figures at
+all; the refusal MOVING ON as each named control is used (the share, then the
+fiscal year, both in Company Settings); the anchor form turning the same page
+into a working paper with figures checked against the API; Art. 18 declared
+through the dialog moving both figures; Arabic under `dir=rtl`; and a phone at
+390 px. The walk restores the shared company and withdraws its declarations, so
+a second run starts where the first did.
+
+`pnpm run verify`: green.
+
+### 24.7 What this did not do
+
+The pool is a **working paper** and posts nothing — no deferred tax (IAS 12),
+and no apportionment of the result to the taxed share: the whole pool is
+computed and the share is STATED, because apportioning is a tax-computation step
+beyond the register. Art. 17(f)'s market value is not captured (§24.5). The
+report's endpoints are reachable from the new page only; the Art. 52 VAT engine
+is FA-F.

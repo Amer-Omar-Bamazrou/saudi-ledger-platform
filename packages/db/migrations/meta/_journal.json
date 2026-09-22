@@ -645,6 +645,13 @@
       "when": 1790079390356,
       "tag": "0091_fixed_assets_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1790082518535,
+      "tag": "0092_fixed_assets_income_tax_pool",
+      "breakpoints": true
     }
   ]
 }

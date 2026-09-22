@@ -171,4 +171,60 @@ describeMaybe("M17.1 — ownership through the real write path", () => {
       pool.query(`UPDATE companies SET ownership_type = NULL WHERE id = $1`, [companyId]),
     ).resolves.toBeDefined();
   });
+
+  /**
+   * FA-E (2026-09-22) — THE SHARE SUBJECT TO INCOME TAX now has a writer.
+   *
+   * The column has existed since FA-A and nothing wrote it: a shape without a
+   * producer, which the Art. 17 pool then READ. A reader over an unwritten
+   * column is the worse half of that pair — the report refused, told the
+   * tenant to declare the share in Company Settings, and Company Settings had
+   * no such control. These assertions exist so the writer cannot quietly go
+   * away again.
+   */
+  describe("FA-E — the non-Saudi/non-GCC share (Income Tax Law Art. 2)", () => {
+    it("🔴 a new company has NOT DECLARED it, and it round-trips through the product's own write path", async () => {
+      await inTenant(() => companiesService.updateCurrent({ ownershipType: null, foreignOwnershipPct: null } as never));
+      expect((await inTenant(() => companiesService.getCurrent())).foreignOwnershipPct).toBeNull();
+
+      await inTenant(() => companiesService.updateCurrent({ ownershipType: "MIXED", foreignOwnershipPct: 40 } as never));
+      expect((await inTenant(() => companiesService.getCurrent())).foreignOwnershipPct).toBe(40);
+
+      // and it can be TAKEN BACK, like the structure it belongs to
+      await inTenant(() => companiesService.updateCurrent({ foreignOwnershipPct: null } as never));
+      expect((await inTenant(() => companiesService.getCurrent())).foreignOwnershipPct).toBeNull();
+    });
+
+    it("🔴 the structure and the share must state the SAME fact — refused with a sentence, in both directions", async () => {
+      await inTenant(() => companiesService.updateCurrent({ ownershipType: "SAUDI_GCC", foreignOwnershipPct: 0 } as never));
+      // SAUDI_GCC means 0 %
+      await expect(inTenant(() => companiesService.updateCurrent({ foreignOwnershipPct: 40 } as never))).rejects.toThrow(/state different facts/);
+      // FOREIGN means 100 %
+      await expect(inTenant(() => companiesService.updateCurrent({ ownershipType: "FOREIGN", foreignOwnershipPct: 60 } as never))).rejects.toThrow(/state different facts/);
+      // MIXED is strictly between — the ends belong to the other two
+      await expect(inTenant(() => companiesService.updateCurrent({ ownershipType: "MIXED", foreignOwnershipPct: 100 } as never))).rejects.toThrow(/state different facts/);
+      // and a share with no structure at all says nothing about the regime
+      await inTenant(() => companiesService.updateCurrent({ ownershipType: null, foreignOwnershipPct: null } as never));
+      await expect(inTenant(() => companiesService.updateCurrent({ foreignOwnershipPct: 40 } as never))).rejects.toThrow(/Declare the ownership structure before the share/);
+      // …and the refused value never landed
+      expect((await inTenant(() => companiesService.getCurrent())).foreignOwnershipPct).toBeNull();
+    });
+
+    it("refuses a percentage outside 0–100 with a 400, not a DB error", async () => {
+      await inTenant(() => companiesService.updateCurrent({ ownershipType: "MIXED" } as never));
+      await expect(inTenant(() => companiesService.updateCurrent({ foreignOwnershipPct: 140 } as never))).rejects.toThrow(/between 0 and 100/);
+      await expect(inTenant(() => companiesService.updateCurrent({ foreignOwnershipPct: -1 } as never))).rejects.toThrow(/between 0 and 100/);
+    });
+
+    it("🔴 the DB CHECK refuses the same pairs — the invariant is at the write boundary, not in one path", async () => {
+      await pool.query(`UPDATE companies SET ownership_type = 'SAUDI_GCC', foreign_ownership_pct = 0 WHERE id = $1`, [companyId]);
+      await expect(
+        pool.query(`UPDATE companies SET foreign_ownership_pct = 40 WHERE id = $1`, [companyId]),
+      ).rejects.toThrow(/companies_foreign_ownership_pct_chk/);
+      // NULL stays legitimate — not declared is a state, not a violation
+      await expect(
+        pool.query(`UPDATE companies SET foreign_ownership_pct = NULL WHERE id = $1`, [companyId]),
+      ).resolves.toBeDefined();
+    });
+  });
 });

@@ -93,6 +93,7 @@ import type {
   CustomerRefund,
   CustomerStatement,
   Decomposition,
+  DeleteIncomeTaxPoolDeclaration200,
   DeploymentBanner,
   DepositReview,
   DepreciateAssetInput,
@@ -122,6 +123,7 @@ import type {
   GetDepositReviewParams,
   GetGeneralLedgerParams,
   GetIncomeStatementParams,
+  GetIncomeTaxPoolParams,
   GetInvoiceDocumentParams,
   GetJournalReportParams,
   GetLiquidityParams,
@@ -142,6 +144,9 @@ import type {
   ImportMigrationOpenItemsInput,
   ImportMigrationPartiesInput,
   IncomeStatementReport,
+  IncomeTaxPoolDeclaration,
+  IncomeTaxPoolDeclarationInput,
+  IncomeTaxPoolReport,
   Invoice,
   JournalEntry,
   JournalEntryReversal,
@@ -160,6 +165,7 @@ import type {
   ListEmployees200,
   ListEmployeesParams,
   ListFindingsParams,
+  ListIncomeTaxPoolDeclarations200,
   ListInvoices200,
   ListInvoicesParams,
   ListJournalEntries200,
@@ -15427,6 +15433,312 @@ export const useDisposeAsset = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDisposeAssetMutationOptions(options));
+    }
+
+export const getGetIncomeTaxPoolUrl = (params?: GetIncomeTaxPoolParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/assets/income-tax-pool?${stringifiedParams}` : `/api/assets/income-tax-pool`
+}
+
+/**
+ * A report over the register, never a second ledger. For each Art. 17(b) group and each of the company's taxable years (Art. 22) it rolls the previous year's closing balance with 50 % of the cost base of assets IN USE added in this year and the previous one, less 50 % of the compensation for assets disposed of in those two years (17(e)), applies Art. 18's 4 % repair cap, applies the group rate (17(d)), and NAMES the two elections (17(h) small balance, 17(i) group fully disposed) without taking them — both say "may", and an election rewrites every later year.
+ * 🔴 It computes nothing it was not given. `status` is `computed` only when the company has declared its non-Saudi/non-GCC share, its fiscal year, and an ANCHOR: a group balance at the end of an already-filed year, which comes from the taxpayer's own return and which no book register can produce. Otherwise `status` names the missing input and `reason` names the act that supplies it. `frameLimits` travels with the figures and states what Art. 17 contemplates that the register cannot see (land, deemed disposals at market value, partial business use, land-with-constructions, BOT/BOOT).
+ * @summary FA-E: the Income Tax Law Art. 17 pooled depreciation working paper, per group and tax year
+ */
+export const getIncomeTaxPool = async (params?: GetIncomeTaxPoolParams, options?: RequestInit): Promise<IncomeTaxPoolReport> => {
+
+  return customFetch<IncomeTaxPoolReport>(getGetIncomeTaxPoolUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetIncomeTaxPoolQueryKey = (params?: GetIncomeTaxPoolParams,) => {
+    return [
+    `/api/assets/income-tax-pool`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetIncomeTaxPoolQueryOptions = <TData = Awaited<ReturnType<typeof getIncomeTaxPool>>, TError = ErrorType<unknown>>(params?: GetIncomeTaxPoolParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIncomeTaxPool>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetIncomeTaxPoolQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getIncomeTaxPool>>> = ({ signal }) => getIncomeTaxPool(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getIncomeTaxPool>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetIncomeTaxPoolQueryResult = NonNullable<Awaited<ReturnType<typeof getIncomeTaxPool>>>
+export type GetIncomeTaxPoolQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary FA-E: the Income Tax Law Art. 17 pooled depreciation working paper, per group and tax year
+ */
+
+export function useGetIncomeTaxPool<TData = Awaited<ReturnType<typeof getIncomeTaxPool>>, TError = ErrorType<unknown>>(
+ params?: GetIncomeTaxPoolParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIncomeTaxPool>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetIncomeTaxPoolQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListIncomeTaxPoolDeclarationsUrl = () => {
+
+
+
+
+  return `/api/assets/income-tax-pool/declarations`
+}
+
+/**
+ * @summary FA-E: the pool's declared inputs — the anchor, the Art. 18 repairs and the elections
+ */
+export const listIncomeTaxPoolDeclarations = async ( options?: RequestInit): Promise<ListIncomeTaxPoolDeclarations200> => {
+
+  return customFetch<ListIncomeTaxPoolDeclarations200>(getListIncomeTaxPoolDeclarationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListIncomeTaxPoolDeclarationsQueryKey = () => {
+    return [
+    `/api/assets/income-tax-pool/declarations`
+    ] as const;
+    }
+
+
+export const getListIncomeTaxPoolDeclarationsQueryOptions = <TData = Awaited<ReturnType<typeof listIncomeTaxPoolDeclarations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listIncomeTaxPoolDeclarations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListIncomeTaxPoolDeclarationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listIncomeTaxPoolDeclarations>>> = ({ signal }) => listIncomeTaxPoolDeclarations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listIncomeTaxPoolDeclarations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListIncomeTaxPoolDeclarationsQueryResult = NonNullable<Awaited<ReturnType<typeof listIncomeTaxPoolDeclarations>>>
+export type ListIncomeTaxPoolDeclarationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary FA-E: the pool's declared inputs — the anchor, the Art. 18 repairs and the elections
+ */
+
+export function useListIncomeTaxPoolDeclarations<TData = Awaited<ReturnType<typeof listIncomeTaxPoolDeclarations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listIncomeTaxPoolDeclarations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListIncomeTaxPoolDeclarationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeclareIncomeTaxPoolUrl = () => {
+
+
+
+
+  return `/api/assets/income-tax-pool/declarations`
+}
+
+/**
+ * Upserts on (group, tax year). A declaration is CORRECTABLE — unlike anything that posts, it records what the taxpayer filed. An opening balance must come with that year's own additions and disposals, because Art. 17(e) takes 50 % of them into the following year; state 0 when there were none.
+ * @summary FA-E: state (or correct) one group's declaration for one tax year
+ */
+export const declareIncomeTaxPool = async (incomeTaxPoolDeclarationInput: IncomeTaxPoolDeclarationInput, options?: RequestInit): Promise<IncomeTaxPoolDeclaration> => {
+
+  return customFetch<IncomeTaxPoolDeclaration>(getDeclareIncomeTaxPoolUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(incomeTaxPoolDeclarationInput)
+  }
+);}
+
+
+
+
+
+export const getDeclareIncomeTaxPoolMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declareIncomeTaxPool>>, TError,{data: BodyType<IncomeTaxPoolDeclarationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof declareIncomeTaxPool>>, TError,{data: BodyType<IncomeTaxPoolDeclarationInput>}, TContext> => {
+
+const mutationKey = ['declareIncomeTaxPool'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declareIncomeTaxPool>>, {data: BodyType<IncomeTaxPoolDeclarationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  declareIncomeTaxPool(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeclareIncomeTaxPoolMutationResult = NonNullable<Awaited<ReturnType<typeof declareIncomeTaxPool>>>
+    export type DeclareIncomeTaxPoolMutationBody = BodyType<IncomeTaxPoolDeclarationInput>
+    export type DeclareIncomeTaxPoolMutationError = ErrorType<void>
+
+    /**
+ * @summary FA-E: state (or correct) one group's declaration for one tax year
+ */
+export const useDeclareIncomeTaxPool = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declareIncomeTaxPool>>, TError,{data: BodyType<IncomeTaxPoolDeclarationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof declareIncomeTaxPool>>,
+        TError,
+        {data: BodyType<IncomeTaxPoolDeclarationInput>},
+        TContext
+      > => {
+      return useMutation(getDeclareIncomeTaxPoolMutationOptions(options));
+    }
+
+export const getDeleteIncomeTaxPoolDeclarationUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/income-tax-pool/declarations/${id}`
+}
+
+/**
+ * @summary FA-E: withdraw a declaration
+ */
+export const deleteIncomeTaxPoolDeclaration = async (id: number, options?: RequestInit): Promise<DeleteIncomeTaxPoolDeclaration200> => {
+
+  return customFetch<DeleteIncomeTaxPoolDeclaration200>(getDeleteIncomeTaxPoolDeclarationUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteIncomeTaxPoolDeclarationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteIncomeTaxPoolDeclaration>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteIncomeTaxPoolDeclaration>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteIncomeTaxPoolDeclaration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteIncomeTaxPoolDeclaration>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteIncomeTaxPoolDeclaration(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteIncomeTaxPoolDeclarationMutationResult = NonNullable<Awaited<ReturnType<typeof deleteIncomeTaxPoolDeclaration>>>
+
+    export type DeleteIncomeTaxPoolDeclarationMutationError = ErrorType<void>
+
+    /**
+ * @summary FA-E: withdraw a declaration
+ */
+export const useDeleteIncomeTaxPoolDeclaration = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteIncomeTaxPoolDeclaration>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteIncomeTaxPoolDeclaration>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteIncomeTaxPoolDeclarationMutationOptions(options));
     }
 
 export const getWriteOffBadDebtUrl = (id: number,) => {

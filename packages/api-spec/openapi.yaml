@@ -4262,6 +4262,104 @@ paths:
         "404":
           description: Not found
 
+  /assets/income-tax-pool:
+    get:
+      operationId: getIncomeTaxPool
+      tags: [assets]
+      summary: "FA-E: the Income Tax Law Art. 17 pooled depreciation working paper, per group and tax year"
+      description: >
+        A report over the register, never a second ledger. For each Art. 17(b)
+        group and each of the company's taxable years (Art. 22) it rolls the
+        previous year's closing balance with 50 % of the cost base of assets IN
+        USE added in this year and the previous one, less 50 % of the
+        compensation for assets disposed of in those two years (17(e)), applies
+        Art. 18's 4 % repair cap, applies the group rate (17(d)), and NAMES the
+        two elections (17(h) small balance, 17(i) group fully disposed) without
+        taking them — both say "may", and an election rewrites every later year.
+
+        🔴 It computes nothing it was not given. `status` is `computed` only
+        when the company has declared its non-Saudi/non-GCC share, its fiscal
+        year, and an ANCHOR: a group balance at the end of an already-filed
+        year, which comes from the taxpayer's own return and which no book
+        register can produce. Otherwise `status` names the missing input and
+        `reason` names the act that supplies it. `frameLimits` travels with the
+        figures and states what Art. 17 contemplates that the register cannot
+        see (land, deemed disposals at market value, partial business use,
+        land-with-constructions, BOT/BOOT).
+      parameters:
+        - in: query
+          name: to_year
+          required: false
+          schema: { type: integer }
+          description: "Compute up to this fiscal-year label. Default: the year containing today's business date."
+      responses:
+        "200":
+          description: The working paper, or the state that stops it being computed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IncomeTaxPoolReport" }
+
+  /assets/income-tax-pool/declarations:
+    get:
+      operationId: listIncomeTaxPoolDeclarations
+      tags: [assets]
+      summary: "FA-E: the pool's declared inputs — the anchor, the Art. 18 repairs and the elections"
+      responses:
+        "200":
+          description: Every declaration, oldest year first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/IncomeTaxPoolDeclaration" }
+    post:
+      operationId: declareIncomeTaxPool
+      tags: [assets]
+      summary: "FA-E: state (or correct) one group's declaration for one tax year"
+      description: >
+        Upserts on (group, tax year). A declaration is CORRECTABLE — unlike
+        anything that posts, it records what the taxpayer filed. An opening
+        balance must come with that year's own additions and disposals, because
+        Art. 17(e) takes 50 % of them into the following year; state 0 when
+        there were none.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IncomeTaxPoolDeclarationInput" }
+      responses:
+        "200":
+          description: The declaration as stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IncomeTaxPoolDeclaration" }
+        "422":
+          description: The declaration states nothing, names a group the Law does not have, or is an incomplete anchor
+
+  /assets/income-tax-pool/declarations/{id}:
+    delete:
+      operationId: deleteIncomeTaxPoolDeclaration
+      tags: [assets]
+      summary: "FA-E: withdraw a declaration"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Withdrawn
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: integer }
+        "404":
+          description: Not found
+
   /invoices/{id}/bad-debt-relief:
     post:
       operationId: writeOffBadDebt
@@ -4986,6 +5084,7 @@ components:
           fiscalYearStart,
           fiscalCalendar,
           ownershipType,
+          foreignOwnershipPct,
           buildingNumber,
           street,
           district,
@@ -5036,6 +5135,17 @@ components:
             have the platform assert the tenant ownership nobody supplied, and
             that assertion decides whether a Zakat surface is shown. Zakat v1
             covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
+        foreignOwnershipPct:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
+          description: >
+            FA-E (2026-09-22): the share of the company subject to INCOME TAX —
+            the non-Saudi/non-GCC ownership percentage (Income Tax Law Art. 2;
+            Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never
+            instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is
+            strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses
+            to compute rather than assume either end.
         buildingNumber:
           type: ["string", "null"]
         street:
@@ -5072,6 +5182,10 @@ components:
         ownershipType:
           type: ["string", "null"]
           enum: [SAUDI_GCC, FOREIGN, MIXED, null]
+        foreignOwnershipPct:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
         buildingNumber:
           type: ["string", "null"]
         street:
@@ -9165,6 +9279,156 @@ components:
         journalEntryId: { type: integer }
         invoiceId: { type: ["integer", "null"] }
         reason: { type: ["string", "null"] }
+
+    IncomeTaxPoolDeclaration:
+      type: object
+      required: [id, incomeTaxGroup, taxYear, ratePct, electSmallBalanceWriteOff, electGroupClosedWriteOff, updatedAt]
+      properties:
+        id: { type: integer }
+        incomeTaxGroup: { type: integer, minimum: 1, maximum: 5, description: "Income Tax Law Art. 17(b) group." }
+        taxYear: { type: integer, description: "The fiscal-year LABEL in the company's own calendar (Art. 22)." }
+        ratePct: { type: number }
+        closingBalanceDeclared:
+          type: ["number", "null"]
+          description: "The ANCHOR — the group balance at the END of this year, after that year's deduction, as filed."
+        additionsDeclared: { type: ["number", "null"] }
+        disposalsDeclared: { type: ["number", "null"] }
+        repairsDeclared:
+          type: ["number", "null"]
+          description: "Art. 18(a): the year's TOTAL repair and improvement expenditure for the group. null = NOT DECLARED, which is not zero."
+        electSmallBalanceWriteOff: { type: boolean, description: "Art. 17(h) — elective." }
+        electGroupClosedWriteOff: { type: boolean, description: "Art. 17(i) — elective." }
+        note: { type: ["string", "null"] }
+        updatedAt: { type: string }
+
+    IncomeTaxPoolDeclarationInput:
+      type: object
+      required: [incomeTaxGroup, taxYear]
+      properties:
+        incomeTaxGroup: { type: integer, minimum: 1, maximum: 5 }
+        taxYear: { type: integer }
+        closingBalanceDeclared: { type: ["number", "null"], minimum: 0 }
+        additionsDeclared: { type: ["number", "null"], minimum: 0 }
+        disposalsDeclared: { type: ["number", "null"], minimum: 0 }
+        repairsDeclared: { type: ["number", "null"], minimum: 0 }
+        electSmallBalanceWriteOff: { type: boolean }
+        electGroupClosedWriteOff: { type: boolean }
+        note: { type: ["string", "null"] }
+
+    IncomeTaxPoolElection:
+      type: object
+      required: [available, amount, taken]
+      properties:
+        available: { type: boolean }
+        amount: { type: number }
+        taken: { type: boolean }
+
+    IncomeTaxPoolGroupYear:
+      type: object
+      required:
+        [taxYear, group, ratePct, openingBalance, additionsCurrent, additionsPrevious, disposalsCurrent,
+         disposalsPrevious, additionsHalf, disposalsHalf, repairs, balanceBeforeDeduction, excessTaxableIncome,
+         depreciationDeduction, balanceAfterDeduction, elections, totalDeduction, closingBalance,
+         additionItems, disposalItems, repairsNotDeclared]
+      properties:
+        taxYear: { type: integer }
+        group: { type: integer }
+        ratePct: { type: number }
+        openingBalance: { type: number }
+        additionsCurrent: { type: number }
+        additionsPrevious: { type: number }
+        disposalsCurrent: { type: number }
+        disposalsPrevious: { type: number }
+        additionsHalf: { type: number, description: "Art. 17(e): 50 % of (current + previous) additions." }
+        disposalsHalf: { type: number, description: "Art. 17(e): 50 % of (current + previous) disposal compensation." }
+        repairs:
+          type: object
+          required: [declared, capBase, cap, deductibleAsExpense, addedToPool]
+          properties:
+            declared: { type: ["number", "null"] }
+            capBase: { type: number }
+            cap: { type: number, description: "Art. 18(b): 4 % of the balance." }
+            deductibleAsExpense: { type: number }
+            addedToPool: { type: number, description: "Art. 18(c): the excess over the cap." }
+        balanceBeforeDeduction: { type: number }
+        excessTaxableIncome: { type: number, description: "Art. 17(g): what 50 % of the disposals exceeded, and so falls into taxable income." }
+        depreciationDeduction: { type: number }
+        balanceAfterDeduction: { type: number }
+        elections:
+          type: object
+          required: [smallBalance, groupClosed]
+          properties:
+            smallBalance: { $ref: "#/components/schemas/IncomeTaxPoolElection" }
+            groupClosed: { $ref: "#/components/schemas/IncomeTaxPoolElection" }
+        totalDeduction: { type: number }
+        closingBalance: { type: number }
+        repairsNotDeclared: { type: boolean }
+        additionItems:
+          type: array
+          items:
+            type: object
+            required: [assetNumber, name, date, cost]
+            properties:
+              assetNumber: { type: string }
+              name: { type: string }
+              date: { type: string }
+              cost: { type: number }
+        disposalItems:
+          type: array
+          items:
+            type: object
+            required: [assetNumber, date, proceeds, kind, deemedValueMissing]
+            properties:
+              assetNumber: { type: string }
+              date: { type: string }
+              proceeds: { type: number }
+              kind: { type: string }
+              deemedValueMissing:
+                type: boolean
+                description: "Art. 17(f): a withdrawal is a deemed disposal at MARKET VALUE, which the register does not hold."
+
+    IncomeTaxPoolReport:
+      type: object
+      required: [status, companyId, companyName, ownershipType, foreignOwnershipPct, anchorYear, rates, frameLimits, years, reason]
+      properties:
+        status:
+          type: string
+          enum: [computed, regime_not_declared, not_applicable, fiscal_year_not_declared, anchor_not_declared]
+        reason: { type: ["string", "null"], description: "Why there are no figures, and the act that supplies the missing input." }
+        companyId: { type: string }
+        companyName: { type: string }
+        ownershipType: { type: ["string", "null"] }
+        foreignOwnershipPct: { type: ["number", "null"] }
+        anchorYear: { type: ["integer", "null"] }
+        rates:
+          type: array
+          items:
+            type: object
+            required: [group, ratePct]
+            properties:
+              group: { type: integer }
+              ratePct: { type: number }
+        frameLimits:
+          type: array
+          description: "What Art. 17 contemplates that the register cannot see. The frame is part of the count."
+          items:
+            type: object
+            required: [article, limit]
+            properties:
+              article: { type: string }
+              limit: { type: string }
+        years:
+          type: array
+          items:
+            type: object
+            required: [taxYear, startDate, endDate, groups]
+            properties:
+              taxYear: { type: integer }
+              startDate: { type: string }
+              endDate: { type: string }
+              groups:
+                type: array
+                items: { $ref: "#/components/schemas/IncomeTaxPoolGroupYear" }
 
     AssetDisposalResult:
       type: object

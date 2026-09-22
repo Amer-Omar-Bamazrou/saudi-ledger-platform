@@ -6,7 +6,7 @@
  * a migrated asset's opening position — the same rows that posted the GL, so
  * the register and the ledger cannot disagree by construction.
  */
-import { db, fixedAssetsTable, assetCategoriesTable, assetDepreciationScheduleTable, assetEventsTable, assetDisposalsTable, categoriesTable } from "@workspace/db";
+import { db, fixedAssetsTable, assetCategoriesTable, assetDepreciationScheduleTable, assetEventsTable, assetDisposalsTable, assetTaxPoolDeclarationsTable, categoriesTable } from "@workspace/db";
 import { and, eq, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { DEFAULT_PAGE } from "../lib/httpParams";
 
@@ -171,6 +171,72 @@ export const assetsRepository = {
   async disposalOf(assetId: number) {
     const [row] = await db.select().from(assetDisposalsTable).where(eq(assetDisposalsTable.assetId, assetId)).limit(1);
     return row ?? null;
+  },
+
+  // ── FA-E: the Income Tax Law Art. 17 pool ──
+
+  /**
+   * Every fact the pool needs from the register, per Art. 17(b) group, in ONE
+   * pass over the whole history — the chain walks many years and a query per
+   * year per group would be 5 × N round trips for the same rows.
+   *
+   * 🔴 The ADDITION date is `available_for_use_date`, because Art. 17(e) says
+   * "the cost base of assets IN USE added to the group" and 17(a) allows
+   * depreciation only for assets used in generating taxable income. The
+   * register stores the purchase date separately, so this is a reading of the
+   * text, not the only date available (see `incomeTaxPool.ts`).
+   *
+   * Drafts and cancelled assets are outside every figure: a draft is not in
+   * use, and a cancelled one never was.
+   */
+  async art17RegisterFacts(): Promise<{
+    additions: { group: number; onDate: string; cost: number; assetNumber: string; name: string }[];
+    disposals: { group: number; onDate: string; proceeds: number; kind: string; assetNumber: string }[];
+    assetsByGroup: { group: number; total: number; disposed: number }[];
+  }> {
+    const [additions, disposals, counts] = await Promise.all([
+      db.execute<{ g: number; d: string; c: string; n: string; nm: string }>(sql`
+        SELECT a.income_tax_group g, a.available_for_use_date::text d, a.cost::text c, a.asset_number n, a.name nm
+          FROM fixed_assets a
+         WHERE a.status IN ('in_service', 'disposed') AND a.available_for_use_date IS NOT NULL
+         ORDER BY a.available_for_use_date, a.id`),
+      db.execute<{ g: number; d: string; p: string; k: string; n: string }>(sql`
+        SELECT a.income_tax_group g, dp.date::text d, dp.proceeds::text p, dp.kind k, a.asset_number n
+          FROM asset_disposals dp JOIN fixed_assets a ON a.id = dp.asset_id
+         WHERE a.status = 'disposed'
+         ORDER BY dp.date, dp.id`),
+      db.execute<{ g: number; total: number; disposed: number }>(sql`
+        SELECT a.income_tax_group g, count(*)::int total,
+               count(*) FILTER (WHERE a.status = 'disposed')::int disposed
+          FROM fixed_assets a
+         WHERE a.status IN ('in_service', 'disposed')
+         GROUP BY a.income_tax_group`),
+    ]);
+    return {
+      additions: additions.rows.map((r) => ({ group: r.g, onDate: r.d, cost: Number(r.c), assetNumber: r.n, name: r.nm })),
+      disposals: disposals.rows.map((r) => ({ group: r.g, onDate: r.d, proceeds: Number(r.p), kind: r.k, assetNumber: r.n })),
+      assetsByGroup: counts.rows.map((r) => ({ group: r.g, total: r.total, disposed: r.disposed })),
+    };
+  },
+
+  poolDeclarations() {
+    return db.select().from(assetTaxPoolDeclarationsTable).orderBy(assetTaxPoolDeclarationsTable.taxYear, assetTaxPoolDeclarationsTable.incomeTaxGroup);
+  },
+  findPoolDeclaration(group: number, taxYear: number) {
+    return db
+      .select()
+      .from(assetTaxPoolDeclarationsTable)
+      .where(and(eq(assetTaxPoolDeclarationsTable.incomeTaxGroup, group), eq(assetTaxPoolDeclarationsTable.taxYear, taxYear)))
+      .limit(1);
+  },
+  insertPoolDeclaration(values: typeof assetTaxPoolDeclarationsTable.$inferInsert) {
+    return db.insert(assetTaxPoolDeclarationsTable).values(values).returning();
+  },
+  updatePoolDeclaration(id: number, values: Partial<typeof assetTaxPoolDeclarationsTable.$inferInsert>) {
+    return db.update(assetTaxPoolDeclarationsTable).set(values).where(eq(assetTaxPoolDeclarationsTable.id, id)).returning();
+  },
+  deletePoolDeclaration(id: number) {
+    return db.delete(assetTaxPoolDeclarationsTable).where(eq(assetTaxPoolDeclarationsTable.id, id)).returning();
   },
 
   // ── events ──
