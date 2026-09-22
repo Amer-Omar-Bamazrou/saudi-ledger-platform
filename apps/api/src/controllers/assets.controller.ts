@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { assetsService } from "../services/assets.service";
 import { assetCapitalisationService } from "../services/assets/capitalisation.service";
 import { assetDisposalService } from "../services/assets/disposal.service";
+import { incomeTaxPoolService } from "../services/assets/incomeTaxPool.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
 
 const userOf = (req: Request) => req.session?.userId ?? null;
@@ -48,5 +49,19 @@ export const assetsController = {
   // ── FA-C ──
   async dispose(req: Request, res: Response) {
     res.json(await assetDisposalService.dispose(requireIdParam(req), req.body ?? {}, userOf(req)));
+  },
+  // ── FA-E: the Income Tax Law Art. 17 pool ──
+  async incomeTaxPool(req: Request, res: Response) {
+    const toYear = req.query.to_year ? Number(req.query.to_year) : undefined;
+    res.json(await incomeTaxPoolService.report({ toYear: Number.isInteger(toYear) ? toYear : undefined }));
+  },
+  async listPoolDeclarations(_req: Request, res: Response) {
+    res.json({ items: await incomeTaxPoolService.declarations() });
+  },
+  async declarePool(req: Request, res: Response) {
+    res.json(await incomeTaxPoolService.declare(req.body ?? {}, userOf(req)));
+  },
+  async deletePoolDeclaration(req: Request, res: Response) {
+    res.json(await incomeTaxPoolService.remove(requireIdParam(req)));
   },
 };

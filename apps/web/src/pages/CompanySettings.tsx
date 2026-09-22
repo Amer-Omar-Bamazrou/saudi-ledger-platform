@@ -29,6 +29,8 @@ interface Company {
   fiscalCalendar: "gregorian" | "hijri";
   /** M17.1 — null means NOT DECLARED, and the Zakat page asks rather than assumes. */
   ownershipType: "SAUDI_GCC" | "FOREIGN" | "MIXED" | null;
+  /** FA-E — the share subject to INCOME TAX; null is NOT DECLARED, and the Art. 17 pool refuses rather than assume. */
+  foreignOwnershipPct: number | null;
   buildingNumber: string | null;
   street: string | null;
   district: string | null;
@@ -170,6 +172,10 @@ export default function CompanySettings() {
       // return to, rather than leaving a stale claim that gates Zakat standing.
       // (The server also accepts "" for the same effect, for raw API callers.)
       ownershipType: form.ownershipType ?? null,
+      // FA-E — "" clears it back to NOT DECLARED, exactly like ownershipType.
+      // The server checks the two against each other (Income Tax Law Art. 2),
+      // so a pair that states two different facts is refused, not merged.
+      foreignOwnershipPct: form.foreignOwnershipPct == null ? null : Number(form.foreignOwnershipPct),
       buildingNumber: form.buildingNumber ?? "",
       street: form.street ?? "",
       district: form.district ?? "",
@@ -320,6 +326,44 @@ export default function CompanySettings() {
               </p>
             </div>
 
+            {/*
+              FA-E — the share subject to INCOME TAX. It sits directly under the
+              ownership structure because the two are ONE declaration read two
+              ways: Income Tax Law Art. 2 taxes the non-Saudi/non-GCC share and
+              Zakat Regulations Art. 6(1) takes the rest. The server refuses a
+              pair that states different facts rather than preferring one.
+
+              🔴 Blank means NOT DECLARED, and the Art. 17 pool says so instead
+              of computing on an assumed 0 — which would read exactly like a
+              company that owes no income tax.
+            */}
+            <div className="space-y-1.5 max-w-lg">
+              <Label htmlFor="foreignOwnershipPct">{t("Non-Saudi / non-GCC ownership share (%)", "حصة الملكية غير السعودية/غير الخليجية (%)")}</Label>
+              <Input
+                id="foreignOwnershipPct"
+                data-testid="input-foreign-ownership-pct"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                dir="ltr"
+                placeholder={t("Not declared", "غير محدد")}
+                value={form.foreignOwnershipPct ?? ""}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    foreignOwnershipPct: e.target.value === "" ? null : Number(e.target.value),
+                  }))
+                }
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {t(
+                  "The part of the company subject to income tax rather than Zakat (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). 100% Saudi/GCC-owned is 0. The Income Tax Pool working paper needs this and will not assume it.",
+                  "الجزء الخاضع لضريبة الدخل بدل الزكاة (نظام ضريبة الدخل المادة 2؛ لائحة الزكاة المادة 6(1)). والمملوكة بالكامل لسعوديين أو خليجيين تساوي صفرًا. وتحتاج ورقة عمل وعاء ضريبة الدخل هذا الرقم ولا تفترضه.",
+                )}
+              </p>
+            </div>
+
             {fiscalYears && !fiscalYears.declared && (
               /*
                 M20.0/F13 — THE ASK, in the place declarations are made. Specific
@@ -401,7 +445,7 @@ export default function CompanySettings() {
           </CardContent>
         </Card>
 
-        <Button type="submit" disabled={save.isPending}>
+        <Button type="submit" data-testid="button-save-company" disabled={save.isPending}>
           {save.isPending ? t("Saving…", "جارٍ الحفظ…") : t("Save changes", "حفظ التغييرات")}
         </Button>
       </form>

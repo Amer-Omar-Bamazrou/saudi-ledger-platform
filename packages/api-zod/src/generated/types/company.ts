@@ -36,6 +36,13 @@ export interface Company {
      * @nullable
      */
   ownershipType: CompanyOwnershipType;
+  /**
+     * FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  foreignOwnershipPct: number | null;
   /** @nullable */
   buildingNumber: string | null;
   /** @nullable */

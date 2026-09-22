@@ -6,6 +6,13 @@ const router = Router();
 // FA-A (2026-09-22): the register. Capitalisation, the monthly run, estimate
 // changes and disposal arrive with their own FA phases — each through
 // postJournalEntry after checkPeriodOpen, never a second posting path.
+// FA-E: the Art. 17 pool. Declared BEFORE "/:id", or Express reads
+// "income-tax-pool" as an asset id and the route is unreachable.
+router.get("/income-tax-pool", assetsController.incomeTaxPool);
+router.get("/income-tax-pool/declarations", assetsController.listPoolDeclarations);
+router.post("/income-tax-pool/declarations", assetsController.declarePool);
+router.delete("/income-tax-pool/declarations/:id", assetsController.deletePoolDeclaration);
+
 router.get("/", assetsController.list);
 router.get("/:id", assetsController.get);
 router.post("/", assetsController.create);

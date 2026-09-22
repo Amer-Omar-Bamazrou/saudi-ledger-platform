@@ -2635,6 +2635,9 @@ export const ListFiscalYearsResponse = zod.object({
  */
 export const getCurrentCompanyResponseFiscalYearStartMax = 12;
 
+export const getCurrentCompanyResponseForeignOwnershipPctMin = 0;
+export const getCurrentCompanyResponseForeignOwnershipPctMax = 100;
+
 
 
 export const GetCurrentCompanyResponse = zod.object({
@@ -2647,6 +2650,7 @@ export const GetCurrentCompanyResponse = zod.object({
   "fiscalYearStart": zod.number().min(1).max(getCurrentCompanyResponseFiscalYearStartMax).nullable().describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar` (gregorian 1 = January; hijri 1 = Muharram — read the two together). 🔴 NULL means NOT DECLARED, a first-class state (M20.0): there is no default, because the old NOT NULL DEFAULT 1 recorded every untouched company as having chosen January. Reports fall back to a rolling last-12-months while null, and say so.\n'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
+  "foreignOwnershipPct": zod.number().min(getCurrentCompanyResponseForeignOwnershipPctMin).max(getCurrentCompanyResponseForeignOwnershipPctMax).nullable().describe('FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi\/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.\n'),
   "buildingNumber": zod.string().nullable(),
   "street": zod.string().nullable(),
   "district": zod.string().nullable(),
@@ -2660,6 +2664,9 @@ export const GetCurrentCompanyResponse = zod.object({
  */
 export const updateCurrentCompanyBodyFiscalYearStartMax = 12;
 
+export const updateCurrentCompanyBodyForeignOwnershipPctMin = 0;
+export const updateCurrentCompanyBodyForeignOwnershipPctMax = 100;
+
 
 
 export const UpdateCurrentCompanyBody = zod.object({
@@ -2670,6 +2677,7 @@ export const UpdateCurrentCompanyBody = zod.object({
   "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyBodyFiscalYearStartMax).nullish().describe('null withdraws the declaration (M20.0).'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).optional(),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullish(),
+  "foreignOwnershipPct": zod.number().min(updateCurrentCompanyBodyForeignOwnershipPctMin).max(updateCurrentCompanyBodyForeignOwnershipPctMax).nullish(),
   "buildingNumber": zod.string().nullish(),
   "street": zod.string().nullish(),
   "district": zod.string().nullish(),
@@ -2678,6 +2686,9 @@ export const UpdateCurrentCompanyBody = zod.object({
 }).describe('Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.\n')
 
 export const updateCurrentCompanyResponseFiscalYearStartMax = 12;
+
+export const updateCurrentCompanyResponseForeignOwnershipPctMin = 0;
+export const updateCurrentCompanyResponseForeignOwnershipPctMax = 100;
 
 
 
@@ -2691,6 +2702,7 @@ export const UpdateCurrentCompanyResponse = zod.object({
   "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyResponseFiscalYearStartMax).nullable().describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar` (gregorian 1 = January; hijri 1 = Muharram — read the two together). 🔴 NULL means NOT DECLARED, a first-class state (M20.0): there is no default, because the old NOT NULL DEFAULT 1 recorded every untouched company as having chosen January. Reports fall back to a rolling last-12-months while null, and say so.\n'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
+  "foreignOwnershipPct": zod.number().min(updateCurrentCompanyResponseForeignOwnershipPctMin).max(updateCurrentCompanyResponseForeignOwnershipPctMax).nullable().describe('FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi\/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.\n'),
   "buildingNumber": zod.string().nullable(),
   "street": zod.string().nullable(),
   "district": zod.string().nullable(),
@@ -9125,6 +9137,175 @@ export const DisposeAssetResponse = zod.object({
   "amount": zod.number(),
   "journalEntryId": zod.number()
 })).describe('The periods this act depreciated before derecognising (IAS 16.55) — each its own entry.')
+})
+
+
+/**
+ * A report over the register, never a second ledger. For each Art. 17(b) group and each of the company's taxable years (Art. 22) it rolls the previous year's closing balance with 50 % of the cost base of assets IN USE added in this year and the previous one, less 50 % of the compensation for assets disposed of in those two years (17(e)), applies Art. 18's 4 % repair cap, applies the group rate (17(d)), and NAMES the two elections (17(h) small balance, 17(i) group fully disposed) without taking them — both say "may", and an election rewrites every later year.
+ * 🔴 It computes nothing it was not given. `status` is `computed` only when the company has declared its non-Saudi/non-GCC share, its fiscal year, and an ANCHOR: a group balance at the end of an already-filed year, which comes from the taxpayer's own return and which no book register can produce. Otherwise `status` names the missing input and `reason` names the act that supplies it. `frameLimits` travels with the figures and states what Art. 17 contemplates that the register cannot see (land, deemed disposals at market value, partial business use, land-with-constructions, BOT/BOOT).
+ * @summary FA-E: the Income Tax Law Art. 17 pooled depreciation working paper, per group and tax year
+ */
+export const GetIncomeTaxPoolQueryParams = zod.object({
+  "to_year": zod.coerce.number().optional().describe('Compute up to this fiscal-year label. Default: the year containing today\'s business date.')
+})
+
+export const GetIncomeTaxPoolResponse = zod.object({
+  "status": zod.enum(['computed', 'regime_not_declared', 'not_applicable', 'fiscal_year_not_declared', 'anchor_not_declared']),
+  "reason": zod.string().nullable().describe('Why there are no figures, and the act that supplies the missing input.'),
+  "companyId": zod.string(),
+  "companyName": zod.string(),
+  "ownershipType": zod.string().nullable(),
+  "foreignOwnershipPct": zod.number().nullable(),
+  "anchorYear": zod.number().nullable(),
+  "rates": zod.array(zod.object({
+  "group": zod.number(),
+  "ratePct": zod.number()
+})),
+  "frameLimits": zod.array(zod.object({
+  "article": zod.string(),
+  "limit": zod.string()
+})).describe('What Art. 17 contemplates that the register cannot see. The frame is part of the count.'),
+  "years": zod.array(zod.object({
+  "taxYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "groups": zod.array(zod.object({
+  "taxYear": zod.number(),
+  "group": zod.number(),
+  "ratePct": zod.number(),
+  "openingBalance": zod.number(),
+  "additionsCurrent": zod.number(),
+  "additionsPrevious": zod.number(),
+  "disposalsCurrent": zod.number(),
+  "disposalsPrevious": zod.number(),
+  "additionsHalf": zod.number().describe('Art. 17(e): 50 % of (current + previous) additions.'),
+  "disposalsHalf": zod.number().describe('Art. 17(e): 50 % of (current + previous) disposal compensation.'),
+  "repairs": zod.object({
+  "declared": zod.number().nullable(),
+  "capBase": zod.number(),
+  "cap": zod.number().describe('Art. 18(b): 4 % of the balance.'),
+  "deductibleAsExpense": zod.number(),
+  "addedToPool": zod.number().describe('Art. 18(c): the excess over the cap.')
+}),
+  "balanceBeforeDeduction": zod.number(),
+  "excessTaxableIncome": zod.number().describe('Art. 17(g): what 50 % of the disposals exceeded, and so falls into taxable income.'),
+  "depreciationDeduction": zod.number(),
+  "balanceAfterDeduction": zod.number(),
+  "elections": zod.object({
+  "smallBalance": zod.object({
+  "available": zod.boolean(),
+  "amount": zod.number(),
+  "taken": zod.boolean()
+}),
+  "groupClosed": zod.object({
+  "available": zod.boolean(),
+  "amount": zod.number(),
+  "taken": zod.boolean()
+})
+}),
+  "totalDeduction": zod.number(),
+  "closingBalance": zod.number(),
+  "repairsNotDeclared": zod.boolean(),
+  "additionItems": zod.array(zod.object({
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "date": zod.string(),
+  "cost": zod.number()
+})),
+  "disposalItems": zod.array(zod.object({
+  "assetNumber": zod.string(),
+  "date": zod.string(),
+  "proceeds": zod.number(),
+  "kind": zod.string(),
+  "deemedValueMissing": zod.boolean().describe('Art. 17(f): a withdrawal is a deemed disposal at MARKET VALUE, which the register does not hold.')
+}))
+}))
+}))
+})
+
+
+/**
+ * @summary FA-E: the pool's declared inputs — the anchor, the Art. 18 repairs and the elections
+ */
+export const listIncomeTaxPoolDeclarationsResponseItemsItemIncomeTaxGroupMax = 5;
+
+
+
+export const ListIncomeTaxPoolDeclarationsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "incomeTaxGroup": zod.number().min(1).max(listIncomeTaxPoolDeclarationsResponseItemsItemIncomeTaxGroupMax).describe('Income Tax Law Art. 17(b) group.'),
+  "taxYear": zod.number().describe('The fiscal-year LABEL in the company\'s own calendar (Art. 22).'),
+  "ratePct": zod.number(),
+  "closingBalanceDeclared": zod.number().nullish().describe('The ANCHOR — the group balance at the END of this year, after that year\'s deduction, as filed.'),
+  "additionsDeclared": zod.number().nullish(),
+  "disposalsDeclared": zod.number().nullish(),
+  "repairsDeclared": zod.number().nullish().describe('Art. 18(a): the year\'s TOTAL repair and improvement expenditure for the group. null = NOT DECLARED, which is not zero.'),
+  "electSmallBalanceWriteOff": zod.boolean().describe('Art. 17(h) — elective.'),
+  "electGroupClosedWriteOff": zod.boolean().describe('Art. 17(i) — elective.'),
+  "note": zod.string().nullish(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * Upserts on (group, tax year). A declaration is CORRECTABLE — unlike anything that posts, it records what the taxpayer filed. An opening balance must come with that year's own additions and disposals, because Art. 17(e) takes 50 % of them into the following year; state 0 when there were none.
+ * @summary FA-E: state (or correct) one group's declaration for one tax year
+ */
+export const declareIncomeTaxPoolBodyIncomeTaxGroupMax = 5;
+
+export const declareIncomeTaxPoolBodyClosingBalanceDeclaredMin = 0;
+
+export const declareIncomeTaxPoolBodyAdditionsDeclaredMin = 0;
+
+export const declareIncomeTaxPoolBodyDisposalsDeclaredMin = 0;
+
+export const declareIncomeTaxPoolBodyRepairsDeclaredMin = 0;
+
+
+
+export const DeclareIncomeTaxPoolBody = zod.object({
+  "incomeTaxGroup": zod.number().min(1).max(declareIncomeTaxPoolBodyIncomeTaxGroupMax),
+  "taxYear": zod.number(),
+  "closingBalanceDeclared": zod.number().min(declareIncomeTaxPoolBodyClosingBalanceDeclaredMin).nullish(),
+  "additionsDeclared": zod.number().min(declareIncomeTaxPoolBodyAdditionsDeclaredMin).nullish(),
+  "disposalsDeclared": zod.number().min(declareIncomeTaxPoolBodyDisposalsDeclaredMin).nullish(),
+  "repairsDeclared": zod.number().min(declareIncomeTaxPoolBodyRepairsDeclaredMin).nullish(),
+  "electSmallBalanceWriteOff": zod.boolean().optional(),
+  "electGroupClosedWriteOff": zod.boolean().optional(),
+  "note": zod.string().nullish()
+})
+
+export const declareIncomeTaxPoolResponseIncomeTaxGroupMax = 5;
+
+
+
+export const DeclareIncomeTaxPoolResponse = zod.object({
+  "id": zod.number(),
+  "incomeTaxGroup": zod.number().min(1).max(declareIncomeTaxPoolResponseIncomeTaxGroupMax).describe('Income Tax Law Art. 17(b) group.'),
+  "taxYear": zod.number().describe('The fiscal-year LABEL in the company\'s own calendar (Art. 22).'),
+  "ratePct": zod.number(),
+  "closingBalanceDeclared": zod.number().nullish().describe('The ANCHOR — the group balance at the END of this year, after that year\'s deduction, as filed.'),
+  "additionsDeclared": zod.number().nullish(),
+  "disposalsDeclared": zod.number().nullish(),
+  "repairsDeclared": zod.number().nullish().describe('Art. 18(a): the year\'s TOTAL repair and improvement expenditure for the group. null = NOT DECLARED, which is not zero.'),
+  "electSmallBalanceWriteOff": zod.boolean().describe('Art. 17(h) — elective.'),
+  "electGroupClosedWriteOff": zod.boolean().describe('Art. 17(i) — elective.'),
+  "note": zod.string().nullish(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary FA-E: withdraw a declaration
+ */
+export const DeleteIncomeTaxPoolDeclarationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteIncomeTaxPoolDeclarationResponse = zod.object({
+  "id": zod.number()
 })
 
 

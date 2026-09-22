@@ -46,6 +46,7 @@ function buildCompanyOut(c: Company) {
     fiscalYearStart: c.fiscalYearStart,
     fiscalCalendar: c.fiscalCalendar,
     ownershipType: c.ownershipType ?? null,
+    foreignOwnershipPct: c.foreignOwnershipPct == null ? null : Number(c.foreignOwnershipPct),
     hasLogo: !!c.logoPath,
     buildingNumber: c.buildingNumber ?? null,
     street: c.street ?? null,
@@ -182,6 +183,49 @@ export const companiesService = {
         throw new BadRequestError("ownershipType must be 'SAUDI_GCC', 'FOREIGN' or 'MIXED'.");
       }
       updates.ownershipType = value;
+    }
+
+    /**
+     * FA-E (2026-09-22) — the share subject to INCOME TAX. The column has
+     * existed since FA-A and until now had NO WRITER: the Art. 17 pool reads
+     * it, so a report that refuses because the share is undeclared would have
+     * been naming a control that did not exist (a refusal that hides the
+     * control). This is that control.
+     *
+     * 🔴 It is checked AGAINST `ownershipType`, and the two are read together
+     * because the Law reads them together: Income Tax Law Art. 2 taxes the
+     * non-Saudi/non-GCC share, and Zakat Regulations Art. 6(1) takes the rest.
+     * A company that calls itself SAUDI_GCC and declares 40 % foreign is
+     * stating two different facts about itself, and the platform refuses the
+     * pair rather than silently preferring one of them — the DB CHECK pins the
+     * same rule, and this is the message that explains it.
+     */
+    if (input.foreignOwnershipPct !== undefined) {
+      const raw = input.foreignOwnershipPct;
+      const value = raw === null || String(raw).trim() === "" ? null : Number(raw);
+      if (value !== null && (!Number.isFinite(value) || value < 0 || value > 100)) {
+        throw new BadRequestError("foreignOwnershipPct must be a percentage between 0 and 100.");
+      }
+      const declaredType = updates.ownershipType !== undefined ? updates.ownershipType : company.ownershipType;
+      if (value !== null) {
+        // 🔴 The DB CHECK (companies_foreign_ownership_pct_chk, migration 0088)
+        // refuses a share with NO ownership type at all, so the service refuses
+        // it first with a sentence — otherwise the tenant gets a raw 23514.
+        if (declaredType == null) {
+          throw new BadRequestError("Declare the ownership structure before the share: the two are one statement, and a percentage on its own says nothing about which regime applies.");
+        }
+        const expected: Record<string, (v: number) => boolean> = {
+          SAUDI_GCC: (v) => v === 0,
+          FOREIGN: (v) => v === 100,
+          MIXED: (v) => v > 0 && v < 100,
+        };
+        if (expected[declaredType] && !expected[declaredType]!(value)) {
+          throw new BadRequestError(
+            `An ownership structure of ${declaredType} and a non-Saudi/non-GCC share of ${value}% state different facts: SAUDI_GCC means 0%, FOREIGN means 100%, and MIXED means strictly between. Correct one of them.`,
+          );
+        }
+      }
+      updates.foreignOwnershipPct = value === null ? null : String(value);
     }
 
     // Address block (ZATCA Phase 2 / printed invoices) — free text except the

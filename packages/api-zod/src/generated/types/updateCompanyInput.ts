@@ -29,6 +29,12 @@ export interface UpdateCompanyInput {
   fiscalCalendar?: UpdateCompanyInputFiscalCalendar;
   /** @nullable */
   ownershipType?: UpdateCompanyInputOwnershipType;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  foreignOwnershipPct?: number | null;
   /** @nullable */
   buildingNumber?: string | null;
   /** @nullable */

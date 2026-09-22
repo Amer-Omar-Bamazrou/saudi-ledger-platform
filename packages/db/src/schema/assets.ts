@@ -236,6 +236,80 @@ export const assetDisposalsTable = pgTable(
   (t) => [unique("asset_disposals_asset_unq").on(t.assetId)],
 );
 
+/**
+ * FA-E (2026-09-22) — the Income Tax Law Art. 17 POOL, and the ONE thing about
+ * it the platform cannot derive.
+ *
+ * The pool is a report, not a ledger: for each Art. 17(b) group and each tax
+ * year it is the previous year's closing balance, plus 50 % of the cost base
+ * of assets IN USE added in this year and the previous one, less 50 % of the
+ * compensation for assets disposed of in those two years — every figure of
+ * which the register already holds. Nothing about it is stored, for the same
+ * reason the VAT return is not stored: a second value space beside the rows
+ * that produce it drifts.
+ *
+ * Two inputs are NOT in the register, and this table is where the taxpayer
+ * states them. Neither is ever assumed:
+ *
+ *  1. 🔴 THE OPENING ANCHOR. A chain has to start. The balance of a group at
+ *     the end of a year already FILED is a fact of the taxpayer's own return
+ *     (Art. 81(a) for assets predating the Law), and no book register can
+ *     produce it — a pool balance is a declining-balance figure, not a
+ *     carrying amount. Without an anchor the report says NOT DECLARED and
+ *     computes nothing; a company with no pool history declares a nil anchor,
+ *     which is an ACT, not a default. The anchor also carries its own year's
+ *     additions and disposals, because Art. 17(e)'s 50 % reaches back one
+ *     year — and the derivation then starts strictly AFTER the anchor year, so
+ *     the same addition can never be counted twice.
+ *
+ *  2. 🔴 ART. 18 REPAIRS. Repair and improvement expenditure is deductible up
+ *     to 4 % of the group's year-end balance and the excess is ADDED to the
+ *     pool (Art. 18(a)–(c)). The platform has no way to attribute repair
+ *     expense to an Art. 17 group — it is ordinary expense in the GL, not an
+ *     asset — so the taxpayer declares the year's figure per group and the
+ *     engine does the Art. 18 arithmetic. Undeclared reads UNDECLARED on the
+ *     report, never zero.
+ *
+ * The two ELECTIONS live here too. Art. 17(h) ("the amount of the balance MAY
+ * be deducted" when it falls below SAR 1,000 after the year's deduction) and
+ * Art. 17(i) ("where all the assets in a group are disposed of, the balance
+ * MAY be deducted") are permissive, so the platform computes what is available
+ * and does not take it: an election changes the balance carried into the next
+ * year, and choosing on the taxpayer's behalf would silently rewrite every
+ * later year of the chain.
+ */
+export const assetTaxPoolDeclarationsTable = pgTable(
+  "asset_tax_pool_declarations",
+  {
+    id: serial("id").primaryKey(),
+    ...tenantColumns,
+    /** Art. 17(b) group 1–5. */
+    incomeTaxGroup: smallint("income_tax_group").notNull(),
+    /** The fiscal year LABEL as `lib/fiscalYear.ts` names it — the company's own calendar (Art. 22(a)–(b)). */
+    taxYear: integer("tax_year").notNull(),
+    /** The ANCHOR: the group balance at the END of this year, after that year's deduction, as filed. NULL on a row that only carries repairs or an election. */
+    closingBalanceDeclared: numeric("closing_balance_declared", { precision: 15, scale: 2 }),
+    /** The anchor year's own additions and disposals — Art. 17(e) needs the previous year's halves. */
+    additionsDeclared: numeric("additions_declared", { precision: 15, scale: 2 }),
+    disposalsDeclared: numeric("disposals_declared", { precision: 15, scale: 2 }),
+    /** Art. 18(a): the year's TOTAL repair and improvement expenditure for the group. The 4 % cap and the excess are computed, never declared. */
+    repairsDeclared: numeric("repairs_declared", { precision: 15, scale: 2 }),
+    /** Art. 17(h) — elective. */
+    electSmallBalanceWriteOff: boolean("elect_small_balance_write_off").notNull().default(false),
+    /** Art. 17(i) — elective, and only available when every asset of the group has been disposed of. */
+    electGroupClosedWriteOff: boolean("elect_group_closed_write_off").notNull().default(false),
+    note: text("note"),
+    declaredBy: integer("declared_by").references(() => usersTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("asset_tax_pool_declarations_org_idx").on(t.organizationId, t.companyId),
+    unique("asset_tax_pool_declarations_company_group_year_unq").on(t.companyId, t.incomeTaxGroup, t.taxYear),
+  ],
+);
+
+export type AssetTaxPoolDeclaration = typeof assetTaxPoolDeclarationsTable.$inferSelect;
 export type AssetDisposal = typeof assetDisposalsTable.$inferSelect;
 export type AssetCategory = typeof assetCategoriesTable.$inferSelect;
 export type FixedAsset = typeof fixedAssetsTable.$inferSelect;

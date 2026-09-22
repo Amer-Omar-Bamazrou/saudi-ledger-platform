@@ -157,6 +157,13 @@ export interface Company {
      * @nullable
      */
   ownershipType: CompanyOwnershipType;
+  /**
+     * FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  foreignOwnershipPct: number | null;
   /** @nullable */
   buildingNumber: string | null;
   /** @nullable */
@@ -210,6 +217,12 @@ export interface UpdateCompanyInput {
   fiscalCalendar?: UpdateCompanyInputFiscalCalendar;
   /** @nullable */
   ownershipType?: UpdateCompanyInputOwnershipType;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  foreignOwnershipPct?: number | null;
   /** @nullable */
   buildingNumber?: string | null;
   /** @nullable */
@@ -5220,6 +5233,187 @@ export interface AssetDisposalRecord {
   reason: string | null;
 }
 
+export interface IncomeTaxPoolDeclaration {
+  id: number;
+  /**
+     * Income Tax Law Art. 17(b) group.
+     * @minimum 1
+     * @maximum 5
+     */
+  incomeTaxGroup: number;
+  /** The fiscal-year LABEL in the company's own calendar (Art. 22). */
+  taxYear: number;
+  ratePct: number;
+  /**
+     * The ANCHOR — the group balance at the END of this year, after that year's deduction, as filed.
+     * @nullable
+     */
+  closingBalanceDeclared?: number | null;
+  /** @nullable */
+  additionsDeclared?: number | null;
+  /** @nullable */
+  disposalsDeclared?: number | null;
+  /**
+     * Art. 18(a): the year's TOTAL repair and improvement expenditure for the group. null = NOT DECLARED, which is not zero.
+     * @nullable
+     */
+  repairsDeclared?: number | null;
+  /** Art. 17(h) — elective. */
+  electSmallBalanceWriteOff: boolean;
+  /** Art. 17(i) — elective. */
+  electGroupClosedWriteOff: boolean;
+  /** @nullable */
+  note?: string | null;
+  updatedAt: string;
+}
+
+export interface IncomeTaxPoolDeclarationInput {
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  incomeTaxGroup: number;
+  taxYear: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  closingBalanceDeclared?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  additionsDeclared?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  disposalsDeclared?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  repairsDeclared?: number | null;
+  electSmallBalanceWriteOff?: boolean;
+  electGroupClosedWriteOff?: boolean;
+  /** @nullable */
+  note?: string | null;
+}
+
+export interface IncomeTaxPoolElection {
+  available: boolean;
+  amount: number;
+  taken: boolean;
+}
+
+export type IncomeTaxPoolGroupYearRepairs = {
+  /** @nullable */
+  declared: number | null;
+  capBase: number;
+  /** Art. 18(b): 4 % of the balance. */
+  cap: number;
+  deductibleAsExpense: number;
+  /** Art. 18(c): the excess over the cap. */
+  addedToPool: number;
+};
+
+export type IncomeTaxPoolGroupYearElections = {
+  smallBalance: IncomeTaxPoolElection;
+  groupClosed: IncomeTaxPoolElection;
+};
+
+export type IncomeTaxPoolGroupYearAdditionItemsItem = {
+  assetNumber: string;
+  name: string;
+  date: string;
+  cost: number;
+};
+
+export type IncomeTaxPoolGroupYearDisposalItemsItem = {
+  assetNumber: string;
+  date: string;
+  proceeds: number;
+  kind: string;
+  /** Art. 17(f): a withdrawal is a deemed disposal at MARKET VALUE, which the register does not hold. */
+  deemedValueMissing: boolean;
+};
+
+export interface IncomeTaxPoolGroupYear {
+  taxYear: number;
+  group: number;
+  ratePct: number;
+  openingBalance: number;
+  additionsCurrent: number;
+  additionsPrevious: number;
+  disposalsCurrent: number;
+  disposalsPrevious: number;
+  /** Art. 17(e): 50 % of (current + previous) additions. */
+  additionsHalf: number;
+  /** Art. 17(e): 50 % of (current + previous) disposal compensation. */
+  disposalsHalf: number;
+  repairs: IncomeTaxPoolGroupYearRepairs;
+  balanceBeforeDeduction: number;
+  /** Art. 17(g): what 50 % of the disposals exceeded, and so falls into taxable income. */
+  excessTaxableIncome: number;
+  depreciationDeduction: number;
+  balanceAfterDeduction: number;
+  elections: IncomeTaxPoolGroupYearElections;
+  totalDeduction: number;
+  closingBalance: number;
+  repairsNotDeclared: boolean;
+  additionItems: IncomeTaxPoolGroupYearAdditionItemsItem[];
+  disposalItems: IncomeTaxPoolGroupYearDisposalItemsItem[];
+}
+
+export type IncomeTaxPoolReportStatus = typeof IncomeTaxPoolReportStatus[keyof typeof IncomeTaxPoolReportStatus];
+
+
+export const IncomeTaxPoolReportStatus = {
+  computed: 'computed',
+  regime_not_declared: 'regime_not_declared',
+  not_applicable: 'not_applicable',
+  fiscal_year_not_declared: 'fiscal_year_not_declared',
+  anchor_not_declared: 'anchor_not_declared',
+} as const;
+
+export type IncomeTaxPoolReportRatesItem = {
+  group: number;
+  ratePct: number;
+};
+
+export type IncomeTaxPoolReportFrameLimitsItem = {
+  article: string;
+  limit: string;
+};
+
+export type IncomeTaxPoolReportYearsItem = {
+  taxYear: number;
+  startDate: string;
+  endDate: string;
+  groups: IncomeTaxPoolGroupYear[];
+};
+
+export interface IncomeTaxPoolReport {
+  status: IncomeTaxPoolReportStatus;
+  /**
+     * Why there are no figures, and the act that supplies the missing input.
+     * @nullable
+     */
+  reason: string | null;
+  companyId: string;
+  companyName: string;
+  /** @nullable */
+  ownershipType: string | null;
+  /** @nullable */
+  foreignOwnershipPct: number | null;
+  /** @nullable */
+  anchorYear: number | null;
+  rates: IncomeTaxPoolReportRatesItem[];
+  /** What Art. 17 contemplates that the register cannot see. The frame is part of the count. */
+  frameLimits: IncomeTaxPoolReportFrameLimitsItem[];
+  years: IncomeTaxPoolReportYearsItem[];
+}
+
 export type AssetDisposalResultDepreciatedFirstItem = {
   period: string;
   amount: number;
@@ -7366,6 +7560,21 @@ period_to?: string;
  */
 as_of?: string;
 customer_id?: number;
+};
+
+export type GetIncomeTaxPoolParams = {
+/**
+ * Compute up to this fiscal-year label. Default: the year containing today's business date.
+ */
+to_year?: number;
+};
+
+export type ListIncomeTaxPoolDeclarations200 = {
+  items: IncomeTaxPoolDeclaration[];
+};
+
+export type DeleteIncomeTaxPoolDeclaration200 = {
+  id: number;
 };
 
 export type GetInvoiceDocumentParams = {
