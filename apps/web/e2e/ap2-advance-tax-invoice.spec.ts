@@ -54,16 +54,21 @@ const box = async (period: string) => { const r = await vatReturn(period); retur
 async function expectFits(el: ReturnType<Page["getByTestId"]>, width: number, message: string) {
   await expect(el).toBeVisible();
   let last = "";
-  await expect.poll(async () => {
-    const b = await el.boundingBox();
-    const scroller = await el.evaluate((node) => {
-      const sc = (node as HTMLElement).closest(".overflow-x-auto") as HTMLElement | null;
-      const r = (node as HTMLElement).getBoundingClientRect();
-      return { rect: { x: r.x, w: r.width }, scrollLeft: sc?.scrollLeft ?? null, scrollWidth: sc?.scrollWidth ?? null, clientWidth: sc?.clientWidth ?? null, dir: document.documentElement.dir, docScrollWidth: document.documentElement.scrollWidth };
-    }).catch(() => null);
-    last = JSON.stringify({ box: b, scroller });
-    return !!b && b.x >= 0 && b.x + b.width <= width + 1;
-  }, { message: () => `${message} — measured ${last}`, timeout: 5_000 }).toBe(true);
+  try {
+    await expect.poll(async () => {
+      const b = await el.boundingBox();
+      const scroller = await el.evaluate((node) => {
+        const sc = (node as HTMLElement).closest(".overflow-x-auto") as HTMLElement | null;
+        const r = (node as HTMLElement).getBoundingClientRect();
+        return { rect: { x: r.x, w: r.width }, scrollLeft: sc?.scrollLeft ?? null, scrollWidth: sc?.scrollWidth ?? null, clientWidth: sc?.clientWidth ?? null, dir: document.documentElement.dir, docScrollWidth: document.documentElement.scrollWidth };
+      }).catch(() => null);
+      last = JSON.stringify({ box: b, scroller });
+      return !!b && b.x >= 0 && b.x + b.width <= width + 1;
+    }, { message, timeout: 5_000 }).toBe(true);
+  } catch (err) {
+    throw new Error(`${message} — measured ${last}
+${(err as Error).message}`);
+  }
 }
 const noSidewaysScroll = async (page: Page, width: number, what: string) => {
   const w = await page.evaluate(() => document.documentElement.scrollWidth);
