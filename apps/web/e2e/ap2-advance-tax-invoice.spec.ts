@@ -63,7 +63,14 @@ async function expectFits(el: ReturnType<Page["getByTestId"]>, width: number, me
         return { rect: { x: r.x, w: r.width }, scrollLeft: sc?.scrollLeft ?? null, scrollWidth: sc?.scrollWidth ?? null, clientWidth: sc?.clientWidth ?? null, dir: document.documentElement.dir, docScrollWidth: document.documentElement.scrollWidth };
       }).catch(() => null);
       last = JSON.stringify({ box: b, scroller });
-      return !!b && b.x >= 0 && b.x + b.width <= width + 1;
+      // 🔴 The tolerance is SYMMETRIC, and 1px is the tolerance the far edge
+      // always had. CI measured this card at x = -1 in RTL (a sticky element
+      // rounding inside a sideways scroller: box 350 wide in a 390 viewport,
+      // document scrollWidth 390 — nothing off-screen, nothing scrollable).
+      // A one-sided bound called that a failure while admitting the same
+      // rounding at the other edge; the claim is "it fits the phone", and
+      // the page-level noSidewaysScroll check is what proves nothing spills.
+      return !!b && b.x >= -1 && b.x + b.width <= width + 1;
     }, { message, timeout: 5_000 }).toBe(true);
   } catch (err) {
     throw new Error(`${message} — measured ${last}
