@@ -81,6 +81,25 @@ export const companiesTable = pgTable("companies", {
    * pool report asks, it never assumes.
    */
   foreignOwnershipPct: numeric("foreign_ownership_pct", { precision: 5, scale: 2 }),
+  /**
+   * FA-F (2026-09-22) — the company's VAT TAX PERIOD: `monthly` | `quarterly`.
+   *
+   * 🔴 It is a THIRD clock, and none of the three may be substituted for the
+   * others. VAT IR Art. 52(5) starts a capital asset's twelve-month adjustment
+   * window "from the start of the Tax Period in which the Capital Asset was
+   * acquired" and puts the adjustment in the return for the LAST tax period
+   * falling in that window — so the tax period decides both when the window
+   * opens and which return carries the figure. Art. 51's proportional fraction
+   * runs on the CALENDAR year; the company's own FISCAL year (M17.2) runs on
+   * neither.
+   *
+   * 🔴 NULL = NOT DECLARED, like `ownership_type` and `fiscal_year_start`. It
+   * is not derived from turnover: Art. 58 sets monthly above SAR 40,000,000
+   * and quarterly below, but a smaller taxpayer may be assigned or may elect
+   * monthly, so the platform asks rather than inferring a legal fact about the
+   * tenant from its own books.
+   */
+  vatTaxPeriod: varchar("vat_tax_period", { length: 20 }),
 
   // ── Seller national short address (M11.6) ──────────────────────────────────
   // Nullable: NOT required by the ZATCA Phase-1 QR (tags 1-5) or the invoice

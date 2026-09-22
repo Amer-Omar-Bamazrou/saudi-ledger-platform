@@ -12,6 +12,11 @@ router.get("/income-tax-pool", assetsController.incomeTaxPool);
 router.get("/income-tax-pool/declarations", assetsController.listPoolDeclarations);
 router.post("/income-tax-pool/declarations", assetsController.declarePool);
 router.delete("/income-tax-pool/declarations/:id", assetsController.deletePoolDeclaration);
+// FA-F: the Art. 52 adjustment — also before "/:id".
+router.get("/vat-adjustments", assetsController.vatAdjustments);
+router.get("/vat-adjustments/use-records", assetsController.listVatUseRecords);
+router.post("/vat-adjustments/use-records", assetsController.declareVatUse);
+router.delete("/vat-adjustments/use-records/:id", assetsController.deleteVatUseRecord);
 
 router.get("/", assetsController.list);
 router.get("/:id", assetsController.get);

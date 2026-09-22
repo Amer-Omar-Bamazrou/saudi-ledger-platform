@@ -47,6 +47,7 @@ function buildCompanyOut(c: Company) {
     fiscalCalendar: c.fiscalCalendar,
     ownershipType: c.ownershipType ?? null,
     foreignOwnershipPct: c.foreignOwnershipPct == null ? null : Number(c.foreignOwnershipPct),
+    vatTaxPeriod: c.vatTaxPeriod ?? null,
     hasLogo: !!c.logoPath,
     buildingNumber: c.buildingNumber ?? null,
     street: c.street ?? null,
@@ -226,6 +227,29 @@ export const companiesService = {
         }
       }
       updates.foreignOwnershipPct = value === null ? null : String(value);
+    }
+
+    /**
+     * FA-F (2026-09-22) — the VAT TAX PERIOD. Art. 52(5) opens a capital
+     * asset's first twelve-month adjustment window at the start of the tax
+     * period of acquisition and files the adjustment in the return for the last
+     * tax period inside it, so monthly and quarterly give different windows and
+     * different returns for the same purchase.
+     *
+     * 🔴 It is asked, not inferred. Art. 58's SAR 40,000,000 threshold is not
+     * the only way a period is assigned — a smaller taxpayer may be assigned or
+     * may elect monthly — so deriving it from the tenant's own turnover would
+     * have the platform assert a legal fact about them from their books.
+     * Clearing it back to NOT DECLARED is legitimate, as for every other
+     * declaration on this record.
+     */
+    if (input.vatTaxPeriod !== undefined) {
+      const raw = input.vatTaxPeriod === null ? null : String(input.vatTaxPeriod).trim();
+      const value = raw === "" ? null : raw;
+      if (value !== null && value !== "monthly" && value !== "quarterly") {
+        throw new BadRequestError("vatTaxPeriod must be 'monthly' or 'quarterly' (VAT IR Art. 58).");
+      }
+      updates.vatTaxPeriod = value;
     }
 
     // Address block (ZATCA Phase 2 / printed invoices) — free text except the

@@ -461,6 +461,7 @@ export const NAV_TREE: readonly NavSection[] = [
       built("/payroll-report", "Payroll Report", "تقرير الرواتب", BarChart3),
       built("/assets", "Fixed Assets", "الأصول الثابتة", Package),
       built("/assets/income-tax-pool", "Income Tax Pool", "وعاء ضريبة الدخل", Scale),
+      built("/assets/vat-adjustments", "VAT Capital Assets", "الأصول الرأسمالية للضريبة", Receipt),
       built("/asset-schedule", "Asset Schedule", "جدول الأصول", PieChart),
       built("/budgets", "Budgets", "الميزانيات", Target),
       built("/invoice-summary", "Invoice Summary", "ملخص الفواتير", FileText),

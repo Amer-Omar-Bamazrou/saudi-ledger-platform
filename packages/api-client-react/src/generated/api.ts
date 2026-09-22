@@ -38,6 +38,8 @@ import type {
   AssetDepreciationRun,
   AssetDetail,
   AssetDisposalResult,
+  AssetVatUseInput,
+  AssetVatUseRecord,
   AuditLogPage,
   BalanceSheetReport,
   Bill,
@@ -93,6 +95,7 @@ import type {
   CustomerRefund,
   CustomerStatement,
   Decomposition,
+  DeleteAssetVatUseRecord200,
   DeleteIncomeTaxPoolDeclaration200,
   DeploymentBanner,
   DepositReview,
@@ -134,6 +137,7 @@ import type {
   GetTaxJournalEntriesParams,
   GetTrendParams,
   GetTrialBalanceParams,
+  GetVatCapitalAssetAdjustmentsParams,
   GetVatReturnParams,
   GetVatSummaryParams,
   GroundedAnswersPage,
@@ -154,6 +158,8 @@ import type {
   Liquidity,
   ListAssetCategories200,
   ListAssetCategoriesParams,
+  ListAssetVatUseRecords200,
+  ListAssetVatUseRecordsParams,
   ListAssets200,
   ListAssetsParams,
   ListAuditLogsParams,
@@ -248,6 +254,7 @@ import type {
   UpdateMigrationBatchInput,
   UpdateQuotationInput,
   UploadResult,
+  VatAdjustmentReport,
   VatReturn,
   VatSummary,
   Vendor,
@@ -15433,6 +15440,319 @@ export const useDisposeAsset = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDisposeAssetMutationOptions(options));
+    }
+
+export const getGetVatCapitalAssetAdjustmentsUrl = (params?: GetVatCapitalAssetAdjustmentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/assets/vat-adjustments?${stringifiedParams}` : `/api/assets/vat-adjustments`
+}
+
+/**
+ * For every capital asset in the register, each twelve-month adjustment window of Art. 52(5) — opened at the start of the TAX PERIOD of acquisition, with the return that carries its adjustment named — the potentially adjustable amount (52(4): initial deduction ÷ adjustment period), the actual taxable use of the window, and the resulting adjustment. The use is DECLARED where the taxpayer has stated it and otherwise DERIVED from Art. 51(4)'s default fraction over the company's own supplies in that calendar year, excluding supplies of capital assets (51(5)(a)). A disposal is carried as Art. 52(7)/(8) with the limb that applies stated in words.
+ * 🔴 Art. 52(6) ("no change in use ⇒ no adjustment required") is reported as its own flag, apart from an adjustment that merely computes to zero: a window whose use is neither declared nor derivable reports `unavailable`, nil, and NOT 52(6) — nobody established that the use did not change. `status` is `computed` only once the company's tax period is declared; otherwise `reason` names the act that supplies it.
+ * @summary FA-F: the VAT IR Art. 52 capital-asset input-tax adjustment working paper
+ */
+export const getVatCapitalAssetAdjustments = async (params?: GetVatCapitalAssetAdjustmentsParams, options?: RequestInit): Promise<VatAdjustmentReport> => {
+
+  return customFetch<VatAdjustmentReport>(getGetVatCapitalAssetAdjustmentsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVatCapitalAssetAdjustmentsQueryKey = (params?: GetVatCapitalAssetAdjustmentsParams,) => {
+    return [
+    `/api/assets/vat-adjustments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVatCapitalAssetAdjustmentsQueryOptions = <TData = Awaited<ReturnType<typeof getVatCapitalAssetAdjustments>>, TError = ErrorType<unknown>>(params?: GetVatCapitalAssetAdjustmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVatCapitalAssetAdjustments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVatCapitalAssetAdjustmentsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVatCapitalAssetAdjustments>>> = ({ signal }) => getVatCapitalAssetAdjustments(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVatCapitalAssetAdjustments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVatCapitalAssetAdjustmentsQueryResult = NonNullable<Awaited<ReturnType<typeof getVatCapitalAssetAdjustments>>>
+export type GetVatCapitalAssetAdjustmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary FA-F: the VAT IR Art. 52 capital-asset input-tax adjustment working paper
+ */
+
+export function useGetVatCapitalAssetAdjustments<TData = Awaited<ReturnType<typeof getVatCapitalAssetAdjustments>>, TError = ErrorType<unknown>>(
+ params?: GetVatCapitalAssetAdjustmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVatCapitalAssetAdjustments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVatCapitalAssetAdjustmentsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAssetVatUseRecordsUrl = (params?: ListAssetVatUseRecordsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/assets/vat-adjustments/use-records?${stringifiedParams}` : `/api/assets/vat-adjustments/use-records`
+}
+
+/**
+ * @summary FA-F: the declared actual-use figures that override the Art. 51 default
+ */
+export const listAssetVatUseRecords = async (params?: ListAssetVatUseRecordsParams, options?: RequestInit): Promise<ListAssetVatUseRecords200> => {
+
+  return customFetch<ListAssetVatUseRecords200>(getListAssetVatUseRecordsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssetVatUseRecordsQueryKey = (params?: ListAssetVatUseRecordsParams,) => {
+    return [
+    `/api/assets/vat-adjustments/use-records`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAssetVatUseRecordsQueryOptions = <TData = Awaited<ReturnType<typeof listAssetVatUseRecords>>, TError = ErrorType<unknown>>(params?: ListAssetVatUseRecordsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetVatUseRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssetVatUseRecordsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssetVatUseRecords>>> = ({ signal }) => listAssetVatUseRecords(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssetVatUseRecords>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssetVatUseRecordsQueryResult = NonNullable<Awaited<ReturnType<typeof listAssetVatUseRecords>>>
+export type ListAssetVatUseRecordsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary FA-F: the declared actual-use figures that override the Art. 51 default
+ */
+
+export function useListAssetVatUseRecords<TData = Awaited<ReturnType<typeof listAssetVatUseRecords>>, TError = ErrorType<unknown>>(
+ params?: ListAssetVatUseRecordsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetVatUseRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssetVatUseRecordsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeclareAssetVatUseUrl = () => {
+
+
+
+
+  return `/api/assets/vat-adjustments/use-records`
+}
+
+/**
+ * Upserts on (asset, window). It overrides the Art. 51 default for that window only, and states WHY: an exclusive use the business-wide fraction would misstate, an alternative method approved under Art. 51(8)–(10), or the Art. 51(7) year-end true-up. A window outside the asset's adjustment period is refused rather than stored where nothing could show it.
+ * @summary FA-F: state (or correct) an asset's actual taxable use in one twelve-month window
+ */
+export const declareAssetVatUse = async (assetVatUseInput: AssetVatUseInput, options?: RequestInit): Promise<AssetVatUseRecord> => {
+
+  return customFetch<AssetVatUseRecord>(getDeclareAssetVatUseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assetVatUseInput)
+  }
+);}
+
+
+
+
+
+export const getDeclareAssetVatUseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declareAssetVatUse>>, TError,{data: BodyType<AssetVatUseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof declareAssetVatUse>>, TError,{data: BodyType<AssetVatUseInput>}, TContext> => {
+
+const mutationKey = ['declareAssetVatUse'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declareAssetVatUse>>, {data: BodyType<AssetVatUseInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  declareAssetVatUse(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeclareAssetVatUseMutationResult = NonNullable<Awaited<ReturnType<typeof declareAssetVatUse>>>
+    export type DeclareAssetVatUseMutationBody = BodyType<AssetVatUseInput>
+    export type DeclareAssetVatUseMutationError = ErrorType<void>
+
+    /**
+ * @summary FA-F: state (or correct) an asset's actual taxable use in one twelve-month window
+ */
+export const useDeclareAssetVatUse = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declareAssetVatUse>>, TError,{data: BodyType<AssetVatUseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof declareAssetVatUse>>,
+        TError,
+        {data: BodyType<AssetVatUseInput>},
+        TContext
+      > => {
+      return useMutation(getDeclareAssetVatUseMutationOptions(options));
+    }
+
+export const getDeleteAssetVatUseRecordUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/vat-adjustments/use-records/${id}`
+}
+
+/**
+ * @summary FA-F: withdraw a declared use figure, so the window falls back to the Art. 51 default
+ */
+export const deleteAssetVatUseRecord = async (id: number, options?: RequestInit): Promise<DeleteAssetVatUseRecord200> => {
+
+  return customFetch<DeleteAssetVatUseRecord200>(getDeleteAssetVatUseRecordUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAssetVatUseRecordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAssetVatUseRecord>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAssetVatUseRecord>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteAssetVatUseRecord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAssetVatUseRecord>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAssetVatUseRecord(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAssetVatUseRecordMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAssetVatUseRecord>>>
+
+    export type DeleteAssetVatUseRecordMutationError = ErrorType<void>
+
+    /**
+ * @summary FA-F: withdraw a declared use figure, so the window falls back to the Art. 51 default
+ */
+export const useDeleteAssetVatUseRecord = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAssetVatUseRecord>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAssetVatUseRecord>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAssetVatUseRecordMutationOptions(options));
     }
 
 export const getGetIncomeTaxPoolUrl = (params?: GetIncomeTaxPoolParams,) => {

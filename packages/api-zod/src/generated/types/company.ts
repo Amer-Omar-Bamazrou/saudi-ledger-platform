@@ -7,6 +7,7 @@
  */
 import type { CompanyFiscalCalendar } from './companyFiscalCalendar';
 import type { CompanyOwnershipType } from './companyOwnershipType';
+import type { CompanyVatTaxPeriod } from './companyVatTaxPeriod';
 
 /**
  * A company's legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.
@@ -36,6 +37,11 @@ export interface Company {
      * @nullable
      */
   ownershipType: CompanyOwnershipType;
+  /**
+     * FA-F (2026-09-22): the company's VAT tax period. VAT IR Art. 52(5) opens a capital asset's first twelve-month adjustment window at the start of the TAX PERIOD of acquisition and files the adjustment in the return for the last tax period inside that window, so monthly and quarterly give different windows and different returns for the same purchase. NULL is NOT DECLARED; it is not inferred from turnover, because Art. 58's threshold is not the only way a period is assigned.
+     * @nullable
+     */
+  vatTaxPeriod: CompanyVatTaxPeriod;
   /**
      * FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.
      * @minimum 0

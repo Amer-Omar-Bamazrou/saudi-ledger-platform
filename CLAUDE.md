@@ -59,7 +59,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 **2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "THE FIVE PILOT BLOCKERS"; findings file, "THE SECOND CORE-PATH WALK"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED** (PR #164); A4/A5 as invariants (§4). **FOLLOW-UPS BUILT** (PR #167, [`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17): the historical invoice's e-invoicing identity, the item-level correction against RETAINED EARNINGS (original reversed + `OPEN-` replacement, no OBE), migrated relief structured, credit notes on identified opening items via Fatoora. Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
-**2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-E BUILT; FA-F (the VAT Art. 52 engine) NEXT** ([`pack`](docs/product/fixed-assets-decision-pack.md) §20–§24). The four invariants the rest of the codebase must not break: the register’s figures are DERIVED from its schedule (posted rows FROZEN, never a stored column); a disposal GAIN is OTHER income and `SALES` never moves (IAS 16.68); a MIGRATED asset posts NO line — it reconciles to the opening trial balance (A5); and the Art. 17 income-tax POOL is a REPORT, whose anchor and Art. 18 repairs are DECLARED and whose 17(h)/17(i) elections are OFFERED, never taken.
+**2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-F BUILT** ([`pack`](docs/product/fixed-assets-decision-pack.md) §20–§25). The four invariants the rest of the codebase must not break: the register’s figures are DERIVED from its schedule (posted rows FROZEN, never a stored column); a disposal GAIN is OTHER income and `SALES` never moves (IAS 16.68); a MIGRATED asset posts NO line — it reconciles to the opening trial balance (A5); and the Art. 17 income-tax POOL is a REPORT, whose anchor and Art. 18 repairs are DECLARED and whose 17(h)/17(i) elections are OFFERED, never taken. 🔴 The Art. 17 pool, the VAT Art. 52 adjustment and depreciation run on THREE DIFFERENT CLOCKS (fiscal year · tax period · accounting life); none may stand in for another.
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165): the 386 / 388-adjustment / 381-against-386 CLEARED by the sandbox from real rows (pack §14–§16). **THE ANSWERS APPLIED** (PR #166, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed, Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), CLEARED. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
@@ -500,7 +500,7 @@ which holds every closed item with its full reasoning.
 **Every remaining path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq.
 🔴 **Withholding tax (LEGAL exposure) awaits the OWNER'S RANKING** — costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
-**Fixed assets: IN BUILD** — [`pack`](docs/product/fixed-assets-decision-pack.md) (FA-1/FA-2 answered; FA-A…FA-E built; FA-F follows).
+**Fixed assets: FA-A…FA-F BUILT** — [`pack`](docs/product/fixed-assets-decision-pack.md) (FA-1/FA-2 answered; reporting and the return wiring remain).
 
 ### Blocking, by their own nature
 

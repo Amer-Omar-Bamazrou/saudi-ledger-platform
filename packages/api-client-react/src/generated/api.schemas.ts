@@ -130,6 +130,18 @@ export const CompanyOwnershipType = {
 } as const;
 
 /**
+ * FA-F (2026-09-22): the company's VAT tax period. VAT IR Art. 52(5) opens a capital asset's first twelve-month adjustment window at the start of the TAX PERIOD of acquisition and files the adjustment in the return for the last tax period inside that window, so monthly and quarterly give different windows and different returns for the same purchase. NULL is NOT DECLARED; it is not inferred from turnover, because Art. 58's threshold is not the only way a period is assigned.
+ * @nullable
+ */
+export type CompanyVatTaxPeriod = typeof CompanyVatTaxPeriod[keyof typeof CompanyVatTaxPeriod] | null;
+
+
+export const CompanyVatTaxPeriod = {
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+} as const;
+
+/**
  * A company's legal identity. `vatNumber` and `name` are the SELLER identity stamped onto every issued e-invoice (ZATCA QR tags 1-2 and the invoice hash), so they are not cosmetic settings.
  */
 export interface Company {
@@ -157,6 +169,11 @@ export interface Company {
      * @nullable
      */
   ownershipType: CompanyOwnershipType;
+  /**
+     * FA-F (2026-09-22): the company's VAT tax period. VAT IR Art. 52(5) opens a capital asset's first twelve-month adjustment window at the start of the TAX PERIOD of acquisition and files the adjustment in the return for the last tax period inside that window, so monthly and quarterly give different windows and different returns for the same purchase. NULL is NOT DECLARED; it is not inferred from turnover, because Art. 58's threshold is not the only way a period is assigned.
+     * @nullable
+     */
+  vatTaxPeriod: CompanyVatTaxPeriod;
   /**
      * FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.
      * @minimum 0
@@ -197,6 +214,17 @@ export const UpdateCompanyInputOwnershipType = {
 } as const;
 
 /**
+ * @nullable
+ */
+export type UpdateCompanyInputVatTaxPeriod = typeof UpdateCompanyInputVatTaxPeriod[keyof typeof UpdateCompanyInputVatTaxPeriod] | null;
+
+
+export const UpdateCompanyInputVatTaxPeriod = {
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+} as const;
+
+/**
  * Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.
  */
 export interface UpdateCompanyInput {
@@ -223,6 +251,8 @@ export interface UpdateCompanyInput {
      * @nullable
      */
   foreignOwnershipPct?: number | null;
+  /** @nullable */
+  vatTaxPeriod?: UpdateCompanyInputVatTaxPeriod;
   /** @nullable */
   buildingNumber?: string | null;
   /** @nullable */
@@ -5233,6 +5263,171 @@ export interface AssetDisposalRecord {
   reason: string | null;
 }
 
+export type AssetVatUseRecordBasis = typeof AssetVatUseRecordBasis[keyof typeof AssetVatUseRecordBasis];
+
+
+export const AssetVatUseRecordBasis = {
+  exclusive_use: 'exclusive_use',
+  approved_alternative_method: 'approved_alternative_method',
+  year_end_true_up: 'year_end_true_up',
+  other: 'other',
+} as const;
+
+export interface AssetVatUseRecord {
+  id: number;
+  assetId: number;
+  /**
+     * Which twelve-month window of Art. 52(5) this states.
+     * @minimum 1
+     */
+  periodIndex: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  actualUsePct: number;
+  basis: AssetVatUseRecordBasis;
+  /** @nullable */
+  note?: string | null;
+  updatedAt: string;
+}
+
+export type AssetVatUseInputBasis = typeof AssetVatUseInputBasis[keyof typeof AssetVatUseInputBasis];
+
+
+export const AssetVatUseInputBasis = {
+  exclusive_use: 'exclusive_use',
+  approved_alternative_method: 'approved_alternative_method',
+  year_end_true_up: 'year_end_true_up',
+  other: 'other',
+} as const;
+
+export interface AssetVatUseInput {
+  assetId: number;
+  /** @minimum 1 */
+  periodIndex: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  actualUsePct: number;
+  basis: AssetVatUseInputBasis;
+  /** @nullable */
+  note?: string | null;
+}
+
+export type VatAdjustmentWindowActualUseSource = typeof VatAdjustmentWindowActualUseSource[keyof typeof VatAdjustmentWindowActualUseSource];
+
+
+export const VatAdjustmentWindowActualUseSource = {
+  declared: 'declared',
+  proportional: 'proportional',
+  unavailable: 'unavailable',
+} as const;
+
+export interface VatAdjustmentWindow {
+  periodIndex: number;
+  startDate: string;
+  endDate: string;
+  /** Art. 52(5): the return that carries this window's adjustment. */
+  returnPeriodStart: string;
+  returnPeriodEnd: string;
+  /** The window has ended, so its adjustment is due in the return named beside it. */
+  due: boolean;
+  /** Art. 52(4): initial input-tax deduction ÷ adjustment period. */
+  potentiallyAdjustable: number;
+  initialRecoveryPct: number;
+  /** @nullable */
+  actualUsePct: number | null;
+  actualUseSource: VatAdjustmentWindowActualUseSource;
+  /** Positive: more input tax is recoverable. Negative: input tax is repaid. */
+  adjustment: number;
+  /** Art. 52(6) — a REASON, not an adjustment that happens to be zero. */
+  noChangeOfUse: boolean;
+  /** @nullable */
+  declaredBasis: string | null;
+  /** @nullable */
+  declaredNote: string | null;
+  /** @nullable */
+  declarationId: number | null;
+}
+
+export interface VatAdjustmentDisposal {
+  date: string;
+  kind: string;
+  vatTreatment: string;
+  remainingPeriods: number;
+  /** @nullable */
+  useAfterChangePct: number | null;
+  adjustment: number;
+  /** Which limb of Art. 52(7)/(8) or Art. 50(3) applies, in words. */
+  rule: string;
+  /**
+     * Art. 52(8), valued at the disposal by FA-C.
+     * @nullable
+     */
+  nominalSupplyValue: number | null;
+}
+
+export interface VatAdjustmentAsset {
+  assetId: number;
+  assetNumber: string;
+  name: string;
+  acquisitionDate: string;
+  vatCapitalAssetClass: string;
+  usefulLifeMonths: number;
+  /**
+     * Art. 52(2): 6 movable / 10 immovable, shortened to the accounting life.
+     * @nullable
+     */
+  adjustmentPeriodYears: number | null;
+  vatInputTaxAmount: number;
+  initialRecoveryPct: number;
+  /** @nullable */
+  vatNonDeductibleReason: string | null;
+  initialDeduction: number;
+  potentiallyAdjustable: number;
+  /**
+     * Art. 66(1): the adjustment period plus five years from acquisition.
+     * @nullable
+     */
+  recordsRetainedUntil: string | null;
+  windows: VatAdjustmentWindow[];
+  disposal: VatAdjustmentDisposal | null;
+}
+
+export type VatAdjustmentReportStatus = typeof VatAdjustmentReportStatus[keyof typeof VatAdjustmentReportStatus];
+
+
+export const VatAdjustmentReportStatus = {
+  computed: 'computed',
+  tax_period_not_declared: 'tax_period_not_declared',
+} as const;
+
+export type VatAdjustmentReportProportionalDeductionItem = {
+  calendarYear: number;
+  taxableSupplies: number;
+  exemptSupplies: number;
+  /**
+     * null when the year had no taxable and no exempt supplies — which is not 0 %.
+     * @nullable
+     */
+  pct: number | null;
+};
+
+export interface VatAdjustmentReport {
+  status: VatAdjustmentReportStatus;
+  /** @nullable */
+  reason: string | null;
+  companyId: string;
+  companyName: string;
+  /** @nullable */
+  vatTaxPeriod: string | null;
+  /** Art. 51(4): the default fraction per CALENDAR year, shown so a derived use can be checked rather than trusted. */
+  proportionalDeduction: VatAdjustmentReportProportionalDeductionItem[];
+  assets: VatAdjustmentAsset[];
+}
+
 export interface IncomeTaxPoolDeclaration {
   id: number;
   /**
@@ -7560,6 +7755,25 @@ period_to?: string;
  */
 as_of?: string;
 customer_id?: number;
+};
+
+export type GetVatCapitalAssetAdjustmentsParams = {
+/**
+ * Narrow the working paper to one asset.
+ */
+asset_id?: number;
+};
+
+export type ListAssetVatUseRecordsParams = {
+asset_id?: number;
+};
+
+export type ListAssetVatUseRecords200 = {
+  items: AssetVatUseRecord[];
+};
+
+export type DeleteAssetVatUseRecord200 = {
+  id: number;
 };
 
 export type GetIncomeTaxPoolParams = {

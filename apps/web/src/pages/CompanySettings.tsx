@@ -31,6 +31,8 @@ interface Company {
   ownershipType: "SAUDI_GCC" | "FOREIGN" | "MIXED" | null;
   /** FA-E — the share subject to INCOME TAX; null is NOT DECLARED, and the Art. 17 pool refuses rather than assume. */
   foreignOwnershipPct: number | null;
+  /** FA-F — the VAT tax period; null is NOT DECLARED, and the Art. 52 windows cannot be placed without it. */
+  vatTaxPeriod: "monthly" | "quarterly" | null;
   buildingNumber: string | null;
   street: string | null;
   district: string | null;
@@ -176,6 +178,7 @@ export default function CompanySettings() {
       // The server checks the two against each other (Income Tax Law Art. 2),
       // so a pair that states two different facts is refused, not merged.
       foreignOwnershipPct: form.foreignOwnershipPct == null ? null : Number(form.foreignOwnershipPct),
+      vatTaxPeriod: form.vatTaxPeriod ?? null,
       buildingNumber: form.buildingNumber ?? "",
       street: form.street ?? "",
       district: form.district ?? "",
@@ -360,6 +363,43 @@ export default function CompanySettings() {
                 {t(
                   "The part of the company subject to income tax rather than Zakat (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). 100% Saudi/GCC-owned is 0. The Income Tax Pool working paper needs this and will not assume it.",
                   "الجزء الخاضع لضريبة الدخل بدل الزكاة (نظام ضريبة الدخل المادة 2؛ لائحة الزكاة المادة 6(1)). والمملوكة بالكامل لسعوديين أو خليجيين تساوي صفرًا. وتحتاج ورقة عمل وعاء ضريبة الدخل هذا الرقم ولا تفترضه.",
+                )}
+              </p>
+            </div>
+
+            {/*
+              FA-F — the VAT TAX PERIOD. It sits with the other declarations
+              because it is one: VAT IR Art. 52(5) opens a capital asset's first
+              twelve-month adjustment window at the start of the tax period of
+              acquisition and files each adjustment in the return for the last
+              tax period inside that window, so monthly and quarterly give
+              different windows and different returns for the same purchase.
+
+              🔴 It is asked, not inferred from turnover: Art. 58's threshold
+              is not the only way a period is assigned.
+            */}
+            <div className="space-y-1.5 max-w-lg">
+              <Label htmlFor="vatTaxPeriod">{t("VAT tax period", "الفترة الضريبية للقيمة المضافة")}</Label>
+              <select
+                id="vatTaxPeriod"
+                data-testid="select-vat-tax-period"
+                className="w-full h-9 text-sm rounded-md border border-input bg-background px-3"
+                value={form.vatTaxPeriod ?? ""}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    vatTaxPeriod: (e.target.value || null) as Company["vatTaxPeriod"],
+                  }))
+                }
+              >
+                <option value="">{t("Not declared", "غير محددة")}</option>
+                <option value="monthly">{t("Monthly", "شهرية")}</option>
+                <option value="quarterly">{t("Quarterly", "ربع سنوية")}</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                {t(
+                  "The period ZATCA assigned you (VAT IR Art. 58). The capital-asset adjustment working paper places its twelve-month windows and names the return each adjustment belongs to from this, and will not guess it.",
+                  "الفترة التي حددتها الهيئة (المادة 58 من اللائحة). وعلى أساسها تُحدد ورقة عمل تعديل الأصول الرأسمالية فتراتها الاثني عشرية والإقرار الذي يخصه كل تعديل، ولا تخمّنها.",
                 )}
               </p>
             </div>
