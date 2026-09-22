@@ -68,6 +68,12 @@ describeMaybe("D-4 Phase D — deterministic bank matching", () => {
       for (const t of [
         "statement_match_reversals", "statement_matches", "customer_refunds", "payment_allocation_reversals", "payment_allocations", "payments",
         "journal_entry_lines", "journal_entries", "transactions", "invoice_items", "einvoice_documents", "invoices", "customers",
+        // 🔴 `findings` is written by the SCHEDULED job, not by this suite, so it is
+        // absent from a fresh database and present on any machine where the job has
+        // run for this org. Leaving it out made the org undeletable (23503) and
+        // failed the HOOK — which SKIPS all 17 tests rather than failing them, so the
+        // suite reported "17 skipped" and the run went red for a reason no test named.
+        "finding_runs", "findings",
         "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies",
       ]) {
         await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
