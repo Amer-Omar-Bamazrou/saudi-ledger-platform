@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MigrationHistoricalVat } from './migrationHistoricalVat';
+import type { MigrationOpenItemInputEinvoicingStatus } from './migrationOpenItemInputEinvoicingStatus';
 import type { MigrationOpenItemInputItemType } from './migrationOpenItemInputItemType';
 
 export interface MigrationOpenItemInput {
@@ -41,6 +42,17 @@ export interface MigrationOpenItemInput {
   /** The one-row representation of a party whose old system tracked only a balance. At most one per party. */
   compositionUnknown?: boolean;
   historicalVat?: MigrationHistoricalVat | null;
+  /**
+     * 2026-09-22 (AR only): what the previous solution did with this tax invoice — cleared (standard), reported (simplified), or pre_einvoicing (issued before the obligation applied). Empty = NOT STATED, which is not a guess: a credit note against the item is refused until it is stated. Never invented.
+     * @nullable
+     */
+  einvoicingStatus?: MigrationOpenItemInputEinvoicingStatus;
+  /**
+     * 2026-09-22 (AR only): the previous solution's document UUID, verbatim — required for cleared/reported; the identity a credit note through Fatoora keeps. Never invented.
+     * @maxLength 64
+     * @nullable
+     */
+  sourceUuid?: string | null;
   /**
      * @maxLength 500
      * @nullable

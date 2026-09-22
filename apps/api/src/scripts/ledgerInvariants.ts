@@ -66,6 +66,16 @@ async function main() {
       FROM invoices i WHERE i.bad_debt_relief_source = 'recorded'
        AND NOT EXISTS (SELECT 1 FROM journal_entries e JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
                         WHERE e.id = i.bad_debt_relief_journal_entry_id AND e.status IN ('posted','reversed') AND c.system_code = 'AR' AND l.credit_amount = i.written_off_amount)`));
+  // 2026-09-22: an item-level correction's other side is retained earnings and nothing else (answer 5); its original is reversed and its replacement live.
+  fail("opening_correction_shape — a correction entry without exactly AR/AP (party) and RETAINED_EARNINGS lines, or an original not reversed, or without a live replacement", await q(`
+    SELECT e.organization_id::text AS org, e.entry_number
+      FROM journal_entries e WHERE e.source = 'opening_correction'
+       AND ( (SELECT count(*) FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id WHERE l.journal_entry_id = e.id AND c.system_code = 'RETAINED_EARNINGS') <> 1
+          OR (SELECT count(*) FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id WHERE l.journal_entry_id = e.id AND c.system_code IN ('AR','AP') AND (l.customer_id IS NOT NULL OR l.vendor_id IS NOT NULL)) <> 1
+          OR (SELECT count(*) FROM journal_entry_lines l WHERE l.journal_entry_id = e.id) <> 2
+          OR NOT EXISTS (SELECT 1 FROM invoices o WHERE o.opening_correction_journal_entry_id = e.id AND o.reversed_at IS NOT NULL AND EXISTS (SELECT 1 FROM invoices r WHERE r.replaces_invoice_id = o.id)
+                         UNION ALL
+                         SELECT 1 FROM bills o WHERE o.opening_correction_journal_entry_id = e.id AND o.reversed_at IS NOT NULL AND EXISTS (SELECT 1 FROM bills r WHERE r.replaces_bill_id = o.id)) )`));
   fail("bad_debt_recovery_bounded — Σ issued Art. 40(9) recoveries against a receivable > what was written off (recorded)", await q(`
     SELECT i.organization_id::text AS org, i.id, i.invoice_number, i.written_off_amount::text AS written_off, s.v::text AS recovered
       FROM invoices i JOIN (SELECT recovers_invoice_id, sum(total::numeric) v FROM invoices WHERE document_type = 'recovery_invoice' AND invoice_hash IS NOT NULL GROUP BY 1) s ON s.recovers_invoice_id = i.id
@@ -151,7 +161,12 @@ async function main() {
             OR (i.is_opening
                 AND EXISTS (SELECT 1 FROM migration_open_items o JOIN journal_entries e ON e.migration_batch_id = o.batch_id AND e.source = 'opening'
                              JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
-                             WHERE o.resolved_invoice_id = i.id AND c.system_code = 'AR' AND l.customer_id = i.customer_id)) )),
+                             WHERE o.resolved_invoice_id = i.id AND c.system_code = 'AR' AND l.customer_id = i.customer_id))
+            -- 2026-09-22: a replacement made by an item-level CORRECTION (A4 + answer 5) is covered through its reversed original's opening line plus the correction entry's AR line
+            OR (i.is_opening AND i.replaces_invoice_id IS NOT NULL
+                AND EXISTS (SELECT 1 FROM invoices o JOIN journal_entries e ON e.id = o.opening_correction_journal_entry_id AND e.source = 'opening_correction'
+                             JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
+                             WHERE o.id = i.replaces_invoice_id AND c.system_code = 'AR' AND l.customer_id = i.customer_id)) )),
     sub AS (SELECT organization_id AS org, customer_id, sum(total::numeric - coalesce(paid_amount,0) - credited_amount - written_off_amount) v FROM covered GROUP BY 1,2),
     gl AS (SELECT e.organization_id AS org, l.customer_id, sum(l.debit_amount - l.credit_amount) v
              FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
@@ -168,7 +183,11 @@ async function main() {
             OR (b.is_opening
                 AND EXISTS (SELECT 1 FROM migration_open_items o JOIN journal_entries e ON e.migration_batch_id = o.batch_id AND e.source = 'opening'
                              JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
-                             WHERE o.resolved_bill_id = b.id AND c.system_code = 'AP' AND l.vendor_id = b.vendor_id)) )),
+                             WHERE o.resolved_bill_id = b.id AND c.system_code = 'AP' AND l.vendor_id = b.vendor_id))
+            OR (b.is_opening AND b.replaces_bill_id IS NOT NULL
+                AND EXISTS (SELECT 1 FROM bills o JOIN journal_entries e ON e.id = o.opening_correction_journal_entry_id AND e.source = 'opening_correction'
+                             JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
+                             WHERE o.id = b.replaces_bill_id AND c.system_code = 'AP' AND l.vendor_id = b.vendor_id)) )),
     sub AS (SELECT organization_id AS org, vendor_id, sum(total::numeric - coalesce(paid_amount,0)) v FROM covered GROUP BY 1,2),
     gl AS (SELECT e.organization_id AS org, l.vendor_id, sum(l.credit_amount - l.debit_amount) v
              FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id

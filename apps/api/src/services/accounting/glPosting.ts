@@ -275,7 +275,7 @@ export async function postJournalEntry(opts: {
    * entry — their provenance stays the number prefix, as before. (There is
    * no `opening_clearing`: the OBE mechanism was removed — A5, 2026-09-20.)
    */
-  source?: "opening" | "opening_reversal";
+  source?: "opening" | "opening_reversal" | "opening_correction";
   migrationBatchId?: number;
   /**
    * Batch 1C: the entry this one mirrors. Only the migration's reversal names

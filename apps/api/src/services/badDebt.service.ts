@@ -146,7 +146,7 @@ export const badDebtService = {
     if (inv.customerId == null) {
       throw new BusinessRuleError(422, { code: "bad_debt_requires_customer", error: `${inv.invoiceNumber} names no customer; a receivable owed by nobody cannot be written off as a bad debt.`, field: "id" });
     }
-    if (num(inv.writtenOffAmount) > 0 || inv.badDebtReliefClaimedOn) {
+    if (num(inv.writtenOffAmount) > 0 || inv.badDebtReliefSource) {
       throw new BusinessRuleError(409, { code: "bad_debt_already_written_off", error: `${inv.invoiceNumber} was already written off on ${inv.badDebtReliefClaimedOn} (${fmt(num(inv.writtenOffAmount))}).`, field: "id" });
     }
     const unpaid = outstandingOf(inv);
@@ -238,7 +238,7 @@ export const badDebtService = {
 
     const [recovered] = await invoiceSettlementRepository.lockInvoices([recoveredInvoiceId]);
     if (!recovered) throw new NotFoundError("Invoice not found");
-    if (!recovered.badDebtReliefClaimedOn || !recovered.badDebtReliefSource) {
+    if (!recovered.badDebtReliefSource) {
       throw new BusinessRuleError(409, { code: "recovery_requires_relief", error: `${recovered.invoiceNumber} carries no bad-debt relief; a tax invoice under Art. 40(9) is only for consideration received AFTER the tax on it was relieved (Art. 40(7)). Money received on an ordinary open invoice is allocated to it.`, field: "id" });
     }
     const [payment] = await paymentsRepository.lockPayment(paymentId);
@@ -246,7 +246,7 @@ export const badDebtService = {
     if (payment.direction !== "in" || payment.customerId == null || payment.customerId !== recovered.customerId) {
       throw new BusinessRuleError(422, { code: "recovery_payment_customer_mismatch", error: `Receipt ${paymentId} is not a receipt from the customer of ${recovered.invoiceNumber}.`, field: "paymentId" });
     }
-    if (payment.paidAt < recovered.badDebtReliefClaimedOn) {
+    if (recovered.badDebtReliefClaimedOn && payment.paidAt < recovered.badDebtReliefClaimedOn) {
       throw new BusinessRuleError(422, { code: "recovery_before_relief", error: `Receipt ${paymentId} of ${payment.paidAt} precedes the relief claimed on ${recovered.badDebtReliefClaimedOn}; only consideration received AFTER the relief is declared under Art. 40(9).`, field: "paymentId" });
     }
     const declared = await this.recoveredSoFar(recovered.id, paymentId);

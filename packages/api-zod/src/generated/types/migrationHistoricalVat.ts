@@ -39,8 +39,19 @@ export interface MigrationHistoricalVat {
      */
   reportedPeriod?: string | null;
   /**
-     * VAT Implementing Regulations Art. 40(9): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). Information only — captured for the accountant; nothing here computes, warns, blocks, invoices or submits on it, and it never restricts a payment or an allocation.
+     * VAT Implementing Regulations Art. 40(7): whether the previous system CLAIMED bad-debt relief on this document (true), is known not to have (false), or it is not known (null / absent). 2026-09-22: a STRUCTURED fact — at commit it lands on the opening receivable (badDebtRelief.source = migrated) and an Art. 40(9) recovery document is declared from it when money arrives. It never restricts a payment or an allocation.
      * @nullable
      */
   badDebtReliefClaimed?: boolean | null;
+  /**
+     * YYYY-MM-DD: the period the previous system claimed the relief in, when known. Only with badDebtReliefClaimed = true.
+     * @nullable
+     */
+  badDebtReliefClaimedOn?: string | null;
+  /**
+     * The Output Tax the previous system relieved, when known. Only with badDebtReliefClaimed = true.
+     * @minimum 0
+     * @nullable
+     */
+  badDebtReliefVatAmount?: number | null;
 }

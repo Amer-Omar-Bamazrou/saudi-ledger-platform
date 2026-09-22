@@ -8,6 +8,7 @@
 import type { BadDebtRelief } from './badDebtRelief';
 import type { InvoiceDocumentType } from './invoiceDocumentType';
 import type { InvoiceItem } from './invoiceItem';
+import type { InvoiceOpeningEinvoicingStatus } from './invoiceOpeningEinvoicingStatus';
 import type { InvoicePrepayment } from './invoicePrepayment';
 import type { InvoiceStatus } from './invoiceStatus';
 
@@ -84,6 +85,21 @@ export interface Invoice {
      * @nullable
      */
   advancePaymentId: number | null;
+  /**
+     * 2026-09-22, opening items only: the previous solution's e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).
+     * @nullable
+     */
+  openingEinvoicingStatus?: InvoiceOpeningEinvoicingStatus;
+  /**
+     * 2026-09-22, opening items only: the previous solution's document UUID.
+     * @nullable
+     */
+  openingSourceUuid?: string | null;
+  /**
+     * 2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.
+     * @nullable
+     */
+  openingCorrectionJournalEntryId?: number | null;
   /** 2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none. */
   writtenOffAmount: number;
   /** 2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform's return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here. */

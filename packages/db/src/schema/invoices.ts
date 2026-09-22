@@ -188,6 +188,22 @@ export const invoicesTable = pgTable(
     reversedAt: timestamp("reversed_at", { withTimezone: true }),
     reversedByMigrationBatchId: integer("reversed_by_migration_batch_id"),
     replacesInvoiceId: integer("replaces_invoice_id"),
+    /**
+     * 2026-09-22 (migration follow-ups): the previous solution's e-invoicing
+     * identity of an opening receivable — copied from the staging row at
+     * commit, or recorded ONCE afterwards (`PUT /migration/open-items/{id}/identity`)
+     * when the migration did not carry it; a trigger refuses any later change.
+     * `opening_einvoicing_status`: cleared | reported | pre_einvoicing | NULL
+     * (not stated). A credit note against the item is gated on these
+     * (accountant answer 3: through Fatoora, never a manual route) and its
+     * billing reference is the previous system's NUMBER (the staging row's
+     * `document_number`), never this row's OPEN-… number.
+     * `opening_correction_journal_entry_id`: on an ORIGINAL corrected under
+     * A4/answer 5 — the entry whose other side is retained earnings.
+     */
+    openingSourceUuid: text("opening_source_uuid"),
+    openingEinvoicingStatus: text("opening_einvoicing_status"),
+    openingCorrectionJournalEntryId: integer("opening_correction_journal_entry_id"),
 
     /**
      * 🔴 BAD-DEBT RELIEF (VAT IR Art. 40(7)) as a STRUCTURED FACT, never a

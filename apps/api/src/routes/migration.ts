@@ -35,5 +35,8 @@ router.post("/batches/:id/validate", migrationController.validate);
 router.post("/batches/:id/commit", migrationController.commit);
 router.get("/batches/:id/reversal-preview", migrationController.reversalPreview);
 router.post("/batches/:id/reverse", migrationController.reverse);
+// 2026-09-22 (accountant answers 3 and 5): item-level correction of a committed migrated item, and its e-invoicing identity recorded once.
+router.post("/open-items/:itemId/correct", migrationController.correctOpenItem);
+router.put("/open-items/:itemId/identity", migrationController.recordOpenItemIdentity);
 
 export default router;

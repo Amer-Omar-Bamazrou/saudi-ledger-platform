@@ -73,11 +73,15 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
     noteReason: inv.noteReason,
     // AP-2: the receipt an ADVANCE TAX INVOICE declares VAT for (null otherwise).
     advancePaymentId: inv.advancePaymentId ?? null,
+    // 2026-09-22: an opening item's previous-system e-invoicing identity, and the item-level correction entry (A4 + answer 5).
+    openingEinvoicingStatus: inv.openingEinvoicingStatus ?? null,
+    openingSourceUuid: inv.openingSourceUuid ?? null,
+    openingCorrectionJournalEntryId: inv.openingCorrectionJournalEntryId ?? null,
     // 2026-09-22: the bad-debt facts (Art. 40(7)) and the Art. 40(9) links.
     writtenOffAmount: toNum(inv.writtenOffAmount),
-    badDebtRelief: inv.badDebtReliefClaimedOn
+    badDebtRelief: inv.badDebtReliefSource
       ? {
-          claimedOn: inv.badDebtReliefClaimedOn,
+          claimedOn: inv.badDebtReliefClaimedOn ?? null,
           vatAmount: toNum(inv.badDebtReliefVatAmount),
           returnPeriod: inv.badDebtReliefReturnPeriod ?? null,
           certificateRef: inv.badDebtReliefCertificateRef ?? null,

@@ -5,8 +5,15 @@
  * item is an opening receivable (collectible through D-4, provenance kept,
  * no hash / ICV / QR ever) and an AP item an opening bill.
  *
- * The Art. 40(9) bad-debt-relief flag is shown as three words, Yes / No /
- * Unknown, under "Historical VAT" — information only; nothing acts on it.
+ * The Art. 40(7) bad-debt-relief answer is shown as three words, Yes / No /
+ * Unknown, under "Historical VAT" — since 2026-09-22 a STRUCTURED fact the
+ * Art. 40(9) recovery document reads (with the date and VAT when known).
+ *
+ * After commit (2026-09-22) an item carries two acts, both keyed on the
+ * staging row: CORRECT the amount (the original stays, a replacement OPEN
+ * number, retained earnings on the other side) and RECORD the previous
+ * solution's e-invoicing identity once (what a credit note through Fatoora
+ * needs). Both live in OpenItemActions.tsx.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -19,6 +26,7 @@ import { DualDate } from "@/components/DualDate";
 import { ageingBucket, reliefLabel } from "@/lib/migrationImport";
 import { EmptyState, Money, Problems, focusClass, useCanRunMigration, useFocusRow, useOpenItems, useWorkspaceNav } from "./shared";
 import { ImportDialog, RowEditorDialog } from "./StagingEditors";
+import { CorrectOpenItemDialog, RecordIdentityDialog } from "./OpenItemActions";
 import type { MigrationOpenItem } from "@workspace/api-client-react";
 
 export function OpenItemsSection({ batchId, editable, side, openingDate, committed }: { batchId: number; editable: boolean; side: "ar" | "ap"; openingDate: string; committed: boolean }) {
@@ -28,6 +36,8 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
   const { data, isLoading, error } = useOpenItems(batchId);
   const [importing, setImporting] = useState(false);
   const [editingRow, setEditingRow] = useState<number | null>(null);
+  const [correcting, setCorrecting] = useState<MigrationOpenItem | null>(null);
+  const [identifying, setIdentifying] = useState<MigrationOpenItem | null>(null);
   const [onlyBlocked, setOnlyBlocked] = useState(blockedOnly);
   useFocusRow(focus, !!data);
   const can = editable && canRun;
@@ -95,6 +105,9 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
                           <span className="font-mono text-xs break-all" dir="ltr">{r.documentNumber}</span>
                           <span className="block text-[11px] text-muted-foreground" dir="ltr">{t("source", "المصدر")}: {r.sourceId}</span>
                           {r.ledgerDocumentNumber && r.ledgerDocumentNumber !== r.documentNumber && <span className="block text-[11px] text-muted-foreground" dir="ltr">{t("ledger number", "رقم الدفتر")}: {r.ledgerDocumentNumber}</span>}
+                          {committed && r.liveDocumentNumber && r.liveDocumentNumber !== (r.ledgerDocumentNumber ?? r.documentNumber) && <span className="block text-[11px] text-muted-foreground" dir="ltr" data-testid={`live-number-${r.documentNumber}`}>{t("live row", "الصف الحي")}: {r.liveDocumentNumber} · {t(`${r.corrections} correction(s)`, `${r.corrections} تصحيح`)}</span>}
+                          {isAr && (r.einvoicingStatus || (committed && r.liveIdentityRecorded)) && <Badge variant="outline" className="text-[10px] mt-1" data-testid={`identity-${r.documentNumber}`}>{r.einvoicingStatus ? { cleared: t("cleared", "معتمدة"), reported: t("reported", "مبلَّغ عنها"), pre_einvoicing: t("pre-e-invoicing", "قبل الفوترة الإلكترونية") }[r.einvoicingStatus] : t("identity recorded", "الهوية مسجَّلة")}{r.sourceUuid ? <span className="ms-1 font-mono" dir="ltr">{r.sourceUuid}</span> : null}</Badge>}
+                          {isAr && !r.einvoicingStatus && !(committed && r.liveIdentityRecorded) && <Badge variant="outline" className="text-[10px] mt-1" data-testid={`identity-missing-${r.documentNumber}`}>{t("e-invoicing identity not stated", "هوية الفوترة الإلكترونية غير مذكورة")}</Badge>}
                           {r.compositionUnknown && <Badge variant="outline" className="text-[10px] mt-1">{t("balance only", "رصيد فقط")}</Badge>}
                           <Badge variant="outline" className="text-[10px] mt-1 ms-1">{t("historical record", "سجل تاريخي")}</Badge>
                         </td>
@@ -103,7 +116,7 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
                         <td className="py-2 pe-3 text-xs text-muted-foreground"><DualDate date={r.dueDate} inline /></td>
                         <td className="py-2 pe-3 text-xs">{bucketLabel(age.bucket)}{age.days > 0 && <span className="block text-[11px] text-muted-foreground">{t(`${age.days} days at opening`, `${age.days} يومًا عند الافتتاح`)}</span>}</td>
                         <td className="py-2 pe-3 text-end"><Money v={r.originalAmount} /></td>
-                        <td className="py-2 pe-3 text-end"><Money v={r.outstandingAmount} className="font-semibold" /></td>
+                        <td className="py-2 pe-3 text-end"><Money v={r.outstandingAmount} className="font-semibold" />{committed && r.liveOutstanding != null && Math.abs(r.liveOutstanding - r.outstandingAmount) >= 0.005 && <span className="block text-[11px] text-muted-foreground" data-testid={`live-outstanding-${r.documentNumber}`}>{t("now", "الآن")}: <Money v={r.liveOutstanding} /></span>}</td>
                         <td className="py-2 pe-3 text-xs">
                           {r.historicalVat ? (
                             <span>{r.historicalVat.category ?? "—"}{r.historicalVat.rate != null ? ` ${r.historicalVat.rate}%` : ""}{r.historicalVat.amount != null ? <> · <Money v={r.historicalVat.amount} /></> : ""}{r.historicalVat.reportedPeriod && <span className="block text-muted-foreground">{t("reported", "مبلَّغ")}: {r.historicalVat.reportedPeriod}</span>}</span>
@@ -119,8 +132,14 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
                           {can && <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingRow(all.indexOf(r))} data-testid={`edit-item-${r.id}`}><Pencil className="w-3 h-3 me-1" />{t("Correct", "تصحيح")}</Button>}
                           {committed && r.resolvedId != null && (
                             <Link href={isAr ? `/invoices` : `/bills`} className="inline-flex items-center gap-1 text-xs text-primary h-7 px-2" data-testid={`open-record-${r.documentNumber}`}>
-                              <ExternalLink className="w-3 h-3" />{isAr ? t("Opening receivable", "الذمة الافتتاحية") : t("Opening bill", "الفاتورة الافتتاحية")} #{r.resolvedId}
+                              <ExternalLink className="w-3 h-3" />{isAr ? t("Opening receivable", "الذمة الافتتاحية") : t("Opening bill", "الفاتورة الافتتاحية")} #{r.liveDocumentId ?? r.resolvedId}
                             </Link>
+                          )}
+                          {committed && canRun && r.liveDocumentId != null && (
+                            <span className="flex flex-wrap gap-1 mt-1">
+                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setCorrecting(r)} data-testid={`correct-amount-${r.documentNumber}`}>{t("Correct amount", "تصحيح المبلغ")}</Button>
+                              {isAr && !r.liveIdentityRecorded && <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setIdentifying(r)} data-testid={`record-identity-${r.documentNumber}`}>{t("Record identity", "تسجيل الهوية")}</Button>}
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -137,11 +156,13 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
                 </tfoot>
               </table>
             </div>
-            {isAr && <p className="text-[11px] text-muted-foreground mt-2">{t("The bad-debt relief answer is historical migration information for the accountant. Nothing in Saudi Ledger computes, warns, blocks, invoices, submits or restricts a payment because of it; the treatment after collection is an accountant / VAT decision.", "إجابة إعفاء الديون المعدومة معلومة ترحيل تاريخية للمحاسب. لا يحتسب Saudi Ledger أو يحذّر أو يمنع أو يُصدر فاتورة أو يُرسل أو يقيّد دفعة بسببها؛ والمعالجة بعد التحصيل قرار محاسبي / ضريبي.")}</p>}
+            {isAr && <p className="text-[11px] text-muted-foreground mt-2">{t("A migrated bad-debt relief (Art. 40(7)) is a structured fact on the opening receivable: when money later arrives, the Art. 40(9) recovery document is declared from it (Invoices → Declare recovery). It never restricts a payment or an allocation. A credit note against a migrated document names it through Fatoora, so its e-invoicing identity must be stated — here at staging, or recorded once after commit.", "إعفاء الديون المعدومة المرحَّل (المادة 40(7)) حقيقة مهيكلة على الذمة الافتتاحية: عند وصول المال لاحقًا يُعلن مستند الاسترداد (المادة 40(9)) منها (الفواتير ← إعلان استرداد). ولا يقيّد أبدًا دفعة أو تخصيصًا. أي إشعار دائن على مستند مرحَّل يسميه عبر فاتورة، لذا يجب ذكر هوية فوترته الإلكترونية — هنا عند التجهيز، أو تسجيلها مرة واحدة بعد الاعتماد.")}</p>}
           </CardContent>
         </Card>
       )}
       {importing && <ImportDialog batchId={batchId} kind="openItems" hasRows={all.length > 0} onClose={() => setImporting(false)} />}
+      {correcting && <CorrectOpenItemDialog batchId={batchId} item={correcting} open onClose={() => setCorrecting(null)} />}
+      {identifying && <RecordIdentityDialog batchId={batchId} item={identifying} open onClose={() => setIdentifying(null)} />}
       {editingRow != null && <RowEditorDialog batchId={batchId} kind="openItems" rows={all as unknown as Record<string, unknown>[]} index={editingRow} onClose={() => setEditingRow(null)} />}
     </div>
   );

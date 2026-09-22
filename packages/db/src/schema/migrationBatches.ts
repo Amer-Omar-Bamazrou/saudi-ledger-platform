@@ -261,6 +261,18 @@ export const migrationOpenItemsTable = pgTable(
     compositionUnknown: boolean("composition_unknown").notNull().default(false),
     /** { rate, amount, taxableAmount, category, reportedPeriod } — kept for reconciliation and the future Art. 40(10) engine; never posted. */
     historicalVat: jsonb("historical_vat"),
+    /**
+     * 2026-09-22 (migration follow-ups; accountant answer 3): the original
+     * document's E-INVOICING IDENTITY, for the day a credit note must name it
+     * through Fatoora. `einvoicingStatus`: `cleared` (a standard tax invoice the
+     * previous solution cleared), `reported` (a simplified one it reported),
+     * `pre_einvoicing` (issued before the e-invoicing obligation applied to
+     * the taxpayer) — or NULL: NOT STATED, which is not a guess and gates the
+     * note. `sourceUuid`: the previous solution's document UUID, verbatim,
+     * required for `cleared`/`reported`; never invented. AR items only.
+     */
+    sourceUuid: text("source_uuid"),
+    einvoicingStatus: text("einvoicing_status"),
     description: text("description"),
     /**
      * Policy C: what the ledger row was actually CALLED — the source number
@@ -279,6 +291,10 @@ export const migrationOpenItemsTable = pgTable(
     check("migration_open_items_type_chk", sql`item_type IN ('ar', 'ap')`),
     check("migration_open_items_amounts_chk", sql`outstanding_amount > 0 AND original_amount >= outstanding_amount`),
     check("migration_open_items_currency_chk", sql`currency = 'SAR'`),
+    check("migration_open_items_einvoicing_status_chk", sql`einvoicing_status IS NULL OR einvoicing_status IN ('cleared', 'reported', 'pre_einvoicing')`),
+    // identity is a fact about a tax invoice the previous solution issued: AR only; cleared/reported carry the UUID
+    check("migration_open_items_identity_ar_only_chk", sql`item_type = 'ar' OR (source_uuid IS NULL AND einvoicing_status IS NULL)`),
+    check("migration_open_items_identity_uuid_chk", sql`einvoicing_status IS NULL OR einvoicing_status = 'pre_einvoicing' OR source_uuid IS NOT NULL`),
   ],
 );
 
