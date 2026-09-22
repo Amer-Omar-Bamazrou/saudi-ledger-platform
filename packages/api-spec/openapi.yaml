@@ -4262,6 +4262,36 @@ paths:
         "404":
           description: Not found
 
+  /assets/report:
+    get:
+      operationId: getFixedAssetReport
+      tags: [assets]
+      summary: "FA-G: the fixed-asset roll-forward, its additions and disposals, and the register-to-GL reconciliation"
+      description: >
+        The IAS 16.73(e) movement per asset category over a window — opening
+        cost, additions, disposals, closing; opening accumulated depreciation,
+        the charge, disposals, closing; and the net book value — with the rows
+        behind those figures listed, and the controls that ask whether the
+        register and the general ledger still agree.
+
+        🔴 The GL side of each control is the WHOLE account, not only the lines
+        the register produced: a fixed-asset account can be posted to from
+        outside the register, and a difference arriving that way is exactly what
+        the control exists to surface. A failing control reports BOTH figures
+        and their difference, never a bare verdict.
+
+        The window defaults to the current year to date, in the business
+        calendar (`Asia/Riyadh`).
+      parameters:
+        - { in: query, name: from, required: false, schema: { type: string } }
+        - { in: query, name: to, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: The movement, the listings, the reconciliation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FixedAssetReport" }
+
   /assets/vat-adjustments:
     get:
       operationId: getVatCapitalAssetAdjustments
@@ -9396,6 +9426,112 @@ components:
         journalEntryId: { type: integer }
         invoiceId: { type: ["integer", "null"] }
         reason: { type: ["string", "null"] }
+
+    FixedAssetControl:
+      type: object
+      required: [id, title, status, categoryName, register, ledger, difference, detail]
+      properties:
+        id: { type: string, enum: [FA_COST, FA_ACCUMULATED, FA_EXPENSE] }
+        title: { type: string }
+        status: { type: string, enum: [pass, fail] }
+        categoryName: { type: string }
+        register: { type: number }
+        ledger: { type: number }
+        difference: { type: number }
+        detail: { type: string }
+
+    FixedAssetMovementRow:
+      type: object
+      required:
+        [categoryId, categoryName, openingCost, additions, disposalsCost, closingCost,
+         openingAccumulated, charge, disposalsAccumulated, closingAccumulated,
+         openingNetBookValue, closingNetBookValue]
+      properties:
+        categoryId: { type: integer }
+        categoryName: { type: string }
+        openingCost: { type: number }
+        additions: { type: number }
+        disposalsCost: { type: number }
+        closingCost: { type: number }
+        openingAccumulated: { type: number }
+        charge: { type: number }
+        disposalsAccumulated: { type: number }
+        closingAccumulated: { type: number }
+        openingNetBookValue: { type: number }
+        closingNetBookValue: { type: number }
+
+    FixedAssetReport:
+      type: object
+      required:
+        [companyId, companyName, from, to, movement, totals, additions, disposals,
+         disposalGainLoss, controls, reconciles, zakatNetFixedAssets]
+      properties:
+        companyId: { type: string }
+        companyName: { type: string }
+        from: { type: string }
+        to: { type: string }
+        movement:
+          type: array
+          items: { $ref: "#/components/schemas/FixedAssetMovementRow" }
+        totals:
+          type: object
+          required:
+            [openingCost, additions, disposalsCost, closingCost, openingAccumulated, charge,
+             disposalsAccumulated, closingAccumulated, closingNetBookValue]
+          properties:
+            openingCost: { type: number }
+            additions: { type: number }
+            disposalsCost: { type: number }
+            closingCost: { type: number }
+            openingAccumulated: { type: number }
+            charge: { type: number }
+            disposalsAccumulated: { type: number }
+            closingAccumulated: { type: number }
+            closingNetBookValue: { type: number }
+        additions:
+          type: array
+          items:
+            type: object
+            required: [assetId, assetNumber, name, categoryName, date, cost, journalEntryId]
+            properties:
+              assetId: { type: integer }
+              assetNumber: { type: string }
+              name: { type: string }
+              categoryName: { type: string }
+              date: { type: string }
+              cost: { type: number }
+              journalEntryId: { type: ["integer", "null"] }
+        disposals:
+          type: array
+          items:
+            type: object
+            required: [assetId, assetNumber, name, categoryName, date, kind, proceeds, carryingAmount, gainLoss, journalEntryId, invoiceId]
+            properties:
+              assetId: { type: integer }
+              assetNumber: { type: string }
+              name: { type: string }
+              categoryName: { type: string }
+              date: { type: string }
+              kind: { type: string }
+              proceeds: { type: number }
+              carryingAmount: { type: number }
+              gainLoss: { type: number }
+              journalEntryId: { type: ["integer", "null"] }
+              invoiceId: { type: ["integer", "null"] }
+        disposalGainLoss: { type: number, description: "IAS 16.71 — the result of the window's disposals. Never revenue." }
+        controls:
+          type: array
+          items: { $ref: "#/components/schemas/FixedAssetControl" }
+        reconciles: { type: boolean }
+        zakatNetFixedAssets:
+          type: array
+          description: "Zakat Regulations Art. 48(1)(b), 49, 63(2) read the BOOK figures — the same closing net book value, per category, stated once."
+          items:
+            type: object
+            required: [categoryName, netBookValue]
+            properties:
+              categoryName: { type: string }
+              netBookValue: { type: number }
 
     AssetVatUseRecord:
       type: object

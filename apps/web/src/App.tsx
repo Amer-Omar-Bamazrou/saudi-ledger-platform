@@ -52,6 +52,7 @@ import Assets from '@/pages/Assets';
 import AssetDetail from '@/pages/AssetDetail';
 import IncomeTaxPool from '@/pages/IncomeTaxPool';
 import VatCapitalAssets from '@/pages/VatCapitalAssets';
+import FixedAssetReport from '@/pages/FixedAssetReport';
 import Products from '@/pages/Products';
 import BankAccounts from '@/pages/BankAccounts';
 import Budgets from '@/pages/Budgets';
@@ -245,6 +246,7 @@ function Router() {
               {/* Assets & Inventory */}
               <Route path="/assets/income-tax-pool" component={IncomeTaxPool} />
               <Route path="/assets/vat-adjustments" component={VatCapitalAssets} />
+              <Route path="/assets/report" component={FixedAssetReport} />
               <Route path="/assets/:id" component={AssetDetail} />
               <Route path="/assets" component={Assets} />
               <Route path="/products" component={Products} />

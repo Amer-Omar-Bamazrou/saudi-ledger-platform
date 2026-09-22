@@ -112,6 +112,7 @@ import type {
   FindingsScheduleInput,
   FindingsStatus,
   FiscalYears,
+  FixedAssetReport,
   GeneralLedgerReport,
   GetAccountStatementParams,
   GetAccountSummaryParams,
@@ -124,6 +125,7 @@ import type {
   GetCustomerStatementParams,
   GetDecompositionParams,
   GetDepositReviewParams,
+  GetFixedAssetReportParams,
   GetGeneralLedgerParams,
   GetIncomeStatementParams,
   GetIncomeTaxPoolParams,
@@ -15441,6 +15443,93 @@ export const useDisposeAsset = <TError = ErrorType<void>,
       > => {
       return useMutation(getDisposeAssetMutationOptions(options));
     }
+
+export const getGetFixedAssetReportUrl = (params?: GetFixedAssetReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/assets/report?${stringifiedParams}` : `/api/assets/report`
+}
+
+/**
+ * The IAS 16.73(e) movement per asset category over a window — opening cost, additions, disposals, closing; opening accumulated depreciation, the charge, disposals, closing; and the net book value — with the rows behind those figures listed, and the controls that ask whether the register and the general ledger still agree.
+ * 🔴 The GL side of each control is the WHOLE account, not only the lines the register produced: a fixed-asset account can be posted to from outside the register, and a difference arriving that way is exactly what the control exists to surface. A failing control reports BOTH figures and their difference, never a bare verdict.
+ * The window defaults to the current year to date, in the business calendar (`Asia/Riyadh`).
+ * @summary FA-G: the fixed-asset roll-forward, its additions and disposals, and the register-to-GL reconciliation
+ */
+export const getFixedAssetReport = async (params?: GetFixedAssetReportParams, options?: RequestInit): Promise<FixedAssetReport> => {
+
+  return customFetch<FixedAssetReport>(getGetFixedAssetReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFixedAssetReportQueryKey = (params?: GetFixedAssetReportParams,) => {
+    return [
+    `/api/assets/report`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetFixedAssetReportQueryOptions = <TData = Awaited<ReturnType<typeof getFixedAssetReport>>, TError = ErrorType<unknown>>(params?: GetFixedAssetReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFixedAssetReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFixedAssetReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFixedAssetReport>>> = ({ signal }) => getFixedAssetReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFixedAssetReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFixedAssetReportQueryResult = NonNullable<Awaited<ReturnType<typeof getFixedAssetReport>>>
+export type GetFixedAssetReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary FA-G: the fixed-asset roll-forward, its additions and disposals, and the register-to-GL reconciliation
+ */
+
+export function useGetFixedAssetReport<TData = Awaited<ReturnType<typeof getFixedAssetReport>>, TError = ErrorType<unknown>>(
+ params?: GetFixedAssetReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFixedAssetReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFixedAssetReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetVatCapitalAssetAdjustmentsUrl = (params?: GetVatCapitalAssetAdjustmentsParams,) => {
   const normalizedParams = new URLSearchParams();

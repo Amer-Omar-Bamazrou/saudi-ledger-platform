@@ -9144,6 +9144,88 @@ export const DisposeAssetResponse = zod.object({
 
 
 /**
+ * The IAS 16.73(e) movement per asset category over a window — opening cost, additions, disposals, closing; opening accumulated depreciation, the charge, disposals, closing; and the net book value — with the rows behind those figures listed, and the controls that ask whether the register and the general ledger still agree.
+ * 🔴 The GL side of each control is the WHOLE account, not only the lines the register produced: a fixed-asset account can be posted to from outside the register, and a difference arriving that way is exactly what the control exists to surface. A failing control reports BOTH figures and their difference, never a bare verdict.
+ * The window defaults to the current year to date, in the business calendar (`Asia/Riyadh`).
+ * @summary FA-G: the fixed-asset roll-forward, its additions and disposals, and the register-to-GL reconciliation
+ */
+export const GetFixedAssetReportQueryParams = zod.object({
+  "from": zod.coerce.string().optional(),
+  "to": zod.coerce.string().optional()
+})
+
+export const GetFixedAssetReportResponse = zod.object({
+  "companyId": zod.string(),
+  "companyName": zod.string(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "movement": zod.array(zod.object({
+  "categoryId": zod.number(),
+  "categoryName": zod.string(),
+  "openingCost": zod.number(),
+  "additions": zod.number(),
+  "disposalsCost": zod.number(),
+  "closingCost": zod.number(),
+  "openingAccumulated": zod.number(),
+  "charge": zod.number(),
+  "disposalsAccumulated": zod.number(),
+  "closingAccumulated": zod.number(),
+  "openingNetBookValue": zod.number(),
+  "closingNetBookValue": zod.number()
+})),
+  "totals": zod.object({
+  "openingCost": zod.number(),
+  "additions": zod.number(),
+  "disposalsCost": zod.number(),
+  "closingCost": zod.number(),
+  "openingAccumulated": zod.number(),
+  "charge": zod.number(),
+  "disposalsAccumulated": zod.number(),
+  "closingAccumulated": zod.number(),
+  "closingNetBookValue": zod.number()
+}),
+  "additions": zod.array(zod.object({
+  "assetId": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "categoryName": zod.string(),
+  "date": zod.string(),
+  "cost": zod.number(),
+  "journalEntryId": zod.number().nullable()
+})),
+  "disposals": zod.array(zod.object({
+  "assetId": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "categoryName": zod.string(),
+  "date": zod.string(),
+  "kind": zod.string(),
+  "proceeds": zod.number(),
+  "carryingAmount": zod.number(),
+  "gainLoss": zod.number(),
+  "journalEntryId": zod.number().nullable(),
+  "invoiceId": zod.number().nullable()
+})),
+  "disposalGainLoss": zod.number().describe('IAS 16.71 — the result of the window\'s disposals. Never revenue.'),
+  "controls": zod.array(zod.object({
+  "id": zod.enum(['FA_COST', 'FA_ACCUMULATED', 'FA_EXPENSE']),
+  "title": zod.string(),
+  "status": zod.enum(['pass', 'fail']),
+  "categoryName": zod.string(),
+  "register": zod.number(),
+  "ledger": zod.number(),
+  "difference": zod.number(),
+  "detail": zod.string()
+})),
+  "reconciles": zod.boolean(),
+  "zakatNetFixedAssets": zod.array(zod.object({
+  "categoryName": zod.string(),
+  "netBookValue": zod.number()
+})).describe('Zakat Regulations Art. 48(1)(b), 49, 63(2) read the BOOK figures — the same closing net book value, per category, stated once.')
+})
+
+
+/**
  * For every capital asset in the register, each twelve-month adjustment window of Art. 52(5) — opened at the start of the TAX PERIOD of acquisition, with the return that carries its adjustment named — the potentially adjustable amount (52(4): initial deduction ÷ adjustment period), the actual taxable use of the window, and the resulting adjustment. The use is DECLARED where the taxpayer has stated it and otherwise DERIVED from Art. 51(4)'s default fraction over the company's own supplies in that calendar year, excluding supplies of capital assets (51(5)(a)). A disposal is carried as Art. 52(7)/(8) with the limb that applies stated in words.
  * 🔴 Art. 52(6) ("no change in use ⇒ no adjustment required") is reported as its own flag, apart from an adjustment that merely computes to zero: a window whose use is neither declared nor derivable reports `unavailable`, nil, and NOT 52(6) — nobody established that the use did not change. `status` is `computed` only once the company's tax period is declared; otherwise `reason` names the act that supplies it.
  * @summary FA-F: the VAT IR Art. 52 capital-asset input-tax adjustment working paper

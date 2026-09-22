@@ -5263,6 +5263,110 @@ export interface AssetDisposalRecord {
   reason: string | null;
 }
 
+export type FixedAssetControlId = typeof FixedAssetControlId[keyof typeof FixedAssetControlId];
+
+
+export const FixedAssetControlId = {
+  FA_COST: 'FA_COST',
+  FA_ACCUMULATED: 'FA_ACCUMULATED',
+  FA_EXPENSE: 'FA_EXPENSE',
+} as const;
+
+export type FixedAssetControlStatus = typeof FixedAssetControlStatus[keyof typeof FixedAssetControlStatus];
+
+
+export const FixedAssetControlStatus = {
+  pass: 'pass',
+  fail: 'fail',
+} as const;
+
+export interface FixedAssetControl {
+  id: FixedAssetControlId;
+  title: string;
+  status: FixedAssetControlStatus;
+  categoryName: string;
+  register: number;
+  ledger: number;
+  difference: number;
+  detail: string;
+}
+
+export interface FixedAssetMovementRow {
+  categoryId: number;
+  categoryName: string;
+  openingCost: number;
+  additions: number;
+  disposalsCost: number;
+  closingCost: number;
+  openingAccumulated: number;
+  charge: number;
+  disposalsAccumulated: number;
+  closingAccumulated: number;
+  openingNetBookValue: number;
+  closingNetBookValue: number;
+}
+
+export type FixedAssetReportTotals = {
+  openingCost: number;
+  additions: number;
+  disposalsCost: number;
+  closingCost: number;
+  openingAccumulated: number;
+  charge: number;
+  disposalsAccumulated: number;
+  closingAccumulated: number;
+  closingNetBookValue: number;
+};
+
+export type FixedAssetReportAdditionsItem = {
+  assetId: number;
+  assetNumber: string;
+  name: string;
+  categoryName: string;
+  date: string;
+  cost: number;
+  /** @nullable */
+  journalEntryId: number | null;
+};
+
+export type FixedAssetReportDisposalsItem = {
+  assetId: number;
+  assetNumber: string;
+  name: string;
+  categoryName: string;
+  date: string;
+  kind: string;
+  proceeds: number;
+  carryingAmount: number;
+  gainLoss: number;
+  /** @nullable */
+  journalEntryId: number | null;
+  /** @nullable */
+  invoiceId: number | null;
+};
+
+export type FixedAssetReportZakatNetFixedAssetsItem = {
+  categoryName: string;
+  netBookValue: number;
+};
+
+export interface FixedAssetReport {
+  companyId: string;
+  companyName: string;
+  from: string;
+  to: string;
+  movement: FixedAssetMovementRow[];
+  totals: FixedAssetReportTotals;
+  additions: FixedAssetReportAdditionsItem[];
+  disposals: FixedAssetReportDisposalsItem[];
+  /** IAS 16.71 — the result of the window's disposals. Never revenue. */
+  disposalGainLoss: number;
+  controls: FixedAssetControl[];
+  reconciles: boolean;
+  /** Zakat Regulations Art. 48(1)(b), 49, 63(2) read the BOOK figures — the same closing net book value, per category, stated once. */
+  zakatNetFixedAssets: FixedAssetReportZakatNetFixedAssetsItem[];
+}
+
 export type AssetVatUseRecordBasis = typeof AssetVatUseRecordBasis[keyof typeof AssetVatUseRecordBasis];
 
 
@@ -7755,6 +7859,11 @@ period_to?: string;
  */
 as_of?: string;
 customer_id?: number;
+};
+
+export type GetFixedAssetReportParams = {
+from?: string;
+to?: string;
 };
 
 export type GetVatCapitalAssetAdjustmentsParams = {

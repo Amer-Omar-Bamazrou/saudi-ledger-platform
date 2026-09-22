@@ -43,7 +43,7 @@ import {
   UploadCloud, ArrowLeftRight, Landmark, Receipt, TrendingUp, Waves,
   PieChart, SearchCheck, Repeat, ScanLine, Sparkles, Plug, UserCog,
   KeyRound, ScrollText, Wallet, SlidersHorizontal, UserRound, Eye,
-  ListOrdered, Package, Banknote, UserCheck, Target, ShoppingBag, Database,
+  ListOrdered, Package, Banknote, UserCheck, Target, ShoppingBag, Database, Layers,
 } from "lucide-react";
 import { comingSoonHref } from "@/lib/comingSoon";
 import {
@@ -463,6 +463,7 @@ export const NAV_TREE: readonly NavSection[] = [
       built("/assets/income-tax-pool", "Income Tax Pool", "وعاء ضريبة الدخل", Scale),
       built("/assets/vat-adjustments", "VAT Capital Assets", "الأصول الرأسمالية للضريبة", Receipt),
       built("/asset-schedule", "Asset Schedule", "جدول الأصول", PieChart),
+      built("/assets/report", "Asset Movement", "حركة الأصول", Layers),
       built("/budgets", "Budgets", "الميزانيات", Target),
       built("/invoice-summary", "Invoice Summary", "ملخص الفواتير", FileText),
     ],

@@ -337,6 +337,135 @@ export const assetsRepository = {
     return db.delete(assetVatUseRecordsTable).where(eq(assetVatUseRecordsTable.id, id)).returning();
   },
 
+  // ── FA-G: the reports, and the reconciliation that is their point ──
+
+  /**
+   * IAS 16.73(e) roll-forward, per asset CATEGORY, over a window.
+   *
+   * 🔴 Every figure is an EVENT in the window, never a balance read at the
+   * end of it: opening cost is the cost of assets in service BEFORE the window
+   * opened, additions are those capitalised INSIDE it, disposals those disposed
+   * INSIDE it. A roll-forward assembled from two balance snapshots cannot show
+   * an asset that was bought and sold within the window at all, and that is the
+   * movement a reader most needs to see.
+   */
+  async movementByCategory(from: string, to: string) {
+    const rows = await db.execute<{
+      category_id: number; category_name: string;
+      opening_cost: string; additions: string; disposals_cost: string; closing_cost: string;
+      opening_accum: string; charge: string; disposals_accum: string; closing_accum: string;
+    }>(sql`
+      WITH a AS (
+        SELECT fa.id, fa.category_id, fa.cost,
+               fa.available_for_use_date AS in_service_on,
+               dp.date AS disposed_on,
+               fa.opening_accumulated_depreciation AS opening_accum
+          FROM fixed_assets fa
+          LEFT JOIN asset_disposals dp ON dp.asset_id = fa.id
+         WHERE fa.status IN ('in_service', 'disposed')
+      ),
+      posted AS (
+        SELECT s.asset_id, s.period, s.amount
+          FROM asset_depreciation_schedule s
+         WHERE s.journal_entry_id IS NOT NULL
+      )
+      SELECT c.id category_id, c.name category_name,
+             coalesce(sum(a.cost) FILTER (WHERE a.in_service_on < ${from} AND (a.disposed_on IS NULL OR a.disposed_on >= ${from})), 0)::text opening_cost,
+             coalesce(sum(a.cost) FILTER (WHERE a.in_service_on BETWEEN ${from} AND ${to}), 0)::text additions,
+             coalesce(sum(a.cost) FILTER (WHERE a.disposed_on BETWEEN ${from} AND ${to}), 0)::text disposals_cost,
+             coalesce(sum(a.cost) FILTER (WHERE a.in_service_on <= ${to} AND (a.disposed_on IS NULL OR a.disposed_on > ${to})), 0)::text closing_cost,
+             (coalesce(sum(a.opening_accum) FILTER (WHERE a.in_service_on < ${from} AND (a.disposed_on IS NULL OR a.disposed_on >= ${from})), 0)
+               + coalesce((SELECT sum(p.amount) FROM posted p JOIN a a2 ON a2.id = p.asset_id
+                            WHERE a2.category_id = c.id AND p.period < left(${from}, 7)
+                              AND (a2.disposed_on IS NULL OR a2.disposed_on >= ${from})), 0))::text opening_accum,
+             coalesce((SELECT sum(p.amount) FROM posted p JOIN a a2 ON a2.id = p.asset_id
+                        WHERE a2.category_id = c.id AND p.period BETWEEN left(${from}, 7) AND left(${to}, 7)), 0)::text charge,
+             (coalesce((SELECT sum(p.amount) FROM posted p JOIN a a2 ON a2.id = p.asset_id
+                        WHERE a2.category_id = c.id AND a2.disposed_on BETWEEN ${from} AND ${to}), 0)
+               + coalesce(sum(a.opening_accum) FILTER (WHERE a.disposed_on BETWEEN ${from} AND ${to}), 0))::text disposals_accum,
+             (coalesce(sum(a.opening_accum) FILTER (WHERE a.in_service_on <= ${to} AND (a.disposed_on IS NULL OR a.disposed_on > ${to})), 0)
+               + coalesce((SELECT sum(p.amount) FROM posted p JOIN a a2 ON a2.id = p.asset_id
+                            WHERE a2.category_id = c.id AND p.period <= left(${to}, 7)
+                              AND (a2.disposed_on IS NULL OR a2.disposed_on > ${to})), 0))::text closing_accum
+        FROM asset_categories c
+        LEFT JOIN a ON a.category_id = c.id
+       GROUP BY c.id, c.name
+       ORDER BY c.name`);
+    const n = (v: string) => Number(v);
+    return rows.rows.map((r) => ({
+      categoryId: r.category_id, categoryName: r.category_name,
+      openingCost: n(r.opening_cost), additions: n(r.additions), disposalsCost: n(r.disposals_cost), closingCost: n(r.closing_cost),
+      openingAccumulated: n(r.opening_accum), charge: n(r.charge), disposalsAccumulated: n(r.disposals_accum), closingAccumulated: n(r.closing_accum),
+    }));
+  },
+
+  /**
+   * The REGISTER side and the GL side of each category's three accounts, for
+   * the reconciliation that the pre-FA register had no way to perform.
+   *
+   * 🔴 The GL side is the WHOLE account balance, not only the lines the
+   * register produced. That is deliberate: the categorizer can map a bank
+   * transaction straight to a fixed-asset account, and a difference that comes
+   * from outside the register is exactly what this report exists to surface.
+   * Netting it out would make the control pass while the books disagreed.
+   */
+  async reconciliationByCategory() {
+    const rows = await db.execute<{
+      category_id: number; category_name: string;
+      cost_account: string; accum_account: string; expense_account: string;
+      register_cost: string; register_accum: string; register_charge: string;
+      gl_cost: string; gl_accum: string; gl_expense: string;
+    }>(sql`
+      SELECT c.id category_id, c.name category_name,
+             cc.name cost_account, ca.name accum_account, ce.name expense_account,
+             coalesce((SELECT sum(fa.cost) FROM fixed_assets fa WHERE fa.category_id = c.id AND fa.status = 'in_service'), 0)::text register_cost,
+             (coalesce((SELECT sum(fa.opening_accumulated_depreciation) FROM fixed_assets fa WHERE fa.category_id = c.id AND fa.status = 'in_service'), 0)
+              + coalesce((SELECT sum(s.amount) FROM asset_depreciation_schedule s JOIN fixed_assets fa ON fa.id = s.asset_id
+                           WHERE fa.category_id = c.id AND fa.status = 'in_service' AND s.journal_entry_id IS NOT NULL), 0))::text register_accum,
+             coalesce((SELECT sum(s.amount) FROM asset_depreciation_schedule s JOIN fixed_assets fa ON fa.id = s.asset_id
+                        WHERE fa.category_id = c.id AND s.journal_entry_id IS NOT NULL), 0)::text register_charge,
+             coalesce((SELECT sum(l.debit_amount - l.credit_amount) FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id
+                        WHERE l.account_id = c.cost_account_id AND e.status IN ('posted', 'reversed')), 0)::text gl_cost,
+             coalesce((SELECT sum(l.credit_amount - l.debit_amount) FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id
+                        WHERE l.account_id = c.accumulated_depreciation_account_id AND e.status IN ('posted', 'reversed')), 0)::text gl_accum,
+             coalesce((SELECT sum(l.debit_amount - l.credit_amount) FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id
+                        WHERE l.account_id = c.depreciation_expense_account_id AND e.status IN ('posted', 'reversed')), 0)::text gl_expense
+        FROM asset_categories c
+        JOIN categories cc ON cc.id = c.cost_account_id
+        JOIN categories ca ON ca.id = c.accumulated_depreciation_account_id
+        JOIN categories ce ON ce.id = c.depreciation_expense_account_id
+       ORDER BY c.name`);
+    const n = (v: string) => Number(v);
+    return rows.rows.map((r) => ({
+      categoryId: r.category_id, categoryName: r.category_name,
+      costAccount: r.cost_account, accumulatedAccount: r.accum_account, expenseAccount: r.expense_account,
+      registerCost: n(r.register_cost), glCost: n(r.gl_cost),
+      registerAccumulated: n(r.register_accum), glAccumulated: n(r.gl_accum),
+      registerCharge: n(r.register_charge), glExpense: n(r.gl_expense),
+    }));
+  },
+
+  /** Additions and disposals INSIDE a window, listed — the rows behind the movement figures. */
+  async additionsAndDisposals(from: string, to: string) {
+    const [adds, disps] = await Promise.all([
+      db.execute<{ id: number; n: string; name: string; cat: string; d: string; cost: string; je: number | null }>(sql`
+        SELECT fa.id, fa.asset_number n, fa.name, c.name cat, fa.available_for_use_date::text d, fa.cost::text cost, fa.capitalisation_journal_entry_id je
+          FROM fixed_assets fa JOIN asset_categories c ON c.id = fa.category_id
+         WHERE fa.status IN ('in_service', 'disposed') AND fa.available_for_use_date BETWEEN ${from} AND ${to}
+         ORDER BY fa.available_for_use_date, fa.asset_number`),
+      db.execute<{ id: number; n: string; name: string; cat: string; d: string; kind: string; proceeds: string; carrying: string; gain: string; je: number | null; inv: number | null }>(sql`
+        SELECT fa.id, fa.asset_number n, fa.name, c.name cat, dp.date::text d, dp.kind, dp.proceeds::text proceeds,
+               dp.carrying_amount_at_disposal::text carrying, dp.gain_loss::text gain, dp.journal_entry_id je, dp.invoice_id inv
+          FROM asset_disposals dp JOIN fixed_assets fa ON fa.id = dp.asset_id JOIN asset_categories c ON c.id = fa.category_id
+         WHERE dp.date BETWEEN ${from} AND ${to}
+         ORDER BY dp.date, fa.asset_number`),
+    ]);
+    return {
+      additions: adds.rows.map((r) => ({ assetId: r.id, assetNumber: r.n, name: r.name, categoryName: r.cat, date: r.d, cost: Number(r.cost), journalEntryId: r.je })),
+      disposals: disps.rows.map((r) => ({ assetId: r.id, assetNumber: r.n, name: r.name, categoryName: r.cat, date: r.d, kind: r.kind, proceeds: Number(r.proceeds), carryingAmount: Number(r.carrying), gainLoss: Number(r.gain), journalEntryId: r.je, invoiceId: r.inv })),
+    };
+  },
+
   // ── events ──
   events(assetId: number) {
     return db.select().from(assetEventsTable).where(eq(assetEventsTable.assetId, assetId)).orderBy(assetEventsTable.id);
