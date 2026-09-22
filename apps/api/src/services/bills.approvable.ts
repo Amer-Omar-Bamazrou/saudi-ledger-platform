@@ -22,6 +22,7 @@
 import { BusinessRuleError } from "../lib/errors";
 import { postJournalEntry } from "./accounting/glPosting";
 import { billsRepository } from "../repositories/bills.repository";
+import { assetCapitalisationService } from "./assets/capitalisation.service";
 import { categoriesRepository } from "../repositories/categories.repository";
 import { captureService } from "./capture/capture.service";
 import { buildBillOut, toNum, type BillOut } from "./bills.presenter";
@@ -181,19 +182,36 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   // The request body wins when it names an account; otherwise the account
   // chosen at ENTRY (bills.expense_account_id) — which is what survives the
   // submit → approve path, where the Approvals queue sends no body.
-  const expenseLine = await resolveExpenseLine(debitAccountId ?? bill.expenseAccountId ?? undefined, debitAccount);
+  // 🔴 FA-B (2026-09-22): a bill may buy a FIXED ASSET. The debit line is then
+  // the asset CATEGORY's cost account instead of an expense account, and the
+  // asset is capitalised on THIS entry inside THIS transaction — one writer for
+  // one effect (fixed-assets pack §3 A1, §21). Non-deductible input VAT (a
+  // restricted motor vehicle, Art. 50) is CAPITALISED into the cost rather than
+  // deducted, which is why the plan decides the VAT line rather than the bill.
+  const plan = bill.capitalisesAssetId != null
+    ? await assetCapitalisationService.billCapitalisationPlan(bill.capitalisesAssetId, subtotal, vatAmount)
+    : null;
+  const debitLine = plan
+    ? { accountId: plan.costAccountId, accountName: plan.costAccountName, description: `Asset ${plan.asset.assetNumber} — ${plan.asset.name}` }
+    : { ...(await resolveExpenseLine(debitAccountId ?? bill.expenseAccountId ?? undefined, debitAccount)), description: `Bill ${bill.billNumber}` };
+  const debitAmount = plan ? plan.capitalised : subtotal;
+  const vatLine = plan && plan.capitaliseVat ? [] : [{ systemCode: "VAT_INPUT" as const, accountName: "Input VAT Receivable", description: `VAT on ${bill.billNumber}`, debitAmount: vatAmount, creditAmount: 0 }];
 
-  await postJournalEntry({
+  const je = await postJournalEntry({
     entryNumber: `BILL-${bill.billNumber}`,
     date: bill.date,
-    description: `Vendor bill ${bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}`,
+    description: `Vendor bill ${bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}${plan ? ` (capitalised: ${plan.asset.assetNumber})` : ""}`,
     reference: bill.billNumber ?? undefined,
     lines: [
-      { ...expenseLine, description: `Bill ${bill.billNumber}`, debitAmount: subtotal, creditAmount: 0 },
-      { systemCode: "VAT_INPUT", accountName: "Input VAT Receivable", description: `VAT on ${bill.billNumber}`, debitAmount: vatAmount, creditAmount: 0 },
+      { ...debitLine, debitAmount, creditAmount: 0 },
+      ...vatLine,
       { systemCode: "AP", accountName: "Accounts Payable", description: `Bill ${bill.billNumber}`, debitAmount: 0, creditAmount: effectiveTotal, party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } },
     ],
   });
+
+  // In the same transaction: the draft becomes an asset in service with its
+  // stored schedule. If this throws, the bill does not post.
+  if (plan) await assetCapitalisationService.capitaliseOnEntry(plan.asset.id, je.id, { kind: "bill", billId: bill.id, reference: bill.billNumber }, actor.userId ?? null);
 
   // 🔴 A1: bind the capture to the bill INSIDE this transaction, before the
   // status flips. A capture that cannot be attached (already used, discarded)

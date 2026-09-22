@@ -58,6 +58,15 @@ export const billsTable = pgTable(
      * (PURCHASES) applies when neither is given.
      */
     expenseAccountId: integer("expense_account_id").references(() => categoriesTable.id, { onDelete: "set null" }),
+    /**
+     * FA-B (2026-09-22): the DRAFT fixed asset this bill buys. Set on the
+     * draft bill; at approval the debit line becomes the asset category's
+     * COST account and the asset is capitalised on that entry (one writer,
+     * one effect — fixed-assets pack §3 A1, §21). NULL = an ordinary expense
+     * bill. No FK to fixed_assets here: the register is the newer table and
+     * the link is read forward (fixed_assets.bill_id carries the other side).
+     */
+    capitalisesAssetId: integer("capitalises_asset_id"),
     notes: text("notes"),
     /** Batch 1C: an opening payable migrated at cut-off (see invoices.isOpening). */
     isOpening: boolean("is_opening").notNull().default(false),

@@ -1,6 +1,6 @@
 # Fixed Assets & Depreciation — research and decision pack
 
-**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A (the foundation) is BUILT — §20.** FA-B … FA-F follow as the programme's phases 4–9. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A (the foundation) is BUILT — §20; FA-B (capitalisation, the monthly run, the estimate change) is BUILT — §21.** FA-C … FA-F follow. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md): every accounting claim below carries its class — `AUTHORITATIVE (Saudi)`, `STANDARD (IFRS)`, `ODOO`, `ERPNEXT`, `PRODUCT DECISION`, or `ACCOUNTANT DECISION REQUIRED` — and nothing from Odoo or ERPNext is presented as a Saudi requirement. Primary texts were fetched and read in this pass (§18); the two Saudi texts read in English are ZATCA's own translations, which state that the Arabic prevails — readings that turn on wording are marked *reasoned-not-verified*.
 
@@ -423,3 +423,39 @@ Each phase closes with the standing check (CLAUDE.md §3) and a §2 status line;
 ### 20.3 What this did not do (FA-B onwards)
 
 Capitalisation from a bill line, a transaction or by hand (the entry, the stored schedule, `in_service`); the monthly run per asset and per company; the estimate change; additions; disposal (invoice-line income account + `asset_id`); the migration step; the Art. 17 pool and the Art. 52 engine; the reports; the four-mode walk. The pre-FA register's rows were DROPPED (no customers; §16 FA-A gate) — the e2e seed now creates a category and a draft.
+
+---
+
+## 21. FA-B — capitalisation, the monthly run and the estimate change, as built (2026-09-22)
+
+**Status (2026-09-22): BUILT on `feat/fixed-assets-capitalisation` (migration `0089`). Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+
+### 21.1 Capitalisation runs on the BILL (entry A1)
+
+`bills.capitalises_asset_id` names the DRAFT asset a vendor bill buys. At approval — inside the bill's own transaction, through its own `postJournalEntry` call — the debit line becomes the asset CATEGORY's cost account (labelled with that account's own NAME, never a literal: the balance sheet groups by the label, and a literal would file the cost under a name the chart does not have — caught by the balance-sheet assertion in the suite), and the asset becomes `in_service` on that entry with its whole schedule stored and a `capitalised` event. **One writer, one effect**: there is no second path to the cost account, and if the capitalisation throws, the bill does not post.
+
+**Non-deductible input VAT is CAPITALISED** (IAS 16.16, VAT IR Art. 50): when the asset's recovery is 0 % — a restricted motor vehicle — the bill posts `Dr cost (gross) / Cr AP` with **no** `VAT_INPUT` line. The asset's recovery %, not the bill, decides this.
+
+Refused by name, with nothing posted: `asset_not_draft` (an asset in service takes ADDITIONS, not a second capitalisation — FA-C), `available_for_use_date_required` (IAS 16.55: without it there is no first period), `asset_cost_mismatch` (the asset's declared cost and what the bill capitalises must state the same amount — the message prints both), `depreciation_method_unsupported`.
+
+### 21.2 The monthly run (entry D)
+
+`POST /assets/{id}/depreciate` posts one schedule row: `Dr <category expense> / Cr <category accumulated>` for the ROW's amount, dated the period's last day, and marks the row posted (`journal_entry_id` set once — then frozen by FA-A's trigger). `POST /assets/depreciation-runs` does a whole period for the company: one entry per asset, and every asset that did not post is **reported with its refusal's own code and sentence** — never a silent skip.
+
+- **A period is depreciated ONCE** — `depreciation_already_posted` (the table's unique is the backstop).
+- **In order** — `depreciation_out_of_order`: the accumulated figure each row states is the figure in the books, so the rows post in sequence.
+- **A closed month FAILS CLOSED** (423 `period_closed`) with nothing posted. The catch-up passes an explicit `postingDate` in an OPEN month: the same amount, the schedule row's period unchanged, and the entry's description saying which period it depreciates — CLAUDE.md §4's standing rule (never re-date into a closed period, never silently skip). A catch-up dated BEFORE its period is refused. A company-wide run stops whole on a lock (it is one act on one company's books).
+
+### 21.3 The estimate change (IAS 16.51, IAS 8)
+
+`POST /assets/{id}/estimate` changes the residual value, the useful life or the method **prospectively**: the posted rows are never touched (the DB would refuse it anyway), the unposted tail is deleted and regenerated from the remaining carrying amount over the remaining life, and the act is audited with old and new plus the first affected period. A life at or below what is already booked is refused (`useful_life_below_booked` — that is an impairment or a disposal, not an estimate change); a residual above the remaining carrying amount is refused; an unchanged estimate is refused. Nothing posts.
+
+### 21.4 Verified
+
+`tests/fixed-assets-capitalisation.test.ts` (7, real rows, the pack's own §17 expectations): row 2 (the bill's three lines exactly, the expense accounts unmoved, 48 rows stored, the asset in service on that entry, and three named refusals leaving nothing posted), row 3 (the restricted vehicle's VAT capitalised, `VAT_INPUT` unmoved), row 7 (the run's two lines, the derived figures moving, the second run and the out-of-order run refused with the entry count unchanged, and Σ posted rows = the expense postings), row 12 (423 with nothing posted, then the catch-up in an open month naming the period), the estimate change (posted rows byte-identical, the tail 34 rows, Σ still the depreciable amount, the event's payload), the company-wide run (one entry per asset, the income statement moving by exactly the run's total, a second run posting nothing), and row 9 (carrying = residual, fully depreciated, a further run refused, both accounts still on the balance sheet).
+
+`e2e/fixed-assets.spec.ts` (6) walks it by CLICKING in four modes: the category and the draft (which moves nothing), the bill that capitalises it (the entry's lines read back from the API), the run (the row reads posted and links to its entry), the estimate change, Arabic/RTL, and a 390-px phone. `pnpm run verify`: green.
+
+### 21.5 What this did not do
+
+Additions to an asset in service (a further cost with its own Art. 52(3) adjustment clock); capitalisation from a bank transaction or by hand (the pack's A2 — a bill is the one path today, and an asset with no document is possible only through migration); disposal (FA-C); the migration step (FA-D); the reports (FA-E); the Art. 17 pool and the Art. 52 engine (FA-F, both now in scope by the accountant's answers). `declining_balance` and `units_of_production` remain refused by name.

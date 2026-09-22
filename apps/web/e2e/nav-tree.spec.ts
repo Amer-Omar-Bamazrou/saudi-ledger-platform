@@ -165,6 +165,8 @@ test.describe("the tree is internally consistent", () => {
       "/login", "/signup", "/accept-invite", "/operator", "/verification-status",
       // Reached from a record, not a menu.
       "/customers/:id", "/vendors/:id", "/customers/:id/statement",
+      // FA-B: one asset, reached by clicking its row in the register.
+      "/assets/:id",
       // Batch 1C: one batch, reached from the migration list.
       "/migration/:id",
       // The placeholder route itself; its entries are counted individually.

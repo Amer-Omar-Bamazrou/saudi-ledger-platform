@@ -120,8 +120,16 @@ describeMaybe("FA-A foundation — the register on real rows", () => {
       expect(SYSTEM_CHART_OF_ACCOUNTS.some((a) => a.code === code)).toBe(true);
       const mine = await pool.query(`SELECT type, liquidity_class FROM categories WHERE organization_id = $1 AND system_code = $2`, [orgId, code]);
       expect(mine.rows, code).toHaveLength(1);
-      const missing = await pool.query(`SELECT count(*)::int n FROM organizations o WHERE NOT EXISTS (SELECT 1 FROM categories c WHERE c.organization_id = o.id AND c.system_code = $1)`, [code]);
-      expect(missing.rows[0].n, `${code} missing on some org`).toBe(0);
+      // 🔴 The backfill's claim is about orgs that HAVE a chart. Counting every
+      // organization row would also count another fork's fixture mid-teardown
+      // (its categories deleted, its org row not yet) — an unscoped global
+      // assertion, which is what test-suite-notes §4/§5 is about. SALES is the
+      // pre-0088 marker that a chart exists at all.
+      const missing = await pool.query(
+        `SELECT count(*)::int n FROM organizations o
+          WHERE EXISTS (SELECT 1 FROM categories c WHERE c.organization_id = o.id AND c.system_code = 'SALES')
+            AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.organization_id = o.id AND c.system_code = $1)`, [code]);
+      expect(missing.rows[0].n, `${code} missing on an org that has a chart`).toBe(0);
     }
     expect((await pool.query(`SELECT type FROM categories WHERE organization_id = $1 AND system_code = 'ASSET_DISPOSAL_GAIN_LOSS'`, [orgId])).rows[0].type).toBe("income");
     expect((await pool.query(`SELECT liquidity_class FROM categories WHERE organization_id = $1 AND system_code = 'ACCUMULATED_DEPRECIATION'`, [orgId])).rows[0].liquidity_class).toBe("non_current");

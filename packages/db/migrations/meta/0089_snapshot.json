@@ -1,6 +1,6 @@
 {
-  "id": "8fe02363-f8dd-4ba2-8f2d-ceccb3e1b22b",
-  "prevId": "1110e75b-1720-4266-8f4c-d5e0a0f5a7f1",
+  "id": "b102393a-9ae2-4d83-ac50-b35df28ceab9",
+  "prevId": "8fe02363-f8dd-4ba2-8f2d-ceccb3e1b22b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3738,6 +3738,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "capitalises_asset_id": {
+          "name": "capitalises_asset_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "notes": {
           "name": "notes",
           "type": "text",
@@ -6176,14 +6182,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "invoice_id": {
           "name": "invoice_id",
@@ -6439,14 +6445,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "einvoice_document_id": {
           "name": "einvoice_document_id",
@@ -6672,14 +6678,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "status": {
           "name": "status",
@@ -6914,14 +6920,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "entity": {
           "name": "entity",
@@ -7087,7 +7093,7 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "rule_id": {
           "name": "rule_id",
@@ -7634,14 +7640,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "bill_id": {
           "name": "bill_id",
@@ -7789,14 +7795,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "customer_id": {
           "name": "customer_id",
@@ -8070,14 +8076,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "invoice_id": {
           "name": "invoice_id",
@@ -8225,14 +8231,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "allocation_id": {
           "name": "allocation_id",
@@ -8397,14 +8403,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "payment_id": {
           "name": "payment_id",
@@ -8605,14 +8611,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "payment_id": {
           "name": "payment_id",
@@ -8784,14 +8790,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "direction": {
           "name": "direction",
@@ -9063,14 +9069,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "invoice_id": {
           "name": "invoice_id",
@@ -9271,14 +9277,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "mode": {
           "name": "mode",
@@ -9396,14 +9402,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "run_id": {
           "name": "run_id",
@@ -11363,14 +11369,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "match_id": {
           "name": "match_id",
@@ -11477,14 +11483,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "transaction_id": {
           "name": "transaction_id",
@@ -11712,14 +11718,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "batch_id": {
           "name": "batch_id",
@@ -11951,14 +11957,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "status": {
           "name": "status",
@@ -12260,14 +12266,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "batch_id": {
           "name": "batch_id",
@@ -12563,14 +12569,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "payment_id": {
           "name": "payment_id",
@@ -12730,14 +12736,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "batch_id": {
           "name": "batch_id",
@@ -13014,14 +13020,14 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_org_id()"
+          "default": "(nullif(current_setting('app.current_org_id', true), ''))::uuid"
         },
         "company_id": {
           "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true,
-          "default": "app_default_company_id()"
+          "default": "(nullif(current_setting('app.current_company_id', true), ''))::uuid"
         },
         "batch_id": {
           "name": "batch_id",

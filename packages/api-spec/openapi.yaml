@@ -4113,6 +4113,77 @@ paths:
               schema: { $ref: "#/components/schemas/MigratedOpenItemIdentity" }
         "404":
           description: Not found
+  /assets/depreciation-runs:
+    post:
+      operationId: runAssetDepreciation
+      tags: [assets]
+      summary: "FA-B: run one PERIOD for the company — every asset in service whose schedule plans it, one entry each"
+      description: >
+        Each asset posts its own entry (Dr the category's depreciation expense /
+        Cr its accumulated depreciation) dated the last day of the period, and
+        its schedule row is marked posted. A period is depreciated ONCE. An
+        asset that cannot run is REPORTED by name (never skipped silently); a
+        CLOSED period stops the whole run with 423 — the catch-up passes an
+        explicit postingDate in an open month and the entry says which period
+        it depreciates (CLAUDE.md §4).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RunAssetDepreciationInput" }
+      responses:
+        "200":
+          description: What posted and what did not
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetDepreciationRun" }
+  /assets/{id}/depreciate:
+    post:
+      operationId: depreciateAsset
+      tags: [assets]
+      summary: "FA-B: one period of one asset, from its stored schedule"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DepreciateAssetInput" }
+      responses:
+        "200":
+          description: The period posted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetDepreciationPosted" }
+        "404":
+          description: Not found
+  /assets/{id}/estimate:
+    post:
+      operationId: changeAssetEstimate
+      tags: [assets]
+      summary: "FA-B: a change in ESTIMATE (IAS 16.51, IAS 8) — residual value, useful life or method, applied PROSPECTIVELY"
+      description: >
+        Posted rows are history and are never touched; the unposted tail is
+        regenerated from the remaining carrying amount over the remaining life,
+        and the act is audited with old and new. Nothing posts. A life shorter
+        than what is already booked is refused (useful_life_below_booked) —
+        that is an impairment or a disposal, not an estimate change.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangeAssetEstimateInput" }
+      responses:
+        "200":
+          description: The asset with its regenerated schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetDetail" }
+        "404":
+          description: Not found
+
   /invoices/{id}/bad-debt-relief:
     post:
       operationId: writeOffBadDebt
@@ -6169,6 +6240,14 @@ components:
         expenseAccountId:
           type: ["integer", "null"]
           description: The expense account chosen at entry; the account the bill posts to on approval when the approve/post body names none.
+        capitalisesAssetId:
+          type: ["integer", "null"]
+          description: >
+            FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval
+            debits the asset CATEGORY's cost account instead of an expense account and
+            capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 —
+            is capitalised into the cost instead of deducted). Refused by name when the asset
+            is not a draft, has no available-for-use date, or states a cost the bill does not.
         notes:
           type: ["string", "null"]
         createdAt:
@@ -8433,6 +8512,12 @@ components:
             chosen at entry so it survives submit → approve. Refused (422) if it is not one
             of the tenant's expense accounts. The approve/post body's debitAccountId, when
             sent, overrides it.
+        capitalisesAssetId:
+          type: ["integer", "null"]
+          description: >
+            FA-B: the DRAFT fixed asset (GET /assets?status=draft) this bill buys. Set it and
+            the bill capitalises the asset at approval instead of expensing its cost; the
+            asset's own cost account, tax group and VAT facts then govern the entry.
         subtotal:
           type: number
           minimum: 0
@@ -8867,6 +8952,74 @@ components:
         vatNonDeductibleReason: { type: ["string", "null"], maxLength: 500, description: "Required when a capital asset's recovery is 0 % (VAT IR Art. 50)." }
         sourceReference: { type: ["string", "null"], maxLength: 200 }
         notes: { type: ["string", "null"], maxLength: 2000 }
+
+    DepreciateAssetInput:
+      type: object
+      required: [period]
+      properties:
+        period: { type: string, pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$", description: "YYYY-MM — a period of the asset's own schedule." }
+        postingDate:
+          type: ["string", "null"]
+          description: >
+            The catch-up date, YYYY-MM-DD, when the period's own month is closed: the entry
+            posts in that OPEN month for the same amount and says which period it depreciates.
+            Omitted, the entry is dated the last day of the period. Never before the period.
+
+    RunAssetDepreciationInput:
+      type: object
+      required: [period]
+      properties:
+        period: { type: string, pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$" }
+        postingDate: { type: ["string", "null"] }
+
+    AssetDepreciationPosted:
+      type: object
+      required: [assetId, period, amount, date, journalEntryId, entryNumber, caughtUp]
+      properties:
+        assetId: { type: integer }
+        period: { type: string }
+        amount: { type: number }
+        date: { type: string, description: "The entry's date — the period's last day, or the catch-up date in an open month." }
+        journalEntryId: { type: integer }
+        entryNumber: { type: string }
+        caughtUp: { type: boolean }
+
+    AssetDepreciationRun:
+      type: object
+      required: [period, posted, skipped, totalAmount]
+      properties:
+        period: { type: string }
+        totalAmount: { type: number }
+        posted:
+          type: array
+          items:
+            type: object
+            required: [assetId, assetNumber, amount, journalEntryId]
+            properties:
+              assetId: { type: integer }
+              assetNumber: { type: string }
+              amount: { type: number }
+              journalEntryId: { type: integer }
+        skipped:
+          type: array
+          description: "Every asset that did NOT post, with the refusal's own code and sentence — never a silent skip."
+          items:
+            type: object
+            required: [assetId, assetNumber, code, reason]
+            properties:
+              assetId: { type: integer }
+              assetNumber: { type: string }
+              code: { type: string }
+              reason: { type: string }
+
+    ChangeAssetEstimateInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 1000, description: "IAS 8 — a change in estimate is disclosed; this is the disclosure." }
+        residualValue: { type: ["number", "null"], minimum: 0 }
+        usefulLifeMonths: { type: ["integer", "null"], minimum: 1, maximum: 1200 }
+        depreciationMethod: { type: ["string", "null"], enum: [straight_line, declining_balance, units_of_production, null] }
 
     CancelAssetInput:
       type: object

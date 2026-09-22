@@ -1,0 +1,19 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- FIXED ASSETS — FA-B (2026-09-22): a BILL may buy a fixed asset.
+-- Record: docs/product/fixed-assets-decision-pack.md §3 (A1), §5, §21.
+--
+-- `bills.capitalises_asset_id` names the DRAFT register row the bill buys. At
+-- approval the bill's own posting path debits the asset CATEGORY's cost
+-- account instead of an expense account and capitalises the asset on that
+-- entry, inside that transaction — one writer for one effect. Non-deductible
+-- input VAT (VAT IR Art. 50 — a restricted motor vehicle) is capitalised into
+-- the cost instead of deducted, so the asset's recovery % decides the bill's
+-- VAT line.
+--
+-- 🔴 The FK is DEFERRED deliberately: `fixed_assets.bill_id` already carries
+-- the other side of this link, and a bill may be entered before the asset row
+-- exists. The service resolves the id inside the tenant transaction (RLS
+-- scopes it, so another company's id and a missing id are the same refusal),
+-- and a bill can only capitalise a DRAFT asset of its own company.
+-- ═══════════════════════════════════════════════════════════════════════════
+ALTER TABLE "bills" ADD COLUMN "capitalises_asset_id" integer;

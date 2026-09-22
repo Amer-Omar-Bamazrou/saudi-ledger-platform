@@ -34,6 +34,8 @@ import type {
   AskInput,
   AskResult,
   AssetCategory,
+  AssetDepreciationPosted,
+  AssetDepreciationRun,
   AssetDetail,
   AuditLogPage,
   BalanceSheetReport,
@@ -56,6 +58,7 @@ import type {
   Category,
   CategoryBreakdown,
   CategoryInput,
+  ChangeAssetEstimateInput,
   ClassifyPaymentInput,
   ClassifyStatementRowsParams,
   Company,
@@ -91,6 +94,7 @@ import type {
   Decomposition,
   DeploymentBanner,
   DepositReview,
+  DepreciateAssetInput,
   DiscardResult,
   Employee,
   EmployeeInputFields,
@@ -210,6 +214,7 @@ import type {
   RecurringRun,
   RefundCustomerInput,
   ReverseMigrationBatchInput,
+  RunAssetDepreciationInput,
   SendBackInput,
   SettleTransactionInput,
   StatementMatch,
@@ -14978,6 +14983,223 @@ export const useRecordMigratedOpenItemIdentity = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRecordMigratedOpenItemIdentityMutationOptions(options));
+    }
+
+export const getRunAssetDepreciationUrl = () => {
+
+
+
+
+  return `/api/assets/depreciation-runs`
+}
+
+/**
+ * Each asset posts its own entry (Dr the category's depreciation expense / Cr its accumulated depreciation) dated the last day of the period, and its schedule row is marked posted. A period is depreciated ONCE. An asset that cannot run is REPORTED by name (never skipped silently); a CLOSED period stops the whole run with 423 — the catch-up passes an explicit postingDate in an open month and the entry says which period it depreciates (CLAUDE.md §4).
+ * @summary FA-B: run one PERIOD for the company — every asset in service whose schedule plans it, one entry each
+ */
+export const runAssetDepreciation = async (runAssetDepreciationInput: RunAssetDepreciationInput, options?: RequestInit): Promise<AssetDepreciationRun> => {
+
+  return customFetch<AssetDepreciationRun>(getRunAssetDepreciationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(runAssetDepreciationInput)
+  }
+);}
+
+
+
+
+
+export const getRunAssetDepreciationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runAssetDepreciation>>, TError,{data: BodyType<RunAssetDepreciationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runAssetDepreciation>>, TError,{data: BodyType<RunAssetDepreciationInput>}, TContext> => {
+
+const mutationKey = ['runAssetDepreciation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runAssetDepreciation>>, {data: BodyType<RunAssetDepreciationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runAssetDepreciation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunAssetDepreciationMutationResult = NonNullable<Awaited<ReturnType<typeof runAssetDepreciation>>>
+    export type RunAssetDepreciationMutationBody = BodyType<RunAssetDepreciationInput>
+    export type RunAssetDepreciationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary FA-B: run one PERIOD for the company — every asset in service whose schedule plans it, one entry each
+ */
+export const useRunAssetDepreciation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runAssetDepreciation>>, TError,{data: BodyType<RunAssetDepreciationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runAssetDepreciation>>,
+        TError,
+        {data: BodyType<RunAssetDepreciationInput>},
+        TContext
+      > => {
+      return useMutation(getRunAssetDepreciationMutationOptions(options));
+    }
+
+export const getDepreciateAssetUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/${id}/depreciate`
+}
+
+/**
+ * @summary FA-B: one period of one asset, from its stored schedule
+ */
+export const depreciateAsset = async (id: number,
+    depreciateAssetInput: DepreciateAssetInput, options?: RequestInit): Promise<AssetDepreciationPosted> => {
+
+  return customFetch<AssetDepreciationPosted>(getDepreciateAssetUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(depreciateAssetInput)
+  }
+);}
+
+
+
+
+
+export const getDepreciateAssetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depreciateAsset>>, TError,{id: number;data: BodyType<DepreciateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof depreciateAsset>>, TError,{id: number;data: BodyType<DepreciateAssetInput>}, TContext> => {
+
+const mutationKey = ['depreciateAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof depreciateAsset>>, {id: number;data: BodyType<DepreciateAssetInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  depreciateAsset(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DepreciateAssetMutationResult = NonNullable<Awaited<ReturnType<typeof depreciateAsset>>>
+    export type DepreciateAssetMutationBody = BodyType<DepreciateAssetInput>
+    export type DepreciateAssetMutationError = ErrorType<void>
+
+    /**
+ * @summary FA-B: one period of one asset, from its stored schedule
+ */
+export const useDepreciateAsset = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depreciateAsset>>, TError,{id: number;data: BodyType<DepreciateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof depreciateAsset>>,
+        TError,
+        {id: number;data: BodyType<DepreciateAssetInput>},
+        TContext
+      > => {
+      return useMutation(getDepreciateAssetMutationOptions(options));
+    }
+
+export const getChangeAssetEstimateUrl = (id: number,) => {
+
+
+
+
+  return `/api/assets/${id}/estimate`
+}
+
+/**
+ * Posted rows are history and are never touched; the unposted tail is regenerated from the remaining carrying amount over the remaining life, and the act is audited with old and new. Nothing posts. A life shorter than what is already booked is refused (useful_life_below_booked) — that is an impairment or a disposal, not an estimate change.
+ * @summary FA-B: a change in ESTIMATE (IAS 16.51, IAS 8) — residual value, useful life or method, applied PROSPECTIVELY
+ */
+export const changeAssetEstimate = async (id: number,
+    changeAssetEstimateInput: ChangeAssetEstimateInput, options?: RequestInit): Promise<AssetDetail> => {
+
+  return customFetch<AssetDetail>(getChangeAssetEstimateUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(changeAssetEstimateInput)
+  }
+);}
+
+
+
+
+
+export const getChangeAssetEstimateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeAssetEstimate>>, TError,{id: number;data: BodyType<ChangeAssetEstimateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeAssetEstimate>>, TError,{id: number;data: BodyType<ChangeAssetEstimateInput>}, TContext> => {
+
+const mutationKey = ['changeAssetEstimate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeAssetEstimate>>, {id: number;data: BodyType<ChangeAssetEstimateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  changeAssetEstimate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeAssetEstimateMutationResult = NonNullable<Awaited<ReturnType<typeof changeAssetEstimate>>>
+    export type ChangeAssetEstimateMutationBody = BodyType<ChangeAssetEstimateInput>
+    export type ChangeAssetEstimateMutationError = ErrorType<void>
+
+    /**
+ * @summary FA-B: a change in ESTIMATE (IAS 16.51, IAS 8) — residual value, useful life or method, applied PROSPECTIVELY
+ */
+export const useChangeAssetEstimate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeAssetEstimate>>, TError,{id: number;data: BodyType<ChangeAssetEstimateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeAssetEstimate>>,
+        TError,
+        {id: number;data: BodyType<ChangeAssetEstimateInput>},
+        TContext
+      > => {
+      return useMutation(getChangeAssetEstimateMutationOptions(options));
     }
 
 export const getWriteOffBadDebtUrl = (id: number,) => {

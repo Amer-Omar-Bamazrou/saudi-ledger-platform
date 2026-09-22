@@ -105,6 +105,8 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/customers/:id": "param",
   "/customers/:id/statement": "param",
   "/vendors/:id": "param",
+  // FA-B: the asset detail page, reached by clicking a row of the register.
+  "/assets/:id": "param",
   // One representative placeholder, so the smoke crawl covers the shape. Every
   // registered slug is crawled individually by `nav-tree.spec.ts` — this entry
   // exists so a change to the ComingSoon component is caught here too.

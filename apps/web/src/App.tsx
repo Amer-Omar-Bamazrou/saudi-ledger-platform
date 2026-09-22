@@ -49,6 +49,7 @@ import JournalEntries from '@/pages/JournalEntries';
 import Employees from '@/pages/Employees';
 import Payroll from '@/pages/Payroll';
 import Assets from '@/pages/Assets';
+import AssetDetail from '@/pages/AssetDetail';
 import Products from '@/pages/Products';
 import BankAccounts from '@/pages/BankAccounts';
 import Budgets from '@/pages/Budgets';
@@ -240,6 +241,7 @@ function Router() {
               <Route path="/employees" component={Employees} />
               <Route path="/payroll" component={Payroll} />
               {/* Assets & Inventory */}
+              <Route path="/assets/:id" component={AssetDetail} />
               <Route path="/assets" component={Assets} />
               <Route path="/products" component={Products} />
               {/* Banking */}
