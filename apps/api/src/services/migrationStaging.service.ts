@@ -27,6 +27,8 @@ import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors
 import { migrationRepository } from "../repositories/migration.repository";
 import { auditService } from "./audit.service";
 import { migrationService } from "./migration.service";
+import { assetsRepository } from "../repositories/assets.repository";
+import { migratedAssetsService, migrationAssetProblems, type MigrationAssetInput } from "./assets/migratedAssets.service";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_TIME = /^\d{2}:\d{2}(:\d{2})?$/;
@@ -602,5 +604,47 @@ export const migrationStagingService = {
     await migrationService.touch(batch);
     await auditService.record({ action: "migration_advances_import", entityType: "migration_batch", entityId: batchId, after: { rows: values.length, unknownVatPosition: values.filter((v) => v.vatPosition === "unknown").length, by: userId } });
     return this.getAdvances(batchId);
+  },
+
+  // ── FA-D: the fixed assets the previous system held (pack §10, §23) ──
+
+  async getAssets(batchId: number) {
+    const batch = await migrationService.requireBatch(batchId);
+    const [rows, categories] = await Promise.all([migrationRepository.migrationAssets(batchId), assetsRepository.categories(true)]);
+    const cats = categories.map((c) => c.category);
+    const items = rows.map((a) => ({
+      id: a.id, sourceId: a.sourceId, name: a.name, nameAr: a.nameAr ?? null, serialNumber: a.serialNumber ?? null,
+      categoryName: a.categoryName, acquisitionDate: a.acquisitionDate, availableForUseDate: a.availableForUseDate,
+      cost: num(a.cost), residualValue: num(a.residualValue), usefulLifeMonths: a.usefulLifeMonths, depreciationMethod: a.depreciationMethod,
+      openingAccumulatedDepreciation: num(a.openingAccumulatedDepreciation), openingPeriodsBooked: a.openingPeriodsBooked,
+      netBookValue: round2(num(a.cost) - num(a.openingAccumulatedDepreciation)),
+      vatInputTaxAmount: a.vatInputTaxAmount != null ? num(a.vatInputTaxAmount) : null,
+      vatInitialRecoveryPct: a.vatInitialRecoveryPct != null ? num(a.vatInitialRecoveryPct) : null,
+      vatNonDeductibleReason: a.vatNonDeductibleReason ?? null,
+      location: a.location ?? null, description: a.description ?? null,
+      resolvedAssetId: a.resolvedAssetId ?? null,
+      problems: migrationAssetProblems(a, batch, cats),
+    }));
+    return {
+      rows: items,
+      summary: {
+        assets: items.length,
+        cost: round2(items.reduce((t, i) => t + i.cost, 0)),
+        accumulated: round2(items.reduce((t, i) => t + i.openingAccumulatedDepreciation, 0)),
+        netBookValue: round2(items.reduce((t, i) => t + i.netBookValue, 0)),
+        blocked: items.filter((i) => i.problems.length > 0).length,
+      },
+    };
+  },
+
+  async importAssets(batchId: number, body: { rows?: MigrationAssetInput[] | null }, userId: number | null) {
+    const batch = await migrationService.requireBatch(batchId);
+    migrationService.assertDraft(batch);
+    const values = await migratedAssetsService.parseRows(batch, body.rows ?? []);
+    await migrationRepository.deleteMigrationAssets(batchId);
+    await migrationRepository.insertMigrationAssets(values);
+    await migrationService.touch(batch);
+    await auditService.record({ action: "migration_assets_import", entityType: "migration_batch", entityId: batchId, after: { rows: values.length, cost: values.reduce((t, v) => t + Number(v.cost), 0), by: userId } });
+    return this.getAssets(batchId);
   },
 };

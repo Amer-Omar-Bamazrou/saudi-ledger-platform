@@ -137,6 +137,7 @@ import type {
   GroundedAnswersPage,
   HealthStatus,
   ImportMigrationAdvancesInput,
+  ImportMigrationAssetsInput,
   ImportMigrationChartInput,
   ImportMigrationOpenItemsInput,
   ImportMigrationPartiesInput,
@@ -177,6 +178,7 @@ import type {
   MigratedOpenItemCorrection,
   MigratedOpenItemIdentity,
   MigrationAdvances,
+  MigrationAssets,
   MigrationBatch,
   MigrationBatchDetail,
   MigrationChart,
@@ -14470,6 +14472,156 @@ export const useImportMigrationAdvances = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getImportMigrationAdvancesMutationOptions(options));
+    }
+
+export const getGetMigrationAssetsUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/assets`
+}
+
+/**
+ * @summary FA-D: the staged FIXED ASSETS the previous system held at cut-off, with each row's problems and the register's totals
+ */
+export const getMigrationAssets = async (id: number, options?: RequestInit): Promise<MigrationAssets> => {
+
+  return customFetch<MigrationAssets>(getGetMigrationAssetsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationAssetsQueryKey = (id: number,) => {
+    return [
+    `/api/migration/batches/${id}/assets`
+    ] as const;
+    }
+
+
+export const getGetMigrationAssetsQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationAssets>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationAssets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationAssetsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationAssets>>> = ({ signal }) => getMigrationAssets(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationAssets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationAssetsQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationAssets>>>
+export type GetMigrationAssetsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary FA-D: the staged FIXED ASSETS the previous system held at cut-off, with each row's problems and the register's totals
+ */
+
+export function useGetMigrationAssets<TData = Awaited<ReturnType<typeof getMigrationAssets>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationAssets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationAssetsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportMigrationAssetsUrl = (id: number,) => {
+
+
+
+
+  return `/api/migration/batches/${id}/assets`
+}
+
+/**
+ * A migrated asset's cost and accumulated depreciation are already in the staged trial balance (A5 — one balanced opening position, never a plug), so the register ties to the accounts its CATEGORY names: the control FIXED_ASSETS_CONTROL refuses a commit where the two disagree, exactly as open items must equal the AR/AP control balance. Each asset names an existing asset category (which carries its accounts, its Income Tax Law Art. 17 group and its VAT Art. 52 class), the accumulated depreciation the previous system had booked and over how many periods; the schedule resumes the month AFTER the opening date over the remaining life. An asset still inside its Art. 52 adjustment period must carry its input-tax facts, or the adjustment could never be computed.
+ * @summary Replace the batch's staged fixed assets. They create NO journal line — the register must RECONCILE to the trial balance.
+ */
+export const importMigrationAssets = async (id: number,
+    importMigrationAssetsInput: ImportMigrationAssetsInput, options?: RequestInit): Promise<MigrationAssets> => {
+
+  return customFetch<MigrationAssets>(getImportMigrationAssetsUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importMigrationAssetsInput)
+  }
+);}
+
+
+
+
+
+export const getImportMigrationAssetsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationAssets>>, TError,{id: number;data: BodyType<ImportMigrationAssetsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importMigrationAssets>>, TError,{id: number;data: BodyType<ImportMigrationAssetsInput>}, TContext> => {
+
+const mutationKey = ['importMigrationAssets'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importMigrationAssets>>, {id: number;data: BodyType<ImportMigrationAssetsInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  importMigrationAssets(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportMigrationAssetsMutationResult = NonNullable<Awaited<ReturnType<typeof importMigrationAssets>>>
+    export type ImportMigrationAssetsMutationBody = BodyType<ImportMigrationAssetsInput>
+    export type ImportMigrationAssetsMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace the batch's staged fixed assets. They create NO journal line — the register must RECONCILE to the trial balance.
+ */
+export const useImportMigrationAssets = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMigrationAssets>>, TError,{id: number;data: BodyType<ImportMigrationAssetsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importMigrationAssets>>,
+        TError,
+        {id: number;data: BodyType<ImportMigrationAssetsInput>},
+        TContext
+      > => {
+      return useMutation(getImportMigrationAssetsMutationOptions(options));
     }
 
 export const getGetMigrationOpeningPositionUrl = (id: number,) => {

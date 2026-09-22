@@ -582,6 +582,8 @@ export const CategoryLiquidityClass = {
 
 export interface Category {
   id: number;
+  /** FA-D (2026-09-22): true when the code is one of the PLATFORM's own system accounts — the set the migration mapper's `map_to_system` accepts — as opposed to a seeded DEFAULT that merely carries a code (FIXED_ASSETS, INVENTORY…), which `merge_into` accepts. Without it the two doors of the mapper disagreed with the server: one offered targets the server refuses, the other hid targets it accepts. One definition (SYSTEM_ACCOUNTS, server-side), read by the client. */
+  isPlatformSystemAccount: boolean;
   /**
      * The account's system role (AR, AP, VAT_OUTPUT, …) when it is a system account; null for ordinary accounts. Exposed (N3) so the manual-JE form can require a party on control-account lines. The Categories UI still cannot EDIT system accounts — that trap (§5) is about write routes, which do not exist.
      * @nullable
@@ -6282,6 +6284,159 @@ export interface MigrationAdvanceInput {
   vatAmount?: number | null;
 }
 
+/**
+ * @nullable
+ */
+export type MigrationAssetInputDepreciationMethod = typeof MigrationAssetInputDepreciationMethod[keyof typeof MigrationAssetInputDepreciationMethod] | null;
+
+
+export const MigrationAssetInputDepreciationMethod = {
+  straight_line: 'straight_line',
+  declining_balance: 'declining_balance',
+  units_of_production: 'units_of_production',
+} as const;
+
+export interface MigrationAssetInput {
+  /**
+     * The previous system's identifier — provenance, and the register row's source reference.
+     * @minLength 1
+     * @maxLength 80
+     */
+  sourceId: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  nameAr?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  serialNumber?: string | null;
+  /**
+     * An EXISTING asset category of this company, by name — it carries the accounts, the Art. 17 group and the Art. 52 class.
+     * @minLength 1
+     * @maxLength 120
+     */
+  categoryName: string;
+  /** YYYY-MM-DD — the VAT Art. 52 adjustment clock. */
+  acquisitionDate: string;
+  /** YYYY-MM-DD — on or before the opening date; an asset that entered service after the cut-off is bought in the product, not migrated. */
+  availableForUseDate: string;
+  /** @exclusiveMinimum 0 */
+  cost: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  residualValue?: number | null;
+  /**
+     * @minimum 1
+     * @maximum 1200
+     */
+  usefulLifeMonths: number;
+  /** @nullable */
+  depreciationMethod?: MigrationAssetInputDepreciationMethod;
+  /**
+     * What the previous system had depreciated at the opening date — already in the trial balance.
+     * @minimum 0
+     */
+  openingAccumulatedDepreciation: number;
+  /**
+     * Over how many periods, so the schedule resumes at the right sequence.
+     * @minimum 0
+     */
+  openingPeriodsBooked: number;
+  /**
+     * Required while the asset is inside its Art. 52 adjustment period.
+     * @minimum 0
+     * @nullable
+     */
+  vatInputTaxAmount?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  vatInitialRecoveryPct?: number | null;
+  /**
+     * Required at a 0 % recovery (Art. 50) — it decides how a later sale is taxed.
+     * @maxLength 500
+     * @nullable
+     */
+  vatNonDeductibleReason?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  location?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  description?: string | null;
+}
+
+export interface ImportMigrationAssetsInput {
+  /** @minItems 1 */
+  rows: MigrationAssetInput[];
+}
+
+export interface MigrationAsset {
+  id: number;
+  sourceId: string;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  /** @nullable */
+  serialNumber: string | null;
+  categoryName: string;
+  acquisitionDate: string;
+  availableForUseDate: string;
+  cost: number;
+  residualValue: number;
+  usefulLifeMonths: number;
+  depreciationMethod: string;
+  openingAccumulatedDepreciation: number;
+  openingPeriodsBooked: number;
+  /** cost − opening accumulated depreciation: what the Zakat base deducts (Zakat Regs Art. 48(1)(b)). */
+  netBookValue: number;
+  /** @nullable */
+  vatInputTaxAmount: number | null;
+  /** @nullable */
+  vatInitialRecoveryPct: number | null;
+  /** @nullable */
+  vatNonDeductibleReason: string | null;
+  /** @nullable */
+  location: string | null;
+  /** @nullable */
+  description: string | null;
+  /**
+     * The register row this became at commit.
+     * @nullable
+     */
+  resolvedAssetId: number | null;
+  problems: string[];
+}
+
+export type MigrationAssetsSummary = {
+  assets: number;
+  cost: number;
+  accumulated: number;
+  netBookValue: number;
+  blocked: number;
+};
+
+export interface MigrationAssets {
+  rows: MigrationAsset[];
+  summary: MigrationAssetsSummary;
+}
+
 export interface ImportMigrationAdvancesInput {
   /**
      * @minItems 1
@@ -6425,11 +6580,24 @@ export type MigrationOpeningPositionTotals = {
   ytdResult: number;
 };
 
+/**
+ * FA-D: what the register says against what the trial balance maps — the two must agree (FIXED_ASSETS_CONTROL).
+ */
+export type MigrationOpeningPositionAssetControl = {
+  assets: number;
+  registerCost: number;
+  registerAccumulated: number;
+  mappedCost: number;
+  mappedAccumulated: number;
+};
+
 export interface MigrationOpeningPosition {
   batchId: number;
   openingDate: string;
   lines: MigrationOpeningLine[];
   totals: MigrationOpeningPositionTotals;
+  /** FA-D: what the register says against what the trial balance maps — the two must agree (FIXED_ASSETS_CONTROL). */
+  assetControl: MigrationOpeningPositionAssetControl;
   arByCustomer: MigrationPartyBalance[];
   apByVendor: MigrationPartyBalance[];
   depositsByCustomer: MigrationPartyBalance[];

@@ -141,8 +141,36 @@ export const ADVANCE_FIELDS: readonly FieldSpec[] = [
   { name: "vatAmount", label: "VAT amount", labelAr: "مبلغ الضريبة", kind: "number" },
 ];
 
-export type StagedKind = "chart" | "parties" | "openItems" | "advances";
-export const FIELDS_OF: Record<StagedKind, readonly FieldSpec[]> = { chart: CHART_FIELDS, parties: PARTY_FIELDS, openItems: OPEN_ITEM_FIELDS, advances: ADVANCE_FIELDS };
+/**
+ * FA-D (2026-09-22): the FIXED ASSETS the previous system held at cut-off.
+ * They create no journal line — their cost and accumulated depreciation are
+ * already in the staged trial balance — so the register RECONCILES to it
+ * (the control FIXED_ASSETS_CONTROL). Each names an EXISTING asset category,
+ * which carries its accounts, its Income Tax Law Art. 17 group and its VAT
+ * Art. 52 class.
+ */
+export const MIGRATION_ASSET_FIELDS: readonly FieldSpec[] = [
+  { name: "sourceId", label: "Source id", labelAr: "المعرّف في النظام السابق", kind: "text", required: true },
+  { name: "name", label: "Asset name", labelAr: "اسم الأصل", kind: "text", required: true },
+  { name: "nameAr", label: "Arabic name", labelAr: "الاسم بالعربية", kind: "text" },
+  { name: "serialNumber", label: "Serial number", labelAr: "الرقم التسلسلي", kind: "text" },
+  { name: "categoryName", label: "Asset category (must already exist)", labelAr: "فئة الأصل (يجب أن تكون موجودة)", kind: "text", required: true, hint: "It carries the accounts, the Art. 17 group and the Art. 52 class.", hintAr: "تحمل الحسابات ومجموعة المادة 17 وفئة المادة 52." },
+  { name: "acquisitionDate", label: "Acquisition date", labelAr: "تاريخ الاقتناء", kind: "date", required: true, hint: "The VAT Art. 52 adjustment clock.", hintAr: "بداية فترة تعديل المادة 52." },
+  { name: "availableForUseDate", label: "Available for use", labelAr: "تاريخ الجاهزية للاستخدام", kind: "date", required: true, hint: "On or before the opening date.", hintAr: "في تاريخ الافتتاح أو قبله." },
+  { name: "cost", label: "Original cost (SAR)", labelAr: "التكلفة الأصلية (ر.س)", kind: "number", required: true },
+  { name: "residualValue", label: "Residual value", labelAr: "القيمة المتبقية", kind: "number" },
+  { name: "usefulLifeMonths", label: "Useful life (months)", labelAr: "العمر الإنتاجي (أشهر)", kind: "number", required: true },
+  { name: "openingAccumulatedDepreciation", label: "Accumulated depreciation at the opening date", labelAr: "مجمع الإهلاك في تاريخ الافتتاح", kind: "number", required: true },
+  { name: "openingPeriodsBooked", label: "Periods already depreciated", labelAr: "عدد الفترات المُهلكة سابقًا", kind: "number", required: true, hint: "So the schedule resumes at the right sequence.", hintAr: "لتستأنف الجدولة من التسلسل الصحيح." },
+  { name: "vatInputTaxAmount", label: "Input VAT deducted", labelAr: "ضريبة المدخلات المخصومة", kind: "number", hint: "Required while the asset is inside its Art. 52 adjustment period.", hintAr: "مطلوبة ما دام الأصل داخل فترة تعديل المادة 52." },
+  { name: "vatInitialRecoveryPct", label: "Initial recovery %", labelAr: "نسبة الاسترداد الأولية %", kind: "number" },
+  { name: "vatNonDeductibleReason", label: "Why the input tax was not deducted (Art. 50)", labelAr: "سبب عدم خصم ضريبة المدخلات (المادة 50)", kind: "text", hint: "Required at a 0 % recovery — it decides how a later sale is taxed.", hintAr: "مطلوب عند استرداد 0% — يحدد ضريبة البيع لاحقًا." },
+  { name: "location", label: "Location", labelAr: "الموقع", kind: "text" },
+  { name: "description", label: "Description", labelAr: "الوصف", kind: "text" },
+];
+
+export type StagedKind = "chart" | "parties" | "openItems" | "advances" | "assets";
+export const FIELDS_OF: Record<StagedKind, readonly FieldSpec[]> = { chart: CHART_FIELDS, parties: PARTY_FIELDS, openItems: OPEN_ITEM_FIELDS, advances: ADVANCE_FIELDS, assets: MIGRATION_ASSET_FIELDS };
 
 /** A CSV template with the API's own column names, one commented example row. */
 export function csvTemplate(kind: StagedKind): string {
@@ -152,6 +180,7 @@ export function csvTemplate(kind: StagedKind): string {
     parties: ["customer", "C1", "Alpha Trading Est.", "مؤسسة ألفا التجارية", "300000000000003", "", "", "", "", "Riyadh"],
     openItems: ["ar", "SI-1001", "C1", "INV-1001", "2026-05-10", "2026-06-09", "10000", "10000", "false", "", "S", "15", "8695.65", "1304.35", "2026-Q2", ""],
     advances: ["ADV-1", "C3", "1100", "3000", "2026-06-01", "", "invoiced", "ADV-INV-9", "2026-06-01", "10:00:00", "S", "15", "391.30"],
+    assets: ["FA-1", "CNC machine", "مخرطة", "SN-99", "Machinery", "2024-07-01", "2024-07-01", "100000", "0", "48", "30000", "24", "15000", "100", "", "Workshop", ""],
   };
   return [fields.map((f) => f.name).join(","), example[kind].join(",")].join("\n");
 }
@@ -319,12 +348,14 @@ export function reliefLabel(v: boolean | null | undefined, lang: Lang): string {
 }
 
 export type WorkspaceSection =
-  | "overview" | "chart" | "parties" | "ar" | "ap" | "advances" | "banks" | "vat" | "trial-balance" | "reconciliation" | "validation" | "commit";
+  | "overview" | "chart" | "parties" | "ar" | "ap" | "advances" | "assets" | "banks" | "vat" | "trial-balance" | "reconciliation" | "validation" | "commit";
 
-export const SECTIONS: readonly WorkspaceSection[] = ["overview", "chart", "parties", "ar", "ap", "advances", "banks", "vat", "trial-balance", "reconciliation", "validation", "commit"];
+export const SECTIONS: readonly WorkspaceSection[] = ["overview", "chart", "parties", "ar", "ap", "advances", "assets", "banks", "vat", "trial-balance", "reconciliation", "validation", "commit"];
 
 /** Which staging section a server control points at — the "go to the affected record" edge. */
 export const CHECK_SECTION: Record<string, WorkspaceSection> = {
+  FIXED_ASSETS_WELL_FORMED: "assets",
+  FIXED_ASSETS_CONTROL: "assets",
   CHART_MAPPED: "chart",
   CHART_BALANCED: "trial-balance",
   AR_CONTROL: "ar",
@@ -373,16 +404,26 @@ export function ageingBucket(dueDate: string, asOf: string): { days: number; buc
 
 /** System codes a chart row may map to — read from the org's own chart. CASH is a header; OBE does not exist and is refused by name even if a stray row carried the code. */
 export const NEVER_A_TARGET = new Set(["CASH", "OPENING_BALANCE_EQUITY"]);
-export function systemTargets(categories: readonly Pick<Category, "id" | "systemCode" | "name" | "nameAr" | "type">[], sourceType?: string) {
+export function systemTargets(categories: readonly Pick<Category, "id" | "systemCode" | "name" | "nameAr" | "type" | "isPlatformSystemAccount">[], sourceType?: string) {
+  // 🔴 FA-D: only the PLATFORM's own system accounts — the set the server accepts
+  // for `map_to_system`. A seeded default that merely carries a code
+  // (FIXED_ASSETS, INVENTORY…) is refused there and offered under `merge_into`
+  // instead; offering it here was a control that led to a refusal.
   return categories
-    .filter((c) => c.systemCode && !NEVER_A_TARGET.has(c.systemCode) && (!sourceType || c.type === sourceType))
+    .filter((c) => c.systemCode && c.isPlatformSystemAccount && !NEVER_A_TARGET.has(c.systemCode) && (!sourceType || c.type === sourceType))
     .map((c) => ({ code: c.systemCode as string, name: c.name, nameAr: c.nameAr, type: c.type }))
     .sort((a, b) => a.code.localeCompare(b.code));
 }
 
-/** Postable non-system accounts of the row's type — the merge_into targets. */
-export function mergeTargets(categories: readonly Pick<Category, "id" | "systemCode" | "name" | "nameAr" | "type" | "isPosting">[], sourceType: string) {
-  return categories.filter((c) => !c.systemCode && c.isPosting !== false && c.type === sourceType);
+/**
+ * Postable accounts of the row's type that are NOT the platform's own system
+ * accounts — what the server accepts for `merge_into`. 🔴 FA-D: this used to
+ * exclude every account carrying a code, which hid the seeded defaults
+ * (FIXED_ASSETS, INVENTORY…) the server has always accepted — so an old
+ * "Equipment at cost" row had no reachable target at all.
+ */
+export function mergeTargets(categories: readonly Pick<Category, "id" | "systemCode" | "name" | "nameAr" | "type" | "isPosting" | "isPlatformSystemAccount">[], sourceType: string) {
+  return categories.filter((c) => !c.isPlatformSystemAccount && c.isPosting !== false && c.type === sourceType);
 }
 /** Header accounts of the row's type — the optional parent of a created account. */
 export function headerTargets(categories: readonly Pick<Category, "id" | "systemCode" | "name" | "nameAr" | "type" | "isPosting">[], sourceType: string) {

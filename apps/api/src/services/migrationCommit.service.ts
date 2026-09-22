@@ -102,6 +102,7 @@ import { categoriesRepository } from "../repositories/categories.repository";
 import { periodLocksRepository } from "../repositories/periodLocks.repository";
 import { auditService } from "./audit.service";
 import { postJournalEntry, type GLLine } from "./accounting/glPosting";
+import { migratedAssetsService } from "./assets/migratedAssets.service";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { migrationService, toBatchOut } from "./migration.service";
 import { readStagedContent, type StagedContent } from "./migrationStaging.service";
@@ -290,6 +291,13 @@ export const migrationCommitService = {
     for (const v of position.apByVendor) lines.push({ systemCode: SYSTEM_ACCOUNTS.AP, accountName: "Accounts Payable", debitAmount: 0, creditAmount: v.total, party: { type: "vendor", vendorId: vendorIdBySource.get(v.partySourceId)! }, description: `${desc} — ${v.items} open item(s) of ${v.partyName ?? v.partySourceId}` });
     for (const d of position.depositsByCustomer) lines.push({ systemCode: SYSTEM_ACCOUNTS.CUSTOMER_DEPOSITS, accountName: "Customer deposits and advances", debitAmount: 0, creditAmount: d.total, party: { type: "customer", customerId: customerIdBySource.get(d.partySourceId)! }, description: `${desc} — ${d.items} advance(s) held for ${d.partyName ?? d.partySourceId}` });
     const je = await postJournalEntry({ entryNumber: `MIG-${batch.id}-OPEN`, date: batch.openingDate, description: desc, reference: `migration:${batch.id}`, lines, source: "opening", migrationBatchId: batch.id });
+
+    // 4b. FA-D: the migrated FIXED ASSETS become register rows on this entry.
+    //     They add NO line of their own — their cost and accumulated
+    //     depreciation are already in `position.lines` above (A5), and the
+    //     FIXED_ASSETS_CONTROL check has already refused a register that does
+    //     not tie to them.
+    const migratedAssets = await migratedAssetsService.materialise(batch, je.id, userId);
 
     // 5. Advances → deposits held: payments rows whose deposit line is in the opening journal.
     const bankByCode = new Map(chart.filter((r) => r.decision === "map_to_bank").map((r) => [r.sourceCode, r.targetBankAccountId!]));

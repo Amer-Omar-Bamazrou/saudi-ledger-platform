@@ -638,6 +638,13 @@
       "when": 1790077300827,
       "tag": "0090_fixed_assets_disposal",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1790079390356,
+      "tag": "0091_fixed_assets_migration",
+      "breakpoints": true
     }
   ]
 }

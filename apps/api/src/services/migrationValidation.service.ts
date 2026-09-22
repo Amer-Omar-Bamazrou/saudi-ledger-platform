@@ -34,6 +34,8 @@ import { migrationRepository } from "../repositories/migration.repository";
 import { auditService } from "./audit.service";
 import { migrationService, chartRowProblems, type VatPositionInput } from "./migration.service";
 import { readStagedContent, findCandidates, partyProblems, openItemProblems, advanceProblems, type StagedContent } from "./migrationStaging.service";
+import { migratedAssetsService, migrationAssetProblems } from "./assets/migratedAssets.service";
+import { assetsRepository } from "../repositories/assets.repository";
 
 const num = (v: unknown) => Number(v ?? 0);
 const eq = (a: number, b: number) => Math.abs(a - b) < 0.005;
@@ -129,6 +131,9 @@ async function openingLines(chart: MigrationChartRow[]): Promise<OpeningLine[]> 
 }
 
 const lineBalance = (lines: OpeningLine[], target: string) => lines.find((l) => l.target === target)?.balance ?? 0;
+/** The mapped balance of a SET of accounts, however the chart row reached them (system, category or created). */
+const accountsBalance = (lines: OpeningLine[], categoryIds: number[]) =>
+  round2(lines.filter((l) => l.categoryId != null && categoryIds.includes(l.categoryId)).reduce((t, l) => t + l.balance, 0));
 
 export async function computeOpeningPosition(batch: MigrationBatch, c?: StagedContent) {
   const content = c ?? (await readStagedContent(batch));
@@ -146,6 +151,22 @@ export async function computeOpeningPosition(batch: MigrationBatch, c?: StagedCo
   const arByCustomer = groupByParty(arItems, (i) => num(i.outstandingAmount), nameOf("customer"));
   const apByVendor = groupByParty(apItems, (i) => num(i.outstandingAmount), nameOf("vendor"));
   const depositsByCustomer = groupByParty(advances, (a) => num(a.amount), nameOf("customer"));
+  /**
+   * 🔴 FA-D (fixed-assets pack §10, §23): a migrated fixed asset creates NO
+   * journal line — its cost and its accumulated depreciation are already in
+   * the staged trial balance (A5: ONE balanced opening position, never a
+   * plug). The register must therefore RECONCILE to the accounts its
+   * categories name, exactly as open items reconcile to AR/AP.
+   */
+  const assetRec = await migratedAssetsService.reconciliation(batch.id);
+  const assetControl = {
+    assets: assetRec.assets.length,
+    registerCost: assetRec.registerCost,
+    registerAccumulated: assetRec.registerAccumulated,
+    mappedCost: accountsBalance(lines, assetRec.costAccountIds),
+    // accumulated depreciation is a CONTRA-asset: a credit balance, read positive
+    mappedAccumulated: round2(-accountsBalance(lines, assetRec.accumulatedAccountIds)),
+  };
   const arTotal = round2(arByCustomer.reduce((s, p) => s + p.total, 0));
   const apTotal = round2(apByVendor.reduce((s, p) => s + p.total, 0));
   const depositTotal = round2(depositsByCustomer.reduce((s, p) => s + p.total, 0));
@@ -254,6 +275,38 @@ export async function computeOpeningPosition(batch: MigrationBatch, c?: StagedCo
     expected: 0, actual: partyIssues + missingParties.length,
     detail: partyIssues === 0 && missingParties.length === 0 ? `${parties.length} part(ies).` : [partyIssues ? `${partyIssues} party row(s) block` : null, missingParties.length ? `not staged: ${missingParties.slice(0, 10).join(", ")}${missingParties.length > 10 ? "…" : ""}` : null].filter(Boolean).join("; "),
   });
+  // FA-D: the staged assets are well-formed, and the register ties to the trial balance.
+  const assetCategories = (await assetsRepository.categories(true)).map((c) => c.category);
+  const assetIssues = assetRec.assets.filter((a) => migrationAssetProblems(a, batch, assetCategories).length > 0).length;
+  /**
+   * 🔴 The control fires when EITHER side is non-zero. Gating it on "some
+   * asset is staged" would make the dangerous case — asset balances in the
+   * trial balance and an EMPTY register — silent, and a silent control reads
+   * as a pass (the confident-zero class, CLAUDE.md §3).
+   */
+  const assetsInPlay = assetRec.assets.length > 0 || Math.abs(assetControl.mappedCost) > 0.005 || Math.abs(assetControl.mappedAccumulated) > 0.005;
+  if (assetsInPlay) {
+    controls.push({
+      id: "FIXED_ASSETS_WELL_FORMED",
+      title: "Every migrated fixed asset names an existing category, was in service by the opening date, and carries its VAT facts while inside the Art. 52 adjustment period",
+      status: assetIssues === 0 ? "pass" : "fail", expected: 0, actual: assetIssues,
+      detail: assetIssues === 0 ? `${assetRec.assets.length} asset(s).` : `${assetIssues} asset(s) block — see each asset's problems.`,
+    });
+    const costOk = eq(assetControl.registerCost, assetControl.mappedCost);
+    const accOk = eq(assetControl.registerAccumulated, assetControl.mappedAccumulated);
+    controls.push({
+      id: "FIXED_ASSETS_CONTROL",
+      title: "The asset register ties to the trial balance: Σ cost = the mapped cost accounts, Σ accumulated = the mapped accumulated-depreciation accounts",
+      status: costOk && accOk ? "pass" : "fail",
+      expected: `cost ${assetControl.mappedCost.toFixed(2)}, accumulated ${assetControl.mappedAccumulated.toFixed(2)}`,
+      actual: `cost ${assetControl.registerCost.toFixed(2)}, accumulated ${assetControl.registerAccumulated.toFixed(2)}`,
+      detail: costOk && accOk
+        ? `${assetRec.assets.length} asset(s): cost ${assetControl.registerCost.toFixed(2)}, accumulated ${assetControl.registerAccumulated.toFixed(2)}, net book value ${(assetControl.registerCost - assetControl.registerAccumulated).toFixed(2)}.`
+        : `A migrated asset adds NO journal line — its figures are already in the trial balance, so the register must state the same ones. `
+          + `The chart maps ${assetControl.mappedCost.toFixed(2)} of cost and ${assetControl.mappedAccumulated.toFixed(2)} of accumulated depreciation to these categories' accounts; the staged register says ${assetControl.registerCost.toFixed(2)} and ${assetControl.registerAccumulated.toFixed(2)}. `
+          + `Stage the missing asset(s), or correct the chart rows — never a balancing entry.`,
+    });
+  }
   const itemIssues = items.filter((i) => openItemProblems(i, content).length > 0).length;
   controls.push({ id: "OPEN_ITEMS", title: "Every open item is well-formed: staged party, dated at or before the opening date, an unused original number, one composition-unknown item per party at most", status: itemIssues === 0 ? "pass" : "fail", expected: 0, actual: itemIssues, detail: itemIssues === 0 ? `${items.length} item(s).` : `${itemIssues} item(s) block — see the items' problems.` });
   const advanceIssues = advances.filter((a) => advanceProblems(a, content).length > 0).length;
@@ -298,6 +351,7 @@ export async function computeOpeningPosition(batch: MigrationBatch, c?: StagedCo
       ytdIncome, ytdExpense, ytdResult: round2(ytdIncome - ytdExpense),
     },
     arByCustomer, apByVendor, depositsByCustomer,
+    assetControl,
     banks: bankOpenings,
     controls,
   };

@@ -32,12 +32,13 @@ import { Download, Upload } from "lucide-react";
 import { FIELDS_OF, coerceRow, csvTemplate, parseStagedText, type FieldSpec, type StagedKind } from "@/lib/migrationImport";
 import { invalidateMigration } from "./shared";
 
-const PATH: Record<StagedKind, string> = { chart: "chart", parties: "parties", openItems: "open-items", advances: "advances" };
+const PATH: Record<StagedKind, string> = { chart: "chart", parties: "parties", openItems: "open-items", advances: "advances", assets: "assets" };
 const TITLE: Record<StagedKind, [string, string]> = {
   chart: ["Chart of accounts", "دليل الحسابات"],
   parties: ["Customers & suppliers", "العملاء والموردون"],
   openItems: ["Open items (AR / AP)", "البنود المفتوحة (مدينة / دائنة)"],
   advances: ["Customer advances", "دفعات العملاء المقدمة"],
+  assets: ["Fixed assets", "الأصول الثابتة"],
 };
 
 function downloadText(name: string, text: string) {

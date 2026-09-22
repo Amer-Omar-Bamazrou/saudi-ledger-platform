@@ -13,6 +13,7 @@ import {
   migrationPartiesTable,
   migrationOpenItemsTable,
   migrationAdvancesTable,
+  migrationAssetsTable,
   categoriesTable,
   bankAccountsTable,
   customersTable,
@@ -117,6 +118,20 @@ export const migrationRepository = {
   insertAdvances(values: (typeof migrationAdvancesTable.$inferInsert)[]) {
     if (values.length === 0) return Promise.resolve([]);
     return db.insert(migrationAdvancesTable).values(values).returning();
+  },
+  // ── FA-D: the migrated fixed assets (fixed-assets pack §10, §23) ──
+  migrationAssets(batchId: number) {
+    return db.select().from(migrationAssetsTable).where(eq(migrationAssetsTable.batchId, batchId)).orderBy(asc(migrationAssetsTable.sourceId), asc(migrationAssetsTable.id));
+  },
+  deleteMigrationAssets(batchId: number) {
+    return db.delete(migrationAssetsTable).where(eq(migrationAssetsTable.batchId, batchId));
+  },
+  insertMigrationAssets(values: (typeof migrationAssetsTable.$inferInsert)[]) {
+    if (values.length === 0) return Promise.resolve([]);
+    return db.insert(migrationAssetsTable).values(values).returning();
+  },
+  updateMigrationAsset(id: number, values: Partial<typeof migrationAssetsTable.$inferInsert>) {
+    return db.update(migrationAssetsTable).set(values).where(eq(migrationAssetsTable.id, id)).returning();
   },
 
   // ── the existing records a party may be (RLS-scoped: this organisation only) ──

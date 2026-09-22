@@ -26,8 +26,16 @@ const CHART_CSV = [
   "sourceCode,sourceName,sourceType,openingDebit,openingCredit,sourceRole,evidenceNote",
   "1100,Riyad Bank,asset,30000,0,bank,Riyad statement 31 Dec 2024 closing 30000.00",
   "1200,Trade debtors,asset,25000,0,receivable,",
+  // FA-D: the fixed-asset balances the register must tie to (they post no line of their own)
+  "1500,Equipment at cost,asset,20000,0,,",
+  "1590,Accumulated depreciation,asset,0,8000,,",
   "2100,Trade creditors,liability,0,7000,payable,",
-  "3100,Share capital,equity,0,48000,,",
+  "3100,Share capital,equity,0,60000,,",
+].join("\n");
+// FA-D: the assets those two balances are made of — cost 20,000, accumulated 8,000.
+const ASSETS_CSV = [
+  "sourceId,name,nameAr,serialNumber,categoryName,acquisitionDate,availableForUseDate,cost,residualValue,usefulLifeMonths,openingAccumulatedDepreciation,openingPeriodsBooked,vatInputTaxAmount,vatInitialRecoveryPct,vatNonDeductibleReason,location,description",
+  "FA-1,Packing machine,آلة تعبئة,SN-1,Migrated equipment,2023-01-01,2023-01-01,20000,0,50,8000,20,3000,100,,Warehouse,",
 ].join("\n");
 const PARTIES_CSV = [
   "partyType,sourceId,name,nameAr,taxNumber",
@@ -48,7 +56,7 @@ const ITEMS_CSV = [
   "ap,PI-77,V1,BILL-77,2024-10-15,2024-11-14,7000,7000,,,,,",
 ].join("\n");
 
-async function importSet(page: Page, kind: "chart" | "parties" | "ar", csv: string) {
+async function importSet(page: Page, kind: "chart" | "parties" | "ar" | "assets", csv: string) {
   await page.getByTestId(`${kind}-import`).click();
   const dialog = page.getByTestId(`import-dialog-${kind === "ar" ? "openItems" : kind}`);
   await expect(dialog).toBeVisible();
@@ -104,6 +112,25 @@ test.describe.serial("the migration, end to end", () => {
     await pickOption(page, /Riyad Main/);
     await editor1100.locator('[data-testid^="decision-save-"]').click();
     await expect(page.getByTestId("chart-row-1100")).toContainText("Riyad Main");
+    // FA-D: the two fixed-asset rows — the cost merges into the default Fixed Assets account,
+    // the accumulated depreciation maps to the system account of the same name.
+    await page.getByTestId("chart-row-1500").locator('[data-testid^="map-"]').click();
+    const editor1500 = page.locator('[data-testid^="decision-editor-"]');
+    await editor1500.locator('[data-testid^="decision-"]').first().click();
+    await pickOption(page, /Merge into existing account/);
+    await editor1500.locator('[data-testid^="target-category-"]').click();
+    await pickOption(page, /^Fixed Assets$/);
+    await editor1500.locator('[data-testid^="decision-save-"]').click();
+    await expect(page.getByTestId("chart-row-1500")).toContainText("Fixed Assets");
+    await page.getByTestId("chart-row-1590").locator('[data-testid^="map-"]').click();
+    const editor1590 = page.locator('[data-testid^="decision-editor-"]');
+    await editor1590.locator('[data-testid^="decision-"]').first().click();
+    await pickOption(page, /Map to system account/);
+    await editor1590.locator('[data-testid^="target-system-"]').click();
+    await pickOption(page, /Accumulated depreciation/);
+    await editor1590.locator('[data-testid^="decision-save-"]').click();
+    await expect(page.getByTestId("chart-row-1590")).toContainText("Accumulated depreciation");
+
     // capital → a new account. 🔴 The system-account list never offers OPENING_BALANCE_EQUITY.
     await page.getByTestId("chart-row-3100").locator('[data-testid^="map-"]').click();
     const editor3100 = page.locator('[data-testid^="decision-editor-"]');
@@ -140,6 +167,19 @@ test.describe.serial("the migration, end to end", () => {
     await expect(page.getByTestId("item-row-INV-1001")).toContainText("historical record");
     await page.getByTestId("tab-ap").click();
     await expect(page.getByTestId("item-row-BILL-77")).toBeVisible();
+
+    // 4b. FA-D — the fixed assets. They post NO line of their own, so the register must TIE to the
+    // chart's asset balances: the control fails while the register is empty and passes once it does.
+    await page.getByTestId("tab-validation").click();
+    await page.getByTestId("run-validation").click();
+    await expect(page.getByTestId("check-FIXED_ASSETS_CONTROL")).toHaveAttribute("data-status", "fail");
+    await page.getByTestId("tab-assets").click();
+    await expect(page.getByTestId("section-assets")).toBeVisible();
+    await importSet(page, "assets", ASSETS_CSV);
+    await expect(page.getByTestId("asset-row-FA-1")).toContainText("Packing machine");
+    await expect(page.getByTestId("assets-kpi-1")).toContainText("20,000.00");
+    await expect(page.getByTestId("assets-kpi-2")).toContainText("8,000.00");
+    await expect(page.getByTestId("assets-kpi-3")).toContainText("12,000.00");
     await page.getByTestId("tab-banks").click();
     await expect(page.getByTestId("bank-row-1100")).toContainText("30,000.00");
     await page.getByTestId("tab-vat").click();
@@ -181,8 +221,8 @@ test.describe.serial("the migration, end to end", () => {
 
     // 8. the trial balance: Dr = Cr, difference 0
     await page.getByTestId("tab-trial-balance").click();
-    await expect(page.getByTestId("tb-debit")).toContainText("55,000.00");
-    await expect(page.getByTestId("tb-credit")).toContainText("55,000.00");
+    await expect(page.getByTestId("tb-debit")).toContainText("75,000.00");
+    await expect(page.getByTestId("tb-credit")).toContainText("75,000.00");
     await expect(page.getByTestId("tb-difference")).toContainText("0.00");
     await expect(page.getByTestId("tb-line-system:AR")).toContainText("25,000.00");
     // 9. R1–R10 do not exist before commit
@@ -218,6 +258,18 @@ test.describe.serial("the migration, end to end", () => {
     const je2 = await (await page.request.get("/api/journal-entries?limit=5")).json();
     expect(je2.page.total).toBe(1);
     expect(je2.items[0].entryNumber).toBe(`MIG-${batchId}-OPEN`);
+    // FA-D: the staged asset is now a register row IN SERVICE on the opening journal, and its
+    // schedule resumes after the opening date — the migration created no extra journal entry.
+    await page.getByTestId("tab-assets").click();
+    await expect(page.getByTestId("asset-registered-FA-1")).toBeVisible();
+    const assets = await (await page.request.get("/api/assets?limit=50")).json();
+    const migrated = (assets.items as Array<{ id: number; source: string; status: string; cost: number; accumulatedDepreciation: number; carryingAmount: number; capitalisationJournalEntryId: number | null; plannedPeriods: number }>).find((a) => a.source === "migration")!;
+    expect([migrated.status, migrated.cost, migrated.accumulatedDepreciation, migrated.carryingAmount]).toEqual(["in_service", 20000, 8000, 12000]);
+    expect(migrated.plannedPeriods).toBe(30); // 50 − 20 already booked
+    const detail = await (await page.request.get(`/api/assets/${migrated.id}`)).json();
+    expect(detail.capitalisationJournalEntryId).toBe(je2.items[0].id);
+    expect(detail.schedule[0].sequence).toBe(21);
+
     // the journal deep link lands on the entry
     await page.getByTestId("tab-commit").click();
     await page.getByTestId("link-opening-journal").click();
@@ -402,9 +454,11 @@ test.describe.serial("the migration, end to end", () => {
     await page.goto(`/migration/${batchId}?section=overview`);
     await expect(page.getByTestId("section-select")).toBeVisible();
     await expect(page.getByTestId("section-tabs")).toBeHidden();
-    for (const s of ["chart", "parties", "ar", "trial-balance", "validation", "commit"]) {
+    // 🔴 The picker's order IS the SECTIONS order — keep the two in step (FA-D added "assets").
+    const ORDER = ["overview", "chart", "parties", "ar", "ap", "advances", "assets", "banks", "vat", "trial-balance", "reconciliation", "validation", "commit"];
+    for (const s of ["chart", "parties", "ar", "assets", "trial-balance", "validation", "commit"]) {
       await page.getByTestId("section-select").click();
-      await page.getByRole("option").nth(["overview", "chart", "parties", "ar", "ap", "advances", "banks", "vat", "trial-balance", "reconciliation", "validation", "commit"].indexOf(s)).click();
+      await page.getByRole("option").nth(ORDER.indexOf(s)).click();
       await expect(page.getByTestId(`section-${s}`)).toBeVisible();
       await noHorizontalScroll(page, `phone ${s}`);
     }

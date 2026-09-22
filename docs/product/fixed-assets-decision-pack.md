@@ -1,6 +1,6 @@
 # Fixed Assets & Depreciation — research and decision pack
 
-**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A is BUILT — §20; FA-B (capitalisation, the monthly run, the estimate change) — §21; FA-C (disposal) — §22.** FA-D … FA-F follow. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A is BUILT — §20; FA-B (capitalisation, the monthly run, the estimate change) — §21; FA-C (disposal) — §22; FA-D (migrated assets) — §23.** FA-E and FA-F follow. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md): every accounting claim below carries its class — `AUTHORITATIVE (Saudi)`, `STANDARD (IFRS)`, `ODOO`, `ERPNEXT`, `PRODUCT DECISION`, or `ACCOUNTANT DECISION REQUIRED` — and nothing from Odoo or ERPNext is presented as a Saudi requirement. Primary texts were fetched and read in this pass (§18); the two Saudi texts read in English are ZATCA's own translations, which state that the Arabic prevails — readings that turn on wording are marked *reasoned-not-verified*.
 
@@ -507,3 +507,50 @@ A **SCRAP / DESTRUCTION / THEFT / WITHDRAWAL** is `POST /assets/{id}/dispose`: t
 ### 22.5 What this did not do
 
 Partial disposal of a component (out of scope, §12); the Art. 52(7) adjustment ARITHMETIC on a sale inside the adjustment period (the FA-2 engine, now in scope by the accountant's answer — the facts it needs are all stored); the nominal supply's own VAT declaration; a disposal of a MIGRATED asset (FA-D brings those into the register first).
+
+---
+
+## 23. FA-D — migrated fixed assets, as built (2026-09-22)
+
+**Status (2026-09-22): BUILT on `feat/fixed-assets-migration` (migration `0091`). Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+
+### 23.1 A staging set beside the others — and NO journal line
+
+`migration_assets` joins parties, open items and advances as a Batch 1C staging set: the previous system's assets with their original cost, the accumulated depreciation it had booked, over how many periods, the life and method, the VAT Art. 52 facts and an EXISTING asset category by name (which carries the accounts, the Art. 17 group and the Art. 52 class).
+
+🔴 **A migrated asset posts nothing of its own.** Its cost and accumulated depreciation are already in the staged trial balance — A5: one balanced opening position, never a plug — so the register **reconciles** to the accounts its categories name, exactly as open items reconcile to AR/AP:
+
+- **`FIXED_ASSETS_CONTROL`** — Σ register cost = the mapped cost accounts, Σ opening accumulated = the mapped accumulated accounts. Its detail names both figures and says a migrated asset adds no line, so the remedy is to stage the missing asset or correct the chart row, never a balancing entry.
+- **`FIXED_ASSETS_WELL_FORMED`** — the category exists and is active, the asset was in service by the opening date (one that entered service later is BOUGHT in the product, not migrated), the method is computable, and an asset still inside its Art. 52 adjustment period carries its input-tax facts (or the adjustment could never be computed).
+
+🔴 **The control fires when EITHER side is non-zero.** Gating it on "some asset is staged" made the dangerous case — asset balances in the trial balance with an EMPTY register — silent, and a silent control reads as a pass. Found by the browser walk, whose first act is to validate before staging anything: the same confident-zero shape the mapped side had, when it derived the account set from the staged rows instead of from every asset category.
+
+### 23.2 At commit
+
+Each staged asset becomes a register row: `source = migration`, the batch and source id as provenance, `in_service` with the **opening journal** as its capitalisation entry, its opening accumulated depreciation and periods recorded, and its schedule **resuming the month after the opening date** over the remaining life at the right sequence (a 50-month asset with 20 booked resumes at sequence 21 with 30 rows). A `capitalised` event records the migration's own facts. Nothing is depreciated retrospectively, and no second journal entry exists.
+
+### 23.3 A defect this phase surfaced in the migration mapper
+
+The chart mapper's two doors disagreed with the server: `map_to_system` **offered** accounts the server refuses (a seeded default that merely carries a code, such as `FIXED_ASSETS`), while `merge_into` **hid** exactly those accounts, which the server accepts. An old "Equipment at cost" row therefore had no reachable target at all — a control that leads only to a refusal, and a capability with no control. Fixed at the source: the categories read now states `isPlatformSystemAccount` (computed from `SYSTEM_ACCOUNTS`, one definition), and both client filters key on it.
+
+### 23.4 Verified
+
+`tests/fixed-assets-migration.test.ts` (3, real rows): the control passing on the true position, FAILING when the register understates it, and passing again — presence, absence and movement — with no opening-balance-equity account anywhere; the named refusals (in service after the opening date, an unknown category, inside the adjustment period without its VAT facts, accumulated above the depreciable amount, a 0 % recovery with no Art. 50 reason); and pack §17 row 14 end to end — the opening journal's two asset lines from the trial balance, the register row in service on that entry, the schedule resuming at sequence 25 of 48, the next monthly run posting it, and the staging row frozen afterwards.
+
+The migration workspace walk gained the whole leg: the chart now carries asset balances, the control is seen FAILING before the assets are staged, the section imports them, and after the commit the register row is read back (in service, on the opening entry, 30 planned periods, sequence 21). `pnpm run verify`: green.
+
+### 23.5 What this did not do
+
+A migrated asset's DISPOSAL inside the same batch's reversal (the batch reversal mirrors the opening journal; the register rows it created are not yet reversed with it — recorded here as the next FA-D follow-up); assets under construction; the Art. 52 use-history rows for a partially exempt tenant (FA-F); the pool report's opening balances for a migrated tenant (FA-F reads the register, which now holds them).
+
+**A gap this phase EXPOSED, not caused (recorded, not fixed here).** The mapper
+regression was caught by a unit test, not by the compiler: `apps/web`'s
+`tsconfig.json` excludes `**/*.test.ts`, so **the web unit tests are outside
+`pnpm run typecheck`**. Adding a required field to a response type therefore
+cannot fail a web test file that builds a fixture without it — the fixture just
+carries `undefined` and the function under test returns a confident empty list.
+Probed on 2026-09-22 by typechecking with the exclusion removed: the backlog is
+in `openInvoice.test.ts`, `statementParser.test.ts` and their neighbours (string
+literals where the generated types now say `number`), which is why the exclusion
+is still there. Closing it is a standalone cleanup, and it belongs on the queue
+rather than inside a fixed-assets PR.
