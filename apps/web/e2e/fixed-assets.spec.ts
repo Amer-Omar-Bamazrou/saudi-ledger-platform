@@ -174,19 +174,51 @@ test.describe.serial("fixed assets, end to end", () => {
     await expect(page.getByTestId("detail-life")).toContainText("1/12");
   });
 
+  test("🔴 FA-C — scrap it by clicking: the months up to the disposal are depreciated first, the cost and its accumulated depreciation leave the books, the loss is the carrying amount and the page says so", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto(`/assets/${assetId}`);
+    const before = await asset(assetId);
+    const carrying = before.carryingAmount;
+    expect(carrying).toBeGreaterThan(0);
+    await page.getByTestId("dispose-asset").click();
+    const dlg = page.getByTestId("dispose-dialog");
+    await expect(dlg.getByTestId("dispose-submit")).toBeDisabled();
+    await expect(dlg.getByTestId("dispose-loss")).toContainText(carrying.toLocaleString("en-US", { minimumFractionDigits: 2 }));
+    await dlg.getByTestId("dispose-kind").click();
+    await pickOption(page, /Withdrawn from the business/);
+    await expect(dlg.getByTestId("withdrawn-hint")).toContainText("NOMINAL SUPPLY");
+    await dlg.getByTestId("dispose-kind").click();
+    await pickOption(page, /^Scrapped/);
+    await dlg.getByTestId("dispose-reason").fill("Damaged beyond repair — scrap certificate E2E-1");
+    await dlg.getByTestId("dispose-submit").click();
+    await expect(dlg).toBeHidden({ timeout: 15_000 });
+    await expect(page.getByTestId("disposal-notice")).toContainText("Scrapped");
+    await expect(page.getByTestId("disposal-notice")).toContainText("loss");
+    const after = await asset(assetId);
+    expect([after.status, after.carryingAmount, after.plannedPeriods]).toEqual(["disposed", 0, 0]);
+    const d = (after as unknown as { disposal: { kind: string; gainLoss: number; carryingAmountAtDisposal: number; vatTreatment: string; journalEntryId: number } }).disposal;
+    expect(d).toMatchObject({ kind: "scrapped", vatTreatment: "no_adjustment" });
+    expect(d.gainLoss).toBe(-d.carryingAmountAtDisposal);
+    // the derecognition: the cost off, the accumulated off, the carrying amount to the disposal account
+    const lines = await entryLines(d.journalEntryId);
+    expect(lines.map((l) => l[0])).toEqual(["Accumulated depreciation", "Gain (loss) on disposal of fixed assets", "Fixed Assets"]);
+    expect(lines[2]).toEqual(["Fixed Assets", 0, after.cost]);
+    // terminal: the acts are gone from the page
+    await expect(page.getByTestId("dispose-asset")).toHaveCount(0);
+    await expect(page.getByTestId("run-depreciation")).toHaveCount(0);
+    await expect(page.getByTestId("change-estimate")).toHaveCount(0);
+  });
+
   test("Arabic / RTL: the register, the detail page and both dialogs read right-to-left with Arabic labels, and nothing scrolls sideways", async ({ page }) => {
     await page.goto("/assets");
     await page.evaluate(() => localStorage.setItem("ksa_lang", "ar"));
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.getByRole("heading", { name: "الأصول الثابتة" })).toBeVisible();
-    await expect(page.getByTestId(`asset-status-${assetNumber}`)).toHaveText("في الخدمة");
+    await expect(page.getByTestId(`asset-status-${assetNumber}`)).toHaveText("مستبعد");
     await noSidewaysScroll(page, 1280, "ar register");
     await page.goto(`/assets/${assetId}`);
-    await expect(page.getByTestId("run-depreciation")).toContainText("إهلاك");
-    await page.getByTestId("change-estimate").click();
-    await expect(page.getByTestId("estimate-dialog")).toContainText("تغيير التقدير");
-    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("disposal-notice")).toContainText("شُطب");
     await page.goto("/asset-schedule");
     await expect(page.getByRole("heading", { name: "جدول الأصول الثابتة" })).toBeVisible();
     await expect(page.getByTestId(`schedule-row-${assetNumber}`)).toBeVisible();
@@ -200,11 +232,7 @@ test.describe.serial("fixed assets, end to end", () => {
     await noSidewaysScroll(page, PHONE.width, "phone register");
     await page.goto(`/assets/${assetId}`);
     await noSidewaysScroll(page, PHONE.width, "phone asset detail");
-    await page.getByTestId("run-depreciation").click();
-    const dlg = page.getByTestId("run-depreciation-dialog");
-    await expect(dlg).toBeVisible();
-    await expect.poll(async () => { const b = await dlg.boundingBox(); return !!b && b.x >= -1 && b.x + b.width <= PHONE.width + 1; }, { message: "the run dialog fits a 390px phone", timeout: 5_000 }).toBe(true);
-    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("disposal-notice")).toBeVisible();
     await page.goto("/asset-schedule");
     await noSidewaysScroll(page, PHONE.width, "phone asset schedule");
   });

@@ -218,6 +218,13 @@ export const invoicesTable = pgTable(
      * AR at its outstanding amount). Every later Art. 40(9) recovery reads
      * these, never the notes.
      */
+    /**
+     * FA-C (2026-09-22): the fixed asset this tax invoice SELLS. When set, the
+     * revenue line credits the disposal gain/loss account instead of SALES
+     * (IAS 16.68 — a disposal is not revenue), and approval derecognises the
+     * asset on the same entry. NULL on every ordinary invoice.
+     */
+    disposesAssetId: integer("disposes_asset_id"),
     writtenOffAmount: numeric("written_off_amount", { precision: 15, scale: 2 }).notNull().default("0"),
     badDebtReliefClaimedOn: text("bad_debt_relief_claimed_on"),
     badDebtReliefVatAmount: numeric("bad_debt_relief_vat_amount", { precision: 15, scale: 2 }),

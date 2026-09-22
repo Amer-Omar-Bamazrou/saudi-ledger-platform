@@ -16,5 +16,7 @@ router.post("/:id/cancel", assetsController.cancel);
 router.post("/depreciation-runs", assetsController.runPeriod);
 router.post("/:id/depreciate", assetsController.depreciate);
 router.post("/:id/estimate", assetsController.changeEstimate);
+// FA-C: the no-proceeds disposal. A SALE is an invoice that names the asset.
+router.post("/:id/dispose", assetsController.dispose);
 
 export default router;

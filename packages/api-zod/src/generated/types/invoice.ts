@@ -86,6 +86,11 @@ export interface Invoice {
      */
   advancePaymentId: number | null;
   /**
+     * FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.
+     * @nullable
+     */
+  disposesAssetId?: number | null;
+  /**
      * 2026-09-22, opening items only: the previous solution's e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).
      * @nullable
      */

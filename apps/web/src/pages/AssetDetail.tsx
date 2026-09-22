@@ -21,9 +21,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
-import { ArrowLeft, TrendingDown, Pencil } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { businessToday } from "@workspace/shared";
+import { ArrowLeft, TrendingDown, Pencil, Trash2 } from "lucide-react";
 import { statusLabel } from "./Assets";
-import type { AssetDetail as AssetDetailShape, DepreciateAssetInput, ChangeAssetEstimateInput } from "@workspace/api-client-react";
+import type { AssetDetail as AssetDetailShape, DepreciateAssetInput, ChangeAssetEstimateInput, DisposeAssetInput } from "@workspace/api-client-react";
 
 export default function AssetDetail() {
   const [, params] = useRoute("/assets/:id");
@@ -35,6 +37,8 @@ export default function AssetDetail() {
   const [postingDate, setPostingDate] = useState("");
   const [estimateOpen, setEstimateOpen] = useState(false);
   const [estimate, setEstimate] = useState({ usefulLifeMonths: "", residualValue: "", reason: "" });
+  const [disposeOpen, setDisposeOpen] = useState(false);
+  const [disposal, setDisposal] = useState({ date: businessToday(), kind: "scrapped", reason: "" });
 
   const { data: asset, isLoading, error } = useQuery<AssetDetailShape>({
     queryKey: ["asset", id],
@@ -71,6 +75,23 @@ export default function AssetDetail() {
     },
   });
 
+  const disposeMut = useMutation({
+    mutationFn: () => {
+      const body: DisposeAssetInput = { date: disposal.date, kind: disposal.kind as DisposeAssetInput["kind"], reason: disposal.reason.trim() };
+      return apiFetch(`/assets/${id}/dispose`, { method: "POST", body: JSON.stringify(body) });
+    },
+    onSuccess: (out: { disposal: { gainLoss: number }; depreciatedFirst: Array<{ period: string }> }) => {
+      qc.invalidateQueries({ queryKey: ["asset", id] });
+      qc.invalidateQueries({ queryKey: ["assets"] });
+      setDisposeOpen(false);
+      toast({
+        title: t("Asset disposed", "تم استبعاد الأصل"),
+        description: `${out.disposal.gainLoss < 0 ? t("Loss", "خسارة") : t("Gain", "ربح")} ${fmtNum(Math.abs(out.disposal.gainLoss))}`
+          + (out.depreciatedFirst.length > 0 ? ` · ${t(`${out.depreciatedFirst.length} period(s) depreciated first`, `أُهلكت ${out.depreciatedFirst.length} فترة أولًا`)}` : ""),
+      });
+    },
+  });
+
   if (isLoading) return <p className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</p>;
   if (error || !asset) return <p className="text-sm text-destructive p-4">{t("The asset could not be loaded.", "تعذّر تحميل الأصل.")} {(error as Error)?.message}</p>;
 
@@ -102,8 +123,26 @@ export default function AssetDetail() {
           {asset.status === "in_service" && (
             <Button size="sm" variant="outline" className="gap-1" onClick={() => setEstimateOpen(true)} data-testid="change-estimate"><Pencil className="w-4 h-4" />{t("Change estimate", "تغيير التقدير")}</Button>
           )}
+          {asset.status === "in_service" && (
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => setDisposeOpen(true)} data-testid="dispose-asset"><Trash2 className="w-4 h-4" />{t("Scrap / write off", "شطب / استبعاد")}</Button>
+          )}
         </div>
       </div>
+
+      {asset.disposal && (
+        <Card className="border-border bg-card"><CardContent className="pt-4">
+          <p className="text-sm" data-testid="disposal-notice">
+            <span className="font-medium">{({ sold: t("Sold", "بيع"), scrapped: t("Scrapped", "شُطب"), destroyed: t("Destroyed", "أُتلف"), stolen: t("Stolen", "سُرق"), withdrawn: t("Withdrawn", "سُحب") } as Record<string, string>)[asset.disposal.kind]}</span>
+            {" "}<span dir="ltr">{asset.disposal.date}</span>
+            {" · "}{asset.disposal.gainLoss < 0 ? t("loss", "خسارة") : t("gain", "ربح")} <span className="font-mono">{fmtNum(Math.abs(asset.disposal.gainLoss))}</span>
+            {" · "}{t("carrying amount on disposal", "القيمة الدفترية عند الاستبعاد")} <span className="font-mono">{fmtNum(asset.disposal.carryingAmountAtDisposal)}</span>
+            {asset.disposal.nominalSupplyValue != null && (
+              <> · <span data-testid="nominal-supply">{t("nominal supply (VAT Art. 52(8))", "توريد اعتباري (المادة 52(8))")} <span className="font-mono">{fmtNum(asset.disposal.nominalSupplyValue)}</span></span></>
+            )}
+            {asset.disposal.reason && <span className="block text-muted-foreground text-xs mt-1">{asset.disposal.reason}</span>}
+          </p>
+        </CardContent></Card>
+      )}
 
       {asset.status === "draft" && (
         <Card className="border-border bg-card"><CardContent className="pt-4">
@@ -181,6 +220,48 @@ export default function AssetDetail() {
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setRunOpen(false)}>{t("Cancel", "إلغاء")}</Button>
             <Button onClick={() => runMut.mutate()} disabled={runMut.isPending} data-testid="run-submit">{runMut.isPending ? t("Posting…", "جارٍ الترحيل…") : t("Post depreciation", "ترحيل الإهلاك")}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={disposeOpen} onOpenChange={(o) => { if (!o) setDisposeOpen(false); }}>
+        <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-md" data-testid="dispose-dialog">
+          <DialogHeader>
+            <DialogTitle>{t("Scrap or write off", "شطب أو استبعاد")}</DialogTitle>
+            <DialogDescription>
+              {t("For an asset that leaves with NO proceeds. A SALE is a tax invoice that names this asset, so the supply and its VAT are documented. Every period up to the month it left is depreciated first (IAS 16.55), then the cost and its accumulated depreciation come off the books and the carrying amount becomes a loss.",
+                 "للأصل الذي يخرج دون مقابل. أما البيع فهو فاتورة ضريبية تسمّي هذا الأصل، ليُوثَّق التوريد وضريبته. تُهلك أولًا كل فترة حتى شهر الخروج (معيار 16.55)، ثم تخرج التكلفة ومجمع إهلاكها من الدفاتر وتصبح القيمة الدفترية خسارة.")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">{t("What happened", "ما الذي حدث")}</Label>
+              <Select value={disposal.kind} onValueChange={(v) => setDisposal((p) => ({ ...p, kind: v }))}>
+                <SelectTrigger className="mt-1 h-9" data-testid="dispose-kind"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scrapped">{t("Scrapped", "شُطب")}</SelectItem>
+                  <SelectItem value="destroyed">{t("Destroyed", "أُتلف")}</SelectItem>
+                  <SelectItem value="stolen">{t("Stolen", "سُرق")}</SelectItem>
+                  <SelectItem value="withdrawn">{t("Withdrawn from the business (still usable)", "سُحب من النشاط (وما زال صالحًا)")}</SelectItem>
+                </SelectContent>
+              </Select>
+              {disposal.kind === "withdrawn" && (
+                <p className="text-[11px] text-muted-foreground mt-1" data-testid="withdrawn-hint">
+                  {t("A withdrawal while the asset is still usable is a NOMINAL SUPPLY for VAT (Art. 52(8)); its value is computed and recorded on the disposal.",
+                     "سحب الأصل وهو ما زال صالحًا للاستخدام يُعد توريدًا اعتباريًا لأغراض ضريبة القيمة المضافة (المادة 52(8))؛ وتُحتسب قيمته وتُسجَّل مع الاستبعاد.")}
+                </p>
+              )}
+            </div>
+            <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={disposal.date} onChange={(e) => setDisposal((p) => ({ ...p, date: e.target.value }))} className="mt-1 h-9" data-testid="dispose-date" /></div>
+            <div><Label className="text-xs text-muted-foreground">{t("Reason and evidence", "السبب والإثبات")}</Label><Textarea rows={2} value={disposal.reason} onChange={(e) => setDisposal((p) => ({ ...p, reason: e.target.value }))} className="mt-1" data-testid="dispose-reason" /></div>
+            <div className="rounded-md border border-border p-3 text-sm flex justify-between">
+              <span className="text-muted-foreground">{t("Loss on disposal (the carrying amount today)", "الخسارة عند الاستبعاد (القيمة الدفترية اليوم)")}</span>
+              <span className="font-mono" data-testid="dispose-loss">{fmtNum(asset.carryingAmount)}</span>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDisposeOpen(false)}>{t("Cancel", "إلغاء")}</Button>
+            <Button onClick={() => disposeMut.mutate()} disabled={!disposal.reason.trim() || disposeMut.isPending} data-testid="dispose-submit">{disposeMut.isPending ? t("Posting…", "جارٍ الترحيل…") : t("Dispose", "استبعاد")}</Button>
           </div>
         </DialogContent>
       </Dialog>

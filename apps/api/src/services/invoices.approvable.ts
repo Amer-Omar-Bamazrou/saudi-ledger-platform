@@ -41,6 +41,8 @@ import { ADVANCE_INVOICE_TYPE, ADVANCE_CREDIT_NOTE_TYPE, RECOVERY_INVOICE_TYPE, 
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 import { advanceInvoicesService, prepaymentsOf, assertTaxPointPeriodOpen } from "./advanceInvoices.service";
 import type { GLLine } from "./accounting/glPosting";
+import { assetDisposalService } from "./assets/disposal.service";
+import { auditContext } from "../lib/auditContext";
 
 type Invoice = typeof InvoicesTable.$inferSelect;
 type Customer = typeof customersTable.$inferSelect;
@@ -506,17 +508,33 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
         await invoiceSettlementRepository.bumpSettled(original.id, { credited: applied });
       }
     } else if (prepayments.length === 0) {
-      await postJournalEntry({
+      /**
+       * 🔴 FA-C (2026-09-22): an invoice that SELLS A FIXED ASSET credits the
+       * DISPOSAL gain/loss account, never `SALES` — IAS 16.68: the result of
+       * a disposal is not revenue — and derecognises the asset on this same
+       * entry (one act, one entry). The gain or loss is what the account then
+       * holds: proceeds − carrying amount. Record: fixed-assets pack §9, §22.
+       */
+      const disposalPlan = inv.disposesAssetId != null ? await assetDisposalService.saleInvoicePlan(inv.disposesAssetId, vatAmount) : null;
+      if (disposalPlan) await assetDisposalService.runDepreciationToDisposal(inv.disposesAssetId!, inv.date, auditContext.get()?.userId ?? null);
+      const fresh = disposalPlan ? await assetDisposalService.saleInvoicePlan(inv.disposesAssetId!, vatAmount) : null;
+      const revenueLine: GLLine = fresh
+        ? { accountId: fresh.disposalAccountId, accountName: fresh.disposalAccountName, description: `Proceeds on disposal of ${fresh.asset.assetNumber} (${inv.invoiceNumber})`, debitAmount: 0, creditAmount: subtotal }
+        : { systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal };
+      const saleLines: GLLine[] = [
+        { systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0, party },
+        revenueLine,
+      ];
+      if (vatAmount > 0.005 || !fresh) saleLines.push({ systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount });
+      if (fresh) saleLines.push(...assetDisposalService.derecognitionLines(fresh));
+      const je = await postJournalEntry({
         entryNumber: `GL-${inv.invoiceNumber}`,
         date: inv.date,
-        description: `${label} ${inv.invoiceNumber}`,
+        description: `${label} ${inv.invoiceNumber}${fresh ? ` — disposal of ${fresh.asset.assetNumber}` : ""}`,
         reference: inv.invoiceNumber,
-        lines: [
-          { systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0, party },
-          { systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal },
-          { systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount },
-        ],
+        lines: saleLines,
       });
+      if (fresh) await assetDisposalService.completeSale(fresh, { id: inv.id, date: inv.date, invoiceNumber: inv.invoiceNumber, subtotal }, je.id, auditContext.get()?.userId ?? null);
     } else {
       /**
        * 🔴 AP-2 — E3, the FINAL invoice that ADJUSTS advance tax invoice(s)

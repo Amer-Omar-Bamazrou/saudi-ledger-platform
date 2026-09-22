@@ -78,6 +78,8 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
     openingSourceUuid: inv.openingSourceUuid ?? null,
     openingCorrectionJournalEntryId: inv.openingCorrectionJournalEntryId ?? null,
     // 2026-09-22: the bad-debt facts (Art. 40(7)) and the Art. 40(9) links.
+    // FA-C: the fixed asset this invoice sells (null on every ordinary invoice).
+    disposesAssetId: inv.disposesAssetId ?? null,
     writtenOffAmount: toNum(inv.writtenOffAmount),
     badDebtRelief: inv.badDebtReliefSource
       ? {

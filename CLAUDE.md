@@ -57,10 +57,10 @@ When in doubt, favor evolving the existing system over replacing it.
 **Last updated: 2026-09-21.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
-**2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "the decision-free pool", "THE FIVE PILOT BLOCKERS", "BULK ACCEPT INTO A CLOSED MONTH"; findings file, "THE SECOND CORE-PATH WALK", "THE SEVEN-WORKFLOW AUDIT", "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
-**2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED** (PR #164, `a290d079`); A4/A5 as invariants (§4). **FOLLOW-UPS BUILT** (2026-09-22, PR #167, [`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17): the historical invoice's e-invoicing identity, the item-level correction against RETAINED EARNINGS (original reversed + `OPEN-` replacement, no OBE), migrated relief structured, credit notes against identified opening items through Fatoora. Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
-**2026-09-22** — 🔴 **FIXED ASSETS FA-A + FA-B BUILT** ([`pack`](docs/product/fixed-assets-decision-pack.md) §20, §21): accounts, categories (Art. 17 group · Art. 52 class · account triple), a register whose figures are DERIVED from the schedule (one row per period, posted rows FROZEN), append-only events; a BILL capitalises the asset it buys (non-deductible VAT into cost); the monthly run posts Dr expense / Cr accumulated (a closed month fails closed; the catch-up names its period); the estimate change is prospective. FA-C (disposal) next.
-**2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165): the 386 / 388-adjustment / 381-against-386 CLEARED by the sandbox from real rows (pack §14–§16). **THE ACCOUNTANT'S ANSWERS APPLIED** (PR #166, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed, Art. 63); four customer-money liabilities; bad-debt relief (Art. 40(7)) posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), CLEARED. Open: Z1.
+**2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch CLOSED (known-issues file, "the decision-free pool", "THE FIVE PILOT BLOCKERS"; findings file, "THE SECOND CORE-PATH WALK", "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
+**2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED** (PR #164); A4/A5 as invariants (§4). **FOLLOW-UPS BUILT** (PR #167, [`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17): the historical invoice's e-invoicing identity, the item-level correction against RETAINED EARNINGS (original reversed + `OPEN-` replacement, no OBE), migrated relief structured, credit notes against identified opening items through Fatoora. Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
+**2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-C BUILT** ([`pack`](docs/product/fixed-assets-decision-pack.md) §20–§22): accounts, categories (Art. 17 group · Art. 52 class · account triple), a register whose figures are DERIVED from the schedule (posted rows FROZEN); a BILL capitalises the asset it buys (non-deductible VAT into cost); the monthly run posts Dr expense / Cr accumulated (a closed month fails closed; the catch-up names its period); estimate changes are prospective. 🔴 **FA-C** (§22): a SALE is an invoice naming the asset (the gain is OTHER income; `SALES` never moves), a scrap or withdrawal its own act, both depreciating to the disposal month first; Art. 50(3) and 52(7)/(8) recorded per kind. FA-D next.
+**2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165): the 386 / 388-adjustment / 381-against-386 CLEARED by the sandbox from real rows (pack §14–§16). **THE ANSWERS APPLIED** (PR #166, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed, Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), CLEARED. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -499,10 +499,9 @@ which holds every closed item with its full reasoning.
 
 **Every remaining path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq.
-🔴 **Withholding tax (LEGAL exposure) still awaits the OWNER'S RANKING** —
-costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
+🔴 **Withholding tax (LEGAL exposure) awaits the OWNER'S RANKING** — costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
 **Fixed assets: IN BUILD** — [`fixed-assets-decision-pack.md`](docs/product/fixed-assets-decision-pack.md)
-(FA-1/FA-2 answered; FA-A §20 + FA-B §21 built; FA-C… follow).
+(FA-1/FA-2 answered; FA-A §20, FA-B §21, FA-C §22 built; FA-D… follow).
 
 ### Blocking, by their own nature
 
@@ -532,10 +531,10 @@ costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2
 | # | Item |
 | --- | --- |
 | **C7** (Block A) | Inbound-document retention. `retain_until` has a writer and NO reader; an answer shorter than the outbound standard needs a B3-shaped build. |
-| **C8** (Block B) | 🔴 PDPL, platform-wide — higher priority than C7. The key ask: can inbound captures be made erasable-with-audit without touching ZATCA §5.5? Also: whether operator readability of verified identity documents should expire. |
+| **C8** (Block B) | 🔴 PDPL, platform-wide — above C7. The key ask: can inbound captures be made erasable-with-audit without touching ZATCA §5.5? Also whether operator readability of verified identity documents should expire. |
 | **C10** (Block C) | 🔴 Zakat base content — M17.3/M17.4 HELD on it. Ask C1 (the minimum-base rule) FIRST: the one answer that changes architecture, not arithmetic. |
-| **C12 leftovers** (Block D) | D1 audit practice vs number gaps; D2 the Arabic text prevails and our reading rests on متسلسل. |
-| **Invoice dating** (Block F) | 🔴 The closed-period policy is REASONED-NOT-VERIFIED (known-issues file, "INVOICE DATING INTO CLOSED MONTHS"); the open question is whether Saudi practice permits ANY exception. |
+| **C12 leftovers** (Block D) | D1 audit practice vs number gaps; D2 the Arabic prevails and our reading rests on متسلسل. |
+| **Invoice dating** (Block F) | 🔴 The closed-period policy is REASONED-NOT-VERIFIED (known-issues file, "INVOICE DATING INTO CLOSED MONTHS"); the question is whether Saudi practice permits ANY exception. |
 
 ### Code-level open findings — RANKED BY CONSEQUENCE, not by discovery
 
@@ -546,8 +545,8 @@ the order is not the severity order.**
 
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
-| **1** | **Password recovery — break-glass ✅ SHIPPED 2026-09-04** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the recorded risk stands: the break-glass must not quietly become the permanent answer. | **B1** (the mail provider). | Build the email flow the week the provider lands. |
-| **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — a legal question, not a code one. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
+| **1** | **Password recovery — break-glass ✅ SHIPPED** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
+| **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — legal, not code. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
 
 **Open DECISION:** `platform-alarms` is NOT operator-runnable (one-line flip).
