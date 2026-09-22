@@ -31,6 +31,7 @@ import journalEntries from "./journalEntries.js";
 import employees from "./employees.js";
 import payroll from "./payroll.js";
 import assets from "./assets.js";
+import assetCategories from "./assetCategories.js";
 import bankAccounts from "./bankAccounts.js";
 import budgets from "./budgets.js";
 import reports from "./reports/index.js";
@@ -116,6 +117,7 @@ router.use("/approvals", requireAnyPermission(["invoices", "bills", "journal_ent
 router.use("/employees", requirePermission("employees"), employees);
 router.use("/payroll", requirePermission("payroll"), payroll);
 router.use("/assets", requirePermission("assets"), assets);
+router.use("/asset-categories", requirePermission("assets"), assetCategories);
 router.use("/bank-accounts", requirePermission("bank_accounts"), bankAccounts);
 router.use("/budgets", requirePermission("budgets"), budgets);
 router.use("/reports", requirePermission("reports"), reports);

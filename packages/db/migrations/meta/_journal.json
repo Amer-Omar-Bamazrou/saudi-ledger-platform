@@ -610,6 +610,20 @@
       "when": 1790035725604,
       "tag": "0086_migration_followups",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1790041423711,
+      "tag": "0087_fixed_assets_drop_pre_fa_register",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1790041438583,
+      "tag": "0088_fixed_assets_foundation",
+      "breakpoints": true
     }
   ]
 }

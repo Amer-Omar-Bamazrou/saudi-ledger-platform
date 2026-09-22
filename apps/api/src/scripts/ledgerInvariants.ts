@@ -80,6 +80,20 @@ async function main() {
     SELECT i.organization_id::text AS org, i.id, i.invoice_number, i.written_off_amount::text AS written_off, s.v::text AS recovered
       FROM invoices i JOIN (SELECT recovers_invoice_id, sum(total::numeric) v FROM invoices WHERE document_type = 'recovery_invoice' AND invoice_hash IS NOT NULL GROUP BY 1) s ON s.recovers_invoice_id = i.id
      WHERE i.bad_debt_relief_source = 'recorded' AND s.v > i.written_off_amount + 0.001`));
+  // FA-A (2026-09-22): the register and the ledger are ONE set of rows. A posted schedule row IS its entry: the entry exists, is in the books, debits the category's expense account and credits its accumulated account by the row's amount and nothing else.
+  fail("asset_schedule_entry_shape — a posted depreciation row whose entry is missing, out of the books, or not Dr <category expense> / Cr <category accumulated> for the row's amount", await q(`
+    SELECT s.organization_id::text AS org, s.asset_id, s.period, s.journal_entry_id
+      FROM asset_depreciation_schedule s JOIN fixed_assets a ON a.id = s.asset_id JOIN asset_categories k ON k.id = a.category_id
+     WHERE s.journal_entry_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM journal_entries e WHERE e.id = s.journal_entry_id AND e.status IN ('posted','reversed')
+                          AND (SELECT count(*) FROM journal_entry_lines l WHERE l.journal_entry_id = e.id) = 2
+                          AND EXISTS (SELECT 1 FROM journal_entry_lines l WHERE l.journal_entry_id = e.id AND l.account_id = k.depreciation_expense_account_id AND l.debit_amount = s.amount AND l.credit_amount = 0)
+                          AND EXISTS (SELECT 1 FROM journal_entry_lines l WHERE l.journal_entry_id = e.id AND l.account_id = k.accumulated_depreciation_account_id AND l.credit_amount = s.amount AND l.debit_amount = 0))`));
+  // FA-A: an asset in the books carries its capitalisation entry, and every asset that ever existed carries its audit spine.
+  fail("asset_state_evidence — an asset in service or disposed without a posted capitalisation entry, or any asset without a 'created' event", await q(`
+    SELECT a.organization_id::text AS org, a.id, a.asset_number, a.status FROM fixed_assets a
+     WHERE (a.status IN ('in_service','disposed') AND NOT EXISTS (SELECT 1 FROM journal_entries e WHERE e.id = a.capitalisation_journal_entry_id AND e.status IN ('posted','reversed')))
+        OR NOT EXISTS (SELECT 1 FROM asset_events v WHERE v.asset_id = a.id AND v.kind = 'created')`));
   fail("payment_not_over_consumed — Σ active allocations + refunds > amount", await q(`
     SELECT p.organization_id::text AS org, p.id FROM payments p
      WHERE p.amount < coalesce((SELECT sum(a.amount) FROM payment_allocations a LEFT JOIN payment_allocation_reversals r ON r.allocation_id = a.id WHERE a.payment_id = p.id AND r.id IS NULL), 0)

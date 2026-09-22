@@ -91,6 +91,18 @@ export const SYSTEM_ACCOUNTS = {
   UNIDENTIFIED_RECEIPTS: "UNIDENTIFIED_RECEIPTS",
   SECURITY_DEPOSITS_HELD: "SECURITY_DEPOSITS_HELD",
   BAD_DEBT_EXPENSE: "BAD_DEBT_EXPENSE",
+  /**
+   * Fixed assets FA-A (2026-09-22; fixed-assets-decision-pack.md §3). The
+   * three accounts every asset category binds to by default: the contra-asset
+   * that holds what the schedule has posted, the expense it posts against,
+   * and the IAS 16.68 gain/loss on derecognition — an OTHER income/expense
+   * line, NEVER `SALES` (an asset sale is not revenue). The asset COST
+   * account is a category's own choice (the M15 default `FIXED_ASSETS` or any
+   * asset-type account), so it is not a system code here.
+   */
+  ACCUMULATED_DEPRECIATION: "ACCUMULATED_DEPRECIATION",
+  DEPRECIATION_EXPENSE: "DEPRECIATION_EXPENSE",
+  ASSET_DISPOSAL_GAIN_LOSS: "ASSET_DISPOSAL_GAIN_LOSS",
 } as const;
 
 export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACCOUNTS];
@@ -173,6 +185,8 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   // exactly what the withholding exists for (owner decision, 2026-08-17).
   { code: "TRANSFER_SUSPENSE", name: "Transfers awaiting declaration", nameAr: "تحويلات بانتظار الإقرار", type: "asset", liquidityClass: "current", legacyNames: [] },
   { code: "VAT_INPUT", name: "Input VAT Receivable", nameAr: "ضريبة القيمة المضافة على المشتريات", type: "asset", liquidityClass: "quick", legacyNames: ["Input VAT Receivable"] },
+  // Fixed assets FA-A (2026-09-22): the contra-asset the depreciation schedule posts into. Non-current, like the cost it offsets.
+  { code: "ACCUMULATED_DEPRECIATION", name: "Accumulated depreciation", nameAr: "مجمع الإهلاك", type: "asset", liquidityClass: "non_current", legacyNames: [] },
 
   { code: "AP", name: "Accounts Payable", nameAr: "الذمم الدائنة", type: "liability", liquidityClass: "current", legacyNames: ["Accounts Payable"] },
   { code: "VAT_OUTPUT", name: "VAT Payable", nameAr: "ضريبة القيمة المضافة المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["VAT Payable"] },
@@ -200,12 +214,16 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "RETAINED_EARNINGS", name: "Retained earnings", nameAr: "الأرباح المبقاة", type: "equity", legacyNames: [] },
 
   { code: "SALES", name: "Sales Revenue", nameAr: "إيرادات المبيعات", type: "income", vatApplicable: true, legacyNames: ["Sales Revenue"] },
+  // Fixed assets FA-A (2026-09-22): IAS 16.68 — the gain or loss on derecognition is OTHER income/expense, never revenue. Reports show it below the operating result.
+  { code: "ASSET_DISPOSAL_GAIN_LOSS", name: "Gain (loss) on disposal of fixed assets", nameAr: "أرباح (خسائر) استبعاد الأصول الثابتة", type: "income", legacyNames: [] },
 
   { code: "PURCHASES", name: "Purchases", nameAr: "المشتريات", type: "expense", vatApplicable: true, legacyNames: ["Purchases", "Office Expense"] },
   { code: "SALARIES", name: "Salaries and Wages Expense", nameAr: "مصروف الرواتب والأجور", type: "expense", legacyNames: ["Salaries and Wages Expense"] },
   { code: "GOSI_EXPENSE", name: "GOSI Expense - Employer", nameAr: "مصروف التأمينات - حصة صاحب العمل", type: "expense", legacyNames: ["GOSI Expense - Employer"] },
   // 2026-09-22: bad debts written off (Art. 40(7) relief) and the Art. 40(9) VAT payable again on recovery.
   { code: "BAD_DEBT_EXPENSE", name: "Bad debts", nameAr: "ديون معدومة", type: "expense", legacyNames: [] },
+  // Fixed assets FA-A (2026-09-22): the schedule's expense side.
+  { code: "DEPRECIATION_EXPENSE", name: "Depreciation expense", nameAr: "مصروف الإهلاك", type: "expense", legacyNames: [] },
 ];
 
 /**

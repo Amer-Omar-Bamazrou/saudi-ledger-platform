@@ -6,8 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Asset } from './asset';
-import type { DepreciationEntry } from './depreciationEntry';
+import type { AssetEvent } from './assetEvent';
+import type { AssetPlannedRow } from './assetPlannedRow';
+import type { AssetScheduleRow } from './assetScheduleRow';
 
-export type AssetDetail = Asset & {
-  depreciationHistory: DepreciationEntry[];
-};
+export type AssetDetail = Asset & ({
+  schedule: AssetScheduleRow[];
+  /**
+     * A DRAFT's preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.
+     * @nullable
+     */
+  plannedSchedule: AssetPlannedRow[] | null;
+  events: AssetEvent[];
+});

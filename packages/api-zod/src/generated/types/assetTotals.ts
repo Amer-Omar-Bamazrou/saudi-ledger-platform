@@ -7,8 +7,11 @@
  */
 
 export interface AssetTotals {
-  activeCount: number;
-  purchaseCost: number;
+  drafts: number;
+  inService: number;
+  disposed: number;
+  /** Over the assets IN SERVICE — what is on the balance sheet. */
+  cost: number;
   accumulatedDepreciation: number;
-  currentBookValue: number;
+  carryingAmount: number;
 }

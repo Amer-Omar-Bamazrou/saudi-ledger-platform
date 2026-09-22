@@ -2325,11 +2325,66 @@ paths:
         "204":
           description: Deleted
 
+  /asset-categories:
+    get:
+      operationId: listAssetCategories
+      tags: [assets]
+      summary: "FA-A (2026-09-22): the asset categories — each binds an account triple (cost / accumulated depreciation / depreciation expense) and the two Saudi classifications every asset inherits"
+      parameters:
+        - { in: query, name: includeInactive, schema: { type: boolean, default: false } }
+      responses:
+        "200":
+          description: The categories and the Income Tax Law Art. 17(b) groups with their statutory rates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, incomeTaxGroups]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AssetCategory" } }
+                  incomeTaxGroups: { type: array, items: { $ref: "#/components/schemas/IncomeTaxGroup" } }
+    post:
+      operationId: createAssetCategory
+      tags: [assets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAssetCategoryInput" }
+      responses:
+        "201":
+          description: The category
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetCategory" }
+        "400":
+          description: Body failed validation
+  /asset-categories/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    put:
+      operationId: updateAssetCategory
+      tags: [assets]
+      summary: Rename, re-default or deactivate a category; its tax group, VAT class and accounts change only while no asset is under it (asset_category_in_use)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAssetCategoryInput" }
+      responses:
+        "200":
+          description: The category
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetCategory" }
+        "404":
+          description: Not found
+
   /assets:
     get:
       operationId: listAssets
       tags: [assets]
-      summary: A PAGE of fixed assets with derived depreciation figures, plus set-wide totals
+      summary: A PAGE of the register with DERIVED figures (accumulated depreciation and carrying amount come from the posted schedule rows, never a stored column), plus set-wide totals
       parameters:
         - in: query
           name: limit
@@ -2337,9 +2392,11 @@ paths:
         - in: query
           name: offset
           schema: { type: integer, minimum: 0, default: 0 }
+        - { in: query, name: status, schema: { type: string, enum: [draft, in_service, disposed] } }
+        - { in: query, name: category_id, schema: { type: integer } }
       responses:
         "200":
-          description: One page, plus totals over every asset
+          description: One page, plus totals over every asset (cancelled drafts excluded)
           content:
             application/json:
               schema:
@@ -2348,12 +2405,13 @@ paths:
                 properties:
                   items:
                     type: array
-                    items: { $ref: "#/components/schemas/AssetListItem" }
+                    items: { $ref: "#/components/schemas/Asset" }
                   page: { $ref: "#/components/schemas/PageInfo" }
                   totals: { $ref: "#/components/schemas/AssetTotals" }
     post:
       operationId: createAsset
       tags: [assets]
+      summary: "A DRAFT register row: its facts, nothing posted (the zero-movement standard). Capitalisation is a separate act."
       requestBody:
         required: true
         content:
@@ -2364,7 +2422,7 @@ paths:
           description: The asset
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Asset" }
+              schema: { $ref: "#/components/schemas/AssetDetail" }
         "400":
           description: Body failed validation
 
@@ -2374,7 +2432,24 @@ paths:
     get:
       operationId: getAsset
       tags: [assets]
-      summary: One asset with its depreciation history
+      summary: One asset with its schedule (stored once capitalised; PLANNED preview while a draft), its events and its derived figures
+      responses:
+        "200":
+          description: The asset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetDetail" }
+        "404":
+          description: Not found
+    put:
+      operationId: updateAsset
+      tags: [assets]
+      summary: "A draft's facts may change; an in-service asset's facts of record may not (asset_capitalised_facts_frozen) — only its descriptive fields"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAssetInput" }
       responses:
         "200":
           description: The asset
@@ -2384,26 +2459,26 @@ paths:
         "404":
           description: Not found
 
-  /assets/{id}/depreciate:
+  /assets/{id}/cancel:
     post:
-      operationId: depreciateAsset
+      operationId: cancelAsset
       tags: [assets]
-      summary: Record one month of straight-line depreciation
+      summary: Cancel a DRAFT (never hard-deleted — the number stays taken, the audit trail stays); an asset in service leaves the books only by disposal
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/DepreciateInput" }
+            schema: { $ref: "#/components/schemas/CancelAssetInput" }
       responses:
         "200":
-          description: The depreciation entry recorded
+          description: The asset, cancelled
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/DepreciationEntry" }
-        "400":
-          description: Not active, or fully depreciated
+              schema: { $ref: "#/components/schemas/AssetDetail" }
+        "404":
+          description: Not found
 
   /journal-entries/{id}/approve:
     post:
@@ -8585,101 +8660,242 @@ components:
     UpdateEmployeeInput:
       $ref: "#/components/schemas/EmployeeInputFields"
 
+    IncomeTaxGroup:
+      type: object
+      required: [group, ratePct, label, labelAr]
+      properties:
+        group: { type: integer, minimum: 1, maximum: 5 }
+        ratePct: { type: number, description: "Income Tax Law Art. 17(b): 5 · 10 · 25 · 20 · 10." }
+        label: { type: string }
+        labelAr: { type: string }
+
+    AssetCategory:
+      type: object
+      required: [id, name, nameAr, costAccountId, accumulatedDepreciationAccountId, depreciationExpenseAccountId, costAccountName, accumulatedDepreciationAccountName, depreciationExpenseAccountName,
+                 defaultUsefulLifeMonths, defaultMethod, defaultResidualPct, incomeTaxGroup, incomeTaxRatePct, vatCapitalAssetClass, isActive, assetCount, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        costAccountId: { type: integer }
+        accumulatedDepreciationAccountId: { type: integer }
+        depreciationExpenseAccountId: { type: integer }
+        costAccountName: { type: string }
+        accumulatedDepreciationAccountName: { type: string }
+        depreciationExpenseAccountName: { type: string }
+        defaultUsefulLifeMonths: { type: integer }
+        defaultMethod: { type: string, enum: [straight_line, declining_balance, units_of_production] }
+        defaultResidualPct: { type: number }
+        incomeTaxGroup: { type: integer, minimum: 1, maximum: 5, description: "Income Tax Law Art. 17(b) group — the pooled tax depreciation rate follows from it (FA-1: in scope)." }
+        incomeTaxRatePct: { type: number }
+        vatCapitalAssetClass: { type: string, enum: [movable, immovable, not_capital], description: "VAT IR Art. 52(2): the adjustment period is 6 years (movable) or 10 (immovable), shortened to the accounting life." }
+        isActive: { type: boolean }
+        assetCount: { type: integer }
+        createdAt: { type: string }
+
+    CreateAssetCategoryInput:
+      type: object
+      required: [name, defaultUsefulLifeMonths, incomeTaxGroup, vatCapitalAssetClass]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        nameAr: { type: ["string", "null"], maxLength: 120 }
+        costAccountId: { type: ["integer", "null"], description: "An asset-type posting account; default the company's FIXED_ASSETS account." }
+        accumulatedDepreciationAccountId: { type: ["integer", "null"], description: "An asset-type (contra) account; default ACCUMULATED_DEPRECIATION." }
+        depreciationExpenseAccountId: { type: ["integer", "null"], description: "An expense account; default DEPRECIATION_EXPENSE." }
+        defaultUsefulLifeMonths: { type: integer, minimum: 1, maximum: 1200 }
+        defaultMethod: { type: ["string", "null"], enum: [straight_line, declining_balance, units_of_production, null] }
+        defaultResidualPct: { type: ["number", "null"], minimum: 0, exclusiveMaximum: 100 }
+        incomeTaxGroup: { type: integer, minimum: 1, maximum: 5 }
+        vatCapitalAssetClass: { type: string, enum: [movable, immovable, not_capital] }
+
+    UpdateAssetCategoryInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        nameAr: { type: ["string", "null"], maxLength: 120 }
+        costAccountId: { type: integer }
+        accumulatedDepreciationAccountId: { type: integer }
+        depreciationExpenseAccountId: { type: integer }
+        defaultUsefulLifeMonths: { type: integer, minimum: 1, maximum: 1200 }
+        defaultMethod: { type: string, enum: [straight_line, declining_balance, units_of_production] }
+        defaultResidualPct: { type: number, minimum: 0, exclusiveMaximum: 100 }
+        incomeTaxGroup: { type: integer, minimum: 1, maximum: 5 }
+        vatCapitalAssetClass: { type: string, enum: [movable, immovable, not_capital] }
+        isActive: { type: boolean }
+
     Asset:
       type: object
-      required: [id, assetNumber, name, nameAr, categoryId, purchaseDate, purchaseCost, salvageValue, usefulLifeYears,
-                 depreciationMethod, accumulatedDepreciation, currentBookValue, location, serialNumber, status,
-                 disposalDate, disposalValue, notes, createdAt, annualDepreciation, monthlyDepreciation]
+      required: [id, assetNumber, name, nameAr, description, serialNumber, categoryId, categoryName, location, department, custodianUserId,
+                 acquisitionDate, availableForUseDate, disposalDate, cost, residualValue, usefulLifeMonths, depreciationMethod,
+                 openingAccumulatedDepreciation, openingPeriodsBooked, vatInputTaxAmount, vatInitialRecoveryPct, vatCapitalAssetClass, vatAdjustmentPeriodYears, vatNonDeductibleReason,
+                 incomeTaxGroup, incomeTaxRatePct, source, billId, transactionId, migrationBatchId, sourceReference, status, fullyDepreciated, capitalisationJournalEntryId, notes,
+                 accumulatedDepreciation, carryingAmount, depreciableAmount, postedPeriods, plannedPeriods, lastPostedPeriod, nextPeriod, createdAt, updatedAt]
       properties:
         id: { type: integer }
         assetNumber: { type: string }
         name: { type: string }
         nameAr: { type: ["string", "null"] }
-        categoryId: { type: ["integer", "null"] }
-        purchaseDate: { type: string }
-        purchaseCost: { type: number }
-        salvageValue: { type: number }
-        usefulLifeYears: { type: number }
-        depreciationMethod: { type: string }
-        accumulatedDepreciation: { type: number }
-        currentBookValue: { type: number }
-        location: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
         serialNumber: { type: ["string", "null"] }
-        status: { type: string }
+        categoryId: { type: integer }
+        categoryName: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+        department: { type: ["string", "null"] }
+        custodianUserId: { type: ["integer", "null"] }
+        acquisitionDate: { type: string, description: "The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it." }
+        availableForUseDate: { type: ["string", "null"], description: "IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation." }
         disposalDate: { type: ["string", "null"] }
-        disposalValue: { type: ["number", "null"] }
+        cost: { type: number }
+        residualValue: { type: number }
+        usefulLifeMonths: { type: integer }
+        depreciationMethod: { type: string, enum: [straight_line, declining_balance, units_of_production] }
+        openingAccumulatedDepreciation: { type: number, description: "A migrated asset: what the previous system booked before the opening date." }
+        openingPeriodsBooked: { type: integer }
+        vatInputTaxAmount: { type: number, description: "VAT IR Art. 52(3)/(4): the input tax deducted at acquisition." }
+        vatInitialRecoveryPct: { type: number }
+        vatCapitalAssetClass: { type: string, enum: [movable, immovable, not_capital] }
+        vatAdjustmentPeriodYears: { type: ["integer", "null"], description: "Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset." }
+        vatNonDeductibleReason: { type: ["string", "null"] }
+        incomeTaxGroup: { type: integer }
+        incomeTaxRatePct: { type: number }
+        source: { type: string, enum: [manual, bill, transaction, migration] }
+        billId: { type: ["integer", "null"] }
+        transactionId: { type: ["integer", "null"] }
+        migrationBatchId: { type: ["integer", "null"] }
+        sourceReference: { type: ["string", "null"] }
+        status: { type: string, enum: [draft, in_service, disposed, cancelled] }
+        fullyDepreciated: { type: boolean, description: "DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet." }
+        capitalisationJournalEntryId: { type: ["integer", "null"] }
         notes: { type: ["string", "null"] }
+        accumulatedDepreciation: { type: number, description: "DERIVED — the opening position + the POSTED schedule rows; never a stored column." }
+        carryingAmount: { type: number, description: "DERIVED — cost − accumulated; 0 once disposed." }
+        depreciableAmount: { type: number, description: "cost − residual (IAS 16.53)." }
+        postedPeriods: { type: integer }
+        plannedPeriods: { type: integer }
+        lastPostedPeriod: { type: ["string", "null"] }
+        nextPeriod: { type: ["string", "null"] }
         createdAt: { type: string }
-        annualDepreciation:
-          type: number
-          description: DERIVED — (cost − salvage) / useful life.
-        monthlyDepreciation: { type: number }
+        updatedAt: { type: string }
 
-    AssetListItem:
-      allOf:
-        - { $ref: "#/components/schemas/Asset" }
-        - type: object
-          required: [categoryName]
-          properties:
-            categoryName: { type: ["string", "null"] }
-
-    DepreciationEntry:
+    AssetScheduleRow:
       type: object
-      required: [id, assetId, period, amount, bookValueAfter, createdAt]
+      required: [id, assetId, period, sequence, amount, accumulatedAfter, carryingAfter, journalEntryId, postedAt]
       properties:
         id: { type: integer }
         assetId: { type: integer }
-        period: { type: string }
+        period: { type: string, description: "YYYY-MM" }
+        sequence: { type: integer, description: "Which period of the life (a migrated asset continues its count)." }
         amount: { type: number }
-        bookValueAfter: { type: number }
+        accumulatedAfter: { type: number }
+        carryingAfter: { type: number }
+        journalEntryId: { type: ["integer", "null"], description: "NULL = planned; set once = posted and FROZEN." }
+        postedAt: { type: ["string", "null"] }
+
+    AssetPlannedRow:
+      type: object
+      required: [period, sequence, amount, accumulatedAfter, carryingAfter]
+      properties:
+        period: { type: string }
+        sequence: { type: integer }
+        amount: { type: number }
+        accumulatedAfter: { type: number }
+        carryingAfter: { type: number }
+
+    AssetEvent:
+      type: object
+      required: [id, assetId, kind, occurredOn, payload, journalEntryId, documentRef, userId, createdAt]
+      properties:
+        id: { type: integer }
+        assetId: { type: integer }
+        kind: { type: string, enum: [created, updated, capitalised, addition, depreciated, estimate_changed, transferred, disposed, reversed, vat_use_recorded, vat_adjusted, cancelled] }
+        occurredOn: { type: string }
+        payload: { type: object, additionalProperties: true }
+        journalEntryId: { type: ["integer", "null"] }
+        documentRef: { type: ["string", "null"] }
+        userId: { type: ["integer", "null"] }
         createdAt: { type: string }
 
     AssetDetail:
       allOf:
         - { $ref: "#/components/schemas/Asset" }
         - type: object
-          required: [depreciationHistory]
+          required: [schedule, plannedSchedule, events]
           properties:
-            depreciationHistory:
+            schedule:
               type: array
-              items: { $ref: "#/components/schemas/DepreciationEntry" }
+              items: { $ref: "#/components/schemas/AssetScheduleRow" }
+            plannedSchedule:
+              type: ["array", "null"]
+              description: "A DRAFT's preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule."
+              items: { $ref: "#/components/schemas/AssetPlannedRow" }
+            events:
+              type: array
+              items: { $ref: "#/components/schemas/AssetEvent" }
 
     AssetTotals:
       type: object
-      required: [activeCount, purchaseCost, accumulatedDepreciation, currentBookValue]
+      required: [drafts, inService, disposed, cost, accumulatedDepreciation, carryingAmount]
       properties:
-        activeCount: { type: integer }
-        purchaseCost: { type: number }
+        drafts: { type: integer }
+        inService: { type: integer }
+        disposed: { type: integer }
+        cost: { type: number, description: "Over the assets IN SERVICE — what is on the balance sheet." }
         accumulatedDepreciation: { type: number }
-        currentBookValue: { type: number }
+        carryingAmount: { type: number }
 
     CreateAssetInput:
       type: object
-      required: [assetNumber, name, purchaseDate, purchaseCost, usefulLifeYears]
+      required: [name, categoryId, acquisitionDate, cost]
       properties:
-        assetNumber: { type: string, minLength: 1 }
-        name: { type: string, minLength: 1 }
-        nameAr: { type: ["string", "null"] }
-        categoryId: { type: ["integer", "null"] }
-        purchaseDate: { type: string }
-        purchaseCost: { type: number, minimum: 0 }
-        salvageValue: { type: number, minimum: 0 }
-        usefulLifeYears: { type: number, exclusiveMinimum: 0 }
-        depreciationMethod: { type: string }
-        location: { type: ["string", "null"] }
-        serialNumber: { type: ["string", "null"] }
-        status: { type: string }
-        disposalDate: { type: ["string", "null"] }
-        disposalValue: { type: ["number", "null"] }
-        notes: { type: ["string", "null"] }
+        assetNumber: { type: ["string", "null"], maxLength: 60, description: "Blank = the next FA-nnnnn." }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        nameAr: { type: ["string", "null"], maxLength: 200 }
+        description: { type: ["string", "null"], maxLength: 2000 }
+        serialNumber: { type: ["string", "null"], maxLength: 120 }
+        categoryId: { type: integer }
+        location: { type: ["string", "null"], maxLength: 200 }
+        department: { type: ["string", "null"], maxLength: 200 }
+        custodianUserId: { type: ["integer", "null"] }
+        acquisitionDate: { type: string }
+        availableForUseDate: { type: ["string", "null"] }
+        cost: { type: number, minimum: 0 }
+        residualValue: { type: ["number", "null"], minimum: 0, description: "Default: the category's residual % of cost." }
+        usefulLifeMonths: { type: ["integer", "null"], minimum: 1, maximum: 1200, description: "Default: the category's." }
+        depreciationMethod: { type: ["string", "null"], enum: [straight_line, declining_balance, units_of_production, null] }
+        vatInputTaxAmount: { type: ["number", "null"], minimum: 0 }
+        vatInitialRecoveryPct: { type: ["number", "null"], minimum: 0, maximum: 100 }
+        vatNonDeductibleReason: { type: ["string", "null"], maxLength: 500, description: "Required when a capital asset's recovery is 0 % (VAT IR Art. 50)." }
+        sourceReference: { type: ["string", "null"], maxLength: 200 }
+        notes: { type: ["string", "null"], maxLength: 2000 }
 
-    DepreciateInput:
+    CancelAssetInput:
       type: object
-      required: [period]
       properties:
-        period:
-          type: string
-          description: YYYY-MM
+        reason: { type: ["string", "null"], maxLength: 500 }
+
+    UpdateAssetInput:
+      type: object
+      properties:
+        assetNumber: { type: string, minLength: 1, maxLength: 60 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        nameAr: { type: ["string", "null"], maxLength: 200 }
+        description: { type: ["string", "null"], maxLength: 2000 }
+        serialNumber: { type: ["string", "null"], maxLength: 120 }
+        categoryId: { type: integer }
+        location: { type: ["string", "null"], maxLength: 200 }
+        department: { type: ["string", "null"], maxLength: 200 }
+        custodianUserId: { type: ["integer", "null"] }
+        acquisitionDate: { type: string }
+        availableForUseDate: { type: ["string", "null"] }
+        cost: { type: number, minimum: 0 }
+        residualValue: { type: number, minimum: 0 }
+        usefulLifeMonths: { type: integer, minimum: 1, maximum: 1200 }
+        depreciationMethod: { type: string, enum: [straight_line, declining_balance, units_of_production] }
+        vatInputTaxAmount: { type: number, minimum: 0 }
+        vatInitialRecoveryPct: { type: number, minimum: 0, maximum: 100 }
+        vatNonDeductibleReason: { type: ["string", "null"], maxLength: 500 }
+        sourceReference: { type: ["string", "null"], maxLength: 200 }
+        notes: { type: ["string", "null"], maxLength: 2000 }
 
     # ── Approvals queue + budget writes (2026-09-02, batch 5);
     #    proven on real rows by tests/workflow-contract-conformance.test.ts ─────

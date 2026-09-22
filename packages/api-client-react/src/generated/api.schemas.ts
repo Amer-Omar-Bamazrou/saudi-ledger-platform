@@ -4523,6 +4523,225 @@ export interface CreateEmployeeInput {
 
 export type UpdateEmployeeInput = EmployeeInputFields;
 
+export interface IncomeTaxGroup {
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  group: number;
+  /** Income Tax Law Art. 17(b): 5 · 10 · 25 · 20 · 10. */
+  ratePct: number;
+  label: string;
+  labelAr: string;
+}
+
+export type AssetCategoryDefaultMethod = typeof AssetCategoryDefaultMethod[keyof typeof AssetCategoryDefaultMethod];
+
+
+export const AssetCategoryDefaultMethod = {
+  straight_line: 'straight_line',
+  declining_balance: 'declining_balance',
+  units_of_production: 'units_of_production',
+} as const;
+
+/**
+ * VAT IR Art. 52(2): the adjustment period is 6 years (movable) or 10 (immovable), shortened to the accounting life.
+ */
+export type AssetCategoryVatCapitalAssetClass = typeof AssetCategoryVatCapitalAssetClass[keyof typeof AssetCategoryVatCapitalAssetClass];
+
+
+export const AssetCategoryVatCapitalAssetClass = {
+  movable: 'movable',
+  immovable: 'immovable',
+  not_capital: 'not_capital',
+} as const;
+
+export interface AssetCategory {
+  id: number;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  costAccountId: number;
+  accumulatedDepreciationAccountId: number;
+  depreciationExpenseAccountId: number;
+  costAccountName: string;
+  accumulatedDepreciationAccountName: string;
+  depreciationExpenseAccountName: string;
+  defaultUsefulLifeMonths: number;
+  defaultMethod: AssetCategoryDefaultMethod;
+  defaultResidualPct: number;
+  /**
+     * Income Tax Law Art. 17(b) group — the pooled tax depreciation rate follows from it (FA-1: in scope).
+     * @minimum 1
+     * @maximum 5
+     */
+  incomeTaxGroup: number;
+  incomeTaxRatePct: number;
+  /** VAT IR Art. 52(2): the adjustment period is 6 years (movable) or 10 (immovable), shortened to the accounting life. */
+  vatCapitalAssetClass: AssetCategoryVatCapitalAssetClass;
+  isActive: boolean;
+  assetCount: number;
+  createdAt: string;
+}
+
+/**
+ * @nullable
+ */
+export type CreateAssetCategoryInputDefaultMethod = typeof CreateAssetCategoryInputDefaultMethod[keyof typeof CreateAssetCategoryInputDefaultMethod] | null;
+
+
+export const CreateAssetCategoryInputDefaultMethod = {
+  straight_line: 'straight_line',
+  declining_balance: 'declining_balance',
+  units_of_production: 'units_of_production',
+} as const;
+
+export type CreateAssetCategoryInputVatCapitalAssetClass = typeof CreateAssetCategoryInputVatCapitalAssetClass[keyof typeof CreateAssetCategoryInputVatCapitalAssetClass];
+
+
+export const CreateAssetCategoryInputVatCapitalAssetClass = {
+  movable: 'movable',
+  immovable: 'immovable',
+  not_capital: 'not_capital',
+} as const;
+
+export interface CreateAssetCategoryInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  nameAr?: string | null;
+  /**
+     * An asset-type posting account; default the company's FIXED_ASSETS account.
+     * @nullable
+     */
+  costAccountId?: number | null;
+  /**
+     * An asset-type (contra) account; default ACCUMULATED_DEPRECIATION.
+     * @nullable
+     */
+  accumulatedDepreciationAccountId?: number | null;
+  /**
+     * An expense account; default DEPRECIATION_EXPENSE.
+     * @nullable
+     */
+  depreciationExpenseAccountId?: number | null;
+  /**
+     * @minimum 1
+     * @maximum 1200
+     */
+  defaultUsefulLifeMonths: number;
+  /** @nullable */
+  defaultMethod?: CreateAssetCategoryInputDefaultMethod;
+  /**
+     * @minimum 0
+     * @exclusiveMaximum 100
+     * @nullable
+     */
+  defaultResidualPct?: number | null;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  incomeTaxGroup: number;
+  vatCapitalAssetClass: CreateAssetCategoryInputVatCapitalAssetClass;
+}
+
+export type UpdateAssetCategoryInputDefaultMethod = typeof UpdateAssetCategoryInputDefaultMethod[keyof typeof UpdateAssetCategoryInputDefaultMethod];
+
+
+export const UpdateAssetCategoryInputDefaultMethod = {
+  straight_line: 'straight_line',
+  declining_balance: 'declining_balance',
+  units_of_production: 'units_of_production',
+} as const;
+
+export type UpdateAssetCategoryInputVatCapitalAssetClass = typeof UpdateAssetCategoryInputVatCapitalAssetClass[keyof typeof UpdateAssetCategoryInputVatCapitalAssetClass];
+
+
+export const UpdateAssetCategoryInputVatCapitalAssetClass = {
+  movable: 'movable',
+  immovable: 'immovable',
+  not_capital: 'not_capital',
+} as const;
+
+export interface UpdateAssetCategoryInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name?: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  nameAr?: string | null;
+  costAccountId?: number;
+  accumulatedDepreciationAccountId?: number;
+  depreciationExpenseAccountId?: number;
+  /**
+     * @minimum 1
+     * @maximum 1200
+     */
+  defaultUsefulLifeMonths?: number;
+  defaultMethod?: UpdateAssetCategoryInputDefaultMethod;
+  /**
+     * @minimum 0
+     * @exclusiveMaximum 100
+     */
+  defaultResidualPct?: number;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  incomeTaxGroup?: number;
+  vatCapitalAssetClass?: UpdateAssetCategoryInputVatCapitalAssetClass;
+  isActive?: boolean;
+}
+
+export type AssetDepreciationMethod = typeof AssetDepreciationMethod[keyof typeof AssetDepreciationMethod];
+
+
+export const AssetDepreciationMethod = {
+  straight_line: 'straight_line',
+  declining_balance: 'declining_balance',
+  units_of_production: 'units_of_production',
+} as const;
+
+export type AssetVatCapitalAssetClass = typeof AssetVatCapitalAssetClass[keyof typeof AssetVatCapitalAssetClass];
+
+
+export const AssetVatCapitalAssetClass = {
+  movable: 'movable',
+  immovable: 'immovable',
+  not_capital: 'not_capital',
+} as const;
+
+export type AssetSource = typeof AssetSource[keyof typeof AssetSource];
+
+
+export const AssetSource = {
+  manual: 'manual',
+  bill: 'bill',
+  transaction: 'transaction',
+  migration: 'migration',
+} as const;
+
+export type AssetStatus = typeof AssetStatus[keyof typeof AssetStatus];
+
+
+export const AssetStatus = {
+  draft: 'draft',
+  in_service: 'in_service',
+  disposed: 'disposed',
+  cancelled: 'cancelled',
+} as const;
+
 export interface Asset {
   id: number;
   assetNumber: string;
@@ -4530,89 +4749,353 @@ export interface Asset {
   /** @nullable */
   nameAr: string | null;
   /** @nullable */
-  categoryId: number | null;
-  purchaseDate: string;
-  purchaseCost: number;
-  salvageValue: number;
-  usefulLifeYears: number;
-  depreciationMethod: string;
-  accumulatedDepreciation: number;
-  currentBookValue: number;
+  description: string | null;
+  /** @nullable */
+  serialNumber: string | null;
+  categoryId: number;
+  /** @nullable */
+  categoryName: string | null;
   /** @nullable */
   location: string | null;
   /** @nullable */
-  serialNumber: string | null;
-  status: string;
+  department: string | null;
+  /** @nullable */
+  custodianUserId: number | null;
+  /** The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it. */
+  acquisitionDate: string;
+  /**
+     * IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation.
+     * @nullable
+     */
+  availableForUseDate: string | null;
   /** @nullable */
   disposalDate: string | null;
+  cost: number;
+  residualValue: number;
+  usefulLifeMonths: number;
+  depreciationMethod: AssetDepreciationMethod;
+  /** A migrated asset: what the previous system booked before the opening date. */
+  openingAccumulatedDepreciation: number;
+  openingPeriodsBooked: number;
+  /** VAT IR Art. 52(3)/(4): the input tax deducted at acquisition. */
+  vatInputTaxAmount: number;
+  vatInitialRecoveryPct: number;
+  vatCapitalAssetClass: AssetVatCapitalAssetClass;
+  /**
+     * Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset.
+     * @nullable
+     */
+  vatAdjustmentPeriodYears: number | null;
   /** @nullable */
-  disposalValue: number | null;
+  vatNonDeductibleReason: string | null;
+  incomeTaxGroup: number;
+  incomeTaxRatePct: number;
+  source: AssetSource;
+  /** @nullable */
+  billId: number | null;
+  /** @nullable */
+  transactionId: number | null;
+  /** @nullable */
+  migrationBatchId: number | null;
+  /** @nullable */
+  sourceReference: string | null;
+  status: AssetStatus;
+  /** DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet. */
+  fullyDepreciated: boolean;
+  /** @nullable */
+  capitalisationJournalEntryId: number | null;
   /** @nullable */
   notes: string | null;
+  /** DERIVED — the opening position + the POSTED schedule rows; never a stored column. */
+  accumulatedDepreciation: number;
+  /** DERIVED — cost − accumulated; 0 once disposed. */
+  carryingAmount: number;
+  /** cost − residual (IAS 16.53). */
+  depreciableAmount: number;
+  postedPeriods: number;
+  plannedPeriods: number;
+  /** @nullable */
+  lastPostedPeriod: string | null;
+  /** @nullable */
+  nextPeriod: string | null;
   createdAt: string;
-  /** DERIVED — (cost − salvage) / useful life. */
-  annualDepreciation: number;
-  monthlyDepreciation: number;
+  updatedAt: string;
 }
 
-export type AssetListItem = Asset & ({
-  /** @nullable */
-  categoryName: string | null;
-});
-
-export interface DepreciationEntry {
+export interface AssetScheduleRow {
   id: number;
   assetId: number;
+  /** YYYY-MM */
   period: string;
+  /** Which period of the life (a migrated asset continues its count). */
+  sequence: number;
   amount: number;
-  bookValueAfter: number;
+  accumulatedAfter: number;
+  carryingAfter: number;
+  /**
+     * NULL = planned; set once = posted and FROZEN.
+     * @nullable
+     */
+  journalEntryId: number | null;
+  /** @nullable */
+  postedAt: string | null;
+}
+
+export interface AssetPlannedRow {
+  period: string;
+  sequence: number;
+  amount: number;
+  accumulatedAfter: number;
+  carryingAfter: number;
+}
+
+export type AssetEventKind = typeof AssetEventKind[keyof typeof AssetEventKind];
+
+
+export const AssetEventKind = {
+  created: 'created',
+  updated: 'updated',
+  capitalised: 'capitalised',
+  addition: 'addition',
+  depreciated: 'depreciated',
+  estimate_changed: 'estimate_changed',
+  transferred: 'transferred',
+  disposed: 'disposed',
+  reversed: 'reversed',
+  vat_use_recorded: 'vat_use_recorded',
+  vat_adjusted: 'vat_adjusted',
+  cancelled: 'cancelled',
+} as const;
+
+export type AssetEventPayload = { [key: string]: unknown };
+
+export interface AssetEvent {
+  id: number;
+  assetId: number;
+  kind: AssetEventKind;
+  occurredOn: string;
+  payload: AssetEventPayload;
+  /** @nullable */
+  journalEntryId: number | null;
+  /** @nullable */
+  documentRef: string | null;
+  /** @nullable */
+  userId: number | null;
   createdAt: string;
 }
 
-export type AssetDetail = Asset & {
-  depreciationHistory: DepreciationEntry[];
-};
+export type AssetDetail = Asset & ({
+  schedule: AssetScheduleRow[];
+  /**
+     * A DRAFT's preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.
+     * @nullable
+     */
+  plannedSchedule: AssetPlannedRow[] | null;
+  events: AssetEvent[];
+});
 
 export interface AssetTotals {
-  activeCount: number;
-  purchaseCost: number;
+  drafts: number;
+  inService: number;
+  disposed: number;
+  /** Over the assets IN SERVICE — what is on the balance sheet. */
+  cost: number;
   accumulatedDepreciation: number;
-  currentBookValue: number;
+  carryingAmount: number;
 }
 
+/**
+ * @nullable
+ */
+export type CreateAssetInputDepreciationMethod = typeof CreateAssetInputDepreciationMethod[keyof typeof CreateAssetInputDepreciationMethod] | null;
+
+
+export const CreateAssetInputDepreciationMethod = {
+  straight_line: 'straight_line',
+  declining_balance: 'declining_balance',
+  units_of_production: 'units_of_production',
+} as const;
+
 export interface CreateAssetInput {
-  /** @minLength 1 */
-  assetNumber: string;
-  /** @minLength 1 */
+  /**
+     * Blank = the next FA-nnnnn.
+     * @maxLength 60
+     * @nullable
+     */
+  assetNumber?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
   name: string;
-  /** @nullable */
+  /**
+     * @maxLength 200
+     * @nullable
+     */
   nameAr?: string | null;
-  /** @nullable */
-  categoryId?: number | null;
-  purchaseDate: string;
-  /** @minimum 0 */
-  purchaseCost: number;
-  /** @minimum 0 */
-  salvageValue?: number;
-  /** @exclusiveMinimum 0 */
-  usefulLifeYears: number;
-  depreciationMethod?: string;
-  /** @nullable */
-  location?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  description?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
   serialNumber?: string | null;
-  status?: string;
+  categoryId: number;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  location?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  department?: string | null;
   /** @nullable */
-  disposalDate?: string | null;
+  custodianUserId?: number | null;
+  acquisitionDate: string;
   /** @nullable */
-  disposalValue?: number | null;
+  availableForUseDate?: string | null;
+  /** @minimum 0 */
+  cost: number;
+  /**
+     * Default: the category's residual % of cost.
+     * @minimum 0
+     * @nullable
+     */
+  residualValue?: number | null;
+  /**
+     * Default: the category's.
+     * @minimum 1
+     * @maximum 1200
+     * @nullable
+     */
+  usefulLifeMonths?: number | null;
   /** @nullable */
+  depreciationMethod?: CreateAssetInputDepreciationMethod;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  vatInputTaxAmount?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  vatInitialRecoveryPct?: number | null;
+  /**
+     * Required when a capital asset's recovery is 0 % (VAT IR Art. 50).
+     * @maxLength 500
+     * @nullable
+     */
+  vatNonDeductibleReason?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  sourceReference?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
   notes?: string | null;
 }
 
-export interface DepreciateInput {
-  /** YYYY-MM */
-  period: string;
+export interface CancelAssetInput {
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  reason?: string | null;
+}
+
+export type UpdateAssetInputDepreciationMethod = typeof UpdateAssetInputDepreciationMethod[keyof typeof UpdateAssetInputDepreciationMethod];
+
+
+export const UpdateAssetInputDepreciationMethod = {
+  straight_line: 'straight_line',
+  declining_balance: 'declining_balance',
+  units_of_production: 'units_of_production',
+} as const;
+
+export interface UpdateAssetInput {
+  /**
+     * @minLength 1
+     * @maxLength 60
+     */
+  assetNumber?: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name?: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  nameAr?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  description?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  serialNumber?: string | null;
+  categoryId?: number;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  location?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  department?: string | null;
+  /** @nullable */
+  custodianUserId?: number | null;
+  acquisitionDate?: string;
+  /** @nullable */
+  availableForUseDate?: string | null;
+  /** @minimum 0 */
+  cost?: number;
+  /** @minimum 0 */
+  residualValue?: number;
+  /**
+     * @minimum 1
+     * @maximum 1200
+     */
+  usefulLifeMonths?: number;
+  depreciationMethod?: UpdateAssetInputDepreciationMethod;
+  /** @minimum 0 */
+  vatInputTaxAmount?: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  vatInitialRecoveryPct?: number;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  vatNonDeductibleReason?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  sourceReference?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
 }
 
 /**
@@ -6277,6 +6760,15 @@ export type ListEmployees200 = {
   totals: EmployeeTotals;
 };
 
+export type ListAssetCategoriesParams = {
+includeInactive?: boolean;
+};
+
+export type ListAssetCategories200 = {
+  items: AssetCategory[];
+  incomeTaxGroups: IncomeTaxGroup[];
+};
+
 export type ListAssetsParams = {
 /**
  * @minimum 1
@@ -6287,10 +6779,21 @@ limit?: number;
  * @minimum 0
  */
 offset?: number;
+status?: ListAssetsStatus;
+category_id?: number;
 };
 
+export type ListAssetsStatus = typeof ListAssetsStatus[keyof typeof ListAssetsStatus];
+
+
+export const ListAssetsStatus = {
+  draft: 'draft',
+  in_service: 'in_service',
+  disposed: 'disposed',
+} as const;
+
 export type ListAssets200 = {
-  items: AssetListItem[];
+  items: Asset[];
   page: PageInfo;
   totals: AssetTotals;
 };

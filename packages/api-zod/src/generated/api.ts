@@ -3973,7 +3973,164 @@ export const DeleteEmployeeResponse = zod.void()
 
 
 /**
- * @summary A PAGE of fixed assets with derived depreciation figures, plus set-wide totals
+ * @summary FA-A (2026-09-22): the asset categories — each binds an account triple (cost / accumulated depreciation / depreciation expense) and the two Saudi classifications every asset inherits
+ */
+export const listAssetCategoriesQueryIncludeInactiveDefault = false;
+
+export const ListAssetCategoriesQueryParams = zod.object({
+  "includeInactive": zod.coerce.boolean().default(listAssetCategoriesQueryIncludeInactiveDefault)
+})
+
+export const listAssetCategoriesResponseItemsItemIncomeTaxGroupMax = 5;
+
+export const listAssetCategoriesResponseIncomeTaxGroupsItemGroupMax = 5;
+
+
+
+export const ListAssetCategoriesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "costAccountId": zod.number(),
+  "accumulatedDepreciationAccountId": zod.number(),
+  "depreciationExpenseAccountId": zod.number(),
+  "costAccountName": zod.string(),
+  "accumulatedDepreciationAccountName": zod.string(),
+  "depreciationExpenseAccountName": zod.string(),
+  "defaultUsefulLifeMonths": zod.number(),
+  "defaultMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "defaultResidualPct": zod.number(),
+  "incomeTaxGroup": zod.number().min(1).max(listAssetCategoriesResponseItemsItemIncomeTaxGroupMax).describe('Income Tax Law Art. 17(b) group — the pooled tax depreciation rate follows from it (FA-1: in scope).'),
+  "incomeTaxRatePct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']).describe('VAT IR Art. 52(2): the adjustment period is 6 years (movable) or 10 (immovable), shortened to the accounting life.'),
+  "isActive": zod.boolean(),
+  "assetCount": zod.number(),
+  "createdAt": zod.string()
+})),
+  "incomeTaxGroups": zod.array(zod.object({
+  "group": zod.number().min(1).max(listAssetCategoriesResponseIncomeTaxGroupsItemGroupMax),
+  "ratePct": zod.number().describe('Income Tax Law Art. 17(b): 5 · 10 · 25 · 20 · 10.'),
+  "label": zod.string(),
+  "labelAr": zod.string()
+}))
+})
+
+
+export const createAssetCategoryBodyNameMax = 120;
+
+export const createAssetCategoryBodyNameArMax = 120;
+
+export const createAssetCategoryBodyDefaultUsefulLifeMonthsMax = 1200;
+
+export const createAssetCategoryBodyDefaultResidualPctMin = 0;
+export const createAssetCategoryBodyDefaultResidualPctExclusiveMax = 100;
+
+export const createAssetCategoryBodyIncomeTaxGroupMax = 5;
+
+
+
+export const CreateAssetCategoryBody = zod.object({
+  "name": zod.string().min(1).max(createAssetCategoryBodyNameMax),
+  "nameAr": zod.string().max(createAssetCategoryBodyNameArMax).nullish(),
+  "costAccountId": zod.number().nullish().describe('An asset-type posting account; default the company\'s FIXED_ASSETS account.'),
+  "accumulatedDepreciationAccountId": zod.number().nullish().describe('An asset-type (contra) account; default ACCUMULATED_DEPRECIATION.'),
+  "depreciationExpenseAccountId": zod.number().nullish().describe('An expense account; default DEPRECIATION_EXPENSE.'),
+  "defaultUsefulLifeMonths": zod.number().min(1).max(createAssetCategoryBodyDefaultUsefulLifeMonthsMax),
+  "defaultMethod": zod.union([zod.literal('straight_line'),zod.literal('declining_balance'),zod.literal('units_of_production'),zod.literal(null)]).nullish(),
+  "defaultResidualPct": zod.number().min(createAssetCategoryBodyDefaultResidualPctMin).lt(createAssetCategoryBodyDefaultResidualPctExclusiveMax).nullish(),
+  "incomeTaxGroup": zod.number().min(1).max(createAssetCategoryBodyIncomeTaxGroupMax),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital'])
+})
+
+export const createAssetCategoryResponseIncomeTaxGroupMax = 5;
+
+
+
+export const CreateAssetCategoryResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "costAccountId": zod.number(),
+  "accumulatedDepreciationAccountId": zod.number(),
+  "depreciationExpenseAccountId": zod.number(),
+  "costAccountName": zod.string(),
+  "accumulatedDepreciationAccountName": zod.string(),
+  "depreciationExpenseAccountName": zod.string(),
+  "defaultUsefulLifeMonths": zod.number(),
+  "defaultMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "defaultResidualPct": zod.number(),
+  "incomeTaxGroup": zod.number().min(1).max(createAssetCategoryResponseIncomeTaxGroupMax).describe('Income Tax Law Art. 17(b) group — the pooled tax depreciation rate follows from it (FA-1: in scope).'),
+  "incomeTaxRatePct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']).describe('VAT IR Art. 52(2): the adjustment period is 6 years (movable) or 10 (immovable), shortened to the accounting life.'),
+  "isActive": zod.boolean(),
+  "assetCount": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Rename, re-default or deactivate a category; its tax group, VAT class and accounts change only while no asset is under it (asset_category_in_use)
+ */
+export const UpdateAssetCategoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateAssetCategoryBodyNameMax = 120;
+
+export const updateAssetCategoryBodyNameArMax = 120;
+
+export const updateAssetCategoryBodyDefaultUsefulLifeMonthsMax = 1200;
+
+export const updateAssetCategoryBodyDefaultResidualPctMin = 0;
+export const updateAssetCategoryBodyDefaultResidualPctExclusiveMax = 100;
+
+export const updateAssetCategoryBodyIncomeTaxGroupMax = 5;
+
+
+
+export const UpdateAssetCategoryBody = zod.object({
+  "name": zod.string().min(1).max(updateAssetCategoryBodyNameMax).optional(),
+  "nameAr": zod.string().max(updateAssetCategoryBodyNameArMax).nullish(),
+  "costAccountId": zod.number().optional(),
+  "accumulatedDepreciationAccountId": zod.number().optional(),
+  "depreciationExpenseAccountId": zod.number().optional(),
+  "defaultUsefulLifeMonths": zod.number().min(1).max(updateAssetCategoryBodyDefaultUsefulLifeMonthsMax).optional(),
+  "defaultMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']).optional(),
+  "defaultResidualPct": zod.number().min(updateAssetCategoryBodyDefaultResidualPctMin).lt(updateAssetCategoryBodyDefaultResidualPctExclusiveMax).optional(),
+  "incomeTaxGroup": zod.number().min(1).max(updateAssetCategoryBodyIncomeTaxGroupMax).optional(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']).optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const updateAssetCategoryResponseIncomeTaxGroupMax = 5;
+
+
+
+export const UpdateAssetCategoryResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "costAccountId": zod.number(),
+  "accumulatedDepreciationAccountId": zod.number(),
+  "depreciationExpenseAccountId": zod.number(),
+  "costAccountName": zod.string(),
+  "accumulatedDepreciationAccountName": zod.string(),
+  "depreciationExpenseAccountName": zod.string(),
+  "defaultUsefulLifeMonths": zod.number(),
+  "defaultMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "defaultResidualPct": zod.number(),
+  "incomeTaxGroup": zod.number().min(1).max(updateAssetCategoryResponseIncomeTaxGroupMax).describe('Income Tax Law Art. 17(b) group — the pooled tax depreciation rate follows from it (FA-1: in scope).'),
+  "incomeTaxRatePct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']).describe('VAT IR Art. 52(2): the adjustment period is 6 years (movable) or 10 (immovable), shortened to the accounting life.'),
+  "isActive": zod.boolean(),
+  "assetCount": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary A PAGE of the register with DERIVED figures (accumulated depreciation and carrying amount come from the posted schedule rows, never a stored column), plus set-wide totals
  */
 export const listAssetsQueryLimitDefault = 50;
 export const listAssetsQueryLimitMax = 200;
@@ -3985,7 +4142,9 @@ export const listAssetsQueryOffsetMin = 0;
 
 export const ListAssetsQueryParams = zod.object({
   "limit": zod.coerce.number().min(1).max(listAssetsQueryLimitMax).default(listAssetsQueryLimitDefault),
-  "offset": zod.coerce.number().min(listAssetsQueryOffsetMin).default(listAssetsQueryOffsetDefault)
+  "offset": zod.coerce.number().min(listAssetsQueryOffsetMin).default(listAssetsQueryOffsetDefault),
+  "status": zod.enum(['draft', 'in_service', 'disposed']).optional(),
+  "category_id": zod.coerce.number().optional()
 })
 
 export const ListAssetsResponse = zod.object({
@@ -3994,66 +4153,121 @@ export const ListAssetsResponse = zod.object({
   "assetNumber": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
-  "categoryId": zod.number().nullable(),
-  "purchaseDate": zod.string(),
-  "purchaseCost": zod.number(),
-  "salvageValue": zod.number(),
-  "usefulLifeYears": zod.number(),
-  "depreciationMethod": zod.string(),
-  "accumulatedDepreciation": zod.number(),
-  "currentBookValue": zod.number(),
-  "location": zod.string().nullable(),
+  "description": zod.string().nullable(),
   "serialNumber": zod.string().nullable(),
-  "status": zod.string(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullable(),
+  "location": zod.string().nullable(),
+  "department": zod.string().nullable(),
+  "custodianUserId": zod.number().nullable(),
+  "acquisitionDate": zod.string().describe('The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it.'),
+  "availableForUseDate": zod.string().nullable().describe('IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation.'),
   "disposalDate": zod.string().nullable(),
-  "disposalValue": zod.number().nullable(),
+  "cost": zod.number(),
+  "residualValue": zod.number(),
+  "usefulLifeMonths": zod.number(),
+  "depreciationMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "openingAccumulatedDepreciation": zod.number().describe('A migrated asset: what the previous system booked before the opening date.'),
+  "openingPeriodsBooked": zod.number(),
+  "vatInputTaxAmount": zod.number().describe('VAT IR Art. 52(3)\/(4): the input tax deducted at acquisition.'),
+  "vatInitialRecoveryPct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']),
+  "vatAdjustmentPeriodYears": zod.number().nullable().describe('Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset.'),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "incomeTaxGroup": zod.number(),
+  "incomeTaxRatePct": zod.number(),
+  "source": zod.enum(['manual', 'bill', 'transaction', 'migration']),
+  "billId": zod.number().nullable(),
+  "transactionId": zod.number().nullable(),
+  "migrationBatchId": zod.number().nullable(),
+  "sourceReference": zod.string().nullable(),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
+  "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
+  "accumulatedDepreciation": zod.number().describe('DERIVED — the opening position + the POSTED schedule rows; never a stored column.'),
+  "carryingAmount": zod.number().describe('DERIVED — cost − accumulated; 0 once disposed.'),
+  "depreciableAmount": zod.number().describe('cost − residual (IAS 16.53).'),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "lastPostedPeriod": zod.string().nullable(),
+  "nextPeriod": zod.string().nullable(),
   "createdAt": zod.string(),
-  "annualDepreciation": zod.number().describe('DERIVED — (cost − salvage) \/ useful life.'),
-  "monthlyDepreciation": zod.number()
-}).and(zod.object({
-  "categoryName": zod.string().nullable()
-}))),
+  "updatedAt": zod.string()
+})),
   "page": zod.object({
   "limit": zod.number(),
   "offset": zod.number(),
   "total": zod.number().describe('Rows matching the filter, not rows on this page.')
 }),
   "totals": zod.object({
-  "activeCount": zod.number(),
-  "purchaseCost": zod.number(),
+  "drafts": zod.number(),
+  "inService": zod.number(),
+  "disposed": zod.number(),
+  "cost": zod.number().describe('Over the assets IN SERVICE — what is on the balance sheet.'),
   "accumulatedDepreciation": zod.number(),
-  "currentBookValue": zod.number()
+  "carryingAmount": zod.number()
 })
 })
 
 
+/**
+ * @summary A DRAFT register row: its facts, nothing posted (the zero-movement standard). Capitalisation is a separate act.
+ */
+export const createAssetBodyAssetNumberMax = 60;
 
+export const createAssetBodyNameMax = 200;
 
-export const createAssetBodyPurchaseCostMin = 0;
+export const createAssetBodyNameArMax = 200;
 
-export const createAssetBodySalvageValueMin = 0;
+export const createAssetBodyDescriptionMax = 2000;
 
-export const createAssetBodyUsefulLifeYearsExclusiveMin = 0;
+export const createAssetBodySerialNumberMax = 120;
+
+export const createAssetBodyLocationMax = 200;
+
+export const createAssetBodyDepartmentMax = 200;
+
+export const createAssetBodyCostMin = 0;
+
+export const createAssetBodyResidualValueMin = 0;
+
+export const createAssetBodyUsefulLifeMonthsMax = 1200;
+
+export const createAssetBodyVatInputTaxAmountMin = 0;
+
+export const createAssetBodyVatInitialRecoveryPctMin = 0;
+export const createAssetBodyVatInitialRecoveryPctMax = 100;
+
+export const createAssetBodyVatNonDeductibleReasonMax = 500;
+
+export const createAssetBodySourceReferenceMax = 200;
+
+export const createAssetBodyNotesMax = 2000;
 
 
 
 export const CreateAssetBody = zod.object({
-  "assetNumber": zod.string().min(1),
-  "name": zod.string().min(1),
-  "nameAr": zod.string().nullish(),
-  "categoryId": zod.number().nullish(),
-  "purchaseDate": zod.string(),
-  "purchaseCost": zod.number().min(createAssetBodyPurchaseCostMin),
-  "salvageValue": zod.number().min(createAssetBodySalvageValueMin).optional(),
-  "usefulLifeYears": zod.number().gt(createAssetBodyUsefulLifeYearsExclusiveMin),
-  "depreciationMethod": zod.string().optional(),
-  "location": zod.string().nullish(),
-  "serialNumber": zod.string().nullish(),
-  "status": zod.string().optional(),
-  "disposalDate": zod.string().nullish(),
-  "disposalValue": zod.number().nullish(),
-  "notes": zod.string().nullish()
+  "assetNumber": zod.string().max(createAssetBodyAssetNumberMax).nullish().describe('Blank = the next FA-nnnnn.'),
+  "name": zod.string().min(1).max(createAssetBodyNameMax),
+  "nameAr": zod.string().max(createAssetBodyNameArMax).nullish(),
+  "description": zod.string().max(createAssetBodyDescriptionMax).nullish(),
+  "serialNumber": zod.string().max(createAssetBodySerialNumberMax).nullish(),
+  "categoryId": zod.number(),
+  "location": zod.string().max(createAssetBodyLocationMax).nullish(),
+  "department": zod.string().max(createAssetBodyDepartmentMax).nullish(),
+  "custodianUserId": zod.number().nullish(),
+  "acquisitionDate": zod.string(),
+  "availableForUseDate": zod.string().nullish(),
+  "cost": zod.number().min(createAssetBodyCostMin),
+  "residualValue": zod.number().min(createAssetBodyResidualValueMin).nullish().describe('Default: the category\'s residual % of cost.'),
+  "usefulLifeMonths": zod.number().min(1).max(createAssetBodyUsefulLifeMonthsMax).nullish().describe('Default: the category\'s.'),
+  "depreciationMethod": zod.union([zod.literal('straight_line'),zod.literal('declining_balance'),zod.literal('units_of_production'),zod.literal(null)]).nullish(),
+  "vatInputTaxAmount": zod.number().min(createAssetBodyVatInputTaxAmountMin).nullish(),
+  "vatInitialRecoveryPct": zod.number().min(createAssetBodyVatInitialRecoveryPctMin).max(createAssetBodyVatInitialRecoveryPctMax).nullish(),
+  "vatNonDeductibleReason": zod.string().max(createAssetBodyVatNonDeductibleReasonMax).nullish().describe('Required when a capital asset\'s recovery is 0 % (VAT IR Art. 50).'),
+  "sourceReference": zod.string().max(createAssetBodySourceReferenceMax).nullish(),
+  "notes": zod.string().max(createAssetBodyNotesMax).nullish()
 })
 
 export const CreateAssetResponse = zod.object({
@@ -4061,28 +4275,82 @@ export const CreateAssetResponse = zod.object({
   "assetNumber": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
-  "categoryId": zod.number().nullable(),
-  "purchaseDate": zod.string(),
-  "purchaseCost": zod.number(),
-  "salvageValue": zod.number(),
-  "usefulLifeYears": zod.number(),
-  "depreciationMethod": zod.string(),
-  "accumulatedDepreciation": zod.number(),
-  "currentBookValue": zod.number(),
-  "location": zod.string().nullable(),
+  "description": zod.string().nullable(),
   "serialNumber": zod.string().nullable(),
-  "status": zod.string(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullable(),
+  "location": zod.string().nullable(),
+  "department": zod.string().nullable(),
+  "custodianUserId": zod.number().nullable(),
+  "acquisitionDate": zod.string().describe('The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it.'),
+  "availableForUseDate": zod.string().nullable().describe('IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation.'),
   "disposalDate": zod.string().nullable(),
-  "disposalValue": zod.number().nullable(),
+  "cost": zod.number(),
+  "residualValue": zod.number(),
+  "usefulLifeMonths": zod.number(),
+  "depreciationMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "openingAccumulatedDepreciation": zod.number().describe('A migrated asset: what the previous system booked before the opening date.'),
+  "openingPeriodsBooked": zod.number(),
+  "vatInputTaxAmount": zod.number().describe('VAT IR Art. 52(3)\/(4): the input tax deducted at acquisition.'),
+  "vatInitialRecoveryPct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']),
+  "vatAdjustmentPeriodYears": zod.number().nullable().describe('Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset.'),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "incomeTaxGroup": zod.number(),
+  "incomeTaxRatePct": zod.number(),
+  "source": zod.enum(['manual', 'bill', 'transaction', 'migration']),
+  "billId": zod.number().nullable(),
+  "transactionId": zod.number().nullable(),
+  "migrationBatchId": zod.number().nullable(),
+  "sourceReference": zod.string().nullable(),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
+  "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
+  "accumulatedDepreciation": zod.number().describe('DERIVED — the opening position + the POSTED schedule rows; never a stored column.'),
+  "carryingAmount": zod.number().describe('DERIVED — cost − accumulated; 0 once disposed.'),
+  "depreciableAmount": zod.number().describe('cost − residual (IAS 16.53).'),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "lastPostedPeriod": zod.string().nullable(),
+  "nextPeriod": zod.string().nullable(),
   "createdAt": zod.string(),
-  "annualDepreciation": zod.number().describe('DERIVED — (cost − salvage) \/ useful life.'),
-  "monthlyDepreciation": zod.number()
-})
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "schedule": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "period": zod.string().describe('YYYY-MM'),
+  "sequence": zod.number().describe('Which period of the life (a migrated asset continues its count).'),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('NULL = planned; set once = posted and FROZEN.'),
+  "postedAt": zod.string().nullable()
+})),
+  "plannedSchedule": zod.array(zod.object({
+  "period": zod.string(),
+  "sequence": zod.number(),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number()
+})).nullable().describe('A DRAFT\'s preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.'),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "kind": zod.enum(['created', 'updated', 'capitalised', 'addition', 'depreciated', 'estimate_changed', 'transferred', 'disposed', 'reversed', 'vat_use_recorded', 'vat_adjusted', 'cancelled']),
+  "occurredOn": zod.string(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "journalEntryId": zod.number().nullable(),
+  "documentRef": zod.string().nullable(),
+  "userId": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+}))
 
 
 /**
- * @summary One asset with its depreciation history
+ * @summary One asset with its schedule (stored once capitalised; PLANNED preview while a draft), its events and its derived figures
  */
 export const GetAssetParams = zod.object({
   "id": zod.coerce.number()
@@ -4093,54 +4361,314 @@ export const GetAssetResponse = zod.object({
   "assetNumber": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
-  "categoryId": zod.number().nullable(),
-  "purchaseDate": zod.string(),
-  "purchaseCost": zod.number(),
-  "salvageValue": zod.number(),
-  "usefulLifeYears": zod.number(),
-  "depreciationMethod": zod.string(),
-  "accumulatedDepreciation": zod.number(),
-  "currentBookValue": zod.number(),
-  "location": zod.string().nullable(),
+  "description": zod.string().nullable(),
   "serialNumber": zod.string().nullable(),
-  "status": zod.string(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullable(),
+  "location": zod.string().nullable(),
+  "department": zod.string().nullable(),
+  "custodianUserId": zod.number().nullable(),
+  "acquisitionDate": zod.string().describe('The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it.'),
+  "availableForUseDate": zod.string().nullable().describe('IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation.'),
   "disposalDate": zod.string().nullable(),
-  "disposalValue": zod.number().nullable(),
+  "cost": zod.number(),
+  "residualValue": zod.number(),
+  "usefulLifeMonths": zod.number(),
+  "depreciationMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "openingAccumulatedDepreciation": zod.number().describe('A migrated asset: what the previous system booked before the opening date.'),
+  "openingPeriodsBooked": zod.number(),
+  "vatInputTaxAmount": zod.number().describe('VAT IR Art. 52(3)\/(4): the input tax deducted at acquisition.'),
+  "vatInitialRecoveryPct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']),
+  "vatAdjustmentPeriodYears": zod.number().nullable().describe('Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset.'),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "incomeTaxGroup": zod.number(),
+  "incomeTaxRatePct": zod.number(),
+  "source": zod.enum(['manual', 'bill', 'transaction', 'migration']),
+  "billId": zod.number().nullable(),
+  "transactionId": zod.number().nullable(),
+  "migrationBatchId": zod.number().nullable(),
+  "sourceReference": zod.string().nullable(),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
+  "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
+  "accumulatedDepreciation": zod.number().describe('DERIVED — the opening position + the POSTED schedule rows; never a stored column.'),
+  "carryingAmount": zod.number().describe('DERIVED — cost − accumulated; 0 once disposed.'),
+  "depreciableAmount": zod.number().describe('cost − residual (IAS 16.53).'),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "lastPostedPeriod": zod.string().nullable(),
+  "nextPeriod": zod.string().nullable(),
   "createdAt": zod.string(),
-  "annualDepreciation": zod.number().describe('DERIVED — (cost − salvage) \/ useful life.'),
-  "monthlyDepreciation": zod.number()
+  "updatedAt": zod.string()
 }).and(zod.object({
-  "depreciationHistory": zod.array(zod.object({
+  "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
-  "period": zod.string(),
+  "period": zod.string().describe('YYYY-MM'),
+  "sequence": zod.number().describe('Which period of the life (a migrated asset continues its count).'),
   "amount": zod.number(),
-  "bookValueAfter": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('NULL = planned; set once = posted and FROZEN.'),
+  "postedAt": zod.string().nullable()
+})),
+  "plannedSchedule": zod.array(zod.object({
+  "period": zod.string(),
+  "sequence": zod.number(),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number()
+})).nullable().describe('A DRAFT\'s preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.'),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "kind": zod.enum(['created', 'updated', 'capitalised', 'addition', 'depreciated', 'estimate_changed', 'transferred', 'disposed', 'reversed', 'vat_use_recorded', 'vat_adjusted', 'cancelled']),
+  "occurredOn": zod.string(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "journalEntryId": zod.number().nullable(),
+  "documentRef": zod.string().nullable(),
+  "userId": zod.number().nullable(),
   "createdAt": zod.string()
 }))
 }))
 
 
 /**
- * @summary Record one month of straight-line depreciation
+ * @summary A draft's facts may change; an in-service asset's facts of record may not (asset_capitalised_facts_frozen) — only its descriptive fields
  */
-export const DepreciateAssetParams = zod.object({
+export const UpdateAssetParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const DepreciateAssetBody = zod.object({
-  "period": zod.string().describe('YYYY-MM')
+export const updateAssetBodyAssetNumberMax = 60;
+
+export const updateAssetBodyNameMax = 200;
+
+export const updateAssetBodyNameArMax = 200;
+
+export const updateAssetBodyDescriptionMax = 2000;
+
+export const updateAssetBodySerialNumberMax = 120;
+
+export const updateAssetBodyLocationMax = 200;
+
+export const updateAssetBodyDepartmentMax = 200;
+
+export const updateAssetBodyCostMin = 0;
+
+export const updateAssetBodyResidualValueMin = 0;
+
+export const updateAssetBodyUsefulLifeMonthsMax = 1200;
+
+export const updateAssetBodyVatInputTaxAmountMin = 0;
+
+export const updateAssetBodyVatInitialRecoveryPctMin = 0;
+export const updateAssetBodyVatInitialRecoveryPctMax = 100;
+
+export const updateAssetBodyVatNonDeductibleReasonMax = 500;
+
+export const updateAssetBodySourceReferenceMax = 200;
+
+export const updateAssetBodyNotesMax = 2000;
+
+
+
+export const UpdateAssetBody = zod.object({
+  "assetNumber": zod.string().min(1).max(updateAssetBodyAssetNumberMax).optional(),
+  "name": zod.string().min(1).max(updateAssetBodyNameMax).optional(),
+  "nameAr": zod.string().max(updateAssetBodyNameArMax).nullish(),
+  "description": zod.string().max(updateAssetBodyDescriptionMax).nullish(),
+  "serialNumber": zod.string().max(updateAssetBodySerialNumberMax).nullish(),
+  "categoryId": zod.number().optional(),
+  "location": zod.string().max(updateAssetBodyLocationMax).nullish(),
+  "department": zod.string().max(updateAssetBodyDepartmentMax).nullish(),
+  "custodianUserId": zod.number().nullish(),
+  "acquisitionDate": zod.string().optional(),
+  "availableForUseDate": zod.string().nullish(),
+  "cost": zod.number().min(updateAssetBodyCostMin).optional(),
+  "residualValue": zod.number().min(updateAssetBodyResidualValueMin).optional(),
+  "usefulLifeMonths": zod.number().min(1).max(updateAssetBodyUsefulLifeMonthsMax).optional(),
+  "depreciationMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']).optional(),
+  "vatInputTaxAmount": zod.number().min(updateAssetBodyVatInputTaxAmountMin).optional(),
+  "vatInitialRecoveryPct": zod.number().min(updateAssetBodyVatInitialRecoveryPctMin).max(updateAssetBodyVatInitialRecoveryPctMax).optional(),
+  "vatNonDeductibleReason": zod.string().max(updateAssetBodyVatNonDeductibleReasonMax).nullish(),
+  "sourceReference": zod.string().max(updateAssetBodySourceReferenceMax).nullish(),
+  "notes": zod.string().max(updateAssetBodyNotesMax).nullish()
 })
 
-export const DepreciateAssetResponse = zod.object({
+export const UpdateAssetResponse = zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullable(),
+  "location": zod.string().nullable(),
+  "department": zod.string().nullable(),
+  "custodianUserId": zod.number().nullable(),
+  "acquisitionDate": zod.string().describe('The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it.'),
+  "availableForUseDate": zod.string().nullable().describe('IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation.'),
+  "disposalDate": zod.string().nullable(),
+  "cost": zod.number(),
+  "residualValue": zod.number(),
+  "usefulLifeMonths": zod.number(),
+  "depreciationMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "openingAccumulatedDepreciation": zod.number().describe('A migrated asset: what the previous system booked before the opening date.'),
+  "openingPeriodsBooked": zod.number(),
+  "vatInputTaxAmount": zod.number().describe('VAT IR Art. 52(3)\/(4): the input tax deducted at acquisition.'),
+  "vatInitialRecoveryPct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']),
+  "vatAdjustmentPeriodYears": zod.number().nullable().describe('Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset.'),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "incomeTaxGroup": zod.number(),
+  "incomeTaxRatePct": zod.number(),
+  "source": zod.enum(['manual', 'bill', 'transaction', 'migration']),
+  "billId": zod.number().nullable(),
+  "transactionId": zod.number().nullable(),
+  "migrationBatchId": zod.number().nullable(),
+  "sourceReference": zod.string().nullable(),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
+  "capitalisationJournalEntryId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "accumulatedDepreciation": zod.number().describe('DERIVED — the opening position + the POSTED schedule rows; never a stored column.'),
+  "carryingAmount": zod.number().describe('DERIVED — cost − accumulated; 0 once disposed.'),
+  "depreciableAmount": zod.number().describe('cost − residual (IAS 16.53).'),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "lastPostedPeriod": zod.string().nullable(),
+  "nextPeriod": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
-  "period": zod.string(),
+  "period": zod.string().describe('YYYY-MM'),
+  "sequence": zod.number().describe('Which period of the life (a migrated asset continues its count).'),
   "amount": zod.number(),
-  "bookValueAfter": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('NULL = planned; set once = posted and FROZEN.'),
+  "postedAt": zod.string().nullable()
+})),
+  "plannedSchedule": zod.array(zod.object({
+  "period": zod.string(),
+  "sequence": zod.number(),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number()
+})).nullable().describe('A DRAFT\'s preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.'),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "kind": zod.enum(['created', 'updated', 'capitalised', 'addition', 'depreciated', 'estimate_changed', 'transferred', 'disposed', 'reversed', 'vat_use_recorded', 'vat_adjusted', 'cancelled']),
+  "occurredOn": zod.string(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "journalEntryId": zod.number().nullable(),
+  "documentRef": zod.string().nullable(),
+  "userId": zod.number().nullable(),
   "createdAt": zod.string()
+}))
+}))
+
+
+/**
+ * @summary Cancel a DRAFT (never hard-deleted — the number stays taken, the audit trail stays); an asset in service leaves the books only by disposal
+ */
+export const CancelAssetParams = zod.object({
+  "id": zod.coerce.number()
 })
+
+export const cancelAssetBodyReasonMax = 500;
+
+
+
+export const CancelAssetBody = zod.object({
+  "reason": zod.string().max(cancelAssetBodyReasonMax).nullish()
+})
+
+export const CancelAssetResponse = zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullable(),
+  "location": zod.string().nullable(),
+  "department": zod.string().nullable(),
+  "custodianUserId": zod.number().nullable(),
+  "acquisitionDate": zod.string().describe('The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it.'),
+  "availableForUseDate": zod.string().nullable().describe('IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation.'),
+  "disposalDate": zod.string().nullable(),
+  "cost": zod.number(),
+  "residualValue": zod.number(),
+  "usefulLifeMonths": zod.number(),
+  "depreciationMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "openingAccumulatedDepreciation": zod.number().describe('A migrated asset: what the previous system booked before the opening date.'),
+  "openingPeriodsBooked": zod.number(),
+  "vatInputTaxAmount": zod.number().describe('VAT IR Art. 52(3)\/(4): the input tax deducted at acquisition.'),
+  "vatInitialRecoveryPct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']),
+  "vatAdjustmentPeriodYears": zod.number().nullable().describe('Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset.'),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "incomeTaxGroup": zod.number(),
+  "incomeTaxRatePct": zod.number(),
+  "source": zod.enum(['manual', 'bill', 'transaction', 'migration']),
+  "billId": zod.number().nullable(),
+  "transactionId": zod.number().nullable(),
+  "migrationBatchId": zod.number().nullable(),
+  "sourceReference": zod.string().nullable(),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
+  "capitalisationJournalEntryId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "accumulatedDepreciation": zod.number().describe('DERIVED — the opening position + the POSTED schedule rows; never a stored column.'),
+  "carryingAmount": zod.number().describe('DERIVED — cost − accumulated; 0 once disposed.'),
+  "depreciableAmount": zod.number().describe('cost − residual (IAS 16.53).'),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "lastPostedPeriod": zod.string().nullable(),
+  "nextPeriod": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "schedule": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "period": zod.string().describe('YYYY-MM'),
+  "sequence": zod.number().describe('Which period of the life (a migrated asset continues its count).'),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('NULL = planned; set once = posted and FROZEN.'),
+  "postedAt": zod.string().nullable()
+})),
+  "plannedSchedule": zod.array(zod.object({
+  "period": zod.string(),
+  "sequence": zod.number(),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number()
+})).nullable().describe('A DRAFT\'s preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.'),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "kind": zod.enum(['created', 'updated', 'capitalised', 'addition', 'depreciated', 'estimate_changed', 'transferred', 'disposed', 'reversed', 'vat_use_recorded', 'vat_adjusted', 'cancelled']),
+  "occurredOn": zod.string(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "journalEntryId": zod.number().nullable(),
+  "documentRef": zod.string().nullable(),
+  "userId": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+}))
 
 
 /**

@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface DepreciateInput {
-  /** YYYY-MM */
-  period: string;
-}
+export type ListAssetCategoriesParams = {
+includeInactive?: boolean;
+};
