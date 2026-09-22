@@ -45,12 +45,25 @@ const vatReturn = async (period: string): Promise<VatReturn> => (await api.get(`
 const reviewItem = async (id: number): Promise<ReviewItem | undefined> => (((await (await api.get(`/api/payments/deposit-review`)).json()) as { items: ReviewItem[] }).items).find((i) => i.paymentId === id);
 const box = async (period: string) => { const r = await vatReturn(period); return { box1: Number(r.salesSection.box1_standardRatedDomesticSales), box6: Number(r.salesSection.box6_vatOnStandardRatedSales) }; };
 
+/**
+ * An instrument names its evidence: on failure the verdict carries the box it
+ * measured and the state of the nearest sideways scroller, so a CI-only
+ * failure (fonts, scroll position) can be read from the log instead of
+ * guessed at.
+ */
 async function expectFits(el: ReturnType<Page["getByTestId"]>, width: number, message: string) {
   await expect(el).toBeVisible();
+  let last = "";
   await expect.poll(async () => {
     const b = await el.boundingBox();
+    const scroller = await el.evaluate((node) => {
+      const sc = (node as HTMLElement).closest(".overflow-x-auto") as HTMLElement | null;
+      const r = (node as HTMLElement).getBoundingClientRect();
+      return { rect: { x: r.x, w: r.width }, scrollLeft: sc?.scrollLeft ?? null, scrollWidth: sc?.scrollWidth ?? null, clientWidth: sc?.clientWidth ?? null, dir: document.documentElement.dir, docScrollWidth: document.documentElement.scrollWidth };
+    }).catch(() => null);
+    last = JSON.stringify({ box: b, scroller });
     return !!b && b.x >= 0 && b.x + b.width <= width + 1;
-  }, { message, timeout: 5_000 }).toBe(true);
+  }, { message: () => `${message} — measured ${last}`, timeout: 5_000 }).toBe(true);
 }
 const noSidewaysScroll = async (page: Page, width: number, what: string) => {
   const w = await page.evaluate(() => document.documentElement.scrollWidth);
