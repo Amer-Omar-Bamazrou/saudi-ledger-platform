@@ -15,6 +15,7 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
+import { businessToday } from "@workspace/shared";
 
 test.use({ storageState: E2E.storageState });
 
@@ -88,7 +89,8 @@ async function settleReceipt(id: number) {
 }
 
 /** The month the walk's receipts and invoices are dated in — this month, so nothing is closed and the return is read for it. */
-const TODAY = new Date().toISOString().slice(0, 10);
+// The BUSINESS day (Asia/Riyadh), never the runner's UTC date: between 21:00 and 00:00 UTC they differ, and a document dated the UTC day sorts BEFORE a receipt the product dated the Riyadh day — the night window (findings file), seen as a −5 deposit on main's CI statement.
+const TODAY = businessToday();
 const PERIOD = TODAY.slice(0, 7);
 
 /** Record a receipt on account classified as an ADVANCE (S) in the receipt dialog; returns its id. */
