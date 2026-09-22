@@ -7,6 +7,7 @@
  */
 import type { UpdateCompanyInputFiscalCalendar } from './updateCompanyInputFiscalCalendar';
 import type { UpdateCompanyInputOwnershipType } from './updateCompanyInputOwnershipType';
+import type { UpdateCompanyInputVatTaxPeriod } from './updateCompanyInputVatTaxPeriod';
 
 /**
  * Partial update. Any omitted field is left unchanged; send an empty string to clear an optional field.
@@ -35,6 +36,8 @@ export interface UpdateCompanyInput {
      * @nullable
      */
   foreignOwnershipPct?: number | null;
+  /** @nullable */
+  vatTaxPeriod?: UpdateCompanyInputVatTaxPeriod;
   /** @nullable */
   buildingNumber?: string | null;
   /** @nullable */

@@ -4262,6 +4262,107 @@ paths:
         "404":
           description: Not found
 
+  /assets/vat-adjustments:
+    get:
+      operationId: getVatCapitalAssetAdjustments
+      tags: [assets]
+      summary: "FA-F: the VAT IR Art. 52 capital-asset input-tax adjustment working paper"
+      description: >
+        For every capital asset in the register, each twelve-month adjustment
+        window of Art. 52(5) — opened at the start of the TAX PERIOD of
+        acquisition, with the return that carries its adjustment named — the
+        potentially adjustable amount (52(4): initial deduction ÷ adjustment
+        period), the actual taxable use of the window, and the resulting
+        adjustment. The use is DECLARED where the taxpayer has stated it and
+        otherwise DERIVED from Art. 51(4)'s default fraction over the company's
+        own supplies in that calendar year, excluding supplies of capital assets
+        (51(5)(a)). A disposal is carried as Art. 52(7)/(8) with the limb that
+        applies stated in words.
+
+        🔴 Art. 52(6) ("no change in use ⇒ no adjustment required") is reported
+        as its own flag, apart from an adjustment that merely computes to zero:
+        a window whose use is neither declared nor derivable reports
+        `unavailable`, nil, and NOT 52(6) — nobody established that the use did
+        not change. `status` is `computed` only once the company's tax period is
+        declared; otherwise `reason` names the act that supplies it.
+      parameters:
+        - in: query
+          name: asset_id
+          required: false
+          schema: { type: integer }
+          description: Narrow the working paper to one asset.
+      responses:
+        "200":
+          description: The working paper, or the state that stops it being computed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VatAdjustmentReport" }
+
+  /assets/vat-adjustments/use-records:
+    get:
+      operationId: listAssetVatUseRecords
+      tags: [assets]
+      summary: "FA-F: the declared actual-use figures that override the Art. 51 default"
+      parameters:
+        - { in: query, name: asset_id, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Every declared use record
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/AssetVatUseRecord" }
+    post:
+      operationId: declareAssetVatUse
+      tags: [assets]
+      summary: "FA-F: state (or correct) an asset's actual taxable use in one twelve-month window"
+      description: >
+        Upserts on (asset, window). It overrides the Art. 51 default for that
+        window only, and states WHY: an exclusive use the business-wide fraction
+        would misstate, an alternative method approved under Art. 51(8)–(10), or
+        the Art. 51(7) year-end true-up. A window outside the asset's adjustment
+        period is refused rather than stored where nothing could show it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetVatUseInput" }
+      responses:
+        "200":
+          description: The use record as stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetVatUseRecord" }
+        "422":
+          description: The basis is unknown, the percentage is not a share, or the window is outside the adjustment period
+        "404":
+          description: Asset not found
+
+  /assets/vat-adjustments/use-records/{id}:
+    delete:
+      operationId: deleteAssetVatUseRecord
+      tags: [assets]
+      summary: "FA-F: withdraw a declared use figure, so the window falls back to the Art. 51 default"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Withdrawn
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: integer }
+        "404":
+          description: Not found
+
   /assets/income-tax-pool:
     get:
       operationId: getIncomeTaxPool
@@ -5085,6 +5186,7 @@ components:
           fiscalCalendar,
           ownershipType,
           foreignOwnershipPct,
+          vatTaxPeriod,
           buildingNumber,
           street,
           district,
@@ -5135,6 +5237,18 @@ components:
             have the platform assert the tenant ownership nobody supplied, and
             that assertion decides whether a Zakat surface is shown. Zakat v1
             covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
+        vatTaxPeriod:
+          type: ["string", "null"]
+          enum: [monthly, quarterly, null]
+          description: >
+            FA-F (2026-09-22): the company's VAT tax period. VAT IR Art. 52(5)
+            opens a capital asset's first twelve-month adjustment window at the
+            start of the TAX PERIOD of acquisition and files the adjustment in
+            the return for the last tax period inside that window, so monthly
+            and quarterly give different windows and different returns for the
+            same purchase. NULL is NOT DECLARED; it is not inferred from
+            turnover, because Art. 58's threshold is not the only way a period
+            is assigned.
         foreignOwnershipPct:
           type: ["number", "null"]
           minimum: 0
@@ -5186,6 +5300,9 @@ components:
           type: ["number", "null"]
           minimum: 0
           maximum: 100
+        vatTaxPeriod:
+          type: ["string", "null"]
+          enum: [monthly, quarterly, null]
         buildingNumber:
           type: ["string", "null"]
         street:
@@ -9279,6 +9396,123 @@ components:
         journalEntryId: { type: integer }
         invoiceId: { type: ["integer", "null"] }
         reason: { type: ["string", "null"] }
+
+    AssetVatUseRecord:
+      type: object
+      required: [id, assetId, periodIndex, actualUsePct, basis, updatedAt]
+      properties:
+        id: { type: integer }
+        assetId: { type: integer }
+        periodIndex: { type: integer, minimum: 1, description: "Which twelve-month window of Art. 52(5) this states." }
+        actualUsePct: { type: number, minimum: 0, maximum: 100 }
+        basis:
+          type: string
+          enum: [exclusive_use, approved_alternative_method, year_end_true_up, other]
+        note: { type: ["string", "null"] }
+        updatedAt: { type: string }
+
+    AssetVatUseInput:
+      type: object
+      required: [assetId, periodIndex, actualUsePct, basis]
+      properties:
+        assetId: { type: integer }
+        periodIndex: { type: integer, minimum: 1 }
+        actualUsePct: { type: number, minimum: 0, maximum: 100 }
+        basis:
+          type: string
+          enum: [exclusive_use, approved_alternative_method, year_end_true_up, other]
+        note: { type: ["string", "null"] }
+
+    VatAdjustmentWindow:
+      type: object
+      required:
+        [periodIndex, startDate, endDate, returnPeriodStart, returnPeriodEnd, due, potentiallyAdjustable,
+         initialRecoveryPct, actualUsePct, actualUseSource, adjustment, noChangeOfUse, declaredBasis, declaredNote, declarationId]
+      properties:
+        periodIndex: { type: integer }
+        startDate: { type: string }
+        endDate: { type: string }
+        returnPeriodStart: { type: string, description: "Art. 52(5): the return that carries this window's adjustment." }
+        returnPeriodEnd: { type: string }
+        due: { type: boolean, description: "The window has ended, so its adjustment is due in the return named beside it." }
+        potentiallyAdjustable: { type: number, description: "Art. 52(4): initial input-tax deduction ÷ adjustment period." }
+        initialRecoveryPct: { type: number }
+        actualUsePct: { type: ["number", "null"] }
+        actualUseSource:
+          type: string
+          enum: [declared, proportional, unavailable]
+        adjustment: { type: number, description: "Positive: more input tax is recoverable. Negative: input tax is repaid." }
+        noChangeOfUse: { type: boolean, description: "Art. 52(6) — a REASON, not an adjustment that happens to be zero." }
+        declaredBasis: { type: ["string", "null"] }
+        declaredNote: { type: ["string", "null"] }
+        declarationId: { type: ["integer", "null"] }
+
+    VatAdjustmentDisposal:
+      type: object
+      required: [date, kind, vatTreatment, remainingPeriods, useAfterChangePct, adjustment, rule, nominalSupplyValue]
+      properties:
+        date: { type: string }
+        kind: { type: string }
+        vatTreatment: { type: string }
+        remainingPeriods: { type: integer }
+        useAfterChangePct: { type: ["number", "null"] }
+        adjustment: { type: number }
+        rule: { type: string, description: "Which limb of Art. 52(7)/(8) or Art. 50(3) applies, in words." }
+        nominalSupplyValue: { type: ["number", "null"], description: "Art. 52(8), valued at the disposal by FA-C." }
+
+    VatAdjustmentAsset:
+      type: object
+      required:
+        [assetId, assetNumber, name, acquisitionDate, vatCapitalAssetClass, usefulLifeMonths, adjustmentPeriodYears,
+         vatInputTaxAmount, initialRecoveryPct, vatNonDeductibleReason, initialDeduction, potentiallyAdjustable,
+         recordsRetainedUntil, windows, disposal]
+      properties:
+        assetId: { type: integer }
+        assetNumber: { type: string }
+        name: { type: string }
+        acquisitionDate: { type: string }
+        vatCapitalAssetClass: { type: string }
+        usefulLifeMonths: { type: integer }
+        adjustmentPeriodYears: { type: ["integer", "null"], description: "Art. 52(2): 6 movable / 10 immovable, shortened to the accounting life." }
+        vatInputTaxAmount: { type: number }
+        initialRecoveryPct: { type: number }
+        vatNonDeductibleReason: { type: ["string", "null"] }
+        initialDeduction: { type: number }
+        potentiallyAdjustable: { type: number }
+        recordsRetainedUntil: { type: ["string", "null"], description: "Art. 66(1): the adjustment period plus five years from acquisition." }
+        windows:
+          type: array
+          items: { $ref: "#/components/schemas/VatAdjustmentWindow" }
+        disposal:
+          oneOf:
+            - { $ref: "#/components/schemas/VatAdjustmentDisposal" }
+            - { type: "null" }
+
+    VatAdjustmentReport:
+      type: object
+      required: [status, reason, companyId, companyName, vatTaxPeriod, proportionalDeduction, assets]
+      properties:
+        status:
+          type: string
+          enum: [computed, tax_period_not_declared]
+        reason: { type: ["string", "null"] }
+        companyId: { type: string }
+        companyName: { type: string }
+        vatTaxPeriod: { type: ["string", "null"] }
+        proportionalDeduction:
+          type: array
+          description: "Art. 51(4): the default fraction per CALENDAR year, shown so a derived use can be checked rather than trusted."
+          items:
+            type: object
+            required: [calendarYear, taxableSupplies, exemptSupplies, pct]
+            properties:
+              calendarYear: { type: integer }
+              taxableSupplies: { type: number }
+              exemptSupplies: { type: number }
+              pct: { type: ["number", "null"], description: "null when the year had no taxable and no exempt supplies — which is not 0 %." }
+        assets:
+          type: array
+          items: { $ref: "#/components/schemas/VatAdjustmentAsset" }
 
     IncomeTaxPoolDeclaration:
       type: object

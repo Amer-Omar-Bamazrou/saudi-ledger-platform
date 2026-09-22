@@ -309,6 +309,55 @@ export const assetTaxPoolDeclarationsTable = pgTable(
   ],
 );
 
+/**
+ * FA-F (2026-09-22) — the VAT IR Art. 52 USE HISTORY: what share of a capital
+ * asset's use was TAXABLE in one twelve-month adjustment period.
+ *
+ * Art. 52(4) adjusts `initial input tax deduction / adjustment period` "based
+ * on the actual use of the Capital Asset during that year". For most tenants
+ * the actual use follows the business as a whole, and Art. 51(4) gives the
+ * default fraction for exactly that — taxable supplies over taxable plus
+ * exempt, in the last calendar year, excluding supplies of capital assets
+ * (51(5)(a)). The engine DERIVES that and says it derived it.
+ *
+ * 🔴 This table is for the cases the derivation cannot reach, and it OVERRIDES
+ * the derived figure for the period it names:
+ *   · an asset used exclusively in one activity, where the business-wide
+ *     fraction is simply the wrong number for THIS asset;
+ *   · a tenant on an alternative method approved under Art. 51(8)–(10);
+ *   · a corrected figure after the Art. 51(7) year-end true-up.
+ *
+ * It is retained with the asset: Art. 66(1) keeps capital-asset records for
+ * the adjustment period plus five years, so rows here are never hard-deleted
+ * while the asset stands.
+ */
+export const assetVatUseRecordsTable = pgTable(
+  "asset_vat_use_records",
+  {
+    id: serial("id").primaryKey(),
+    ...tenantColumns,
+    assetId: integer("asset_id").notNull().references(() => fixedAssetsTable.id, { onDelete: "restrict" }),
+    /** 1-based: which twelve-month adjustment period of Art. 52(5) this states. */
+    periodIndex: integer("period_index").notNull(),
+    /** The share of the period's use that was TAXABLE, 0–100. */
+    actualUsePct: numeric("actual_use_pct", { precision: 5, scale: 2 }).notNull(),
+    /** Why this figure rather than the Art. 51 default — an exclusive use, an approved alternative method, a true-up. */
+    basis: text("basis").notNull(),
+    note: text("note"),
+    declaredBy: integer("declared_by").references(() => usersTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("asset_vat_use_records_asset_idx").on(t.assetId, t.periodIndex),
+    unique("asset_vat_use_records_asset_period_unq").on(t.assetId, t.periodIndex),
+  ],
+);
+
+export const ASSET_VAT_USE_BASES = ["exclusive_use", "approved_alternative_method", "year_end_true_up", "other"] as const;
+export type AssetVatUseBasis = (typeof ASSET_VAT_USE_BASES)[number];
+
+export type AssetVatUseRecord = typeof assetVatUseRecordsTable.$inferSelect;
 export type AssetTaxPoolDeclaration = typeof assetTaxPoolDeclarationsTable.$inferSelect;
 export type AssetDisposal = typeof assetDisposalsTable.$inferSelect;
 export type AssetCategory = typeof assetCategoriesTable.$inferSelect;

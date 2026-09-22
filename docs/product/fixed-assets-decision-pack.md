@@ -1,6 +1,6 @@
 # Fixed Assets & Depreciation — research and decision pack
 
-**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A is BUILT — §20; FA-B (capitalisation, the monthly run, the estimate change) — §21; FA-C (disposal) — §22; FA-D (migrated assets) — §23; FA-E (the Art. 17 income-tax pool) — §24.** FA-F (the VAT Art. 52 engine) follows. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-22): FA-1 and FA-2 ANSWERED by the accountant (the Art. 17 pooled income-tax depreciation IS in scope and is computed separately from the book basis; the VAT Art. 52 annual adjustment IS computed in v1, partially-exempt tenants included) and the advance-payments VAT-period answer received and built first (advance-payments pack §17) — FA-0 is CLOSED. 🔴 **FA-A…FA-F are BUILT — §20 the foundation, §21 capitalisation and the monthly run, §22 disposal, §23 migrated assets, §24 the Art. 17 income-tax pool, §25 the VAT Art. 52 adjustment.** Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md): every accounting claim below carries its class — `AUTHORITATIVE (Saudi)`, `STANDARD (IFRS)`, `ODOO`, `ERPNEXT`, `PRODUCT DECISION`, or `ACCOUNTANT DECISION REQUIRED` — and nothing from Odoo or ERPNext is presented as a Saudi requirement. Primary texts were fetched and read in this pass (§18); the two Saudi texts read in English are ZATCA's own translations, which state that the Arabic prevails — readings that turn on wording are marked *reasoned-not-verified*.
 
@@ -704,3 +704,113 @@ computed and the share is STATED, because apportioning is a tax-computation step
 beyond the register. Art. 17(f)'s market value is not captured (§24.5). The
 report's endpoints are reachable from the new page only; the Art. 52 VAT engine
 is FA-F.
+
+---
+
+## 25. FA-F — the VAT Art. 52 capital-asset adjustment, as built (2026-09-22)
+
+`AUTHORITATIVE (Saudi)` throughout, read from the pinned primary text
+`docs/zatca/specs/KSA_VAT_Implementing_Regulations_EN.txt` (Eighth Edition
+English translation; the Arabic prevails, so readings that turn on wording are
+marked *reasoned-not-verified*). Accountant **FA-2**: the annual adjustment IS
+computed in v1, partially exempt tenants included.
+
+### 25.1 🔴 Three clocks, never substituted for one another
+
+| Clock | Runs on | Set by |
+| --- | --- | --- |
+| **Depreciation** | the accounting useful life, monthly | the register (FA-A/FA-B) |
+| **Art. 52 adjustment** | 6 y movable / 10 y immovable, or the accounting life if shorter (part years count as one), in twelve-month windows **from the start of the TAX PERIOD of acquisition** | 52(2), 52(5) |
+| **Art. 51 fraction** | the **calendar** year | 51(4) |
+
+The company's **fiscal** year — which the Art. 17 pool uses — is a fourth and
+matches none of them. A 120-month machine depreciates over ten years and adjusts
+over six; the walk asserts exactly that, because a category default of 48 months
+had quietly turned the first version of the assertion into a statement about the
+category rather than about Art. 52(2).
+
+### 25.2 What the engine computes
+
+`vatCapitalAsset.ts` is pure and carries the quoted text beside each rule:
+
+- **52(4)** potentially adjustable = `initial input tax deduction ÷ adjustment period`; the adjustment is that amount × (actual use − initial recovery).
+- **52(5)** each window, and the **return** its adjustment belongs to — the last tax period falling inside it. Monthly and quarterly give different windows *and* different returns for the same purchase, which is why the tax period is declared rather than inferred from turnover (Art. 58's threshold is not the only way a period is assigned).
+- **52(6)** "no change in use" is reported as its **own flag**, apart from an adjustment that merely computes to zero. 🔴 They are arithmetically identical and legally different, and a window whose use is neither declared nor derivable reports `unavailable`, nil, and **not** 52(6) — nobody established that the use did not change, and a relief the platform never checked must not be evidenced as one.
+- **52(7)** at a sale that is a taxable supply, the remaining windows are treated as 100 % taxable use and the unrecovered share is adjusted in the tax period of sale. Destruction, theft and an early end of life are excluded in terms; each gets nil **with its own sentence**, because four zeros that cannot be told apart evidence nothing. (The first version of the engine gave destruction and theft one shared sentence; its own test caught it.)
+- **52(8)** a withdrawal is not an adjustment but a Nominal Supply, valued at the disposal by FA-C.
+- **50(3)** a restricted motor vehicle reaches the engine with a 0 % initial recovery, so its potentially adjustable amount is 0 and the figure **falls out of the arithmetic** rather than being special-cased.
+- **66(1)** the retention date (acquisition + adjustment period + 5 years) travels with each asset.
+
+### 25.3 The actual use: derived by default, declared where it must be
+
+Art. 52(4) adjusts "based on the actual use … during that year". For a tenant
+whose asset follows the business as a whole, Art. 51(4) gives exactly that
+figure, and the engine **derives** it: taxable supplies over taxable plus exempt
+in the window's calendar year. Two details of the text are load-bearing and both
+are implemented:
+
+- **Zero-rated supplies are TAXABLE**, not exempt — a Z line belongs in the numerator. Getting this wrong would understate every partially exempt tenant's recovery.
+- **51(5)(a) excludes supplies of capital assets** from the fraction. FA-C made that possible: a disposal sale is an invoice that NAMES the asset (`invoices.disposes_asset_id`), so the exclusion has a marker to key on. Without it a tenant selling a building would see its recovery rate lurch for a year.
+
+`asset_vat_use_records` holds the cases the derivation cannot reach, and
+**overrides the derived figure for the window it names and no other**: an asset
+used exclusively in one activity, an alternative method approved under
+51(8)–(10), or the 51(7) year-end true-up. A window outside the asset's
+adjustment period is refused rather than stored where nothing could show it.
+
+🔴 `proportionalDeductionPct` returns **null** when a year has no taxable and no
+exempt supplies. Returning 0 there would read as "wholly exempt", the opposite
+of what an empty year means.
+
+### 25.4 🔴 A second column with no writer, again found by its reader
+
+`companies.vat_tax_period` is new, and the pattern of §24.4 was applied before
+it could repeat: the report reads it, so the same commit adds the **writer**
+(Company Settings, `PATCH /companies/current`, spec + generated types + a DB
+CHECK admitting only `monthly`, `quarterly` and NULL). The refusal names a
+control that exists, and the walk proves it by using it.
+
+### 25.5 Verified
+
+`tests/vat-capital-asset-arithmetic.test.ts` (9, pure): the 6/10/life cap with
+part years; the tax-period start differing between monthly and quarterly for the
+same purchase; twelve-month windows with the right return each (including a leap
+February); the 51(4) fraction with an empty year returning **null**; the
+adjustment in both directions; 52(6) as a reason distinguished from an unknown;
+52(7) at a sale, when already fully recovered, and after the period has run out;
+four zeros with four different sentences plus the Art. 50(3) vehicle; and the
+property that the initial deduction plus every annual adjustment never exceeds
+the input tax charged.
+
+`tests/vat-capital-asset.test.ts` (6, real rows): the refusal with no windows at
+all; an asset bought through the product's own bill path getting its Art. 52(2)
+period, its windows and its Art. 66 retention date; an **exempt** supply moving
+the fraction and the adjustment with it (presence, absence and movement in one
+window) while a **zero-rated** supply does not; a declared use overriding one
+window and not its neighbours, four named refusals with nothing stored, and the
+withdrawal falling the window back to the derived figure; Art. 51(5)(a) keeping
+a capital-asset disposal out of the fraction; and the narrowed working paper
+being byte-identical to that asset's part of the full one.
+
+`e2e/vat-capital-assets.spec.ts` (6, clicked): the refusal; the tax period
+declared in Company Settings taking it away; the windows rendered; **the two
+different zeros visible as different things on the page**; a use stated through
+the dialog moving that window and leaving the others byte-identical; Arabic
+`dir=rtl`; 390 px. 🔴 The walk **seeds its own capital asset** through the
+product's own paths — the first version skipped its two most important legs when
+the tenant happened to have none, which is a pass reported for a narrower thing
+than the file claims.
+
+`pnpm run verify`: green.
+
+### 25.6 What this did not do
+
+Nothing posts: the adjustment is a working paper figure and does not reach the
+VAT return's boxes or the GL — wiring it into the return is its own step, and it
+needs the accountant's word on which box carries it. Art. 52(3)'s **additional**
+adjustment period for capital expenditure on an owned asset is not built (FA-B
+has no additions yet — pack §21.5). The alignment of tax periods to the calendar
+year is *reasoned-not-verified* and stated on the report. Art. 51(6) (estimated
+values for a taxpayer not registered in the previous year) and 51(7)'s own
+year-end true-up of the fraction are the taxpayer's, and are offered as a
+declared `year_end_true_up` basis rather than computed.

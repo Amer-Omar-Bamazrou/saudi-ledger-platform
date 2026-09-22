@@ -3,6 +3,7 @@ import { assetsService } from "../services/assets.service";
 import { assetCapitalisationService } from "../services/assets/capitalisation.service";
 import { assetDisposalService } from "../services/assets/disposal.service";
 import { incomeTaxPoolService } from "../services/assets/incomeTaxPool.service";
+import { vatCapitalAssetService } from "../services/assets/vatCapitalAsset.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
 
 const userOf = (req: Request) => req.session?.userId ?? null;
@@ -63,5 +64,20 @@ export const assetsController = {
   },
   async deletePoolDeclaration(req: Request, res: Response) {
     res.json(await incomeTaxPoolService.remove(requireIdParam(req)));
+  },
+  // ── FA-F: the VAT IR Art. 52 capital-asset adjustment ──
+  async vatAdjustments(req: Request, res: Response) {
+    const assetId = req.query.asset_id ? Number(req.query.asset_id) : undefined;
+    res.json(await vatCapitalAssetService.report({ assetId: Number.isInteger(assetId) ? assetId : undefined }));
+  },
+  async listVatUseRecords(req: Request, res: Response) {
+    const assetId = req.query.asset_id ? Number(req.query.asset_id) : undefined;
+    res.json({ items: await vatCapitalAssetService.useRecords(Number.isInteger(assetId) ? assetId : undefined) });
+  },
+  async declareVatUse(req: Request, res: Response) {
+    res.json(await vatCapitalAssetService.declareUse(req.body ?? {}, userOf(req)));
+  },
+  async deleteVatUseRecord(req: Request, res: Response) {
+    res.json(await vatCapitalAssetService.removeUse(requireIdParam(req)));
   },
 };

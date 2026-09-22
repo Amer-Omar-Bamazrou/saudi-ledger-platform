@@ -71,7 +71,7 @@ const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BO
 // not even in the ZATCA hash chain — so every money report that reads invoices
 // must exclude them. Shared so the AR-aging, balance-sheet-AR, VAT-sales, and
 // customer-ledger queries stay in lockstep.
-const INVOICE_NOT_IN_BOOKS = ["draft", "submitted"];
+export const INVOICE_NOT_IN_BOOKS = ["draft", "submitted"];
 // N1: approved invoices OF THE SCOPED COMPANY — same inheritance as bills.
 // Policy C: a reversed opening invoice is out of every money report (openingReversal.ts).
 const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), invoiceNotReversed(), companyScoped(invoicesTable.companyId))!;

@@ -652,6 +652,13 @@
       "when": 1790082518535,
       "tag": "0092_fixed_assets_income_tax_pool",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1790085677478,
+      "tag": "0093_fixed_assets_vat_adjustment",
+      "breakpoints": true
     }
   ]
 }

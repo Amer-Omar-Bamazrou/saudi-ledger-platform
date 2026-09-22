@@ -2650,6 +2650,7 @@ export const GetCurrentCompanyResponse = zod.object({
   "fiscalYearStart": zod.number().min(1).max(getCurrentCompanyResponseFiscalYearStartMax).nullable().describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar` (gregorian 1 = January; hijri 1 = Muharram — read the two together). 🔴 NULL means NOT DECLARED, a first-class state (M20.0): there is no default, because the old NOT NULL DEFAULT 1 recorded every untouched company as having chosen January. Reports fall back to a rolling last-12-months while null, and say so.\n'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
+  "vatTaxPeriod": zod.union([zod.literal('monthly'),zod.literal('quarterly'),zod.literal(null)]).nullable().describe('FA-F (2026-09-22): the company\'s VAT tax period. VAT IR Art. 52(5) opens a capital asset\'s first twelve-month adjustment window at the start of the TAX PERIOD of acquisition and files the adjustment in the return for the last tax period inside that window, so monthly and quarterly give different windows and different returns for the same purchase. NULL is NOT DECLARED; it is not inferred from turnover, because Art. 58\'s threshold is not the only way a period is assigned.\n'),
   "foreignOwnershipPct": zod.number().min(getCurrentCompanyResponseForeignOwnershipPctMin).max(getCurrentCompanyResponseForeignOwnershipPctMax).nullable().describe('FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi\/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.\n'),
   "buildingNumber": zod.string().nullable(),
   "street": zod.string().nullable(),
@@ -2678,6 +2679,7 @@ export const UpdateCurrentCompanyBody = zod.object({
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).optional(),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullish(),
   "foreignOwnershipPct": zod.number().min(updateCurrentCompanyBodyForeignOwnershipPctMin).max(updateCurrentCompanyBodyForeignOwnershipPctMax).nullish(),
+  "vatTaxPeriod": zod.union([zod.literal('monthly'),zod.literal('quarterly'),zod.literal(null)]).nullish(),
   "buildingNumber": zod.string().nullish(),
   "street": zod.string().nullish(),
   "district": zod.string().nullish(),
@@ -2702,6 +2704,7 @@ export const UpdateCurrentCompanyResponse = zod.object({
   "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyResponseFiscalYearStartMax).nullable().describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar` (gregorian 1 = January; hijri 1 = Muharram — read the two together). 🔴 NULL means NOT DECLARED, a first-class state (M20.0): there is no default, because the old NOT NULL DEFAULT 1 recorded every untouched company as having chosen January. Reports fall back to a rolling last-12-months while null, and say so.\n'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
+  "vatTaxPeriod": zod.union([zod.literal('monthly'),zod.literal('quarterly'),zod.literal(null)]).nullable().describe('FA-F (2026-09-22): the company\'s VAT tax period. VAT IR Art. 52(5) opens a capital asset\'s first twelve-month adjustment window at the start of the TAX PERIOD of acquisition and files the adjustment in the return for the last tax period inside that window, so monthly and quarterly give different windows and different returns for the same purchase. NULL is NOT DECLARED; it is not inferred from turnover, because Art. 58\'s threshold is not the only way a period is assigned.\n'),
   "foreignOwnershipPct": zod.number().min(updateCurrentCompanyResponseForeignOwnershipPctMin).max(updateCurrentCompanyResponseForeignOwnershipPctMax).nullable().describe('FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi\/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.\n'),
   "buildingNumber": zod.string().nullable(),
   "street": zod.string().nullable(),
@@ -9137,6 +9140,145 @@ export const DisposeAssetResponse = zod.object({
   "amount": zod.number(),
   "journalEntryId": zod.number()
 })).describe('The periods this act depreciated before derecognising (IAS 16.55) — each its own entry.')
+})
+
+
+/**
+ * For every capital asset in the register, each twelve-month adjustment window of Art. 52(5) — opened at the start of the TAX PERIOD of acquisition, with the return that carries its adjustment named — the potentially adjustable amount (52(4): initial deduction ÷ adjustment period), the actual taxable use of the window, and the resulting adjustment. The use is DECLARED where the taxpayer has stated it and otherwise DERIVED from Art. 51(4)'s default fraction over the company's own supplies in that calendar year, excluding supplies of capital assets (51(5)(a)). A disposal is carried as Art. 52(7)/(8) with the limb that applies stated in words.
+ * 🔴 Art. 52(6) ("no change in use ⇒ no adjustment required") is reported as its own flag, apart from an adjustment that merely computes to zero: a window whose use is neither declared nor derivable reports `unavailable`, nil, and NOT 52(6) — nobody established that the use did not change. `status` is `computed` only once the company's tax period is declared; otherwise `reason` names the act that supplies it.
+ * @summary FA-F: the VAT IR Art. 52 capital-asset input-tax adjustment working paper
+ */
+export const GetVatCapitalAssetAdjustmentsQueryParams = zod.object({
+  "asset_id": zod.coerce.number().optional().describe('Narrow the working paper to one asset.')
+})
+
+export const GetVatCapitalAssetAdjustmentsResponse = zod.object({
+  "status": zod.enum(['computed', 'tax_period_not_declared']),
+  "reason": zod.string().nullable(),
+  "companyId": zod.string(),
+  "companyName": zod.string(),
+  "vatTaxPeriod": zod.string().nullable(),
+  "proportionalDeduction": zod.array(zod.object({
+  "calendarYear": zod.number(),
+  "taxableSupplies": zod.number(),
+  "exemptSupplies": zod.number(),
+  "pct": zod.number().nullable().describe('null when the year had no taxable and no exempt supplies — which is not 0 %.')
+})).describe('Art. 51(4): the default fraction per CALENDAR year, shown so a derived use can be checked rather than trusted.'),
+  "assets": zod.array(zod.object({
+  "assetId": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "acquisitionDate": zod.string(),
+  "vatCapitalAssetClass": zod.string(),
+  "usefulLifeMonths": zod.number(),
+  "adjustmentPeriodYears": zod.number().nullable().describe('Art. 52(2): 6 movable \/ 10 immovable, shortened to the accounting life.'),
+  "vatInputTaxAmount": zod.number(),
+  "initialRecoveryPct": zod.number(),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "initialDeduction": zod.number(),
+  "potentiallyAdjustable": zod.number(),
+  "recordsRetainedUntil": zod.string().nullable().describe('Art. 66(1): the adjustment period plus five years from acquisition.'),
+  "windows": zod.array(zod.object({
+  "periodIndex": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "returnPeriodStart": zod.string().describe('Art. 52(5): the return that carries this window\'s adjustment.'),
+  "returnPeriodEnd": zod.string(),
+  "due": zod.boolean().describe('The window has ended, so its adjustment is due in the return named beside it.'),
+  "potentiallyAdjustable": zod.number().describe('Art. 52(4): initial input-tax deduction ÷ adjustment period.'),
+  "initialRecoveryPct": zod.number(),
+  "actualUsePct": zod.number().nullable(),
+  "actualUseSource": zod.enum(['declared', 'proportional', 'unavailable']),
+  "adjustment": zod.number().describe('Positive: more input tax is recoverable. Negative: input tax is repaid.'),
+  "noChangeOfUse": zod.boolean().describe('Art. 52(6) — a REASON, not an adjustment that happens to be zero.'),
+  "declaredBasis": zod.string().nullable(),
+  "declaredNote": zod.string().nullable(),
+  "declarationId": zod.number().nullable()
+})),
+  "disposal": zod.union([zod.object({
+  "date": zod.string(),
+  "kind": zod.string(),
+  "vatTreatment": zod.string(),
+  "remainingPeriods": zod.number(),
+  "useAfterChangePct": zod.number().nullable(),
+  "adjustment": zod.number(),
+  "rule": zod.string().describe('Which limb of Art. 52(7)\/(8) or Art. 50(3) applies, in words.'),
+  "nominalSupplyValue": zod.number().nullable().describe('Art. 52(8), valued at the disposal by FA-C.')
+}),zod.null()])
+}))
+})
+
+
+/**
+ * @summary FA-F: the declared actual-use figures that override the Art. 51 default
+ */
+export const ListAssetVatUseRecordsQueryParams = zod.object({
+  "asset_id": zod.coerce.number().optional()
+})
+
+
+export const listAssetVatUseRecordsResponseItemsItemActualUsePctMin = 0;
+export const listAssetVatUseRecordsResponseItemsItemActualUsePctMax = 100;
+
+
+
+export const ListAssetVatUseRecordsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "periodIndex": zod.number().min(1).describe('Which twelve-month window of Art. 52(5) this states.'),
+  "actualUsePct": zod.number().min(listAssetVatUseRecordsResponseItemsItemActualUsePctMin).max(listAssetVatUseRecordsResponseItemsItemActualUsePctMax),
+  "basis": zod.enum(['exclusive_use', 'approved_alternative_method', 'year_end_true_up', 'other']),
+  "note": zod.string().nullish(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * Upserts on (asset, window). It overrides the Art. 51 default for that window only, and states WHY: an exclusive use the business-wide fraction would misstate, an alternative method approved under Art. 51(8)–(10), or the Art. 51(7) year-end true-up. A window outside the asset's adjustment period is refused rather than stored where nothing could show it.
+ * @summary FA-F: state (or correct) an asset's actual taxable use in one twelve-month window
+ */
+
+export const declareAssetVatUseBodyActualUsePctMin = 0;
+export const declareAssetVatUseBodyActualUsePctMax = 100;
+
+
+
+export const DeclareAssetVatUseBody = zod.object({
+  "assetId": zod.number(),
+  "periodIndex": zod.number().min(1),
+  "actualUsePct": zod.number().min(declareAssetVatUseBodyActualUsePctMin).max(declareAssetVatUseBodyActualUsePctMax),
+  "basis": zod.enum(['exclusive_use', 'approved_alternative_method', 'year_end_true_up', 'other']),
+  "note": zod.string().nullish()
+})
+
+
+export const declareAssetVatUseResponseActualUsePctMin = 0;
+export const declareAssetVatUseResponseActualUsePctMax = 100;
+
+
+
+export const DeclareAssetVatUseResponse = zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "periodIndex": zod.number().min(1).describe('Which twelve-month window of Art. 52(5) this states.'),
+  "actualUsePct": zod.number().min(declareAssetVatUseResponseActualUsePctMin).max(declareAssetVatUseResponseActualUsePctMax),
+  "basis": zod.enum(['exclusive_use', 'approved_alternative_method', 'year_end_true_up', 'other']),
+  "note": zod.string().nullish(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary FA-F: withdraw a declared use figure, so the window falls back to the Art. 51 default
+ */
+export const DeleteAssetVatUseRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteAssetVatUseRecordResponse = zod.object({
+  "id": zod.number()
 })
 
 
