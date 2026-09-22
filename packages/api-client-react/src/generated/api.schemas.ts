@@ -1448,6 +1448,11 @@ export interface Bill {
      * @nullable
      */
   expenseAccountId?: number | null;
+  /**
+     * FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY's cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.
+     * @nullable
+     */
+  capitalisesAssetId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
@@ -4284,6 +4289,11 @@ export interface BillHeaderInput {
      */
   expenseAccountId?: number | null;
   /**
+     * FA-B: the DRAFT fixed asset (GET /assets?status=draft) this bill buys. Set it and the bill capitalises the asset at approval instead of expensing its cost; the asset's own cost account, tax group and VAT facts then govern the entry.
+     * @nullable
+     */
+  capitalisesAssetId?: number | null;
+  /**
      * Header totals are used only when there are NO lines; with lines they are recomputed.
      * @minimum 0
      */
@@ -5003,6 +5013,93 @@ export interface CreateAssetInput {
      * @nullable
      */
   notes?: string | null;
+}
+
+export interface DepreciateAssetInput {
+  /**
+     * YYYY-MM — a period of the asset's own schedule.
+     * @pattern ^[0-9]{4}-(0[1-9]|1[0-2])$
+     */
+  period: string;
+  /**
+     * The catch-up date, YYYY-MM-DD, when the period's own month is closed: the entry posts in that OPEN month for the same amount and says which period it depreciates. Omitted, the entry is dated the last day of the period. Never before the period.
+     * @nullable
+     */
+  postingDate?: string | null;
+}
+
+export interface RunAssetDepreciationInput {
+  /** @pattern ^[0-9]{4}-(0[1-9]|1[0-2])$ */
+  period: string;
+  /** @nullable */
+  postingDate?: string | null;
+}
+
+export interface AssetDepreciationPosted {
+  assetId: number;
+  period: string;
+  amount: number;
+  /** The entry's date — the period's last day, or the catch-up date in an open month. */
+  date: string;
+  journalEntryId: number;
+  entryNumber: string;
+  caughtUp: boolean;
+}
+
+export type AssetDepreciationRunPostedItem = {
+  assetId: number;
+  assetNumber: string;
+  amount: number;
+  journalEntryId: number;
+};
+
+export type AssetDepreciationRunSkippedItem = {
+  assetId: number;
+  assetNumber: string;
+  code: string;
+  reason: string;
+};
+
+export interface AssetDepreciationRun {
+  period: string;
+  totalAmount: number;
+  posted: AssetDepreciationRunPostedItem[];
+  /** Every asset that did NOT post, with the refusal's own code and sentence — never a silent skip. */
+  skipped: AssetDepreciationRunSkippedItem[];
+}
+
+/**
+ * @nullable
+ */
+export type ChangeAssetEstimateInputDepreciationMethod = typeof ChangeAssetEstimateInputDepreciationMethod[keyof typeof ChangeAssetEstimateInputDepreciationMethod] | null;
+
+
+export const ChangeAssetEstimateInputDepreciationMethod = {
+  straight_line: 'straight_line',
+  declining_balance: 'declining_balance',
+  units_of_production: 'units_of_production',
+} as const;
+
+export interface ChangeAssetEstimateInput {
+  /**
+     * IAS 8 — a change in estimate is disclosed; this is the disclosure.
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  residualValue?: number | null;
+  /**
+     * @minimum 1
+     * @maximum 1200
+     * @nullable
+     */
+  usefulLifeMonths?: number | null;
+  /** @nullable */
+  depreciationMethod?: ChangeAssetEstimateInputDepreciationMethod;
 }
 
 export interface CancelAssetInput {

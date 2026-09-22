@@ -29,6 +29,8 @@ export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillIte
     paidAt: bill.paidAt,
     reviewNote: bill.reviewNote,
     expenseAccountId: bill.expenseAccountId ?? null,
+    // FA-B: the draft fixed asset this bill buys (its approval capitalises it).
+    capitalisesAssetId: bill.capitalisesAssetId ?? null,
     notes: bill.notes,
     isOpening: bill.isOpening,
     reversedAt: bill.reversedAt ? bill.reversedAt.toISOString() : null,

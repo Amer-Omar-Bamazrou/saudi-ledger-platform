@@ -59,8 +59,8 @@ When in doubt, favor evolving the existing system over replacing it.
 
 **2026-09-02 → 09-16** — contract stop; ERPNext comparison; the decision-free pool, the second core-path walk, the seven-workflow audit and the pre-pilot batch all CLOSED (known-issues file, "the decision-free pool", "THE FIVE PILOT BLOCKERS", "BULK ACCEPT INTO A CLOSED MONTH"; findings file, "THE SECOND CORE-PATH WALK", "THE SEVEN-WORKFLOW AUDIT", "THE NIGHT WINDOW"). 🔴 **D-3 PER-BANK CASH GL BUILT (Batch 1A); the cut-over is NOT run** ([`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md); §5).
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED** (PR #164, `a290d079`); A4/A5 as invariants (§4). **FOLLOW-UPS BUILT** (2026-09-22, PR #167, [`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17): the historical invoice's e-invoicing identity, the item-level correction against RETAINED EARNINGS (original reversed + `OPEN-` replacement, no OBE), migrated relief structured, credit notes against identified opening items through Fatoora. Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
-**2026-09-22** — 🔴 **FIXED ASSETS FA-A BUILT** (`feat/fixed-assets-foundation`; [`pack`](docs/product/fixed-assets-decision-pack.md) §20): three system accounts, categories (Art. 17 group + Art. 52 class + the account triple), the register with DERIVED figures, the schedule table (one row per period, posted rows frozen), append-only events, the pure straight-line engine; nothing posts yet — FA-B next.
-**2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165, `77fcf3f4`): the 386 / 388-adjustment / 381-against-386 CLEARED by the sandbox from real rows (pack §14–§16). **THE ACCOUNTANT'S ANSWERS APPLIED** (PR #166, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed, Art. 63); four customer-money liabilities; bad-debt relief (Art. 40(7)) posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), CLEARED. Open: Z1.
+**2026-09-22** — 🔴 **FIXED ASSETS FA-A + FA-B BUILT** ([`pack`](docs/product/fixed-assets-decision-pack.md) §20, §21): accounts, categories (Art. 17 group · Art. 52 class · account triple), a register whose figures are DERIVED from the schedule (one row per period, posted rows FROZEN), append-only events; a BILL capitalises the asset it buys (non-deductible VAT into cost); the monthly run posts Dr expense / Cr accumulated (a closed month fails closed; the catch-up names its period); the estimate change is prospective. FA-C (disposal) next.
+**2026-09-22** — 🔴 **AP-1…AP-4 MERGED** (PR #165): the 386 / 388-adjustment / 381-against-386 CLEARED by the sandbox from real rows (pack §14–§16). **THE ACCOUNTANT'S ANSWERS APPLIED** (PR #166, pack §17): the tax point is the RECEIPT (a locked receipt month fails closed, Art. 63); four customer-money liabilities; bad-debt relief (Art. 40(7)) posted; the Art. 40(9) recovery a NEW document (`recovery_invoice`), CLEARED. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -502,7 +502,7 @@ advisor · mail provider · R1 design · deployment + Groq.
 🔴 **Withholding tax (LEGAL exposure) still awaits the OWNER'S RANKING** —
 costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
 **Fixed assets: IN BUILD** — [`fixed-assets-decision-pack.md`](docs/product/fixed-assets-decision-pack.md)
-(FA-1/FA-2 answered 2026-09-22; FA-A built, §20; FA-B… follow).
+(FA-1/FA-2 answered; FA-A §20 + FA-B §21 built; FA-C… follow).
 
 ### Blocking, by their own nature
 
@@ -519,10 +519,10 @@ costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2
 
 | # | Item |
 | --- | --- |
-| **B1/B2 wiring** | Pick a mail provider + verify a sending domain (`MAIL_PROVIDER`/`MAIL_API_KEY`/`MAIL_FROM`); point `ALERT_WEBHOOK_URL` at a real destination and confirm one test page arrives. The code is done; an unwired alarm is the thing B2 exists to prevent. |
-| **C1 (remaining half)** | Confirm exactly `TRUST_PROXY_HOPS` proxies actually rewrite `X-Forwarded-For` in the real deployment. A wrong number is a spoofable limiter in either direction. |
-| **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, CloudTrail alarm on deletion attempts, multi-region CMK replica. If the CMK dies, every tenant must re-onboard. |
-| **C4 (remaining half)** | Deploy a clamd sidecar and set `MALWARE_SCANNER=clamd`. M-5's header-only magic-byte sniff closes with it. |
+| **B1/B2 wiring** | Pick a mail provider + verify a sending domain (`MAIL_PROVIDER`/`MAIL_API_KEY`/`MAIL_FROM`); point `ALERT_WEBHOOK_URL` at a real destination and confirm one test page arrives. An unwired alarm is what B2 exists to prevent. |
+| **C1 (remaining half)** | Confirm exactly `TRUST_PROXY_HOPS` proxies rewrite `X-Forwarded-For` in the real deployment. A wrong number is a spoofable limiter either way. |
+| **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, a CloudTrail alarm on deletion attempts, a multi-region CMK replica. If the CMK dies, every tenant re-onboards. |
+| **C4 (remaining half)** | Deploy a clamd sidecar, `MALWARE_SCANNER=clamd`. M-5 closes with it. |
 | **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is no exception. (2) An Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS); no hosted Supabase project yet. L1's Chromium renderer adds ~150 MB. |
 
 ### Advisor package — one conversation
@@ -531,9 +531,9 @@ costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2
 
 | # | Item |
 | --- | --- |
-| **C7** (Block A) | Inbound-document retention. `retain_until` has a writer and NO reader; an answer shorter than the outbound standard is not implementable today (a B3-shaped build). |
+| **C7** (Block A) | Inbound-document retention. `retain_until` has a writer and NO reader; an answer shorter than the outbound standard needs a B3-shaped build. |
 | **C8** (Block B) | 🔴 PDPL, platform-wide — higher priority than C7. The key ask: can inbound captures be made erasable-with-audit without touching ZATCA §5.5? Also: whether operator readability of verified identity documents should expire. |
-| **C10** (Block C) | 🔴 Zakat base content — M17.3/M17.4 HELD on it. Ask C1 (the minimum-base rule) FIRST: the only answer that changes architecture, not arithmetic. |
+| **C10** (Block C) | 🔴 Zakat base content — M17.3/M17.4 HELD on it. Ask C1 (the minimum-base rule) FIRST: the one answer that changes architecture, not arithmetic. |
 | **C12 leftovers** (Block D) | D1 audit practice vs number gaps; D2 the Arabic text prevails and our reading rests on متسلسل. |
 | **Invoice dating** (Block F) | 🔴 The closed-period policy is REASONED-NOT-VERIFIED (known-issues file, "INVOICE DATING INTO CLOSED MONTHS"); the open question is whether Saudi practice permits ANY exception. |
 
@@ -574,16 +574,16 @@ fresh hold-out before launch. Record: findings file,
 
 ### Traps and known-dead surfaces
 
-- **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop them.
+- **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop.
 - 🔴 **Pre-D-3 cash history stays on the `CASH` header until the per-company cut-over (`scripts/cashCutover.ts`, dry-run first) runs clean.** Every local company is blocked by rows naming no bank; NO override mechanism exists (an open accountant decision). Record: known-issues file, "THE CASH CUT-OVER IS BLOCKED".
 - 🔴 **The business calendar day is ONE ZONE, `Asia/Riyadh`, a constant in `@workspace/shared` `businessDate.ts`** — a named IANA zone (not a `+03:00` literal), with no per-company setting or column anywhere. When a tenant zone is needed it becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
 
 - VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
-- Manual transaction create has no `kind`/`taxTreatment`, so every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
-- Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the validation gate).
-- The income-statement **transactions-fallback** (zero journal lines) reports gross incl. VAT.
+- Manual transaction create has no `kind`/`taxTreatment`: every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
+- Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the gate).
+- The income-statement **transactions-fallback** (zero journal lines) reports gross of VAT.
 - The Categories UI cannot mark system accounts (no edit routes exist).
-- **Deferred:** action-level permissions (post-to-GL / pay / approve gateable separately).
+- **Deferred:** action-level permissions (post-to-GL / pay / approve, gateable separately).
 - 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local stack where the grants were measured.
 
 ### What the audits could NOT see (so it is not mistaken for a clean bill)

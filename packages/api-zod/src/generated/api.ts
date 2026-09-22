@@ -1655,6 +1655,7 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -4747,6 +4748,7 @@ export const SubmitBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -4797,6 +4799,7 @@ export const SendBackBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -4850,6 +4853,7 @@ export const ApproveBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -5564,6 +5568,7 @@ export const ListBillsResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -5621,6 +5626,7 @@ export const CreateBillBody = zod.object({
   "notes": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The EXPENSE account this bill will post to (GET \/categories, type = expense), chosen at entry so it survives submit → approve. Refused (422) if it is not one of the tenant\'s expense accounts. The approve\/post body\'s debitAccountId, when sent, overrides it.\n'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B: the DRAFT fixed asset (GET \/assets?status=draft) this bill buys. Set it and the bill capitalises the asset at approval instead of expensing its cost; the asset\'s own cost account, tax group and VAT facts then govern the entry.\n'),
   "subtotal": zod.number().min(createBillBodyOneSubtotalMin).optional().describe('Header totals are used only when there are NO lines; with lines they are recomputed.'),
   "vatAmount": zod.number().min(createBillBodyOneVatAmountMin).optional(),
   "total": zod.number().min(createBillBodyOneTotalMin).optional()
@@ -5656,6 +5662,7 @@ export const CreateBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -8604,6 +8611,164 @@ export const RecordMigratedOpenItemIdentityResponse = zod.object({
 
 
 /**
+ * Each asset posts its own entry (Dr the category's depreciation expense / Cr its accumulated depreciation) dated the last day of the period, and its schedule row is marked posted. A period is depreciated ONCE. An asset that cannot run is REPORTED by name (never skipped silently); a CLOSED period stops the whole run with 423 — the catch-up passes an explicit postingDate in an open month and the entry says which period it depreciates (CLAUDE.md §4).
+ * @summary FA-B: run one PERIOD for the company — every asset in service whose schedule plans it, one entry each
+ */
+export const runAssetDepreciationBodyPeriodRegExp = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])$');
+
+
+export const RunAssetDepreciationBody = zod.object({
+  "period": zod.string().regex(runAssetDepreciationBodyPeriodRegExp),
+  "postingDate": zod.string().nullish()
+})
+
+export const RunAssetDepreciationResponse = zod.object({
+  "period": zod.string(),
+  "totalAmount": zod.number(),
+  "posted": zod.array(zod.object({
+  "assetId": zod.number(),
+  "assetNumber": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number()
+})),
+  "skipped": zod.array(zod.object({
+  "assetId": zod.number(),
+  "assetNumber": zod.string(),
+  "code": zod.string(),
+  "reason": zod.string()
+})).describe('Every asset that did NOT post, with the refusal\'s own code and sentence — never a silent skip.')
+})
+
+
+/**
+ * @summary FA-B: one period of one asset, from its stored schedule
+ */
+export const DepreciateAssetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const depreciateAssetBodyPeriodRegExp = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])$');
+
+
+export const DepreciateAssetBody = zod.object({
+  "period": zod.string().regex(depreciateAssetBodyPeriodRegExp).describe('YYYY-MM — a period of the asset\'s own schedule.'),
+  "postingDate": zod.string().nullish().describe('The catch-up date, YYYY-MM-DD, when the period\'s own month is closed: the entry posts in that OPEN month for the same amount and says which period it depreciates. Omitted, the entry is dated the last day of the period. Never before the period.\n')
+})
+
+export const DepreciateAssetResponse = zod.object({
+  "assetId": zod.number(),
+  "period": zod.string(),
+  "amount": zod.number(),
+  "date": zod.string().describe('The entry\'s date — the period\'s last day, or the catch-up date in an open month.'),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "caughtUp": zod.boolean()
+})
+
+
+/**
+ * Posted rows are history and are never touched; the unposted tail is regenerated from the remaining carrying amount over the remaining life, and the act is audited with old and new. Nothing posts. A life shorter than what is already booked is refused (useful_life_below_booked) — that is an impairment or a disposal, not an estimate change.
+ * @summary FA-B: a change in ESTIMATE (IAS 16.51, IAS 8) — residual value, useful life or method, applied PROSPECTIVELY
+ */
+export const ChangeAssetEstimateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const changeAssetEstimateBodyReasonMax = 1000;
+
+export const changeAssetEstimateBodyResidualValueMin = 0;
+
+export const changeAssetEstimateBodyUsefulLifeMonthsMax = 1200;
+
+
+
+export const ChangeAssetEstimateBody = zod.object({
+  "reason": zod.string().min(1).max(changeAssetEstimateBodyReasonMax).describe('IAS 8 — a change in estimate is disclosed; this is the disclosure.'),
+  "residualValue": zod.number().min(changeAssetEstimateBodyResidualValueMin).nullish(),
+  "usefulLifeMonths": zod.number().min(1).max(changeAssetEstimateBodyUsefulLifeMonthsMax).nullish(),
+  "depreciationMethod": zod.union([zod.literal('straight_line'),zod.literal('declining_balance'),zod.literal('units_of_production'),zod.literal(null)]).nullish()
+})
+
+export const ChangeAssetEstimateResponse = zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "serialNumber": zod.string().nullable(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullable(),
+  "location": zod.string().nullable(),
+  "department": zod.string().nullable(),
+  "custodianUserId": zod.number().nullable(),
+  "acquisitionDate": zod.string().describe('The VAT Art. 52 adjustment clock and the Art. 17 half-year convention key on it.'),
+  "availableForUseDate": zod.string().nullable().describe('IAS 16.55 — depreciation begins in the month containing it; mandatory at capitalisation.'),
+  "disposalDate": zod.string().nullable(),
+  "cost": zod.number(),
+  "residualValue": zod.number(),
+  "usefulLifeMonths": zod.number(),
+  "depreciationMethod": zod.enum(['straight_line', 'declining_balance', 'units_of_production']),
+  "openingAccumulatedDepreciation": zod.number().describe('A migrated asset: what the previous system booked before the opening date.'),
+  "openingPeriodsBooked": zod.number(),
+  "vatInputTaxAmount": zod.number().describe('VAT IR Art. 52(3)\/(4): the input tax deducted at acquisition.'),
+  "vatInitialRecoveryPct": zod.number(),
+  "vatCapitalAssetClass": zod.enum(['movable', 'immovable', 'not_capital']),
+  "vatAdjustmentPeriodYears": zod.number().nullable().describe('Art. 52(2): min(6 or 10, the accounting life in whole years); null for a non-capital asset.'),
+  "vatNonDeductibleReason": zod.string().nullable(),
+  "incomeTaxGroup": zod.number(),
+  "incomeTaxRatePct": zod.number(),
+  "source": zod.enum(['manual', 'bill', 'transaction', 'migration']),
+  "billId": zod.number().nullable(),
+  "transactionId": zod.number().nullable(),
+  "migrationBatchId": zod.number().nullable(),
+  "sourceReference": zod.string().nullable(),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
+  "capitalisationJournalEntryId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "accumulatedDepreciation": zod.number().describe('DERIVED — the opening position + the POSTED schedule rows; never a stored column.'),
+  "carryingAmount": zod.number().describe('DERIVED — cost − accumulated; 0 once disposed.'),
+  "depreciableAmount": zod.number().describe('cost − residual (IAS 16.53).'),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "lastPostedPeriod": zod.string().nullable(),
+  "nextPeriod": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "schedule": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "period": zod.string().describe('YYYY-MM'),
+  "sequence": zod.number().describe('Which period of the life (a migrated asset continues its count).'),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('NULL = planned; set once = posted and FROZEN.'),
+  "postedAt": zod.string().nullable()
+})),
+  "plannedSchedule": zod.array(zod.object({
+  "period": zod.string(),
+  "sequence": zod.number(),
+  "amount": zod.number(),
+  "accumulatedAfter": zod.number(),
+  "carryingAfter": zod.number()
+})).nullable().describe('A DRAFT\'s preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.'),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "assetId": zod.number(),
+  "kind": zod.enum(['created', 'updated', 'capitalised', 'addition', 'depreciated', 'estimate_changed', 'transferred', 'disposed', 'reversed', 'vat_use_recorded', 'vat_adjusted', 'cancelled']),
+  "occurredOn": zod.string(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "journalEntryId": zod.number().nullable(),
+  "documentRef": zod.string().nullable(),
+  "userId": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+}))
+
+
+/**
  * ONE act, because the relief presupposes the write-off (Art. 40(7)(d)). Refused by name unless every condition holds: an issued tax invoice or debit note with a customer (bad_debt_not_issued, bad_debt_requires_customer), not a migrated opening item (opening_item_relief_is_migration_fact, the previous system's fact), not already written off, twelve months since the supply (bad_debt_relief_too_early, with the earliest date), a certificate reference, and legal-procedure evidence above SAR 100,000 (bad_debt_legal_procedures_required). Posts, dated claimedOn in an open month: Dr Bad debts (net), Dr VAT Payable (the relief) / Cr AR (the unpaid consideration); the invoice stays issued with writtenOffAmount and badDebtRelief set; the return shows the relief in box 7 for that period.
  * @summary 2026-09-22: write off an issued invoice's unpaid consideration as a bad debt and claim the Art. 40(7) VAT relief
  */
@@ -9064,6 +9229,7 @@ export const GetBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -9106,6 +9272,7 @@ export const UpdateBillBody = zod.object({
   "notes": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The EXPENSE account this bill will post to (GET \/categories, type = expense), chosen at entry so it survives submit → approve. Refused (422) if it is not one of the tenant\'s expense accounts. The approve\/post body\'s debitAccountId, when sent, overrides it.\n'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B: the DRAFT fixed asset (GET \/assets?status=draft) this bill buys. Set it and the bill capitalises the asset at approval instead of expensing its cost; the asset\'s own cost account, tax group and VAT facts then govern the entry.\n'),
   "subtotal": zod.number().min(updateBillBodySubtotalMin).optional().describe('Header totals are used only when there are NO lines; with lines they are recomputed.'),
   "vatAmount": zod.number().min(updateBillBodyVatAmountMin).optional(),
   "total": zod.number().min(updateBillBodyTotalMin).optional()
@@ -9132,6 +9299,7 @@ export const UpdateBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -9194,6 +9362,7 @@ export const PostBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
@@ -9252,6 +9421,7 @@ export const PayBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({

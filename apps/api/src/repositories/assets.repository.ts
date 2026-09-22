@@ -153,6 +153,20 @@ export const assetsRepository = {
     return db.update(assetDepreciationScheduleTable).set({ journalEntryId, postedAt: new Date() }).where(and(eq(assetDepreciationScheduleTable.id, rowId), isNull(assetDepreciationScheduleTable.journalEntryId))).returning();
   },
 
+  /**
+   * FA-B: every asset in service whose schedule PLANS this period — the
+   * company-wide run's candidate set. Ordered by number so the run's report
+   * reads in the register's own order.
+   */
+  async assetsDueForPeriod(period: string): Promise<{ id: number; assetNumber: string }[]> {
+    const rows = await db.execute<{ id: number; asset_number: string }>(sql`
+      SELECT a.id, a.asset_number FROM fixed_assets a
+       WHERE a.status = 'in_service'
+         AND EXISTS (SELECT 1 FROM asset_depreciation_schedule s WHERE s.asset_id = a.id AND s.period = ${period} AND s.journal_entry_id IS NULL)
+       ORDER BY a.asset_number`);
+    return rows.rows.map((r) => ({ id: r.id, assetNumber: r.asset_number }));
+  },
+
   // ── events ──
   events(assetId: number) {
     return db.select().from(assetEventsTable).where(eq(assetEventsTable.assetId, assetId)).orderBy(assetEventsTable.id);

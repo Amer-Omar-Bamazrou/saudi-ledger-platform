@@ -624,6 +624,13 @@
       "when": 1790041438583,
       "tag": "0088_fixed_assets_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1790075870271,
+      "tag": "0089_fixed_assets_capitalisation",
+      "breakpoints": true
     }
   ]
 }

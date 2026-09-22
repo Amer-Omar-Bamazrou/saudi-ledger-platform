@@ -131,7 +131,7 @@ export const billsService = {
 
     const billData = pick<Record<string, unknown>>(body, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
-      "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId",
+      "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId", "capitalisesAssetId",
     ]) as Record<string, any>;
     // The chosen expense account must be one of the tenant's EXPENSE accounts —
     // the same rule resolveExpenseLine applies at posting, checked at entry so
@@ -230,7 +230,7 @@ export const billsService = {
     // 🔴 H1 — ALLOWLIST (see create). `status`/`paidAmount`/`paidAt` excluded.
     const values = pick<typeof import("@workspace/db").billsTable.$inferInsert>(data, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
-      "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId",
+      "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId", "capitalisesAssetId",
     ]);
     if (values.expenseAccountId != null) await assertExpenseAccount(values.expenseAccountId);
     if (values.date !== undefined) {

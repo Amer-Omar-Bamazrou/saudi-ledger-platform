@@ -73,6 +73,10 @@ const makeEmpty = () => ({
   notes: "",
   // null = "the chart's default" (the PURCHASES system account) until the user picks.
   debitAccountId: null as number | null,
+  // FA-B (2026-09-22): the DRAFT fixed asset this bill buys, when it buys one.
+  // Choosing it replaces the expense account with the asset category's COST
+  // account and capitalises the asset on the bill's own entry.
+  capitalisesAssetId: null as number | null,
 });
 
 // ── small JE preview used inside the manual-bill dialog ──────────────────────
@@ -174,6 +178,13 @@ export default function Bills() {
     queryFn: () => fetchPickerOptions<Vendor>("/vendors"),
   });
   const vendors = vendorsPage?.items ?? [];
+  // FA-B: the DRAFT fixed assets this bill could be buying (an asset in service
+  // is already capitalised; a further cost on it is an addition, not this).
+  const { data: draftAssetPage } = useQuery<{ items: Array<{ id: number; assetNumber: string; name: string; cost: number }> }>({
+    queryKey: ["assets", "draft-picker"],
+    queryFn: () => apiFetch("/assets?status=draft&limit=200"),
+  });
+  const draftAssets = draftAssetPage?.items ?? [];
 
   // Manual bill creation: create draft, then post GL through the shared endpoint.
   // debitAccount is passed explicitly — no hardcoded default anywhere in this path.
@@ -191,7 +202,8 @@ export default function Bills() {
           vatAmount: body.vatAmount ? Number(body.vatAmount) : undefined,
           total: body.total ? Number(body.total) : undefined,
           notes: body.notes || undefined,
-          expenseAccountId: body.debitAccountId ?? undefined,
+          expenseAccountId: body.capitalisesAssetId != null ? undefined : (body.debitAccountId ?? undefined),
+          capitalisesAssetId: body.capitalisesAssetId,
         }),
       }),
     onSuccess: () => {
@@ -227,6 +239,7 @@ export default function Bills() {
         total: String(d.total ?? ""),
         notes: d.notes ?? "",
         debitAccountId: d.expenseAccountId ?? null,
+        capitalisesAssetId: d.capitalisesAssetId ?? null,
       } as never);
       setEditingBill(row);
       setOpen(true);
@@ -256,7 +269,8 @@ export default function Bills() {
           // The chosen account lives ON the bill, so it survives submit → approve
           // (the Approvals queue sends no body). The post call below still
           // sends it explicitly for the one-person flow.
-          expenseAccountId: body.debitAccountId ?? defaultExpenseId ?? undefined,
+          expenseAccountId: body.capitalisesAssetId != null ? undefined : (body.debitAccountId ?? defaultExpenseId ?? undefined),
+          capitalisesAssetId: body.capitalisesAssetId,
           items: [],
         }),
       });
@@ -265,7 +279,8 @@ export default function Bills() {
       if (Number(body.total) > 0) {
         await apiFetch(`/bills/${bill.id}/post`, {
           method: "POST",
-          body: json.post({ debitAccountId: body.debitAccountId ?? defaultExpenseId }),
+          // A capitalising bill takes its debit account from the ASSET's category, never from this picker.
+          body: json.post(body.capitalisesAssetId != null ? {} : { debitAccountId: body.debitAccountId ?? defaultExpenseId }),
         });
       }
       return bill;
@@ -405,7 +420,7 @@ export default function Bills() {
                     <Label className="text-xs text-muted-foreground">{t("Bill Number", "رقم الفاتورة")}</Label>
                     <Input value={form.billNumber}
                       onChange={e => setForm(p => ({ ...p, billNumber: e.target.value }))}
-                      className="mt-1 h-8 text-sm" />
+                      className="mt-1 h-8 text-sm" data-testid="bill-number" />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">{t("Vendor Ref / Invoice #", "مرجع المورد / رقم الفاتورة")}</Label>
@@ -433,7 +448,7 @@ export default function Bills() {
                 <div>
                   <Label className="text-xs text-muted-foreground">{t("Vendor", "المورد")}</Label>
                   <Select value={form.vendorId} onValueChange={v => setForm(p => ({ ...p, vendorId: v }))}>
-                    <SelectTrigger className="mt-1 h-8 text-sm">
+                    <SelectTrigger className="mt-1 h-8 text-sm" data-testid="bill-vendor">
                       <SelectValue placeholder={t("Select vendor…", "اختر المورد…")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -447,23 +462,47 @@ export default function Bills() {
                     <Label className="text-xs text-muted-foreground">{t("Subtotal (SAR)", "المجموع قبل الضريبة (ر.س)")}</Label>
                     <Input type="number" step="0.01" value={form.subtotal}
                       onChange={e => setForm(p => ({ ...p, subtotal: e.target.value }))}
-                      placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
+                      placeholder="0.00" className="mt-1 h-8 text-sm font-mono" data-testid="bill-subtotal" />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">{t("VAT (SAR)", "ضريبة القيمة المضافة (ر.س)")}</Label>
                     <Input type="number" step="0.01" value={form.vatAmount}
                       onChange={e => setForm(p => ({ ...p, vatAmount: e.target.value }))}
-                      placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
+                      placeholder="0.00" className="mt-1 h-8 text-sm font-mono" data-testid="bill-vat" />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">{t("Total (SAR)", "الإجمالي (ر.س)")}</Label>
                     <Input type="number" step="0.01" value={form.total}
                       onChange={e => setForm(p => ({ ...p, total: e.target.value }))}
-                      placeholder="0.00" className="mt-1 h-8 text-sm font-mono" />
+                      placeholder="0.00" className="mt-1 h-8 text-sm font-mono" data-testid="bill-total" />
                   </div>
                 </div>
 
+                {/* FA-B: does this bill BUY a fixed asset? Choosing one replaces the
+                    expense account with the asset category's cost account, and the
+                    bill's approval capitalises the asset on its own entry. */}
+                <div>
+                  <Label className="text-xs text-muted-foreground">{t("This bill buys a fixed asset", "هذه الفاتورة تشتري أصلًا ثابتًا")}</Label>
+                  <Select value={form.capitalisesAssetId == null ? "none" : String(form.capitalisesAssetId)}
+                    onValueChange={v => setForm(p => ({ ...p, capitalisesAssetId: v === "none" ? null : Number(v) }))}>
+                    <SelectTrigger className="mt-1 h-8 text-sm" data-testid="bill-capitalises-asset"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none" className="text-xs">{t("No — an ordinary expense", "لا — مصروف عادي")}</SelectItem>
+                      {draftAssets.map(a => (
+                        <SelectItem key={a.id} value={String(a.id)} className="text-xs">{a.assetNumber} · {a.name} · {fmtNum(a.cost)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.capitalisesAssetId != null && (
+                    <p className="text-[11px] text-muted-foreground mt-1" data-testid="bill-capitalise-hint">
+                      {t("The cost is capitalised to the asset's own account and depreciated monthly from its available-for-use date — it is not an expense of this month. The asset's cost must equal what this bill capitalises.",
+                         "تُرسمل التكلفة على حساب الأصل وتُهلك شهريًا من تاريخ جاهزيته للاستخدام — وليست مصروف هذا الشهر. ويجب أن تساوي تكلفة الأصل ما ترسمله هذه الفاتورة.")}
+                    </p>
+                  )}
+                </div>
+
                 {/* Fix 2: debit account dropdown — same 14 accounts as scanner flow */}
+                {form.capitalisesAssetId == null && (
                 <div>
                   <Label className="text-xs text-muted-foreground">{t("Expense / Debit Account", "حساب المصروف / المدين")}</Label>
                   <Select value={String(form.debitAccountId ?? defaultExpenseId ?? "")}
@@ -478,6 +517,7 @@ export default function Bills() {
                     </SelectContent>
                   </Select>
                 </div>
+                )}
 
                 <div>
                   <Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label>
@@ -501,6 +541,7 @@ export default function Bills() {
                 className="w-full mt-4"
                 onClick={() => (editingBill ? updateBillMut.mutate(form) : createMut.mutate(form))}
                 disabled={!form.vendorId || createMut.isPending || updateBillMut.isPending}
+                data-testid="bill-submit"
               >
                 {createMut.isPending || updateBillMut.isPending
                   ? t("Saving…", "جارٍ الحفظ…")

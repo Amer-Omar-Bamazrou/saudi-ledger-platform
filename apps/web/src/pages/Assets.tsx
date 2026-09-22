@@ -23,6 +23,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
+import { Link } from "wouter";
 import { businessToday } from "@workspace/shared";
 import type { Asset, AssetTotals, AssetCategory, IncomeTaxGroup, CreateAssetInput, CreateAssetCategoryInput } from "@workspace/api-client-react";
 
@@ -181,7 +182,7 @@ export default function Assets() {
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Asset", "الأصل"), t("Category", "الفئة"), t("Acquired", "الاقتناء"), t("Cost", "التكلفة"), t("Accum. dep.", "مجمع الإهلاك"), t("Carrying", "القيمة الدفترية"), t("Life", "العمر"), t("Status", "الحالة")].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
               <tbody>{assets.map((a) => (
                 <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors" data-testid={`asset-row-${a.assetNumber}`}>
-                  <td className="py-3 pe-3"><div className="font-medium">{lang === "ar" && a.nameAr ? a.nameAr : a.name}</div><div className="text-xs text-muted-foreground font-mono" dir="ltr">{a.assetNumber}</div></td>
+                  <td className="py-3 pe-3"><Link href={`/assets/${a.id}`} className="font-medium text-primary" data-testid={`open-asset-${a.assetNumber}`}>{lang === "ar" && a.nameAr ? a.nameAr : a.name}</Link><div className="text-xs text-muted-foreground font-mono" dir="ltr">{a.assetNumber}</div></td>
                   <td className="py-3 pe-3 text-xs">{a.categoryName ?? "—"}</td>
                   <td className="py-3 pe-3 text-xs text-muted-foreground"><DualDate date={a.acquisitionDate} /></td>
                   <td className="py-3 pe-3 font-mono">{fmtNum(a.cost)}</td>

@@ -28,6 +28,11 @@ export interface BillHeaderInput {
      */
   expenseAccountId?: number | null;
   /**
+     * FA-B: the DRAFT fixed asset (GET /assets?status=draft) this bill buys. Set it and the bill capitalises the asset at approval instead of expensing its cost; the asset's own cost account, tax group and VAT facts then govern the entry.
+     * @nullable
+     */
+  capitalisesAssetId?: number | null;
+  /**
      * Header totals are used only when there are NO lines; with lines they are recomputed.
      * @minimum 0
      */

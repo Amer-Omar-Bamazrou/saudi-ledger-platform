@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { assetsService } from "../services/assets.service";
+import { assetCapitalisationService } from "../services/assets/capitalisation.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
 
 const userOf = (req: Request) => req.session?.userId ?? null;
@@ -32,5 +33,15 @@ export const assetsController = {
   },
   async cancel(req: Request, res: Response) {
     res.json(await assetsService.cancel(requireIdParam(req), req.body ?? {}, userOf(req)));
+  },
+  // ── FA-B ──
+  async depreciate(req: Request, res: Response) {
+    res.json(await assetCapitalisationService.depreciate(requireIdParam(req), req.body ?? {}, userOf(req)));
+  },
+  async runPeriod(req: Request, res: Response) {
+    res.json(await assetCapitalisationService.runPeriod(req.body ?? {}, userOf(req)));
+  },
+  async changeEstimate(req: Request, res: Response) {
+    res.json(await assetCapitalisationService.changeEstimate(requireIdParam(req), req.body ?? {}, userOf(req)));
   },
 };
