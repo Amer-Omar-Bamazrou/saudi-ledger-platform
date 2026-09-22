@@ -375,6 +375,19 @@ export const paymentClassificationsTable = pgTable(
     vatCategory: text("vat_category"),
     note: text("note"),
     idempotencyKey: text("idempotency_key"),
+    /**
+     * 🔴 A CLASSIFICATION MOVES MONEY BETWEEN LIABILITIES (accountant,
+     * 2026-09-22): unidentified/erroneous receipts, customer advances and
+     * refundable security deposits are DIFFERENT liabilities and sit on
+     * different accounts (`depositLiabilityAccount()` in
+     * customerCreditPolicy.ts). When a classification changes the account
+     * the receipt's on-account balance is reclassified by ONE entry
+     * (`RECLASS-<id>`, dated `effectiveDate`, in an open month) and the
+     * entry is named here; a classification that keeps the account posts
+     * nothing and carries NULL.
+     */
+    effectiveDate: text("effective_date"),
+    journalEntryId: integer("journal_entry_id"),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

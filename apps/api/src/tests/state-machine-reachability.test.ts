@@ -119,6 +119,12 @@ const SEMANTICS: Record<string, { from: State[]; to: State }> = {
   // an approved record and leaves it approved — the note is a NEW draft
   // (`invoices` row) whose own approval is the ordinary `approve` above.
   "advance-credit-notes": { from: ["approved"], to: "approved" },
+  // 2026-09-22: bad debts. `bad-debt-relief` writes off an ISSUED invoice's
+  // unpaid consideration (it stays issued); `bad-debt-recoveries` creates a
+  // NEW draft (the Art. 40(9) recovery invoice) from a relieved receivable —
+  // both act on an approved record and leave it approved.
+  "bad-debt-relief": { from: ["approved"], to: "approved" },
+  "bad-debt-recoveries": { from: ["approved"], to: "approved" },
 };
 
 /**

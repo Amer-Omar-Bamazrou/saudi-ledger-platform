@@ -15,6 +15,8 @@ export const CustomerStatementLineKind = {
   credit_note: 'credit_note',
   advance_invoice: 'advance_invoice',
   advance_credit_note: 'advance_credit_note',
+  bad_debt_write_off: 'bad_debt_write_off',
+  recovery_invoice: 'recovery_invoice',
   receipt: 'receipt',
   allocation: 'allocation',
   credit_application: 'credit_application',

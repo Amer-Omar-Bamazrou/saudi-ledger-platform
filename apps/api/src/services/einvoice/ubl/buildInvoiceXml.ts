@@ -49,7 +49,8 @@ export const GENESIS_PIH =
  * PREPAYMENT invoice (AP-2). The subtype flags (`name`) are the same for all
  * four — "For Prepayment Tax Invoice, code is 386 and subtype is 01".
  */
-const TYPE_CODE = { invoice: "388", debit_note: "383", credit_note: "381", advance_invoice: "386", advance_credit_note: "381" } as const;
+// recovery_invoice (2026-09-22): the Art. 40(9) "new Tax invoice" — a 388.
+const TYPE_CODE = { invoice: "388", debit_note: "383", credit_note: "381", advance_invoice: "386", advance_credit_note: "381", recovery_invoice: "388" } as const;
 
 /**
  * KSA-2 "invoice transaction code" — 7 digits, validated by BR-KSA-06.
@@ -272,7 +273,8 @@ export function buildInvoiceXml(input: EInvoiceInput): string {
     doc.ele(NS.cac, "cac:AccountingCustomerParty").ele(NS.cac, "cac:Party");
   }
 
-  doc.ele(NS.cac, "cac:Delivery").ele(NS.cbc, "cbc:ActualDeliveryDate").txt(issueDate);
+  // KSA-5: the supply date when the tax point precedes issuance (a 386 = the receipt date; an Art. 40(9) invoice = the payment date), else the issue date.
+  doc.ele(NS.cac, "cac:Delivery").ele(NS.cbc, "cbc:ActualDeliveryDate").txt(input.supplyDate ?? issueDate);
 
   if (input.paymentMeansCode) {
     const pm = doc.ele(NS.cac, "cac:PaymentMeans");

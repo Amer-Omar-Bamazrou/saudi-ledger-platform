@@ -37,7 +37,7 @@ const IN_BOOKS = sql`i.status NOT IN ('draft','submitted') AND ${invoiceNotRever
  * branch — `@workspace/shared` NON_RECEIVABLE_DOCUMENT_TYPES); shown on the
  * statement as a zero-movement event so the customer's chronology is complete.
  */
-const RECEIVABLE_DOC = sql`i.document_type NOT IN ('advance_invoice', 'advance_credit_note')`;
+const RECEIVABLE_DOC = sql`i.document_type NOT IN ('advance_invoice', 'advance_credit_note', 'recovery_invoice')`;
 /** A receipt that is not a reversed opening deposit (Policy C). */
 const RECEIPT_LIVE = sql`${paymentNotReversedSql("p")}`;
 /** N1 — the scoped company's rows only, as raw SQL for the CTEs below (same predicate as `companyScoped`). */
@@ -53,7 +53,7 @@ export type CustomerPositionRow = {
   depositBalance: number;
 };
 
-export type StatementEventKind = "invoice" | "debit_note" | "credit_note" | "advance_invoice" | "advance_credit_note" | "receipt" | "allocation" | "credit_application" | "unallocation" | "refund";
+export type StatementEventKind = "invoice" | "debit_note" | "credit_note" | "advance_invoice" | "advance_credit_note" | "bad_debt_write_off" | "recovery_invoice" | "receipt" | "allocation" | "credit_application" | "unallocation" | "refund";
 
 export type StatementEventRow = {
   kind: StatementEventKind;
@@ -97,7 +97,7 @@ export const customerStatementRepository = {
                sum(CASE WHEN i.document_type = 'credit_note' THEN 0 ELSE coalesce(i.paid_amount::numeric, 0) END) AS total_paid,
                count(*) AS invoice_count,
                sum(CASE WHEN i.document_type = 'credit_note' THEN 0
-                        ELSE i.total::numeric - coalesce(i.paid_amount::numeric, 0) - coalesce(i.credited_amount::numeric, 0) END) AS receivable,
+                        ELSE i.total::numeric - coalesce(i.paid_amount::numeric, 0) - coalesce(i.credited_amount::numeric, 0) - coalesce(i.written_off_amount::numeric, 0) END) AS receivable,
                sum(CASE WHEN i.document_type = 'credit_note' THEN i.total::numeric ELSE 0 END) AS notes_issued
           FROM invoices i
          WHERE ${IN_BOOKS} AND ${RECEIVABLE_DOC} AND ${scopedCo("i")} AND i.customer_id IS NOT NULL
@@ -199,6 +199,25 @@ export const customerStatementRepository = {
           LEFT JOIN invoices o ON o.id = i.original_invoice_id
          WHERE i.customer_id = ${customerId} AND i.document_type = 'advance_credit_note' AND ${IN_BOOKS} AND ${scopedCo("i")}
         UNION ALL
+        -- 2026-09-22: a bad-debt write-off with Art. 40(7) relief takes the unpaid consideration OFF the receivable (nothing is owed by the customer any more; the VAT is relieved in the return)
+        SELECT 'bad_debt_write_off', i.bad_debt_relief_claimed_on, i.created_at, 4, i.id,
+               i.invoice_number, NULL::text,
+               'Written off as a bad debt (VAT relief ' || coalesce(i.bad_debt_relief_vat_amount::text, '0') || ' claimed, Art. 40(7))',
+               i.written_off_amount::numeric, -i.written_off_amount::numeric, 0, 0,
+               i.id, NULL, NULL, NULL, NULL, i.bad_debt_relief_journal_entry_id
+          FROM invoices i
+         WHERE i.customer_id = ${customerId} AND i.written_off_amount::numeric > 0 AND i.bad_debt_relief_source = 'recorded' AND ${IN_BOOKS} AND ${scopedCo("i")}
+        UNION ALL
+        -- 2026-09-22: an Art. 40(9) recovery invoice declares the VAT payable again on consideration received; nothing moves on the statement (the cash arrived as a receipt and was applied)
+        SELECT 'recovery_invoice', i.date::date::text, coalesce(i.issued_at, i.created_at), 1, i.id,
+               i.invoice_number, o.invoice_number,
+               'Tax invoice under Art. 40(9) for ' || i.total::text || ' recovered on ' || coalesce(o.invoice_number, '') || ' (VAT ' || i.vat_amount::text || ' payable again)',
+               i.total::numeric, 0, 0, 0,
+               i.id, i.recovery_payment_id, NULL, NULL, NULL, NULL
+          FROM invoices i
+          LEFT JOIN invoices o ON o.id = i.recovers_invoice_id
+         WHERE i.customer_id = ${customerId} AND i.document_type = 'recovery_invoice' AND ${IN_BOOKS} AND ${scopedCo("i")}
+        UNION ALL
         -- issued credit notes: the credit balance rises by the note; its application is its own line
         SELECT 'credit_note', i.date::date::text, coalesce(i.issued_at, i.created_at), 1, i.id,
                i.invoice_number, o.invoice_number,
@@ -223,8 +242,10 @@ export const customerStatementRepository = {
         -- date and timestamp, so it follows its receipt exactly.
         SELECT 'allocation', coalesce(je.date::date, p.paid_at::date)::text, CASE WHEN a.journal_entry_id IS NULL THEN p.created_at ELSE a.created_at END, 4, a.id,
                i.invoice_number, 'RCPT-' || p.id::text,
-               'Receipt RCPT-' || p.id::text || ' allocated to ' || i.invoice_number,
-               a.amount::numeric, -a.amount::numeric, 0, -a.amount::numeric,
+               CASE WHEN i.document_type = 'recovery_invoice' THEN 'Receipt RCPT-' || p.id::text || ' applied to the recovery declared on ' || i.invoice_number || ' (Art. 40(9))'
+                    ELSE 'Receipt RCPT-' || p.id::text || ' allocated to ' || i.invoice_number END,
+               -- 2026-09-22: an allocation to an Art. 40(9) recovery invoice applies the deposit to a document that never carried a receivable (the write-off took it off) — the deposit falls, the receivable does not
+               a.amount::numeric, CASE WHEN i.document_type = 'recovery_invoice' THEN 0 ELSE -a.amount::numeric END, 0, -a.amount::numeric,
                i.id, p.id, NULL, a.id, NULL, a.journal_entry_id
           FROM payment_allocations a
           JOIN payments p ON p.id = a.payment_id

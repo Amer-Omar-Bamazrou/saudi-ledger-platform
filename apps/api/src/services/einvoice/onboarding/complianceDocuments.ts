@@ -90,6 +90,7 @@ export function complianceDocumentSet(opts: {
     documentType: "invoice",
     subtype: "standard",
     issuedAt,
+    supplyDate: null,
     currency: "SAR",
     seller: opts.seller,
     buyer,

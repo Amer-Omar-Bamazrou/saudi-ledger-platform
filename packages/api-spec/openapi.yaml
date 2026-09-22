@@ -3982,6 +3982,72 @@ paths:
         "422":
           description: "`migration_reversal_blocked` — the blockers are named; unwind them first, or post dated correction journals instead"
 
+  /invoices/{id}/bad-debt-relief:
+    post:
+      operationId: writeOffBadDebt
+      tags: [invoices]
+      summary: "2026-09-22: write off an issued invoice's unpaid consideration as a bad debt and claim the Art. 40(7) VAT relief"
+      description: >
+        ONE act, because the relief presupposes the write-off (Art. 40(7)(d)).
+        Refused by name unless every condition holds: an issued tax invoice or
+        debit note with a customer (bad_debt_not_issued, bad_debt_requires_customer),
+        not a migrated opening item (opening_item_relief_is_migration_fact, the
+        previous system's fact), not already written off, twelve months since
+        the supply (bad_debt_relief_too_early, with the earliest date), a
+        certificate reference, and legal-procedure evidence above SAR 100,000
+        (bad_debt_legal_procedures_required). Posts, dated claimedOn in an open
+        month: Dr Bad debts (net), Dr VAT Payable (the relief) / Cr AR (the
+        unpaid consideration); the invoice stays issued with writtenOffAmount
+        and badDebtRelief set; the return shows the relief in box 7 for that
+        period.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WriteOffBadDebtInput" }
+      responses:
+        "200":
+          description: The invoice with the relief recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "404":
+          description: Not found
+  /invoices/{id}/bad-debt-recoveries:
+    post:
+      operationId: createBadDebtRecovery
+      tags: [invoices]
+      summary: "2026-09-22: the Art. 40(9) document, a DRAFT tax invoice (388) for consideration received on a receivable whose VAT was relieved"
+      description: >
+        "A new Tax invoice must be issued to reflect the additional amount
+        received" (IR Art. 40(9)): a NEW ZATCA document, document_type
+        recovery_invoice, dated at the tax point (the receipt's date), its
+        supply date (KSA-5) the same, its IssueDate the real issuance; it names
+        the receivable it recovers (recoversInvoiceId, also the document's
+        billing reference) and the receipt (recoveryPaymentId). A DRAFT:
+        approve it to issue it (ICV, hash, QR, e-invoice) and post Dr Bad
+        debts / Cr VAT Payable for the VAT payable again, plus, for a
+        receivable written off here, the receipt's application (Dr the
+        receipt's liability / Cr Bad debts) with an allocation receipt to
+        document. A receipt dated into a closed month is refused with the
+        Art. 63 explanation (advance_tax_point_period_locked).
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer }, description: "The written-off (or migrated, relief-claimed) receivable." }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateBadDebtRecoveryInput" }
+      responses:
+        "201":
+          description: The draft recovery invoice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "404":
+          description: Not found
   /invoices/{id}/advance-credit-notes:
     post:
       operationId: createAdvanceCreditNote
@@ -5721,8 +5787,25 @@ components:
         box4_exportSales: { type: number }
         box5_totalSales: { type: number }
         box6_vatOnStandardRatedSales: { type: number }
-        box7_vatAdjustments: { type: number }
+        box7_vatAdjustments:
+          type: number
+          description: 2026-09-22 — the output-VAT adjustments of the period. Today the bad-debt reliefs (IR Art. 40(7)) claimed in the period, as a NEGATIVE figure; box 8 = box 6 + box 7.
         box8_totalOutputVat: { type: number }
+        badDebtReliefs:
+          type: array
+          description: The Art. 40(7) reliefs claimed in this period (the components of box 7), one per written-off invoice.
+          items:
+            $ref: "#/components/schemas/VatReturnBadDebtRelief"
+
+    VatReturnBadDebtRelief:
+      type: object
+      required: [invoiceId, invoiceNumber, claimedOn, writtenOffAmount, reliefVat]
+      properties:
+        invoiceId: { type: integer }
+        invoiceNumber: { type: string }
+        claimedOn: { type: string, format: date }
+        writtenOffAmount: { type: number }
+        reliefVat: { type: number }
 
     VatReturnPurchasesSection:
       type: object
@@ -6628,7 +6711,7 @@ components:
 
     Invoice:
       type: object
-      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, creditedAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid, advancePaymentId, prepayments, prepaidAmount, amountDue]
+      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, creditedAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid, advancePaymentId, prepayments, prepaidAmount, amountDue, writtenOffAmount, badDebtRelief, recoversInvoiceId, recoveryPaymentId]
       properties:
         id:
           type: integer
@@ -6680,8 +6763,8 @@ components:
           description: ZATCA Phase-1 QR (base64 TLV); null until approved.
         documentType:
           type: string
-          enum: [invoice, credit_note, debit_note, advance_invoice, advance_credit_note]
-          description: "invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign)."
+          enum: [invoice, credit_note, debit_note, advance_invoice, advance_credit_note, recovery_invoice]
+          description: "invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign)."
         originalInvoiceId:
           type: ["integer", "null"]
           description: For a credit/debit note, the invoice it adjusts.
@@ -6695,6 +6778,20 @@ components:
         advancePaymentId:
           type: ["integer", "null"]
           description: "AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise."
+        writtenOffAmount:
+          type: number
+          description: "2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none."
+        badDebtRelief:
+          description: "2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform's return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here."
+          oneOf:
+            - { $ref: "#/components/schemas/BadDebtRelief" }
+            - { type: "null" }
+        recoversInvoiceId:
+          type: ["integer", "null"]
+          description: "On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise."
+        recoveryPaymentId:
+          type: ["integer", "null"]
+          description: "On a recovery_invoice: the receipt whose money it declares; its date is the document's date (the tax point) and supply date."
         prepayments:
           type: array
           description: "AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing."
@@ -6733,6 +6830,39 @@ components:
         advanceInvoiceId: { type: integer, description: "An ISSUED advance tax invoice of this customer with an open balance." }
         amount: { type: ["number", "null"], minimum: 0, description: "VAT-inclusive part to adjust; omitted or null = the whole open balance. Σ over the invoice ≤ its total (over-advance default: limit to the invoice — Guideline §8(g))." }
 
+    BadDebtRelief:
+      type: object
+      required: [claimedOn, vatAmount, returnPeriod, certificateRef, legalRef, source, journalEntryId]
+      properties:
+        claimedOn: { type: string, description: "YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to." }
+        vatAmount: { type: number, description: "The Output Tax relieved (the VAT share of the unpaid consideration)." }
+        returnPeriod: { type: ["string", "null"], description: "YYYY-MM of the return the relief was (or is to be) claimed in." }
+        certificateRef: { type: ["string", "null"], description: "The certified accountant's write-off certificate (Art. 40(7)(d))." }
+        legalRef: { type: ["string", "null"], description: "Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e))." }
+        source: { type: string, enum: [recorded, migrated] }
+        journalEntryId: { type: ["integer", "null"], description: "The write-off entry (recorded only)." }
+
+    WriteOffBadDebtInput:
+      type: object
+      required: [certificateRef]
+      properties:
+        claimedOn: { type: ["string", "null"], description: "YYYY-MM-DD. Default today. At least twelve months after the supply (Art. 40(7)(c)); an open month." }
+        certificateRef: { type: string, minLength: 1, maxLength: 200, description: "The certified accountant's certificate that the unpaid consideration is written off (Art. 40(7)(d))." }
+        legalRef: { type: ["string", "null"], maxLength: 500, description: "Required above SAR 100,000 unpaid (Art. 40(7)(e))." }
+        returnPeriod: { type: ["string", "null"], description: "YYYY-MM; default claimedOn's month." }
+        note: { type: ["string", "null"], maxLength: 500 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    CreateBadDebtRecoveryInput:
+      type: object
+      required: [paymentId, amount]
+      properties:
+        paymentId: { type: integer, description: "The receipt whose money recovers the written-off receivable. Its date is the document's date and supply date (the tax point: the period in which the payment occurs, Art. 40(9))." }
+        amount: { type: number, minimum: 0, description: "VAT inclusive; at most the receipt's unapplied balance and the amount written off and not yet declared (recorded), or the receipt's allocation to the item not yet declared (migrated)." }
+        vatRate: { type: ["number", "null"], minimum: 0, maximum: 100, description: "Only for a MIGRATED opening item whose migration recorded no rate: the rate the original tax invoice carried (5 before 1 July 2020, 15 after). Never defaulted; a receivable issued here states its own rate." }
+        notes: { type: ["string", "null"] }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
     CreateAdvanceCreditNoteInput:
       type: object
       required: [amount, reason]
@@ -6748,7 +6878,7 @@ components:
       required: [amount]
       properties:
         amount: { type: number, minimum: 0, description: "VAT inclusive; at most the receipt's un-invoiced remainder." }
-        date: { type: ["string", "null"], description: "Accounting date (YYYY-MM-DD). Default: the receipt date when its month is open, else today. Never before the receipt." }
+        date: { type: ["string", "null"], description: "2026-09-22: IGNORED unless equal to the receipt date. An advance tax invoice is dated at its TAX POINT, the receipt date, always (accountant 1(a)); a locked receipt month is refused (423 advance_tax_point_period_locked, naming the Art. 63 remedy). Its IssueDate is the issuance instant, recorded separately." }
         description: { type: ["string", "null"], maxLength: 500 }
         descriptionAr: { type: ["string", "null"], maxLength: 500 }
         taxExemptionReasonCode: { type: ["string", "null"], description: "Required (code or text) when the deposit's VAT category is Z or E." }
@@ -7401,7 +7531,7 @@ components:
       properties:
         seq: { type: integer }
         date: { type: string }
-        kind: { type: string, enum: [invoice, debit_note, credit_note, advance_invoice, advance_credit_note, receipt, allocation, credit_application, unallocation, refund] }
+        kind: { type: string, enum: [invoice, debit_note, credit_note, advance_invoice, advance_credit_note, bad_debt_write_off, recovery_invoice, receipt, allocation, credit_application, unallocation, refund] }
         documentNumber: { type: string }
         reference: { type: ["string", "null"] }
         description: { type: string }
@@ -7771,9 +7901,13 @@ components:
 
     CustomerPayment:
       type: object
-      required: [id, direction, customerId, bankAccountId, amount, paidAt, method, reference, source, idempotencyKey, journalEntryId, sourceTransactionId, allocatedAmount, refundedAmount, unappliedAmount, allocations, classification, advanceInvoicedAmount, advanceAdjustedAmount, advanceOpenAmount, uninvoicedAmount, advanceInvoices, createdAt]
+      required: [id, direction, customerId, bankAccountId, amount, paidAt, method, reference, source, idempotencyKey, journalEntryId, sourceTransactionId, allocatedAmount, refundedAmount, unappliedAmount, allocations, classification, liabilityAccountCode, advanceInvoicedAmount, advanceAdjustedAmount, advanceOpenAmount, uninvoicedAmount, advanceInvoices, createdAt]
       properties:
         id: { type: integer }
+        liabilityAccountCode:
+          type: ["string", "null"]
+          enum: [CUSTOMER_DEPOSITS, SECURITY_DEPOSITS_HELD, UNIDENTIFIED_RECEIPTS, null]
+          description: "2026-09-22: the liability the on-account balance sits on, by the current classification (customerCreditPolicy.ts); null once nothing is on account."
         direction: { type: string, enum: [in, out] }
         customerId: { type: ["integer", "null"] }
         bankAccountId: { type: integer }
@@ -7808,7 +7942,7 @@ components:
     PaymentClassification:
       type: object
       description: "AP-1 — one dated statement of what a deposit is. Informational: nothing posts from it."
-      required: [id, classification, vatCategory, note, classifiedBy, classifiedAt]
+      required: [id, classification, vatCategory, note, classifiedBy, classifiedAt, effectiveDate, reclassificationJournalEntryId]
       properties:
         id: { type: integer }
         classification: { $ref: "#/components/schemas/DepositClassification" }
@@ -7816,6 +7950,8 @@ components:
         note: { type: ["string", "null"] }
         classifiedBy: { type: ["integer", "null"] }
         classifiedAt: { type: string }
+        effectiveDate: { type: ["string", "null"], description: "2026-09-22: the date the classification took effect in the books (the reclassification entry's date); null on records made before the liability split." }
+        reclassificationJournalEntryId: { type: ["integer", "null"], description: "2026-09-22: the RECLASS entry that moved the receipt's on-account balance between liabilities (unidentified/erroneous to UNIDENTIFIED_RECEIPTS, advance to CUSTOMER_DEPOSITS, security deposit to SECURITY_DEPOSITS_HELD); null when the account did not change." }
 
     DepositClassification:
       type: string
@@ -7833,6 +7969,7 @@ components:
         classification: { $ref: "#/components/schemas/DepositClassification" }
         vatCategory: { type: ["string", "null"], enum: [S, Z, E, null], description: "Only with `advance`." }
         note: { type: ["string", "null"], maxLength: 500 }
+        effectiveDate: { type: ["string", "null"], description: "YYYY-MM-DD. 2026-09-22: when the reclassification takes effect in the books (default today; never before the receipt; an open month)." }
         idempotencyKey: { type: ["string", "null"], maxLength: 120 }
 
     DepositReviewItem:

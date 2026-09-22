@@ -25,6 +25,15 @@
  *                    receivable: it moves no AR, no revenue, no ageing,
  *                    no "outstanding"; its only ledger effect is the VAT
  *                    split of the deposit (decision pack §6 E2, accountant A2).
+ *   recovery_invoice 388 — 2026-09-22 (accountant answer 4; IR Art. 40(9)):
+ *                    the NEW TAX INVOICE issued when consideration is
+ *                    received on a receivable whose output tax was relieved
+ *                    as a bad debt (Art. 40(7)). It declares the VAT that
+ *                    becomes payable again, in the payment's period; the
+ *                    money has been received, so it is NEVER a receivable —
+ *                    no AR, no revenue, no ageing; its ledger effect is the
+ *                    VAT leg (Dr Bad debts / Cr VAT Payable) and, for a
+ *                    receivable written off here, the receipt's application.
  *
  * 🔴 A reader that computes "what the customer owes" from `invoices` rows
  * must exclude every type in NON_RECEIVABLE_DOCUMENT_TYPES — the old shape
@@ -32,14 +41,15 @@
  * advance invoice through its ELSE branch, which is the trap this constant
  * exists to close (`ap2-advance-tax-invoice.test.ts` asserts each reader).
  */
-export const DOCUMENT_TYPES = ["invoice", "credit_note", "debit_note", "advance_invoice", "advance_credit_note"] as const;
+export const DOCUMENT_TYPES = ["invoice", "credit_note", "debit_note", "advance_invoice", "advance_credit_note", "recovery_invoice"] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const ADVANCE_INVOICE_TYPE = "advance_invoice" as const;
 export const ADVANCE_CREDIT_NOTE_TYPE = "advance_credit_note" as const;
+export const RECOVERY_INVOICE_TYPE = "recovery_invoice" as const;
 
 /** Types whose `total` is NOT a receivable — excluded from every AR / outstanding / ageing / billed reader. */
-export const NON_RECEIVABLE_DOCUMENT_TYPES = ["credit_note", "advance_invoice", "advance_credit_note"] as const;
+export const NON_RECEIVABLE_DOCUMENT_TYPES = ["credit_note", "advance_invoice", "advance_credit_note", "recovery_invoice"] as const;
 
 export function isAdvanceInvoiceType(documentType: string | null | undefined): boolean {
   return documentType === ADVANCE_INVOICE_TYPE;
@@ -52,6 +62,15 @@ export function isAdvanceCreditNoteType(documentType: string | null | undefined)
 /** The two advance documents — neither is a receivable nor a Model C credit; both are VAT documents on a deposit. */
 export function isAdvanceDocumentType(documentType: string | null | undefined): boolean {
   return documentType === ADVANCE_INVOICE_TYPE || documentType === ADVANCE_CREDIT_NOTE_TYPE;
+}
+
+export function isRecoveryInvoiceType(documentType: string | null | undefined): boolean {
+  return documentType === RECOVERY_INVOICE_TYPE;
+}
+
+/** A VAT-only document: declares VAT without creating or settling a receivable (386, 381-against-386, the Art. 40(9) invoice). */
+export function isVatOnlyDocumentType(documentType: string | null | undefined): boolean {
+  return isAdvanceDocumentType(documentType) || documentType === RECOVERY_INVOICE_TYPE;
 }
 
 /** Does a document of this type carry a receivable at issue (an invoice or a debit note)? */

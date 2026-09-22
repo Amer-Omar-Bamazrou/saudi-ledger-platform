@@ -35,7 +35,7 @@ import { paymentsService } from "./payments.service";
 import { customersRepository } from "../repositories/customers.repository";
 import { round2 } from "../lib/money";
 import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./accounting/openingReversed";
-import { businessToday, isAdvanceInvoiceType, isAdvanceDocumentType, isAdvanceCreditNoteType } from "@workspace/shared";
+import { businessToday, isAdvanceInvoiceType, isAdvanceDocumentType, isAdvanceCreditNoteType, isRecoveryInvoiceType, isVatOnlyDocumentType } from "@workspace/shared";
 import { advanceInvoicesService, prepaymentsOf, shapePrepayment, type PreparedPrepayment } from "./advanceInvoices.service";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 
@@ -287,6 +287,15 @@ export const invoicesService = {
         field: "documentType",
       });
     }
+    // 2026-09-22: the Art. 40(9) recovery invoice is issued from the written-off
+    // receivable and the receipt that recovered it (POST /invoices/{id}/bad-debt-recoveries).
+    if (isRecoveryInvoiceType(invData.documentType)) {
+      throw new BusinessRuleError(400, {
+        code: "recovery_invoice_via_recovery",
+        error: "A tax invoice under Art. 40(9) is issued from the written-off receivable and the receipt that recovered it (POST /invoices/{id}/bad-debt-recoveries), not created here.",
+        field: "documentType",
+      });
+    }
     // AP-2: the advance tax invoice(s) this FINAL invoice adjusts (a human
     // selection on the document; nothing is auto-applied). Validated now so
     // the enterer is told immediately; approval re-checks under the locks.
@@ -430,12 +439,14 @@ export const invoicesService = {
     // amount and the deposit's VAT category — it is not edited; delete the
     // draft and issue another for a different amount. Its customer is the
     // receipt's. A note never carries a prepayment adjustment.
-    if (isAdvanceDocumentType(existing.documentType) && (items !== undefined || values.customerId !== undefined)) {
+    if (isVatOnlyDocumentType(existing.documentType) && (items !== undefined || values.customerId !== undefined)) {
       throw new BusinessRuleError(409, {
         code: "advance_invoice_line_derived",
         error: isAdvanceInvoiceType(existing.documentType)
           ? "An advance tax invoice's amount and customer come from the receipt it declares VAT for. Delete this draft and issue another for a different amount."
-          : "A credit note against an advance tax invoice takes its amount, line and customer from the advance it cancels. Delete this draft and issue another for a different amount.",
+          : isRecoveryInvoiceType(existing.documentType)
+            ? "A tax invoice under Art. 40(9) takes its amount and customer from the receipt that recovered the written-off receivable. Delete this draft and issue another for a different amount."
+            : "A credit note against an advance tax invoice takes its amount, line and customer from the advance it cancels. Delete this draft and issue another for a different amount.",
         field: items !== undefined ? "items" : "customerId",
       });
     }
@@ -534,6 +545,13 @@ export const invoicesService = {
     // AP-2: an ADVANCE TAX INVOICE declares VAT on cash that has ALREADY
     // arrived (the receipt it names); it has no receivable to settle, and
     // "paying" it would record the same cash twice.
+    if (isRecoveryInvoiceType(existing.documentType)) {
+      throw new BusinessRuleError(409, {
+        code: "recovery_invoice_not_payable",
+        error: `${existing.invoiceNumber} is a tax invoice under Art. 40(9) for money already received (receipt RCPT-${existing.recoveryPaymentId}); there is nothing to pay.`,
+        field: "id",
+      });
+    }
     if (isAdvanceInvoiceType(existing.documentType)) {
       throw new BusinessRuleError(409, {
         code: "advance_invoice_not_payable",
@@ -574,7 +592,7 @@ export const invoicesService = {
     // allocations to THIS invoice (a note applied to its original at issue,
     // or to any invoice later), no longer re-derived from note rows.
     const alreadyPaid = Number(existing.paidAmount ?? 0);
-    const outstanding = round2(Number(existing.total) - Number(existing.creditedAmount ?? 0) - alreadyPaid);
+    const outstanding = round2(Number(existing.total) - Number(existing.creditedAmount ?? 0) - Number(existing.writtenOffAmount ?? 0) - alreadyPaid);
     if (paid > outstanding + 0.005) {
       throw new ConflictError(
         `Payment of ${paid.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} on this invoice.`,

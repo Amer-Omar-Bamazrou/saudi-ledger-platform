@@ -147,7 +147,7 @@ export const reconciliationService = {
         id: inv.id,
         number: inv.invoiceNumber,
         counterpartyName: cust?.name ?? null,
-        outstanding: round2(Number(inv.total) - Number(inv.creditedAmount ?? 0) - Number(inv.paidAmount ?? 0)),
+        outstanding: round2(Number(inv.total) - Number(inv.creditedAmount ?? 0) - Number(inv.writtenOffAmount ?? 0) - Number(inv.paidAmount ?? 0)),
       }))
       .filter((d) => d.outstanding >= 0.01); // fully credited ⇒ nothing to settle
     const openBills: OpenDocument[] = billRows.map(({ bill, vendor }) => ({

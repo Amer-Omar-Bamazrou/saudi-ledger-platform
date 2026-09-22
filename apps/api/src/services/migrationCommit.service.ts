@@ -375,7 +375,7 @@ export const migrationCommitService = {
     const r2Problems: string[] = [];
     for (const c of position.arByCustomer) {
       const cid = customerIdOf(c.partySourceId);
-      const sub = round2(invoices.filter((i) => i.inv.customerId === cid).reduce((s, i) => s + num(i.inv.total) - num(i.inv.paidAmount) - num(i.inv.creditedAmount), 0));
+      const sub = round2(invoices.filter((i) => i.inv.customerId === cid).reduce((s, i) => s + num(i.inv.total) - num(i.inv.paidAmount) - num(i.inv.creditedAmount) - num(i.inv.writtenOffAmount), 0));
       const gl = round2(arLedger.filter((l) => l.customerId === cid).reduce((s, l) => s + l.balance, 0));
       if (!eq(c.total, sub) || !eq(c.total, gl)) r2Problems.push(`${c.partyName ?? c.partySourceId}: staged ${fmt(c.total)}, subledger ${fmt(sub)}, GL ${fmt(gl)}`);
     }

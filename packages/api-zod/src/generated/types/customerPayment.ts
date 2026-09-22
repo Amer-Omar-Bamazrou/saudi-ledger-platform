@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CustomerPaymentDirection } from './customerPaymentDirection';
+import type { CustomerPaymentLiabilityAccountCode } from './customerPaymentLiabilityAccountCode';
 import type { CustomerPaymentSource } from './customerPaymentSource';
 import type { PaymentAllocation } from './paymentAllocation';
 import type { PaymentClassification } from './paymentClassification';
@@ -13,6 +14,11 @@ import type { ReceiptAdvanceInvoice } from './receiptAdvanceInvoice';
 
 export interface CustomerPayment {
   id: number;
+  /**
+     * 2026-09-22: the liability the on-account balance sits on, by the current classification (customerCreditPolicy.ts); null once nothing is on account.
+     * @nullable
+     */
+  liabilityAccountCode: CustomerPaymentLiabilityAccountCode;
   direction: CustomerPaymentDirection;
   /** @nullable */
   customerId: number | null;

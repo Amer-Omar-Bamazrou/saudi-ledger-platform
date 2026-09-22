@@ -20,6 +20,7 @@ import { INVOICE_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/lis
 import { DualDate } from "@/components/DualDate";
 import { OpeningRecordBadge, OpeningRecordNote } from "@/components/migration/OpeningRecord";
 import { PaymentHistory } from "@/components/PaymentHistory";
+import { BadDebtRecoveryDialog, WriteOffBadDebtDialog } from "@/components/invoices/BadDebtDialogs";
 
 const PAGE_SIZE = 50;
 
@@ -200,6 +201,10 @@ export default function Invoices() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
     onSettled: () => { submittingRef.current = false; },
   });
+
+  // 2026-09-22: bad debts — the Art. 40(7) write-off with relief, and the Art. 40(9) recovery document.
+  const [writeOffFor, setWriteOffFor] = useState<Invoice | null>(null);
+  const [recoveryFor, setRecoveryFor] = useState<Invoice | null>(null);
 
   const payMut = useMutation({
     mutationFn: ({ id, amount, bankAccountId }: { id: number; amount: number; bankAccountId: number }) =>
@@ -590,6 +595,8 @@ export default function Invoices() {
                     {/* AP-2: the document's TYPE beside its number — a 386 declares VAT on a deposit and is never owed; a 388 that applied one says so. */}
                     {inv.documentType === "advance_invoice" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-${inv.id}`}>{t("Advance tax invoice", "فاتورة دفعة مقدمة")}</Badge>}
                     {inv.documentType === "advance_credit_note" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-cn-${inv.id}`}>{t("Credit note — advance", "إشعار دائن — دفعة مقدمة")}</Badge>}
+                    {inv.documentType === "recovery_invoice" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-recovery-${inv.id}`}>{t("Tax invoice — recovery (Art. 40(9))", "فاتورة ضريبية — استرداد (م. 40(9))")}</Badge>}
+                    {inv.badDebtRelief && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-written-off-${inv.id}`}>{t("Written off", "مشطوبة")} {fmtNum(inv.writtenOffAmount)}</Badge>}
                     {inv.documentType === "invoice" && inv.prepaidAmount > 0.005 && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-prepaid-${inv.id}`}>{t("Advance applied", "طُبّقت دفعة مقدمة")} {fmtNum(inv.prepaidAmount)}</Badge>}
                   </td>
                   <td className="py-3 pe-4 font-medium">{inv.customerName ?? "—"}</td>
@@ -600,7 +607,7 @@ export default function Invoices() {
                   <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(inv.total)}</td>
                   {/* What is still OWED on the document: nothing on a 386 or a note; total − paid − credited otherwise (the advance, once applied, sits in paid). */}
                   <td className="py-3 pe-4 font-mono text-muted-foreground" data-testid={`due-${inv.id}`}>
-                    {inv.documentType === "advance_invoice" || inv.documentType === "advance_credit_note" || inv.documentType === "credit_note" || inv.status === "draft" || inv.status === "submitted" ? "—" : fmtNum(inv.total - inv.paidAmount - inv.creditedAmount)}
+                    {inv.documentType === "advance_invoice" || inv.documentType === "advance_credit_note" || inv.documentType === "recovery_invoice" || inv.documentType === "credit_note" || inv.status === "draft" || inv.status === "submitted" ? "—" : fmtNum(inv.total - inv.paidAmount - inv.creditedAmount - inv.writtenOffAmount)}
                   </td>
                   <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{statusLabel(inv.status, lang)}</Badge></td>
                   <td className="py-3">
@@ -616,7 +623,7 @@ export default function Invoices() {
                       {inv.status === "draft" && (
                         <>
                           {/* A draft 386's amount is the receipt's; only its notes are editable, so Edit is not offered (Delete is). */}
-                          {inv.documentType !== "advance_invoice" && inv.documentType !== "advance_credit_note" && <Button variant="ghost" size="sm" className="text-xs h-7"
+                          {inv.documentType !== "advance_invoice" && inv.documentType !== "advance_credit_note" && inv.documentType !== "recovery_invoice" && <Button variant="ghost" size="sm" className="text-xs h-7"
                             onClick={() => openEdit(inv)}>
                             {t("Edit", "تعديل")}
                           </Button>}
@@ -634,6 +641,13 @@ export default function Invoices() {
                           the draft-only Edit/Delete already follow. */}
                       {inv.status === "sent" && inv.documentType === "invoice" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-positive" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
+                      )}
+                      {/* 2026-09-22: a receivable that went bad — the Art. 40(7) write-off with relief (an issued, unpaid, non-migrated invoice) and, once relieved, the Art. 40(9) recovery document. */}
+                      {inv.status === "sent" && inv.documentType === "invoice" && !inv.isOpening && !inv.badDebtRelief && inv.total - inv.paidAmount - inv.creditedAmount > 0.005 && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-muted-foreground" onClick={() => setWriteOffFor(inv)} data-testid={`write-off-${inv.id}`}>{t("Write off", "شطب")}</Button>
+                      )}
+                      {inv.documentType === "invoice" && inv.badDebtRelief && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-primary" onClick={() => setRecoveryFor(inv)} data-testid={`declare-recovery-${inv.id}`}>{t("Declare recovery", "إفصاح عن استرداد")}</Button>
                       )}
                       {/* L1 — the invoice leaves the product. ع is THE tax
                           invoice (Arabic, PDF/A-3); EN is a labelled
@@ -716,6 +730,8 @@ export default function Invoices() {
         </CardContent>
       </Card>
 
+      {writeOffFor && <WriteOffBadDebtDialog invoice={writeOffFor} open onClose={() => setWriteOffFor(null)} />}
+      {recoveryFor && <BadDebtRecoveryDialog invoice={recoveryFor} open onClose={() => setRecoveryFor(null)} />}
       <Dialog open={payOpen !== null} onOpenChange={()=>setPayOpen(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>{t("Record Payment", "تسجيل دفعة")}</DialogTitle></DialogHeader>

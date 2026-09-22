@@ -48,12 +48,13 @@ import { customersRepository } from "../repositories/customers.repository";
 import { customerStatementRepository } from "../repositories/customerStatement.repository";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
-import { postJournalEntry, type GLLine, type GLParty } from "./accounting/glPosting";
+import { postJournalEntry, type GLLine, type GLParty } from "./accounting/glPosting";
+import { checkPeriodOpen } from "./accounting/periodLock";
 import { assertBankAccount } from "./accounting/bankIdentity";
-import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME } from "./accounting/customerCreditPolicy";
+import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME, depositLiabilityAccount, type DepositClassificationKind } from "./accounting/customerCreditPolicy";
 import { auditService } from "./audit.service";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
-import type { Payment, PaymentAllocation, PaymentAllocationReversal, CustomerRefund, PaymentClassification } from "@workspace/db";
+import type { Payment, PaymentAllocation, PaymentAllocationReversal, CustomerRefund, PaymentClassification, SystemAccountCode } from "@workspace/db";
 import { isNoteType } from "./creditNotes";
 import { isAdvanceInvoiceType } from "@workspace/shared";
 import { advanceInvoicesService, type ReceiptAdvanceInvoiceOut } from "./advanceInvoices.service";
@@ -73,6 +74,9 @@ export type ClassificationOut = {
   note: string | null;
   classifiedBy: number | null;
   classifiedAt: string;
+  /** 2026-09-22: when the classification took effect in the books, and the reclassification entry it posted (null when the liability account did not change). */
+  effectiveDate: string | null;
+  reclassificationJournalEntryId: number | null;
 };
 
 export type ReceiveInput = {
@@ -114,6 +118,8 @@ export type PaymentOut = {
   allocations: AllocationOut[];
   /** AP-1: the CURRENT classification (the newest record), or null when nobody has said what the deposit is. */
   classification: ClassificationOut | null;
+  /** 2026-09-22: the liability account the on-account balance sits on (customerCreditPolicy.ts), null once nothing is on account. */
+  liabilityAccountCode: "CUSTOMER_DEPOSITS" | "SECURITY_DEPOSITS_HELD" | "UNIDENTIFIED_RECEIPTS" | null;
   /** AP-2: Σ issued advance tax invoices (386) on this receipt — the part of the deposit whose VAT is declared. */
   advanceInvoicedAmount: number;
   /** AP-2: Σ adjusted by issued final invoices (the prepayment adjustment). */
@@ -172,6 +178,7 @@ function toClassificationOut(c: PaymentClassification): ClassificationOut {
   return {
     id: c.id, classification: c.classification as DepositClassification, vatCategory: (c.vatCategory as DepositVatCategory | null) ?? null,
     note: c.note ?? null, classifiedBy: c.createdBy ?? null, classifiedAt: c.createdAt.toISOString(),
+    effectiveDate: c.effectiveDate ?? null, reclassificationJournalEntryId: c.journalEntryId ?? null,
   };
 }
 
@@ -217,6 +224,18 @@ async function paymentAvailability(p: Payment): Promise<{ allocated: number; ref
   return { allocated, refunded, available: round2(num(p.amount) - allocated - refunded) };
 }
 
+/**
+ * The liability account a receipt's on-account money sits on TODAY — by its
+ * latest classification (customerCreditPolicy.ts, the one seam). Every path
+ * that moves that money (allocate, unallocate, refund, reclassify) reads it
+ * here, never a constant.
+ */
+async function depositAccountOf(p: Payment, current?: PaymentClassification | null): Promise<{ systemCode: "CUSTOMER_DEPOSITS" | "SECURITY_DEPOSITS_HELD" | "UNIDENTIFIED_RECEIPTS"; accountName: string; classification: DepositClassificationKind | null }> {
+  const c = current !== undefined ? current : (await paymentsRepository.latestClassifications([p.id])).get(p.id) ?? null;
+  const kind = (c?.classification as DepositClassificationKind | undefined) ?? null;
+  return { ...depositLiabilityAccount(kind), classification: kind };
+}
+
 async function view(p: Payment, classification?: PaymentClassification | null): Promise<PaymentOut> {
   const rows = await paymentsRepository.allocationsOfPayment(p.id);
   const allocated = round2(rows.filter((r) => r.reversal == null).reduce((s, r) => s + num(r.alloc.amount), 0));
@@ -251,6 +270,7 @@ async function view(p: Payment, classification?: PaymentClassification | null): 
     unappliedAmount: unapplied,
     allocations: rows.map((r) => toAllocationOut(r.alloc, r.reversal)),
     classification: current ? toClassificationOut(current) : null,
+    liabilityAccountCode: unapplied > 0.005 ? depositLiabilityAccount((current?.classification as DepositClassificationKind | undefined) ?? null).systemCode : null,
     advanceInvoicedAmount: round2(adv.invoiced),
     advanceAdjustedAmount: round2(adv.adjusted),
     advanceOpenAmount: round2(adv.open),
@@ -357,7 +377,7 @@ async function lockAndCheckTargets(
         field: "allocations",
       });
     }
-    const outstanding = round2(num(inv.total) - num(inv.paidAmount) - num(inv.creditedAmount));
+    const outstanding = round2(num(inv.total) - num(inv.paidAmount) - num(inv.creditedAmount) - num(inv.writtenOffAmount));
     if (a.amount > outstanding + TOL) {
       throw new ConflictError(
         `Allocation of ${fmt(a.amount)} to ${inv.invoiceNumber} exceeds its outstanding balance of ${fmt(outstanding)}. ` +
@@ -371,7 +391,7 @@ async function lockAndCheckTargets(
 /** Write the allocation rows and move the invoice caches — one place, both caches. */
 async function writeAllocations(
   allocations: AllocationInput[],
-  targets: Map<number, { id: number; total: string; paidAmount: string | null; creditedAmount: string; status: string }>,
+  targets: Map<number, { id: number; total: string; paidAmount: string | null; creditedAmount: string; writtenOffAmount: string; status: string }>,
   ref: { paymentId?: number; creditNoteId?: number; journalEntryId: number | null; idempotencyKey?: string | null; createdBy: number | null; paidAt?: string; ids?: number[] },
 ): Promise<PaymentAllocation[]> {
   const out: PaymentAllocation[] = [];
@@ -389,7 +409,7 @@ async function writeAllocations(
     });
     out.push(row);
     const inv = targets.get(a.invoiceId)!;
-    const outstandingAfter = round2(num(inv.total) - num(inv.paidAmount) - num(inv.creditedAmount) - a.amount);
+    const outstandingAfter = round2(num(inv.total) - num(inv.paidAmount) - num(inv.creditedAmount) - num(inv.writtenOffAmount) - a.amount);
     // Status flips to `paid` on CASH settlement (the existing rule). A credit
     // note that settles the remainder leaves the status alone — "paid" says
     // money arrived, and here none did.
@@ -484,7 +504,9 @@ export const paymentsService = {
       lines.push({ systemCode: "AR", accountName: "Accounts Receivable", description, debitAmount: 0, creditAmount: allocated, party });
     }
     if (unapplied > 0) {
-      lines.push({ systemCode: CUSTOMER_CREDIT_ACCOUNT.deposit, accountName: CUSTOMER_CREDIT_ACCOUNT_NAME.deposit, description: "Receipt on account — not yet allocated", debitAmount: 0, creditAmount: unapplied, party });
+      // The liability the money is: by the classification stated AT receipt (customerCreditPolicy.ts); unstated → the presumed deposit.
+      const liability = depositLiabilityAccount(classification?.classification ?? null);
+      lines.push({ systemCode: liability.systemCode, accountName: liability.accountName, description: classification ? `Receipt on account — ${classification.classification.replace("_", " ")}` : "Receipt on account — not yet allocated", debitAmount: 0, creditAmount: unapplied, party });
     }
     const je = await postJournalEntry({ entryNumber, date: paidAt, description, reference: single?.invoiceNumber ?? body.reference ?? undefined, lines });
 
@@ -553,6 +575,11 @@ export const paymentsService = {
     // by a plain allocation — that would settle AR while the 386's VAT stays
     // declared and the final invoice declares it again.
     await advanceInvoicesService.assertWithinUninvoiced(payment, requested, "allocated");
+    const liability = await depositAccountOf(payment);
+    if (liability.classification === "security_deposit") {
+      // A refundable security deposit is contractually unavailable for use: it settles nothing until the business RECLASSIFIES it (a dated, audited act) — never by an allocation.
+      throw new BusinessRuleError(409, { error: `Receipt ${paymentId} is classified as a refundable security deposit; it cannot be applied to an invoice while it is. Reclassify it (advance or unknown) first, or refund it.`, code: "security_deposit_not_allocatable", field: "paymentId" });
+    }
 
     const targets = await lockAndCheckTargets(allocations, { customerId: payment.customerId ?? null }, { paymentId });
     const party = partyOf(payment.customerId ?? null);
@@ -564,7 +591,7 @@ export const paymentsService = {
       description: `Allocation of receipt ${paymentId} to ${allocations.length === 1 ? targets.get(allocations[0]!.invoiceId)!.invoiceNumber : `${allocations.length} invoices`}`,
       reference: payment.reference ?? undefined,
       lines: [
-        { systemCode: CUSTOMER_CREDIT_ACCOUNT.deposit, accountName: CUSTOMER_CREDIT_ACCOUNT_NAME.deposit, description: `Deposit applied from receipt ${paymentId}`, debitAmount: requested, creditAmount: 0, party },
+        { systemCode: liability.systemCode, accountName: liability.accountName, description: `Deposit applied from receipt ${paymentId}`, debitAmount: requested, creditAmount: 0, party },
         { systemCode: "AR", accountName: "Accounts Receivable", description: `Deposit applied from receipt ${paymentId}`, debitAmount: 0, creditAmount: requested, party },
       ],
     });
@@ -744,8 +771,10 @@ export const paymentsService = {
     const amount = round2(num(alloc.amount));
     const party = partyOf(customerId);
     const reversalId = await paymentsRepository.nextReversalId();
-    const account = CUSTOMER_CREDIT_ACCOUNT[origin];
-    const accountName = CUSTOMER_CREDIT_ACCOUNT_NAME[origin];
+    // deposit origin: back onto the account the receipt's money sits on TODAY (its classification), never a constant
+    const depositSide = origin === "deposit" && alloc.paymentId != null ? await depositAccountOf((await paymentsRepository.findPaymentById(alloc.paymentId))[0]!) : null;
+    const account = depositSide ? depositSide.systemCode : CUSTOMER_CREDIT_ACCOUNT[origin];
+    const accountName = depositSide ? depositSide.accountName : CUSTOMER_CREDIT_ACCOUNT_NAME[origin];
     const what = origin === "deposit" ? `receipt ${alloc.paymentId}` : `credit note ${noteNumber}`;
     const je = await postJournalEntry({
       entryNumber: `UNALLOC-${reversalId}`,
@@ -769,7 +798,7 @@ export const paymentsService = {
       throw err;
     }
     // The caches move back by exactly this allocation; a cash-settled invoice reopens.
-    const outstandingAfter = round2(num(inv.total) - num(inv.paidAmount) - num(inv.creditedAmount) + amount);
+    const outstandingAfter = round2(num(inv.total) - num(inv.paidAmount) - num(inv.creditedAmount) - num(inv.writtenOffAmount) + amount);
     await invoiceSettlementRepository.bumpSettled(
       alloc.invoiceId,
       origin === "deposit" ? { paid: -amount } : { credited: -amount },
@@ -840,6 +869,7 @@ export const paymentsService = {
     let creditNoteId: number | null = null;
     let available: number;
     let sourceLabel: string;
+    let refundAccount: { systemCode: string; accountName: string } = { systemCode: CUSTOMER_CREDIT_ACCOUNT[origin], accountName: CUSTOMER_CREDIT_ACCOUNT_NAME[origin] };
     if (origin === "deposit") {
       paymentId = Number(body.paymentId);
       if (!Number.isInteger(paymentId) || paymentId <= 0) throw new BadRequestError("paymentId must name the receipt whose deposit is refunded.");
@@ -854,6 +884,7 @@ export const paymentsService = {
       // refunded only after a credit note against that 386 (AP-3) — refunding
       // the cash now would leave its VAT declared against nothing.
       if (rounded <= available + TOL) await advanceInvoicesService.assertWithinUninvoiced(payment, rounded, "refunded");
+      refundAccount = await depositAccountOf(payment);
       sourceLabel = `receipt ${paymentId}`;
     } else {
       creditNoteId = Number(body.creditNoteId);
@@ -884,7 +915,7 @@ export const paymentsService = {
       description: `Refund to ${cust.name} of ${sourceLabel} — ${reason}`,
       reference: body.reference?.trim() || undefined,
       lines: [
-        { systemCode: CUSTOMER_CREDIT_ACCOUNT[origin], accountName: CUSTOMER_CREDIT_ACCOUNT_NAME[origin], description: `Refund of ${sourceLabel}`, debitAmount: rounded, creditAmount: 0, party },
+        { systemCode: refundAccount.systemCode as SystemAccountCode, accountName: refundAccount.accountName, description: `Refund of ${sourceLabel}`, debitAmount: rounded, creditAmount: 0, party },
         { bankAccountId, description: `Refund to ${cust.name}`, debitAmount: 0, creditAmount: rounded },
       ],
     });
@@ -920,7 +951,7 @@ export const paymentsService = {
    * workflow (AP-2) reads the CURRENT record. Refuses what is not a deposit
    * (`assertClassifiable`). Idempotent per key.
    */
-  async classify(paymentId: number, body: { classification?: unknown; vatCategory?: unknown; note?: unknown; idempotencyKey?: string | null }, userId: number | null): Promise<PaymentOut> {
+  async classify(paymentId: number, body: { classification?: unknown; vatCategory?: unknown; note?: unknown; effectiveDate?: string | null; idempotencyKey?: string | null }, userId: number | null): Promise<PaymentOut> {
     const parsed = parseClassification(body);
     const idempotencyKey = body.idempotencyKey?.trim() || null;
     if (idempotencyKey) {
@@ -934,9 +965,51 @@ export const paymentsService = {
     if (!payment) throw new NotFoundError("Payment not found");
     await assertClassifiable(payment);
     const before = (await paymentsRepository.latestClassifications([paymentId])).get(paymentId) ?? null;
+    /**
+     * 🔴 A CLASSIFICATION THAT CHANGES THE LIABILITY MOVES THE MONEY (accountant,
+     * 2026-09-22). The receipt's on-account balance leaves the account it sits
+     * on for the account its new classification names, by ONE entry dated the
+     * classification's effective date, in an open month — never silently, never
+     * in a locked month. A deposit whose advance tax invoice is issued and not
+     * fully cancelled cannot leave CUSTOMER_DEPOSITS: the 386 declared VAT on
+     * it, and only its credit note (AP-3) undoes that.
+     */
+    const fromAccount = await depositAccountOf(payment, before);
+    const toAccount = depositLiabilityAccount(parsed.classification);
+    const effectiveDate = body.effectiveDate ? assertDateString(body.effectiveDate, "effectiveDate") : businessToday();
+    if (effectiveDate < payment.paidAt) {
+      throw new BusinessRuleError(422, { error: `A classification cannot take effect on ${effectiveDate}, before the receipt of ${payment.paidAt}.`, code: "classification_before_receipt", field: "effectiveDate" });
+    }
+    let reclassEntryId: number | null = null;
+    if (fromAccount.systemCode !== toAccount.systemCode) {
+      const adv = (await advanceInvoicesRepository.figuresForPayments([paymentId])).get(paymentId);
+      if (adv && adv.invoiced - adv.credited > 0.005) {
+        throw new BusinessRuleError(409, {
+          error: `Receipt ${paymentId} has an advance tax invoice issued on ${fmt(adv.invoiced - adv.credited)} of it that is not cancelled; it stays an advance until that invoice is credited (a credit note against it, then reclassify).`,
+          code: "advance_invoiced_cannot_reclassify",
+          field: "classification",
+        });
+      }
+      const { available } = await paymentAvailability(payment);
+      if (available > 0.005) {
+        await checkPeriodOpen(effectiveDate);
+        const party = partyOf(payment.customerId ?? null);
+        const je = await postJournalEntry({
+          entryNumber: `RECLASS-${paymentId}-${Date.now()}`,
+          date: effectiveDate,
+          description: `Receipt ${paymentId} reclassified: ${before?.classification ?? "unstated"} → ${parsed.classification} (${fromAccount.accountName} → ${toAccount.accountName})`,
+          reference: payment.reference ?? undefined,
+          lines: [
+            { systemCode: fromAccount.systemCode, accountName: fromAccount.accountName, description: `Receipt ${paymentId} reclassified out`, debitAmount: available, creditAmount: 0, party },
+            { systemCode: toAccount.systemCode, accountName: toAccount.accountName, description: `Receipt ${paymentId} reclassified in`, debitAmount: 0, creditAmount: available, party },
+          ],
+        });
+        reclassEntryId = je.id;
+      }
+    }
     let row: PaymentClassification;
     try {
-      row = await paymentsRepository.insertClassification({ paymentId, ...parsed, idempotencyKey, createdBy: userId });
+      row = await paymentsRepository.insertClassification({ paymentId, ...parsed, idempotencyKey, createdBy: userId, effectiveDate, journalEntryId: reclassEntryId });
     } catch (err) {
       if (isIdempotencyRace(err)) throw new ConflictError(`Classification "${idempotencyKey}" was recorded concurrently. Retry the request to read it.`);
       throw err;
@@ -945,7 +1018,7 @@ export const paymentsService = {
     await auditService.record({
       action: "classify", entityType: "payment", entityId: paymentId,
       before: before ? toClassificationOut(before) : null,
-      after: { ...toClassificationOut(row), unappliedAmount: out.unappliedAmount },
+      after: { ...toClassificationOut(row), unappliedAmount: out.unappliedAmount, reclassified: reclassEntryId != null ? { from: fromAccount.systemCode, to: toAccount.systemCode, journalEntryId: reclassEntryId, effectiveDate } : null },
     });
     return out;
   },

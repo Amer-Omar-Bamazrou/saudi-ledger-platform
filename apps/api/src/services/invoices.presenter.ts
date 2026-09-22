@@ -73,6 +73,21 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
     noteReason: inv.noteReason,
     // AP-2: the receipt an ADVANCE TAX INVOICE declares VAT for (null otherwise).
     advancePaymentId: inv.advancePaymentId ?? null,
+    // 2026-09-22: the bad-debt facts (Art. 40(7)) and the Art. 40(9) links.
+    writtenOffAmount: toNum(inv.writtenOffAmount),
+    badDebtRelief: inv.badDebtReliefClaimedOn
+      ? {
+          claimedOn: inv.badDebtReliefClaimedOn,
+          vatAmount: toNum(inv.badDebtReliefVatAmount),
+          returnPeriod: inv.badDebtReliefReturnPeriod ?? null,
+          certificateRef: inv.badDebtReliefCertificateRef ?? null,
+          legalRef: inv.badDebtReliefLegalRef ?? null,
+          source: (inv.badDebtReliefSource ?? "recorded") as "recorded" | "migrated",
+          journalEntryId: inv.badDebtReliefJournalEntryId ?? null,
+        }
+      : null,
+    recoversInvoiceId: inv.recoversInvoiceId ?? null,
+    recoveryPaymentId: inv.recoveryPaymentId ?? null,
     prepayments: prepayments ?? [],
     prepaidAmount,
     amountDue: Math.round((toNum(inv.total) - prepaidAmount) * 100) / 100,

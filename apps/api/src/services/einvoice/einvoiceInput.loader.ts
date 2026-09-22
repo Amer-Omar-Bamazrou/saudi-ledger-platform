@@ -20,6 +20,7 @@ import { companiesRepository } from "../../repositories/companies.repository";
 import { customersRepository } from "../../repositories/customers.repository";
 import { assembleEInvoiceInput } from "./einvoiceInput.assembler";
 import { advanceInvoicesRepository } from "../../repositories/advanceInvoices.repository";
+import { paymentsRepository } from "../../repositories/payments.repository";
 import type { EInvoiceInput } from "./types";
 
 /**
@@ -72,6 +73,11 @@ export async function loadEInvoiceInput(
     vatRate: row.vatRate,
   }));
 
+  // Art. 40(9): the receivable a recovery invoice recovers, and the payment whose date is its supply date (KSA-5).
+  const recovered = invoice.recoversInvoiceId ? (await invoicesRepository.findById(invoice.recoversInvoiceId))[0] ?? null : null;
+  const recoveryPayment = invoice.documentType === "recovery_invoice" && invoice.recoveryPaymentId ? (await paymentsRepository.findPaymentById(invoice.recoveryPaymentId))[0] ?? null : null;
+  const advancePayment = invoice.documentType === "advance_invoice" && invoice.advancePaymentId ? (await paymentsRepository.findPaymentById(invoice.advancePaymentId))[0] ?? null : null;
+
   return assembleEInvoiceInput({
     invoice: {
       invoiceNumber: invoice.invoiceNumber,
@@ -87,8 +93,11 @@ export async function loadEInvoiceInput(
       paidAmount: invoice.paidAmount,
       notes: invoice.notes,
       noteReason: invoice.noteReason,
+      // KSA-5: the tax point precedes issuance on a 386 (the receipt date) and on an Art. 40(9) invoice (the payment date).
+      supplyDate: advancePayment?.paidAt ?? recoveryPayment?.paidAt ?? null,
     },
     originalInvoice: original ? { invoiceNumber: original.invoiceNumber } : null,
+    recoveredInvoice: recovered ? { invoiceNumber: recovered.invoiceNumber, badDebtReliefClaimedOn: recovered.badDebtReliefClaimedOn ?? null } : null,
     prepayments,
     items: items.map((it) => ({
       description: it.description,

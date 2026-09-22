@@ -404,6 +404,17 @@ export const reportsRepository = {
       .innerJoin(invoicesTable, eq(invoicePrepaymentsTable.invoiceId, invoicesTable.id))
       .where(and(gte(invoicesTable.date, dateFrom), lte(invoicesTable.date, dateTo), approvedInvoicesOnly(), isNotNull(invoicePrepaymentsTable.allocationId)));
   },
+  /**
+   * 2026-09-22: bad-debt reliefs CLAIMED HERE (Art. 40(7)) whose claim date is
+   * in the range — the return's box 7 (output-VAT adjustments). A migrated
+   * relief was claimed in the previous system's return and is not in ours.
+   */
+  badDebtReliefsInRange(dateFrom: string, dateTo: string) {
+    return db
+      .select({ id: invoicesTable.id, invoiceNumber: invoicesTable.invoiceNumber, claimedOn: invoicesTable.badDebtReliefClaimedOn, reliefVat: invoicesTable.badDebtReliefVatAmount, writtenOff: invoicesTable.writtenOffAmount })
+      .from(invoicesTable)
+      .where(and(eq(invoicesTable.badDebtReliefSource, "recorded"), gte(invoicesTable.badDebtReliefClaimedOn, dateFrom), lte(invoicesTable.badDebtReliefClaimedOn, dateTo)));
+  },
   /** Bill lines carry no ZATCA category (vendor documents) — classification is
    *  per-line VAT presence, which still fixes the mixed-rate hole. */
   billLinesInRange(dateFrom: string, dateTo: string) {

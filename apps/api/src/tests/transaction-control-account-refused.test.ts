@@ -88,7 +88,8 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
 
   it("the set is one definition and holds the receivable and payable control accounts", () => {
     // D-4 (2026-09-17): the two customer-credit liabilities carry a customer like AR does.
-    expect([...PARTY_REQUIRED_SYSTEM_CODES]).toEqual(["AR", "AP", "CUSTOMER_DEPOSITS", "CUSTOMER_CREDITS"]);
+    // 2026-09-22 (accountant answer 2): the two other customer-money liabilities carry a customer too.
+    expect([...PARTY_REQUIRED_SYSTEM_CODES]).toEqual(["AR", "AP", "CUSTOMER_DEPOSITS", "CUSTOMER_CREDITS", "UNIDENTIFIED_RECEIPTS", "SECURITY_DEPOSITS_HELD"]);
   });
 
   it("🔴 UPDATE to Accounts Receivable is a 422 naming the workflow — the row, its link and its Suspense entry are untouched", async () => {

@@ -189,6 +189,45 @@ export const invoicesTable = pgTable(
     reversedByMigrationBatchId: integer("reversed_by_migration_batch_id"),
     replacesInvoiceId: integer("replaces_invoice_id"),
 
+    /**
+     * 🔴 BAD-DEBT RELIEF (VAT IR Art. 40(7)) as a STRUCTURED FACT, never a
+     * note (accountant, 2026-09-22). `writtenOffAmount` is the part of the
+     * gross consideration written off in the books (Art. 40(7)(d)); the
+     * relief itself — the output tax reduced in the return for the period
+     * `badDebtReliefClaimedOn` falls in — is `badDebtReliefVatAmount`,
+     * declared in box 7. `badDebtReliefSource` says who established it:
+     * `recorded` (this platform's write-off act, with its own GL entry) or
+     * `migrated` (the previous system claimed it — Batch 1C's
+     * `historicalVat.badDebtReliefClaimed`; no entry here, the item is open
+     * AR at its outstanding amount). Every later Art. 40(9) recovery reads
+     * these, never the notes.
+     */
+    writtenOffAmount: numeric("written_off_amount", { precision: 15, scale: 2 }).notNull().default("0"),
+    badDebtReliefClaimedOn: text("bad_debt_relief_claimed_on"),
+    badDebtReliefVatAmount: numeric("bad_debt_relief_vat_amount", { precision: 15, scale: 2 }),
+    badDebtReliefReturnPeriod: text("bad_debt_relief_return_period"),
+    badDebtReliefCertificateRef: text("bad_debt_relief_certificate_ref"),
+    badDebtReliefLegalRef: text("bad_debt_relief_legal_ref"),
+    badDebtReliefSource: text("bad_debt_relief_source"),
+    badDebtReliefJournalEntryId: integer("bad_debt_relief_journal_entry_id"),
+    /**
+     * 🔴 THE Art. 40(9) DOCUMENT: `document_type = 'recovery_invoice'` — a
+     * tax invoice (ZATCA 388) issued because consideration was received on a
+     * receivable whose output tax had been relieved. Its OWN document type
+     * (the AP-2 pattern) so every receivable reader excludes it by
+     * construction: it never carries AR. `recoversInvoiceId` is that
+     * receivable, `recoveryPaymentId` the receipt whose money it declares.
+     * Its date is the receipt's date (the tax point — "the Tax Period in which
+     * the payment occurs"), its supply date (KSA-5) the same, its IssueDate
+     * the real issuance. Its GL entry is the VAT leg (`Dr BAD_DEBT_EXPENSE /
+     * Cr VAT_OUTPUT`) plus, when the receivable was written off HERE, the
+     * receipt's application (`Dr <receipt's liability> / Cr BAD_DEBT_EXPENSE`,
+     * the recovery); a migrated open item is settled by the receipt's own
+     * D-4 allocation instead.
+     */
+    recoversInvoiceId: integer("recovers_invoice_id"),
+    recoveryPaymentId: integer("recovery_payment_id"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -225,6 +264,7 @@ export const invoicesTable = pgTable(
     uniqueIndex("invoices_company_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
     // AP-2: the 386s of a receipt (the receipt card, the advance figures) — declared here, per the rule above.
     index("invoices_advance_payment_idx").on(t.advancePaymentId),
+    index("invoices_recovers_idx").on(t.recoversInvoiceId),
   ],
 );
 

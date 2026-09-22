@@ -166,7 +166,7 @@ describeMaybe("AP-3 — credit note against an advance tax invoice, and the refu
   const depositsInvariantViolations = async () =>
     (await pool.query(`
       WITH gl AS (SELECT l.customer_id, sum(l.credit_amount - l.debit_amount) v FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
-                   WHERE e.organization_id = $1 AND c.system_code = 'CUSTOMER_DEPOSITS' AND e.status IN ('posted','reversed') GROUP BY 1),
+                   WHERE e.organization_id = $1 AND c.system_code IN ('CUSTOMER_DEPOSITS','UNIDENTIFIED_RECEIPTS','SECURITY_DEPOSITS_HELD') AND e.status IN ('posted','reversed') GROUP BY 1),
            adv AS (SELECT i.customer_id, sum(i.vat_amount::numeric)
                           - coalesce(sum((SELECT coalesce(sum(x.tax_amount), 0) FROM invoice_prepayments x WHERE x.advance_invoice_id = i.id AND x.allocation_id IS NOT NULL)), 0)
                           - coalesce(sum((SELECT coalesce(sum(n.vat_amount::numeric), 0) FROM invoices n WHERE n.original_invoice_id = i.id AND n.document_type = 'advance_credit_note' AND n.invoice_hash IS NOT NULL)), 0) v

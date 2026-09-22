@@ -7,7 +7,7 @@
  */
 
 /**
- * invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) — amounts are stored POSITIVE; direction lives here (documentSign).
+ * invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance's VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).
  */
 export type InvoiceDocumentType = typeof InvoiceDocumentType[keyof typeof InvoiceDocumentType];
 
@@ -18,4 +18,5 @@ export const InvoiceDocumentType = {
   debit_note: 'debit_note',
   advance_invoice: 'advance_invoice',
   advance_credit_note: 'advance_credit_note',
+  recovery_invoice: 'recovery_invoice',
 } as const;

@@ -166,7 +166,7 @@ test.describe("AP-1 — English desktop", () => {
     await expect(page.getByTestId("deposit-review-summary")).toContainText(`Needs review: ${countBefore - 1}`);
 
     // Nothing posted: the receipt's own entry is the only journal this flow created; box 6 unchanged.
-    expect(await journalCount(), "one journal (the receipt) and nothing from classifying").toBe(journalsBefore + 1);
+    expect(await journalCount(), "the receipt's entry and the reclassification (2026-09-22: a classification that changes the liability moves the balance by ONE entry), nothing else").toBe(journalsBefore + 2);
     expect((await vatReturn()).salesSection.box6_vatOnStandardRatedSales).toBe(ret.salesSection.box6_vatOnStandardRatedSales);
   });
 

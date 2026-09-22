@@ -18,7 +18,7 @@
  * debit_note 383 · advance_invoice 386 (AP-2 — the PREPAYMENT tax invoice,
  * XML Implementation Standard v1.2 ¶9.5 / §11.2.1).
  */
-export type EInvoiceDocumentType = "invoice" | "credit_note" | "debit_note" | "advance_invoice" | "advance_credit_note";
+export type EInvoiceDocumentType = "invoice" | "credit_note" | "debit_note" | "advance_invoice" | "advance_credit_note" | "recovery_invoice";
 
 /**
  * Standard (B2B/B2G) is CLEARED before issuance; simplified (B2C) is REPORTED
@@ -148,6 +148,16 @@ export interface EInvoiceInput {
   subtype: EInvoiceSubtype;
   /** Issuance instant (NOT the accounting date). Drives IssueDate + IssueTime. */
   issuedAt: Date;
+  /**
+   * KSA-5 supply date (`cac:Delivery/cbc:ActualDeliveryDate`), `YYYY-MM-DD`.
+   * Null ⇒ the issue date (the pre-2026-09-22 behaviour for every ordinary
+   * document). Set for the documents whose TAX POINT precedes issuance
+   * (accountant, 2026-09-22): an advance tax invoice (386) carries the
+   * RECEIPT date; an Art. 40(9) recovery invoice carries the recovery
+   * payment's date. Three dates, kept apart: tax point/supply date, the
+   * accounting date, and IssueDate.
+   */
+  supplyDate: string | null;
   /** ISO 4217. SAR unless the tenant invoices in another currency. */
   currency: string;
 
@@ -179,7 +189,13 @@ export interface EInvoiceInput {
 
   /** UN/CEFACT 4461 payment means. 10 = cash, 30 = credit transfer, 42 = bank. */
   paymentMeansCode: string | null;
-  /** Credit/debit notes MUST reference the original and state a reason. */
+  /**
+   * Credit/debit notes MUST reference the original and state a reason
+   * (BR-KSA-56, BR-KSA-17). An Art. 40(9) recovery invoice (388) ALSO carries
+   * the original tax invoice here — BG-3 "preceding invoice reference" is
+   * not restricted to notes by the standard; the sandbox is the arbiter
+   * (ap-period-correction live test).
+   */
   billingReference: { invoiceNumber: string } | null;
   instructionNote: string | null;
   notes: string | null;

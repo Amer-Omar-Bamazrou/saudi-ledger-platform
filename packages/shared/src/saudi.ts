@@ -49,4 +49,4 @@ export const DEFAULT_VAT_RATE = 15;
  * refund. Which of the two an amount lands on is decided in ONE place,
  * `services/accounting/customerCreditPolicy.ts`, never at a call site.
  */
-export const PARTY_REQUIRED_SYSTEM_CODES = ["AR", "AP", "CUSTOMER_DEPOSITS", "CUSTOMER_CREDITS"] as const;
+export const PARTY_REQUIRED_SYSTEM_CODES = ["AR", "AP", "CUSTOMER_DEPOSITS", "CUSTOMER_CREDITS", "UNIDENTIFIED_RECEIPTS", "SECURITY_DEPOSITS_HELD"] as const;
