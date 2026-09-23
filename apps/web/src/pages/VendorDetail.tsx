@@ -12,11 +12,12 @@ import type { Paged } from "@/lib/pagedList";
 /**
  * One vendor, everything about them — the mirror of CustomerDetail.
  *
- * 🔴 NO STATEMENT BUTTON, deliberately. `/reports/customer-ledger` exists;
- * there is no vendor ledger endpoint. Linking one anyway is precisely the
- * facade shape this codebase has removed twice — a control that looks like a
- * capability and reaches nothing. When a vendor ledger is built, the button
- * belongs here.
+ * 🔴 THE STATEMENT BUTTON IS HERE NOW (B5, 2026-09-22). This comment used to
+ * say there was deliberately no button, because no vendor ledger existed and
+ * linking to nothing is the facade shape this codebase has removed twice. The
+ * asymmetry is closed: `/supplier-statements/:vendorId` is real, it carries a
+ * running balance per event, and it reports whether it agrees with the
+ * position. An absence note outlives the absence unless somebody deletes it.
  */
 
 import type { Bill, PurchaseOrder, VendorDetail as VendorDetailView } from "@workspace/api-client-react";
@@ -107,6 +108,25 @@ export default function VendorDetail() {
           {vendor.taxNumber && <Badge variant="outline" className="text-xs font-mono">{t("VAT", "ض.ق.م")} {vendor.taxNumber}</Badge>}
           {vendor.crNumber && <Badge variant="outline" className="text-xs font-mono">{t("CR", "س.ت")} {vendor.crNumber}</Badge>}
           {vendor.paymentTermsDays && <Badge variant="outline" className="text-xs font-mono">{vendor.paymentTermsDays}d</Badge>}
+          {/*
+            B8: residency is shown only when somebody has SAID it. `unknown` is
+            the default and is not a fact about the supplier, so a badge
+            asserting "resident" by silence would be the wrong default in the
+            direction that withholds nothing.
+          */}
+          {vendor.residency === "non_resident" && (
+            <Badge variant="outline" className="text-xs" data-testid="vendor-residency">{t("Non-resident", "غير مقيم")}</Badge>
+          )}
+          {vendor.residency === "resident" && (
+            <Badge variant="outline" className="text-xs" data-testid="vendor-residency">{t("Resident", "مقيم")}</Badge>
+          )}
+        </div>
+        <div className="mt-3">
+          <Link href={`/supplier-statements/${vendor.id}`}>
+            <Button variant="outline" size="sm" data-testid="vendor-statement-link">
+              <Banknote className="w-4 h-4 me-2" />{t("Statement", "كشف الحساب")}
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -168,7 +188,10 @@ export default function VendorDetail() {
                 </thead>
                 <tbody>
                   {bills.map((b) => {
-                    const outstanding = Number(b.total ?? 0) - Number(b.paidAmount ?? 0);
+                    // What the document still owes — the SERVER's figure (billPosition:
+                    // net of advances, payments and credit notes applied through the
+                    // AP subledger; 0 for a credit note). Never total − paid here.
+                    const outstanding = Number(b.outstanding ?? 0);
                     return (
                       <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                         <td className="py-3 pe-4 font-mono text-xs">{b.billNumber}</td>

@@ -101,6 +101,10 @@ export const SYSTEM_ACCOUNTS = {
    * asset-type account), so it is not a system code here.
    */
   ACCRUED_LIABILITIES: "ACCRUED_LIABILITIES",
+  SUPPLIER_ADVANCES: "SUPPLIER_ADVANCES",
+  SECURITY_DEPOSITS_PAID: "SECURITY_DEPOSITS_PAID",
+  UNIDENTIFIED_PAYMENTS: "UNIDENTIFIED_PAYMENTS",
+  WHT_PAYABLE: "WHT_PAYABLE",
   PREPAID_EXPENSES: "PREPAID_EXPENSES",
   ACCUMULATED_DEPRECIATION: "ACCUMULATED_DEPRECIATION",
   DEPRECIATION_EXPENSE: "DEPRECIATION_EXPENSE",
@@ -189,7 +193,22 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "VAT_INPUT", name: "Input VAT Receivable", nameAr: "ضريبة القيمة المضافة على المشتريات", type: "asset", liquidityClass: "quick", legacyNames: ["Input VAT Receivable"] },
   // Fixed assets FA-A (2026-09-22): the contra-asset the depreciation schedule posts into. Non-current, like the cost it offsets.
   { code: "PREPAID_EXPENSES", name: "Prepaid expenses", nameAr: "مصروفات مدفوعة مقدمًا", type: "asset", liquidityClass: "current", legacyNames: [] },
+  // 🔴 THE AP ON-ACCOUNT ASSETS. A customer advance is a LIABILITY (we owe
+  // goods); a supplier advance is an ASSET (they do). Three accounts, not one,
+  // for the same reason the customer side has three: their natures and their
+  // exits differ. SUPPLIER_ADVANCES leaves by being applied to a bill;
+  // SECURITY_DEPOSITS_PAID leaves by being returned or forfeited;
+  // UNIDENTIFIED_PAYMENTS leaves by being identified — it is never an advance
+  // until somebody says so.
+  { code: "SUPPLIER_ADVANCES", name: "Supplier advances", nameAr: "دفعات مقدمة للموردين", type: "asset", liquidityClass: "current", legacyNames: [] },
+  { code: "SECURITY_DEPOSITS_PAID", name: "Refundable security deposits paid", nameAr: "تأمينات مستردة مدفوعة", type: "asset", liquidityClass: "current", legacyNames: [] },
+  { code: "UNIDENTIFIED_PAYMENTS", name: "Unidentified and erroneous payments", nameAr: "مدفوعات غير محددة أو خاطئة", type: "asset", liquidityClass: "current", legacyNames: [] },
   { code: "ACCRUED_LIABILITIES", name: "Accrued liabilities", nameAr: "مصروفات مستحقة", type: "liability", liquidityClass: "current", legacyNames: [] },
+  // B8 foundation: tax withheld from a payment to a non-resident and owed to
+  // ZATCA until the monthly remittance (Income Tax Law Art. 68). The account
+  // exists so the liability has a home the day WHT is computed; nothing writes
+  // it yet, and the pack says so rather than letting the column look finished.
+  { code: "WHT_PAYABLE", name: "Withholding tax payable", nameAr: "ضريبة استقطاع مستحقة", type: "liability", liquidityClass: "current", legacyNames: [] },
   { code: "ACCUMULATED_DEPRECIATION", name: "Accumulated depreciation", nameAr: "مجمع الإهلاك", type: "asset", liquidityClass: "non_current", legacyNames: [] },
 
   { code: "AP", name: "Accounts Payable", nameAr: "الذمم الدائنة", type: "liability", liquidityClass: "current", legacyNames: ["Accounts Payable"] },

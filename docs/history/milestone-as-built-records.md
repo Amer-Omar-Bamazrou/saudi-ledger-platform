@@ -421,3 +421,28 @@ audit trails, append-only guarantees, fail-closed posture) — those are cheap
 now precisely because nobody depends on them, which is the argument for getting
 them right now. **Revisit when the first tenant onboards.**
 
+## PHASE 11 — DEEP ACCOUNTING + DEEP AP (2026-09-22 → 09-23)
+
+**Part 1** (PR #177): recurring journal entries on the existing recurring
+engine (A1); accruals and prepayments as one schedule engine pointed two ways,
+with IAS 37.11 deciding that an accrual credits ACCRUED_LIABILITIES and never
+AP (A2/A3); the reversal's missing period check and its reason/date (A4); both
+ageings moved onto the business day (half of B6).
+
+**Part 2**: AP as its own subledger — supplier payments with allocation to one
+or several bills, partial and multiple payments, on-account money as an ASSET
+on three accounts (advance / refundable deposit / unidentified), classification
+with one entry when the account changes, refunds, and correction by
+superseding record (B3/B4); the supplier statement with a window, opening and
+closing balances, a self-check and a GL tie (B5); the AP ageing netting live
+allocations with what the supplier holds shown beside the buckets (B6);
+purchase-side credit/debit notes as `bills` rows posted mirrored through the
+one bill path, the VAT return's purchase side signed per Art. 40(6) (B7);
+`vendors.residency` and `WHT_PAYABLE` with no rate applied (B8's foundation).
+Migrations 0096–0098. Then a post-build audit (H1–H10) and its fixes, including
+`repositories/billPosition` as the one definition of what a purchase document
+owes.
+
+Not built, with reasons: A5–A8; migrated supplier advances; statement-line
+matching for supplier payments; approval limits; Z-AP1 (accountant).
+Decision record: [`phase-11-deep-accounting-ap-decision-pack.md`](../product/phase-11-deep-accounting-ap-decision-pack.md).

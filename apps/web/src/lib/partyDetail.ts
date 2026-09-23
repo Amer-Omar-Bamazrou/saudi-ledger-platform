@@ -13,6 +13,13 @@ export interface AgeableDoc {
   total: number;
   paidAmount?: number | null;
   status: string;
+  /**
+   * What the SERVER says the document still owes, when it says so. Bills carry
+   * it (Phase 11 Part 2 — billPosition: net of AP-subledger allocations, and 0
+   * for a credit note); a document that carries it is aged on it. Invoices do
+   * not carry it, and keep the arithmetic below unchanged.
+   */
+  outstanding?: number | null;
 }
 
 export interface AgingBuckets {
@@ -39,7 +46,7 @@ export function computeAging(docs: AgeableDoc[], asOf = new Date()): AgingBucket
   const out = { ...EMPTY };
   for (const d of docs) {
     if (d.status === "draft" || d.status === "submitted" || d.status === "rejected") continue;
-    const outstanding = Number(d.total ?? 0) - Number(d.paidAmount ?? 0);
+    const outstanding = d.outstanding != null ? Number(d.outstanding) : Number(d.total ?? 0) - Number(d.paidAmount ?? 0);
     if (outstanding <= 0) continue;
 
     const due = new Date(d.dueDate || d.date);

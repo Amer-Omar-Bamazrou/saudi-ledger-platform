@@ -12,3 +12,5 @@ export * from './generated/types';
 export type { GetInvoiceDocumentParams } from './generated/types';
 // Same collision for the customer statement (path id + query date range; Phase E).
 export type { GetCustomerStatementParams } from './generated/types';
+// Same collision for the supplier statement (path vendorId + query window; Phase 11 Part 2 B5).
+export type { GetSupplierStatementParams } from './generated/types';

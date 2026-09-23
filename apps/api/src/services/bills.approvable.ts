@@ -21,6 +21,7 @@
  */
 import { BusinessRuleError } from "../lib/errors";
 import { postJournalEntry } from "./accounting/glPosting";
+import { documentSign } from "../repositories/reports.repository";
 import { billsRepository } from "../repositories/bills.repository";
 import { assetCapitalisationService } from "./assets/capitalisation.service";
 import { categoriesRepository } from "../repositories/categories.repository";
@@ -188,6 +189,43 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   // one effect (fixed-assets pack §3 A1, §21). Non-deductible input VAT (a
   // restricted motor vehicle, Art. 50) is CAPITALISED into the cost rather than
   // deducted, which is why the plan decides the VAT line rather than the bill.
+  /**
+   * 🔴 B7 (2026-09-22) — THE PURCHASE-SIDE NOTE POSTS THROUGH THIS PATH,
+   * MIRRORED, rather than through a second posting path of its own. One writer
+   * per effect: a supplier credit note moves exactly the accounts a bill moves,
+   * in the opposite direction.
+   *
+   *   bill / debit note   Dr expense  Dr input VAT   Cr AP
+   *   credit note         Cr expense  Cr input VAT   Dr AP
+   *
+   * The sign is `documentSign()` — the ONE definition the AR side, the VAT
+   * return and the ageings already use — never a local rule, and a DEBIT note
+   * is +1 because it is an additional charge, not a reversal.
+   *
+   * 🔴 Amounts stay POSITIVE in storage and the direction lives in the type:
+   * a stored negative is the failure mode this codebase already documented
+   * (a negative `vat_amount` computes a rate of 0 and files a note in the
+   * zero-rated box).
+   */
+  const sign = documentSign(bill.documentType);
+  const isNote = bill.documentType === "credit_note";
+
+  /**
+   * 🔴 A note against a CAPITALISED bill is refused rather than posted
+   * approximately. Reversing part of an asset's cost changes a depreciation
+   * schedule whose posted rows are FROZEN, and the register — not this path —
+   * owns that correction (fixed-assets pack §21). Refusing names the next
+   * step; posting would put the register and the GL out of agreement in the
+   * exact place `/assets/report` exists to surface.
+   */
+  if (isNote && bill.capitalisesAssetId != null) {
+    throw new BusinessRuleError(422, {
+      error: "This note adjusts a bill that capitalised a fixed asset. Correct the asset in the register (a cost adjustment or a disposal) rather than through a purchase note — the depreciation already posted would otherwise disagree with the asset's cost.",
+      code: "note_against_capitalised_bill",
+      field: "creditNoteAgainstBillId",
+    });
+  }
+
   const plan = bill.capitalisesAssetId != null
     ? await assetCapitalisationService.billCapitalisationPlan(bill.capitalisesAssetId, subtotal, vatAmount)
     : null;
@@ -195,17 +233,36 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
     ? { accountId: plan.costAccountId, accountName: plan.costAccountName, description: `Asset ${plan.asset.assetNumber} — ${plan.asset.name}` }
     : { ...(await resolveExpenseLine(debitAccountId ?? bill.expenseAccountId ?? undefined, debitAccount)), description: `Bill ${bill.billNumber}` };
   const debitAmount = plan ? plan.capitalised : subtotal;
-  const vatLine = plan && plan.capitaliseVat ? [] : [{ systemCode: "VAT_INPUT" as const, accountName: "Input VAT Receivable", description: `VAT on ${bill.billNumber}`, debitAmount: vatAmount, creditAmount: 0 }];
+  /**
+   * 🔴 Art. 40(6): on a purchase note the CUSTOMER corrects its INPUT tax "in
+   * the Tax Period in which the Credit Note or Debit Note is issued" — the
+   * note's own `date`, which is the SUPPLIER'S issue date. The VAT return
+   * filters on that date, so the correction lands in the right period by
+   * construction; nothing re-dates into the original bill's period.
+   */
+  const vatLine = plan && plan.capitaliseVat
+    ? []
+    : [{
+        systemCode: "VAT_INPUT" as const, accountName: "Input VAT Receivable",
+        description: `VAT on ${bill.billNumber}`,
+        ...(sign > 0 ? { debitAmount: vatAmount, creditAmount: 0 } : { debitAmount: 0, creditAmount: vatAmount }),
+      }];
+
+  /** Put an amount on the side this document type calls for — the whole sign rule, in one place. */
+  const side = (amount: number, naturalDebit: boolean) =>
+    (naturalDebit ? sign > 0 : sign < 0)
+      ? { debitAmount: amount, creditAmount: 0 }
+      : { debitAmount: 0, creditAmount: amount };
 
   const je = await postJournalEntry({
-    entryNumber: `BILL-${bill.billNumber}`,
+    entryNumber: isNote ? `BILLCN-${bill.billNumber}` : `BILL-${bill.billNumber}`,
     date: bill.date,
-    description: `Vendor bill ${bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}${plan ? ` (capitalised: ${plan.asset.assetNumber})` : ""}`,
+    description: `${isNote ? "Supplier credit note" : "Vendor bill"} ${bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}${plan ? ` (capitalised: ${plan.asset.assetNumber})` : ""}`,
     reference: bill.billNumber ?? undefined,
     lines: [
-      { ...debitLine, debitAmount, creditAmount: 0 },
+      { ...debitLine, ...side(debitAmount, true) },
       ...vatLine,
-      { systemCode: "AP", accountName: "Accounts Payable", description: `Bill ${bill.billNumber}`, debitAmount: 0, creditAmount: effectiveTotal, party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } },
+      { systemCode: "AP", accountName: "Accounts Payable", description: `${isNote ? "Credit note" : "Bill"} ${bill.billNumber}`, ...side(effectiveTotal, false), party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } },
     ],
   });
 

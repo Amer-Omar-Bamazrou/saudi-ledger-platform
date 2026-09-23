@@ -8077,3 +8077,51 @@ one, the test proves nothing* — and a clock is the input most tests
 never vary. A property that depends on the time of day is tested at
 a FIXED time of day, chosen to be the one where the wrong answer
 differs, or it is not tested.
+
+## 🔴 2026-09-23 — BUILT CORRECT INSIDE ITS FILES, WRONG AT ITS EDGES (Phase 11 Part 2)
+
+**The incident.** The AP subledger was built, tested green on real rows (17/17)
+and documented as done. A post-build audit found ten defects, every one at an
+EDGE — a place an OLDER path reads what the new code wrote (the legacy pay
+path, eight figure readers, the migration-reversal guard) or the new code reads
+what an older one wrote (the reversal path assuming every allocation had a
+payment). Two of them POSTED wrong entries. Record: phase-11 pack §17.
+
+**Why the suites could not see it.** Each suite exercised the path it was
+written for. None asked what ELSE reads `bills` now that a `bills` row can be a
+credit note and money can reach a bill by a second writer. That is the
+existing rule *"A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX"* pointed at a
+BUILD rather than a fix: working on three readers caused none of the other
+eight to be noticed. The countermeasure is the same as Policy C's: one
+definition (`repositories/billPosition`) and a sweep that fails when a reader
+does not import it — written red first, with a planted positive, and a second
+check that no EXEMPT file restates the old expression (which found one on its
+first run).
+
+**Instances of existing rules, counted here:**
+- *A server test cannot see the client's request construction* — 4th instance:
+  the new supplier-payment page asked for `useListBills({ vendorId })`; the
+  filter is `vendor_id`, an untyped object escaped the excess-property check,
+  and the picker would have offered every supplier's bills. Found by reading,
+  before the browser walk, and fixed by typing the params as the generated type.
+- *The report is a sample, not an inventory* — 6th instance: the build fixed
+  the three readers it was working on; the sweep found twelve.
+- *An obsolete assertion* — two comments that were true when written and false
+  the day B7 added `bills.document_type`: "There is no sign case here … bills
+  has no document_type column" (vendor balances) and "bills carry no credit
+  notes — verified" (the overdue finding). Both sat directly above the code
+  they made wrong.
+- *A negative result from an unvalidated probe* — the resumed session's own:
+  `grep -c $'\r'` reported CRLF line counts for files that had none, and a raw
+  `.length` of CLAUDE.md reported it over budget when the budget test (which
+  normalises CRLF) saw it under. Both were re-measured with the instrument the
+  gate itself uses before anything was acted on — one was, the trim of §4,
+  which stood on the file's own eviction rules rather than on the wrong number.
+
+**Recovery after an interrupted session — the procedure that worked.** Do not
+assume finished or failed. Inventory the tree; check whether an applied
+migration's FILE still matches what was applied (0096's did not — it had been
+edited after applying); migrate a THROWAWAY database from the files and diff
+its schema against the dev database (identical but for line endings); run the
+suites with the database exported (they skip, and report green, without it);
+then audit.

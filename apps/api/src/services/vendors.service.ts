@@ -6,6 +6,9 @@ import { pick } from "../lib/writeGuards";
 const VENDOR_FIELDS = [
   "name", "nameAr", "taxNumber", "crNumber", "phone", "email", "address",
   "city", "country", "currency", "iban", "paymentTermsDays", "notes", "isActive",
+  // B8: residency is a FACT about the supplier, recorded by the person who
+  // knows it. Nothing withholds on it yet — see the column's note in the schema.
+  "residency",
 ] as const;
 import { auditService } from "./audit.service";
 import { vendorsRepository, type VendorListFilter } from "../repositories/vendors.repository";

@@ -7,9 +7,17 @@
  */
 import type { AgingBuckets } from './agingBuckets';
 import type { ApAgingItem } from './apAgingItem';
+import type { ApAgingReportAssets } from './apAgingReportAssets';
 
+/**
+ * B6: the buckets carry only real payable exposure — every item is what a bill still owes after its live allocations, credit notes are not aged as rows (they are applied to bills), and a debit note ages like a bill. What the SUPPLIER holds is shown BESIDE the buckets and never folded into them: an advance is an asset, not a negative payable.
+ */
 export interface ApAgingReport {
   buckets: AgingBuckets;
   total: number;
+  /** What the supplier holds or owes us — each one an ASSET, never a bucket. */
+  assets: ApAgingReportAssets;
+  /** total less every asset above — DERIVED */
+  netSupplierPosition: number;
   items: ApAgingItem[];
 }

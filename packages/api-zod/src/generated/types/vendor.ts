@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { VendorResidency } from './vendorResidency';
 
 export interface Vendor {
   id: number;
@@ -34,5 +35,7 @@ export interface Vendor {
   /** @nullable */
   notes: string | null;
   isActive: boolean;
+  /** B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed. */
+  residency: VendorResidency;
   createdAt: string;
 }

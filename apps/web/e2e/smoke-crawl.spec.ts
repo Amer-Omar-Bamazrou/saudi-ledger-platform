@@ -41,6 +41,7 @@ function concrete(route: string): string {
   if (route === "/customers/:id") return `/customers/${customerId}`;
   if (route === "/customers/:id/statement") return `/customers/${customerId}/statement`;
   if (route === "/vendors/:id") return `/vendors/${vendorId}`;
+  if (route === "/supplier-statements/:vendorId") return `/supplier-statements/${vendorId}`;
   // A slug that must exist in `lib/comingSoon.ts`; `nav-tree.spec.ts` asserts it.
   if (route === "/coming-soon/:slug") return "/coming-soon/transfers";
   return route;

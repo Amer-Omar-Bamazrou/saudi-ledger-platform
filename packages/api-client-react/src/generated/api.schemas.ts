@@ -5,6 +5,289 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * 🔴 `advanceBalance`, `depositBalance` and `unidentifiedBalance` are exactly SUPPLIER_ADVANCES, SECURITY_DEPOSITS_PAID and UNIDENTIFIED_PAYMENTS. `payable` and `creditBalance` BOTH live in AP(vendor) — a purchase credit note posts its debit straight into AP — so the GL carries their difference; they are shown separately because "what we owe" and "what they owe us on a note" are different facts.
+ */
+export interface SupplierPosition {
+  vendorId: number;
+  totalBilled?: number;
+  totalPaid?: number;
+  billCount?: number;
+  payable: number;
+  creditBalance: number;
+  advanceBalance: number;
+  depositBalance: number;
+  unidentifiedBalance: number;
+  /** payable less every asset. > 0: we owe them; < 0: they owe us. DERIVED. */
+  netPosition: number;
+}
+
+export type SupplierStatementLineKind = typeof SupplierStatementLineKind[keyof typeof SupplierStatementLineKind];
+
+
+export const SupplierStatementLineKind = {
+  bill: 'bill',
+  debit_note: 'debit_note',
+  credit_note: 'credit_note',
+  payment: 'payment',
+  bill_payment: 'bill_payment',
+  allocation: 'allocation',
+  credit_application: 'credit_application',
+  unallocation: 'unallocation',
+  refund: 'refund',
+  reclassification: 'reclassification',
+} as const;
+
+export interface SupplierStatementLine {
+  kind: SupplierStatementLineKind;
+  date: string;
+  ts?: string;
+  id?: number;
+  documentNumber: string;
+  reference?: string | null;
+  description: string;
+  amount: number;
+  payableDelta?: number;
+  creditDelta?: number;
+  onAccountDelta?: number;
+  runningPayable?: number;
+  runningCredit?: number;
+  runningOnAccount?: number;
+  runningNet: number;
+  billId?: number | null;
+  paymentId?: number | null;
+  creditNoteId?: number | null;
+  allocationId?: number | null;
+  refundId?: number | null;
+  journalEntryId?: number | null;
+}
+
+/**
+ * The running balance at one point in the statement.
+ */
+export interface SupplierStatementBalance {
+  payable: number;
+  credit: number;
+  onAccount: number;
+  /** payable − credit − onAccount. > 0: we owe them; < 0: they owe us. */
+  net: number;
+}
+
+export interface SupplierStatementGlComponent {
+  fromSubledger: number;
+  fromGl: number;
+}
+
+export type SupplierStatementWindow = {
+  from: string | null;
+  to: string | null;
+};
+
+export type SupplierStatementGlComponents = {
+  ap: SupplierStatementGlComponent;
+  advances: SupplierStatementGlComponent;
+  deposits: SupplierStatementGlComponent;
+  unidentified: SupplierStatementGlComponent;
+};
+
+/**
+ * The subledger ↔ AP control ↔ GL tie for this supplier, per component: AP (payable − credit) and each on-account asset, against the party-carrying GL lines. REPORTED, not asserted — pre-N3 control lines with no party cannot be attributed.
+ */
+export type SupplierStatementGl = {
+  agrees: boolean;
+  components: SupplierStatementGlComponents;
+};
+
+export type SupplierStatementVendor = {
+  id: number;
+  name: string;
+  nameAr?: string | null;
+};
+
+export type SupplierStatementReconciliationComponents = { [key: string]: unknown };
+
+/**
+ * The two computations of one fact, compared and reported rather than assumed.
+ */
+export type SupplierStatementReconciliation = {
+  agrees: boolean;
+  fromPosition: number;
+  fromEvents: number;
+  difference: number;
+  components?: SupplierStatementReconciliationComponents;
+};
+
+export interface SupplierStatement {
+  window: SupplierStatementWindow;
+  opening: SupplierStatementBalance;
+  closing: SupplierStatementBalance;
+  /** The subledger ↔ AP control ↔ GL tie for this supplier, per component: AP (payable − credit) and each on-account asset, against the party-carrying GL lines. REPORTED, not asserted — pre-N3 control lines with no party cannot be attributed. */
+  gl: SupplierStatementGl;
+  vendor: SupplierStatementVendor;
+  position: SupplierPosition;
+  lines: SupplierStatementLine[];
+  /** The two computations of one fact, compared and reported rather than assumed. */
+  reconciliation: SupplierStatementReconciliation;
+}
+
+export interface SupplierPaymentAllocationInput {
+  billId: number;
+  /** A positive amount */
+  amount: number;
+}
+
+export interface ApplySupplierCreditNoteInput {
+  /** @minItems 1 */
+  allocations: SupplierPaymentAllocationInput[];
+}
+
+export interface SupplierCreditNoteApplication {
+  id: number;
+  billId: number;
+  billNumber: string;
+  amount: number;
+  reversed: boolean;
+}
+
+export type SupplierCreditNoteDocumentType = typeof SupplierCreditNoteDocumentType[keyof typeof SupplierCreditNoteDocumentType];
+
+
+export const SupplierCreditNoteDocumentType = {
+  credit_note: 'credit_note',
+  debit_note: 'debit_note',
+} as const;
+
+export interface SupplierCreditNote {
+  id: number;
+  billNumber: string;
+  documentType: SupplierCreditNoteDocumentType;
+  creditNoteAgainstBillId?: number | null;
+  vendorId: number | null;
+  vendorName?: string | null;
+  /** The SUPPLIER'S issue date — the period Art. 40(6) corrects input tax in. */
+  date: string;
+  status: string;
+  subtotal?: number;
+  vatAmount?: number;
+  total: number;
+  /** What is left to apply; 0 for a debit note */
+  availableAmount: number;
+  applications: SupplierCreditNoteApplication[];
+}
+
+/**
+ * What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.
+ */
+export type SupplierPaymentClassification = typeof SupplierPaymentClassification[keyof typeof SupplierPaymentClassification];
+
+
+export const SupplierPaymentClassification = {
+  advance: 'advance',
+  security_deposit: 'security_deposit',
+  erroneous: 'erroneous',
+  unknown: 'unknown',
+} as const;
+
+export interface CreateSupplierPaymentInput {
+  vendorId: number;
+  amount: number;
+  /** D-3: which bank the money left. Never defaulted, never inferred. */
+  bankAccountId: number;
+  paidAt?: string;
+  method?: string | null;
+  reference?: string | null;
+  notes?: string | null;
+  classification?: SupplierPaymentClassification;
+  classificationNote?: string | null;
+  /** A retried request with the same key returns the ORIGINAL payment rather than paying twice. */
+  idempotencyKey?: string | null;
+  allocations?: SupplierPaymentAllocationInput[];
+}
+
+export interface AllocateSupplierPaymentInput {
+  date?: string;
+  /** @minItems 1 */
+  allocations: SupplierPaymentAllocationInput[];
+}
+
+export interface ClassifySupplierPaymentInput {
+  classification: SupplierPaymentClassification;
+  note?: string | null;
+  effectiveDate?: string;
+}
+
+export interface RefundSupplierPaymentInput {
+  /** Defaults to everything still on account */
+  amount?: number;
+  /** Defaults to the bank the payment left from */
+  bankAccountId?: number;
+  refundedAt?: string;
+  reason: string;
+}
+
+export interface ReverseSupplierAllocationInput {
+  /** The supplier balance moves */
+  reason: string;
+  date?: string;
+}
+
+export interface SupplierPayment {
+  id: number;
+  vendorId: number;
+  amount: number;
+  paidAt: string;
+  reference?: string | null;
+  classification: SupplierPaymentClassification;
+  source?: string | null;
+  /** Derived on every read — the payment less live allocations less refunds */
+  availableAmount: number;
+  journalEntryId?: number | null;
+}
+
+export interface SupplierPaymentAllocation {
+  id: number;
+  billId: number;
+  billNumber: string;
+  amount: number;
+  journalEntryId?: number | null;
+  /** A reversed allocation STAYS — the row is never removed */
+  reversed: boolean;
+}
+
+export interface SupplierRefund {
+  id: number;
+  amount: number;
+  refundedAt: string;
+  reason?: string | null;
+  journalEntryId?: number | null;
+}
+
+export interface SupplierAllocationReversal {
+  allocationId: number;
+  reason: string;
+  amount: number;
+  journalEntryId?: number | null;
+}
+
+export interface SupplierPaymentClassificationRecord {
+  id: number;
+  classification: SupplierPaymentClassification;
+  note?: string | null;
+  effectiveDate?: string | null;
+  /** Null when the account did not change and nothing was posted */
+  journalEntryId?: number | null;
+}
+
+export type SupplierPaymentDetail = SupplierPayment & ({
+  bankAccountId?: number | null;
+  method?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+  allocations: SupplierPaymentAllocation[];
+  refunds: SupplierRefund[];
+  classificationHistory: SupplierPaymentClassificationRecord[];
+});
+
 export interface HealthStatus {
   status: string;
 }
@@ -1439,6 +1722,18 @@ export interface BillItem {
   total: number;
 }
 
+/**
+ * B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)).
+ */
+export type BillDocumentType = typeof BillDocumentType[keyof typeof BillDocumentType];
+
+
+export const BillDocumentType = {
+  bill: 'bill',
+  credit_note: 'credit_note',
+  debit_note: 'debit_note',
+} as const;
+
 export type BillStatus = typeof BillStatus[keyof typeof BillStatus];
 
 
@@ -1454,6 +1749,13 @@ export const BillStatus = {
 export interface Bill {
   id: number;
   billNumber: string;
+  /** B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). */
+  documentType: BillDocumentType;
+  /**
+     * B7: the bill this note adjusts.
+     * @nullable
+     */
+  creditNoteAgainstBillId?: number | null;
   /** Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening). */
   isOpening?: boolean;
   /**
@@ -1483,7 +1785,13 @@ export interface Bill {
   total: number;
   /** @nullable */
   currency?: string | null;
+  /** The LEGACY per-bill counter written by `POST /bills/{id}/pay` only. Not what the bill owes — see `outstanding`. */
   paidAmount: number;
+  /**
+     * What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.
+     * @nullable
+     */
+  outstanding?: number | null;
   /** @nullable */
   paidAt?: string | null;
   /** @nullable */
@@ -3085,9 +3393,29 @@ export interface ApAgingItem {
   daysPastDue: number;
 }
 
+/**
+ * What the supplier holds or owes us — each one an ASSET, never a bucket.
+ */
+export type ApAgingReportAssets = {
+  /** Unapplied purchase credit notes */
+  supplierCredits: number;
+  supplierAdvances: number;
+  /** Refundable security deposits paid */
+  supplierDeposits: number;
+  /** Paid */
+  unidentifiedPayments: number;
+};
+
+/**
+ * B6: the buckets carry only real payable exposure — every item is what a bill still owes after its live allocations, credit notes are not aged as rows (they are applied to bills), and a debit note ages like a bill. What the SUPPLIER holds is shown BESIDE the buckets and never folded into them: an advance is an asset, not a negative payable.
+ */
 export interface ApAgingReport {
   buckets: AgingBuckets;
   total: number;
+  /** What the supplier holds or owes us — each one an ASSET, never a bucket. */
+  assets: ApAgingReportAssets;
+  /** total less every asset above — DERIVED */
+  netSupplierPosition: number;
   items: ApAgingItem[];
 }
 
@@ -3390,6 +3718,18 @@ export interface CreateCustomerInput {
 
 export type UpdateCustomerInput = CustomerInputFields;
 
+/**
+ * B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed.
+ */
+export type VendorResidency = typeof VendorResidency[keyof typeof VendorResidency];
+
+
+export const VendorResidency = {
+  resident: 'resident',
+  non_resident: 'non_resident',
+  unknown: 'unknown',
+} as const;
+
 export interface Vendor {
   id: number;
   name: string;
@@ -3418,6 +3758,8 @@ export interface Vendor {
   /** @nullable */
   notes: string | null;
   isActive: boolean;
+  /** B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed. */
+  residency: VendorResidency;
   createdAt: string;
 }
 
@@ -3431,6 +3773,18 @@ export type VendorCreated = Vendor & {
   /** Always true here; lets a caller that also matches tell "created" from "existed". */
   created: boolean;
 };
+
+/**
+ * B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed.
+ */
+export type VendorInputFieldsResidency = typeof VendorInputFieldsResidency[keyof typeof VendorInputFieldsResidency];
+
+
+export const VendorInputFieldsResidency = {
+  resident: 'resident',
+  non_resident: 'non_resident',
+  unknown: 'unknown',
+} as const;
 
 /**
  * The allow-listed, user-settable vendor fields.
@@ -3463,7 +3817,21 @@ export interface VendorInputFields {
   /** @nullable */
   notes?: string | null;
   isActive?: boolean;
+  /** B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed. */
+  residency?: VendorInputFieldsResidency;
 }
+
+/**
+ * B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed.
+ */
+export type CreateVendorInputResidency = typeof CreateVendorInputResidency[keyof typeof CreateVendorInputResidency];
+
+
+export const CreateVendorInputResidency = {
+  resident: 'resident',
+  non_resident: 'non_resident',
+  unknown: 'unknown',
+} as const;
 
 export interface CreateVendorInput {
   /** @minLength 1 */
@@ -3493,6 +3861,8 @@ export interface CreateVendorInput {
   /** @nullable */
   notes?: string | null;
   isActive?: boolean;
+  /** B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed. */
+  residency?: CreateVendorInputResidency;
 }
 
 export type UpdateVendorInput = VendorInputFields;
@@ -4317,7 +4687,26 @@ export interface BillLineInput {
   vatRate?: number;
 }
 
+/**
+ * B7: what this purchase document IS. A note is the SUPPLIER'S document — we receive it, so nothing is issued, no ICV is consumed and no e-invoice is sent. A note must name the bill it adjusts and a plain bill must not; a CREDIT note may not exceed what the original was charged, less what other notes have credited. Not editable after entry.
+ */
+export type BillHeaderInputDocumentType = typeof BillHeaderInputDocumentType[keyof typeof BillHeaderInputDocumentType];
+
+
+export const BillHeaderInputDocumentType = {
+  bill: 'bill',
+  credit_note: 'credit_note',
+  debit_note: 'debit_note',
+} as const;
+
 export interface BillHeaderInput {
+  /** B7: what this purchase document IS. A note is the SUPPLIER'S document — we receive it, so nothing is issued, no ICV is consumed and no e-invoice is sent. A note must name the bill it adjusts and a plain bill must not; a CREDIT note may not exceed what the original was charged, less what other notes have credited. Not editable after entry. */
+  documentType?: BillHeaderInputDocumentType;
+  /**
+     * The approved bill this note adjusts. Required on a note, forbidden on a bill (both halves are enforced). The note INHERITS that bill's supplier.
+     * @nullable
+     */
+  creditNoteAgainstBillId?: number | null;
   /** Allocated by the server when omitted or blank. */
   billNumber?: string;
   /** @nullable */
@@ -8084,4 +8473,44 @@ export const GetInvoiceDocumentLang = {
   ar: 'ar',
   en: 'en',
 } as const;
+
+export type ListSupplierPaymentsParams = {
+vendorId?: number;
+classification?: ListSupplierPaymentsClassification;
+};
+
+export type ListSupplierPaymentsClassification = typeof ListSupplierPaymentsClassification[keyof typeof ListSupplierPaymentsClassification];
+
+
+export const ListSupplierPaymentsClassification = {
+  advance: 'advance',
+  security_deposit: 'security_deposit',
+  erroneous: 'erroneous',
+  unknown: 'unknown',
+} as const;
+
+export type ListSupplierPayments200 = {
+  items: SupplierPayment[];
+};
+
+export type ListSupplierPositionsParams = {
+vendorId?: number;
+};
+
+export type ListSupplierPositions200 = {
+  items: SupplierPosition[];
+};
+
+export type GetSupplierStatementParams = {
+from?: string;
+to?: string;
+};
+
+export type ListSupplierCreditNotesParams = {
+vendorId?: number;
+};
+
+export type ListSupplierCreditNotes200 = {
+  items: SupplierCreditNote[];
+};
 

@@ -5220,8 +5220,642 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /supplier-payments:
+    get:
+      operationId: listSupplierPayments
+      tags: [accounting]
+      summary: "B3: supplier payments, with what is still on account"
+      description: >
+        `availableAmount` is DERIVED from the rows on every read — the payment
+        less its live allocations less its refunds — never a stored counter
+        that a second writer could drift.
+      parameters:
+        - { in: query, name: vendorId, required: false, schema: { type: integer } }
+        - { in: query, name: classification, required: false, schema: { type: string, enum: [advance, security_deposit, erroneous, unknown] } }
+      responses:
+        "200":
+          description: The payments
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/SupplierPayment" }
+    post:
+      operationId: createSupplierPayment
+      tags: [accounting]
+      summary: "B3: pay a supplier — allocated to bills, on account, or both"
+      description: >
+        ONE balanced entry names where every riyal went: Dr AP for the part
+        allocated to bills, Dr the on-account asset for the rest, Cr the bank
+        the money left.
+
+        🔴 The unallocated part is an ASSET (the supplier holds our money),
+        never a negative payable — parking it in AP would net silently against
+        unrelated bills in every ageing bucket.
+
+        🔴 NO INPUT VAT is computed on this path. VAT IR Art. 49(7) makes
+        deduction depend on HOLDING the supplier's tax invoice, which in this
+        product is a bill; paying money deducts nothing.
+
+        D-3: the bank account is required and is never inferred. A closed
+        period is refused (423) with nothing written.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateSupplierPaymentInput" }
+      responses:
+        "201":
+          description: The payment, its allocations and what is left on account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierPaymentDetail" }
+        "422":
+          description: The supplier, the amount, the bank account or an allocation is not usable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "423":
+          description: The payment date falls in a closed period
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /supplier-payments/allocations/{id}/reverse:
+    post:
+      operationId: reverseSupplierAllocation
+      tags: [accounting]
+      summary: "B3: undo an allocation with a SUPERSEDING record"
+      description: >
+        The original allocation row stays exactly as it was, beside the
+        reversal that answers it; the mirror entry puts AP back up and returns
+        the on-account asset. One correction only — a second is refused (409).
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReverseSupplierAllocationInput" }
+      responses:
+        "200":
+          description: The correction and its entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierAllocationReversal" }
+        "409":
+          description: This allocation has already been corrected once
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /supplier-payments/{id}:
+    get:
+      operationId: getSupplierPayment
+      tags: [accounting]
+      summary: "B3: one supplier payment with its allocations, refunds and classification history"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierPaymentDetail" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /supplier-payments/{id}/allocate:
+    post:
+      operationId: allocateSupplierPayment
+      tags: [accounting]
+      summary: "B4: apply on-account money to bills — its own entry, Dr AP / Cr the asset"
+      description: >
+        🔴 Only an ADVANCE may settle a bill. A refundable security deposit is
+        not consideration for a supply, and an erroneous or unclassified
+        payment has no stated purpose; both are refused BY NAME (409) and must
+        be reclassified first, which is an act somebody takes and the record
+        shows.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AllocateSupplierPaymentInput" }
+      responses:
+        "200":
+          description: The payment with its new allocations
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierPaymentDetail" }
+        "409":
+          description: The classification may not be allocated, or the amount exceeds what is available or what the bill owes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /supplier-payments/{id}/classify:
+    post:
+      operationId: classifySupplierPayment
+      tags: [accounting]
+      summary: "B4: say what on-account money IS — advance, security deposit, erroneous, or not yet known"
+      description: >
+        When the ACCOUNT changes, the balance still on account moves by ONE
+        entry; when it does not, nothing is posted and the history row says so
+        by carrying no journal entry. Every classification is kept: the
+        question "what did we think this was, and when" is answerable.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassifySupplierPaymentInput" }
+      responses:
+        "200":
+          description: The payment with its updated classification
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierPaymentDetail" }
+        "422":
+          description: The classification is not one of the four
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /supplier-payments/{id}/refund:
+    post:
+      operationId: refundSupplierPayment
+      tags: [accounting]
+      summary: "B4: the supplier returns money — the asset falls, the bank rises"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefundSupplierPaymentInput" }
+      responses:
+        "200":
+          description: The refund and its entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierRefund" }
+        "409":
+          description: The refund exceeds what is still on account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /supplier-statements:
+    get:
+      operationId: listSupplierPositions
+      tags: [accounting]
+      summary: "B5: every supplier with activity, and its position"
+      description: >
+        Four non-negative components and a DERIVED net. A liability is never
+        expressed as a negative payable, and money the supplier holds is never
+        expressed as one either: a supplier advance is an ASSET.
+      parameters:
+        - { in: query, name: vendorId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: The positions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/SupplierPosition" }
+
+  /supplier-statements/{vendorId}:
+    get:
+      operationId: getSupplierStatement
+      tags: [accounting]
+      summary: "B5: one supplier's statement — the position, the events, and whether the two agree"
+      description: >
+        Every event that moved a component, in chronology (business date, then
+        when it was recorded), each carrying a RUNNING balance so a reader can
+        put a finger on the line where our figure and the supplier's diverge.
+
+        🔴 The closing running balance is CHECKED against the position and
+        the check is REPORTED with both figures. Two computations of one fact
+        have no forcing function between them; a statement that silently
+        disagrees with the ledger is a reconciliation tool hiding the thing it
+        exists to find.
+
+        A WINDOW (`from`/`to`, business dates, both inclusive) cuts the
+        event list and reports the balance brought forward (`opening`) and
+        carried (`closing`). The running balances are computed over the whole
+        stream first, so the opening of a window is exactly the closing of the
+        window before it. The self-check and the GL tie are always over the
+        whole stream — a window never hides a disagreement.
+      parameters:
+        - { in: path, name: vendorId, required: true, schema: { type: integer } }
+        - { in: query, name: from, required: false, schema: { type: string, format: date } }
+        - { in: query, name: to, required: false, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: The statement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierStatement" }
+        "404":
+          description: Supplier not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /supplier-credit-notes:
+    get:
+      operationId: listSupplierCreditNotes
+      tags: [accounting]
+      summary: "B7: purchase-side notes the supplier issued to us"
+      parameters:
+        - { in: query, name: vendorId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: The notes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/SupplierCreditNote" }
+
+  /supplier-credit-notes/{id}:
+    get:
+      operationId: getSupplierCreditNote
+      tags: [accounting]
+      summary: "B7: one purchase note, with what it has been applied to"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The note
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierCreditNote" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /supplier-credit-notes/{id}/apply:
+    post:
+      operationId: applySupplierCreditNote
+      tags: [accounting]
+      summary: "B7: apply an approved note's balance to the supplier's bills"
+      description: >
+        🔴 POSTS NOTHING, on purpose. An approved purchase note has already
+        moved the GL (Dr AP / Cr expense / Cr input VAT), so its unapplied
+        balance is a DEBIT already sitting in AP for that supplier — which is
+        exactly what it is. Applying it records WHICH payable it answers; a
+        second entry would move AP twice for one economic event.
+
+        This is deliberately NOT symmetrical with an advance, which sits on its
+        own asset account and must be MOVED INTO AP when it is applied.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApplySupplierCreditNoteInput" }
+      responses:
+        "200":
+          description: The note with its applications
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierCreditNote" }
+        "409":
+          description: The note is not approved, is a debit note, or the amount exceeds what is left
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
 components:
   schemas:
+    SupplierPosition:
+      type: object
+      required: [vendorId, payable, creditBalance, advanceBalance, depositBalance, unidentifiedBalance, netPosition]
+      description: >
+        🔴 `advanceBalance`, `depositBalance` and `unidentifiedBalance` are
+        exactly SUPPLIER_ADVANCES, SECURITY_DEPOSITS_PAID and
+        UNIDENTIFIED_PAYMENTS. `payable` and `creditBalance` BOTH live in
+        AP(vendor) — a purchase credit note posts its debit straight into AP —
+        so the GL carries their difference; they are shown separately because
+        "what we owe" and "what they owe us on a note" are different facts.
+      properties:
+        vendorId: { type: integer }
+        totalBilled: { type: number }
+        totalPaid: { type: number }
+        billCount: { type: integer }
+        payable: { type: number }
+        creditBalance: { type: number }
+        advanceBalance: { type: number }
+        depositBalance: { type: number }
+        unidentifiedBalance: { type: number }
+        netPosition: { type: number, description: "payable less every asset. > 0: we owe them; < 0: they owe us. DERIVED." }
+
+    SupplierStatementLine:
+      type: object
+      required: [kind, date, documentNumber, description, amount, runningNet]
+      properties:
+        kind:
+          type: string
+          enum: [bill, debit_note, credit_note, payment, bill_payment, allocation, credit_application, unallocation, refund, reclassification]
+        date: { type: string, format: date }
+        ts: { type: string, format: date-time }
+        id: { type: integer }
+        documentNumber: { type: string }
+        reference: { type: string, nullable: true }
+        description: { type: string }
+        amount: { type: number }
+        payableDelta: { type: number }
+        creditDelta: { type: number }
+        onAccountDelta: { type: number }
+        runningPayable: { type: number }
+        runningCredit: { type: number }
+        runningOnAccount: { type: number }
+        runningNet: { type: number }
+        billId: { type: integer, nullable: true }
+        paymentId: { type: integer, nullable: true }
+        creditNoteId: { type: integer, nullable: true }
+        allocationId: { type: integer, nullable: true }
+        refundId: { type: integer, nullable: true }
+        journalEntryId: { type: integer, nullable: true }
+
+    SupplierStatementBalance:
+      type: object
+      required: [payable, credit, onAccount, net]
+      description: The running balance at one point in the statement.
+      properties:
+        payable: { type: number }
+        credit: { type: number }
+        onAccount: { type: number }
+        net: { type: number, description: "payable − credit − onAccount. > 0: we owe them; < 0: they owe us." }
+
+    SupplierStatementGlComponent:
+      type: object
+      required: [fromSubledger, fromGl]
+      properties:
+        fromSubledger: { type: number }
+        fromGl: { type: number }
+
+    SupplierStatement:
+      type: object
+      required: [vendor, window, opening, closing, position, lines, gl, reconciliation]
+      properties:
+        window:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: string, format: date, nullable: true }
+            to: { type: string, format: date, nullable: true }
+        opening: { $ref: "#/components/schemas/SupplierStatementBalance" }
+        closing: { $ref: "#/components/schemas/SupplierStatementBalance" }
+        gl:
+          type: object
+          required: [agrees, components]
+          description: >
+            The subledger ↔ AP control ↔ GL tie for this supplier, per
+            component: AP (payable − credit) and each on-account asset,
+            against the party-carrying GL lines. REPORTED, not asserted —
+            pre-N3 control lines with no party cannot be attributed.
+          properties:
+            agrees: { type: boolean }
+            components:
+              type: object
+              required: [ap, advances, deposits, unidentified]
+              properties:
+                ap: { $ref: "#/components/schemas/SupplierStatementGlComponent" }
+                advances: { $ref: "#/components/schemas/SupplierStatementGlComponent" }
+                deposits: { $ref: "#/components/schemas/SupplierStatementGlComponent" }
+                unidentified: { $ref: "#/components/schemas/SupplierStatementGlComponent" }
+        vendor:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            nameAr: { type: string, nullable: true }
+        position: { $ref: "#/components/schemas/SupplierPosition" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/SupplierStatementLine" }
+        reconciliation:
+          type: object
+          required: [agrees, fromPosition, fromEvents, difference]
+          description: The two computations of one fact, compared and reported rather than assumed.
+          properties:
+            agrees: { type: boolean }
+            fromPosition: { type: number }
+            fromEvents: { type: number }
+            difference: { type: number }
+            components:
+              type: object
+              additionalProperties: true
+
+    ApplySupplierCreditNoteInput:
+      type: object
+      required: [allocations]
+      properties:
+        allocations:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/SupplierPaymentAllocationInput" }
+
+    SupplierCreditNoteApplication:
+      type: object
+      required: [id, billId, billNumber, amount, reversed]
+      properties:
+        id: { type: integer }
+        billId: { type: integer }
+        billNumber: { type: string }
+        amount: { type: number }
+        reversed: { type: boolean }
+
+    SupplierCreditNote:
+      type: object
+      required: [id, billNumber, documentType, vendorId, date, status, total, availableAmount, applications]
+      properties:
+        id: { type: integer }
+        billNumber: { type: string }
+        documentType: { type: string, enum: [credit_note, debit_note] }
+        creditNoteAgainstBillId: { type: integer, nullable: true }
+        vendorId: { type: integer, nullable: true }
+        vendorName: { type: string, nullable: true }
+        date: { type: string, format: date, description: "The SUPPLIER'S issue date — the period Art. 40(6) corrects input tax in." }
+        status: { type: string }
+        subtotal: { type: number }
+        vatAmount: { type: number }
+        total: { type: number }
+        availableAmount: { type: number, description: What is left to apply; 0 for a debit note }
+        applications:
+          type: array
+          items: { $ref: "#/components/schemas/SupplierCreditNoteApplication" }
+
+    SupplierPaymentClassification:
+      type: string
+      description: >
+        What money paid to a supplier IS. The three accounts behind these have
+        different EXITS: an advance leaves by being applied to a bill, a
+        security deposit by being returned or forfeited, an unidentified or
+        erroneous payment by being identified.
+      enum: [advance, security_deposit, erroneous, unknown]
+
+    SupplierPaymentAllocationInput:
+      type: object
+      required: [billId, amount]
+      properties:
+        billId: { type: integer }
+        amount: { type: number, description: A positive amount, no more than the bill still owes }
+
+    CreateSupplierPaymentInput:
+      type: object
+      required: [vendorId, amount, bankAccountId]
+      properties:
+        vendorId: { type: integer }
+        amount: { type: number }
+        bankAccountId: { type: integer, description: "D-3: which bank the money left. Never defaulted, never inferred." }
+        paidAt: { type: string, format: date }
+        method: { type: string, nullable: true }
+        reference: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        classification: { $ref: "#/components/schemas/SupplierPaymentClassification" }
+        classificationNote: { type: string, nullable: true }
+        idempotencyKey:
+          type: string
+          nullable: true
+          description: A retried request with the same key returns the ORIGINAL payment rather than paying twice.
+        allocations:
+          type: array
+          items: { $ref: "#/components/schemas/SupplierPaymentAllocationInput" }
+
+    AllocateSupplierPaymentInput:
+      type: object
+      required: [allocations]
+      properties:
+        date: { type: string, format: date }
+        allocations:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/SupplierPaymentAllocationInput" }
+
+    ClassifySupplierPaymentInput:
+      type: object
+      required: [classification]
+      properties:
+        classification: { $ref: "#/components/schemas/SupplierPaymentClassification" }
+        note: { type: string, nullable: true }
+        effectiveDate: { type: string, format: date }
+
+    RefundSupplierPaymentInput:
+      type: object
+      required: [reason]
+      properties:
+        amount: { type: number, description: Defaults to everything still on account }
+        bankAccountId: { type: integer, description: Defaults to the bank the payment left from }
+        refundedAt: { type: string, format: date }
+        reason: { type: string }
+
+    ReverseSupplierAllocationInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, description: The supplier balance moves, so the record has to say why }
+        date: { type: string, format: date }
+
+    SupplierPayment:
+      type: object
+      required: [id, vendorId, amount, paidAt, classification, availableAmount]
+      properties:
+        id: { type: integer }
+        vendorId: { type: integer }
+        amount: { type: number }
+        paidAt: { type: string, format: date }
+        reference: { type: string, nullable: true }
+        classification: { $ref: "#/components/schemas/SupplierPaymentClassification" }
+        source: { type: string, nullable: true }
+        availableAmount: { type: number, description: Derived on every read — the payment less live allocations less refunds }
+        journalEntryId: { type: integer, nullable: true }
+
+    SupplierPaymentAllocation:
+      type: object
+      required: [id, billId, billNumber, amount, reversed]
+      properties:
+        id: { type: integer }
+        billId: { type: integer }
+        billNumber: { type: string }
+        amount: { type: number }
+        journalEntryId: { type: integer, nullable: true }
+        reversed: { type: boolean, description: A reversed allocation STAYS — the row is never removed }
+
+    SupplierRefund:
+      type: object
+      required: [id, amount, refundedAt]
+      properties:
+        id: { type: integer }
+        amount: { type: number }
+        refundedAt: { type: string, format: date }
+        reason: { type: string, nullable: true }
+        journalEntryId: { type: integer, nullable: true }
+
+    SupplierAllocationReversal:
+      type: object
+      required: [allocationId, reason, amount]
+      properties:
+        allocationId: { type: integer }
+        reason: { type: string }
+        amount: { type: number }
+        journalEntryId: { type: integer, nullable: true }
+
+    SupplierPaymentClassificationRecord:
+      type: object
+      required: [id, classification]
+      properties:
+        id: { type: integer }
+        classification: { $ref: "#/components/schemas/SupplierPaymentClassification" }
+        note: { type: string, nullable: true }
+        effectiveDate: { type: string, format: date, nullable: true }
+        journalEntryId: { type: integer, nullable: true, description: Null when the account did not change and nothing was posted }
+
+    SupplierPaymentDetail:
+      allOf:
+        - $ref: "#/components/schemas/SupplierPayment"
+        - type: object
+          required: [allocations, refunds, classificationHistory]
+          properties:
+            bankAccountId: { type: integer, nullable: true }
+            method: { type: string, nullable: true }
+            notes: { type: string, nullable: true }
+            createdAt: { type: string, format: date-time }
+            allocations:
+              type: array
+              items: { $ref: "#/components/schemas/SupplierPaymentAllocation" }
+            refunds:
+              type: array
+              items: { $ref: "#/components/schemas/SupplierRefund" }
+            classificationHistory:
+              type: array
+              items: { $ref: "#/components/schemas/SupplierPaymentClassificationRecord" }
+
     HealthStatus:
       type: object
       properties:
@@ -6700,6 +7334,7 @@ components:
       required:
         - id
         - billNumber
+        - documentType
         - date
         - status
         - subtotal
@@ -6713,6 +7348,11 @@ components:
           type: integer
         billNumber:
           type: string
+        documentType:
+          type: string
+          enum: [bill, credit_note, debit_note]
+          description: "B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6))."
+        creditNoteAgainstBillId: { type: ["integer", "null"], description: "B7: the bill this note adjusts." }
         isOpening: { type: boolean, description: "Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening)." }
         reversedAt: { type: ["string", "null"], description: "Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt)." }
         reversedByMigrationBatchId: { type: ["integer", "null"] }
@@ -6740,6 +7380,16 @@ components:
           type: ["string", "null"]
         paidAmount:
           type: number
+          description: The LEGACY per-bill counter written by `POST /bills/{id}/pay` only. Not what the bill owes — see `outstanding`.
+        outstanding:
+          type: ["number", "null"]
+          description: >
+            What this document still owes (Phase 11 Part 2): total less
+            `paidAmount` less live AP-subledger allocations (supplier payments,
+            applied advances, applied credit notes); always 0 for a credit
+            note. Present on list and detail reads; null on a write response
+            that did not read it back — never re-derive it as total −
+            paidAmount.
         paidAt:
           type: ["string", "null"]
         reviewNote:
@@ -8101,10 +8751,26 @@ components:
 
     ApAgingReport:
       type: object
-      required: [buckets, total, items]
+      required: [buckets, total, items, assets, netSupplierPosition]
+      description: >
+        B6: the buckets carry only real payable exposure — every item is what
+        a bill still owes after its live allocations, credit notes are not aged
+        as rows (they are applied to bills), and a debit note ages like a bill.
+        What the SUPPLIER holds is shown BESIDE the buckets and never folded
+        into them: an advance is an asset, not a negative payable.
       properties:
         buckets: { $ref: "#/components/schemas/AgingBuckets" }
         total: { type: number }
+        assets:
+          type: object
+          required: [supplierCredits, supplierAdvances, supplierDeposits, unidentifiedPayments]
+          description: What the supplier holds or owes us — each one an ASSET, never a bucket.
+          properties:
+            supplierCredits: { type: number, description: Unapplied purchase credit notes }
+            supplierAdvances: { type: number }
+            supplierDeposits: { type: number, description: Refundable security deposits paid }
+            unidentifiedPayments: { type: number, description: Paid, but nobody has said what for }
+        netSupplierPosition: { type: number, description: total less every asset above — DERIVED, never stored }
         items:
           type: array
           items: { $ref: "#/components/schemas/ApAgingItem" }
@@ -8379,7 +9045,7 @@ components:
     Vendor:
       type: object
       required: [id, name, nameAr, taxNumber, crNumber, phone, email, address, city, country, currency,
-                 iban, paymentTermsDays, notes, isActive, createdAt]
+                 iban, paymentTermsDays, notes, isActive, residency, createdAt]
       properties:
         id: { type: integer }
         name: { type: string }
@@ -8396,6 +9062,16 @@ components:
         paymentTermsDays: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         isActive: { type: boolean }
+        residency:
+          type: string
+          enum: [resident, non_resident, unknown]
+          description: >
+            B8: where the supplier is resident — the input every withholding
+            question starts from (Income Tax Law Art. 68). A FACT about the
+            supplier, not a tax rule: no rate is applied and nothing is
+            withheld anywhere in the platform. `unknown` is the default and is
+            first-class, because "resident" is the answer that withholds
+            nothing and must never be assumed.
         createdAt: { type: string }
 
     VendorWithBalance:
@@ -8439,6 +9115,16 @@ components:
         paymentTermsDays: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         isActive: { type: boolean }
+        residency:
+          type: string
+          enum: [resident, non_resident, unknown]
+          description: >
+            B8: where the supplier is resident — the input every withholding
+            question starts from (Income Tax Law Art. 68). A FACT about the
+            supplier, not a tax rule: no rate is applied and nothing is
+            withheld anywhere in the platform. `unknown` is the default and is
+            first-class, because "resident" is the answer that withholds
+            nothing and must never be assumed.
 
     CreateVendorInput:
       type: object
@@ -8458,6 +9144,16 @@ components:
         paymentTermsDays: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         isActive: { type: boolean }
+        residency:
+          type: string
+          enum: [resident, non_resident, unknown]
+          description: >
+            B8: where the supplier is resident — the input every withholding
+            question starts from (Income Tax Law Art. 68). A FACT about the
+            supplier, not a tax rule: no rate is applied and nothing is
+            withheld anywhere in the platform. `unknown` is the default and is
+            first-class, because "resident" is the answer that withholds
+            nothing and must never be assumed.
 
 
     UpdateVendorInput:
@@ -9009,6 +9705,22 @@ components:
     BillHeaderInput:
       type: object
       properties:
+        documentType:
+          type: string
+          enum: [bill, credit_note, debit_note]
+          description: >
+            B7: what this purchase document IS. A note is the SUPPLIER'S
+            document — we receive it, so nothing is issued, no ICV is consumed
+            and no e-invoice is sent. A note must name the bill it adjusts and
+            a plain bill must not; a CREDIT note may not exceed what the
+            original was charged, less what other notes have credited. Not
+            editable after entry.
+        creditNoteAgainstBillId:
+          type: ["integer", "null"]
+          description: >
+            The approved bill this note adjusts. Required on a note, forbidden
+            on a bill (both halves are enforced). The note INHERITS that bill's
+            supplier.
         billNumber:
           type: string
           description: Allocated by the server when omitted or blank.
