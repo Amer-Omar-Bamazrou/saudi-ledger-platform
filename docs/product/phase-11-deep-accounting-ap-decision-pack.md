@@ -1,6 +1,6 @@
 # Phase 11 — Deep Accounting & Deep Accounts Payable: audit, research and decisions
 
-**Status (2026-09-22): A1, A2, A3, A4 and half of B6 are BUILT; A5–A8 and B1–B8 are audited, and §8 states what was not built and why.**
+**Status (2026-09-23): PART 1 — A1, A2, A3, A4 and half of B6 BUILT (§1–§8). PART 2 — B3, B4, B5, B6, B7 and B8’s foundation BUILT (§9–§16), then AUDITED after the build and hardened (§17); §16 and §17.7 state what Part 2 did not build and why.**
 Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md).
@@ -291,7 +291,7 @@ or drop them.
 
 ---
 
-## 6. B7 — supplier credit notes: RESEARCHED AND DESIGNED, not built
+## 6. B7 — supplier credit notes: the RESEARCH (built in Part 2, §13)
 
 ### 6.1 🔴 The purchase side is NOT a mirror of the sales side
 
@@ -351,7 +351,7 @@ deliverable; the build is the next batch's first item.
 
 ---
 
-## 7. B8 — withholding tax: the integration points, and the boundary
+## 7. B8 — withholding tax: the integration points, and the boundary (foundation built in Part 2, §15)
 
 The brief says explicitly: *"DO NOT build a speculative full WHT engine yet."*
 
@@ -395,7 +395,11 @@ WHT**. Nothing speculative is added to the schema in this batch.
 
 ---
 
-## 8. What Phase 11 did NOT do, stated as a boundary
+## 8. What Phase 11 PART 1 did not do, stated as a boundary
+
+> 🔴 **Superseded in part by Part 2.** B3, B4, B5, B6, B7 and B8’s foundation
+> were built on 2026-09-22 — §9–§16. The table below is kept as the record of
+> what was true at the end of Part 1; §16 is the current boundary.
 
 Built and shipped: **A1** (recurring journal entries), **A2/A3** (accruals and
 prepayments, with their surface), **A4** (reversal reason, date and the missing
@@ -421,3 +425,512 @@ product decision with no Saudi, VAT or ZATCA consequence. The questions that
 *would* need him — the VAT treatment of a supplier advance (B4), and whether a
 period close should refuse or merely warn on unposted drafts (A5) — attach to
 work that was **not** started, so nothing is blocked waiting on him.
+
+---
+
+# PART 2 — ACCOUNTS PAYABLE AS A SUBSYSTEM (2026-09-22)
+
+## 9. 🔴 Why AP is a PARALLEL model and not the customer one, reused
+
+The brief said not to force AP through the AR architecture if that architecture
+is structurally customer-specific. It is, and the evidence is in the columns
+rather than in an opinion:
+
+| Fact | AR today | What AP needs |
+| --- | --- | --- |
+| `payments.customer_id` | the party column | a `vendor_id` |
+| `payment_allocations.invoice_id` | **NOT NULL**, FK → `invoices` | a bill |
+| `payments.direction` | `'in'` has the writers | money going OUT |
+| the on-account account | `CUSTOMER_DEPOSITS` — a **liability** | an **asset** |
+
+The third and fourth rows are the ones that decide it. Reusing
+`payment_allocations` would mean making `invoice_id` nullable, and that column
+being NOT NULL is what currently prevents a receipt being allocated to nothing
+— a constraint worth more than the reuse. And the direction is not cosmetic:
+
+🔴 **A customer advance is a LIABILITY** (we hold their money and owe them
+goods). **A supplier advance is an ASSET** (they hold ours and owe us goods).
+A mirror-image implementation gets a sign right by accident and an account
+wrong on purpose.
+
+`PRODUCT DECISION` — five new tables (`supplier_payments`,
+`supplier_payment_allocations`, `supplier_payment_allocation_reversals`,
+`supplier_payment_classifications`, `supplier_refunds`), sharing the AR side’s
+**shapes** (a superseding correction, a derived balance, an append-only
+record) and none of its columns.
+
+## 10. B3/B4 — the accounting, stated once
+
+A supplier payment posts **ONE balanced entry** naming where every riyal went:
+
+```
+Dr  Accounts Payable (vendor)      the part allocated to bills
+Dr  <on-account asset>             the part that is not yet against anything
+    Cr  <the bank's own cash account>              the whole amount
+```
+
+A LATER allocation of on-account money is its own entry —
+`Dr AP (vendor) / Cr <on-account asset>` — so the subledger can always answer
+“which bill did this advance settle, and when”, and **no posted entry is ever
+mutated to do it**.
+
+### 10.1 🔴 THREE on-account accounts, because their EXITS differ
+
+| Classification | Account | How the balance LEAVES |
+| --- | --- | --- |
+| `advance` | `SUPPLIER_ADVANCES` | applied to a bill |
+| `security_deposit` | `SECURITY_DEPOSITS_PAID` | returned, or forfeited into expense |
+| `erroneous` / `unknown` | `UNIDENTIFIED_PAYMENTS` | **identified** |
+
+`PRODUCT DECISION` — only an **advance** may be allocated to a bill. A
+refundable deposit is not consideration for a supply; an erroneous or
+unclassified payment has no stated purpose. Both are refused **by name**, and
+reclassifying is an act somebody takes and the record shows. An unclassified
+payment that quietly became an advance would assert a commercial fact nobody
+stated.
+
+`unknown` is the DEFAULT and is first-class. A payment nobody has classified
+must read as unclassified rather than as an advance.
+
+### 10.2 🔴 NO INPUT VAT ON ANY PAYMENT PATH
+
+`AUTHORITATIVE (Saudi)` — VAT IR **Art. 49(7)**: Input Tax may be deducted only
+where the Taxable Person **holds evidence** of the amount paid or payable. Our
+evidence is the **supplier’s tax invoice**, which in this product is a BILL.
+Paying money — advance, deposit or settlement — deducts nothing. Nothing on an
+AP payment path computes input VAT, and the file that could be tempted to says
+so at the top.
+
+### 10.3 What the invariants are, and where they live
+
+- **D-3**: every supplier payment names the bank the money left. Never a
+  default, never inferred; a payment with no bank is refused 422.
+- **The period**: checked BEFORE anything is written. A payment into a closed
+  month is refused 423 with no row and no journal entry left behind.
+- **Immutability at the DATABASE**: `supplier_payments` and
+  `supplier_payment_allocations` carry BEFORE UPDATE triggers that refuse a
+  change to amount, party, bank, date or journal; no role holds DELETE on any
+  of the five tables. A correction is a **superseding record** — an allocation
+  reversal, a refund, a reclassification — and one correction only: a second
+  reversal of the same allocation is refused 409 by a UNIQUE index.
+- **Every figure is DERIVED**: what is still on account, what a bill still
+  owes, a bill’s paid status. There is no stored counter this path maintains —
+  and in particular `bills.paid_amount` is NOT touched here, because it already
+  has one writer (`billsService.pay`) and two writers moving one number is the
+  drift the subledger exists to end.
+- **One definition of the cap**: `validateAllocations` is the only place
+  “more was applied than may be applied” is decided, for both callers, under
+  one code. The duplicate in the caller could never fire while advertising a
+  different code to the client — found and removed while writing the tests.
+
+## 11. B4 — supplier advances and deposits
+
+Built: the five classifications the brief asked for, as four stored kinds
+across three accounts (§10.1), with reclassification posting **one** entry when
+the account changes and **nothing** when it does not — the history row then
+carries a null journal entry, which is how a reader tells the two apart.
+
+Refunds: `Dr <bank> / Cr <on-account asset>`, capped at what is still on
+account, and a reason is required because the supplier’s balance moves.
+
+**B4.6 — migrated supplier advances is NOT built.** See §16.
+
+## 12. B5 — the supplier statement, and the check it performs on itself
+
+A statement answers two questions that are not the same question: **what is the
+position**, and **how did it get there**. The position is four non-negative
+components and a derived net:
+
+```
+payable        Σ (total − paid_amount − Σ live allocations)  over bills + debit notes
+creditBalance  Σ approved credit-note totals − Σ live applications
+advanceBalance / depositBalance / unidentifiedBalance   per classification
+netPosition    payable − every one of the above          (DERIVED, never stored)
+```
+
+🔴 **How these map to the GL, including the one place they do not map one to
+one.** The three on-account components are exactly `SUPPLIER_ADVANCES`,
+`SECURITY_DEPOSITS_PAID` and `UNIDENTIFIED_PAYMENTS`. But `payable` and
+`creditBalance` **both** live in AP(vendor), because a purchase credit note
+posts its debit straight into AP (§13.2) — so the GL carries their
+*difference*. They are shown separately because “what we owe” and “what they
+owe us on a note” are different facts to a person reading a statement, and the
+test ties `payable − creditBalance` to AP rather than pretending to two
+accounts.
+
+🔴 **The event stream and the position are two computations of one fact with no
+forcing function between them, so they are COMPARED on every read and the
+comparison is REPORTED** — both figures and their difference, agreeing or not.
+A statement that silently disagrees with the ledger is a reconciliation tool
+hiding the thing it exists to find.
+
+### 12.1 The window, and the tie to the GL (added by the §17 audit)
+
+The first build had neither, and the brief asked for both (“opening balance …
+closing balance”, “date filtering must be deterministic”, “supplier subledger
+↔ AP control ↔ GL”).
+
+- **The window** — `from`/`to`, business dates, both ends inclusive. The
+  running balances are computed over the WHOLE event stream in its one fixed
+  order (business date, recorded time, kind rank, id) and only then cut, so
+  the `opening` of a window is by construction the `closing` of the window
+  before it, and the same request returns the same figures however the rows
+  were typed. The self-check against the position is always over the whole
+  stream: a window never hides a disagreement.
+- **The GL tie** — per component, the subledger against the party-carrying GL
+  lines for the supplier: AP carries `payable − creditBalance` (a credit
+  note’s debit sits in AP), and each on-account component is its own asset.
+  It is REPORTED, agreeing or not, never asserted: a pre-N3 control line with
+  no party (RULE-P) cannot be attributed to a supplier, and hiding a real
+  difference behind “legacy data” is the one thing a reconciliation must not
+  do. The org-wide form of the same tie is in `scripts/ledgerInvariants.ts`
+  (`ap_gl_vs_subledger_by_vendor`, now signed and subledger-aware, and the new
+  `ap_on_account_gl_vs_subledger`).
+
+Tests: `phase11-ap-hardening.test.ts` (“the statement WINDOW is
+deterministic…”, and the invariants test with a planted break it must see);
+`e2e/phase11-ap-subledger.spec.ts` (the window and the GL card, by clicking).
+
+## 13. B7 — the purchase-side note, built
+
+The research is §6. What Part 2 built:
+
+### 13.1 One posting path, mirrored — not a second one
+
+`documentType` on `bills` is `bill` | `credit_note` | `debit_note`, and a note
+posts through **the same bill approval path**, with the sign taken from
+`documentSign()` — the one definition the AR side, the VAT return and both
+ageings already use:
+
+```
+bill / debit note    Dr expense   Dr input VAT      Cr AP
+credit note          Cr expense   Cr input VAT      Dr AP
+```
+
+A DEBIT note is `+1`: an additional charge, not a reversal. Amounts stay
+**positive** in storage and the direction lives in the type.
+
+### 13.2 🔴 Applying an approved note posts NOTHING
+
+An approved note has already moved the GL, and its unapplied balance is a
+**debit already sitting in AP** for that supplier — which is exactly what it
+is. Applying it to a bill records **which payable it answers**; a second entry
+would move AP twice for one economic event.
+
+This is deliberately **not** symmetrical with an advance, which sits on its own
+asset account and must be MOVED INTO AP when applied. Where each balance
+already sits is what decides whether applying it posts.
+
+`ERPNEXT` — a return (`is_return = 1`) Purchase Invoice debits the Creditors
+account; `reconcile_against_document` links it to the original through the
+reconciliation tooling and writes no GL Entry for the link.
+`ODOO` — an `in_refund` move posts to Account Payable, and reconciling it
+against a vendor bill is a reconciliation over existing move lines; it creates
+no new `account.move`.
+`PRODUCT DECISION` — the GL placement carries no Saudi/VAT consequence (the tax
+consequence is the PERIOD, §13.3), so it is decided here rather than escalated.
+
+### 13.3 🔴 The VAT return’s purchase side now carries a SIGN — and did not before
+
+`AUTHORITATIVE (Saudi)` — Art. 40(6): the CUSTOMER corrects its Input Tax **in
+the Tax Period in which the note was issued**. So the note carries its own
+date — the supplier’s issue date, asked for rather than defaulted from the
+original bill — and the return filters on it.
+
+The purchase loop in `reports.service.ts` summed every bill positively. Filing
+a credit note positive would claim a deduction **twice**, in the one direction
+the taxpayer benefits from and an auditor looks for. It is
+`sign * value` now, and the test asserts all three periods: the bill’s month
+(+10,000 / +1,500), the note’s month (−2,000 / −300), and both together
+(8,000 / 1,200).
+
+### 13.4 The guards at the write boundary
+
+`assertPurchaseNote` runs inside `billsService.create`, where the row is
+written, not in a service beside it:
+
+- a note must name an **approved** bill; a plain bill may **not** name one
+  (both halves, so neither an orphan note nor a bill pretending to be one can
+  be stored — and the DB CHECK says the same thing);
+- a note **inherits** the original’s supplier: a note pointing at one
+  supplier’s bill while naming another is not a thing that can be true, so it
+  is made inexpressible rather than refused;
+- a CREDIT note may not exceed what the bill was **charged**, less what other
+  notes have already credited. The ceiling is the charge, not the outstanding:
+  a bill already PAID can be credited in full (the supplier owes the money
+  back). A DEBIT note has no ceiling — it is an additional charge;
+- `documentType` and `creditNoteAgainstBillId` are **not editable**: what a
+  document IS is decided when it is entered, and letting an approved bill
+  become a credit note by PATCH would flip the sign of an entry that has
+  already posted;
+- 🔴 a note against a **capitalised** bill is refused. Reversing part of an
+  asset’s cost changes a depreciation schedule whose posted rows are frozen,
+  and the register owns that correction — posting here would put the register
+  and the GL out of agreement in the exact place `/assets/report` exists to
+  surface.
+
+### 13.5 🔴 Two holes a posted note opened, closed in the same batch
+
+A posted credit note is a `bills` row in `received` status — **exactly like a
+bill** — so every path that keys on STATUS alone treated it as payable:
+
+1. `POST /bills/{id}/pay` would have posted `Dr AP / Cr cash` against a note:
+   paying a document that reduces what we owe.
+2. `validateAllocations` would have accepted a note as the TARGET of an
+   advance: settling something that is already a reduction.
+
+Both are refused now, both are asserted, and a DEBIT note is deliberately
+allowed in both places — it is an additional charge. Found by reading the paths
+a new document type reaches, which is the question worth asking whenever a type
+column gains a value: *what else keys on the column this value does not change?*
+
+## 14. B6 — the AP ageing, complete
+
+It read `total − paid_amount`, the legacy per-bill counter alone: an advance
+applied to a bill, a payment recorded through the subledger and a supplier
+credit note all left the bill looking fully unpaid. It is the AR ageing’s twin
+now:
+
+- outstanding nets **live** allocations (payments and applied credit notes), so
+  a reversed allocation puts the exposure straight back;
+- a **credit note is not aged as a row** — it is applied to bills, and ageing
+  it would double-count the reduction it already made;
+- a **debit note ages like a bill**, with its own date and due date;
+- 🔴 what the supplier **holds** — advances, deposits, unidentified payments,
+  unapplied credit notes — is shown **beside** the buckets and never inside
+  one. Netting an advance into a bucket would make an overdue bill read as less
+  overdue because unrelated money sits with the same supplier. The net supplier
+  position is derived and labelled so.
+
+## 15. B8 — withholding tax: the FOUNDATION only, and the boundary restated
+
+Built: the `WHT_PAYABLE` liability account, and `vendors.residency`
+(`resident` | `non_resident` | `unknown`, defaulting to `unknown`), writable
+through the vendor form and the API.
+
+🔴 **This is a FACT ABOUT THE SUPPLIER, NOT A TAX RULE**, and that boundary is
+the whole of what this batch built. `AUTHORITATIVE (Saudi)` — Income Tax Law
+Art. 68 makes a resident payer withhold on amounts paid to a **non-resident**
+from a source in the Kingdom, so residency is the input every WHT question
+starts from; recording it costs nothing and is not a judgment.
+
+🔴 **What is deliberately NOT built**: no rate, no automatic withholding, no
+deduction at payment, no Form-Q filing. The By-Laws set **different rates by
+the NATURE of the payment**, and classifying a payment’s nature is an
+accounting judgment this platform must not guess. `ACCOUNTANT DECISION
+REQUIRED`, and the board already has withholding tax **awaiting the owner’s
+ranking**. `unknown` being the default matters for the same reason: “resident”
+is the answer that withholds nothing, and must never be assumed.
+
+## 16. 🔴 What PART 2 did not build, and why
+
+| # | Why |
+| --- | --- |
+| **B4.6 — migrated supplier advances** | The migration subsystem is a batch of its own (staging table, importer, validator, commit path, reversal), and the brief said not to redo migration. An opening supplier advance would need the Policy-C reversal machinery the customer side has (`migration_deposit_reversals`), which is not a column — it is a lane. |
+| **Statement-line MATCHING for supplier payments** | Bank *integration* is done at the ledger level: every supplier payment names its bank (D-3) and posts to that bank’s own GL cash account, so it is in bank reconciliation already. What is not built is deterministic matching of a supplier payment to a bank statement ROW — the Phase D engine (`statement_matches`) joins `payments` and is receipt-shaped throughout. Extending it to a second payment table is its own batch. |
+| **A5 period close, A6 retained earnings, A7 FX, A8 dimensions** | Out of scope for Part 2 by the brief. §4, §5 and §8 stand. |
+| **Approval limits (B2)** | Supplier payments carry the `payments` permission and the `approve` action on allocation and reversal, the same authority the customer side uses. A per-amount approval limit is a product decision nobody has taken. |
+
+🔴 **Three columns were REMOVED before this schema was ever committed**:
+`supplier_payments.source_transaction_id`, `.migration_batch_id` and
+`.source_reference`. Each was written for work in the table above, and each had
+no writer and no reader. A column that looks exactly like progress and holds
+nothing is the shape this codebase has already named three times
+(`feature_flags`, `branches`, `departments`): build the consumer, or do not add
+the column. When either piece of work lands it adds its own column, in its own
+migration, and the column will mean something on the day it appears.
+
+🔴 **No accountant decision is outstanding from what Part 2 built.** Every
+accounting claim above rests on a cited authoritative Saudi text (Art. 40(6),
+Art. 49(7), Art. 68), on a product decision with no Saudi/VAT/ZATCA
+consequence, or on both reference implementations agreeing and the placement
+being a presentation choice. The questions that *would* need the accountant —
+the WHT rate by payment nature (§15) and whether the VAT treatment of a
+supplier advance ever differs from “nothing until the bill” (§10.2 answers it
+from Art. 49(7), but the accountant should confirm the reading) — attach to
+work that is not started or to a reading the text states plainly.
+
+---
+
+## 17. 🔴 The post-build audit (2026-09-23): correct inside its files, wrong at its edges
+
+Part 2 was built, documented and **uncommitted** when the working session
+ended (a machine shutdown). The resumed session did not assume it finished or
+failed: it recovered the state (§17.1), ran it (17/17 API tests green on real
+rows), and then **audited it the way this codebase audits** — by asking, of
+every path a new fact reaches, *what else reads the thing this changed?*
+
+The build was right inside the files it touched. Every defect below lives at
+an EDGE: a place an older path reads what Part 2 wrote, or a place Part 2
+reads what an older path wrote. None was visible to the suites it shipped
+with, because each suite built its request the way its own code expected.
+
+### 17.1 The recovered state
+
+Branch `feat/phase11-deep-accounting-ap` at `97607b27` = PR #177 (Part 1,
+open, unmerged). Part 2 entirely in the working tree: migrations 0096/0097
+(applied to the dev database; **0096's file had been edited after it was
+applied** — a fresh database migrated from the files was diffed against the
+dev database: tables, columns, constraints, indexes, triggers and RLS
+policies identical, the 15 function bodies differing only in line endings),
+the services, routes, three pages, two API suites, one browser spec, this
+pack's §9–§16 and a trimmed CLAUDE.md. Pricing branch and `stash@{0}`
+untouched.
+
+### 17.2 The findings, ranked by the path they sit on (CLAUDE.md §3 triage)
+
+| # | Defect | Path consequence | Fix | Test |
+| --- | --- | --- | --- | --- |
+| **H1** | The legacy `POST /bills/{id}/pay` computed `total − paid_amount`. A bill an advance had settled read as fully unpaid, so paying it again was **accepted**. | POSTS: Dr AP twice for one debt; the supplier over-paid; nothing flags it (the ageing read the same wrong figure). | Reads `billsRepository.outstandingOf(id, { lock: true })` — billPosition, under a row lock. | hardening #1 (red on its mutant) |
+| **H2** | Reversing a **credit-note application** went through the payment branch, found no payment, defaulted the classification to `advance`, and posted **Dr SUPPLIER_ADVANCES / Cr AP**. | POSTS to the wrong account: an advance no payment explains, AP raised by a note that did not change. Unnoticed: nothing tied the on-account assets to the GL. | A note application is undone with **no entry** (its application posted none); the reversal row carries a NULL entry. A **DB trigger** (0098) now refuses a reversal whose journal entry does not follow what it reverses — both directions. | hardening #2, #2b; e2e undo (red on its mutant) |
+| **H3** | One request naming the same bill twice passed both checks — each line was compared to the stored balance, not to its siblings. | POSTS an over-settlement. | A bill is named once per request (`allocation_duplicate_bill`, 422, nothing written). A LATER request applying more from the same source is a legitimate second application. | hardening #3 (red on its mutant) |
+| **H4** | **Eight readers** kept `total − paid_amount` or summed a credit note positively: vendor `totalBilled`/`balance` (whose comment still said *"bills has no `document_type` column"* — an obsolete assertion), the Bills headline and overdue count, **bank-match candidates** (which offered credit notes and settled bills), the overdue-payables finding, supplier-spend analytics, the migration-reversal guard, and the AP subledger invariant. | HIDES, and COMPOSES with H1: a bank debit matched to a settled bill was paid through H1's path. | **One definition** — `repositories/billPosition.ts` (sign, payable-ness, live applied, outstanding, AP contribution; three dialects like `openingReversal.ts`). Every reader imports it. | `bill-position-reader-sweep.test.ts` (written RED first: it listed the 12 files; planted positive; a second check that no exempt file restates the expression — which caught one, allowed with its reason); hardening #4 |
+| **H5** | The migration-reversal guard checked `paid_amount` only for bills. | REMOVES THE CORRECTION's safety: a batch could be reversed from under an opening bill a supplier payment had settled or a note had corrected, leaving live allocations against a reversed row. | Mirrors the invoice half: any allocation (live or reversed), any note, plus the counter. | hardening "migration-reversal guard" (with a planted negative) |
+| **H6** | `UPDATE` was granted on all five subledger tables; the allocation trigger guarded only rows WITH a journal entry, so a credit-note application (entry NULL) was **editable** by the app role. | REMOVES THE AUDIT: a fact of record could be rewritten. | 0098 revokes UPDATE on the four append-only tables; `supplier_payments` keeps it for `classification` only, under its trigger. | the immutability test, strengthened (all four tables, plus a positive control) |
+| **H7** | `source` was client-writable (a manual payment could be stamped `opening` — migration provenance for a lane that does not exist); `idempotency_key` was stored but never honoured (a retry was a second payment); `supplier_payment_allocations.idempotency_key` had **no writer and no reader**. | POSTS twice on a retry; forged provenance. | `source` is always `manual` on this path; a replayed key returns the original payment; the dead column is dropped in 0098 (one request writes several allocation rows, so a per-row key could never have represented a replay). | hardening #5 |
+| **H8** | No row locks anywhere on AP settlement. | Two concurrent settlements could each read the same balance. | The bill row (`FOR UPDATE`, ascending id order) on every path that applies money, and the source payment/note row on every act that spends what is on account. Identity checks run on an unlocked read first, so a request about to be refused never waits on a lock. | reasoned, not raced in a test (see §17.7) |
+| **H9** | The statement had no window, no opening/closing balance, no GL tie. | — (a brief requirement unmet) | §12.1. | hardening #6; e2e |
+| **H10** | The UI: the refund posted to **`banks[0]`** — the first bank in the list, invisibly (a D-3 violation: *"never a default … server OR UI"*); "Undo" **invented a reason** when the box was empty; the bill pickers showed the TOTAL and offered fully-paid bills; the Bills page offered **Pay on a credit note** and prefilled Pay with `total − paid`; the new pages declared their response shapes as local `type` aliases (the ratchet's named anti-pattern) over endpoints that ARE in the contract; statuses rendered raw English in Arabic. | POSTS to an account nobody chose; a reason nobody gave in the audit trail. | A visible, required refund-bank picker (the one allowed pre-selection is a bank the user marked default, as on the Bills pay dialog); the reason is sent as typed and an empty one is refused, shown; pickers list what each bill OWES; the Bills page labels notes and offers Apply instead of Pay; every page consumes the GENERATED client. | e2e (refund, empty-reason refusal, Bills page), four modes |
+
+🔴 **Found by the new e2e before it shipped**: the per-supplier bill picker was
+first written as `useListBills({ vendorId })`. The list's filter is
+`vendor_id`; the untyped object escaped TypeScript's excess-property check,
+the server ignored the key, and the picker would have offered **every
+supplier's bills**. It is typed as the generated `ListBillsParams` now, and
+the page also filters by `vendorId` itself. This is CLAUDE.md's *"a server
+test cannot see the client's request construction"* — again.
+
+### 17.3 The one definition, and why it is a module and not a helper
+
+What a purchase document owes is read in eleven places. Part 2 changed both
+halves of the old expression (a document can now be a credit note; money now
+arrives through two writers), and the first build updated the three readers
+it was working on. That is the shape `openingReversal.ts` was built against —
+*"a reader fixed one at a time is a reader missed one at a time"* — so the
+same countermeasure: one module, imported by every reader, and a sweep that
+fails when a new file reads bill amounts without it. Two facts, each with ONE
+writer, are read together and neither is folded into the other:
+`bills.paid_amount` (only `billsService.pay`) and live
+`supplier_payment_allocations` (only the AP subledger services).
+
+### 17.4 Where each invariant now lives
+
+| Invariant | Enforced by |
+| --- | --- |
+| Balanced supplier payments, notes, allocations, reversals, refunds | `postJournalEntry` (every AP entry goes through it) |
+| No allocation above what the source has, or what the bill owes | `validateAllocations` (the ONE cap), under row locks |
+| No duplicate bill in one request; one correction per allocation | the validator; the UNIQUE index on `allocation_id` |
+| A reversal's entry follows its source | the 0098 trigger (and the service) |
+| Posted records immutable | no UPDATE/DELETE grant on the append-only tables; the payment trigger |
+| Subledger ↔ AP control ↔ GL, per vendor | `ledgerInvariants.ts` (two AP invariants) and the statement's GL tie |
+| Period locks | `checkPeriodOpen` before anything is written, on every AP act that posts |
+| What a bill owes | `repositories/billPosition` + its sweep |
+| No input VAT on a payment path | nothing on the path computes VAT (§10.2) |
+| Migration provenance cannot be forged | `source` is not an input |
+
+### 17.5 ERPNext and Odoo, for the B3/B4 decisions (§9–§11) — read from source
+
+The first build recorded ERPNext/Odoo for B7 and B8 but not for the B3/B4
+decisions it rests most on. Read on 2026-09-23 from the source (ERPNext
+`version-15`, Odoo `17.0`; paths relative to `erpnext/` and `addons/`), per
+the escalation protocol — implementation evidence, never a Saudi requirement.
+
+| Decision | `ERPNEXT` | `ODOO` | `SAUDI LEDGER` |
+| --- | --- | --- | --- |
+| **Where an unallocated supplier payment sits** | By DEFAULT a **debit on the Creditors (payable) account**: `add_party_gl_entries` books the unallocated amount to `self.party_account` (`accounts/doctype/payment_entry/payment_entry.py` L1428–1458). An **opt-in** company setting, `book_advance_payments_in_separate_party_account`, is described in the product itself as recording *"Advances Paid in an **Asset Account** instead of the **Liability Account**"* (`setup/doctype/company/company.json` L787–791; account `default_advance_paid_account`, L769–779; switch in `set_liability_account`, payment_entry.py L151–209). | A **debit on the vendor's payable** (`property_account_payable_id`), against an outstanding-payments account — two lines and no advance account (`account/models/account_payment.py` L527–552, L287–351). The Saudi chart (`l10n_sa/data/template/account.account-sa.csv`) has no "advance to supplier" account. | An **asset**, always — ERPNext's opt-in mode as the only mode. |
+| **Applying the advance to a later bill** | Default mode: no new GL voucher — the payment-ledger rows are rebuilt against the invoice (`accounts/utils.py` `reconcile_against_document` L460–530, L512–518). Separate-account mode: **two new GL rows** — Dr the invoice's Creditors account, Cr the advance account, on the reconciliation date (`add_advance_gl_for_reference`, payment_entry.py L1511–1580). | A reconciliation LINK only — `account.partial.reconcile` rows, no new move (`account/models/account_move.py` L4290–4299; `account_move_line.py` L2600–2623). | **Its own entry**, Dr AP / Cr the asset — ERPNext's separate-account behaviour. |
+| **Undoing an allocation** | A submitted `Unreconcile Payment` document records the act, but the links beneath are **edited in place** (GL `against_voucher` nulled, payment-ledger rows re-pointed, advance rows hard-deleted — `accounts/utils.py` L895–964, L1016–1063); in separate-account mode the GL rows are reversed with **mirror entries** (`accounts/general_ledger.py` L664–785). | The partial-reconcile rows are **deleted** (`account_move_line.py` L3149–3151; `account_partial_reconcile.py` L100–133); only derived exchange/cash-basis moves are reversed. | A **superseding record**: the allocation row is never touched (no UPDATE or DELETE grant), a reversal row answers it, and the mirror entry is posted when — and only when — the allocation posted one. |
+| **Refund from a supplier** | Permitted: a Payment Entry `Receive` with a Supplier party credits the party account (payment_entry.py L78–81, L1429; L3294–3303). An end-to-end refund flow was NOT verified. | Named: `('inbound', 'supplier')` is *"Vendor Reimbursement"* (`account_payment.py` L220–225). | Dr the bank / Cr the asset it was held on, capped at what is still on account, reason required. |
+| **Refundable deposits paid** | No concept in the payment code; chart accounts only ("Securities and Deposits"/"Earnest Money", `verified/standard_chart_of_accounts_with_account_number.py` L26–29). | No concept in the payment code; chart accounts only (`l10n_sa` "Deposit – Office Rent", "Deposits – Customs", L39–42). Search bounded to the payment and chart files named. | A classification with its own account, **refused as a settlement of a bill**. |
+| **Input VAT on an advance** | `advance_tax` on a Purchase Invoice is withholding tax (TDS), not VAT (`purchase_invoice.py` L1972–2067). No VAT-specific advance logic found. | 17.0 has no purchase down payment; 18.0 adds one as a **vendor-bill line carrying its own taxes** (`purchase/wizard/bill_to_po_wizard.py` L43–70). How the final bill nets it was NOT verified. | Nothing on any payment path (§10.2); the supplier's advance TAX INVOICE is open question **Z-AP1** (§17.7). |
+
+**What the comparison decides, and what it does not.** Neither product treats
+an unallocated supplier payment as an asset by default — so "both products do
+it" is NOT the argument for §10.1, and the pack does not claim it. The argument
+is the standard, below; ERPNext's opt-in mode is evidence that the model is a
+recognised one, and its allocation entry (a new GL row, not a link) is the same
+shape this build uses.
+
+### 17.6 Why the advance, the deposit and the unidentified payment are three accounts — `STANDARD (IFRS)`
+
+IAS 32 **AG11** (read from the IFRS Foundation text, 2024 issued standards):
+
+> "Assets (such as prepaid expenses) for which the future economic benefit is
+> the receipt of goods or services, rather than the right to receive cash or
+> another financial asset, are not financial assets."
+
+A supplier **advance** is exactly that — its benefit is the goods — so it is a
+**non-financial** asset that leaves by being applied to the supplier's
+invoice. A **refundable security deposit** is the opposite case: its benefit is
+the **cash coming back**, a contractual right to receive cash, i.e. a
+**financial** asset (a receivable). Holding the two on one account would mix a
+financial and a non-financial asset in one balance — so the separation §10.1
+made because their EXITS differ is also the separation the standard's own
+classification draws. An **unidentified or erroneous** payment is money whose
+nature is not yet known; it waits on its own account until somebody states
+which of the two it is, which is why only a classification act — recorded,
+with its own entry when the account changes — can move it.
+
+`PRODUCT DECISION` on top of the standard: an advance is the only one of the
+three that may settle a bill; the other two are refused by name.
+
+### 17.7 What is still NOT built, or not proven, after the audit
+
+| # | What | Why |
+| --- | --- | --- |
+| **Concurrency, proven by a race** | The locks (H8) are reasoned from Postgres semantics and exercised by every test, but no test RACES two settlements. | A deterministic race test needs two tenant transactions interleaved on purpose; worth building with the next AP batch rather than faked with timing. |
+| **Z-AP1 — the supplier's ADVANCE tax invoice** | When a supplier issues a tax invoice for an advance we paid (their tax point is the receipt), Art. 49(7) lets us deduct its input VAT once we HOLD that invoice. There is no document path for it: recorded as a bill it posts AP, not against the advance asset, and the supplier's later final invoice deducts the prepayment. | 🔴 **ACCOUNTANT DECISION REQUIRED** — the question, as sent: *"When a supplier gives us a tax invoice for an advance we paid, should the input VAT be claimed in the period of that advance invoice (and reversed through the final invoice's prepayment deduction), and how should the advance invoice be recorded against the advance already paid?"* Until answered the platform claims nothing on an advance — conservative (it never double-claims), but it defers a deduction the taxpayer may be entitled to. |
+| **Statement line descriptions in Arabic** | The event descriptions the server writes ("Bill received", "Payment to the supplier …") are English; the page shows a translated KIND badge beside them. | An Arabic-coverage gap the sweep cannot count (it reads the web source, not server strings). Recorded, not fixed here. |
+| **Migrated supplier advances; statement-line matching for supplier payments; approval limits** | As §16. | Unchanged by the audit. |
+
+`AR` was not touched by any fix above except where it shares a reader, and
+there the change is additive: `computeAging` in the web app ages on the
+server's `outstanding` only when a document carries one (bills do; invoices do
+not), and the AR ageing, AR payment and customer-advance suites run unchanged
+in the gate.
+
+### 17.8 Z-AP1, in the protocol's blocker format
+
+```
+ACCOUNTING BLOCKER — Z-AP1 (does NOT block anything built; blocks the purchase-side advance-invoice path, which is not built)
+- Question — When a supplier issues us a TAX INVOICE for an advance we paid, how is its
+  input VAT claimed, and how is that invoice recorded against the advance already paid?
+- Why it matters — the supplier's tax point is the receipt of our money (GCC Agreement
+  Art. 23(1); IR Art. 53(1)(a)(2) — both read as primary texts in the advance-payments
+  pack §8), so a VAT-registered supplier must issue us a tax invoice for the advance.
+  Holding it entitles us to deduct its input VAT; the supplier's final invoice then
+  deducts the prepayment.
+- Saudi Ledger current behaviour — no AP payment path computes VAT (§10.2). An advance
+  sits on SUPPLIER_ADVANCES with no VAT; input VAT enters only with a BILL. A supplier's
+  advance tax invoice has no path of its own: entered as a bill it would post AP and
+  a second input-VAT line, not settle against the advance.
+- Odoo — 17.0 has no purchase down payment; 18.0 adds one as a vendor-bill line carrying
+  its own taxes (purchase/wizard/bill_to_po_wizard.py L43–70). How the final bill nets
+  it: NOT verified (§17.5).
+- ERPNext — no VAT-specific advance logic found; a Purchase Invoice's `advance_tax` is
+  withholding tax (purchase_invoice.py L1972–2067) (§17.5).
+- Accounting and regulatory sources —
+  · IR Art. 49(7) (repo text, docs/zatca/specs/KSA_VAT_Implementing_Regulations_EN.txt
+    L1507–1509): "Input Tax may only be deducted where the Taxable Person holds evidence
+    of the amount of Input Tax paid or payable in a form specified in Article forty-eight
+    of the Agreement" — the deduction follows the DOCUMENT, not the payment.
+  · IR Art. 49(8) (same, L1521–1525): a deduction "may be made … in a Tax Period
+    subsequent to that Tax Period including the date of Supply", but not "more than five
+    calendar years after the calendar year in which the Supply takes place".
+- Where they agree — no source makes the PAYMENT the trigger for our input VAT.
+- Where they differ — nothing contradicts; the gap is our document path, not the rule.
+- Proposed options — (a) record the supplier's advance tax invoice as a purchase document
+  that carries input VAT and is SETTLED by the advance (a purchase-side 386), with the
+  final invoice's prepayment deduction reversing it; (b) keep deferring the whole
+  deduction to the final bill, as now.
+- Recommended engineering default — (b), which is what runs today: it never claims a
+  deduction twice and never claims one without the document; by Art. 49(8) the
+  entitlement is DEFERRED, not lost, inside five calendar years. It does cost the
+  taxpayer the timing of the deduction.
+- Exact question for the accountant — "When a supplier gives us a tax invoice for an
+  advance we paid, should we claim its input VAT in that invoice's period and reverse it
+  through the final invoice's prepayment deduction — or is deferring the whole claim to
+  the final invoice acceptable practice for our tenants?"
+- Implementation impact — only the purchase-side advance-invoice path. Supplier payments,
+  advances, allocations, notes, ageing and statements are unaffected.
+```
