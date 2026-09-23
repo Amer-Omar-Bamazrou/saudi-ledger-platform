@@ -269,10 +269,13 @@ export const NAV_TREE: readonly NavSection[] = [
         ],
       },
       built("/transactions", "Transactions", "المعاملات", ListOrdered),
-      soon("transfers", "Transfers", "التحويلات", ArrowLeftRight),
+      // Phase 12C: one document, one entry, both banks; its legs reconcile to it.
+      built("/bank-transfers", "Transfers", "التحويلات", ArrowLeftRight),
       built("/review", "Statement Review", "مراجعة الكشف", ListChecks),
       // Phase 12B: statement lines ↔ the ledger movements they ARE (partial, multi-document).
       built("/bank-reconciliation", "Reconciliation Workbench", "منضدة التسوية البنكية", Scale),
+      // Phase 12D: a reconciliation completed as of a date — only at a zero difference.
+      built("/bank-reconciliations", "Period Reconciliation", "التسوية البنكية للفترة", Scale),
       // Phase D/F: statement rows ↔ receipts/refunds, classified with evidence.
       built("/bank-matching", "Bank Matching", "مطابقة كشوف البنك", SearchCheck),
       soon("live-bank-feeds", "Live Bank Feeds", "الربط المباشر مع البنوك", Plug),
@@ -280,6 +283,7 @@ export const NAV_TREE: readonly NavSection[] = [
         label: "Banking Reports", labelAr: "التقارير البنكية", marker: "built",
         href: "/cash-flow", icon: Waves,
         children: [
+          built("/cash-position", "Cash Position & Exceptions", "المركز النقدي والاستثناءات"),
           built("/cash-flow", "Cash Flow", "التدفق النقدي"),
           built("/analytics", "Bank Balance History", "تاريخ الرصيد البنكي"),
           soon("transfer-reports", "Transfer Reports", "تقارير التحويلات"),

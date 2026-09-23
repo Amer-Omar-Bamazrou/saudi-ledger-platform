@@ -19,6 +19,8 @@ import { bankAccountsRepository } from "../repositories/bankAccounts.repository"
 import { assertBankAccount } from "./accounting/bankIdentity";
 import { bankStatementsService } from "./accounting/bankStatements.service";
 import { bankReconciliationRepository } from "../repositories/bankReconciliation.repository";
+import { bankReconciliationsRepository } from "../repositories/bankReconciliations.repository";
+import { MATCH_DATE_WINDOW_DAYS } from "./accounting/matchingPolicy";
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes, looksForeignDigitalSupplier } from "./categorization/categorizer.js";
 import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross, type ResolvedCategory } from "./categorization/resolveCategory.js";
@@ -189,6 +191,21 @@ export const transactionsService = {
     // rows nothing can ever accept. 422 `bank_account_required` /
     // `reference_not_found` — one shared check (accounting/bankIdentity.ts).
     const bankAccountId: number = await assertBankAccount(data.bankAccountId, { what: "this statement belongs to" });
+
+    // 🔴 Phase 12D: a completed bank reconciliation fixes this bank's lines
+    // through its date — a line dated inside it would change what it proved.
+    // Refused whole and in words here; the trigger on `transactions` is the
+    // boundary for every other writer.
+    const reconciledThrough = await bankReconciliationsRepository.reconciledThrough(bankAccountId);
+    if (reconciledThrough) {
+      const inside = rows.filter((r) => typeof r.date === "string" && r.date.slice(0, 10) <= reconciledThrough);
+      if (inside.length > 0) {
+        throw new BusinessRuleError(409, {
+          code: "bank_reconciled_through",
+          error: `This bank is reconciled through ${reconciledThrough}; ${inside.length} line(s) are dated on or before it. Reopen that reconciliation first, or import only later lines.`,
+        });
+      }
+    }
 
     /**
      * 🔴 Phase 12A — a STATEMENT upload is all or nothing. Every row is
@@ -510,9 +527,22 @@ export const transactionsService = {
         });
       }
     }
+    // 12C: the open leg of a RECORDED transfer is refused in words too — it is
+    // reconciled to the transfer in the workbench, never accepted.
+    if (ids?.length) {
+      const legs = await bankReconciliationRepository.openTransferLegIds(ids, MATCH_DATE_WINDOW_DAYS);
+      if (legs.size > 0) {
+        throw new BusinessRuleError(409, {
+          code: "line_is_recorded_transfer_leg",
+          error: `Statement line(s) ${[...legs].join(", ")} are a leg of a transfer already recorded between your banks. Reconcile them to that transfer in the Reconciliation Workbench — accepting would move the money twice.`,
+          ids: [...legs],
+        });
+      }
+    }
     const result = await transactionsRepository.acceptPending({
       ids,
       minConfidence: AUTO_ASSIGN_CONFIDENCE,
+      transferWindowDays: MATCH_DATE_WINDOW_DAYS,
     });
 
     /**
@@ -986,7 +1016,7 @@ export const transactionsService = {
     // the same tenant transaction — a refused reversal (a closed month) rolls
     // the delete back with it.
     if (existing?.tx.journalEntryId != null) {
-      await journalEntriesService.reverse(existing.tx.journalEntryId);
+      await journalEntriesService.reverse(existing.tx.journalEntryId, {}, { document: "statement_line" });
     }
     await transactionsRepository.remove(id);
     if (existing) await auditService.deleted("transaction", id, existing.tx);

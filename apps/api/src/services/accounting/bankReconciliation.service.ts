@@ -157,8 +157,10 @@ export const bankReconciliationService = {
 
     // Candidates are re-read here, so the service can explain a refusal in words
     // (another bank, the wrong direction, already reconciled) before the trigger does.
+    // Only the named lines are read — a bank's whole cash history is not.
     const candidates = new Map((await bankReconciliationRepository.candidates({
       bankAccountId: row.bank_account_id, type: row.type, from: "1900-01-01", to: "2999-12-31", excludeEntryId: null,
+      lineIds: lines.map((l) => Number(l.journalLineId)),
     })).map((c) => [c.line_id, c]));
     const reason = body.reason?.trim() || null;
     for (const l of lines) {
@@ -176,16 +178,20 @@ export const bankReconciliationService = {
     }
 
     try {
-      for (const l of lines) {
+      for (const [i, l] of lines.entries()) {
         const c = candidates.get(Number(l.journalLineId))!;
+        // A person's link to a recorded bank-to-bank transfer IS a transfer leg (12C).
+        const linkMethod = method === "manual" && c.source_kind === "bank_transfer" ? "transfer" : method;
         const [link] = await bankReconciliationRepository.insertLink({
-          transactionId, journalLineId: c.line_id, amount: round2(Number(l.amount)).toFixed(2), method,
+          transactionId, journalLineId: c.line_id, amount: round2(Number(l.amount)).toFixed(2), method: linkMethod,
           evidence: {
             statementDate: row.date, statementAmount: Number(row.amount), direction: current.direction,
             entryNumber: c.entry_number, entryDate: c.date, daysApart: dayGap(c.date, row.date),
             lineAmount: Number(c.line_amount), document: c.source_kind ?? "journal", documentId: c.source_id, ...evidenceExtra,
           },
-          reason, idempotencyKey: lines.length === 1 ? idempotencyKey : null, createdBy: userId,
+          // The key rides on the FIRST link of the request: a retry finds it and
+          // returns the line, however many links the request made.
+          reason, idempotencyKey: i === 0 ? idempotencyKey : null, createdBy: userId,
         });
         await auditService.created("bank_statement_link", link!.id, link);
       }
@@ -244,25 +250,40 @@ export const bankReconciliationService = {
    * that identifies exactly one candidate — then one-to-one across the batch.
    */
   async classifyAp(filter: { bankAccountId?: number } = {}) {
-    const rows = (await bankReconciliationRepository.lines({ bankAccountId: filter.bankAccountId, status: "unreconciled", limit: 500, offset: 0 }))
-      .filter((r) => r.review_status === "pending_review" && r.journal_entry_id == null);
+    // EVERY pending, unreconciled line — never a page of them: a line past a
+    // cap would silently never be classified.
+    const rows = await bankReconciliationRepository.pendingUnreconciled(filter.bankAccountId);
     type Out = { transactionId: number; classification: "DETERMINISTIC" | "AMBIGUOUS" | "UNMATCHED"; reason: string; target: ReturnType<typeof candidateOut> | null };
     const identified: Array<{ row: StatementLineRow; cand: CandidateRow }> = [];
     const out: Out[] = [];
+    // ONE candidate read per bank and direction, over the lines' whole date
+    // span — not one per line (at volume, one per line took longer than the
+    // page would wait).
+    const groups = new Map<string, StatementLineRow[]>();
     for (const row of rows) {
-      const window = { from: shiftDate(row.date, -MATCH_DATE_WINDOW_DAYS), to: shiftDate(row.date, MATCH_DATE_WINDOW_DAYS) };
-      const cands = (await bankReconciliationRepository.candidates({ bankAccountId: row.bank_account_id, type: row.type, ...window, excludeEntryId: null }))
-        .filter((c) => AP_SOURCES.has(c.source_kind ?? "") && Math.abs(Number(c.remaining) - Number(row.amount)) < 0.005);
-      if (cands.length === 0) { out.push({ transactionId: row.id, classification: "UNMATCHED", reason: "no supplier payment, refund or bill payment of exactly this amount on this bank inside the window", target: null }); continue; }
-      const tokens = referenceTokens(row.description);
-      const byRef = cands.filter((c) => c.source_ref && tokens.some((t) => c.source_ref!.toUpperCase().includes(t)));
-      if (byRef.length === 1) identified.push({ row, cand: byRef[0]! });
-      else out.push({
-        transactionId: row.id, classification: "AMBIGUOUS", target: null,
-        reason: byRef.length === 0
-          ? `${cands.length} candidate(s) of this amount, but no reference in the narrative identifies one — amount and date alone never do`
-          : `the narrative's reference matches ${byRef.length} candidates`,
-      });
+      const key = `${row.bank_account_id}:${row.type}`;
+      groups.set(key, [...(groups.get(key) ?? []), row]);
+    }
+    for (const group of groups.values()) {
+      const dates = group.map((r) => r.date).sort();
+      const pool = (await bankReconciliationRepository.candidates({
+        bankAccountId: group[0]!.bank_account_id, type: group[0]!.type,
+        from: shiftDate(dates[0]!, -MATCH_DATE_WINDOW_DAYS), to: shiftDate(dates[dates.length - 1]!, MATCH_DATE_WINDOW_DAYS), excludeEntryId: null,
+      })).filter((c) => AP_SOURCES.has(c.source_kind ?? ""));
+      for (const row of group) {
+        const from = shiftDate(row.date, -MATCH_DATE_WINDOW_DAYS), to = shiftDate(row.date, MATCH_DATE_WINDOW_DAYS);
+        const cands = pool.filter((c) => c.date >= from && c.date <= to && Math.abs(Number(c.remaining) - Number(row.amount)) < 0.005);
+        if (cands.length === 0) { out.push({ transactionId: row.id, classification: "UNMATCHED", reason: "no supplier payment, refund or bill payment of exactly this amount on this bank inside the window", target: null }); continue; }
+        const tokens = referenceTokens(row.description);
+        const byRef = cands.filter((c) => c.source_ref && tokens.some((t) => c.source_ref!.toUpperCase().includes(t)));
+        if (byRef.length === 1) identified.push({ row, cand: byRef[0]! });
+        else out.push({
+          transactionId: row.id, classification: "AMBIGUOUS", target: null,
+          reason: byRef.length === 0
+            ? `${cands.length} candidate(s) of this amount, but no reference in the narrative identifies one — amount and date alone never do`
+            : `the narrative's reference matches ${byRef.length} candidates`,
+        });
+      }
     }
     const pairing = pairOneToOne(identified, identified.map((i) => i.cand), {
       recordId: (i) => i.row.id, recordKey: (i) => String(i.cand.line_id), evidenceKey: (c) => String(c.line_id),

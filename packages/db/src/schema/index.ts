@@ -24,6 +24,8 @@ export * from "./recognitionSchedules";
 export * from "./supplierPayments";
 export * from "./bankStatements";
 export * from "./bankReconciliation";
+export * from "./bankTransfers";
+export * from "./bankReconciliations";
 export * from "./findings";
 export * from "./payments";
 export * from "./invoicePrepayments";

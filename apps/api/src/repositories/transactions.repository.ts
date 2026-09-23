@@ -1,6 +1,7 @@
 /** Transactions repository — tenant-scoped via RLS. */
 import { db, transactionsTable, categoriesTable } from "@workspace/db";
-import { and, desc, eq, ilike, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, not, or, sql } from "drizzle-orm";
+import { OPEN_TRANSFER_LEG } from "./bankReconciliation.repository";
 
 export interface TransactionFilter {
   categoryId?: number | null;
@@ -22,7 +23,8 @@ function whereFor(f: TransactionFilter) {
 }
 
 /** No source in `bank_line_reconciliation` answers this line (Phase 12B — the one definition). */
-const NOT_RECONCILED = () => sql`NOT EXISTS (SELECT 1 FROM bank_line_reconciliation r WHERE r.transaction_id = ${transactionsTable}."id")`;
+// A hashed subplan over the view (evaluated once), not a probe per row: at volume the per-row form took seconds.
+const NOT_RECONCILED = () => sql`${transactionsTable}."id" NOT IN (SELECT r.transaction_id FROM bank_line_reconciliation r WHERE r.transaction_id IS NOT NULL)`;
 
 export const transactionsRepository = {
   list(f: TransactionFilter) {
@@ -90,12 +92,15 @@ export const transactionsRepository = {
    * same money a second time (the defect the 12B audit found: a matched line
    * stayed pending and could be accepted).
    */
-  async acceptPending(opts: { ids?: number[]; minConfidence: number }): Promise<{ accepted: number; acceptedIds: number[] }> {
+  async acceptPending(opts: { ids?: number[]; minConfidence: number; transferWindowDays: number }): Promise<{ accepted: number; acceptedIds: number[] }> {
+    // 🔴 Phase 12C: nor is the open leg of a RECORDED transfer — it is
+    // reconciled to the transfer; accepting it would post the cash twice.
+    const notTransferLeg = not(OPEN_TRANSFER_LEG(sql`${transactionsTable}."id"`, opts.transferWindowDays));
     if (opts.ids && opts.ids.length > 0) {
       const r = await db
         .update(transactionsTable)
         .set({ reviewStatus: "accepted" })
-        .where(and(eq(transactionsTable.reviewStatus, "pending_review"), inArray(transactionsTable.id, opts.ids), NOT_RECONCILED()))
+        .where(and(eq(transactionsTable.reviewStatus, "pending_review"), inArray(transactionsTable.id, opts.ids), NOT_RECONCILED(), notTransferLeg))
         .returning({ id: transactionsTable.id });
       return { accepted: r.length, acceptedIds: r.map((x) => x.id) };
     }
@@ -106,6 +111,7 @@ export const transactionsRepository = {
         and(
           eq(transactionsTable.reviewStatus, "pending_review"),
           NOT_RECONCILED(),
+          notTransferLeg,
           // M16.2: a TRANSFER carries no category by design — the kind IS the
           // classification — so a confident transfer is bulk-safe alongside
           // categorized rows. Everything else still needs a category.

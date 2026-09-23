@@ -327,4 +327,25 @@ describeMaybe("Phase 12B — bank reconciliation (real rows)", () => {
     const someLine = mine[0]!;
     await expect(inTenant(() => bankReconciliationService.line(someLine.id), orgB, companyB)).rejects.toThrow(/not found/i);
   }, 60_000);
+  it("🔴 VOLUME: the reference pass classifies EVERY pending line — the identifiable one after 600 others is still found", async () => {
+    // Seeded, not hoped for: the old pass read one page of 500 lines and ran a
+    // candidate query per line — at volume it both missed lines and timed out
+    // the page (found by the full browser run, never by a small fixture).
+    const filler = Array.from({ length: 600 }, (_, i) => ({ date: "2026-08-25", description: `VOLUME FILLER ${i}`, amount: 10 + i, type: "debit" as const }));
+    await importLines(filler);
+    const sp = await inTenant(() => supplierPaymentsService.create({ vendorId, bankAccountId: bankId, amount: 987.65, paidAt: "2026-08-09", reference: "VOL-98765", classification: "advance" }, userId));
+    // The OLDEST line: the old page read newest-first and stopped at 500.
+    await importLines([{ date: "2026-08-10", description: "OUTWARD TT VOL-98765", amount: 987.65, type: "debit" }]);
+    const line = await lineByDesc("OUTWARD TT VOL-98765");
+    const pending = Number((await pool.query(`SELECT count(*) n FROM transactions WHERE organization_id = $1 AND review_status = 'pending_review'`, [orgId])).rows[0].n);
+    expect(pending, "the frame: more pending lines than the old page held").toBeGreaterThan(500);
+    const started = Date.now();
+    const { items } = await inTenant(() => bankReconciliationService.classifyAp({ bankAccountId: bankId }));
+    const elapsed = Date.now() - started;
+    expect(items.length, "every pending unreconciled line is classified").toBeGreaterThanOrEqual(601);
+    const mine = items.find((i) => i.transactionId === line.id)!;
+    expect(mine.classification).toBe("DETERMINISTIC");
+    expect(mine.target!.sourceId).toBe(sp.id);
+    expect(elapsed, `classified ${items.length} lines in ${elapsed}ms (one read per bank and direction; ~0.5 s at 2,500 lines on the dev machine)`).toBeLessThan(5_000);
+  }, 180_000);
 });

@@ -303,28 +303,14 @@ export const COMING_SOON: readonly ComingSoonEntry[] = [
     whenClearedAr: "صفحتا القائمة والإنشاء موجودتان، وصفحة القائمة تحدد الحساب الذي يظهر على الفواتير؛ هذه هي صفحة الحساب المفرد تحتهما.",
   },
   {
-    slug: "transfers",
-    title: "Transfers",
-    titleAr: "التحويلات",
-    summary: "Money moved between your own accounts, and to and from outside — as a place, rather than rows mixed into the transaction list.",
-    summaryAr: "الأموال المنقولة بين حساباتك، ومن الخارج وإليه — كصفحة مستقلة بدلًا من صفوف مبعثرة داخل قائمة المعاملات.",
-    blocker: "build",
-    whenCleared: "Build the PAGE and its create flow. The posting rules are settled and live.",
-    whenClearedAr: "بناء الصفحة ومسار الإنشاء. قواعد الترحيل محسومة وتعمل.",
-    capabilityLive:
-      "🔴 Transfers already work and have posted to the general ledger since 2026-08-17 — cash against transfer clearing, with no P&L, tax or budget line, ever. They are visible today inside Transactions. What is missing is a page of their own.",
-    capabilityLiveAr:
-      "🔴 التحويلات تعمل بالفعل وتُرحَّل إلى دفتر الأستاذ منذ 2026-08-17 — دون أي أثر على الأرباح والخسائر أو الضريبة أو الموازنة إطلاقًا. وهي ظاهرة اليوم ضمن المعاملات. الناقص صفحة مستقلة لها.",
-  },
-  {
     slug: "transfer-reports",
     title: "Transfer reports",
     titleAr: "تقارير التحويلات",
     summary: "Transfers summarised by account, direction and period.",
     summaryAr: "ملخّص التحويلات حسب الحساب والاتجاه والفترة.",
     blocker: "build",
-    whenCleared: "Follows the transfers page — a report needs the place it reports on.",
-    whenClearedAr: "يأتي بعد صفحة التحويلات — التقرير يحتاج إلى الصفحة التي يصفها.",
+    whenCleared: "The transfers page exists (Phase 12C), and transfers missing a reconciled leg are listed under Cash Position & Exceptions. The summary by account, direction and period is not built.",
+    whenClearedAr: "صفحة التحويلات موجودة (المرحلة 12ج)، والتحويلات التي ينقصها طرف مسوّى مدرجة في المركز النقدي والاستثناءات. الملخص حسب الحساب والاتجاه والفترة غير مبني.",
   },
   {
     slug: "live-bank-feeds",

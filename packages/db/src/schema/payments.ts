@@ -100,7 +100,11 @@ export const billPaymentsTable = pgTable(
     journalEntryId: integer("journal_entry_id").references(() => journalEntriesTable.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("bill_payments_bill_idx").on(t.billId), index("bill_payments_org_idx").on(t.organizationId)],
+  (t) => [
+    index("bill_payments_bill_idx").on(t.billId), index("bill_payments_org_idx").on(t.organizationId),
+    // Phase 12: the reconciliation reads name a cash line's document by its entry.
+    index("bill_payments_entry_idx").on(t.journalEntryId),
+  ],
 );
 
 export type InvoicePayment = typeof invoicePaymentsTable.$inferSelect;
@@ -184,6 +188,9 @@ export const paymentsTable = pgTable(
     uniqueIndex("payments_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
     index("payments_customer_idx").on(t.customerId),
     index("payments_company_idx").on(t.companyId),
+    // Phase 12: the reconciliation reads name a cash line's document by its entry.
+    index("payments_entry_idx").on(t.journalEntryId),
+    index("payments_source_transaction_idx").on(t.sourceTransactionId),
     check("payments_amount_positive_chk", sql`amount > 0`),
     check("payments_direction_chk", sql`direction IN ('in', 'out')`),
     check("payments_party_chk", sql`(party_type = 'customer' AND customer_id IS NOT NULL) OR (party_type = 'none' AND customer_id IS NULL)`),
@@ -336,6 +343,8 @@ export const customerRefundsTable = pgTable(
     uniqueIndex("customer_refunds_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
     index("customer_refunds_customer_idx").on(t.customerId),
     index("customer_refunds_payment_idx").on(t.paymentId),
+    // Phase 12: the reconciliation reads name a cash line's document by its entry.
+    index("customer_refunds_entry_idx").on(t.journalEntryId),
     index("customer_refunds_note_idx").on(t.creditNoteId),
     check("customer_refunds_amount_positive_chk", sql`amount > 0`),
     check("customer_refunds_origin_chk", sql`(origin = 'deposit' AND payment_id IS NOT NULL AND credit_note_id IS NULL) OR (origin = 'credit_note' AND credit_note_id IS NOT NULL AND payment_id IS NULL)`),

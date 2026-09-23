@@ -280,6 +280,35 @@ async function main() {
       FROM journal_line_bank_identity v JOIN bank_line_reconciliation r ON r.line_id = v.line_id
      GROUP BY v.organization_id, v.line_id, v.debit_amount, v.credit_amount
     HAVING sum(r.amount) > abs(v.debit_amount - v.credit_amount) + 0.005`));
+  fail("matched_line_not_reconciled — a statement line marked `matched` (it posts nothing) that the view no longer fully reconciles: its money is in no ledger", await q(`
+    SELECT t.organization_id::text AS org, t.id AS transaction_id, abs(t.amount)::text AS amount,
+           coalesce((SELECT sum(r.amount) FROM bank_line_reconciliation r WHERE r.transaction_id = t.id), 0)::text AS reconciled
+      FROM transactions t
+     WHERE t.kind = 'matched'
+       AND coalesce((SELECT sum(r.amount) FROM bank_line_reconciliation r WHERE r.transaction_id = t.id), 0) < abs(t.amount) - 0.005`));
+
+  // Phase 12C — a transfer and its entry must agree: a live transfer on a
+  // reversed entry (reversed behind the document) or a reversal row whose
+  // entry is still live both make the document lie about the books.
+  fail("bank_transfer_reversal_mismatch — a transfer whose entry's reversal and the transfer's own reversal record disagree", await q(`
+    SELECT bt.organization_id::text AS org, bt.id AS transfer_id, e.status, (r.id IS NOT NULL) AS has_reversal_record
+      FROM bank_transfers bt JOIN journal_entries e ON e.id = bt.journal_entry_id
+      LEFT JOIN bank_transfer_reversals r ON r.transfer_id = bt.id
+     WHERE (e.status = 'reversed') <> (r.id IS NOT NULL)`));
+
+  // Phase 12D — a completed reconciliation that still stands must still be
+  // TRUE: the bank's ledger at its date equals what it recorded. The lock
+  // triggers keep this so; a violation means something wrote past them.
+  fail("bank_reconciliation_moved — a completed, unreopened reconciliation whose bank ledger at its date no longer equals the recorded ledger balance", await q(`
+    SELECT r.organization_id::text AS org, r.id AS reconciliation_id, r.as_of::text, r.ledger_balance::text AS recorded,
+           coalesce((SELECT sum(v.debit_amount - v.credit_amount) FROM journal_line_bank_identity v
+                       JOIN journal_entries e ON e.id = v.journal_entry_id
+                      WHERE v.bank_account_id = r.bank_account_id AND e.status IN ('posted','reversed') AND e.date::date <= r.as_of), 0)::text AS now
+      FROM bank_reconciliations r
+     WHERE NOT EXISTS (SELECT 1 FROM bank_reconciliation_reopenings o WHERE o.reconciliation_id = r.id)
+       AND abs(r.ledger_balance - coalesce((SELECT sum(v.debit_amount - v.credit_amount) FROM journal_line_bank_identity v
+                       JOIN journal_entries e ON e.id = v.journal_entry_id
+                      WHERE v.bank_account_id = r.bank_account_id AND e.status IN ('posted','reversed') AND e.date::date <= r.as_of), 0)) > 0.005`));
 
   if (jsonOut) writeFileSync(jsonOut, JSON.stringify(report, null, 2));
   await pool.end();

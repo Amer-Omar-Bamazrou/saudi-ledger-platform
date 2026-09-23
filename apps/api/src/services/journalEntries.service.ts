@@ -306,9 +306,26 @@ export const journalEntriesService = {
    * closed one is refused LOUDLY with the structured 423 the UI already
    * explains, rather than silently moved.
    */
-  async reverse(id: number, body: { reason?: unknown; date?: unknown } = {}) {
+  async reverse(id: number, body: { reason?: unknown; date?: unknown } = {}, owner: { document?: "bank_transfer" | "statement_line" } = {}) {
     const [original] = await journalEntriesRepository.findById(id);
     if (!original) throw new NotFoundError("Not found");
+    // 🔴 Phase 12C: an entry a DOCUMENT owns is reversed through that document,
+    // which records why and keeps itself true. Reversed from here, a transfer
+    // would read as live while its entry is cancelled, and a statement line
+    // would read as reconciled by its own posting while that posting is gone.
+    // (`owner` is an argument, never read from a request body.)
+    const documentOwner = await journalEntriesRepository.documentOwner(id);
+    if (documentOwner && owner.document !== documentOwner) {
+      throw new ConflictError(documentOwner === "bank_transfer"
+        ? "This entry records a bank transfer. Reverse the transfer instead, so the transfer carries its reversal."
+        : "This entry is a bank statement line's own posting. Change or delete that line in Transactions instead, so the line and its entry stay in step.");
+    }
+    // 🔴 Phase 12C: a statement line reconciled to this entry would go on
+    // "reconciling" money the books now cancel. Refused in words here; the
+    // trigger on journal_entries (migration 0101) is the boundary.
+    if (await journalEntriesRepository.reconciledToStatement(id)) {
+      throw new ConflictError("A bank statement line is reconciled to this entry. Undo that reconciliation in the Reconciliation Workbench before reversing it.");
+    }
     if (original.status !== "posted") throw new ConflictError("Only posted entries can be reversed.");
 
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";

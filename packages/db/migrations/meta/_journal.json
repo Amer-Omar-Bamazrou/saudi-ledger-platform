@@ -708,6 +708,27 @@
       "when": 1790175394347,
       "tag": "0100_phase12b_bank_reconciliation",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1790178863729,
+      "tag": "0101_phase12c_bank_transfers",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1790179798734,
+      "tag": "0102_phase12d_bank_reconciliations",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1790184205785,
+      "tag": "0103_phase12e_reconciliation_indexes",
+      "breakpoints": true
     }
   ]
 }

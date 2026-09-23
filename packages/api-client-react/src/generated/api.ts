@@ -46,7 +46,12 @@ import type {
   AssetVatUseRecord,
   AuditLogPage,
   BalanceSheetReport,
+  BankReconciliationPosition,
+  BankReconciliationRecord,
   BankStatement,
+  BankTransfer,
+  BankTransferInput,
+  BankingExceptions,
   Bill,
   BillApproveInput,
   BillHeaderInput,
@@ -62,6 +67,7 @@ import type {
   CaptureUpload,
   CapturedDocument,
   CashFlowReport,
+  CashPosition,
   CashReconciliation,
   CategorizationRequest,
   CategorizationResult,
@@ -76,6 +82,7 @@ import type {
   ClassifySupplierPaymentInput,
   Company,
   CompanyLogoState,
+  CompleteBankReconciliationInput,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
   CorrectMigratedOpenItemInput,
@@ -131,6 +138,7 @@ import type {
   GetActivityReportParams,
   GetAskStatus200,
   GetBalanceSheetParams,
+  GetBankReconciliationPositionParams,
   GetCashFlowParams,
   GetCashReconciliationParams,
   GetCustomerLedgerParams,
@@ -178,8 +186,12 @@ import type {
   ListAssets200,
   ListAssetsParams,
   ListAuditLogsParams,
+  ListBankReconciliations200,
+  ListBankReconciliationsParams,
   ListBankStatements200,
   ListBankStatementsParams,
+  ListBankTransfers200,
+  ListBankTransfersParams,
   ListBills200,
   ListBillsParams,
   ListBudgetsParams,
@@ -263,6 +275,8 @@ import type {
   RecurringRun,
   RefundCustomerInput,
   RefundSupplierPaymentInput,
+  ReopenBankReconciliationInput,
+  ReverseBankTransferInput,
   ReverseMigrationBatchInput,
   ReverseReconciliationLinkInput,
   ReverseSupplierAllocationInput,
@@ -4721,6 +4735,852 @@ export const useLinkReconciliationLine = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getLinkReconciliationLineMutationOptions(options));
+    }
+
+export const getListBankReconciliationsUrl = (params?: ListBankReconciliationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/bank-reconciliations?${stringifiedParams}` : `/api/bank-reconciliations`
+}
+
+/**
+ * @summary Phase 12D: completed bank reconciliations, newest first, each with its reopening if any
+ */
+export const listBankReconciliations = async (params?: ListBankReconciliationsParams, options?: RequestInit): Promise<ListBankReconciliations200> => {
+
+  return customFetch<ListBankReconciliations200>(getListBankReconciliationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBankReconciliationsQueryKey = (params?: ListBankReconciliationsParams,) => {
+    return [
+    `/api/bank-reconciliations`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListBankReconciliationsQueryOptions = <TData = Awaited<ReturnType<typeof listBankReconciliations>>, TError = ErrorType<unknown>>(params?: ListBankReconciliationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBankReconciliations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBankReconciliationsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBankReconciliations>>> = ({ signal }) => listBankReconciliations(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBankReconciliations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBankReconciliationsQueryResult = NonNullable<Awaited<ReturnType<typeof listBankReconciliations>>>
+export type ListBankReconciliationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 12D: completed bank reconciliations, newest first, each with its reopening if any
+ */
+
+export function useListBankReconciliations<TData = Awaited<ReturnType<typeof listBankReconciliations>>, TError = ErrorType<unknown>>(
+ params?: ListBankReconciliationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBankReconciliations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBankReconciliationsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCompleteBankReconciliationUrl = () => {
+
+
+
+
+  return `/api/bank-reconciliations`
+}
+
+/**
+ * @summary Phase 12D: record a reconciliation as of a date — ONLY at a zero difference (no plug), only after the bank's last one. It locks what it relied on.
+ */
+export const completeBankReconciliation = async (completeBankReconciliationInput: CompleteBankReconciliationInput, options?: RequestInit): Promise<BankReconciliationRecord> => {
+
+  return customFetch<BankReconciliationRecord>(getCompleteBankReconciliationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(completeBankReconciliationInput)
+  }
+);}
+
+
+
+
+
+export const getCompleteBankReconciliationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeBankReconciliation>>, TError,{data: BodyType<CompleteBankReconciliationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeBankReconciliation>>, TError,{data: BodyType<CompleteBankReconciliationInput>}, TContext> => {
+
+const mutationKey = ['completeBankReconciliation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeBankReconciliation>>, {data: BodyType<CompleteBankReconciliationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  completeBankReconciliation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteBankReconciliationMutationResult = NonNullable<Awaited<ReturnType<typeof completeBankReconciliation>>>
+    export type CompleteBankReconciliationMutationBody = BodyType<CompleteBankReconciliationInput>
+    export type CompleteBankReconciliationMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase 12D: record a reconciliation as of a date — ONLY at a zero difference (no plug), only after the bank's last one. It locks what it relied on.
+ */
+export const useCompleteBankReconciliation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeBankReconciliation>>, TError,{data: BodyType<CompleteBankReconciliationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeBankReconciliation>>,
+        TError,
+        {data: BodyType<CompleteBankReconciliationInput>},
+        TContext
+      > => {
+      return useMutation(getCompleteBankReconciliationMutationOptions(options));
+    }
+
+export const getGetBankReconciliationPositionUrl = (params: GetBankReconciliationPositionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/bank-reconciliations/position?${stringifiedParams}` : `/api/bank-reconciliations/position`
+}
+
+/**
+ * @summary Phase 12D: the reconciliation's terms for a bank as of a date — ledger balance, ledger-only and statement-only items, and the difference. Pure read.
+ */
+export const getBankReconciliationPosition = async (params: GetBankReconciliationPositionParams, options?: RequestInit): Promise<BankReconciliationPosition> => {
+
+  return customFetch<BankReconciliationPosition>(getGetBankReconciliationPositionUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBankReconciliationPositionQueryKey = (params?: GetBankReconciliationPositionParams,) => {
+    return [
+    `/api/bank-reconciliations/position`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetBankReconciliationPositionQueryOptions = <TData = Awaited<ReturnType<typeof getBankReconciliationPosition>>, TError = ErrorType<unknown>>(params: GetBankReconciliationPositionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBankReconciliationPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBankReconciliationPositionQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBankReconciliationPosition>>> = ({ signal }) => getBankReconciliationPosition(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBankReconciliationPosition>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBankReconciliationPositionQueryResult = NonNullable<Awaited<ReturnType<typeof getBankReconciliationPosition>>>
+export type GetBankReconciliationPositionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 12D: the reconciliation's terms for a bank as of a date — ledger balance, ledger-only and statement-only items, and the difference. Pure read.
+ */
+
+export function useGetBankReconciliationPosition<TData = Awaited<ReturnType<typeof getBankReconciliationPosition>>, TError = ErrorType<unknown>>(
+ params: GetBankReconciliationPositionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBankReconciliationPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBankReconciliationPositionQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetBankingExceptionsUrl = () => {
+
+
+
+
+  return `/api/bank-reconciliations/exceptions`
+}
+
+/**
+ * @summary Phase 12D: what needs a person — continuity breaks, stale and partial statement lines, Transfer clearing that does not net, transfers missing legs, ledger cash lines no statement answers (capped lists carry their true totals)
+ */
+export const getBankingExceptions = async ( options?: RequestInit): Promise<BankingExceptions> => {
+
+  return customFetch<BankingExceptions>(getGetBankingExceptionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBankingExceptionsQueryKey = () => {
+    return [
+    `/api/bank-reconciliations/exceptions`
+    ] as const;
+    }
+
+
+export const getGetBankingExceptionsQueryOptions = <TData = Awaited<ReturnType<typeof getBankingExceptions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBankingExceptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBankingExceptionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBankingExceptions>>> = ({ signal }) => getBankingExceptions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBankingExceptions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBankingExceptionsQueryResult = NonNullable<Awaited<ReturnType<typeof getBankingExceptions>>>
+export type GetBankingExceptionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 12D: what needs a person — continuity breaks, stale and partial statement lines, Transfer clearing that does not net, transfers missing legs, ledger cash lines no statement answers (capped lists carry their true totals)
+ */
+
+export function useGetBankingExceptions<TData = Awaited<ReturnType<typeof getBankingExceptions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBankingExceptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBankingExceptionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetBankReconciliationUrl = (id: number,) => {
+
+
+
+
+  return `/api/bank-reconciliations/${id}`
+}
+
+/**
+ * @summary Phase 12D: one completed reconciliation with its snapshot
+ */
+export const getBankReconciliation = async (id: number, options?: RequestInit): Promise<BankReconciliationRecord> => {
+
+  return customFetch<BankReconciliationRecord>(getGetBankReconciliationUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBankReconciliationQueryKey = (id: number,) => {
+    return [
+    `/api/bank-reconciliations/${id}`
+    ] as const;
+    }
+
+
+export const getGetBankReconciliationQueryOptions = <TData = Awaited<ReturnType<typeof getBankReconciliation>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBankReconciliation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBankReconciliationQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBankReconciliation>>> = ({ signal }) => getBankReconciliation(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBankReconciliation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBankReconciliationQueryResult = NonNullable<Awaited<ReturnType<typeof getBankReconciliation>>>
+export type GetBankReconciliationQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 12D: one completed reconciliation with its snapshot
+ */
+
+export function useGetBankReconciliation<TData = Awaited<ReturnType<typeof getBankReconciliation>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBankReconciliation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBankReconciliationQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReopenBankReconciliationUrl = (id: number,) => {
+
+
+
+
+  return `/api/bank-reconciliations/${id}/reopen`
+}
+
+/**
+ * @summary Phase 12D: reopen the bank's LATEST reconciliation — a superseding record with a reason; the lock moves back to the one before
+ */
+export const reopenBankReconciliation = async (id: number,
+    reopenBankReconciliationInput: ReopenBankReconciliationInput, options?: RequestInit): Promise<BankReconciliationRecord> => {
+
+  return customFetch<BankReconciliationRecord>(getReopenBankReconciliationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reopenBankReconciliationInput)
+  }
+);}
+
+
+
+
+
+export const getReopenBankReconciliationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenBankReconciliation>>, TError,{id: number;data: BodyType<ReopenBankReconciliationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenBankReconciliation>>, TError,{id: number;data: BodyType<ReopenBankReconciliationInput>}, TContext> => {
+
+const mutationKey = ['reopenBankReconciliation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenBankReconciliation>>, {id: number;data: BodyType<ReopenBankReconciliationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reopenBankReconciliation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenBankReconciliationMutationResult = NonNullable<Awaited<ReturnType<typeof reopenBankReconciliation>>>
+    export type ReopenBankReconciliationMutationBody = BodyType<ReopenBankReconciliationInput>
+    export type ReopenBankReconciliationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 12D: reopen the bank's LATEST reconciliation — a superseding record with a reason; the lock moves back to the one before
+ */
+export const useReopenBankReconciliation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenBankReconciliation>>, TError,{id: number;data: BodyType<ReopenBankReconciliationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reopenBankReconciliation>>,
+        TError,
+        {id: number;data: BodyType<ReopenBankReconciliationInput>},
+        TContext
+      > => {
+      return useMutation(getReopenBankReconciliationMutationOptions(options));
+    }
+
+export const getGetCashPositionUrl = () => {
+
+
+
+
+  return `/api/cash-position`
+}
+
+/**
+ * @summary Phase 12D: per bank — the ledger balance (the one definition), the latest statement's closing balance beside the ledger at its date, what is unreconciled, and how far the bank is reconciled
+ */
+export const getCashPosition = async ( options?: RequestInit): Promise<CashPosition> => {
+
+  return customFetch<CashPosition>(getGetCashPositionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCashPositionQueryKey = () => {
+    return [
+    `/api/cash-position`
+    ] as const;
+    }
+
+
+export const getGetCashPositionQueryOptions = <TData = Awaited<ReturnType<typeof getCashPosition>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCashPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCashPositionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCashPosition>>> = ({ signal }) => getCashPosition({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCashPosition>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCashPositionQueryResult = NonNullable<Awaited<ReturnType<typeof getCashPosition>>>
+export type GetCashPositionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 12D: per bank — the ledger balance (the one definition), the latest statement's closing balance beside the ledger at its date, what is unreconciled, and how far the bank is reconciled
+ */
+
+export function useGetCashPosition<TData = Awaited<ReturnType<typeof getCashPosition>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCashPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCashPositionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListBankTransfersUrl = (params?: ListBankTransfersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/bank-transfers?${stringifiedParams}` : `/api/bank-transfers`
+}
+
+/**
+ * @summary Phase 12C: transfers between the business's own banks, newest first (reversed ones included, marked)
+ */
+export const listBankTransfers = async (params?: ListBankTransfersParams, options?: RequestInit): Promise<ListBankTransfers200> => {
+
+  return customFetch<ListBankTransfers200>(getListBankTransfersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBankTransfersQueryKey = (params?: ListBankTransfersParams,) => {
+    return [
+    `/api/bank-transfers`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListBankTransfersQueryOptions = <TData = Awaited<ReturnType<typeof listBankTransfers>>, TError = ErrorType<unknown>>(params?: ListBankTransfersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBankTransfers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBankTransfersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBankTransfers>>> = ({ signal }) => listBankTransfers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBankTransfers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBankTransfersQueryResult = NonNullable<Awaited<ReturnType<typeof listBankTransfers>>>
+export type ListBankTransfersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 12C: transfers between the business's own banks, newest first (reversed ones included, marked)
+ */
+
+export function useListBankTransfers<TData = Awaited<ReturnType<typeof listBankTransfers>>, TError = ErrorType<unknown>>(
+ params?: ListBankTransfersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBankTransfers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBankTransfersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateBankTransferUrl = () => {
+
+
+
+
+  return `/api/bank-transfers`
+}
+
+/**
+ * @summary Phase 12C: record a transfer — ONE entry, Dr the destination bank / Cr the source bank. Its statement legs are reconciled to it, never accepted to post.
+ */
+export const createBankTransfer = async (bankTransferInput: BankTransferInput, options?: RequestInit): Promise<BankTransfer> => {
+
+  return customFetch<BankTransfer>(getCreateBankTransferUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bankTransferInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBankTransferMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBankTransfer>>, TError,{data: BodyType<BankTransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBankTransfer>>, TError,{data: BodyType<BankTransferInput>}, TContext> => {
+
+const mutationKey = ['createBankTransfer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBankTransfer>>, {data: BodyType<BankTransferInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBankTransfer(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBankTransferMutationResult = NonNullable<Awaited<ReturnType<typeof createBankTransfer>>>
+    export type CreateBankTransferMutationBody = BodyType<BankTransferInput>
+    export type CreateBankTransferMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase 12C: record a transfer — ONE entry, Dr the destination bank / Cr the source bank. Its statement legs are reconciled to it, never accepted to post.
+ */
+export const useCreateBankTransfer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBankTransfer>>, TError,{data: BodyType<BankTransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBankTransfer>>,
+        TError,
+        {data: BodyType<BankTransferInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBankTransferMutationOptions(options));
+    }
+
+export const getGetBankTransferUrl = (id: number,) => {
+
+
+
+
+  return `/api/bank-transfers/${id}`
+}
+
+/**
+ * @summary Phase 12C: one transfer, with its entry and reversal
+ */
+export const getBankTransfer = async (id: number, options?: RequestInit): Promise<BankTransfer> => {
+
+  return customFetch<BankTransfer>(getGetBankTransferUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBankTransferQueryKey = (id: number,) => {
+    return [
+    `/api/bank-transfers/${id}`
+    ] as const;
+    }
+
+
+export const getGetBankTransferQueryOptions = <TData = Awaited<ReturnType<typeof getBankTransfer>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBankTransfer>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBankTransferQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBankTransfer>>> = ({ signal }) => getBankTransfer(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBankTransfer>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBankTransferQueryResult = NonNullable<Awaited<ReturnType<typeof getBankTransfer>>>
+export type GetBankTransferQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 12C: one transfer, with its entry and reversal
+ */
+
+export function useGetBankTransfer<TData = Awaited<ReturnType<typeof getBankTransfer>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBankTransfer>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBankTransferQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReverseBankTransferUrl = (id: number,) => {
+
+
+
+
+  return `/api/bank-transfers/${id}/reverse`
+}
+
+/**
+ * @summary Phase 12C: reverse a transfer — a mirror entry in an OPEN period and a superseding record with the reason. Refused while a statement line is reconciled to it.
+ */
+export const reverseBankTransfer = async (id: number,
+    reverseBankTransferInput: ReverseBankTransferInput, options?: RequestInit): Promise<BankTransfer> => {
+
+  return customFetch<BankTransfer>(getReverseBankTransferUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reverseBankTransferInput)
+  }
+);}
+
+
+
+
+
+export const getReverseBankTransferMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseBankTransfer>>, TError,{id: number;data: BodyType<ReverseBankTransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reverseBankTransfer>>, TError,{id: number;data: BodyType<ReverseBankTransferInput>}, TContext> => {
+
+const mutationKey = ['reverseBankTransfer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reverseBankTransfer>>, {id: number;data: BodyType<ReverseBankTransferInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reverseBankTransfer(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReverseBankTransferMutationResult = NonNullable<Awaited<ReturnType<typeof reverseBankTransfer>>>
+    export type ReverseBankTransferMutationBody = BodyType<ReverseBankTransferInput>
+    export type ReverseBankTransferMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 12C: reverse a transfer — a mirror entry in an OPEN period and a superseding record with the reason. Refused while a statement line is reconciled to it.
+ */
+export const useReverseBankTransfer = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseBankTransfer>>, TError,{id: number;data: BodyType<ReverseBankTransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reverseBankTransfer>>,
+        TError,
+        {id: number;data: BodyType<ReverseBankTransferInput>},
+        TContext
+      > => {
+      return useMutation(getReverseBankTransferMutationOptions(options));
     }
 
 export const getReverseReconciliationLinkUrl = (id: number,) => {

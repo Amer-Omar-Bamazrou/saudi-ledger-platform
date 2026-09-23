@@ -2288,6 +2288,410 @@ export const LinkReconciliationLineResponse = zod.object({
 
 
 /**
+ * @summary Phase 12D: completed bank reconciliations, newest first, each with its reopening if any
+ */
+export const ListBankReconciliationsQueryParams = zod.object({
+  "bankAccountId": zod.coerce.number().optional()
+})
+
+export const ListBankReconciliationsResponse = zod.object({
+  "reconciliations": zod.array(zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "asOf": zod.string(),
+  "bankStatementId": zod.number().nullable(),
+  "statementBalance": zod.number(),
+  "ledgerBalance": zod.number(),
+  "ledgerOnlyTotal": zod.number(),
+  "statementOnlyTotal": zod.number(),
+  "difference": zod.number(),
+  "snapshot": zod.record(zod.string(), zod.unknown()),
+  "notes": zod.string().nullable(),
+  "completedBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reopening": zod.object({
+  "reason": zod.string(),
+  "reopenedAt": zod.string()
+}).nullable()
+}))
+})
+
+
+/**
+ * @summary Phase 12D: record a reconciliation as of a date — ONLY at a zero difference (no plug), only after the bank's last one. It locks what it relied on.
+ */
+export const CompleteBankReconciliationBody = zod.object({
+  "bankAccountId": zod.number(),
+  "asOf": zod.string().nullish().describe('YYYY-MM-DD; the statement\'s closing date when a statement is named'),
+  "statementBalance": zod.number().nullish().describe('The bank\'s closing balance at the date (or name a statement that states one)'),
+  "bankStatementId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CompleteBankReconciliationResponse = zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "asOf": zod.string(),
+  "bankStatementId": zod.number().nullable(),
+  "statementBalance": zod.number(),
+  "ledgerBalance": zod.number(),
+  "ledgerOnlyTotal": zod.number(),
+  "statementOnlyTotal": zod.number(),
+  "difference": zod.number(),
+  "snapshot": zod.record(zod.string(), zod.unknown()),
+  "notes": zod.string().nullable(),
+  "completedBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reopening": zod.object({
+  "reason": zod.string(),
+  "reopenedAt": zod.string()
+}).nullable()
+})
+
+
+/**
+ * @summary Phase 12D: the reconciliation's terms for a bank as of a date — ledger balance, ledger-only and statement-only items, and the difference. Pure read.
+ */
+export const GetBankReconciliationPositionQueryParams = zod.object({
+  "bankAccountId": zod.coerce.number(),
+  "asOf": zod.coerce.string().optional(),
+  "statementBalance": zod.coerce.number().optional(),
+  "bankStatementId": zod.coerce.number().optional()
+})
+
+export const GetBankReconciliationPositionResponse = zod.object({
+  "bankAccountId": zod.number(),
+  "asOf": zod.string(),
+  "bankStatementId": zod.number().nullable(),
+  "statementBalance": zod.number().nullable(),
+  "ledgerBalance": zod.number(),
+  "ledgerOnlyTotal": zod.number(),
+  "statementOnlyTotal": zod.number(),
+  "expectedStatement": zod.number().describe('ledgerBalance − ledgerOnlyTotal + statementOnlyTotal'),
+  "difference": zod.number().nullable().describe('statementBalance − expectedStatement; NULL when no statement balance was given (never a zero that reads as balanced)'),
+  "balanced": zod.boolean(),
+  "reconciledThrough": zod.string().nullable(),
+  "ledgerOnly": zod.array(zod.object({
+  "journalLineId": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string().nullable(),
+  "direction": zod.enum(['in', 'out']),
+  "lineAmount": zod.number(),
+  "outstanding": zod.number().describe('The part no statement line dated on or before the date answers.'),
+  "signedOutstanding": zod.number()
+})),
+  "statementOnly": zod.array(zod.object({
+  "transactionId": zod.number(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "direction": zod.enum(['in', 'out']),
+  "lineAmount": zod.number(),
+  "outstanding": zod.number().describe('The part no ledger cash line dated on or before the date answers.'),
+  "signedOutstanding": zod.number(),
+  "reviewStatus": zod.string(),
+  "kind": zod.string()
+}))
+})
+
+
+/**
+ * @summary Phase 12D: what needs a person — continuity breaks, stale and partial statement lines, Transfer clearing that does not net, transfers missing legs, ledger cash lines no statement answers (capped lists carry their true totals)
+ */
+export const GetBankingExceptionsResponse = zod.object({
+  "asOf": zod.string(),
+  "staleAfterDays": zod.number(),
+  "cap": zod.number(),
+  "continuity": zod.array(zod.object({
+  "statementId": zod.number(),
+  "bankAccountId": zod.number(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "continuity": zod.string(),
+  "detail": zod.string().nullable()
+})),
+  "lines": zod.object({
+  "total": zod.number(),
+  "items": zod.array(zod.object({
+  "transactionId": zod.number(),
+  "bankAccountId": zod.number(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "direction": zod.enum(['in', 'out']),
+  "amount": zod.number(),
+  "reconciled": zod.number(),
+  "kind": zod.enum(['stale', 'partial'])
+}))
+}),
+  "transferClearing": zod.object({
+  "balance": zod.number(),
+  "lines": zod.number(),
+  "nets": zod.boolean()
+}),
+  "transfersMissingLegs": zod.array(zod.object({
+  "transferId": zod.number(),
+  "transferDate": zod.string(),
+  "amount": zod.number(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "reconciledLegs": zod.number()
+})),
+  "ledgerLines": zod.object({
+  "total": zod.number(),
+  "items": zod.array(zod.object({
+  "journalLineId": zod.number(),
+  "journalEntryId": zod.number(),
+  "bankAccountId": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "amount": zod.number(),
+  "outstanding": zod.number()
+}))
+})
+})
+
+
+/**
+ * @summary Phase 12D: one completed reconciliation with its snapshot
+ */
+export const GetBankReconciliationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetBankReconciliationResponse = zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "asOf": zod.string(),
+  "bankStatementId": zod.number().nullable(),
+  "statementBalance": zod.number(),
+  "ledgerBalance": zod.number(),
+  "ledgerOnlyTotal": zod.number(),
+  "statementOnlyTotal": zod.number(),
+  "difference": zod.number(),
+  "snapshot": zod.record(zod.string(), zod.unknown()),
+  "notes": zod.string().nullable(),
+  "completedBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reopening": zod.object({
+  "reason": zod.string(),
+  "reopenedAt": zod.string()
+}).nullable()
+})
+
+
+/**
+ * @summary Phase 12D: reopen the bank's LATEST reconciliation — a superseding record with a reason; the lock moves back to the one before
+ */
+export const ReopenBankReconciliationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReopenBankReconciliationBody = zod.object({
+  "reason": zod.string()
+})
+
+export const ReopenBankReconciliationResponse = zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "asOf": zod.string(),
+  "bankStatementId": zod.number().nullable(),
+  "statementBalance": zod.number(),
+  "ledgerBalance": zod.number(),
+  "ledgerOnlyTotal": zod.number(),
+  "statementOnlyTotal": zod.number(),
+  "difference": zod.number(),
+  "snapshot": zod.record(zod.string(), zod.unknown()),
+  "notes": zod.string().nullable(),
+  "completedBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "reopening": zod.object({
+  "reason": zod.string(),
+  "reopenedAt": zod.string()
+}).nullable()
+})
+
+
+/**
+ * @summary Phase 12D: per bank — the ledger balance (the one definition), the latest statement's closing balance beside the ledger at its date, what is unreconciled, and how far the bank is reconciled
+ */
+export const GetCashPositionResponse = zod.object({
+  "asOf": zod.string(),
+  "banks": zod.array(zod.object({
+  "bankAccountId": zod.number(),
+  "name": zod.string(),
+  "bankName": zod.string(),
+  "currency": zod.string(),
+  "isActive": zod.boolean(),
+  "ledgerBalance": zod.number(),
+  "latestStatement": zod.object({
+  "id": zod.number(),
+  "periodTo": zod.string(),
+  "closingBalance": zod.number(),
+  "ledgerAtThatDate": zod.number(),
+  "grossDifference": zod.number().describe('Statement minus ledger at the statement\'s date, BEFORE reconciling items')
+}).nullable(),
+  "unreconciledLines": zod.number(),
+  "partialLines": zod.number(),
+  "outstandingIn": zod.number(),
+  "outstandingOut": zod.number(),
+  "reconciledThrough": zod.string().nullable()
+})),
+  "totalLedgerBalance": zod.number().describe('Active SAR banks only')
+})
+
+
+/**
+ * @summary Phase 12C: transfers between the business's own banks, newest first (reversed ones included, marked)
+ */
+export const listBankTransfersQueryLimitMax = 200;
+
+export const listBankTransfersQueryOffsetMin = 0;
+
+
+
+export const ListBankTransfersQueryParams = zod.object({
+  "bankAccountId": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().min(1).max(listBankTransfersQueryLimitMax).optional(),
+  "offset": zod.coerce.number().min(listBankTransfersQueryOffsetMin).optional()
+})
+
+export const ListBankTransfersResponse = zod.object({
+  "transfers": zod.array(zod.object({
+  "id": zod.number(),
+  "fromBankAccountId": zod.number(),
+  "fromBankName": zod.string(),
+  "toBankAccountId": zod.number(),
+  "toBankName": zod.string(),
+  "amount": zod.number(),
+  "transferDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "memo": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "duplicateConfirmationReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "reconciledLines": zod.number().describe('How many of its two cash lines a statement line is reconciled to (0, 1 or 2).'),
+  "reversal": zod.object({
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number(),
+  "reversedAt": zod.string()
+}).nullable()
+})),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number()
+})
+
+
+/**
+ * @summary Phase 12C: record a transfer — ONE entry, Dr the destination bank / Cr the source bank. Its statement legs are reconciled to it, never accepted to post.
+ */
+export const CreateBankTransferBody = zod.object({
+  "fromBankAccountId": zod.number().describe('The bank the money left.'),
+  "toBankAccountId": zod.number().describe('The bank the money arrived in — a different one.'),
+  "amount": zod.number().describe('Positive; rounded to the halala.'),
+  "transferDate": zod.string().optional().describe('YYYY-MM-DD; today (Asia\/Riyadh) when omitted. Must be in an open period.'),
+  "reference": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "confirmDuplicate": zod.boolean().optional().describe('Record it although it looks like a transfer already in the books.'),
+  "duplicateConfirmationReason": zod.string().nullish().describe('Required with confirmDuplicate: why this is a different movement. Kept on the transfer.'),
+  "idempotencyKey": zod.string().nullish()
+})
+
+export const CreateBankTransferResponse = zod.object({
+  "id": zod.number(),
+  "fromBankAccountId": zod.number(),
+  "fromBankName": zod.string(),
+  "toBankAccountId": zod.number(),
+  "toBankName": zod.string(),
+  "amount": zod.number(),
+  "transferDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "memo": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "duplicateConfirmationReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "reconciledLines": zod.number().describe('How many of its two cash lines a statement line is reconciled to (0, 1 or 2).'),
+  "reversal": zod.object({
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number(),
+  "reversedAt": zod.string()
+}).nullable()
+})
+
+
+/**
+ * @summary Phase 12C: one transfer, with its entry and reversal
+ */
+export const GetBankTransferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetBankTransferResponse = zod.object({
+  "id": zod.number(),
+  "fromBankAccountId": zod.number(),
+  "fromBankName": zod.string(),
+  "toBankAccountId": zod.number(),
+  "toBankName": zod.string(),
+  "amount": zod.number(),
+  "transferDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "memo": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "duplicateConfirmationReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "reconciledLines": zod.number().describe('How many of its two cash lines a statement line is reconciled to (0, 1 or 2).'),
+  "reversal": zod.object({
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number(),
+  "reversedAt": zod.string()
+}).nullable()
+})
+
+
+/**
+ * @summary Phase 12C: reverse a transfer — a mirror entry in an OPEN period and a superseding record with the reason. Refused while a statement line is reconciled to it.
+ */
+export const ReverseBankTransferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReverseBankTransferBody = zod.object({
+  "reason": zod.string().describe('Why the transfer is reversed — kept on the superseding record and the mirror entry.'),
+  "date": zod.string().nullish().describe('YYYY-MM-DD the mirror posts on; today when omitted. Must be in an open period.')
+})
+
+export const ReverseBankTransferResponse = zod.object({
+  "id": zod.number(),
+  "fromBankAccountId": zod.number(),
+  "fromBankName": zod.string(),
+  "toBankAccountId": zod.number(),
+  "toBankName": zod.string(),
+  "amount": zod.number(),
+  "transferDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "memo": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "duplicateConfirmationReason": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "reconciledLines": zod.number().describe('How many of its two cash lines a statement line is reconciled to (0, 1 or 2).'),
+  "reversal": zod.object({
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number(),
+  "reversedAt": zod.string()
+}).nullable()
+})
+
+
+/**
  * @summary Phase 12B: undo a reconciliation link with a superseding record (reason required). The link row stays.
  */
 export const ReverseReconciliationLinkParams = zod.object({

@@ -446,3 +446,31 @@ owes.
 Not built, with reasons: A5–A8; migrated supplier advances; statement-line
 matching for supplier payments; approval limits; Z-AP1 (accountant).
 Decision record: [`phase-11-deep-accounting-ap-decision-pack.md`](../product/phase-11-deep-accounting-ap-decision-pack.md).
+
+## PHASE 12 — ADVANCED BANKING & RECONCILIATION (2026-09-23)
+
+**Audit first**: a statement line Phase D had matched to a receipt stayed
+`pending_review` and could be accepted, posting the same money twice — fixed
+before anything new (lines another record answers become `kind = 'matched'`,
+post nothing, and acceptance refuses them).
+
+**12A** statements as records: `bank_statements` with period, stated
+balances, file SHA-256 and totals; whole-or-nothing import; re-import refused;
+continuity per bank; the All Statements register. **12B** the reconciliation
+workbench over ONE definition (`bank_line_reconciliation`): links to any
+ledger cash line, partial and multi-document, append-only with superseding
+reversals, caps enforced by triggers; supplier payments, refunds and bill
+payments reconciled by reference (Phase D's policy) or by hand. **12C**
+transfers between own banks as ONE document and ONE entry, legs reconciled,
+never accepted; possible duplicates refused unless confirmed with a reason;
+reversal through the transfer only. **12D** reconciliation as of a date —
+completed only at a zero difference, snapshotted, locking the bank through
+its date until reopened with a reason; the cash position per bank; the
+banking exceptions; the Bank Accounts headline moved from the typed balance
+to the ledger. **12E** the cross-module audit, with an independent review:
+seven findings fixed, two left open and named. Migrations 0099–0102.
+
+Not built, with reasons: live bank feeds (A2, needs the entity); transfer
+reports by account/direction/period; the document-owned-entry guard for
+invoices, bills and payments (open, CLAUDE.md §5); Z-AP1 (accountant).
+Decision record: [`phase-12-banking-reconciliation-decision-pack.md`](../product/phase-12-banking-reconciliation-decision-pack.md).

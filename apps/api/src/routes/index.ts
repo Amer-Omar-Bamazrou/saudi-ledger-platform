@@ -28,6 +28,9 @@ import supplierStatements from "./supplierStatements.js";
 import supplierCreditNotes from "./supplierCreditNotes.js";
 import bankStatements from "./bankStatements.js";
 import bankReconciliation from "./bankReconciliation.js";
+import bankTransfers from "./bankTransfers.js";
+import bankReconciliations from "./bankReconciliations.js";
+import cashPosition from "./cashPosition.js";
 import migration from "./migration.js";
 import quotations from "./quotations.js";
 import purchaseOrders from "./purchaseOrders.js";
@@ -109,6 +112,10 @@ router.use("/transactions", requirePermission("transactions"), transactions);
 router.use("/bank-statements", requirePermission("transactions"), bankStatements);
 // Phase 12B: reconciling statement lines is the review of those lines — the same authority.
 router.use("/bank-reconciliation", requirePermission("transactions"), bankReconciliation);
+router.use("/bank-transfers", requirePermission("transactions"), bankTransfers);
+// Phase 12D: a reconciliation as of a date is the same authority as the workbench; the cash position is a report.
+router.use("/bank-reconciliations", requirePermission("transactions"), bankReconciliations);
+router.use("/cash-position", requirePermission("reports"), cashPosition);
 router.use("/categories", requirePermission("categories"), categories);
 router.use("/summary", requirePermission("summary"), summary);
 router.use("/customers", requirePermission("customers"), customers);

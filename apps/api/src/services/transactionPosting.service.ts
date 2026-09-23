@@ -212,7 +212,7 @@ export const transactionPostingService = {
     if (!row) return null;
 
     if (row.tx.journalEntryId != null) {
-      await journalEntriesService.reverse(row.tx.journalEntryId);
+      await journalEntriesService.reverse(row.tx.journalEntryId, {}, { document: "statement_line" });
       await db.update(transactionsTable).set({ journalEntryId: null }).where(eq(transactionsTable.id, txId));
     }
     // Re-read through `post`, which re-checks `shouldPost` — an edit that made

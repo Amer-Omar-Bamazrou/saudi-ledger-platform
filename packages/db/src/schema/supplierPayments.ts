@@ -108,6 +108,8 @@ export const supplierPaymentsTable = pgTable(
   (t) => [
     index("supplier_payments_vendor_idx").on(t.vendorId),
     index("supplier_payments_company_idx").on(t.companyId, t.paidAt),
+    // Phase 12: the reconciliation reads name a cash line's document by its entry.
+    index("supplier_payments_entry_idx").on(t.journalEntryId),
     uniqueIndex("supplier_payments_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
     check("supplier_payments_amount_positive_chk", sql`amount > 0`),
     check("supplier_payments_classification_chk", sql`classification IN ('advance', 'security_deposit', 'erroneous', 'unknown')`),
@@ -232,6 +234,8 @@ export const supplierRefundsTable = pgTable(
   },
   (t) => [
     index("supplier_refunds_payment_idx").on(t.supplierPaymentId),
+    // Phase 12: the reconciliation reads name a cash line's document by its entry.
+    index("supplier_refunds_entry_idx").on(t.journalEntryId),
     check("supplier_refunds_amount_positive_chk", sql`amount > 0`),
   ],
 );

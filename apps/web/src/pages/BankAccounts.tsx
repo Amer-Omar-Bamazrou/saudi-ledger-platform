@@ -42,7 +42,11 @@ export default function BankAccounts() {
   });
   const invoiceAccount = accounts.find(a => a.isDefault);
 
-  const totalBalance = accounts.filter(a => a.isActive && a.currency === "SAR").reduce((s, a) => s + a.balance, 0);
+  // 🔴 Phase 12D: the total is the LEDGER's — the one definition every report
+  // uses — never the typed `balance`, which no posting ever updates. An account
+  // whose ledger figure is missing makes the total NOT KNOWN, not a smaller sum.
+  const activeSar = accounts.filter(a => a.isActive && a.currency === "SAR");
+  const totalBalance = activeSar.some(a => a.ledgerBalance == null) ? null : activeSar.reduce((s, a) => s + (a.ledgerBalance ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -87,7 +91,7 @@ export default function BankAccounts() {
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Cash (SAR)", "إجمالي النقد (ر.س)")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-positive">{fmtNum(totalBalance)}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Cash (SAR)", "إجمالي النقد (ر.س)")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono" data-testid="total-ledger-balance">{totalBalance == null ? "—" : fmtNum(totalBalance)}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Accounts", "الحسابات")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-primary">{accounts.length}</div></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Banks", "البنوك")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-foreground">{new Set(accounts.map(a=>a.bankName)).size}</div></CardContent></Card>
       </div>
@@ -112,12 +116,16 @@ export default function BankAccounts() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl sm:text-3xl font-bold font-mono ${acc.balance >= 0 ? "text-positive" : "text-negative"}`}>{fmtNum(acc.balance)}</div>
-                {/* D-3: what the BOOKS say for this account — its own GL cash account
-                    (created with the bank account, renamed with it). The figure above is
-                    the typed balance; this one is Σ of the ledger lines posted to it. */}
-                <div className="text-xs text-muted-foreground mt-1" data-testid="ledger-balance">
-                  <div>{t("Ledger balance", "الرصيد الدفتري")}: <span className="font-mono whitespace-nowrap">{acc.ledgerBalance != null ? fmtNum(acc.ledgerBalance) : "—"}</span></div>
+                {/* 🔴 Phase 12D: the headline is what the BOOKS say for this account — Σ of
+                    the ledger lines on its own GL cash account (D-3), the same figure as the
+                    cash position and every report. The typed balance is shown below it for
+                    what it is: a number entered by hand, which no posting updates. */}
+                <div data-testid="ledger-balance">
+                  <div className="text-xs text-muted-foreground">{t("Ledger balance", "الرصيد الدفتري")}</div>
+                  <div className={`text-2xl sm:text-3xl font-bold font-mono ${(acc.ledgerBalance ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{acc.ledgerBalance != null ? fmtNum(acc.ledgerBalance) : "—"}</div>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  <div data-testid="typed-balance">{t("Balance as typed (not updated by postings)", "الرصيد كما أُدخل (لا تحدّثه القيود)")}: <span className="font-mono whitespace-nowrap">{fmtNum(acc.balance)}</span></div>
                   {acc.glAccountName ? <div className="truncate">{t("GL account", "حساب الأستاذ")}: {acc.glAccountName}</div> : null}
                   {/* Annotation model: history posted before per-bank accounts stays on
                       "Cash and Bank" and is attributed to this bank — shown, not folded away,

@@ -1637,6 +1637,268 @@ export type ReconciliationLineDetail = ReconciliationLine & {
   candidates: ReconciliationCandidate[];
 };
 
+export type ReconciliationLedgerItemDirection = typeof ReconciliationLedgerItemDirection[keyof typeof ReconciliationLedgerItemDirection];
+
+
+export const ReconciliationLedgerItemDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export interface ReconciliationLedgerItem {
+  journalLineId: number;
+  journalEntryId: number;
+  entryNumber: string;
+  date: string;
+  description: string | null;
+  direction: ReconciliationLedgerItemDirection;
+  lineAmount: number;
+  /** The part no statement line dated on or before the date answers. */
+  outstanding: number;
+  signedOutstanding: number;
+}
+
+export type ReconciliationStatementItemDirection = typeof ReconciliationStatementItemDirection[keyof typeof ReconciliationStatementItemDirection];
+
+
+export const ReconciliationStatementItemDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export interface ReconciliationStatementItem {
+  transactionId: number;
+  date: string;
+  description: string;
+  direction: ReconciliationStatementItemDirection;
+  lineAmount: number;
+  /** The part no ledger cash line dated on or before the date answers. */
+  outstanding: number;
+  signedOutstanding: number;
+  reviewStatus: string;
+  kind: string;
+}
+
+export interface BankReconciliationPosition {
+  bankAccountId: number;
+  asOf: string;
+  bankStatementId: number | null;
+  statementBalance: number | null;
+  ledgerBalance: number;
+  ledgerOnlyTotal: number;
+  statementOnlyTotal: number;
+  /** ledgerBalance − ledgerOnlyTotal + statementOnlyTotal */
+  expectedStatement: number;
+  /** statementBalance − expectedStatement; NULL when no statement balance was given (never a zero that reads as balanced) */
+  difference: number | null;
+  balanced: boolean;
+  reconciledThrough: string | null;
+  ledgerOnly: ReconciliationLedgerItem[];
+  statementOnly: ReconciliationStatementItem[];
+}
+
+export interface CompleteBankReconciliationInput {
+  bankAccountId: number;
+  /** YYYY-MM-DD; the statement's closing date when a statement is named */
+  asOf?: string | null;
+  /** The bank's closing balance at the date (or name a statement that states one) */
+  statementBalance?: number | null;
+  bankStatementId?: number | null;
+  notes?: string | null;
+}
+
+export interface ReopenBankReconciliationInput {
+  reason: string;
+}
+
+export type BankReconciliationRecordSnapshot = { [key: string]: unknown };
+
+export type BankReconciliationRecordReopening = {
+  reason: string;
+  reopenedAt: string;
+} | null;
+
+export interface BankReconciliationRecord {
+  id: number;
+  bankAccountId: number;
+  bankName: string;
+  asOf: string;
+  bankStatementId: number | null;
+  statementBalance: number;
+  ledgerBalance: number;
+  ledgerOnlyTotal: number;
+  statementOnlyTotal: number;
+  difference: number;
+  snapshot: BankReconciliationRecordSnapshot;
+  notes: string | null;
+  completedBy: number | null;
+  createdAt: string;
+  reopening: BankReconciliationRecordReopening;
+}
+
+export type CashPositionBankLatestStatement = {
+  id: number;
+  periodTo: string;
+  closingBalance: number;
+  ledgerAtThatDate: number;
+  /** Statement minus ledger at the statement's date, BEFORE reconciling items */
+  grossDifference: number;
+} | null;
+
+export interface CashPositionBank {
+  bankAccountId: number;
+  name: string;
+  bankName: string;
+  currency: string;
+  isActive: boolean;
+  ledgerBalance: number;
+  latestStatement: CashPositionBankLatestStatement;
+  unreconciledLines: number;
+  partialLines: number;
+  outstandingIn: number;
+  outstandingOut: number;
+  reconciledThrough: string | null;
+}
+
+export interface CashPosition {
+  asOf: string;
+  banks: CashPositionBank[];
+  /** Active SAR banks only */
+  totalLedgerBalance: number;
+}
+
+export type BankingExceptionsContinuityItem = {
+  statementId: number;
+  bankAccountId: number;
+  periodFrom: string;
+  periodTo: string;
+  continuity: string;
+  detail: string | null;
+};
+
+export type BankingExceptionsLinesItemsItemDirection = typeof BankingExceptionsLinesItemsItemDirection[keyof typeof BankingExceptionsLinesItemsItemDirection];
+
+
+export const BankingExceptionsLinesItemsItemDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export type BankingExceptionsLinesItemsItemKind = typeof BankingExceptionsLinesItemsItemKind[keyof typeof BankingExceptionsLinesItemsItemKind];
+
+
+export const BankingExceptionsLinesItemsItemKind = {
+  stale: 'stale',
+  partial: 'partial',
+} as const;
+
+export type BankingExceptionsLinesItemsItem = {
+  transactionId: number;
+  bankAccountId: number;
+  date: string;
+  description: string;
+  direction: BankingExceptionsLinesItemsItemDirection;
+  amount: number;
+  reconciled: number;
+  kind: BankingExceptionsLinesItemsItemKind;
+};
+
+export type BankingExceptionsLines = {
+  total: number;
+  items: BankingExceptionsLinesItemsItem[];
+};
+
+export type BankingExceptionsTransferClearing = {
+  balance: number;
+  lines: number;
+  nets: boolean;
+};
+
+export type BankingExceptionsTransfersMissingLegsItem = {
+  transferId: number;
+  transferDate: string;
+  amount: number;
+  from: string;
+  to: string;
+  reconciledLegs: number;
+};
+
+export type BankingExceptionsLedgerLinesItemsItem = {
+  journalLineId: number;
+  journalEntryId: number;
+  bankAccountId: number;
+  entryNumber: string;
+  date: string;
+  amount: number;
+  outstanding: number;
+};
+
+export type BankingExceptionsLedgerLines = {
+  total: number;
+  items: BankingExceptionsLedgerLinesItemsItem[];
+};
+
+export interface BankingExceptions {
+  asOf: string;
+  staleAfterDays: number;
+  cap: number;
+  continuity: BankingExceptionsContinuityItem[];
+  lines: BankingExceptionsLines;
+  transferClearing: BankingExceptionsTransferClearing;
+  transfersMissingLegs: BankingExceptionsTransfersMissingLegsItem[];
+  ledgerLines: BankingExceptionsLedgerLines;
+}
+
+export interface BankTransferInput {
+  /** The bank the money left. */
+  fromBankAccountId: number;
+  /** The bank the money arrived in — a different one. */
+  toBankAccountId: number;
+  /** Positive; rounded to the halala. */
+  amount: number;
+  /** YYYY-MM-DD; today (Asia/Riyadh) when omitted. Must be in an open period. */
+  transferDate?: string;
+  reference?: string | null;
+  memo?: string | null;
+  /** Record it although it looks like a transfer already in the books. */
+  confirmDuplicate?: boolean;
+  /** Required with confirmDuplicate: why this is a different movement. Kept on the transfer. */
+  duplicateConfirmationReason?: string | null;
+  idempotencyKey?: string | null;
+}
+
+export interface ReverseBankTransferInput {
+  /** Why the transfer is reversed — kept on the superseding record and the mirror entry. */
+  reason: string;
+  /** YYYY-MM-DD the mirror posts on; today when omitted. Must be in an open period. */
+  date?: string | null;
+}
+
+export type BankTransferReversal = {
+  reason: string;
+  reversalJournalEntryId: number;
+  reversedAt: string;
+} | null;
+
+export interface BankTransfer {
+  id: number;
+  fromBankAccountId: number;
+  fromBankName: string;
+  toBankAccountId: number;
+  toBankName: string;
+  amount: number;
+  transferDate: string;
+  reference: string | null;
+  memo: string | null;
+  journalEntryId: number;
+  entryNumber: string;
+  duplicateConfirmationReason: string | null;
+  createdAt: string;
+  /** How many of its two cash lines a statement line is reconciled to (0, 1 or 2). */
+  reconciledLines: number;
+  reversal: BankTransferReversal;
+}
+
 export interface ReverseReconciliationLinkInput {
   /** Why the reconciliation is undone — the record keeps both the link and its reversal. */
   reason: string;
@@ -8188,6 +8450,41 @@ export type ListReconciliationLines200Page = {
 export type ListReconciliationLines200 = {
   items: ReconciliationLine[];
   page: ListReconciliationLines200Page;
+};
+
+export type ListBankReconciliationsParams = {
+bankAccountId?: number;
+};
+
+export type ListBankReconciliations200 = {
+  reconciliations: BankReconciliationRecord[];
+};
+
+export type GetBankReconciliationPositionParams = {
+bankAccountId: number;
+asOf?: string;
+statementBalance?: number;
+bankStatementId?: number;
+};
+
+export type ListBankTransfersParams = {
+bankAccountId?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListBankTransfers200 = {
+  transfers: BankTransfer[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type ClassifyApReconciliationParams = {

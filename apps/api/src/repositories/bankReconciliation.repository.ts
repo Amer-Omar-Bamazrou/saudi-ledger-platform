@@ -14,28 +14,51 @@ import { eq, sql, type SQL } from "drizzle-orm";
 const scoped = (alias: string) => sql.raw(`${alias}.company_id::text = current_setting('app.current_company_id', true)`);
 
 /** How a GL cash line's entry is identified to a person: the document that posted it. */
-const SOURCE_OF_ENTRY = (entryAlias: string) => sql.raw(`
+const SOURCE_OF_ENTRY = (entryAlias: string, idColumn = "id") => sql.raw(`
   LEFT JOIN LATERAL (
     SELECT * FROM (
       SELECT 'supplier_payment'::text AS kind, sp.id, coalesce(sp.reference, 'SPAY-' || sp.id) AS ref, vd.name AS party
-        FROM supplier_payments sp LEFT JOIN vendors vd ON vd.id = sp.vendor_id WHERE sp.journal_entry_id = ${entryAlias}.id
+        FROM supplier_payments sp LEFT JOIN vendors vd ON vd.id = sp.vendor_id WHERE sp.journal_entry_id = ${entryAlias}.${idColumn}
       UNION ALL
       SELECT 'supplier_refund', sr.id, 'SREFUND-' || sr.id, vd.name
-        FROM supplier_refunds sr LEFT JOIN vendors vd ON vd.id = sr.vendor_id WHERE sr.journal_entry_id = ${entryAlias}.id
+        FROM supplier_refunds sr LEFT JOIN vendors vd ON vd.id = sr.vendor_id WHERE sr.journal_entry_id = ${entryAlias}.${idColumn}
       UNION ALL
       SELECT 'bill_payment', bp.id, b.bill_number, vd.name
-        FROM bill_payments bp JOIN bills b ON b.id = bp.bill_id LEFT JOIN vendors vd ON vd.id = b.vendor_id WHERE bp.journal_entry_id = ${entryAlias}.id
+        FROM bill_payments bp JOIN bills b ON b.id = bp.bill_id LEFT JOIN vendors vd ON vd.id = b.vendor_id WHERE bp.journal_entry_id = ${entryAlias}.${idColumn}
       UNION ALL
       SELECT 'receipt', p.id, coalesce(p.reference, 'RCPT-' || p.id), cu.name
-        FROM payments p LEFT JOIN customers cu ON cu.id = p.customer_id WHERE p.journal_entry_id = ${entryAlias}.id
+        FROM payments p LEFT JOIN customers cu ON cu.id = p.customer_id WHERE p.journal_entry_id = ${entryAlias}.${idColumn}
       UNION ALL
       SELECT 'customer_refund', f.id, 'REFUND-' || f.id, cu.name
-        FROM customer_refunds f LEFT JOIN customers cu ON cu.id = f.customer_id WHERE f.journal_entry_id = ${entryAlias}.id
+        FROM customer_refunds f LEFT JOIN customers cu ON cu.id = f.customer_id WHERE f.journal_entry_id = ${entryAlias}.${idColumn}
+      UNION ALL
+      SELECT 'bank_transfer', bt.id, coalesce(bt.reference, 'BTR-' || bt.id), fa.name || ' → ' || ta.name
+        FROM bank_transfers bt JOIN bank_accounts fa ON fa.id = bt.from_bank_account_id JOIN bank_accounts ta ON ta.id = bt.to_bank_account_id
+       WHERE bt.journal_entry_id = ${entryAlias}.${idColumn}
       UNION ALL
       SELECT 'statement_line', st.id, st.description, NULL
-        FROM transactions st WHERE st.journal_entry_id = ${entryAlias}.id
+        FROM transactions st WHERE st.journal_entry_id = ${entryAlias}.${idColumn}
     ) s LIMIT 1
   ) src ON true`);
+
+/**
+ * 🔴 Phase 12C — the ONE predicate "this statement line is the leg of a
+ * RECORDED transfer that no statement line has answered yet": a live
+ * `bank_transfers` row whose cash line on the line's bank moves the same money
+ * the same way, within the matching window, with something left to reconcile.
+ * Such a line is RECONCILED to the transfer, never accepted — acceptance would
+ * post the cash a second time. Used by both acceptance modes and the refusal.
+ */
+export const OPEN_TRANSFER_LEG = (txId: SQL, windowDays: number) => sql`EXISTS (
+  SELECT 1 FROM transactions tt
+    JOIN bank_transfers bt ON bt.company_id = tt.company_id
+    JOIN journal_line_bank_identity v ON v.journal_entry_id = bt.journal_entry_id AND v.bank_account_id = tt.bank_account_id
+   WHERE tt.id = ${txId}
+     AND NOT EXISTS (SELECT 1 FROM bank_transfer_reversals btr WHERE btr.transfer_id = bt.id)
+     AND (CASE WHEN tt.type = 'credit' THEN v.debit_amount ELSE v.credit_amount END) = abs(tt.amount::numeric)
+     AND abs(bt.transfer_date - tt.date::date) <= ${windowDays}
+     AND abs(v.debit_amount - v.credit_amount)
+         - coalesce((SELECT sum(x.amount) FROM bank_line_reconciliation x WHERE x.line_id = v.line_id), 0) > 0.005)`;
 
 export type LineStatus = "unreconciled" | "partial" | "reconciled";
 
@@ -58,11 +81,14 @@ export const bankReconciliationRepository = {
       : filter.status === "unreconciled" ? sql`AND x.reconciled <= 0.005`
       : sql``;
     const { rows } = await db.execute<StatementLineRow & { total: number }>(sql`
+      WITH rec_by_tx AS MATERIALIZED (SELECT r.transaction_id, sum(r.amount) AS amount FROM bank_line_reconciliation r GROUP BY r.transaction_id)
       SELECT x.*, count(*) OVER ()::int AS total FROM (
         SELECT t.id, t.bank_account_id, t.bank_statement_id, t.date, t.description, t.type, t.amount::text AS amount,
                t.review_status, t.kind, t.journal_entry_id,
-               coalesce((SELECT sum(r.amount) FROM bank_line_reconciliation r WHERE r.transaction_id = t.id), 0) AS reconciled
+               coalesce(a.amount, 0) AS reconciled
           FROM transactions t
+          -- the view aggregated ONCE, then joined (a status filter reads every line)
+          LEFT JOIN rec_by_tx a ON a.transaction_id = t.id
          WHERE t.bank_account_id IS NOT NULL AND ${scoped("t")}
            ${filter.bankAccountId != null ? sql`AND t.bank_account_id = ${filter.bankAccountId}` : sql``}
            ${filter.from ? sql`AND t.date >= ${filter.from}` : sql``}
@@ -71,6 +97,21 @@ export const bankReconciliationRepository = {
       WHERE true ${status}
       ORDER BY x.date DESC, x.id DESC
       LIMIT ${filter.limit} OFFSET ${filter.offset}`);
+    return rows;
+  },
+
+  /** Every pending statement line nothing reconciles yet (all of them — no page). */
+  async pendingUnreconciled(bankAccountId?: number) {
+    const { rows } = await db.execute<StatementLineRow>(sql`
+      SELECT t.id, t.bank_account_id, t.bank_statement_id, t.date, t.description, t.type, t.amount::text AS amount,
+             t.review_status, t.kind, t.journal_entry_id, '0'::text AS reconciled
+        FROM transactions t
+       WHERE t.bank_account_id IS NOT NULL AND ${scoped("t")}
+         AND t.review_status = 'pending_review' AND t.journal_entry_id IS NULL
+         ${bankAccountId != null ? sql`AND t.bank_account_id = ${bankAccountId}` : sql``}
+         -- evaluated ONCE (a hashed subplan over the view), not probed per line
+         AND t.id NOT IN (SELECT r.transaction_id FROM bank_line_reconciliation r WHERE r.transaction_id IS NOT NULL)
+       ORDER BY t.date, t.id`);
     return rows;
   },
 
@@ -97,6 +138,16 @@ export const bankReconciliationRepository = {
        WHERE transaction_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})
          ${opts.byAnotherRecord ? sql`AND source <> 'posted'` : sql``}`);
     return new Set(rows.map((r) => Number(r.transaction_id)));
+  },
+
+  /** Statement lines (of those given) that are the open leg of a recorded transfer (OPEN_TRANSFER_LEG). */
+  async openTransferLegIds(ids: number[], windowDays: number): Promise<Set<number>> {
+    if (ids.length === 0) return new Set();
+    const { rows } = await db.execute<{ id: number }>(sql`
+      SELECT t.id FROM transactions t
+       WHERE t.id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)}) AND t.review_status = 'pending_review'
+         AND ${OPEN_TRANSFER_LEG(sql`t.id`, windowDays)}`);
+    return new Set(rows.map((r) => Number(r.id)));
   },
 
   /** Row lock on the statement line — every reconciliation write for a line takes it. */
@@ -126,18 +177,17 @@ export const bankReconciliationRepository = {
    * direction (money in on the statement = a debit to the bank), a POSTED
    * entry, still not fully reconciled, dated inside the window.
    */
-  async candidates(t: { bankAccountId: number; type: "debit" | "credit"; from: string; to: string; excludeEntryId: number | null }) {
+  async candidates(t: { bankAccountId: number; type: "debit" | "credit"; from: string; to: string; excludeEntryId: number | null; lineIds?: number[] }) {
+    // The view is aggregated ONCE for the cash lines in play and joined — not
+    // probed per cash line (a correlated probe per row made the reference pass
+    // take seconds at a few hundred lines; found by the full browser run).
     const { rows } = await db.execute<CandidateRow>(sql`
-      SELECT * FROM (
-        SELECT v.line_id, e.id AS journal_entry_id, e.entry_number, e.date::date::text AS date, coalesce(l.description, e.description) AS description,
-               abs(v.debit_amount - v.credit_amount)::text AS line_amount,
-               (abs(v.debit_amount - v.credit_amount)
-                 - coalesce((SELECT sum(r.amount) FROM bank_line_reconciliation r WHERE r.line_id = v.line_id), 0))::text AS remaining,
-               src.kind AS source_kind, src.id AS source_id, src.ref AS source_ref, src.party
+      WITH cash AS MATERIALIZED (
+        SELECT v.line_id, e.id AS entry_id, e.entry_number, e.date::date AS d, coalesce(l.description, e.description) AS description,
+               abs(v.debit_amount - v.credit_amount) AS line_amount
           FROM journal_line_bank_identity v
           JOIN journal_entries e ON e.id = v.journal_entry_id
           JOIN journal_entry_lines l ON l.id = v.line_id
-          ${SOURCE_OF_ENTRY("e")}
          WHERE v.bank_account_id = ${t.bankAccountId}
            AND ${scoped("e")}
            AND e.status = 'posted'
@@ -147,9 +197,25 @@ export const bankReconciliationRepository = {
            AND ${t.type === "credit" ? sql`v.debit_amount > 0` : sql`v.credit_amount > 0`}
            AND e.date::date BETWEEN ${t.from}::date AND ${t.to}::date
            ${t.excludeEntryId != null ? sql`AND e.id <> ${t.excludeEntryId}` : sql``}
-      ) c
-      WHERE c.remaining::numeric > 0.005
-      ORDER BY c.date, c.line_id`);
+           ${t.lineIds?.length ? sql`AND v.line_id IN (${sql.join(t.lineIds.map((i) => sql`${i}`), sql`, `)})` : sql``}
+      ),
+      rec AS MATERIALIZED (
+        SELECT r.line_id, sum(r.amount) AS reconciled
+          FROM bank_line_reconciliation r
+         WHERE r.line_id IN (SELECT line_id FROM cash)
+         GROUP BY r.line_id
+      ),
+      open_lines AS (
+        SELECT c.*, c.line_amount - coalesce(rec.reconciled, 0) AS remaining
+          FROM cash c LEFT JOIN rec ON rec.line_id = c.line_id
+         WHERE c.line_amount - coalesce(rec.reconciled, 0) > 0.005
+      )
+      SELECT o.line_id, o.entry_id AS journal_entry_id, o.entry_number, o.d::text AS date, o.description,
+             o.line_amount::text AS line_amount, o.remaining::text AS remaining,
+             src.kind AS source_kind, src.id AS source_id, src.ref AS source_ref, src.party
+        FROM open_lines o
+        ${SOURCE_OF_ENTRY("o", "entry_id")}
+       ORDER BY o.d, o.line_id`);
     return rows;
   },
 
@@ -186,7 +252,11 @@ export const bankReconciliationRepository = {
   async setMatched(id: number) {
     await db.execute(sql`
       UPDATE transactions SET review_status = 'accepted', kind = 'matched', category_id = NULL,
-             vat_amount = NULL, vat_rate = NULL, tax_treatment = NULL, vat_basis = NULL
+             vat_amount = NULL, vat_rate = NULL, tax_treatment = NULL, vat_basis = NULL,
+             -- a transfer declaration goes too: the line is now described by the
+             -- record it is reconciled to (a CHECK allows these on a transfer only,
+             -- so leaving them made reconciling a categorised transfer leg fail)
+             transfer_direction = NULL, counterparty_bank_account_id = NULL
        WHERE id = ${id} AND journal_entry_id IS NULL AND kind <> 'settlement'`);
   },
   async returnToReview(id: number) {
