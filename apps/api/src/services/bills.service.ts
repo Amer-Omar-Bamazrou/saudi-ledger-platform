@@ -16,6 +16,7 @@
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { documentNumbersRepository } from "../repositories/documentNumbers.repository";
 import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./accounting/openingReversed";
+import { assertPurchaseNote } from "./accounting/purchaseNotePolicy";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertRate, assertDateString } from "../lib/writeGuards";
 import { vendorsRepository } from "../repositories/vendors.repository";
@@ -72,7 +73,7 @@ export const billsService = {
       billsRepository.listMeta(filter),
     ]);
     return {
-      items: rows.map((r) => buildBillOut(r.bill, r.vendor)),
+      items: rows.map((r) => buildBillOut(r.bill, r.vendor, undefined, r.outstanding)),
       page: { limit: filter.limit ?? BILL_PAGE, offset: filter.offset ?? 0, total: meta.total },
       totals: { outstanding: round2(meta.outstanding), paid: round2(meta.paid), overdue: meta.overdue },
     };
@@ -82,7 +83,7 @@ export const billsService = {
     const [row] = await billsRepository.findWithVendor(id);
     if (!row) throw new NotFoundError("Not found");
     const items = await billsRepository.itemsByBill(id);
-    return buildBillOut(row.bill, row.vendor, items);
+    return buildBillOut(row.bill, row.vendor, items, row.outstanding);
   },
 
   async create(body: Record<string, any>, userId: number | null) {
@@ -132,6 +133,9 @@ export const billsService = {
     const billData = pick<Record<string, unknown>>(body, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
       "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId", "capitalisesAssetId",
+      // B7: a purchase-side note is a bills row. Both fields are checked
+      // together by assertPurchaseNote below, at this write boundary.
+      "documentType", "creditNoteAgainstBillId",
     ]) as Record<string, any>;
     // The chosen expense account must be one of the tenant's EXPENSE accounts —
     // the same rule resolveExpenseLine applies at posting, checked at entry so
@@ -174,6 +178,19 @@ export const billsService = {
     const finalSubtotal = items.length > 0 ? subtotal : Number(billData.subtotal ?? 0);
     const finalVatAmount = items.length > 0 ? vatTotal : Number(billData.vatAmount ?? 0);
     const finalTotal = items.length > 0 ? subtotal + vatTotal : Number(billData.total ?? 0);
+
+    /**
+     * 🔴 B7 — a purchase note is checked HERE, where the row is written,
+     * and not in a service beside this one: the ceiling, the original's state
+     * and the XOR would otherwise hold on one path and be absent on the next.
+     * The note also INHERITS the original's supplier — a note pointing at one
+     * supplier's bill while naming another is not a thing that can be true, so
+     * it is made inexpressible rather than refused.
+     */
+    const noteAgainst = await assertPurchaseNote(
+      billData.documentType, billData.creditNoteAgainstBillId, finalTotal,
+    );
+    if (noteAgainst) billData.vendorId = noteAgainst.vendorId;
 
     await checkPeriodOpen(billData.date ?? businessToday());
     const [bill] = await billsRepository.insert({
@@ -228,6 +245,12 @@ export const billsService = {
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") throw new ConflictError("Only draft bills can be edited.");
     // 🔴 H1 — ALLOWLIST (see create). `status`/`paidAmount`/`paidAt` excluded.
+    /**
+     * 🔴 `documentType` and `creditNoteAgainstBillId` are deliberately NOT
+     * editable. What a document IS is decided when it is entered; letting an
+     * approved bill become a credit note by PATCH would flip the sign of an
+     * entry that has already posted, and a draft can simply be re-entered.
+     */
     const values = pick<typeof import("@workspace/db").billsTable.$inferInsert>(data, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
       "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId", "capitalisesAssetId",
@@ -262,6 +285,20 @@ export const billsService = {
       throw new ConflictError("Bill must be approved before it can be paid.");
     }
     if (existing.status === "paid") throw new ConflictError("Bill is already paid.");
+    /**
+     * 🔴 B7 — A CREDIT NOTE IS NOT PAYABLE. It is money the supplier owes US,
+     * and a posted note's status is `received` like any other posted purchase
+     * document, so without this the pay path would happily post Dr AP / Cr
+     * cash against it: paying a document that reduces what we owe. The note's
+     * balance leaves by being APPLIED to a bill, or by a refund.
+     *
+     * A DEBIT note is payable — it is an additional charge.
+     */
+    if (existing.documentType === "credit_note") {
+      throw new ConflictError(
+        `${existing.billNumber} is a supplier CREDIT note — it reduces what you owe, so it is not paid. Apply it to a bill instead.`,
+      );
+    }
     assertNotReversedOpening(existing, `Bill ${existing.billNumber}`, "paid");
 
     // Validate the amount up front — a missing/non-numeric amount previously
@@ -278,8 +315,15 @@ export const billsService = {
     // M16.3: payments accumulate; a partial keeps the bill open (it must stay
     // in AP aging); overpay is refused. Mirrors invoices.service.pay — see the
     // note there.
+    //
+    // 🔴 Phase 11 Part 2: what the bill still owes is `billPosition`'s
+    // definition, read under a row lock — NOT `total − paid_amount`. Money now
+    // also reaches a bill through the AP subledger (a supplier payment, an
+    // applied advance, an applied credit note); reading the legacy counter
+    // alone accepted a full payment on a bill an advance had already settled,
+    // and posted Dr AP twice for one debt.
     const alreadyPaid = Number(existing.paidAmount ?? 0);
-    const outstanding = Math.round((Number(existing.total) - alreadyPaid) * 100) / 100;
+    const outstanding = await billsRepository.outstandingOf(id, { lock: true });
     if (paid > outstanding + 0.005) {
       throw new ConflictError(
         `Payment of ${paid.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} on this bill.`,
@@ -313,7 +357,9 @@ export const billsService = {
     });
 
     await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: bill });
-    return buildBillOut(bill, null);
+    // Read back through the one definition, so the response carries what the
+    // bill owes NOW rather than a null the pay dialog would have to guess past.
+    return billsService.getById(id);
   },
 
   /** B4 — the payment history, newest first. Backfilled rows are aggregates. */

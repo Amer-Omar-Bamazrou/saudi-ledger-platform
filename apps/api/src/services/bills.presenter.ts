@@ -11,10 +11,22 @@ type Vendor = typeof vendorsTable.$inferSelect;
 
 export const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 
-export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillItem[]) {
+/**
+ * `outstanding` is what the document still owes, computed by the repository
+ * through `billPosition` (the one definition: a credit note owes nothing, and
+ * AP-subledger allocations count as well as `paidAmount`). Reads pass it; a
+ * write response that did not read it back sends `null` — never a figure
+ * re-derived here from `total − paidAmount`, which is the expression Part 2
+ * made wrong.
+ */
+export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillItem[], outstanding?: string | number | null) {
   return {
     id: bill.id,
     billNumber: bill.billNumber,
+    // B7: what this document IS travels with it. A read path that drops the
+    // field every write path sets is how a note comes back looking like a bill.
+    documentType: bill.documentType,
+    creditNoteAgainstBillId: bill.creditNoteAgainstBillId ?? null,
     vendorReference: bill.vendorReference,
     date: bill.date,
     dueDate: bill.dueDate,
@@ -26,6 +38,7 @@ export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillIte
     total: toNum(bill.total),
     currency: bill.currency,
     paidAmount: toNum(bill.paidAmount),
+    outstanding: outstanding == null ? null : Math.max(0, Math.round(Number(outstanding) * 100) / 100),
     paidAt: bill.paidAt,
     reviewNote: bill.reviewNote,
     expenseAccountId: bill.expenseAccountId ?? null,

@@ -23,6 +23,26 @@ export const billsTable = pgTable(
       .default(sql`app_default_company_id()`)
       .references(() => companiesTable.id),
     billNumber: text("bill_number").notNull(),
+    /**
+     * B7 (2026-09-22) — `bill` | `credit_note` | `debit_note`.
+     *
+     * 🔴 A PURCHASE-SIDE NOTE IS THE SUPPLIER'S DOCUMENT, NOT OURS. The VAT
+     * IR's Credit and Debit Notes ¶1 puts the obligation on "the Taxable Person
+     * WHO HAS MADE THE SUPPLY": when our tenant is the customer it ISSUES
+     * nothing — no ICV is consumed, no QR is minted, no position is taken in
+     * the ZATCA hash chain, nothing is queued to the outbox. We RECORD a
+     * document we received. That is the whole difference from
+     * `invoices.document_type`, which looks identical and is not.
+     *
+     * 🔴 And the period is the supplier's, not ours: Art. 40(6) has the
+     * CUSTOMER correct its INPUT tax "in the Tax Period in which the Credit
+     * Note or Debit Note is ISSUED" — so the note carries its own `date` (the
+     * supplier's issue date) and the VAT return reads that, never the original
+     * bill's date and never the day we keyed it in.
+     */
+    documentType: text("document_type").notNull().default("bill"),
+    /** The bill this note adjusts. Required on a note, forbidden on a bill. */
+    creditNoteAgainstBillId: integer("credit_note_against_bill_id"),
     vendorReference: text("vendor_reference"),
     /**
      * 🔴 CHECK bills_date_format_chk (migration 0071, hand-written — the

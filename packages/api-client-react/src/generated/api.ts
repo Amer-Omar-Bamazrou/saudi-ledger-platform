@@ -26,9 +26,11 @@ import type {
   AccountSummaryReport,
   ActivityReport,
   AllocatePaymentInput,
+  AllocateSupplierPaymentInput,
   ApAgingReport,
   ApplyCreditNoteInput,
   ApplyDeterministicMatchesParams,
+  ApplySupplierCreditNoteInput,
   ApprovalPendingRow,
   ArAgingReport,
   AskInput,
@@ -66,6 +68,7 @@ import type {
   ChangeAssetEstimateInput,
   ClassifyPaymentInput,
   ClassifyStatementRowsParams,
+  ClassifySupplierPaymentInput,
   Company,
   CompanyLogoState,
   ConvertPurchaseOrderInput,
@@ -87,6 +90,7 @@ import type {
   CreateQuotationInput,
   CreateRecognitionScheduleInput,
   CreateRecurringRuleInput,
+  CreateSupplierPaymentInput,
   CreateVendorInput,
   CreditNoteApplications,
   Customer,
@@ -139,6 +143,7 @@ import type {
   GetReceivablesBridgeParams,
   GetSummaryByCategoryParams,
   GetSummaryParams,
+  GetSupplierStatementParams,
   GetTaxJournalEntriesParams,
   GetTrendParams,
   GetTrialBalanceParams,
@@ -189,6 +194,12 @@ import type {
   ListRecognitionSchedules200,
   ListRecognitionSchedulesParams,
   ListRefundsParams,
+  ListSupplierCreditNotes200,
+  ListSupplierCreditNotesParams,
+  ListSupplierPayments200,
+  ListSupplierPaymentsParams,
+  ListSupplierPositions200,
+  ListSupplierPositionsParams,
   ListTransactionsParams,
   ListVendors200,
   ListVendorsParams,
@@ -240,13 +251,20 @@ import type {
   RecurringRuleWithHealth,
   RecurringRun,
   RefundCustomerInput,
+  RefundSupplierPaymentInput,
   ReverseMigrationBatchInput,
+  ReverseSupplierAllocationInput,
   RunAssetDepreciationInput,
   RunRecognitionInput,
   SendBackInput,
   SettleTransactionInput,
   StatementMatch,
   StatementRowClassification,
+  SupplierAllocationReversal,
+  SupplierCreditNote,
+  SupplierPaymentDetail,
+  SupplierRefund,
+  SupplierStatement,
   TaxCompliance,
   TaxJournalEntriesReport,
   Transaction,
@@ -18158,5 +18176,945 @@ export const useRejectPayrollRun = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRejectPayrollRunMutationOptions(options));
+    }
+
+export const getListSupplierPaymentsUrl = (params?: ListSupplierPaymentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/supplier-payments?${stringifiedParams}` : `/api/supplier-payments`
+}
+
+/**
+ * `availableAmount` is DERIVED from the rows on every read — the payment less its live allocations less its refunds — never a stored counter that a second writer could drift.
+ * @summary B3: supplier payments, with what is still on account
+ */
+export const listSupplierPayments = async (params?: ListSupplierPaymentsParams, options?: RequestInit): Promise<ListSupplierPayments200> => {
+
+  return customFetch<ListSupplierPayments200>(getListSupplierPaymentsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSupplierPaymentsQueryKey = (params?: ListSupplierPaymentsParams,) => {
+    return [
+    `/api/supplier-payments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSupplierPaymentsQueryOptions = <TData = Awaited<ReturnType<typeof listSupplierPayments>>, TError = ErrorType<unknown>>(params?: ListSupplierPaymentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierPayments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSupplierPaymentsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupplierPayments>>> = ({ signal }) => listSupplierPayments(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupplierPayments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSupplierPaymentsQueryResult = NonNullable<Awaited<ReturnType<typeof listSupplierPayments>>>
+export type ListSupplierPaymentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary B3: supplier payments, with what is still on account
+ */
+
+export function useListSupplierPayments<TData = Awaited<ReturnType<typeof listSupplierPayments>>, TError = ErrorType<unknown>>(
+ params?: ListSupplierPaymentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierPayments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSupplierPaymentsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSupplierPaymentUrl = () => {
+
+
+
+
+  return `/api/supplier-payments`
+}
+
+/**
+ * ONE balanced entry names where every riyal went: Dr AP for the part allocated to bills, Dr the on-account asset for the rest, Cr the bank the money left.
+ * 🔴 The unallocated part is an ASSET (the supplier holds our money), never a negative payable — parking it in AP would net silently against unrelated bills in every ageing bucket.
+ * 🔴 NO INPUT VAT is computed on this path. VAT IR Art. 49(7) makes deduction depend on HOLDING the supplier's tax invoice, which in this product is a bill; paying money deducts nothing.
+ * D-3: the bank account is required and is never inferred. A closed period is refused (423) with nothing written.
+ * @summary B3: pay a supplier — allocated to bills, on account, or both
+ */
+export const createSupplierPayment = async (createSupplierPaymentInput: CreateSupplierPaymentInput, options?: RequestInit): Promise<SupplierPaymentDetail> => {
+
+  return customFetch<SupplierPaymentDetail>(getCreateSupplierPaymentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createSupplierPaymentInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSupplierPaymentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupplierPayment>>, TError,{data: BodyType<CreateSupplierPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSupplierPayment>>, TError,{data: BodyType<CreateSupplierPaymentInput>}, TContext> => {
+
+const mutationKey = ['createSupplierPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSupplierPayment>>, {data: BodyType<CreateSupplierPaymentInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSupplierPayment(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSupplierPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof createSupplierPayment>>>
+    export type CreateSupplierPaymentMutationBody = BodyType<CreateSupplierPaymentInput>
+    export type CreateSupplierPaymentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary B3: pay a supplier — allocated to bills, on account, or both
+ */
+export const useCreateSupplierPayment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupplierPayment>>, TError,{data: BodyType<CreateSupplierPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSupplierPayment>>,
+        TError,
+        {data: BodyType<CreateSupplierPaymentInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSupplierPaymentMutationOptions(options));
+    }
+
+export const getReverseSupplierAllocationUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-payments/allocations/${id}/reverse`
+}
+
+/**
+ * The original allocation row stays exactly as it was, beside the reversal that answers it; the mirror entry puts AP back up and returns the on-account asset. One correction only — a second is refused (409).
+ * @summary B3: undo an allocation with a SUPERSEDING record
+ */
+export const reverseSupplierAllocation = async (id: number,
+    reverseSupplierAllocationInput: ReverseSupplierAllocationInput, options?: RequestInit): Promise<SupplierAllocationReversal> => {
+
+  return customFetch<SupplierAllocationReversal>(getReverseSupplierAllocationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reverseSupplierAllocationInput)
+  }
+);}
+
+
+
+
+
+export const getReverseSupplierAllocationMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseSupplierAllocation>>, TError,{id: number;data: BodyType<ReverseSupplierAllocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reverseSupplierAllocation>>, TError,{id: number;data: BodyType<ReverseSupplierAllocationInput>}, TContext> => {
+
+const mutationKey = ['reverseSupplierAllocation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reverseSupplierAllocation>>, {id: number;data: BodyType<ReverseSupplierAllocationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reverseSupplierAllocation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReverseSupplierAllocationMutationResult = NonNullable<Awaited<ReturnType<typeof reverseSupplierAllocation>>>
+    export type ReverseSupplierAllocationMutationBody = BodyType<ReverseSupplierAllocationInput>
+    export type ReverseSupplierAllocationMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary B3: undo an allocation with a SUPERSEDING record
+ */
+export const useReverseSupplierAllocation = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseSupplierAllocation>>, TError,{id: number;data: BodyType<ReverseSupplierAllocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reverseSupplierAllocation>>,
+        TError,
+        {id: number;data: BodyType<ReverseSupplierAllocationInput>},
+        TContext
+      > => {
+      return useMutation(getReverseSupplierAllocationMutationOptions(options));
+    }
+
+export const getGetSupplierPaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-payments/${id}`
+}
+
+/**
+ * @summary B3: one supplier payment with its allocations, refunds and classification history
+ */
+export const getSupplierPayment = async (id: number, options?: RequestInit): Promise<SupplierPaymentDetail> => {
+
+  return customFetch<SupplierPaymentDetail>(getGetSupplierPaymentUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSupplierPaymentQueryKey = (id: number,) => {
+    return [
+    `/api/supplier-payments/${id}`
+    ] as const;
+    }
+
+
+export const getGetSupplierPaymentQueryOptions = <TData = Awaited<ReturnType<typeof getSupplierPayment>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSupplierPayment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSupplierPaymentQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSupplierPayment>>> = ({ signal }) => getSupplierPayment(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSupplierPayment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSupplierPaymentQueryResult = NonNullable<Awaited<ReturnType<typeof getSupplierPayment>>>
+export type GetSupplierPaymentQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary B3: one supplier payment with its allocations, refunds and classification history
+ */
+
+export function useGetSupplierPayment<TData = Awaited<ReturnType<typeof getSupplierPayment>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSupplierPayment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSupplierPaymentQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAllocateSupplierPaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-payments/${id}/allocate`
+}
+
+/**
+ * 🔴 Only an ADVANCE may settle a bill. A refundable security deposit is not consideration for a supply, and an erroneous or unclassified payment has no stated purpose; both are refused BY NAME (409) and must be reclassified first, which is an act somebody takes and the record shows.
+ * @summary B4: apply on-account money to bills — its own entry, Dr AP / Cr the asset
+ */
+export const allocateSupplierPayment = async (id: number,
+    allocateSupplierPaymentInput: AllocateSupplierPaymentInput, options?: RequestInit): Promise<SupplierPaymentDetail> => {
+
+  return customFetch<SupplierPaymentDetail>(getAllocateSupplierPaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(allocateSupplierPaymentInput)
+  }
+);}
+
+
+
+
+
+export const getAllocateSupplierPaymentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allocateSupplierPayment>>, TError,{id: number;data: BodyType<AllocateSupplierPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof allocateSupplierPayment>>, TError,{id: number;data: BodyType<AllocateSupplierPaymentInput>}, TContext> => {
+
+const mutationKey = ['allocateSupplierPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof allocateSupplierPayment>>, {id: number;data: BodyType<AllocateSupplierPaymentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  allocateSupplierPayment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AllocateSupplierPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof allocateSupplierPayment>>>
+    export type AllocateSupplierPaymentMutationBody = BodyType<AllocateSupplierPaymentInput>
+    export type AllocateSupplierPaymentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary B4: apply on-account money to bills — its own entry, Dr AP / Cr the asset
+ */
+export const useAllocateSupplierPayment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allocateSupplierPayment>>, TError,{id: number;data: BodyType<AllocateSupplierPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof allocateSupplierPayment>>,
+        TError,
+        {id: number;data: BodyType<AllocateSupplierPaymentInput>},
+        TContext
+      > => {
+      return useMutation(getAllocateSupplierPaymentMutationOptions(options));
+    }
+
+export const getClassifySupplierPaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-payments/${id}/classify`
+}
+
+/**
+ * When the ACCOUNT changes, the balance still on account moves by ONE entry; when it does not, nothing is posted and the history row says so by carrying no journal entry. Every classification is kept: the question "what did we think this was, and when" is answerable.
+ * @summary B4: say what on-account money IS — advance, security deposit, erroneous, or not yet known
+ */
+export const classifySupplierPayment = async (id: number,
+    classifySupplierPaymentInput: ClassifySupplierPaymentInput, options?: RequestInit): Promise<SupplierPaymentDetail> => {
+
+  return customFetch<SupplierPaymentDetail>(getClassifySupplierPaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(classifySupplierPaymentInput)
+  }
+);}
+
+
+
+
+
+export const getClassifySupplierPaymentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifySupplierPayment>>, TError,{id: number;data: BodyType<ClassifySupplierPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifySupplierPayment>>, TError,{id: number;data: BodyType<ClassifySupplierPaymentInput>}, TContext> => {
+
+const mutationKey = ['classifySupplierPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifySupplierPayment>>, {id: number;data: BodyType<ClassifySupplierPaymentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  classifySupplierPayment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifySupplierPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof classifySupplierPayment>>>
+    export type ClassifySupplierPaymentMutationBody = BodyType<ClassifySupplierPaymentInput>
+    export type ClassifySupplierPaymentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary B4: say what on-account money IS — advance, security deposit, erroneous, or not yet known
+ */
+export const useClassifySupplierPayment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifySupplierPayment>>, TError,{id: number;data: BodyType<ClassifySupplierPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof classifySupplierPayment>>,
+        TError,
+        {id: number;data: BodyType<ClassifySupplierPaymentInput>},
+        TContext
+      > => {
+      return useMutation(getClassifySupplierPaymentMutationOptions(options));
+    }
+
+export const getRefundSupplierPaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-payments/${id}/refund`
+}
+
+/**
+ * @summary B4: the supplier returns money — the asset falls, the bank rises
+ */
+export const refundSupplierPayment = async (id: number,
+    refundSupplierPaymentInput: RefundSupplierPaymentInput, options?: RequestInit): Promise<SupplierRefund> => {
+
+  return customFetch<SupplierRefund>(getRefundSupplierPaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(refundSupplierPaymentInput)
+  }
+);}
+
+
+
+
+
+export const getRefundSupplierPaymentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refundSupplierPayment>>, TError,{id: number;data: BodyType<RefundSupplierPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refundSupplierPayment>>, TError,{id: number;data: BodyType<RefundSupplierPaymentInput>}, TContext> => {
+
+const mutationKey = ['refundSupplierPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refundSupplierPayment>>, {id: number;data: BodyType<RefundSupplierPaymentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  refundSupplierPayment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefundSupplierPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof refundSupplierPayment>>>
+    export type RefundSupplierPaymentMutationBody = BodyType<RefundSupplierPaymentInput>
+    export type RefundSupplierPaymentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary B4: the supplier returns money — the asset falls, the bank rises
+ */
+export const useRefundSupplierPayment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refundSupplierPayment>>, TError,{id: number;data: BodyType<RefundSupplierPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refundSupplierPayment>>,
+        TError,
+        {id: number;data: BodyType<RefundSupplierPaymentInput>},
+        TContext
+      > => {
+      return useMutation(getRefundSupplierPaymentMutationOptions(options));
+    }
+
+export const getListSupplierPositionsUrl = (params?: ListSupplierPositionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/supplier-statements?${stringifiedParams}` : `/api/supplier-statements`
+}
+
+/**
+ * Four non-negative components and a DERIVED net. A liability is never expressed as a negative payable, and money the supplier holds is never expressed as one either: a supplier advance is an ASSET.
+ * @summary B5: every supplier with activity, and its position
+ */
+export const listSupplierPositions = async (params?: ListSupplierPositionsParams, options?: RequestInit): Promise<ListSupplierPositions200> => {
+
+  return customFetch<ListSupplierPositions200>(getListSupplierPositionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSupplierPositionsQueryKey = (params?: ListSupplierPositionsParams,) => {
+    return [
+    `/api/supplier-statements`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSupplierPositionsQueryOptions = <TData = Awaited<ReturnType<typeof listSupplierPositions>>, TError = ErrorType<unknown>>(params?: ListSupplierPositionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierPositions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSupplierPositionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupplierPositions>>> = ({ signal }) => listSupplierPositions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupplierPositions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSupplierPositionsQueryResult = NonNullable<Awaited<ReturnType<typeof listSupplierPositions>>>
+export type ListSupplierPositionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary B5: every supplier with activity, and its position
+ */
+
+export function useListSupplierPositions<TData = Awaited<ReturnType<typeof listSupplierPositions>>, TError = ErrorType<unknown>>(
+ params?: ListSupplierPositionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierPositions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSupplierPositionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSupplierStatementUrl = (vendorId: number,
+    params?: GetSupplierStatementParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/supplier-statements/${vendorId}?${stringifiedParams}` : `/api/supplier-statements/${vendorId}`
+}
+
+/**
+ * Every event that moved a component, in chronology (business date, then when it was recorded), each carrying a RUNNING balance so a reader can put a finger on the line where our figure and the supplier's diverge.
+ * 🔴 The closing running balance is CHECKED against the position and the check is REPORTED with both figures. Two computations of one fact have no forcing function between them; a statement that silently disagrees with the ledger is a reconciliation tool hiding the thing it exists to find.
+ * A WINDOW (`from`/`to`, business dates, both inclusive) cuts the event list and reports the balance brought forward (`opening`) and carried (`closing`). The running balances are computed over the whole stream first, so the opening of a window is exactly the closing of the window before it. The self-check and the GL tie are always over the whole stream — a window never hides a disagreement.
+ * @summary B5: one supplier's statement — the position, the events, and whether the two agree
+ */
+export const getSupplierStatement = async (vendorId: number,
+    params?: GetSupplierStatementParams, options?: RequestInit): Promise<SupplierStatement> => {
+
+  return customFetch<SupplierStatement>(getGetSupplierStatementUrl(vendorId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSupplierStatementQueryKey = (vendorId: number,
+    params?: GetSupplierStatementParams,) => {
+    return [
+    `/api/supplier-statements/${vendorId}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSupplierStatementQueryOptions = <TData = Awaited<ReturnType<typeof getSupplierStatement>>, TError = ErrorType<ErrorResponse>>(vendorId: number,
+    params?: GetSupplierStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSupplierStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSupplierStatementQueryKey(vendorId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSupplierStatement>>> = ({ signal }) => getSupplierStatement(vendorId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: vendorId !== null && vendorId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSupplierStatement>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSupplierStatementQueryResult = NonNullable<Awaited<ReturnType<typeof getSupplierStatement>>>
+export type GetSupplierStatementQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary B5: one supplier's statement — the position, the events, and whether the two agree
+ */
+
+export function useGetSupplierStatement<TData = Awaited<ReturnType<typeof getSupplierStatement>>, TError = ErrorType<ErrorResponse>>(
+ vendorId: number,
+    params?: GetSupplierStatementParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSupplierStatement>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSupplierStatementQueryOptions(vendorId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListSupplierCreditNotesUrl = (params?: ListSupplierCreditNotesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/supplier-credit-notes?${stringifiedParams}` : `/api/supplier-credit-notes`
+}
+
+/**
+ * @summary B7: purchase-side notes the supplier issued to us
+ */
+export const listSupplierCreditNotes = async (params?: ListSupplierCreditNotesParams, options?: RequestInit): Promise<ListSupplierCreditNotes200> => {
+
+  return customFetch<ListSupplierCreditNotes200>(getListSupplierCreditNotesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSupplierCreditNotesQueryKey = (params?: ListSupplierCreditNotesParams,) => {
+    return [
+    `/api/supplier-credit-notes`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSupplierCreditNotesQueryOptions = <TData = Awaited<ReturnType<typeof listSupplierCreditNotes>>, TError = ErrorType<unknown>>(params?: ListSupplierCreditNotesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierCreditNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSupplierCreditNotesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupplierCreditNotes>>> = ({ signal }) => listSupplierCreditNotes(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupplierCreditNotes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSupplierCreditNotesQueryResult = NonNullable<Awaited<ReturnType<typeof listSupplierCreditNotes>>>
+export type ListSupplierCreditNotesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary B7: purchase-side notes the supplier issued to us
+ */
+
+export function useListSupplierCreditNotes<TData = Awaited<ReturnType<typeof listSupplierCreditNotes>>, TError = ErrorType<unknown>>(
+ params?: ListSupplierCreditNotesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierCreditNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSupplierCreditNotesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSupplierCreditNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-credit-notes/${id}`
+}
+
+/**
+ * @summary B7: one purchase note, with what it has been applied to
+ */
+export const getSupplierCreditNote = async (id: number, options?: RequestInit): Promise<SupplierCreditNote> => {
+
+  return customFetch<SupplierCreditNote>(getGetSupplierCreditNoteUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSupplierCreditNoteQueryKey = (id: number,) => {
+    return [
+    `/api/supplier-credit-notes/${id}`
+    ] as const;
+    }
+
+
+export const getGetSupplierCreditNoteQueryOptions = <TData = Awaited<ReturnType<typeof getSupplierCreditNote>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSupplierCreditNote>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSupplierCreditNoteQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSupplierCreditNote>>> = ({ signal }) => getSupplierCreditNote(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSupplierCreditNote>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSupplierCreditNoteQueryResult = NonNullable<Awaited<ReturnType<typeof getSupplierCreditNote>>>
+export type GetSupplierCreditNoteQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary B7: one purchase note, with what it has been applied to
+ */
+
+export function useGetSupplierCreditNote<TData = Awaited<ReturnType<typeof getSupplierCreditNote>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSupplierCreditNote>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSupplierCreditNoteQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApplySupplierCreditNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-credit-notes/${id}/apply`
+}
+
+/**
+ * 🔴 POSTS NOTHING, on purpose. An approved purchase note has already moved the GL (Dr AP / Cr expense / Cr input VAT), so its unapplied balance is a DEBIT already sitting in AP for that supplier — which is exactly what it is. Applying it records WHICH payable it answers; a second entry would move AP twice for one economic event.
+ * This is deliberately NOT symmetrical with an advance, which sits on its own asset account and must be MOVED INTO AP when it is applied.
+ * @summary B7: apply an approved note's balance to the supplier's bills
+ */
+export const applySupplierCreditNote = async (id: number,
+    applySupplierCreditNoteInput: ApplySupplierCreditNoteInput, options?: RequestInit): Promise<SupplierCreditNote> => {
+
+  return customFetch<SupplierCreditNote>(getApplySupplierCreditNoteUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(applySupplierCreditNoteInput)
+  }
+);}
+
+
+
+
+
+export const getApplySupplierCreditNoteMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applySupplierCreditNote>>, TError,{id: number;data: BodyType<ApplySupplierCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applySupplierCreditNote>>, TError,{id: number;data: BodyType<ApplySupplierCreditNoteInput>}, TContext> => {
+
+const mutationKey = ['applySupplierCreditNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applySupplierCreditNote>>, {id: number;data: BodyType<ApplySupplierCreditNoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  applySupplierCreditNote(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplySupplierCreditNoteMutationResult = NonNullable<Awaited<ReturnType<typeof applySupplierCreditNote>>>
+    export type ApplySupplierCreditNoteMutationBody = BodyType<ApplySupplierCreditNoteInput>
+    export type ApplySupplierCreditNoteMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary B7: apply an approved note's balance to the supplier's bills
+ */
+export const useApplySupplierCreditNote = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applySupplierCreditNote>>, TError,{id: number;data: BodyType<ApplySupplierCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applySupplierCreditNote>>,
+        TError,
+        {id: number;data: BodyType<ApplySupplierCreditNoteInput>},
+        TContext
+      > => {
+      return useMutation(getApplySupplierCreditNoteMutationOptions(options));
     }
 

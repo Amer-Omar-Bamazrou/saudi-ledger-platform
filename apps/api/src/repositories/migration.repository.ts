@@ -30,6 +30,7 @@ import {
 import { JE_IN_BOOKS } from "./reports.repository";
 import { and, asc, desc, eq, sql, count, inArray, isNull } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
+import { billLiveAppliedSql } from "./billPosition";
 
 export const migrationRepository = {
   // ── batches ──
@@ -322,8 +323,26 @@ export const migrationRepository = {
       }
     }
     if (billIds.length > 0) {
-      const b = await db.execute(sql`SELECT bill_number AS n, coalesce(paid_amount::numeric, 0) AS paid FROM bills WHERE id IN (${list(billIds)})`);
-      for (const r of b.rows as { n: string; paid: string }[]) if (Number(r.paid) > 0) out.push(`bill ${r.n} (paid ${r.paid})`);
+      /*
+       * 🔴 Phase 11 Part 2: money reaches a bill through the AP subledger as
+       * well as through paid_amount, and a supplier note can be written
+       * against it. Checking paid_amount alone let a batch be reversed from
+       * under an opening bill an advance had settled or a note had corrected.
+       * Mirrors the invoice half above: ANY allocation (live or reversed — a
+       * correction is still a touch) and ANY note, plus the legacy counter.
+       * billPosition's applied figure is read too, so the message names what
+       * is live.
+       */
+      const b = await db.execute(sql`
+        SELECT b.bill_number AS n,
+               (SELECT count(*) FROM supplier_payment_allocations a WHERE a.bill_id = b.id) AS allocs,
+               (SELECT count(*) FROM bills c WHERE c.credit_note_against_bill_id = b.id) AS notes,
+               coalesce(b.paid_amount::numeric, 0) AS paid,
+               ${billLiveAppliedSql("b")} AS applied
+          FROM bills b WHERE b.id IN (${list(billIds)})`);
+      for (const r of b.rows as { n: string; allocs: string; notes: string; paid: string; applied: string }[]) {
+        if (Number(r.allocs) > 0 || Number(r.notes) > 0 || Number(r.paid) > 0) out.push(`bill ${r.n} (allocations ${r.allocs}, supplier notes ${r.notes}, paid ${r.paid}, applied ${r.applied})`);
+      }
     }
     if (paymentIds.length > 0) {
       const p = await db.execute(sql`

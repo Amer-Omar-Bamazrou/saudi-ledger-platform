@@ -150,11 +150,14 @@ export const reconciliationService = {
         outstanding: round2(Number(inv.total) - Number(inv.creditedAmount ?? 0) - Number(inv.writtenOffAmount ?? 0) - Number(inv.paidAmount ?? 0)),
       }))
       .filter((d) => d.outstanding >= 0.01); // fully credited ⇒ nothing to settle
-    const openBills: OpenDocument[] = billRows.map(({ bill, vendor }) => ({
+    // Phase 11 Part 2: the repository computes outstanding through
+    // `billPosition` — net of AP-subledger allocations, and never offering a
+    // credit note — so a bank debit is matched to what the bill still owes.
+    const openBills: OpenDocument[] = billRows.map(({ bill, vendor, outstanding }) => ({
       id: bill.id,
       number: bill.billNumber ?? String(bill.id),
       counterpartyName: vendor?.name ?? null,
-      outstanding: round2(Number(bill.total) - Number(bill.paidAmount ?? 0)),
+      outstanding: round2(Number(outstanding)),
     }));
 
     for (const r of eligible) {

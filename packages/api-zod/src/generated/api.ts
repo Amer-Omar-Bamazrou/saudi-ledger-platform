@@ -1638,6 +1638,8 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "bill": zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -1652,7 +1654,8 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -3372,6 +3375,13 @@ export const GetApAgingReportResponse = zod.object({
   "over_90": zod.number()
 }),
   "total": zod.number(),
+  "assets": zod.object({
+  "supplierCredits": zod.number().describe('Unapplied purchase credit notes'),
+  "supplierAdvances": zod.number(),
+  "supplierDeposits": zod.number().describe('Refundable security deposits paid'),
+  "unidentifiedPayments": zod.number().describe('Paid')
+}).describe('What the supplier holds or owes us — each one an ASSET, never a bucket.'),
+  "netSupplierPosition": zod.number().describe('total less every asset above — DERIVED'),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
@@ -3381,7 +3391,7 @@ export const GetApAgingReportResponse = zod.object({
   "outstanding": zod.number(),
   "daysPastDue": zod.number()
 }))
-})
+}).describe('B6: the buckets carry only real payable exposure — every item is what a bill still owes after its live allocations, credit notes are not aged as rows (they are applied to bills), and a debit note ages like a bill. What the SUPPLIER holds is shown BESIDE the buckets and never folded into them: an advance is an asset, not a negative payable.\n')
 
 
 /**
@@ -4804,6 +4814,8 @@ export const SubmitBillParams = zod.object({
 export const SubmitBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -4818,7 +4830,8 @@ export const SubmitBillResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -4855,6 +4868,8 @@ export const SendBackBillBody = zod.object({
 export const SendBackBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -4869,7 +4884,8 @@ export const SendBackBillResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -4909,6 +4925,8 @@ export const ApproveBillBody = zod.object({
 export const ApproveBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -4923,7 +4941,8 @@ export const ApproveBillResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -5396,6 +5415,7 @@ export const ListVendorsResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
   "createdAt": zod.string()
 }).and(zod.object({
   "totalBilled": zod.number(),
@@ -5435,7 +5455,8 @@ export const CreateVendorBody = zod.object({
   "iban": zod.string().nullish(),
   "paymentTermsDays": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "isActive": zod.boolean().optional()
+  "isActive": zod.boolean().optional(),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).optional().describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n')
 })
 
 export const CreateVendorResponse = zod.object({
@@ -5454,6 +5475,7 @@ export const CreateVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
   "createdAt": zod.string()
 }).and(zod.object({
   "created": zod.boolean().describe('Always true here; lets a caller that also matches tell \"created\" from \"existed\".')
@@ -5486,6 +5508,7 @@ export const MatchVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
   "createdAt": zod.string()
 }),zod.null()]),
   "suggestions": zod.array(zod.object({
@@ -5504,6 +5527,7 @@ export const MatchVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
   "createdAt": zod.string()
 }))
 })
@@ -5532,6 +5556,7 @@ export const GetVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
   "createdAt": zod.string()
 }).and(zod.object({
   "totalBilled": zod.number(),
@@ -5566,7 +5591,8 @@ export const UpdateVendorBody = zod.object({
   "iban": zod.string().nullish(),
   "paymentTermsDays": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "isActive": zod.boolean().optional()
+  "isActive": zod.boolean().optional(),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).optional().describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n')
 }).describe('The allow-listed, user-settable vendor fields.')
 
 export const UpdateVendorResponse = zod.object({
@@ -5585,6 +5611,7 @@ export const UpdateVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
   "createdAt": zod.string()
 })
 
@@ -5624,6 +5651,8 @@ export const ListBillsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -5638,7 +5667,8 @@ export const ListBillsResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -5691,6 +5721,8 @@ export const createBillBodyTwoItemsItemVatRateMax = 100;
 
 
 export const CreateBillBody = zod.object({
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).optional().describe('B7: what this purchase document IS. A note is the SUPPLIER\'S document — we receive it, so nothing is issued, no ICV is consumed and no e-invoice is sent. A note must name the bill it adjusts and a plain bill must not; a CREDIT note may not exceed what the original was charged, less what other notes have credited. Not editable after entry.\n'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('The approved bill this note adjusts. Required on a note, forbidden on a bill (both halves are enforced). The note INHERITS that bill\'s supplier.\n'),
   "billNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string(),
@@ -5718,6 +5750,8 @@ export const CreateBillBody = zod.object({
 export const CreateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -5732,7 +5766,8 @@ export const CreateBillResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -10223,6 +10258,8 @@ export const GetBillParams = zod.object({
 export const GetBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -10237,7 +10274,8 @@ export const GetBillResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -10275,6 +10313,8 @@ export const updateBillBodyTotalMin = 0;
 
 
 export const UpdateBillBody = zod.object({
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).optional().describe('B7: what this purchase document IS. A note is the SUPPLIER\'S document — we receive it, so nothing is issued, no ICV is consumed and no e-invoice is sent. A note must name the bill it adjusts and a plain bill must not; a CREDIT note may not exceed what the original was charged, less what other notes have credited. Not editable after entry.\n'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('The approved bill this note adjusts. Required on a note, forbidden on a bill (both halves are enforced). The note INHERITS that bill\'s supplier.\n'),
   "billNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
   "vendorReference": zod.string().nullish(),
   "date": zod.string().optional(),
@@ -10293,6 +10333,8 @@ export const UpdateBillBody = zod.object({
 export const UpdateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -10307,7 +10349,8 @@ export const UpdateBillResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -10356,6 +10399,8 @@ export const PostBillBody = zod.object({
 export const PostBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -10370,7 +10415,8 @@ export const PostBillResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -10415,6 +10461,8 @@ export const PayBillBody = zod.object({
 export const PayBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -10429,7 +10477,8 @@ export const PayBillResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number(),
   "currency": zod.string().nullish(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
@@ -10826,5 +10875,528 @@ export const RejectPayrollRunParams = zod.object({
 })
 
 export const RejectPayrollRunResponse = zod.void()
+
+
+/**
+ * `availableAmount` is DERIVED from the rows on every read — the payment less its live allocations less its refunds — never a stored counter that a second writer could drift.
+ * @summary B3: supplier payments, with what is still on account
+ */
+export const ListSupplierPaymentsQueryParams = zod.object({
+  "vendorId": zod.coerce.number().optional(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).optional()
+})
+
+export const ListSupplierPaymentsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.coerce.date(),
+  "reference": zod.string().nullish(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "source": zod.string().nullish(),
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
+  "journalEntryId": zod.number().nullish()
+}))
+})
+
+
+/**
+ * ONE balanced entry names where every riyal went: Dr AP for the part allocated to bills, Dr the on-account asset for the rest, Cr the bank the money left.
+ * 🔴 The unallocated part is an ASSET (the supplier holds our money), never a negative payable — parking it in AP would net silently against unrelated bills in every ageing bucket.
+ * 🔴 NO INPUT VAT is computed on this path. VAT IR Art. 49(7) makes deduction depend on HOLDING the supplier's tax invoice, which in this product is a bill; paying money deducts nothing.
+ * D-3: the bank account is required and is never inferred. A closed period is refused (423) with nothing written.
+ * @summary B3: pay a supplier — allocated to bills, on account, or both
+ */
+export const CreateSupplierPaymentBody = zod.object({
+  "vendorId": zod.number(),
+  "amount": zod.number(),
+  "bankAccountId": zod.number().describe('D-3: which bank the money left. Never defaulted, never inferred.'),
+  "paidAt": zod.coerce.date().optional(),
+  "method": zod.string().nullish(),
+  "reference": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).optional().describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "classificationNote": zod.string().nullish(),
+  "idempotencyKey": zod.string().nullish().describe('A retried request with the same key returns the ORIGINAL payment rather than paying twice.'),
+  "allocations": zod.array(zod.object({
+  "billId": zod.number(),
+  "amount": zod.number().describe('A positive amount')
+})).optional()
+})
+
+export const CreateSupplierPaymentResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.coerce.date(),
+  "reference": zod.string().nullish(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "source": zod.string().nullish(),
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
+  "journalEntryId": zod.number().nullish()
+}).and(zod.object({
+  "bankAccountId": zod.number().nullish(),
+  "method": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullish(),
+  "reversed": zod.boolean().describe('A reversed allocation STAYS — the row is never removed')
+})),
+  "refunds": zod.array(zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "refundedAt": zod.coerce.date(),
+  "reason": zod.string().nullish(),
+  "journalEntryId": zod.number().nullish()
+})),
+  "classificationHistory": zod.array(zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "note": zod.string().nullish(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "journalEntryId": zod.number().nullish().describe('Null when the account did not change and nothing was posted')
+}))
+}))
+
+
+/**
+ * The original allocation row stays exactly as it was, beside the reversal that answers it; the mirror entry puts AP back up and returns the on-account asset. One correction only — a second is refused (409).
+ * @summary B3: undo an allocation with a SUPERSEDING record
+ */
+export const ReverseSupplierAllocationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReverseSupplierAllocationBody = zod.object({
+  "reason": zod.string().describe('The supplier balance moves'),
+  "date": zod.coerce.date().optional()
+})
+
+export const ReverseSupplierAllocationResponse = zod.object({
+  "allocationId": zod.number(),
+  "reason": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullish()
+})
+
+
+/**
+ * @summary B3: one supplier payment with its allocations, refunds and classification history
+ */
+export const GetSupplierPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSupplierPaymentResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.coerce.date(),
+  "reference": zod.string().nullish(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "source": zod.string().nullish(),
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
+  "journalEntryId": zod.number().nullish()
+}).and(zod.object({
+  "bankAccountId": zod.number().nullish(),
+  "method": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullish(),
+  "reversed": zod.boolean().describe('A reversed allocation STAYS — the row is never removed')
+})),
+  "refunds": zod.array(zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "refundedAt": zod.coerce.date(),
+  "reason": zod.string().nullish(),
+  "journalEntryId": zod.number().nullish()
+})),
+  "classificationHistory": zod.array(zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "note": zod.string().nullish(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "journalEntryId": zod.number().nullish().describe('Null when the account did not change and nothing was posted')
+}))
+}))
+
+
+/**
+ * 🔴 Only an ADVANCE may settle a bill. A refundable security deposit is not consideration for a supply, and an erroneous or unclassified payment has no stated purpose; both are refused BY NAME (409) and must be reclassified first, which is an act somebody takes and the record shows.
+ * @summary B4: apply on-account money to bills — its own entry, Dr AP / Cr the asset
+ */
+export const AllocateSupplierPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const AllocateSupplierPaymentBody = zod.object({
+  "date": zod.coerce.date().optional(),
+  "allocations": zod.array(zod.object({
+  "billId": zod.number(),
+  "amount": zod.number().describe('A positive amount')
+})).min(1)
+})
+
+export const AllocateSupplierPaymentResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.coerce.date(),
+  "reference": zod.string().nullish(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "source": zod.string().nullish(),
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
+  "journalEntryId": zod.number().nullish()
+}).and(zod.object({
+  "bankAccountId": zod.number().nullish(),
+  "method": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullish(),
+  "reversed": zod.boolean().describe('A reversed allocation STAYS — the row is never removed')
+})),
+  "refunds": zod.array(zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "refundedAt": zod.coerce.date(),
+  "reason": zod.string().nullish(),
+  "journalEntryId": zod.number().nullish()
+})),
+  "classificationHistory": zod.array(zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "note": zod.string().nullish(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "journalEntryId": zod.number().nullish().describe('Null when the account did not change and nothing was posted')
+}))
+}))
+
+
+/**
+ * When the ACCOUNT changes, the balance still on account moves by ONE entry; when it does not, nothing is posted and the history row says so by carrying no journal entry. Every classification is kept: the question "what did we think this was, and when" is answerable.
+ * @summary B4: say what on-account money IS — advance, security deposit, erroneous, or not yet known
+ */
+export const ClassifySupplierPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ClassifySupplierPaymentBody = zod.object({
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "note": zod.string().nullish(),
+  "effectiveDate": zod.coerce.date().optional()
+})
+
+export const ClassifySupplierPaymentResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.coerce.date(),
+  "reference": zod.string().nullish(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "source": zod.string().nullish(),
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
+  "journalEntryId": zod.number().nullish()
+}).and(zod.object({
+  "bankAccountId": zod.number().nullish(),
+  "method": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullish(),
+  "reversed": zod.boolean().describe('A reversed allocation STAYS — the row is never removed')
+})),
+  "refunds": zod.array(zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "refundedAt": zod.coerce.date(),
+  "reason": zod.string().nullish(),
+  "journalEntryId": zod.number().nullish()
+})),
+  "classificationHistory": zod.array(zod.object({
+  "id": zod.number(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
+  "note": zod.string().nullish(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "journalEntryId": zod.number().nullish().describe('Null when the account did not change and nothing was posted')
+}))
+}))
+
+
+/**
+ * @summary B4: the supplier returns money — the asset falls, the bank rises
+ */
+export const RefundSupplierPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RefundSupplierPaymentBody = zod.object({
+  "amount": zod.number().optional().describe('Defaults to everything still on account'),
+  "bankAccountId": zod.number().optional().describe('Defaults to the bank the payment left from'),
+  "refundedAt": zod.coerce.date().optional(),
+  "reason": zod.string()
+})
+
+export const RefundSupplierPaymentResponse = zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "refundedAt": zod.coerce.date(),
+  "reason": zod.string().nullish(),
+  "journalEntryId": zod.number().nullish()
+})
+
+
+/**
+ * Four non-negative components and a DERIVED net. A liability is never expressed as a negative payable, and money the supplier holds is never expressed as one either: a supplier advance is an ASSET.
+ * @summary B5: every supplier with activity, and its position
+ */
+export const ListSupplierPositionsQueryParams = zod.object({
+  "vendorId": zod.coerce.number().optional()
+})
+
+export const ListSupplierPositionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "vendorId": zod.number(),
+  "totalBilled": zod.number().optional(),
+  "totalPaid": zod.number().optional(),
+  "billCount": zod.number().optional(),
+  "payable": zod.number(),
+  "creditBalance": zod.number(),
+  "advanceBalance": zod.number(),
+  "depositBalance": zod.number(),
+  "unidentifiedBalance": zod.number(),
+  "netPosition": zod.number().describe('payable less every asset. > 0: we owe them; < 0: they owe us. DERIVED.')
+}).describe('🔴 `advanceBalance`, `depositBalance` and `unidentifiedBalance` are exactly SUPPLIER_ADVANCES, SECURITY_DEPOSITS_PAID and UNIDENTIFIED_PAYMENTS. `payable` and `creditBalance` BOTH live in AP(vendor) — a purchase credit note posts its debit straight into AP — so the GL carries their difference; they are shown separately because \"what we owe\" and \"what they owe us on a note\" are different facts.\n'))
+})
+
+
+/**
+ * Every event that moved a component, in chronology (business date, then when it was recorded), each carrying a RUNNING balance so a reader can put a finger on the line where our figure and the supplier's diverge.
+ * 🔴 The closing running balance is CHECKED against the position and the check is REPORTED with both figures. Two computations of one fact have no forcing function between them; a statement that silently disagrees with the ledger is a reconciliation tool hiding the thing it exists to find.
+ * A WINDOW (`from`/`to`, business dates, both inclusive) cuts the event list and reports the balance brought forward (`opening`) and carried (`closing`). The running balances are computed over the whole stream first, so the opening of a window is exactly the closing of the window before it. The self-check and the GL tie are always over the whole stream — a window never hides a disagreement.
+ * @summary B5: one supplier's statement — the position, the events, and whether the two agree
+ */
+export const GetSupplierStatementParams = zod.object({
+  "vendorId": zod.coerce.number()
+})
+
+export const GetSupplierStatementQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional()
+})
+
+export const GetSupplierStatementResponse = zod.object({
+  "window": zod.object({
+  "from": zod.coerce.date().nullable(),
+  "to": zod.coerce.date().nullable()
+}),
+  "opening": zod.object({
+  "payable": zod.number(),
+  "credit": zod.number(),
+  "onAccount": zod.number(),
+  "net": zod.number().describe('payable − credit − onAccount. > 0: we owe them; < 0: they owe us.')
+}).describe('The running balance at one point in the statement.'),
+  "closing": zod.object({
+  "payable": zod.number(),
+  "credit": zod.number(),
+  "onAccount": zod.number(),
+  "net": zod.number().describe('payable − credit − onAccount. > 0: we owe them; < 0: they owe us.')
+}).describe('The running balance at one point in the statement.'),
+  "gl": zod.object({
+  "agrees": zod.boolean(),
+  "components": zod.object({
+  "ap": zod.object({
+  "fromSubledger": zod.number(),
+  "fromGl": zod.number()
+}),
+  "advances": zod.object({
+  "fromSubledger": zod.number(),
+  "fromGl": zod.number()
+}),
+  "deposits": zod.object({
+  "fromSubledger": zod.number(),
+  "fromGl": zod.number()
+}),
+  "unidentified": zod.object({
+  "fromSubledger": zod.number(),
+  "fromGl": zod.number()
+})
+})
+}).describe('The subledger ↔ AP control ↔ GL tie for this supplier, per component: AP (payable − credit) and each on-account asset, against the party-carrying GL lines. REPORTED, not asserted — pre-N3 control lines with no party cannot be attributed.\n'),
+  "vendor": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullish()
+}),
+  "position": zod.object({
+  "vendorId": zod.number(),
+  "totalBilled": zod.number().optional(),
+  "totalPaid": zod.number().optional(),
+  "billCount": zod.number().optional(),
+  "payable": zod.number(),
+  "creditBalance": zod.number(),
+  "advanceBalance": zod.number(),
+  "depositBalance": zod.number(),
+  "unidentifiedBalance": zod.number(),
+  "netPosition": zod.number().describe('payable less every asset. > 0: we owe them; < 0: they owe us. DERIVED.')
+}).describe('🔴 `advanceBalance`, `depositBalance` and `unidentifiedBalance` are exactly SUPPLIER_ADVANCES, SECURITY_DEPOSITS_PAID and UNIDENTIFIED_PAYMENTS. `payable` and `creditBalance` BOTH live in AP(vendor) — a purchase credit note posts its debit straight into AP — so the GL carries their difference; they are shown separately because \"what we owe\" and \"what they owe us on a note\" are different facts.\n'),
+  "lines": zod.array(zod.object({
+  "kind": zod.enum(['bill', 'debit_note', 'credit_note', 'payment', 'bill_payment', 'allocation', 'credit_application', 'unallocation', 'refund', 'reclassification']),
+  "date": zod.coerce.date(),
+  "ts": zod.coerce.date().optional(),
+  "id": zod.number().optional(),
+  "documentNumber": zod.string(),
+  "reference": zod.string().nullish(),
+  "description": zod.string(),
+  "amount": zod.number(),
+  "payableDelta": zod.number().optional(),
+  "creditDelta": zod.number().optional(),
+  "onAccountDelta": zod.number().optional(),
+  "runningPayable": zod.number().optional(),
+  "runningCredit": zod.number().optional(),
+  "runningOnAccount": zod.number().optional(),
+  "runningNet": zod.number(),
+  "billId": zod.number().nullish(),
+  "paymentId": zod.number().nullish(),
+  "creditNoteId": zod.number().nullish(),
+  "allocationId": zod.number().nullish(),
+  "refundId": zod.number().nullish(),
+  "journalEntryId": zod.number().nullish()
+})),
+  "reconciliation": zod.object({
+  "agrees": zod.boolean(),
+  "fromPosition": zod.number(),
+  "fromEvents": zod.number(),
+  "difference": zod.number(),
+  "components": zod.record(zod.string(), zod.unknown()).optional()
+}).describe('The two computations of one fact, compared and reported rather than assumed.')
+})
+
+
+/**
+ * @summary B7: purchase-side notes the supplier issued to us
+ */
+export const ListSupplierCreditNotesQueryParams = zod.object({
+  "vendorId": zod.coerce.number().optional()
+})
+
+export const ListSupplierCreditNotesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "documentType": zod.enum(['credit_note', 'debit_note']),
+  "creditNoteAgainstBillId": zod.number().nullish(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullish(),
+  "date": zod.coerce.date().describe('The SUPPLIER\'S issue date — the period Art. 40(6) corrects input tax in.'),
+  "status": zod.string(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number(),
+  "availableAmount": zod.number().describe('What is left to apply; 0 for a debit note'),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string(),
+  "amount": zod.number(),
+  "reversed": zod.boolean()
+}))
+}))
+})
+
+
+/**
+ * @summary B7: one purchase note, with what it has been applied to
+ */
+export const GetSupplierCreditNoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSupplierCreditNoteResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "documentType": zod.enum(['credit_note', 'debit_note']),
+  "creditNoteAgainstBillId": zod.number().nullish(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullish(),
+  "date": zod.coerce.date().describe('The SUPPLIER\'S issue date — the period Art. 40(6) corrects input tax in.'),
+  "status": zod.string(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number(),
+  "availableAmount": zod.number().describe('What is left to apply; 0 for a debit note'),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string(),
+  "amount": zod.number(),
+  "reversed": zod.boolean()
+}))
+})
+
+
+/**
+ * 🔴 POSTS NOTHING, on purpose. An approved purchase note has already moved the GL (Dr AP / Cr expense / Cr input VAT), so its unapplied balance is a DEBIT already sitting in AP for that supplier — which is exactly what it is. Applying it records WHICH payable it answers; a second entry would move AP twice for one economic event.
+ * This is deliberately NOT symmetrical with an advance, which sits on its own asset account and must be MOVED INTO AP when it is applied.
+ * @summary B7: apply an approved note's balance to the supplier's bills
+ */
+export const ApplySupplierCreditNoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const ApplySupplierCreditNoteBody = zod.object({
+  "allocations": zod.array(zod.object({
+  "billId": zod.number(),
+  "amount": zod.number().describe('A positive amount')
+})).min(1)
+})
+
+export const ApplySupplierCreditNoteResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "documentType": zod.enum(['credit_note', 'debit_note']),
+  "creditNoteAgainstBillId": zod.number().nullish(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullish(),
+  "date": zod.coerce.date().describe('The SUPPLIER\'S issue date — the period Art. 40(6) corrects input tax in.'),
+  "status": zod.string(),
+  "subtotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number(),
+  "availableAmount": zod.number().describe('What is left to apply; 0 for a debit note'),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string(),
+  "amount": zod.number(),
+  "reversed": zod.boolean()
+}))
+})
 
 

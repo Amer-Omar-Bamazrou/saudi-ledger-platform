@@ -5,6 +5,7 @@
  */
 import { BadRequestError } from "../lib/errors";
 import { reportsRepository, documentSign } from "../repositories/reports.repository";
+import { supplierStatementService } from "./accounting/supplierStatement.service";
 import { customersRepository } from "../repositories/customers.repository";
 // N2: ONE tolerance, imported from the write side — a read-side literal 2x the
 // write-side constant was the two-constants disease glPosting diagnoses for itself.
@@ -669,14 +670,37 @@ export const reportsService = {
     // so the difference is whole days with no zone left in it.
     const today = new Date(`${businessToday()}T00:00:00Z`);
     const rows = await reportsRepository.billsWithVendor();
+    /**
+     * 🔴 B6 (2026-09-22) — THE AGEING NOW AGES WHAT IS ACTUALLY OWED. It
+     * read `total − paid_amount`, which is the LEGACY per-bill counter alone:
+     * an advance applied to a bill, a payment recorded through the AP
+     * subledger and a supplier credit note all left the bill looking fully
+     * unpaid. It is the AR ageing's twin now, and each correction is a
+     * separate fact:
+     *
+     *   · allocations — payments and applied credit notes, LIVE ones only, so
+     *     a reversed allocation puts the exposure back where it belongs;
+     *   · a CREDIT NOTE is skipped as a row: it is applied to bills, it is not
+     *     itself payable, and ageing it would double-count the reduction it
+     *     already made;
+     *   · a DEBIT note ages like a bill — an additional charge, with its own
+     *     date and its own due date.
+     *
+     * 🔴 And what the SUPPLIER holds is shown BESIDE the buckets, never
+     * folded into them: an advance is an asset, not a negative payable, and
+     * netting it into a bucket would make an overdue bill read as less overdue
+     * because unrelated money is sitting with the same supplier.
+     */
     const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
     const items: any[] = [];
-    for (const { bill, vendor } of rows) {
-      const outstanding = toNum(bill.total) - toNum(bill.paidAmount);
-      if (outstanding < 0.01 || bill.status === "paid") continue;
+    for (const { bill, vendor, outstanding: owed } of rows) {
+      if (bill.documentType === "credit_note") continue;
+      // What the bill still owes, from the one definition (repositories/billPosition).
+      const outstanding = Math.round(toNum(owed) * 100) / 100;
+      if (outstanding < 0.01) continue;
       const due = new Date(`${bill.dueDate ?? bill.date}T00:00:00Z`);
       const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
-      items.push({ id: bill.id, billNumber: bill.billNumber, vendorName: vendor?.name ?? "Unknown", vendorNameAr: vendor?.nameAr ?? "", dueDate: bill.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
+      items.push({ id: bill.id, billNumber: bill.billNumber, documentType: bill.documentType, vendorName: vendor?.name ?? "Unknown", vendorNameAr: vendor?.nameAr ?? "", dueDate: bill.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
       if (daysPast <= 0) buckets.current += outstanding;
       else if (daysPast <= 30) buckets.days_1_30 += outstanding;
       else if (daysPast <= 60) buckets.days_31_60 += outstanding;
@@ -684,7 +708,20 @@ export const reportsService = {
       else buckets.over_90 += outstanding;
     }
     const fmtBuckets = Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, fmt2(v)]));
-    return { buckets: fmtBuckets, total: fmt2(Object.values(buckets).reduce((s, v) => s + v, 0)), items: items.sort((a, b) => b.daysPastDue - a.daysPastDue) };
+    const total = fmt2(Object.values(buckets).reduce((s, v) => s + v, 0));
+    // What the SUPPLIER holds, from the one definition of a supplier position.
+    const positions = await supplierStatementService.positions();
+    const supplierCredits = fmt2(positions.items.reduce((s, p) => s + p.creditBalance, 0));
+    const supplierAdvances = fmt2(positions.items.reduce((s, p) => s + p.advanceBalance, 0));
+    const supplierDeposits = fmt2(positions.items.reduce((s, p) => s + p.depositBalance, 0));
+    const unidentifiedPayments = fmt2(positions.items.reduce((s, p) => s + p.unidentifiedBalance, 0));
+    return {
+      buckets: fmtBuckets,
+      total,
+      assets: { supplierCredits, supplierAdvances, supplierDeposits, unidentifiedPayments },
+      netSupplierPosition: fmt2(total - supplierCredits - supplierAdvances - supplierDeposits - unidentifiedPayments),
+      items: items.sort((a, b) => b.daysPastDue - a.daysPastDue),
+    };
   },
 
   async taxJournalEntries(date_from?: string, date_to?: string) {
@@ -836,17 +873,32 @@ export const reportsService = {
 
     let standardRatedPurchases = 0, inputVat = 0, zeroRatedPurchases = 0;
     for (const bill of billRows) {
+      /**
+       * 🔴 B7 (2026-09-22) — THE PURCHASE SIDE CARRIES A SIGN, and until
+       * this batch it did not. A supplier CREDIT NOTE reduces the input tax we
+       * may deduct; filing it positive would claim a deduction twice, in the
+       * one direction the taxpayer benefits from and the auditor looks for.
+       *
+       * 🔴 And it lands in the note's OWN period: IR Art. 40(6) has the
+       * CUSTOMER correct its Input Tax "in the Tax Period in which the Credit
+       * Note or Debit Note is issued". This loop filters on `bills.date`, which
+       * for a note is the SUPPLIER'S issue date — so the correction files in
+       * the right period by construction, never re-dated into the supply's.
+       *
+       * A DEBIT note is +1: an additional charge, not a reversal.
+       */
+      const sign = documentSign(bill.documentType);
       const lines = billLinesByDoc.get(bill.id) ?? [];
       if (lines.length === 0) {
-        if (toNum(bill.vatAmount) > 0) { standardRatedPurchases += toNum(bill.subtotal); inputVat += toNum(bill.vatAmount); }
-        else zeroRatedPurchases += toNum(bill.subtotal);
+        if (toNum(bill.vatAmount) > 0) { standardRatedPurchases += sign * toNum(bill.subtotal); inputVat += sign * toNum(bill.vatAmount); }
+        else zeroRatedPurchases += sign * toNum(bill.subtotal);
         continue;
       }
       for (const { line } of lines) {
         const vat = toNum(line.vatAmount);
         const net = toNum(line.total) - vat;
-        if (vat > 0) { standardRatedPurchases += net; inputVat += vat; }
-        else zeroRatedPurchases += net;
+        if (vat > 0) { standardRatedPurchases += sign * net; inputVat += sign * vat; }
+        else zeroRatedPurchases += sign * net;
       }
     }
 

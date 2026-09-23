@@ -1,0 +1,2 @@
+ALTER TABLE "vendors" ADD COLUMN "residency" text DEFAULT 'unknown' NOT NULL;--> statement-breakpoint
+ALTER TABLE "vendors" ADD CONSTRAINT "vendors_residency_chk" CHECK (residency IN ('resident', 'non_resident', 'unknown'));
