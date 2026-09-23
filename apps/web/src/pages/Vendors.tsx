@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Building2 } from "lucide-react";
+import { Plus, Search, Building2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ListPagination } from "@/components/ListPagination";
@@ -18,7 +19,13 @@ import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import type { CreateVendorInput, PartyTotals, VendorWithBalance } from "@workspace/api-client-react";
 
 
-const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", iban: "", paymentTermsDays: "30" };
+/**
+ * B8 (2026-09-22): `residency` starts as `unknown` and STAYS there unless
+ * somebody says otherwise. It is a fact about the supplier, and "resident" is
+ * the answer that withholds nothing — so it must never be the silent default.
+ * Nothing in the platform withholds on it yet; see the schema's note.
+ */
+const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", iban: "", paymentTermsDays: "30", residency: "unknown" as "unknown" | "resident" | "non_resident" };
 
 export default function Vendors() {
   const [search, setSearch] = useState("");
@@ -71,6 +78,21 @@ export default function Vendors() {
                   <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" />
                 </div>
               ))}
+              <div className="col-span-2">
+                <Label className="text-xs text-muted-foreground">{t("Residency (for withholding tax)", "الإقامة (لأغراض ضريبة الاستقطاع)")}</Label>
+                <Select value={form.residency} onValueChange={(v)=>setForm(p=>({...p,residency:v as typeof p.residency}))}>
+                  <SelectTrigger className="mt-1 h-8 text-sm" data-testid="vendor-residency-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unknown">{t("Not stated", "غير محدد")}</SelectItem>
+                    <SelectItem value="resident">{t("Resident in Saudi Arabia", "مقيم في السعودية")}</SelectItem>
+                    <SelectItem value="non_resident">{t("Non-resident", "غير مقيم")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {t("Recorded only. Nothing is withheld and no rate is applied — the rate depends on what the payment is for, which is an accountant's decision.",
+                     "يُسجَّل فقط. لا يُستقطع شيء ولا تُطبَّق نسبة — فالنسبة تعتمد على طبيعة الدفعة، وهذا قرار المحاسب.")}
+                </p>
+              </div>
             </div>
             <Button className="w-full mt-4" onClick={()=>createMut.mutate(form)} disabled={!form.name || createMut.isPending}>
               {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Vendor", "إنشاء مورد")}
