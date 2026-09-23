@@ -232,8 +232,8 @@ export const NAV_TREE: readonly NavSection[] = [
           built("/ap-aging", "Vendor Aging", "أعمار ذمم الموردين"),
         ],
       },
-      built("/supplier-payments", "Supplier Payments", "مدفوعات الموردين", Banknote),
-      built("/supplier-credit-notes", "Supplier Credit Notes", "إشعارات الدائن من الموردين", FileMinus),
+      built("/supplier-payments", "Supplier Payments", "مدفوعات الموردين", Banknote),
+      built("/supplier-credit-notes", "Supplier Credit Notes", "إشعارات الدائن من الموردين", FileMinus),
       built("/ap-aging", "AP Aging", "أعمار الذمم الدائنة", Clock),
       {
         label: "Purchase Reports", labelAr: "تقارير المشتريات", marker: "built",
