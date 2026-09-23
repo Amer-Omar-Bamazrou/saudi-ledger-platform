@@ -1225,6 +1225,188 @@ paths:
               schema:
                 $ref: "#/components/schemas/UploadResult"
 
+  /bank-reconciliation/lines:
+    get:
+      operationId: listReconciliationLines
+      tags: [transactions]
+      summary: "Phase 12B: statement lines with how much of each is reconciled (the one definition: bank_line_reconciliation)"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+        - { in: query, name: status, required: false, schema: { $ref: "#/components/schemas/ReconciliationStatus" } }
+        - { in: query, name: from, required: false, schema: { type: string } }
+        - { in: query, name: to, required: false, schema: { type: string } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+        - { in: query, name: offset, required: false, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: A page of statement lines
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ReconciliationLine" }
+                  page:
+                    type: object
+                    required: [limit, offset, total]
+                    properties:
+                      limit: { type: integer }
+                      offset: { type: integer }
+                      total: { type: integer }
+
+  /bank-reconciliation/lines/{id}:
+    get:
+      operationId: getReconciliationLine
+      tags: [transactions]
+      summary: "Phase 12B: one statement line — what reconciles it, and (while it is not fully reconciled) the ledger cash lines that could"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The line
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReconciliationLineDetail" }
+
+  /bank-reconciliation/lines/{id}/links:
+    post:
+      operationId: linkReconciliationLine
+      tags: [transactions]
+      summary: "Phase 12B: reconcile a statement line to one or more ledger cash lines (partial and multi-document). Posts nothing."
+      description: >
+        Refused (409) when the line posted its own entry, when an amount exceeds
+        what is left on the statement line or on the ledger line, or when a
+        ledger line is not a cash line on the same bank moving money the same
+        way. A ledger line dated more than the matching window from the
+        statement line needs a reason (422 reason_required). The caps are also
+        enforced by the database, across every source.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReconciliationLinkInput" }
+      responses:
+        "200":
+          description: The line, after the link
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReconciliationLineDetail" }
+
+  /bank-reconciliation/links/{id}/reverse:
+    post:
+      operationId: reverseReconciliationLink
+      tags: [transactions]
+      summary: "Phase 12B: undo a reconciliation link with a superseding record (reason required). The link row stays."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReverseReconciliationLinkInput" }
+      responses:
+        "200":
+          description: The line, after the undo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReconciliationLineDetail" }
+
+  /bank-reconciliation/ap-matching:
+    get:
+      operationId: classifyApReconciliation
+      tags: [transactions]
+      summary: "Phase 12B: the deterministic rule over supplier payments, refunds and bill payments — classified, nothing recorded"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: One classification per unreconciled statement line
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [transactionId, classification, reason]
+                      properties:
+                        transactionId: { type: integer }
+                        classification: { type: string, enum: [DETERMINISTIC, AMBIGUOUS, UNMATCHED] }
+                        reason: { type: string }
+                        target:
+                          nullable: true
+                          allOf:
+                            - $ref: "#/components/schemas/ReconciliationCandidate"
+
+  /bank-reconciliation/ap-matching/apply:
+    post:
+      operationId: applyApReconciliation
+      tags: [transactions]
+      summary: "Phase 12B: record the DETERMINISTIC links only — an explicit act, never a side effect of an import"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: What was recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recorded, summary]
+                properties:
+                  recorded:
+                    type: array
+                    items: { type: integer }
+                  summary:
+                    type: object
+                    required: [deterministic, ambiguous, unmatched]
+                    properties:
+                      deterministic: { type: integer }
+                      ambiguous: { type: integer }
+                      unmatched: { type: integer }
+
+  /bank-statements:
+    get:
+      operationId: listBankStatements
+      tags: [transactions]
+      summary: "Phase 12A: imported bank statements, with continuity between them"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Statements, oldest first per bank
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/BankStatement" }
+
+  /bank-statements/{id}:
+    get:
+      operationId: getBankStatement
+      tags: [transactions]
+      summary: "Phase 12A: one statement"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The statement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankStatement" }
+
   /transactions/{id}:
     get:
       operationId: getTransaction
@@ -6649,10 +6831,13 @@ components:
         kind:
           description: |
             M16.2 — operating (real income/expense; the only kind tax figures
-            read), transfer (money between the business's own pockets), or
-            settlement (M16.3: settles an existing invoice/bill).
+            read), transfer (money between the business's own pockets),
+            settlement (M16.3: settles an existing invoice/bill), or matched
+            (Phase 12B: fully reconciled to a payment, refund or entry that
+            already posted the money — it posts nothing of its own). Only the
+            reconciliation writes matched; no input accepts it.
           type: string
-          enum: [operating, transfer, settlement]
+          enum: [operating, transfer, settlement, matched]
         taxTreatment:
           description: "VAT treatment: S/Z/E/O; null = unknown (and only unknown)."
           type: ["string", "null"]
@@ -6721,7 +6906,7 @@ components:
         categoryName: { type: ["string", "null"] }
         confidenceScore: { type: ["number", "null"] }
         vatAmount: { type: ["number", "null"] }
-        kind: { type: string, enum: [operating, transfer, settlement] }
+        kind: { type: string, enum: [operating, transfer, settlement, matched] }
         taxTreatment: { type: ["string", "null"], enum: [S, Z, E, O, null] }
         vatBasis:
           description: "Flaw #6 — whether VAT was actually charged (see Transaction.vatBasis)."
@@ -6973,11 +7158,158 @@ components:
             posts to this bank's own GL account, and a row with no bank cannot
             be accepted. A missing id is a 422 `bank_account_required`.
           type: integer
+        statement:
+          $ref: "#/components/schemas/BankStatementInput"
+
+    ReconciliationStatus:
+      type: string
+      description: "DERIVED from bank_line_reconciliation: unreconciled (nothing answers the line), partial, reconciled (its whole amount is answered)."
+      enum: [unreconciled, partial, reconciled]
+
+    ReconciliationLine:
+      type: object
+      required: [id, bankAccountId, date, description, direction, amount, reconciledAmount, remaining, status, reviewStatus, kind, postedOwnEntry]
+      properties:
+        id: { type: integer }
+        bankAccountId: { type: integer }
+        bankStatementId: { type: integer, nullable: true }
+        date: { type: string }
+        description: { type: string }
+        direction: { type: string, enum: [in, out] }
+        amount: { type: number }
+        reconciledAmount: { type: number }
+        remaining: { type: number }
+        status: { $ref: "#/components/schemas/ReconciliationStatus" }
+        reviewStatus: { type: string }
+        kind: { type: string }
+        postedOwnEntry: { type: boolean, description: "The line was accepted and posted its own entry — reconciled by construction." }
+
+    ReconciliationCandidate:
+      type: object
+      required: [journalLineId, journalEntryId, entryNumber, date, lineAmount, remaining, sourceKind]
+      properties:
+        journalLineId: { type: integer }
+        journalEntryId: { type: integer }
+        entryNumber: { type: string }
+        date: { type: string }
+        description: { type: string, nullable: true }
+        lineAmount: { type: number }
+        remaining: { type: number, description: What of this ledger cash line is not yet reconciled }
+        sourceKind:
+          type: string
+          description: The document that posted the cash line.
+          enum: [supplier_payment, supplier_refund, bill_payment, receipt, customer_refund, statement_line, bank_transfer, journal]
+        sourceId: { type: integer, nullable: true }
+        sourceReference: { type: string, nullable: true }
+        party: { type: string, nullable: true }
+
+    ReconciliationLineDetail:
+      allOf:
+        - $ref: "#/components/schemas/ReconciliationLine"
+        - type: object
+          required: [reconciledBy, candidates]
+          properties:
+            reconciledBy:
+              type: array
+              items:
+                type: object
+                required: [source, sourceId, journalLineId, amount, journalEntryId, entryNumber, entryDate, documentKind]
+                properties:
+                  source: { type: string, enum: [posted, ar_match, ar_settlement, link], description: "Which writer reconciled it — the line's own posting, a Phase D receipt match, a Review settlement, or a reconciliation link." }
+                  sourceId: { type: integer }
+                  journalLineId: { type: integer }
+                  amount: { type: number }
+                  journalEntryId: { type: integer }
+                  entryNumber: { type: string }
+                  entryDate: { type: string }
+                  documentKind: { type: string }
+                  documentReference: { type: string, nullable: true }
+                  party: { type: string, nullable: true }
+                  linkId: { type: integer, nullable: true, description: "Set for a reconciliation link — the only source undone from here." }
+            candidates:
+              type: array
+              items: { $ref: "#/components/schemas/ReconciliationCandidate" }
+
+    ReverseReconciliationLinkInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, description: "Why the reconciliation is undone — the record keeps both the link and its reversal." }
+
+    ReconciliationLinkInput:
+      type: object
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [journalLineId, amount]
+            properties:
+              journalLineId: { type: integer }
+              amount: { type: number, description: "The part of the statement line this ledger line answers." }
+        reason: { type: string, nullable: true }
+        idempotencyKey: { type: string, nullable: true }
+
+    BankStatementInput:
+      type: object
+      description: >
+        Phase 12A — what the BANK sent, recorded as a statement. When present
+        the import is ALL OR NOTHING: every row is validated first, rows must
+        fall inside the period, and when balances are given the file must agree
+        with itself (opening + credits − debits = closing) or nothing is
+        imported (422 statement_does_not_balance). The same file for the same
+        bank is refused by its SHA-256 (409 statement_already_imported).
+      properties:
+        fileName: { type: string, nullable: true }
+        fileSha256: { type: string, nullable: true, description: "Lower-case hex SHA-256 of the file as uploaded." }
+        periodFrom: { type: string, nullable: true, description: "YYYY-MM-DD (checked by the service). Defaults to the earliest row date." }
+        periodTo: { type: string, nullable: true, description: "YYYY-MM-DD (checked by the service). Defaults to the latest row date." }
+        openingBalance: { type: number, nullable: true, description: "What the bank stated at the start — both balances or neither." }
+        closingBalance: { type: number, nullable: true, description: "What the bank stated at the end — both balances or neither." }
+
+    BankStatementContinuity:
+      type: string
+      description: >
+        How this statement follows the previous one for the same bank. REPORTED,
+        never refused: a missing statement is a fact to see, not a reason to
+        block an import. first · continuous · gap (days missing) · overlap
+        (periods overlap) · balance_break (opening differs from the previous
+        closing) · unknown (a balance is missing on either side).
+      enum: [first, continuous, gap, overlap, balance_break, unknown]
+
+    BankStatement:
+      type: object
+      required: [id, bankAccountId, periodFrom, periodTo, source, lineCount, fileCreditTotal, fileDebitTotal, importedCount, continuity, createdAt]
+      properties:
+        id: { type: integer }
+        bankAccountId: { type: integer }
+        periodFrom: { type: string, description: "YYYY-MM-DD — a plain date string (a date-format schema would be coerced to a timestamp on the wire)." }
+        periodTo: { type: string, description: "YYYY-MM-DD" }
+        openingBalance: { type: number, nullable: true }
+        closingBalance: { type: number, nullable: true }
+        source: { type: string, enum: [file_upload, manual_entry] }
+        fileName: { type: string, nullable: true }
+        fileSha256: { type: string, nullable: true }
+        lineCount: { type: integer, description: Lines in the file }
+        fileCreditTotal: { type: number }
+        fileDebitTotal: { type: number }
+        importedCount: { type: integer, description: "DERIVED — lines that carry this statement. Lower than lineCount when lines were already held (a re-exported period)." }
+        continuity:
+          $ref: "#/components/schemas/BankStatementContinuity"
+        continuityDetail: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
 
     UploadResult:
       type: object
       required: [inserted, categorized, errors]
       properties:
+        statement:
+          description: Phase 12A — the statement record this import created, when the upload carried one.
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/BankStatement"
         inserted:
           type: integer
         categorized:

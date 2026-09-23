@@ -694,6 +694,20 @@
       "when": 1790166716535,
       "tag": "0098_phase11_ap_subledger_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1790174339913,
+      "tag": "0099_phase12a_bank_statements",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1790175394347,
+      "tag": "0100_phase12b_bank_reconciliation",
+      "breakpoints": true
     }
   ]
 }

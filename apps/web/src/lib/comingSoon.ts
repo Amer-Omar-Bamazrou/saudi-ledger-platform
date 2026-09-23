@@ -303,16 +303,6 @@ export const COMING_SOON: readonly ComingSoonEntry[] = [
     whenClearedAr: "صفحتا القائمة والإنشاء موجودتان، وصفحة القائمة تحدد الحساب الذي يظهر على الفواتير؛ هذه هي صفحة الحساب المفرد تحتهما.",
   },
   {
-    slug: "bank-statement-register",
-    title: "Bank statement register",
-    titleAr: "سجل كشوف الحسابات البنكية",
-    summary: "Every statement ever imported, when, by whom, and what it produced.",
-    summaryAr: "كل كشف تم استيراده، ومتى، وبواسطة من، وما نتج عنه.",
-    blocker: "build",
-    whenCleared: "Import works (`/upload`) and review works (`/review`); what is missing is the register of past imports.",
-    whenClearedAr: "الاستيراد يعمل والمراجعة تعمل؛ الناقص هو سجل عمليات الاستيراد السابقة.",
-  },
-  {
     slug: "transfers",
     title: "Transfers",
     titleAr: "التحويلات",

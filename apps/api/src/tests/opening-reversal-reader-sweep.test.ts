@@ -52,6 +52,7 @@ const EXEMPT: Record<string, string> = {
   "openingReversal.ts": "the predicate itself.",
   "billPosition.ts": "SQL FRAGMENTS for a bill's sign and outstanding (Phase 11 Part 2), not a query: it selects no rows, and every caller supplies its own WHERE carrying billNotReversed (bills, vendors, findings, reports, supplierStatement, ledgerInvariants) or excludes every opening row (analytics).",
   "approvalsQueue.repository.ts": "lists DRAFT and SUBMITTED documents for the approvals worklist with their total as a label; an opening item is created 'sent'/'approved' and never enters the queue, reversed or not.",
+  "bankReconciliation.repository.ts": "Phase 12B: every figure it computes comes from GL cash lines (journal_line_bank_identity) and the bank_line_reconciliation view; it joins supplier_payments/bill_payments/payments/customer_refunds only to LABEL a cash line with its source document (kind, reference, party) and selects no amount from them. A reversed opening item's cash effect is carried by its journal entry, whose status is 'reversed', and candidates() offers neither a reversed entry nor its reversing mirror (half of a netted pair is never a bank movement).",
   "reports.repository.ts.__NOT_EXEMPT__": "placeholder proving the map is a map — never matched",
 };
 

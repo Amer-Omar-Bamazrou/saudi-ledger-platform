@@ -292,7 +292,7 @@ export const reportsService = {
       // of documents already in operating via their invoices/bills.
       if (tx.kind !== "operating") {
         internal += amount;
-        internalItems.push({ name: tx.kind === "transfer" ? "Transfer between own accounts" : "Invoice/bill settlement", amount });
+        internalItems.push({ name: tx.kind === "transfer" ? "Transfer between own accounts" : tx.kind === "matched" ? "Reconciled to a recorded payment" : "Invoice/bill settlement", amount });
         continue;
       }
       const catName = cat?.name ?? "Uncategorized";

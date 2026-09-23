@@ -59,12 +59,12 @@ describeMaybe("Purchase orders (M21.3)", () => {
     if (orgId) {
       await pool.query(`DELETE FROM purchase_order_conversion_items WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM purchase_order_conversions WHERE organization_id = $1`, [orgId]);
+      await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM purchase_order_items WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM purchase_orders WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM bill_items WHERE organization_id = $1`, [orgId]);
-      await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM bills WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM vendors WHERE organization_id = $1`, [orgId]);

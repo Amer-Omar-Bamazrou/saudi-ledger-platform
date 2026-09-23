@@ -60,7 +60,7 @@ export const ListTransactionsResponse = zod.object({
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
   "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
-  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "kind": zod.enum(['operating', 'transfer', 'settlement', 'matched']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets),\nsettlement (M16.3: settles an existing invoice\/bill), or matched\n(Phase 12B: fully reconciled to a payment, refund or entry that\nalready posted the money — it posts nothing of its own). Only the\nreconciliation writes matched; no input accepts it.\n'),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
   "vatBasis": zod.union([zod.literal('charged'),zod.literal('reverse_charge'),zod.literal('supplier_unregistered'),zod.literal(null)]).nullish().describe('Flaw #6 — whether VAT was actually CHARGED on this payment, which\nis a different fact from what the supply IS (taxTreatment).\n`reverse_charge`: a foreign supplier charges no KSA VAT and the\nbuyer self-accounts. `supplier_unregistered`: a supplier below the\nVAT threshold charges none. VAT is extracted only when\ntaxTreatment=\'S\' AND vatBasis=\'charged\'.\n'),
   "bankAccountId": zod.number().nullish(),
@@ -132,7 +132,7 @@ export const CreateTransactionResponse = zod.object({
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
   "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
-  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "kind": zod.enum(['operating', 'transfer', 'settlement', 'matched']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets),\nsettlement (M16.3: settles an existing invoice\/bill), or matched\n(Phase 12B: fully reconciled to a payment, refund or entry that\nalready posted the money — it posts nothing of its own). Only the\nreconciliation writes matched; no input accepts it.\n'),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
   "vatBasis": zod.union([zod.literal('charged'),zod.literal('reverse_charge'),zod.literal('supplier_unregistered'),zod.literal(null)]).nullish().describe('Flaw #6 — whether VAT was actually CHARGED on this payment, which\nis a different fact from what the supply IS (taxTreatment).\n`reverse_charge`: a foreign supplier charges no KSA VAT and the\nbuyer self-accounts. `supplier_unregistered`: a supplier below the\nVAT threshold charges none. VAT is extracted only when\ntaxTreatment=\'S\' AND vatBasis=\'charged\'.\n'),
   "bankAccountId": zod.number().nullish(),
@@ -159,7 +159,7 @@ export const GetPendingReviewTransactionsResponseItem = zod.object({
   "categoryName": zod.string().nullish(),
   "confidenceScore": zod.number().nullish(),
   "vatAmount": zod.number().nullish(),
-  "kind": zod.enum(['operating', 'transfer', 'settlement']),
+  "kind": zod.enum(['operating', 'transfer', 'settlement', 'matched']),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish(),
   "vatBasis": zod.union([zod.literal('charged'),zod.literal('reverse_charge'),zod.literal('supplier_unregistered'),zod.literal(null)]).nullish().describe('Flaw #6 — whether VAT was actually charged (see Transaction.vatBasis).'),
   "treatmentAssumed": zod.boolean().optional().describe('M16.3.1 — true when the row\'s treatment came from a category\ndefault that has NOT been verified against KSA VAT rules (only\nBANK_CHARGES and INSURANCE have been — queue C9 tracks the rest).\nThe UI shows these as \"assumed\" with an override; a user must\nnever read a confident \'S\' off a guess.\n'),
@@ -249,7 +249,7 @@ export const SettleTransactionResponse = zod.object({
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
   "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
-  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "kind": zod.enum(['operating', 'transfer', 'settlement', 'matched']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets),\nsettlement (M16.3: settles an existing invoice\/bill), or matched\n(Phase 12B: fully reconciled to a payment, refund or entry that\nalready posted the money — it posts nothing of its own). Only the\nreconciliation writes matched; no input accepts it.\n'),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
   "vatBasis": zod.union([zod.literal('charged'),zod.literal('reverse_charge'),zod.literal('supplier_unregistered'),zod.literal(null)]).nullish().describe('Flaw #6 — whether VAT was actually CHARGED on this payment, which\nis a different fact from what the supply IS (taxTreatment).\n`reverse_charge`: a foreign supplier charges no KSA VAT and the\nbuyer self-accounts. `supplier_unregistered`: a supplier below the\nVAT threshold charges none. VAT is extracted only when\ntaxTreatment=\'S\' AND vatBasis=\'charged\'.\n'),
   "bankAccountId": zod.number().nullish(),
@@ -2088,10 +2088,36 @@ export const UploadTransactionsBody = zod.object({
   "bankAccountId": zod.number().nullish().describe('D-3: the bank account this movement belongs to. REQUIRED on `POST \/transactions` (a single manual row is accepted and posted on creation, and its cash leg posts to this bank\'s GL account — a row without one is refused with 422 `bank_account_required`). Ignored on upload rows, where the statement\'s `bankAccountId` applies.\n')
 })),
   "autoCategrize": zod.boolean().nullish(),
-  "bankAccountId": zod.number().describe('M16.2 — which bank account this statement belongs to. Scopes\nduplicate detection to the account and is the foundation for\ntransfer-leg pairing. Validated against the tenant\'s own accounts.\n🔴 REQUIRED since D-3 (2026-09-16): an accepted row\'s cash leg\nposts to this bank\'s own GL account, and a row with no bank cannot\nbe accepted. A missing id is a 422 `bank_account_required`.\n')
+  "bankAccountId": zod.number().describe('M16.2 — which bank account this statement belongs to. Scopes\nduplicate detection to the account and is the foundation for\ntransfer-leg pairing. Validated against the tenant\'s own accounts.\n🔴 REQUIRED since D-3 (2026-09-16): an accepted row\'s cash leg\nposts to this bank\'s own GL account, and a row with no bank cannot\nbe accepted. A missing id is a 422 `bank_account_required`.\n'),
+  "statement": zod.object({
+  "fileName": zod.string().nullish(),
+  "fileSha256": zod.string().nullish().describe('Lower-case hex SHA-256 of the file as uploaded.'),
+  "periodFrom": zod.string().nullish().describe('YYYY-MM-DD (checked by the service). Defaults to the earliest row date.'),
+  "periodTo": zod.string().nullish().describe('YYYY-MM-DD (checked by the service). Defaults to the latest row date.'),
+  "openingBalance": zod.number().nullish().describe('What the bank stated at the start — both balances or neither.'),
+  "closingBalance": zod.number().nullish().describe('What the bank stated at the end — both balances or neither.')
+}).optional().describe('Phase 12A — what the BANK sent, recorded as a statement. When present the import is ALL OR NOTHING: every row is validated first, rows must fall inside the period, and when balances are given the file must agree with itself (opening + credits − debits = closing) or nothing is imported (422 statement_does_not_balance). The same file for the same bank is refused by its SHA-256 (409 statement_already_imported).\n')
 })
 
 export const UploadTransactionsResponse = zod.object({
+  "statement": zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "periodFrom": zod.string().describe('YYYY-MM-DD — a plain date string (a date-format schema would be coerced to a timestamp on the wire).'),
+  "periodTo": zod.string().describe('YYYY-MM-DD'),
+  "openingBalance": zod.number().nullish(),
+  "closingBalance": zod.number().nullish(),
+  "source": zod.enum(['file_upload', 'manual_entry']),
+  "fileName": zod.string().nullish(),
+  "fileSha256": zod.string().nullish(),
+  "lineCount": zod.number().describe('Lines in the file'),
+  "fileCreditTotal": zod.number(),
+  "fileDebitTotal": zod.number(),
+  "importedCount": zod.number().describe('DERIVED — lines that carry this statement. Lower than lineCount when lines were already held (a re-exported period).'),
+  "continuity": zod.enum(['first', 'continuous', 'gap', 'overlap', 'balance_break', 'unknown']).describe('How this statement follows the previous one for the same bank. REPORTED, never refused: a missing statement is a fact to see, not a reason to block an import. first · continuous · gap (days missing) · overlap (periods overlap) · balance_break (opening differs from the previous closing) · unknown (a balance is missing on either side).\n'),
+  "continuityDetail": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).nullish().describe('Phase 12A — the statement record this import created, when the upload carried one.'),
   "inserted": zod.number(),
   "categorized": zod.number(),
   "duplicatesSkipped": zod.number().optional(),
@@ -2101,6 +2127,320 @@ export const UploadTransactionsResponse = zod.object({
   "amount": zod.number()
 })).optional(),
   "errors": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Phase 12B: statement lines with how much of each is reconciled (the one definition: bank_line_reconciliation)
+ */
+export const listReconciliationLinesQueryLimitMax = 200;
+
+export const listReconciliationLinesQueryOffsetMin = 0;
+
+
+
+export const ListReconciliationLinesQueryParams = zod.object({
+  "bankAccountId": zod.coerce.number().optional(),
+  "status": zod.enum(['unreconciled', 'partial', 'reconciled']).optional(),
+  "from": zod.coerce.string().optional(),
+  "to": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().min(1).max(listReconciliationLinesQueryLimitMax).optional(),
+  "offset": zod.coerce.number().min(listReconciliationLinesQueryOffsetMin).optional()
+})
+
+export const ListReconciliationLinesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "bankStatementId": zod.number().nullish(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "direction": zod.enum(['in', 'out']),
+  "amount": zod.number(),
+  "reconciledAmount": zod.number(),
+  "remaining": zod.number(),
+  "status": zod.enum(['unreconciled', 'partial', 'reconciled']).describe('DERIVED from bank_line_reconciliation: unreconciled (nothing answers the line), partial, reconciled (its whole amount is answered).'),
+  "reviewStatus": zod.string(),
+  "kind": zod.string(),
+  "postedOwnEntry": zod.boolean().describe('The line was accepted and posted its own entry — reconciled by construction.')
+})),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number()
+})
+})
+
+
+/**
+ * @summary Phase 12B: one statement line — what reconciles it, and (while it is not fully reconciled) the ledger cash lines that could
+ */
+export const GetReconciliationLineParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetReconciliationLineResponse = zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "bankStatementId": zod.number().nullish(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "direction": zod.enum(['in', 'out']),
+  "amount": zod.number(),
+  "reconciledAmount": zod.number(),
+  "remaining": zod.number(),
+  "status": zod.enum(['unreconciled', 'partial', 'reconciled']).describe('DERIVED from bank_line_reconciliation: unreconciled (nothing answers the line), partial, reconciled (its whole amount is answered).'),
+  "reviewStatus": zod.string(),
+  "kind": zod.string(),
+  "postedOwnEntry": zod.boolean().describe('The line was accepted and posted its own entry — reconciled by construction.')
+}).and(zod.object({
+  "reconciledBy": zod.array(zod.object({
+  "source": zod.enum(['posted', 'ar_match', 'ar_settlement', 'link']).describe('Which writer reconciled it — the line\'s own posting, a Phase D receipt match, a Review settlement, or a reconciliation link.'),
+  "sourceId": zod.number(),
+  "journalLineId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "entryDate": zod.string(),
+  "documentKind": zod.string(),
+  "documentReference": zod.string().nullish(),
+  "party": zod.string().nullish(),
+  "linkId": zod.number().nullish().describe('Set for a reconciliation link — the only source undone from here.')
+})),
+  "candidates": zod.array(zod.object({
+  "journalLineId": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string().nullish(),
+  "lineAmount": zod.number(),
+  "remaining": zod.number().describe('What of this ledger cash line is not yet reconciled'),
+  "sourceKind": zod.enum(['supplier_payment', 'supplier_refund', 'bill_payment', 'receipt', 'customer_refund', 'statement_line', 'bank_transfer', 'journal']).describe('The document that posted the cash line.'),
+  "sourceId": zod.number().nullish(),
+  "sourceReference": zod.string().nullish(),
+  "party": zod.string().nullish()
+}))
+}))
+
+
+/**
+ * Refused (409) when the line posted its own entry, when an amount exceeds what is left on the statement line or on the ledger line, or when a ledger line is not a cash line on the same bank moving money the same way. A ledger line dated more than the matching window from the statement line needs a reason (422 reason_required). The caps are also enforced by the database, across every source.
+ * @summary Phase 12B: reconcile a statement line to one or more ledger cash lines (partial and multi-document). Posts nothing.
+ */
+export const LinkReconciliationLineParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const LinkReconciliationLineBody = zod.object({
+  "lines": zod.array(zod.object({
+  "journalLineId": zod.number(),
+  "amount": zod.number().describe('The part of the statement line this ledger line answers.')
+})).min(1),
+  "reason": zod.string().nullish(),
+  "idempotencyKey": zod.string().nullish()
+})
+
+export const LinkReconciliationLineResponse = zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "bankStatementId": zod.number().nullish(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "direction": zod.enum(['in', 'out']),
+  "amount": zod.number(),
+  "reconciledAmount": zod.number(),
+  "remaining": zod.number(),
+  "status": zod.enum(['unreconciled', 'partial', 'reconciled']).describe('DERIVED from bank_line_reconciliation: unreconciled (nothing answers the line), partial, reconciled (its whole amount is answered).'),
+  "reviewStatus": zod.string(),
+  "kind": zod.string(),
+  "postedOwnEntry": zod.boolean().describe('The line was accepted and posted its own entry — reconciled by construction.')
+}).and(zod.object({
+  "reconciledBy": zod.array(zod.object({
+  "source": zod.enum(['posted', 'ar_match', 'ar_settlement', 'link']).describe('Which writer reconciled it — the line\'s own posting, a Phase D receipt match, a Review settlement, or a reconciliation link.'),
+  "sourceId": zod.number(),
+  "journalLineId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "entryDate": zod.string(),
+  "documentKind": zod.string(),
+  "documentReference": zod.string().nullish(),
+  "party": zod.string().nullish(),
+  "linkId": zod.number().nullish().describe('Set for a reconciliation link — the only source undone from here.')
+})),
+  "candidates": zod.array(zod.object({
+  "journalLineId": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string().nullish(),
+  "lineAmount": zod.number(),
+  "remaining": zod.number().describe('What of this ledger cash line is not yet reconciled'),
+  "sourceKind": zod.enum(['supplier_payment', 'supplier_refund', 'bill_payment', 'receipt', 'customer_refund', 'statement_line', 'bank_transfer', 'journal']).describe('The document that posted the cash line.'),
+  "sourceId": zod.number().nullish(),
+  "sourceReference": zod.string().nullish(),
+  "party": zod.string().nullish()
+}))
+}))
+
+
+/**
+ * @summary Phase 12B: undo a reconciliation link with a superseding record (reason required). The link row stays.
+ */
+export const ReverseReconciliationLinkParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReverseReconciliationLinkBody = zod.object({
+  "reason": zod.string().describe('Why the reconciliation is undone — the record keeps both the link and its reversal.')
+})
+
+export const ReverseReconciliationLinkResponse = zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "bankStatementId": zod.number().nullish(),
+  "date": zod.string(),
+  "description": zod.string(),
+  "direction": zod.enum(['in', 'out']),
+  "amount": zod.number(),
+  "reconciledAmount": zod.number(),
+  "remaining": zod.number(),
+  "status": zod.enum(['unreconciled', 'partial', 'reconciled']).describe('DERIVED from bank_line_reconciliation: unreconciled (nothing answers the line), partial, reconciled (its whole amount is answered).'),
+  "reviewStatus": zod.string(),
+  "kind": zod.string(),
+  "postedOwnEntry": zod.boolean().describe('The line was accepted and posted its own entry — reconciled by construction.')
+}).and(zod.object({
+  "reconciledBy": zod.array(zod.object({
+  "source": zod.enum(['posted', 'ar_match', 'ar_settlement', 'link']).describe('Which writer reconciled it — the line\'s own posting, a Phase D receipt match, a Review settlement, or a reconciliation link.'),
+  "sourceId": zod.number(),
+  "journalLineId": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "entryDate": zod.string(),
+  "documentKind": zod.string(),
+  "documentReference": zod.string().nullish(),
+  "party": zod.string().nullish(),
+  "linkId": zod.number().nullish().describe('Set for a reconciliation link — the only source undone from here.')
+})),
+  "candidates": zod.array(zod.object({
+  "journalLineId": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string().nullish(),
+  "lineAmount": zod.number(),
+  "remaining": zod.number().describe('What of this ledger cash line is not yet reconciled'),
+  "sourceKind": zod.enum(['supplier_payment', 'supplier_refund', 'bill_payment', 'receipt', 'customer_refund', 'statement_line', 'bank_transfer', 'journal']).describe('The document that posted the cash line.'),
+  "sourceId": zod.number().nullish(),
+  "sourceReference": zod.string().nullish(),
+  "party": zod.string().nullish()
+}))
+}))
+
+
+/**
+ * @summary Phase 12B: the deterministic rule over supplier payments, refunds and bill payments — classified, nothing recorded
+ */
+export const ClassifyApReconciliationQueryParams = zod.object({
+  "bankAccountId": zod.coerce.number().optional()
+})
+
+export const ClassifyApReconciliationResponse = zod.object({
+  "items": zod.array(zod.object({
+  "transactionId": zod.number(),
+  "classification": zod.enum(['DETERMINISTIC', 'AMBIGUOUS', 'UNMATCHED']),
+  "reason": zod.string(),
+  "target": zod.object({
+  "journalLineId": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "description": zod.string().nullish(),
+  "lineAmount": zod.number(),
+  "remaining": zod.number().describe('What of this ledger cash line is not yet reconciled'),
+  "sourceKind": zod.enum(['supplier_payment', 'supplier_refund', 'bill_payment', 'receipt', 'customer_refund', 'statement_line', 'bank_transfer', 'journal']).describe('The document that posted the cash line.'),
+  "sourceId": zod.number().nullish(),
+  "sourceReference": zod.string().nullish(),
+  "party": zod.string().nullish()
+}).nullish()
+}))
+})
+
+
+/**
+ * @summary Phase 12B: record the DETERMINISTIC links only — an explicit act, never a side effect of an import
+ */
+export const ApplyApReconciliationQueryParams = zod.object({
+  "bankAccountId": zod.coerce.number().optional()
+})
+
+export const ApplyApReconciliationResponse = zod.object({
+  "recorded": zod.array(zod.number()),
+  "summary": zod.object({
+  "deterministic": zod.number(),
+  "ambiguous": zod.number(),
+  "unmatched": zod.number()
+})
+})
+
+
+/**
+ * @summary Phase 12A: imported bank statements, with continuity between them
+ */
+export const ListBankStatementsQueryParams = zod.object({
+  "bankAccountId": zod.coerce.number().optional()
+})
+
+export const ListBankStatementsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "periodFrom": zod.string().describe('YYYY-MM-DD — a plain date string (a date-format schema would be coerced to a timestamp on the wire).'),
+  "periodTo": zod.string().describe('YYYY-MM-DD'),
+  "openingBalance": zod.number().nullish(),
+  "closingBalance": zod.number().nullish(),
+  "source": zod.enum(['file_upload', 'manual_entry']),
+  "fileName": zod.string().nullish(),
+  "fileSha256": zod.string().nullish(),
+  "lineCount": zod.number().describe('Lines in the file'),
+  "fileCreditTotal": zod.number(),
+  "fileDebitTotal": zod.number(),
+  "importedCount": zod.number().describe('DERIVED — lines that carry this statement. Lower than lineCount when lines were already held (a re-exported period).'),
+  "continuity": zod.enum(['first', 'continuous', 'gap', 'overlap', 'balance_break', 'unknown']).describe('How this statement follows the previous one for the same bank. REPORTED, never refused: a missing statement is a fact to see, not a reason to block an import. first · continuous · gap (days missing) · overlap (periods overlap) · balance_break (opening differs from the previous closing) · unknown (a balance is missing on either side).\n'),
+  "continuityDetail": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Phase 12A: one statement
+ */
+export const GetBankStatementParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetBankStatementResponse = zod.object({
+  "id": zod.number(),
+  "bankAccountId": zod.number(),
+  "periodFrom": zod.string().describe('YYYY-MM-DD — a plain date string (a date-format schema would be coerced to a timestamp on the wire).'),
+  "periodTo": zod.string().describe('YYYY-MM-DD'),
+  "openingBalance": zod.number().nullish(),
+  "closingBalance": zod.number().nullish(),
+  "source": zod.enum(['file_upload', 'manual_entry']),
+  "fileName": zod.string().nullish(),
+  "fileSha256": zod.string().nullish(),
+  "lineCount": zod.number().describe('Lines in the file'),
+  "fileCreditTotal": zod.number(),
+  "fileDebitTotal": zod.number(),
+  "importedCount": zod.number().describe('DERIVED — lines that carry this statement. Lower than lineCount when lines were already held (a re-exported period).'),
+  "continuity": zod.enum(['first', 'continuous', 'gap', 'overlap', 'balance_break', 'unknown']).describe('How this statement follows the previous one for the same bank. REPORTED, never refused: a missing statement is a fact to see, not a reason to block an import. first · continuous · gap (days missing) · overlap (periods overlap) · balance_break (opening differs from the previous closing) · unknown (a balance is missing on either side).\n'),
+  "continuityDetail": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
 })
 
 
@@ -2128,7 +2468,7 @@ export const GetTransactionResponse = zod.object({
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
   "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
-  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "kind": zod.enum(['operating', 'transfer', 'settlement', 'matched']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets),\nsettlement (M16.3: settles an existing invoice\/bill), or matched\n(Phase 12B: fully reconciled to a payment, refund or entry that\nalready posted the money — it posts nothing of its own). Only the\nreconciliation writes matched; no input accepts it.\n'),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
   "vatBasis": zod.union([zod.literal('charged'),zod.literal('reverse_charge'),zod.literal('supplier_unregistered'),zod.literal(null)]).nullish().describe('Flaw #6 — whether VAT was actually CHARGED on this payment, which\nis a different fact from what the supply IS (taxTreatment).\n`reverse_charge`: a foreign supplier charges no KSA VAT and the\nbuyer self-accounts. `supplier_unregistered`: a supplier below the\nVAT threshold charges none. VAT is extracted only when\ntaxTreatment=\'S\' AND vatBasis=\'charged\'.\n'),
   "bankAccountId": zod.number().nullish(),
@@ -2185,7 +2525,7 @@ export const UpdateTransactionResponse = zod.object({
   "isManuallyOverridden": zod.boolean(),
   "source": zod.string().nullish(),
   "reviewStatus": zod.enum(['pending_review', 'accepted']).optional(),
-  "kind": zod.enum(['operating', 'transfer', 'settlement']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets), or\nsettlement (M16.3: settles an existing invoice\/bill).\n'),
+  "kind": zod.enum(['operating', 'transfer', 'settlement', 'matched']).optional().describe('M16.2 — operating (real income\/expense; the only kind tax figures\nread), transfer (money between the business\'s own pockets),\nsettlement (M16.3: settles an existing invoice\/bill), or matched\n(Phase 12B: fully reconciled to a payment, refund or entry that\nalready posted the money — it posts nothing of its own). Only the\nreconciliation writes matched; no input accepts it.\n'),
   "taxTreatment": zod.union([zod.literal('S'),zod.literal('Z'),zod.literal('E'),zod.literal('O'),zod.literal(null)]).nullish().describe('VAT treatment: S\/Z\/E\/O; null = unknown (and only unknown).'),
   "vatBasis": zod.union([zod.literal('charged'),zod.literal('reverse_charge'),zod.literal('supplier_unregistered'),zod.literal(null)]).nullish().describe('Flaw #6 — whether VAT was actually CHARGED on this payment, which\nis a different fact from what the supply IS (taxTreatment).\n`reverse_charge`: a foreign supplier charges no KSA VAT and the\nbuyer self-accounts. `supplier_unregistered`: a supplier below the\nVAT threshold charges none. VAT is extracted only when\ntaxTreatment=\'S\' AND vatBasis=\'charged\'.\n'),
   "bankAccountId": zod.number().nullish(),

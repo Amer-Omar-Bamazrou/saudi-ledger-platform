@@ -36,6 +36,8 @@ import CustomerDetail from '@/pages/CustomerDetail';
 import CustomerStatement from '@/pages/CustomerStatement';
 import Payments from '@/pages/Payments';
 import BankMatching from '@/pages/BankMatching';
+import BankStatements from '@/pages/BankStatements';
+import BankReconciliation from '@/pages/BankReconciliation';
 // Both BUILT (M21) — real routes, real persistence. The last two façades the
 // 2026-08-20 audit found are gone; `KNOWN_UNBACKED` is now empty.
 import Quotations from '@/pages/Quotations';
@@ -263,6 +265,8 @@ function Router() {
               {/* Banking */}
               <Route path="/bank-accounts" component={BankAccounts} />
               <Route path="/bank-matching" component={BankMatching} />
+              <Route path="/bank-statements" component={BankStatements} />
+              <Route path="/bank-reconciliation" component={BankReconciliation} />
               {/* Planning */}
               <Route path="/budgets" component={Budgets} />
               {/* Settings */}

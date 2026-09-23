@@ -997,8 +997,11 @@ export const TransactionReviewStatus = {
 
 /**
  * M16.2 — operating (real income/expense; the only kind tax figures
- * read), transfer (money between the business's own pockets), or
- * settlement (M16.3: settles an existing invoice/bill).
+ * read), transfer (money between the business's own pockets),
+ * settlement (M16.3: settles an existing invoice/bill), or matched
+ * (Phase 12B: fully reconciled to a payment, refund or entry that
+ * already posted the money — it posts nothing of its own). Only the
+ * reconciliation writes matched; no input accepts it.
  */
 export type TransactionKind = typeof TransactionKind[keyof typeof TransactionKind];
 
@@ -1007,6 +1010,7 @@ export const TransactionKind = {
   operating: 'operating',
   transfer: 'transfer',
   settlement: 'settlement',
+  matched: 'matched',
 } as const;
 
 /**
@@ -1083,8 +1087,11 @@ export interface Transaction {
   reviewStatus?: TransactionReviewStatus;
   /**
      * M16.2 — operating (real income/expense; the only kind tax figures
-     * read), transfer (money between the business's own pockets), or
-     * settlement (M16.3: settles an existing invoice/bill).
+     * read), transfer (money between the business's own pockets),
+     * settlement (M16.3: settles an existing invoice/bill), or matched
+     * (Phase 12B: fully reconciled to a payment, refund or entry that
+     * already posted the money — it posts nothing of its own). Only the
+     * reconciliation writes matched; no input accepts it.
      */
   kind?: TransactionKind;
   /**
@@ -1157,6 +1164,7 @@ export const PendingReviewTransactionKind = {
   operating: 'operating',
   transfer: 'transfer',
   settlement: 'settlement',
+  matched: 'matched',
 } as const;
 
 /**
@@ -1492,6 +1500,23 @@ export interface TransactionUpdate {
   descriptionAr?: string | null;
 }
 
+/**
+ * Phase 12A — what the BANK sent, recorded as a statement. When present the import is ALL OR NOTHING: every row is validated first, rows must fall inside the period, and when balances are given the file must agree with itself (opening + credits − debits = closing) or nothing is imported (422 statement_does_not_balance). The same file for the same bank is refused by its SHA-256 (409 statement_already_imported).
+ */
+export interface BankStatementInput {
+  fileName?: string | null;
+  /** Lower-case hex SHA-256 of the file as uploaded. */
+  fileSha256?: string | null;
+  /** YYYY-MM-DD (checked by the service). Defaults to the earliest row date. */
+  periodFrom?: string | null;
+  /** YYYY-MM-DD (checked by the service). Defaults to the latest row date. */
+  periodTo?: string | null;
+  /** What the bank stated at the start — both balances or neither. */
+  openingBalance?: number | null;
+  /** What the bank stated at the end — both balances or neither. */
+  closingBalance?: number | null;
+}
+
 export interface TransactionUpload {
   rows: TransactionInput[];
   /** @nullable */
@@ -1505,6 +1530,175 @@ export interface TransactionUpload {
      * be accepted. A missing id is a 422 `bank_account_required`.
      */
   bankAccountId: number;
+  statement?: BankStatementInput;
+}
+
+/**
+ * DERIVED from bank_line_reconciliation: unreconciled (nothing answers the line), partial, reconciled (its whole amount is answered).
+ */
+export type ReconciliationStatus = typeof ReconciliationStatus[keyof typeof ReconciliationStatus];
+
+
+export const ReconciliationStatus = {
+  unreconciled: 'unreconciled',
+  partial: 'partial',
+  reconciled: 'reconciled',
+} as const;
+
+export type ReconciliationLineDirection = typeof ReconciliationLineDirection[keyof typeof ReconciliationLineDirection];
+
+
+export const ReconciliationLineDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export interface ReconciliationLine {
+  id: number;
+  bankAccountId: number;
+  bankStatementId?: number | null;
+  date: string;
+  description: string;
+  direction: ReconciliationLineDirection;
+  amount: number;
+  reconciledAmount: number;
+  remaining: number;
+  status: ReconciliationStatus;
+  reviewStatus: string;
+  kind: string;
+  /** The line was accepted and posted its own entry — reconciled by construction. */
+  postedOwnEntry: boolean;
+}
+
+/**
+ * The document that posted the cash line.
+ */
+export type ReconciliationCandidateSourceKind = typeof ReconciliationCandidateSourceKind[keyof typeof ReconciliationCandidateSourceKind];
+
+
+export const ReconciliationCandidateSourceKind = {
+  supplier_payment: 'supplier_payment',
+  supplier_refund: 'supplier_refund',
+  bill_payment: 'bill_payment',
+  receipt: 'receipt',
+  customer_refund: 'customer_refund',
+  statement_line: 'statement_line',
+  bank_transfer: 'bank_transfer',
+  journal: 'journal',
+} as const;
+
+export interface ReconciliationCandidate {
+  journalLineId: number;
+  journalEntryId: number;
+  entryNumber: string;
+  date: string;
+  description?: string | null;
+  lineAmount: number;
+  /** What of this ledger cash line is not yet reconciled */
+  remaining: number;
+  /** The document that posted the cash line. */
+  sourceKind: ReconciliationCandidateSourceKind;
+  sourceId?: number | null;
+  sourceReference?: string | null;
+  party?: string | null;
+}
+
+/**
+ * Which writer reconciled it — the line's own posting, a Phase D receipt match, a Review settlement, or a reconciliation link.
+ */
+export type ReconciliationLineDetailReconciledByItemSource = typeof ReconciliationLineDetailReconciledByItemSource[keyof typeof ReconciliationLineDetailReconciledByItemSource];
+
+
+export const ReconciliationLineDetailReconciledByItemSource = {
+  posted: 'posted',
+  ar_match: 'ar_match',
+  ar_settlement: 'ar_settlement',
+  link: 'link',
+} as const;
+
+export type ReconciliationLineDetailReconciledByItem = {
+  /** Which writer reconciled it — the line's own posting, a Phase D receipt match, a Review settlement, or a reconciliation link. */
+  source: ReconciliationLineDetailReconciledByItemSource;
+  sourceId: number;
+  journalLineId: number;
+  amount: number;
+  journalEntryId: number;
+  entryNumber: string;
+  entryDate: string;
+  documentKind: string;
+  documentReference?: string | null;
+  party?: string | null;
+  /** Set for a reconciliation link — the only source undone from here. */
+  linkId?: number | null;
+};
+
+export type ReconciliationLineDetail = ReconciliationLine & {
+  reconciledBy: ReconciliationLineDetailReconciledByItem[];
+  candidates: ReconciliationCandidate[];
+};
+
+export interface ReverseReconciliationLinkInput {
+  /** Why the reconciliation is undone — the record keeps both the link and its reversal. */
+  reason: string;
+}
+
+export type ReconciliationLinkInputLinesItem = {
+  journalLineId: number;
+  /** The part of the statement line this ledger line answers. */
+  amount: number;
+};
+
+export interface ReconciliationLinkInput {
+  /** @minItems 1 */
+  lines: ReconciliationLinkInputLinesItem[];
+  reason?: string | null;
+  idempotencyKey?: string | null;
+}
+
+/**
+ * How this statement follows the previous one for the same bank. REPORTED, never refused: a missing statement is a fact to see, not a reason to block an import. first · continuous · gap (days missing) · overlap (periods overlap) · balance_break (opening differs from the previous closing) · unknown (a balance is missing on either side).
+ */
+export type BankStatementContinuity = typeof BankStatementContinuity[keyof typeof BankStatementContinuity];
+
+
+export const BankStatementContinuity = {
+  first: 'first',
+  continuous: 'continuous',
+  gap: 'gap',
+  overlap: 'overlap',
+  balance_break: 'balance_break',
+  unknown: 'unknown',
+} as const;
+
+export type BankStatementSource = typeof BankStatementSource[keyof typeof BankStatementSource];
+
+
+export const BankStatementSource = {
+  file_upload: 'file_upload',
+  manual_entry: 'manual_entry',
+} as const;
+
+export interface BankStatement {
+  id: number;
+  bankAccountId: number;
+  /** YYYY-MM-DD — a plain date string (a date-format schema would be coerced to a timestamp on the wire). */
+  periodFrom: string;
+  /** YYYY-MM-DD */
+  periodTo: string;
+  openingBalance?: number | null;
+  closingBalance?: number | null;
+  source: BankStatementSource;
+  fileName?: string | null;
+  fileSha256?: string | null;
+  /** Lines in the file */
+  lineCount: number;
+  fileCreditTotal: number;
+  fileDebitTotal: number;
+  /** DERIVED — lines that carry this statement. Lower than lineCount when lines were already held (a re-exported period). */
+  importedCount: number;
+  continuity: BankStatementContinuity;
+  continuityDetail?: string | null;
+  createdAt: string;
 }
 
 export type UploadResultDuplicatesItem = {
@@ -1514,6 +1708,8 @@ export type UploadResultDuplicatesItem = {
 };
 
 export interface UploadResult {
+  /** Phase 12A — the statement record this import created, when the upload carried one. */
+  statement?: BankStatement | null;
   inserted: number;
   categorized: number;
   duplicatesSkipped?: number;
@@ -7965,6 +8161,80 @@ export const ListFindingsStatus = {
 
 export type GetAskStatus200 = {
   available: boolean;
+};
+
+export type ListReconciliationLinesParams = {
+bankAccountId?: number;
+status?: ReconciliationStatus;
+from?: string;
+to?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListReconciliationLines200Page = {
+  limit: number;
+  offset: number;
+  total: number;
+};
+
+export type ListReconciliationLines200 = {
+  items: ReconciliationLine[];
+  page: ListReconciliationLines200Page;
+};
+
+export type ClassifyApReconciliationParams = {
+bankAccountId?: number;
+};
+
+export type ClassifyApReconciliation200ItemsItemClassification = typeof ClassifyApReconciliation200ItemsItemClassification[keyof typeof ClassifyApReconciliation200ItemsItemClassification];
+
+
+export const ClassifyApReconciliation200ItemsItemClassification = {
+  DETERMINISTIC: 'DETERMINISTIC',
+  AMBIGUOUS: 'AMBIGUOUS',
+  UNMATCHED: 'UNMATCHED',
+} as const;
+
+export type ClassifyApReconciliation200ItemsItem = {
+  transactionId: number;
+  classification: ClassifyApReconciliation200ItemsItemClassification;
+  reason: string;
+  target?: ReconciliationCandidate | null;
+};
+
+export type ClassifyApReconciliation200 = {
+  items: ClassifyApReconciliation200ItemsItem[];
+};
+
+export type ApplyApReconciliationParams = {
+bankAccountId?: number;
+};
+
+export type ApplyApReconciliation200Summary = {
+  deterministic: number;
+  ambiguous: number;
+  unmatched: number;
+};
+
+export type ApplyApReconciliation200 = {
+  recorded: number[];
+  summary: ApplyApReconciliation200Summary;
+};
+
+export type ListBankStatementsParams = {
+bankAccountId?: number;
+};
+
+export type ListBankStatements200 = {
+  items: BankStatement[];
 };
 
 export type ListBudgetsParams = {

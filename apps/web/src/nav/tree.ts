@@ -265,12 +265,14 @@ export const NAV_TREE: readonly NavSection[] = [
           built("/upload", "Import Statement", "استيراد كشف"),
           built("/review", "Statement Review Queue", "قائمة مراجعة الكشوف"),
           built("/categorize", "Categorisation", "التصنيف"),
-          soon("bank-statement-register", "All Statements", "كل الكشوف"),
+          built("/bank-statements", "All Statements", "كل الكشوف"),
         ],
       },
       built("/transactions", "Transactions", "المعاملات", ListOrdered),
       soon("transfers", "Transfers", "التحويلات", ArrowLeftRight),
-      built("/review", "Reconciliation", "التسوية البنكية", ListChecks),
+      built("/review", "Statement Review", "مراجعة الكشف", ListChecks),
+      // Phase 12B: statement lines ↔ the ledger movements they ARE (partial, multi-document).
+      built("/bank-reconciliation", "Reconciliation Workbench", "منضدة التسوية البنكية", Scale),
       // Phase D/F: statement rows ↔ receipts/refunds, classified with evidence.
       built("/bank-matching", "Bank Matching", "مطابقة كشوف البنك", SearchCheck),
       soon("live-bank-feeds", "Live Bank Feeds", "الربط المباشر مع البنوك", Plug),

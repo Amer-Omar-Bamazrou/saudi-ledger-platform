@@ -55,6 +55,8 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/balance-sheet": "app",
   "/bank-accounts": "app",
   "/bank-matching": "app",
+  "/bank-reconciliation": "app",
+  "/bank-statements": "app",
   "/bills": "app",
   "/budgets": "app",
   "/cash-flow": "app",

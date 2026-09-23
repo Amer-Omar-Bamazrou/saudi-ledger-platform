@@ -13,4 +13,5 @@ export const PendingReviewTransactionKind = {
   operating: 'operating',
   transfer: 'transfer',
   settlement: 'settlement',
+  matched: 'matched',
 } as const;

@@ -65,7 +65,7 @@ export const transactionsController = {
   async upload(req: Request, res: Response) {
     const body = UploadTransactionsBody.safeParse(req.body);
     if (!body.success) throw new BadRequestError(body.error.message);
-    res.json(await transactionsService.upload(body.data));
+    res.json(await transactionsService.upload(body.data, req.session?.userId ?? null));
   },
 
   async create(req: Request, res: Response) {

@@ -262,6 +262,25 @@ async function main() {
       FROM gl FULL JOIN sub ON sub.org = gl.org AND sub.vendor_id IS NOT DISTINCT FROM gl.vendor_id AND sub.code = gl.code
      WHERE coalesce(gl.v,0) <> coalesce(sub.v,0)`));
 
+  // ── Phase 12B: bank reconciliation, over the ONE view ─────────────────
+  // A statement line is the bank's evidence of ONE movement. These read
+  // bank_line_reconciliation — every source — and name what no trigger can
+  // repair after the fact.
+  fail("bank_line_reconciled_twice — a statement line that posted its OWN entry and is ALSO matched or linked (the same money in the ledger twice)", await q(`
+    SELECT r.organization_id::text AS org, r.transaction_id, string_agg(DISTINCT r.source, ',') AS sources
+      FROM bank_line_reconciliation r
+     GROUP BY r.organization_id, r.transaction_id
+    HAVING bool_or(r.source = 'posted') AND bool_or(r.source <> 'posted')`));
+  fail("bank_line_over_reconciled — a statement line reconciled beyond its amount", await q(`
+    SELECT t.organization_id::text AS org, t.id AS transaction_id, abs(t.amount)::text AS amount, sum(r.amount)::text AS reconciled
+      FROM transactions t JOIN bank_line_reconciliation r ON r.transaction_id = t.id
+     GROUP BY t.organization_id, t.id, t.amount HAVING sum(r.amount) > abs(t.amount) + 0.005`));
+  fail("cash_line_over_reconciled — a ledger cash line answered by statement lines beyond its own amount", await q(`
+    SELECT v.organization_id::text AS org, v.line_id, abs(v.debit_amount - v.credit_amount)::text AS amount, sum(r.amount)::text AS reconciled
+      FROM journal_line_bank_identity v JOIN bank_line_reconciliation r ON r.line_id = v.line_id
+     GROUP BY v.organization_id, v.line_id, v.debit_amount, v.credit_amount
+    HAVING sum(r.amount) > abs(v.debit_amount - v.credit_amount) + 0.005`));
+
   if (jsonOut) writeFileSync(jsonOut, JSON.stringify(report, null, 2));
   await pool.end();
   if (failures > 0) {

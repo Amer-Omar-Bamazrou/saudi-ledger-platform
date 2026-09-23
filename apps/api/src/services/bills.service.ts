@@ -345,7 +345,7 @@ export const billsService = {
     const payment = await paymentsRepository.recordBillPayment(id, paid, payDate, bankAccountId);
 
     // ── GL: Dr Accounts Payable / Cr <the bank's own cash account> ──
-    await postJournalEntry({
+    const payEntry = await postJournalEntry({
       entryNumber: `BILL-${bill.billNumber}-PAY-${payment.id}`,
       date: payDate,
       description: `Payment to vendor for bill ${bill.billNumber}`,
@@ -356,6 +356,8 @@ export const billsService = {
       ],
     });
 
+    // Phase 12B: the payment names its entry, so its cash line can be reconciled to the bank's statement line.
+    await paymentsRepository.setBillPaymentEntry(payment.id, payEntry.id);
     await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: bill });
     // Read back through the one definition, so the response carries what the
     // bill owes NOW rather than a null the pay dialog would have to guess past.

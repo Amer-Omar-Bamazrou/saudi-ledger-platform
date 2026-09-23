@@ -90,6 +90,14 @@ export const billPaymentsTable = pgTable(
     backfilled: boolean("backfilled").notNull().default(false),
     /** D-3: the paying bank — see `invoicePaymentsTable.bankAccountId`. */
     bankAccountId: integer("bank_account_id").references(() => bankAccountsTable.id, { onDelete: "restrict" }),
+    /**
+     * Phase 12B — the entry this payment posted (Dr AP / Cr the bank leaf).
+     * Written by `billsService.pay`; back-filled for older rows from the entry
+     * number the pay path has always used. Without it the payment's CASH LINE
+     * could only be found by a naming convention, and a statement line could
+     * not be reconciled to it.
+     */
+    journalEntryId: integer("journal_entry_id").references(() => journalEntriesTable.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("bill_payments_bill_idx").on(t.billId), index("bill_payments_org_idx").on(t.organizationId)],

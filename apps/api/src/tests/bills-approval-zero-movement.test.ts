@@ -55,10 +55,11 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
 
   const cleanup = async () => {
     if (orgId) {
+      // bill_payments.journal_entry_id (Phase 12B) references the entry: payments go first.
+      await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM bill_items WHERE organization_id = $1`, [orgId]);
-      await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM bills WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM bank_accounts WHERE organization_id = $1`, [orgId]);

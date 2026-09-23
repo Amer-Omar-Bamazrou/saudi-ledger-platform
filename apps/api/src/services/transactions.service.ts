@@ -17,6 +17,8 @@ import {
 import { AppError, BadRequestError, BankAccountRequiredError, BusinessRuleError, ConflictError, NotFoundError, PeriodLockedError } from "../lib/errors";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { assertBankAccount } from "./accounting/bankIdentity";
+import { bankStatementsService } from "./accounting/bankStatements.service";
+import { bankReconciliationRepository } from "../repositories/bankReconciliation.repository";
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes, looksForeignDigitalSupplier } from "./categorization/categorizer.js";
 import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross, type ResolvedCategory } from "./categorization/resolveCategory.js";
@@ -159,7 +161,7 @@ export const transactionsService = {
     });
   },
 
-  async upload(data: UploadTransactionsInput) {
+  async upload(data: UploadTransactionsInput, userId: number | null = null) {
     const { rows, autoCategrize } = data;
     const errors: string[] = [];
     /**
@@ -187,6 +189,17 @@ export const transactionsService = {
     // rows nothing can ever accept. 422 `bank_account_required` /
     // `reference_not_found` — one shared check (accounting/bankIdentity.ts).
     const bankAccountId: number = await assertBankAccount(data.bankAccountId, { what: "this statement belongs to" });
+
+    /**
+     * 🔴 Phase 12A — a STATEMENT upload is all or nothing. Every row is
+     * validated, the period and the stated balances checked, and a re-imported
+     * file refused, BEFORE the first line is written (bankStatements.service).
+     * Each line then carries the statement it came from. Without a statement
+     * block the upload behaves as it always has (per-row errors).
+     */
+    const statement = data.statement
+      ? await bankStatementsService.record(await bankStatementsService.prepare(bankAccountId, data.statement, rows), userId)
+      : null;
 
     // Resolve every code the engine could emit ONCE, inside the tenant tx.
     const resolvedCodes = autoCategrize
@@ -373,6 +386,7 @@ export const transactionsService = {
           taxTreatment,
           vatBasis,
           bankAccountId,
+          bankStatementId: statement?.id ?? null,
           source: row.source ?? "upload",
           notes: row.notes ?? null,
         });
@@ -389,16 +403,30 @@ export const transactionsService = {
       }
     }
 
+    // A statement is whole or not at all: a row that failed at insert (after
+    // validation passed) rolls the whole import back, statement included.
+    if (statement && errors.length > 0) {
+      throw new BusinessRuleError(422, {
+        code: "statement_rows_invalid",
+        error: `The statement was not imported — ${errors.length} line(s) could not be. A statement is imported whole or not at all.`,
+        problems: errors,
+      });
+    }
+
     if (inserted > 0) {
       // Bulk import → one summary audit record (not one per row).
       await auditService.record({
         action: "create",
         entityType: "transaction",
         entityId: "bulk",
-        after: { inserted, categorized },
+        after: { inserted, categorized, bankStatementId: statement?.id ?? null },
       });
     }
+    if (statement) {
+      await auditService.created("bank_statement", statement.id, statement);
+    }
     return UploadTransactionsResponse.parse({
+      statement: statement ? await bankStatementsService.get(statement.id) : null,
       inserted,
       categorized,
       duplicatesSkipped: duplicates.length,
@@ -469,6 +497,19 @@ export const transactionsService = {
    * repository restricts to rows safe to accept unread.
    */
   async acceptPending(ids?: number[]): Promise<AcceptPendingOutcome> {
+    // 12B: naming a reconciled line is refused in words, not silently skipped.
+    if (ids?.length) {
+      // Only lines another record answers: a line that posted its OWN entry is
+      // already accepted, and naming it again stays the idempotent no-op it was.
+      const reconciled = await bankReconciliationRepository.reconciledIds(ids, { byAnotherRecord: true });
+      if (reconciled.size > 0) {
+        throw new BusinessRuleError(409, {
+          code: "line_reconciled",
+          error: `Statement line(s) ${[...reconciled].join(", ")} are already reconciled to a recorded payment, refund or entry. Accepting would post the same money again — undo the reconciliation first if it is wrong.`,
+          ids: [...reconciled],
+        });
+      }
+    }
     const result = await transactionsRepository.acceptPending({
       ids,
       minConfidence: AUTO_ASSIGN_CONFIDENCE,
@@ -627,6 +668,21 @@ export const transactionsService = {
   async update(id: number, data: UpdateTransactionInput) {
     const [existing] = await transactionsRepository.findWithCategory(id);
     if (!existing) throw new NotFoundError("Transaction not found");
+
+    // 🔴 12B: a MATCHED line is the bank-side record of money another record
+    // posted. Only its notes and Arabic description may change; anything that
+    // would post it (a category, a transfer declaration) or change what the
+    // bank said is refused — undo the reconciliation instead.
+    if (existing.tx.kind === "matched") {
+      const allowed = new Set(["notes", "descriptionAr"]);
+      const touched = Object.keys(data).filter((k) => (data as Record<string, unknown>)[k] !== undefined && !allowed.has(k));
+      if (touched.length > 0) {
+        throw new BusinessRuleError(409, {
+          code: "line_reconciled",
+          error: `This statement line is reconciled to a recorded payment, refund or entry — ${touched.join(", ")} cannot be changed here. Undo the reconciliation first.`,
+        });
+      }
+    }
 
     // ── Audit Tier 2 (finding 6): a settlement row's classification is the
     // settlement contract. Its category/VAT/treatment were deliberately
@@ -909,6 +965,15 @@ export const transactionsService = {
       throw new ConflictError(
         "This transaction settles an invoice/bill and is the bank-side record of that payment. It cannot be deleted while the payment stands.",
       );
+    }
+    // 12B: a line with ANY reconciliation (matched, or partly linked) is the
+    // bank-side record of money the ledger holds; deleting it would orphan the
+    // reconciliation. Undo the reconciliation first.
+    if (existing && existing.tx.journalEntryId == null && (await bankReconciliationRepository.reconciledIds([id])).has(id)) {
+      throw new BusinessRuleError(409, {
+        code: "line_reconciled",
+        error: "This statement line is reconciled to a recorded payment, refund or entry. Undo the reconciliation before deleting the line.",
+      });
     }
     // 🔴 A POSTED ROW IS REVERSED BEFORE IT IS DELETED (2026-09-15, workflow
     // audit W5 G1 / W7 B4). This path deleted an accepted-and-posted row and

@@ -21,6 +21,9 @@ function whereFor(f: TransactionFilter) {
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
+/** No source in `bank_line_reconciliation` answers this line (Phase 12B — the one definition). */
+const NOT_RECONCILED = () => sql`NOT EXISTS (SELECT 1 FROM bank_line_reconciliation r WHERE r.transaction_id = ${transactionsTable}."id")`;
+
 export const transactionsRepository = {
   list(f: TransactionFilter) {
     return db
@@ -80,12 +83,19 @@ export const transactionsRepository = {
    * what makes the acceptance deliberate. The UI separates them visually; this
    * makes the separation binding rather than cosmetic.
    */
+  /**
+   * 🔴 Phase 12B: a line the ledger already answers — wholly or in part, by a
+   * receipt match, a reconciliation link, a Review settlement — is NEVER
+   * accepted: acceptance posts the line's own entry, and that would move the
+   * same money a second time (the defect the 12B audit found: a matched line
+   * stayed pending and could be accepted).
+   */
   async acceptPending(opts: { ids?: number[]; minConfidence: number }): Promise<{ accepted: number; acceptedIds: number[] }> {
     if (opts.ids && opts.ids.length > 0) {
       const r = await db
         .update(transactionsTable)
         .set({ reviewStatus: "accepted" })
-        .where(and(eq(transactionsTable.reviewStatus, "pending_review"), inArray(transactionsTable.id, opts.ids)))
+        .where(and(eq(transactionsTable.reviewStatus, "pending_review"), inArray(transactionsTable.id, opts.ids), NOT_RECONCILED()))
         .returning({ id: transactionsTable.id });
       return { accepted: r.length, acceptedIds: r.map((x) => x.id) };
     }
@@ -95,6 +105,7 @@ export const transactionsRepository = {
       .where(
         and(
           eq(transactionsTable.reviewStatus, "pending_review"),
+          NOT_RECONCILED(),
           // M16.2: a TRANSFER carries no category by design — the kind IS the
           // classification — so a confident transfer is bulk-safe alongside
           // categorized rows. Everything else still needs a category.

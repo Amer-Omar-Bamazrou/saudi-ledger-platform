@@ -22,6 +22,8 @@ export * from "./capturedDocuments";
 export * from "./recurring";
 export * from "./recognitionSchedules";
 export * from "./supplierPayments";
+export * from "./bankStatements";
+export * from "./bankReconciliation";
 export * from "./findings";
 export * from "./payments";
 export * from "./invoicePrepayments";

@@ -33,6 +33,9 @@ import { invoicesRepository } from "../repositories/invoices.repository";
 import { transactionsRepository } from "../repositories/transactions.repository";
 import type { transactionsTable } from "@workspace/db";
 import { round2 } from "../lib/money";
+import { paymentsRepository } from "../repositories/payments.repository";
+import { bankReconciliationService } from "./accounting/bankReconciliation.service";
+import { bankReconciliationRepository } from "../repositories/bankReconciliation.repository";
 
 type Tx = typeof transactionsTable.$inferSelect;
 
@@ -239,6 +242,22 @@ export const reconciliationService = {
       vatRate: null,
       taxTreatment: null,
     });
+
+    /**
+     * 🔴 Phase 12B — a BILL settled from Review is reconciled explicitly to
+     * the payment's cash line (the receipt side has always been reachable
+     * through `payments.source_transaction_id`; the bill side had nothing but
+     * an entry-number convention). One writer per effect: the pay path posted;
+     * this only records which cash line the statement line IS.
+     */
+    if (billId != null) {
+      const [bp] = await paymentsRepository.latestBillPayment(billId);
+      const cash = bp?.journalEntryId != null ? await bankReconciliationRepository.cashLineOf(bp.journalEntryId, tx.bankAccountId) : [];
+      if (cash.length !== 1) {
+        throw new ConflictError(`The bill payment for statement line ${transactionId} has no single cash line on its bank; it cannot be reconciled.`);
+      }
+      await bankReconciliationService.link(transactionId, { lines: [{ journalLineId: cash[0]!.line_id, amount: Number(cash[0]!.amount) }] }, userId, "settlement", { billId, billPaymentId: bp!.id });
+    }
 
     const [updated] = await transactionsRepository.findWithCategory(transactionId);
     if (!updated) throw new NotFoundError("Transaction not found after settle");

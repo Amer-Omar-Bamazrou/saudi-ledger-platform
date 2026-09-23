@@ -26,6 +26,8 @@ import payments from "./payments.js";
 import supplierPayments from "./supplierPayments.js";
 import supplierStatements from "./supplierStatements.js";
 import supplierCreditNotes from "./supplierCreditNotes.js";
+import bankStatements from "./bankStatements.js";
+import bankReconciliation from "./bankReconciliation.js";
 import migration from "./migration.js";
 import quotations from "./quotations.js";
 import purchaseOrders from "./purchaseOrders.js";
@@ -103,6 +105,10 @@ router.use(
   zatcaOnboarding,
 );
 router.use("/transactions", requirePermission("transactions"), transactions);
+// Phase 12A: statements are part of the transactions surface (the upload creates them).
+router.use("/bank-statements", requirePermission("transactions"), bankStatements);
+// Phase 12B: reconciling statement lines is the review of those lines — the same authority.
+router.use("/bank-reconciliation", requirePermission("transactions"), bankReconciliation);
 router.use("/categories", requirePermission("categories"), categories);
 router.use("/summary", requirePermission("summary"), summary);
 router.use("/customers", requirePermission("customers"), customers);
