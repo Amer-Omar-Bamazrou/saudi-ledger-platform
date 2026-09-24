@@ -891,6 +891,8 @@ in the gate.
 
 ### 17.8 Z-AP1, in the protocol's blocker format
 
+> **ANSWERED 2026-09-24 — A** (claim input VAT in the supplier advance tax invoice's period, with controls preventing a duplicate claim at the final invoice). Built: [Phase 12 pack §8](phase-12-banking-reconciliation-decision-pack.md). The blocker below is the question as it stood.
+
 ```
 ACCOUNTING BLOCKER — Z-AP1 (does NOT block anything built; blocks the purchase-side advance-invoice path, which is not built)
 - Question — When a supplier issues us a TAX INVOICE for an advance we paid, how is its

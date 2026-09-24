@@ -60,7 +60,7 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED**; A4/A5 as invariants (§4); follow-ups built ([`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17). Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
 **2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-H BUILT**; its four invariants are in the [`pack`](docs/product/fixed-assets-decision-pack.md) §20–§27. 🔴 THREE CLOCKS (fiscal year · tax period · accounting life) — none stands in for another.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md); §16–§17: what was NOT built, and the post-build audit). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
-**2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. Z-AP1 still pending.
+**2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. Z-AP1 answered (A), built (§8); the bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
@@ -427,7 +427,7 @@ doing the thing it governs rather than only once you know its name.
   [`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md).
 - **🔴 AP IS ITS OWN SUBLEDGER** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §9–§17). A supplier advance is an ASSET
   (`SUPPLIER_ADVANCES` / `SECURITY_DEPOSITS_PAID` / `UNIDENTIFIED_PAYMENTS`: their exits differ); only an
-  **advance** settles a bill; 🔴 **no input VAT on any AP payment path** (Art. 49(7)). 🔴 What a bill OWES
+  **advance** settles a bill; 🔴 **no input VAT on any AP payment path** (Art. 49(7)); the supplier's advance TAX INVOICE claims it, ONCE (Z-AP1). 🔴 What a bill OWES
   is ONE definition, `repositories/billPosition` — never `total − paid_amount` (ratchet:
   `tests/bill-position-reader-sweep.test.ts`). Posted rows are append-only AT THE DATABASE.
 - **🔴 A PURCHASE-SIDE NOTE IS THE SUPPLIER’S DOCUMENT (B7)** — no ICV, QR, chain or outbox; a `bills` row

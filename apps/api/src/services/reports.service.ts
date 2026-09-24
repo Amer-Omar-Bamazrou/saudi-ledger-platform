@@ -789,13 +789,14 @@ export const reportsService = {
     // box (advance-payments decision pack §4; the boxes read documents only).
     const review = await depositReviewService.review({ asOf: period_to ? endOfMonth(period_to) : null });
 
-    const [invoiceRows, invoiceLines, billRows, billLines, prepaymentRows, reliefRows] = await Promise.all([
+    const [invoiceRows, invoiceLines, billRows, billLines, prepaymentRows, reliefRows, billPrepaymentRows] = await Promise.all([
       reportsRepository.invoicesInRange(dateFrom, dateTo),
       reportsRepository.invoiceLinesInRange(dateFrom, dateTo),
       reportsRepository.billsInRange(dateFrom, dateTo),
       reportsRepository.billLinesInRange(dateFrom, dateTo),
       reportsRepository.prepaymentsInRange(dateFrom, dateTo),
       reportsRepository.badDebtReliefsInRange(dateFrom, dateTo),
+      reportsRepository.billPrepaymentsInRange(dateFrom, dateTo),
     ]);
 
     /**
@@ -900,6 +901,27 @@ export const reportsService = {
         if (vat > 0) { standardRatedPurchases += sign * net; inputVat += sign * vat; }
         else zeroRatedPurchases += sign * net;
       }
+    }
+
+    /**
+     * 🔴 Z-AP1 (2026-09-24, accountant answer A) — THE SAME INPUT VAT IS NEVER
+     * CLAIMED TWICE. The supplier's ADVANCE tax invoice is a bill row above: its
+     * line claimed the advance's base and VAT in ITS period (IR Art. 49(7) —
+     * we held the invoice; GCC Agreement Art. 23(1) — their tax point was our
+     * payment). The supplier's FINAL invoice shows the full supply (the XML
+     * Standard's worked example: TaxInclusiveAmount on the full base, the
+     * prepayment only in KSA-31/32), so its lines above claimed the full VAT;
+     * the part the advance invoice already claimed is taken back here, per
+     * rate, from the prepayment rows finalised at the bill's approval — the
+     * same rows its GL entry netted. A refund of the advance is the supplier's
+     * credit note against the advance invoice: a bill row above, signed −1, in
+     * the note's period (IR Art. 40(6)).
+     */
+    for (const { row } of billPrepaymentRows) {
+      const taxable = toNum(row.taxableAmount);
+      const tax = toNum(row.taxAmount);
+      if (tax > 0) { standardRatedPurchases -= taxable; inputVat -= tax; }
+      else zeroRatedPurchases -= taxable;
     }
 
     /**

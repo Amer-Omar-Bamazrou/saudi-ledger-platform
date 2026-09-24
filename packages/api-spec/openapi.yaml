@@ -2917,6 +2917,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /supplier-payments/{id}/advance-invoices:
+    post:
+      operationId: createSupplierAdvanceInvoice
+      tags: [payments]
+      summary: "Z-AP1: record the SUPPLIER'S advance-payment tax invoice (their 386) against an ADVANCE payment, as a DRAFT bill of type advance_invoice. Approving it (POST /bills/{id}/approve) claims its input VAT in its own period."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupplierAdvanceInvoiceInput" }
+      responses:
+        "201":
+          description: The draft advance invoice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bill" }
+        "409":
+          description: "advance_invoice_requires_advance · advance_invoice_exceeds_uninvoiced"
+
+  /bills/{id}/advance-credit-notes:
+    post:
+      operationId: createSupplierAdvanceCreditNote
+      tags: [bills]
+      summary: "Z-AP1: record the supplier's credit note against their advance tax invoice (the advance refunded or cancelled), as a DRAFT advance_credit_note. Approving it reverses the VAT in the note's own period (IR Art. 40(6))."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer }, description: "The advance invoice (bill) it credits" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupplierAdvanceCreditNoteInput" }
+      responses:
+        "201":
+          description: The draft credit note
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bill" }
+
+  /vendors/{id}/open-advance-invoices:
+    get:
+      operationId: listSupplierOpenAdvanceInvoices
+      tags: [vendors]
+      summary: "Z-AP1: the supplier's approved advance tax invoices with something still open — what a final bill may deduct"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The open advance invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/SupplierAdvanceInvoiceSummary" } }
+
   /bills/{id}/submit:
     post:
       operationId: submitBill
@@ -6204,8 +6262,15 @@ components:
       allOf:
         - $ref: "#/components/schemas/SupplierPayment"
         - type: object
-          required: [allocations, refunds, classificationHistory]
+          required: [allocations, refunds, classificationHistory, advanceInvoicedAmount, advanceCreditedAmount, advanceAdjustedAmount, advanceOpenAmount, advanceOpenVat, uninvoicedAmount, advanceInvoices]
           properties:
+            advanceInvoicedAmount: { type: number, description: "Z-AP1: approved supplier advance invoices against this payment" }
+            advanceCreditedAmount: { type: number }
+            advanceAdjustedAmount: { type: number, description: "Deducted by approved final bills" }
+            advanceOpenAmount: { type: number, description: "Invoiced, not yet deducted or credited" }
+            advanceOpenVat: { type: number, description: "The claimed input VAT still open on those invoices" }
+            uninvoicedAmount: { type: number, description: "On account and not invoiced — the only part a plain allocation or refund may spend" }
+            advanceInvoices: { type: array, items: { $ref: "#/components/schemas/SupplierAdvanceInvoiceSummary" } }
             bankAccountId: { type: integer, nullable: true }
             method: { type: string, nullable: true }
             notes: { type: string, nullable: true }
@@ -8089,12 +8154,74 @@ components:
         total:
           type: number
 
+    SupplierAdvanceInvoiceInput:
+      type: object
+      required: [amount, vendorReference]
+      properties:
+        amount: { type: number, description: "The supplier's advance invoice total, VAT-inclusive; ≤ what is still un-invoiced on the payment" }
+        vatRate: { type: number, nullable: true, description: "15 (default) or 0" }
+        date: { type: string, nullable: true, description: "The supplier's issue date (YYYY-MM-DD) — the VAT period of the claim; not before the payment; must be open" }
+        vendorReference: { type: string, description: "The supplier's invoice number — the evidence the claim rests on (IR Art. 49(7))" }
+        billNumber: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+    SupplierAdvanceCreditNoteInput:
+      type: object
+      required: [vendorReference]
+      properties:
+        amount: { type: number, nullable: true, description: "VAT-inclusive; defaults to everything still open on the advance invoice" }
+        date: { type: string, nullable: true, description: "The supplier's issue date — the period the VAT is reversed in" }
+        vendorReference: { type: string, description: "The supplier's credit note number" }
+        billNumber: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+    SupplierAdvanceInvoiceSummary:
+      type: object
+      required: [id, billNumber, supplierReference, date, vatRate, total, taxable, tax, credited, adjusted, open, openTax]
+      properties:
+        id: { type: integer }
+        billNumber: { type: string }
+        supplierReference: { type: string, nullable: true }
+        date: { type: string }
+        vatRate: { type: number }
+        total: { type: number }
+        taxable: { type: number }
+        tax: { type: number }
+        credited: { type: number }
+        adjusted: { type: number, description: "Deducted by approved final bills" }
+        open: { type: number, description: "Invoiced, not yet deducted or credited — its VAT is claimed" }
+        openTax: { type: number, description: "The claimed input VAT still open — what a final bill deducting all of it will NOT claim again" }
+
+    BillPrepaymentInput:
+      type: object
+      required: [advanceBillId]
+      properties:
+        advanceBillId: { type: integer, description: "The supplier's approved advance tax invoice (bill of type advance_invoice)" }
+        amount: { type: number, nullable: true, description: "VAT-inclusive deduction (the supplier's BT-113 share); defaults to everything open" }
+        taxAmount: { type: number, nullable: true, description: "The supplier's KSA-32 for this deduction, when it differs from the split at the rate by rounding; checked to the halala" }
+
+    BillPrepayment:
+      type: object
+      required: [id, advanceBillId, advanceBillNumber, supplierReference, amount, taxableAmount, taxAmount, vatRate, finalised]
+      properties:
+        id: { type: integer }
+        advanceBillId: { type: integer }
+        advanceBillNumber: { type: string }
+        supplierReference: { type: string, nullable: true }
+        amount: { type: number }
+        taxableAmount: { type: number, description: "KSA-31" }
+        taxAmount: { type: number, description: "KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again" }
+        vatRate: { type: number }
+        finalised: { type: boolean, description: "Set at the bill's approval, when the deduction posted" }
+
     Bill:
       type: object
       required:
         - id
         - billNumber
         - documentType
+        - prepaidAmount
+        - amountDue
         - date
         - status
         - subtotal
@@ -8110,9 +8237,13 @@ components:
           type: string
         documentType:
           type: string
-          enum: [bill, credit_note, debit_note]
-          description: "B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6))."
-        creditNoteAgainstBillId: { type: ["integer", "null"], description: "B7: the bill this note adjusts." }
+          enum: [bill, credit_note, debit_note, advance_invoice, advance_credit_note]
+          description: "B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier's advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it."
+        creditNoteAgainstBillId: { type: ["integer", "null"], description: "B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits." }
+        advanceSupplierPaymentId: { type: ["integer", "null"], description: "Z-AP1: on an advance_invoice, the supplier payment it invoices." }
+        prepaidAmount: { type: number, description: "Z-AP1: Σ the supplier advance deductions on this bill (BT-113)" }
+        amountDue: { type: number, description: "Z-AP1: total less the advance deducted; 0 on notes and advance documents" }
+        prepayments: { type: array, items: { $ref: "#/components/schemas/BillPrepayment" }, description: "Z-AP1: present on a single-bill read" }
         isOpening: { type: boolean, description: "Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening)." }
         reversedAt: { type: ["string", "null"], description: "Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt)." }
         reversedByMigrationBatchId: { type: ["integer", "null"] }
@@ -10465,6 +10596,10 @@ components:
     BillHeaderInput:
       type: object
       properties:
+        prepayments:
+          type: array
+          items: { $ref: "#/components/schemas/BillPrepaymentInput" }
+          description: "Z-AP1: on a bill (the supplier's FINAL invoice), the advance tax invoices it deducts. Replaces the draft's selection on update."
         documentType:
           type: string
           enum: [bill, credit_note, debit_note]

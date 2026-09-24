@@ -1638,8 +1638,22 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "bill": zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -5548,6 +5562,174 @@ export const RejectJournalEntryResponse = zod.void()
 
 
 /**
+ * @summary Z-AP1: record the SUPPLIER'S advance-payment tax invoice (their 386) against an ADVANCE payment, as a DRAFT bill of type advance_invoice. Approving it (POST /bills/{id}/approve) claims its input VAT in its own period.
+ */
+export const CreateSupplierAdvanceInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateSupplierAdvanceInvoiceBody = zod.object({
+  "amount": zod.number().describe('The supplier\'s advance invoice total, VAT-inclusive; ≤ what is still un-invoiced on the payment'),
+  "vatRate": zod.number().nullish().describe('15 (default) or 0'),
+  "date": zod.string().nullish().describe('The supplier\'s issue date (YYYY-MM-DD) — the VAT period of the claim; not before the payment; must be open'),
+  "vendorReference": zod.string().describe('The supplier\'s invoice number — the evidence the claim rests on (IR Art. 49(7))'),
+  "billNumber": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateSupplierAdvanceInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * @summary Z-AP1: record the supplier's credit note against their advance tax invoice (the advance refunded or cancelled), as a DRAFT advance_credit_note. Approving it reverses the VAT in the note's own period (IR Art. 40(6)).
+ */
+export const CreateSupplierAdvanceCreditNoteParams = zod.object({
+  "id": zod.coerce.number().describe('The advance invoice (bill) it credits')
+})
+
+export const CreateSupplierAdvanceCreditNoteBody = zod.object({
+  "amount": zod.number().nullish().describe('VAT-inclusive; defaults to everything still open on the advance invoice'),
+  "date": zod.string().nullish().describe('The supplier\'s issue date — the period the VAT is reversed in'),
+  "vendorReference": zod.string().describe('The supplier\'s credit note number'),
+  "billNumber": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateSupplierAdvanceCreditNoteResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * @summary Z-AP1: the supplier's approved advance tax invoices with something still open — what a final bill may deduct
+ */
+export const ListSupplierOpenAdvanceInvoicesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListSupplierOpenAdvanceInvoicesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "date": zod.string(),
+  "vatRate": zod.number(),
+  "total": zod.number(),
+  "taxable": zod.number(),
+  "tax": zod.number(),
+  "credited": zod.number(),
+  "adjusted": zod.number().describe('Deducted by approved final bills'),
+  "open": zod.number().describe('Invoiced, not yet deducted or credited — its VAT is claimed'),
+  "openTax": zod.number().describe('The claimed input VAT still open — what a final bill deducting all of it will NOT claim again')
+}))
+})
+
+
+/**
  * Draft/approval workflow (M10.3). Moves an editable draft bill to `submitted` (awaiting approval); the bill is locked to the enterer until approved or sent back. This is the bookkeeper's own action (create-level authorization), not an approver action.
  * @summary Submit a draft bill into the approval queue
  */
@@ -5558,8 +5740,22 @@ export const SubmitBillParams = zod.object({
 export const SubmitBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -5612,8 +5808,22 @@ export const SendBackBillBody = zod.object({
 export const SendBackBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -5669,8 +5879,22 @@ export const ApproveBillBody = zod.object({
 export const ApproveBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -6395,8 +6619,22 @@ export const ListBillsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -6465,6 +6703,11 @@ export const createBillBodyTwoItemsItemVatRateMax = 100;
 
 
 export const CreateBillBody = zod.object({
+  "prepayments": zod.array(zod.object({
+  "advanceBillId": zod.number().describe('The supplier\'s approved advance tax invoice (bill of type advance_invoice)'),
+  "amount": zod.number().nullish().describe('VAT-inclusive deduction (the supplier\'s BT-113 share); defaults to everything open'),
+  "taxAmount": zod.number().nullish().describe('The supplier\'s KSA-32 for this deduction, when it differs from the split at the rate by rounding; checked to the halala')
+})).optional().describe('Z-AP1: on a bill (the supplier\'s FINAL invoice), the advance tax invoices it deducts. Replaces the draft\'s selection on update.'),
   "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).optional().describe('B7: what this purchase document IS. A note is the SUPPLIER\'S document — we receive it, so nothing is issued, no ICV is consumed and no e-invoice is sent. A note must name the bill it adjusts and a plain bill must not; a CREDIT note may not exceed what the original was charged, less what other notes have credited. Not editable after entry.\n'),
   "creditNoteAgainstBillId": zod.number().nullish().describe('The approved bill this note adjusts. Required on a note, forbidden on a bill (both halves are enforced). The note INHERITS that bill\'s supplier.\n'),
   "billNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
@@ -6494,8 +6737,22 @@ export const CreateBillBody = zod.object({
 export const CreateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -11002,8 +11259,22 @@ export const GetBillParams = zod.object({
 export const GetBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -11057,6 +11328,11 @@ export const updateBillBodyTotalMin = 0;
 
 
 export const UpdateBillBody = zod.object({
+  "prepayments": zod.array(zod.object({
+  "advanceBillId": zod.number().describe('The supplier\'s approved advance tax invoice (bill of type advance_invoice)'),
+  "amount": zod.number().nullish().describe('VAT-inclusive deduction (the supplier\'s BT-113 share); defaults to everything open'),
+  "taxAmount": zod.number().nullish().describe('The supplier\'s KSA-32 for this deduction, when it differs from the split at the rate by rounding; checked to the halala')
+})).optional().describe('Z-AP1: on a bill (the supplier\'s FINAL invoice), the advance tax invoices it deducts. Replaces the draft\'s selection on update.'),
   "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).optional().describe('B7: what this purchase document IS. A note is the SUPPLIER\'S document — we receive it, so nothing is issued, no ICV is consumed and no e-invoice is sent. A note must name the bill it adjusts and a plain bill must not; a CREDIT note may not exceed what the original was charged, less what other notes have credited. Not editable after entry.\n'),
   "creditNoteAgainstBillId": zod.number().nullish().describe('The approved bill this note adjusts. Required on a note, forbidden on a bill (both halves are enforced). The note INHERITS that bill\'s supplier.\n'),
   "billNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
@@ -11077,8 +11353,22 @@ export const UpdateBillBody = zod.object({
 export const UpdateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -11143,8 +11433,22 @@ export const PostBillBody = zod.object({
 export const PostBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -11205,8 +11509,22 @@ export const PayBillBody = zod.object({
 export const PayBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
-  "documentType": zod.enum(['bill', 'credit_note', 'debit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)).'),
-  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts.'),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
   "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
   "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
   "reversedByMigrationBatchId": zod.number().nullish(),
@@ -11680,6 +11998,26 @@ export const CreateSupplierPaymentResponse = zod.object({
   "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
   "journalEntryId": zod.number().nullish()
 }).and(zod.object({
+  "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
+  "advanceCreditedAmount": zod.number(),
+  "advanceAdjustedAmount": zod.number().describe('Deducted by approved final bills'),
+  "advanceOpenAmount": zod.number().describe('Invoiced, not yet deducted or credited'),
+  "advanceOpenVat": zod.number().describe('The claimed input VAT still open on those invoices'),
+  "uninvoicedAmount": zod.number().describe('On account and not invoiced — the only part a plain allocation or refund may spend'),
+  "advanceInvoices": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "date": zod.string(),
+  "vatRate": zod.number(),
+  "total": zod.number(),
+  "taxable": zod.number(),
+  "tax": zod.number(),
+  "credited": zod.number(),
+  "adjusted": zod.number().describe('Deducted by approved final bills'),
+  "open": zod.number().describe('Invoiced, not yet deducted or credited — its VAT is claimed'),
+  "openTax": zod.number().describe('The claimed input VAT still open — what a final bill deducting all of it will NOT claim again')
+})),
   "bankAccountId": zod.number().nullish(),
   "method": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -11748,6 +12086,26 @@ export const GetSupplierPaymentResponse = zod.object({
   "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
   "journalEntryId": zod.number().nullish()
 }).and(zod.object({
+  "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
+  "advanceCreditedAmount": zod.number(),
+  "advanceAdjustedAmount": zod.number().describe('Deducted by approved final bills'),
+  "advanceOpenAmount": zod.number().describe('Invoiced, not yet deducted or credited'),
+  "advanceOpenVat": zod.number().describe('The claimed input VAT still open on those invoices'),
+  "uninvoicedAmount": zod.number().describe('On account and not invoiced — the only part a plain allocation or refund may spend'),
+  "advanceInvoices": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "date": zod.string(),
+  "vatRate": zod.number(),
+  "total": zod.number(),
+  "taxable": zod.number(),
+  "tax": zod.number(),
+  "credited": zod.number(),
+  "adjusted": zod.number().describe('Deducted by approved final bills'),
+  "open": zod.number().describe('Invoiced, not yet deducted or credited — its VAT is claimed'),
+  "openTax": zod.number().describe('The claimed input VAT still open — what a final bill deducting all of it will NOT claim again')
+})),
   "bankAccountId": zod.number().nullish(),
   "method": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -11807,6 +12165,26 @@ export const AllocateSupplierPaymentResponse = zod.object({
   "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
   "journalEntryId": zod.number().nullish()
 }).and(zod.object({
+  "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
+  "advanceCreditedAmount": zod.number(),
+  "advanceAdjustedAmount": zod.number().describe('Deducted by approved final bills'),
+  "advanceOpenAmount": zod.number().describe('Invoiced, not yet deducted or credited'),
+  "advanceOpenVat": zod.number().describe('The claimed input VAT still open on those invoices'),
+  "uninvoicedAmount": zod.number().describe('On account and not invoiced — the only part a plain allocation or refund may spend'),
+  "advanceInvoices": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "date": zod.string(),
+  "vatRate": zod.number(),
+  "total": zod.number(),
+  "taxable": zod.number(),
+  "tax": zod.number(),
+  "credited": zod.number(),
+  "adjusted": zod.number().describe('Deducted by approved final bills'),
+  "open": zod.number().describe('Invoiced, not yet deducted or credited — its VAT is claimed'),
+  "openTax": zod.number().describe('The claimed input VAT still open — what a final bill deducting all of it will NOT claim again')
+})),
   "bankAccountId": zod.number().nullish(),
   "method": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -11861,6 +12239,26 @@ export const ClassifySupplierPaymentResponse = zod.object({
   "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
   "journalEntryId": zod.number().nullish()
 }).and(zod.object({
+  "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
+  "advanceCreditedAmount": zod.number(),
+  "advanceAdjustedAmount": zod.number().describe('Deducted by approved final bills'),
+  "advanceOpenAmount": zod.number().describe('Invoiced, not yet deducted or credited'),
+  "advanceOpenVat": zod.number().describe('The claimed input VAT still open on those invoices'),
+  "uninvoicedAmount": zod.number().describe('On account and not invoiced — the only part a plain allocation or refund may spend'),
+  "advanceInvoices": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "date": zod.string(),
+  "vatRate": zod.number(),
+  "total": zod.number(),
+  "taxable": zod.number(),
+  "tax": zod.number(),
+  "credited": zod.number(),
+  "adjusted": zod.number().describe('Deducted by approved final bills'),
+  "open": zod.number().describe('Invoiced, not yet deducted or credited — its VAT is claimed'),
+  "openTax": zod.number().describe('The claimed input VAT still open — what a final bill deducting all of it will NOT claim again')
+})),
   "bankAccountId": zod.number().nullish(),
   "method": zod.string().nullish(),
   "notes": zod.string().nullish(),

@@ -252,7 +252,18 @@ async function main() {
                  - coalesce((SELECT sum(a.amount::numeric) FROM supplier_payment_allocations a
                               WHERE a.supplier_payment_id = p.id
                                 AND NOT EXISTS (SELECT 1 FROM supplier_payment_allocation_reversals r WHERE r.allocation_id = a.id)), 0)
-                 - coalesce((SELECT sum(f.amount::numeric) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0)) AS v
+                 - coalesce((SELECT sum(f.amount::numeric) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0)
+                 -- Z-AP1: the VAT the supplier's advance invoice CLAIMED has left the
+                 -- advance for Input VAT; what is still open (not credited, not yet
+                 -- deducted by a final bill) is off the asset in the GL.
+                 - coalesce((SELECT sum(ai.vat_amount::numeric
+                                        - coalesce((SELECT sum(n.vat_amount::numeric) FROM bills n
+                                                     WHERE n.credit_note_against_bill_id = ai.id AND n.document_type = 'advance_credit_note'
+                                                       AND n.status NOT IN ('draft','submitted')), 0)
+                                        - coalesce((SELECT sum(bp.tax_amount::numeric) FROM bill_prepayments bp
+                                                     WHERE bp.advance_bill_id = ai.id AND bp.allocation_id IS NOT NULL), 0))
+                               FROM bills ai WHERE ai.advance_supplier_payment_id = p.id AND ai.document_type = 'advance_invoice'
+                                AND ai.status NOT IN ('draft','submitted')), 0)) AS v
         FROM supplier_payments p GROUP BY 1,2,3),
     gl AS (SELECT e.organization_id AS org, l.vendor_id, c.system_code AS code, sum(l.debit_amount - l.credit_amount) v
              FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
@@ -261,6 +272,22 @@ async function main() {
            coalesce(gl.v,0)::text AS gl, coalesce(sub.v,0)::text AS subledger
       FROM gl FULL JOIN sub ON sub.org = gl.org AND sub.vendor_id IS NOT DISTINCT FROM gl.vendor_id AND sub.code = gl.code
      WHERE coalesce(gl.v,0) <> coalesce(sub.v,0)`));
+
+  // Z-AP1: the input VAT of a supplier's advance tax invoice is claimed ONCE —
+  // what final bills deduct plus what credit notes reverse can never exceed
+  // what the advance invoice claimed (in VAT or in total).
+  fail("advance_invoice_vat_overused — a supplier advance invoice whose VAT (or amount) has been deducted by final bills and credited by notes beyond what it claimed", await q(`
+    SELECT ai.organization_id::text AS org, ai.id AS advance_bill_id, ai.vat_amount::text AS claimed,
+           (coalesce(adj.tax, 0) + coalesce(cr.tax, 0))::text AS used_tax, ai.total::text AS total, (coalesce(adj.total, 0) + coalesce(cr.total, 0))::text AS used_total
+      FROM bills ai
+      LEFT JOIN LATERAL (SELECT sum(bp.tax_amount::numeric) tax, sum(bp.amount::numeric) total FROM bill_prepayments bp
+                          WHERE bp.advance_bill_id = ai.id AND bp.allocation_id IS NOT NULL) adj ON true
+      LEFT JOIN LATERAL (SELECT sum(n.vat_amount::numeric) tax, sum(n.total::numeric) total FROM bills n
+                          WHERE n.credit_note_against_bill_id = ai.id AND n.document_type = 'advance_credit_note'
+                            AND n.status NOT IN ('draft','submitted')) cr ON true
+     WHERE ai.document_type = 'advance_invoice' AND ai.status NOT IN ('draft','submitted')
+       AND (coalesce(adj.tax, 0) + coalesce(cr.tax, 0) > ai.vat_amount::numeric + 0.005
+            OR coalesce(adj.total, 0) + coalesce(cr.total, 0) > ai.total::numeric + 0.005)`));
 
   // ── Phase 12B: bank reconciliation, over the ONE view ─────────────────
   // A statement line is the bank's evidence of ONE movement. These read

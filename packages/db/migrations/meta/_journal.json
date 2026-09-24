@@ -729,6 +729,13 @@
       "when": 1790184205785,
       "tag": "0103_phase12e_reconciliation_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1790249511885,
+      "tag": "0104_zap1_supplier_advance_invoice",
+      "breakpoints": true
     }
   ]
 }

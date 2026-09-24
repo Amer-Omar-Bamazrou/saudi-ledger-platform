@@ -16,8 +16,7 @@ import {
   journalEntriesTable,
   journalEntryLinesTable,
   customersTable,
-  vendorsTable,
-} from "@workspace/db";
+  vendorsTable, billPrepaymentsTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 import { invoiceNotReversed, billNotReversed } from "./openingReversal";
@@ -425,6 +424,20 @@ export const reportsRepository = {
       .select({ id: invoicesTable.id, invoiceNumber: invoicesTable.invoiceNumber, claimedOn: invoicesTable.badDebtReliefClaimedOn, reliefVat: invoicesTable.badDebtReliefVatAmount, writtenOff: invoicesTable.writtenOffAmount })
       .from(invoicesTable)
       .where(and(eq(invoicesTable.badDebtReliefSource, "recorded"), gte(invoicesTable.badDebtReliefClaimedOn, dateFrom), lte(invoicesTable.badDebtReliefClaimedOn, dateTo)));
+  },
+  /**
+   * Z-AP1 — the PREPAYMENT ADJUSTMENT rows of the in-books FINAL bills dated in
+   * the window: what each final bill must NOT claim again, because the
+   * supplier's advance tax invoice claimed it in ITS period. Finalised rows
+   * only (allocation_id set at the bill's approval) — the same rows its GL
+   * entry netted.
+   */
+  billPrepaymentsInRange(dateFrom: string, dateTo: string) {
+    return db
+      .select({ row: billPrepaymentsTable, billId: billPrepaymentsTable.billId })
+      .from(billPrepaymentsTable)
+      .innerJoin(billsTable, eq(billPrepaymentsTable.billId, billsTable.id))
+      .where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo), approvedBillsOnly(), isNotNull(billPrepaymentsTable.allocationId)));
   },
   /** Bill lines carry no ZATCA category (vendor documents) — classification is
    *  per-line VAT presence, which still fixes the mixed-rate hole. */

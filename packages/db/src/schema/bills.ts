@@ -41,6 +41,15 @@ export const billsTable = pgTable(
      * bill's date and never the day we keyed it in.
      */
     documentType: text("document_type").notNull().default("bill"),
+    /**
+     * Z-AP1 (2026-09-24, accountant answer A) — on an `advance_invoice` (the
+     * SUPPLIER'S advance-payment tax invoice, their type 386, which we RECEIVE)
+     * the supplier payment it invoices; NULL on every other type (CHECK
+     * `bills_advance_reference_chk`, FK `bills_advance_supplier_payment_fk` —
+     * both in migration 0104, hand-written: `supplierPayments.ts` imports this
+     * file, so the reference cannot be declared here without a cycle).
+     */
+    advanceSupplierPaymentId: integer("advance_supplier_payment_id"),
     /** The bill this note adjusts. Required on a note, forbidden on a bill. */
     creditNoteAgainstBillId: integer("credit_note_against_bill_id"),
     vendorReference: text("vendor_reference"),

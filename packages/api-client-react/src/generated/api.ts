@@ -217,6 +217,7 @@ import type {
   ListRefundsParams,
   ListSupplierCreditNotes200,
   ListSupplierCreditNotesParams,
+  ListSupplierOpenAdvanceInvoices200,
   ListSupplierPayments200,
   ListSupplierPaymentsParams,
   ListSupplierPositions200,
@@ -286,6 +287,8 @@ import type {
   SettleTransactionInput,
   StatementMatch,
   StatementRowClassification,
+  SupplierAdvanceCreditNoteInput,
+  SupplierAdvanceInvoiceInput,
   SupplierAllocationReversal,
   SupplierCreditNote,
   SupplierPaymentDetail,
@@ -11391,6 +11394,227 @@ export const useRejectJournalEntry = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getRejectJournalEntryMutationOptions(options));
     }
+
+export const getCreateSupplierAdvanceInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-payments/${id}/advance-invoices`
+}
+
+/**
+ * @summary Z-AP1: record the SUPPLIER'S advance-payment tax invoice (their 386) against an ADVANCE payment, as a DRAFT bill of type advance_invoice. Approving it (POST /bills/{id}/approve) claims its input VAT in its own period.
+ */
+export const createSupplierAdvanceInvoice = async (id: number,
+    supplierAdvanceInvoiceInput: SupplierAdvanceInvoiceInput, options?: RequestInit): Promise<Bill> => {
+
+  return customFetch<Bill>(getCreateSupplierAdvanceInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(supplierAdvanceInvoiceInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSupplierAdvanceInvoiceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupplierAdvanceInvoice>>, TError,{id: number;data: BodyType<SupplierAdvanceInvoiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSupplierAdvanceInvoice>>, TError,{id: number;data: BodyType<SupplierAdvanceInvoiceInput>}, TContext> => {
+
+const mutationKey = ['createSupplierAdvanceInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSupplierAdvanceInvoice>>, {id: number;data: BodyType<SupplierAdvanceInvoiceInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createSupplierAdvanceInvoice(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSupplierAdvanceInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof createSupplierAdvanceInvoice>>>
+    export type CreateSupplierAdvanceInvoiceMutationBody = BodyType<SupplierAdvanceInvoiceInput>
+    export type CreateSupplierAdvanceInvoiceMutationError = ErrorType<void>
+
+    /**
+ * @summary Z-AP1: record the SUPPLIER'S advance-payment tax invoice (their 386) against an ADVANCE payment, as a DRAFT bill of type advance_invoice. Approving it (POST /bills/{id}/approve) claims its input VAT in its own period.
+ */
+export const useCreateSupplierAdvanceInvoice = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupplierAdvanceInvoice>>, TError,{id: number;data: BodyType<SupplierAdvanceInvoiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSupplierAdvanceInvoice>>,
+        TError,
+        {id: number;data: BodyType<SupplierAdvanceInvoiceInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSupplierAdvanceInvoiceMutationOptions(options));
+    }
+
+export const getCreateSupplierAdvanceCreditNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/bills/${id}/advance-credit-notes`
+}
+
+/**
+ * @summary Z-AP1: record the supplier's credit note against their advance tax invoice (the advance refunded or cancelled), as a DRAFT advance_credit_note. Approving it reverses the VAT in the note's own period (IR Art. 40(6)).
+ */
+export const createSupplierAdvanceCreditNote = async (id: number,
+    supplierAdvanceCreditNoteInput: SupplierAdvanceCreditNoteInput, options?: RequestInit): Promise<Bill> => {
+
+  return customFetch<Bill>(getCreateSupplierAdvanceCreditNoteUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(supplierAdvanceCreditNoteInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSupplierAdvanceCreditNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupplierAdvanceCreditNote>>, TError,{id: number;data: BodyType<SupplierAdvanceCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSupplierAdvanceCreditNote>>, TError,{id: number;data: BodyType<SupplierAdvanceCreditNoteInput>}, TContext> => {
+
+const mutationKey = ['createSupplierAdvanceCreditNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSupplierAdvanceCreditNote>>, {id: number;data: BodyType<SupplierAdvanceCreditNoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createSupplierAdvanceCreditNote(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSupplierAdvanceCreditNoteMutationResult = NonNullable<Awaited<ReturnType<typeof createSupplierAdvanceCreditNote>>>
+    export type CreateSupplierAdvanceCreditNoteMutationBody = BodyType<SupplierAdvanceCreditNoteInput>
+    export type CreateSupplierAdvanceCreditNoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Z-AP1: record the supplier's credit note against their advance tax invoice (the advance refunded or cancelled), as a DRAFT advance_credit_note. Approving it reverses the VAT in the note's own period (IR Art. 40(6)).
+ */
+export const useCreateSupplierAdvanceCreditNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupplierAdvanceCreditNote>>, TError,{id: number;data: BodyType<SupplierAdvanceCreditNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSupplierAdvanceCreditNote>>,
+        TError,
+        {id: number;data: BodyType<SupplierAdvanceCreditNoteInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSupplierAdvanceCreditNoteMutationOptions(options));
+    }
+
+export const getListSupplierOpenAdvanceInvoicesUrl = (id: number,) => {
+
+
+
+
+  return `/api/vendors/${id}/open-advance-invoices`
+}
+
+/**
+ * @summary Z-AP1: the supplier's approved advance tax invoices with something still open — what a final bill may deduct
+ */
+export const listSupplierOpenAdvanceInvoices = async (id: number, options?: RequestInit): Promise<ListSupplierOpenAdvanceInvoices200> => {
+
+  return customFetch<ListSupplierOpenAdvanceInvoices200>(getListSupplierOpenAdvanceInvoicesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSupplierOpenAdvanceInvoicesQueryKey = (id: number,) => {
+    return [
+    `/api/vendors/${id}/open-advance-invoices`
+    ] as const;
+    }
+
+
+export const getListSupplierOpenAdvanceInvoicesQueryOptions = <TData = Awaited<ReturnType<typeof listSupplierOpenAdvanceInvoices>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierOpenAdvanceInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSupplierOpenAdvanceInvoicesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupplierOpenAdvanceInvoices>>> = ({ signal }) => listSupplierOpenAdvanceInvoices(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupplierOpenAdvanceInvoices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSupplierOpenAdvanceInvoicesQueryResult = NonNullable<Awaited<ReturnType<typeof listSupplierOpenAdvanceInvoices>>>
+export type ListSupplierOpenAdvanceInvoicesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Z-AP1: the supplier's approved advance tax invoices with something still open — what a final bill may deduct
+ */
+
+export function useListSupplierOpenAdvanceInvoices<TData = Awaited<ReturnType<typeof listSupplierOpenAdvanceInvoices>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierOpenAdvanceInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSupplierOpenAdvanceInvoicesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSubmitBillUrl = (id: number,) => {
 

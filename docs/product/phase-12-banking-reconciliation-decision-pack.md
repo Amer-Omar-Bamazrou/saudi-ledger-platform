@@ -1,6 +1,6 @@
 # Phase 12 — Advanced Banking & Reconciliation: audit, research and decisions
 
-**Status (2026-09-23): BUILT, 12A–12E — §1 audit, §2 research; 12A statements (§3), 12B reconciliation (§4), 12C transfers (§5) and 12D period reconciliation, cash position and exceptions (§6) BUILT; 12E audit (§7) DONE — two items left open, named there.**
+**Status (2026-09-23): BUILT, 12A–12E — §1 audit, §2 research; 12A statements (§3), 12B reconciliation (§4), 12C transfers (§5) and 12D period reconciliation, cash position and exceptions (§6) BUILT; 12E audit (§7) DONE; Z-AP1 answered (A) and built (§8); the bank lock researched and classified as a product control (§9); final review (§10).**
 Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
 
 Written under [`docs/accounting-escalation-protocol.md`](../accounting-escalation-protocol.md).
@@ -9,10 +9,9 @@ Every claim carries its class — `AUTHORITATIVE (Saudi)`, `STANDARD (IFRS)`,
 `ACCOUNTANT DECISION REQUIRED`. Nothing from Odoo or ERPNext is presented as
 a Saudi requirement.
 
-🔴 **Z-AP1 (input VAT on a supplier's advance tax invoice) is PENDING with the
-accountant** (Phase 11 pack §17.8). Nothing in Phase 12 decides, assumes or
-encodes it: banking moves money that is already classified; it never decides
-what a payment IS for VAT.
+🔴 **Z-AP1 (input VAT on a supplier's advance tax invoice) was PENDING with the
+accountant while 12A–12E were built** (Phase 11 pack §17.8), and nothing in
+12A–12E decided, assumed or encoded it. **Answered 2026-09-24: A — built in §8.**
 
 ---
 
@@ -348,4 +347,170 @@ columns, 70 constraints, 14 table grants, 1 column grant, 52 indexes, 7
 policies — re-run after 0103): **0 differences**; the diff was then shown able to see two planted differences.
 (0100 had been edited after it was applied to dev.)
 
-**Z-AP1 remains PENDING with the accountant**; nothing in Phase 12 encodes it.
+**Z-AP1 was PENDING with the accountant when this audit ran** (2026-09-23); nothing in 12A–12E encoded it. Answered 2026-09-24 (A) — §8.
+
+## 8. Z-AP1 — the supplier's advance tax invoice (ANSWERED and BUILT, 2026-09-24)
+
+**Accountant decision: A — claim input VAT in the supplier advance tax
+invoice's applicable VAT period, with controls preventing duplicate claim when
+the final invoice is issued.** (The question as sent is in the Phase 11 pack
+§17.8.)
+
+### 8.1 Sources — each layer separately
+
+| Layer | What was read | What it establishes |
+| --- | --- | --- |
+| `AUTHORITATIVE (Saudi / GCC)` | GCC Common VAT Agreement (ZATCA-hosted PDF, English translation — Arabic prevails): **Art. 23(1)** tax due "upon partial or full receipt of the Consideration … to the extent of the received amount"; **Art. 44(2)** "the right to make a deduction arises when a Deductible Tax is due"; **Art. 48(1)(a)** the buyer must hold "the Tax Invoice received". KSA VAT Implementing Regulations (repo text copy, English; article numbers placed by heading): **Art. 49(7)** (L1507–1509) deduction only with evidence of the input tax; **Art. 49(8)** (L1521–1525) deduction "may be made … in a Tax Period subsequent", within five calendar years; **Art. 53(1)(a)(2)** (L1739–1742) a tax invoice is required where consideration is received before the supply; **Art. 40(6)** (L1137–1141) the customer corrects input tax in the period the credit/debit note is issued. XML Implementation Standard v1.2 **§9.5** and its worked example (L809–891): the 386 is a full tax invoice; the final 388's `TaxInclusiveAmount` carries VAT on the FULL base, the prepayment appears only in `PrepaidAmount` (BT-113) and the adjustment line's KSA-31/KSA-32. | The advance invoice is the evidence for an input-VAT claim that arises when the supplier's tax point does (our payment) — the decision's first half. Because the final invoice's document VAT (BT-110) is GROSS, a buyer who claimed it as it stands would claim the advance's VAT twice — the second half (netting by KSA-32) is effectively required, not merely prudent. |
+| `AUTHORITATIVE`, NOT FOUND | ZATCA's *Input Tax Deduction* guideline URL now returns a 404; no VAT-return filing guideline was readable. | 🔴 No official text read addresses the BUYER side of an advance invoice or which return box it files in. The claim files where every standard-rated purchase does (box 9 / box 13 in this product). `UNVERIFIED` beyond the texts above. |
+| `STANDARD (IFRS)` | IAS 32 **AG11** (prepayments for goods are non-financial assets); IAS 2 **¶11** and IAS 16 **¶16(a)** (recoverable taxes are not part of cost) — ifrs.org, 2024 issued standards. SOCPA's endorsement wording itself `NOT VERIFIED`. | The advance asset holds the NET prepayment; recoverable input VAT is a separate receivable. Hence the advance invoice's entry Dr Input VAT / Cr Supplier advances. |
+| `ODOO` 18.0 | `purchase/wizard/bill_to_po_wizard.py` L43–70 (down-payment line carries the down-payment bill's taxes, L61); `purchase_order_line.py` L138–158, L571–590; `purchase_order.py` L659–690; `tests/test_purchase_downpayment.py` L37–42 (final bill has a −1 down-payment line). | The down-payment bill carries tax; the final bill deducts it with a negative line bearing the same taxes, so its net tax excludes what was billed — the same netting built here. (Odoo books the down payment to an expense account in that test, not a prepayment asset.) |
+| `ERPNEXT` version-15 | `purchase_invoice.py` L1973–2069 and `tax_withholding_category.py` L520–541: `advance_tax` is withholding tax (TDS) only. No Purchase Invoice code nets VAT posted on an advance (search: `advance_tax`, "Advance Taxes and Charges" in `purchase_invoice.py`, `accounts_controller.py`, `tax_withholding_category.py`). | No precedent either way. |
+
+**Qualifications the texts impose, and how the build meets them:**
+(1) Timing is a PERMISSION: IR Art. 49(8) also allows a later period. The
+decision takes the earliest; the product claims in the advance invoice's own
+date, which the user enters as the supplier's issue date. (2) A refund or a
+price change is a CREDIT (or debit) NOTE in the note's period (Art. 40(6)),
+never netting — built as the supplier's `advance_credit_note`. (3) The netted
+amount should be the SUPPLIER'S KSA-32 — the prepayment input accepts the
+supplier's stated tax, checked to the halala against the rate; a full
+deduction copies what is open exactly.
+
+### 8.2 What was built
+
+Inspected first: AP-2/AP-3 (the customer-side 386/388, `invoice_prepayments`,
+the VAT return's net filing) and Phase 11 Part 2 (supplier advances as an
+asset, allocations, `billPosition`). The purchase side now mirrors AP-2:
+
+| Event | Document | Entry | VAT return |
+| --- | --- | --- | --- |
+| Advance paid 11,500 | supplier payment, `advance` (Phase 11, unchanged) | Dr Supplier advances / Cr Bank | nothing |
+| Supplier's advance invoice 10,000 + 1,500 | `bills` row, `document_type = 'advance_invoice'`, `advance_supplier_payment_id` | **Dr Input VAT 1,500 / Cr Supplier advances 1,500** | its period: box 9 +10,000, box 13 **+1,500** |
+| Final invoice 30,000 + 4,500 deducting it | `bills` row (`bill`) + one `bill_prepayments` row (amount 11,500 = KSA-31 10,000 + KSA-32 1,500) | **Dr Expense 30,000 · Dr Input VAT 3,000 / Cr AP 23,000 · Cr Supplier advances 10,000**, plus the folded allocation (payment → bill, 11,500) naming this entry | its period: box 9 +20,000, box 13 **+3,000** — lines in full, prepayment rows deducted |
+| Supplier's credit note against the advance invoice | `bills` row, `advance_credit_note` | Dr Supplier advances / Cr Input VAT | its period: negative |
+
+🔴 **THE SAME INPUT VAT IS NEVER CLAIMED TWICE** — held at four places:
+
+1. The final bill's entry nets the prepaid tax.
+2. The VAT return deducts the finalised prepayment rows (the same rows).
+3. The database freezes an approved bill's rows (trigger `check_bill_prepayment`), and joins a row only to an advance invoice of the same company and supplier.
+4. A new ledger invariant, `advance_invoice_vat_overused`, fails whenever Σ deducted + credited VAT (or amount) on an advance invoice exceeds what it claimed.
+
+`ap_on_account_gl_vs_subledger` now nets the open advance-invoice VAT from the advance balance.
+
+**Controls.** The invoiced part of an advance can leave only through the final bill or the supplier's credit note:
+
+- A plain allocation or a refund may spend only the *un-invoiced* part (`refund_exceeds_available`).
+- Reclassifying an invoiced advance is refused (`advance_invoiced_cannot_reclassify`).
+- A folded deduction cannot be undone (`prepayment_adjustment_immutable`); a correction is a B7 credit note on the final bill.
+- An advance document is not payable, not an allocation target, owes nothing, and bills nothing: `billPosition` gives it sign 0 and outstanding 0, and the supplier statement's event and count arms exclude it.
+- Closed periods are refused at entry and again at approval (423, nothing posted).
+- Concurrency: every act takes the advance payment's row lock (in id order for a final bill deducting several).
+
+Not built, stated:
+
+- A final bill that also capitalises a fixed asset cannot deduct an advance (`prepayment_on_capitalised_bill`).
+- An advance invoice carries one rate, 15% or 0%.
+- Migrated (opening) supplier advances remain unbuilt, as in the Phase 11 pack §16.
+
+Migration **0104**. UI:
+
+- The supplier payment shows the advance's invoiced / deducted / open / not-yet-invoiced figures. It records the supplier's advance invoice (claim) and their credit note (reversal).
+- The New Bill form offers the supplier's open advance invoices, and states the VAT it will NOT claim again (the server's figure).
+
+**Tests.**
+
+- `zap1-supplier-advance-vat.test.ts` (9, real rows, each scenario in its own months):
+  1. The claim in its period (return + GL).
+  2. The final bill claims only the rest, and the total over both periods is once.
+  3. Partial application across two final bills, whose deductions sum to the advance's VAT to the halala.
+  4. Two advances deducted by one bill.
+  5. Corrections: the supplier's credit note reverses in its own period and unlocks the refund; a B7 note on the final bill; the folded deduction is refused.
+  6. Closed periods, at entry and at approval.
+  7. The database freeze and wrong joins.
+  8. The invariants script SEES a planted double claim.
+  9. Isolation.
+- Proven RED against three mutants:
+  - The VAT-return deduction removed: 3 tests fail.
+  - The entry's netting removed: 1 test fails.
+  - The freeze trigger dropped: 2 tests fail.
+- `e2e/zap1-supplier-advance.spec.ts` (3, clicked):
+  - Recording the advance invoice moves the month's input VAT by exactly 1,500.
+  - The final bill made in the New Bill form with the advance ticked moves its month by exactly 3,000, and reads prepaid 11,500 / due 23,000.
+  - AR/RTL on a phone.
+
+## 9. The bank-reconciliation lock — researched and classified (2026-09-24)
+
+The rule built in 12D: once a bank reconciliation is completed as of a date, that bank's statement lines and cash postings dated on or before it are locked until the reconciliation is reopened with a reason.
+
+### 9.1 What each source says
+
+| Layer | What was read | Finding |
+| --- | --- | --- |
+| `AUTHORITATIVE (Saudi)` | **Law of Commercial Books** (نظام الدفاتر التجارية), Royal Decree M/61 of 17/12/1409H — the ARABIC original on the BOE portal (laws.boe.gov.sa). No newer Commercial Books Law was found; the 1443H decree M/132 is the Companies Law. | Art. 2 delegates the integrity rules for computer records to the Implementing Regulations; Art. 3 daily entries; Art. 7 numbered pages; Art. 8 ten-year retention. Nothing on banks, reconciliation or locking (the text was searched for كشط, فراغ and تصحيح: none). |
+| `AUTHORITATIVE (Saudi)`, secondary only | That law's **Implementing Regulations** (1410H). The primary text could NOT be opened (eastlaws 403; qanoniah rendered no article text). | Secondary sources attribute a rule against blanks and erasures, with an error corrected by a NEW entry on the date it is found. `NOT VERIFIED`. If accurate, it favours correction by new entry; it does not require a reconciliation-triggered lock. |
+| `AUTHORITATIVE (Saudi)` | **VAT Implementing Regulations, the records article (Art. 66)**, ZATCA's official ENGLISH translation. The Arabic original was not read, and the article number was placed by heading. | Para 1: six-year retention. Para 3(f): "take the necessary security measures and adequate controls … to prevent tampering with … electronic records". A general tamper-control duty; bank reconciliation is not mentioned. |
+| `AUTHORITATIVE (Saudi)` | **SOCPA**: a site search only. | No standard or guidance on bank reconciliation or record locking was found. `NOT VERIFIED` beyond the search. |
+| `STANDARD (IFRS)` | IAS 7, IAS 8 ¶41–49, the Conceptual Framework — from knowledge, NOT re-read this session. | No IFRS addresses bank reconciliation or ledger locking. IAS 8 governs correcting prior-period errors in the financial statements (reporting), not how the ledger is controlled. |
+| `ERPNEXT` version-15 | `bank_transaction.py` (~L138, L226–260), `bank_clearance.py` (~L92–136), `bank_reconciliation_tool.py` (L38), `general_ledger.py` `check_freezing_date` (~L783–806), `validate_accounting_period` (~L144–171), `validate_against_pcv` (~L822–840). | Reconciling locks nothing; links and clearance dates are cleared freely. The locks that exist are global or per company (a frozen-up-to date with a role exemption, accounting periods, the period closing voucher), none tied to reconciliation, none with a reason to reopen. |
+| `ODOO` 17.0 | `account_bank_statement.py` (`is_complete`, `is_valid`), `account_bank_statement_line.py` (~L402–413), `account_move_line.py` `_check_reconciliation` (~L1373–1377, applied on protected-field write ~L1681 and unlink ~L1777), `company.py` lock dates (~L59–72), `account_move.py` (~L1996–2005). | A reconciled journal item cannot be modified until it is unreconciled (no reason required). Lock dates exist per COMPANY (period / fiscal-year / tax), not per bank journal. |
+
+### 9.2 Classification
+
+**D — no identified source requires, prohibits or prescribes a different control for this exact behaviour.**
+
+🔴 **Completed bank reconciliation locking is an internal Saudi Ledger control/product decision, not an identified Saudi statutory/accounting requirement.** Nothing here may present it as a regulatory requirement.
+
+The rationale is a product one:
+
+- A reconciliation that later silently stops being true is worse than none. A back-dated payment would falsify it with nothing visible — the "hides the result" leg of the triage check.
+- The lock keeps the completed result true; reopening makes a change visible and attributable (who, when, why).
+- Posted history stays immutable; corrections go through correction/reversal documents dated in the open period.
+
+The one Saudi-adjacent design constraint the research surfaced is correction by new entry. The lock honours it by construction: it refuses only movements DATED ON OR BEFORE the reconciled date, and a correction posts after it. It is also arguably supportive of VAT IR Art. 66(3)(f)'s tamper-control duty — a reading, not a requirement.
+
+The control is **stricter than both reference products**: per bank, and with a reason to reopen. That is deliberate and stated, not claimed as practice.
+
+### 9.3 Final lock behaviour — unchanged, and why each part is covered
+
+The research found no reason to change the 12D implementation. Its scope follows ONE test: *does it change a term of the completed identity at its date?* (statement balance = ledger − ledger-only + statement-only).
+
+| # | Target | Locked? | Why |
+| --- | --- | --- | --- |
+| 1 | Bank statement lines dated ≤ D (add, change amount/date/bank/own posting, delete) | Yes | They are the statement-only terms. |
+| 2 | Reconciliation matches and links on those lines (undo) | Yes | Undoing moves a line between terms. A NEW link is allowed — clearing an item that was outstanding at D is what the next period does. |
+| 3 | Underlying bank postings: any cash line on THAT bank's leaf dated ≤ D (insert; draft → posted; cut-over attribution) | Yes | They are the ledger balance at D. |
+| 4–8 | Manual journals, payments, refunds, transfers, corrections/reversals | Only through #3 | Only when they would put a cash line on that bank dated ≤ D. A reversal's mirror dated today posts freely. Non-cash postings and other banks are never touched. |
+
+Nothing broader: no company-wide or period-wide lock, and no effect on non-bank accounts (the VAT period locks remain the separate, company-scoped mechanism they were).
+
+## 10. Phase 12 — final review (2026-09-24)
+
+| Risk | Where it is held | Evidence |
+| --- | --- | --- |
+| Double bank posting / accepting a reconciled line | `kind = 'matched'` (CHECK: posts nothing); acceptance filters the view (hashed `NOT IN`); named acceptance refused (409 `line_reconciled`) | 12B tests, the defect test proven red on the old code |
+| Transfer lines posting twice | One entry per transfer; `OPEN_TRANSFER_LEG` in both acceptance modes (409 `line_is_recorded_transfer_leg`); possible duplicates need a reason | 12C tests |
+| Incorrect / over-reconciliation, duplicate matching | Caps across every source in DB triggers under the company advisory lock; invariants `bank_line_reconciled_twice`, `bank_line_over_reconciled`, `cash_line_over_reconciled`, `matched_line_not_reconciled` | 12B/12D tests, planted positives |
+| Wrong bank attribution / Dr-Cr direction | Link trigger: same bank, direction (credit ↔ debit to the leaf); transfer entry-shape trigger | 12B/12C tests |
+| Stale balances / incorrect cash position | ONE ledger definition (`journal_line_bank_identity`, JE_IN_BOOKS) and ONE reconciliation definition, aggregated once per read (`MATERIALIZED`); the Bank Accounts headline moved off the typed balance | 12D tests; volume benchmark §7 #7b |
+| Reopening / locked-period behaviour | Latest-first reopening with a reason; the lock (§9.3); period locks unchanged | 12D tests, lock proven red against dropped triggers |
+| Concurrent payment/reconciliation operations | Company advisory lock (links, matches, completion); per-pair lock (transfers); payment row locks (AP, Z-AP1) | Reasoned from Postgres semantics; no deterministic race test (as the Phase 11 pack §17.7 already records) |
+| Tenant/company isolation | RLS with the N1 company arm on every new table; the N1 query predicate; FK-company triggers (FK checks run outside RLS) | Isolation tests with presence/absence/movement in 12A–12D and Z-AP1 |
+| Immutable posted records / audit / provenance | SELECT+INSERT-only grants (verified on a fresh migration); superseding reversals and reopenings; audit records on every state change | Append-only tests; fresh-migrate diff |
+| Idempotency | Keys on links (first link of a request) and transfers | 12B/12C tests |
+| Readers without writers / writers without readers | Every new column has its writer and reader (the standing check); the one gap found — `bank_accounts.balance`'s only reader was the headline — was closed in 12D | §6.2 |
+| Stale API/client contracts | Every new response schema generated and consumed through the generated client; the Z-AP1 bill fields added to `Bill` | typecheck; conformance suites in the gate |
+
+**Fresh migration == dev, re-run after 0104** (2026-09-24): 0 differences over 378 objects (views, 13 functions, 18 triggers, 158 columns, 101 constraints, 18 grants, 59 indexes, 8 policies), by the same diff previously shown able to see planted differences.
+
+**Still open, and outside Phase 12's batch:**
+
+- 🔴 The generic journal "reverse" can reverse entries belonging to invoices, bills (including the supplier's advance documents), payments and supplier payments, leaving the originating document apparently live. CLAUDE.md §5 rank 2.
+- Phase 12 guards it where Phase 12 workflows depend on it:
+  - a bank transfer's entry and a statement line's own posting are refused;
+  - any entry a statement line is reconciled to is refused at the database;
+  - any cash posting under a completed reconciliation is refused.
+
+  The wider redesign is not silently expanded here.
+- The Phase D AR classifier's per-row queries (§7 #9).
+- 🔴 **A guard's blind spot, found by the gate (2026-09-24):** `tests/state-machine-reachability.test.ts` recognises a caller only by a LITERAL path in `apps/web`, so a route called through the GENERATED client (which CLAUDE.md prefers) reads as unreachable. The Z-AP1 credit-note call was switched to a literal path, as its customer-side mirror already is; teaching the guard to read the generated client's URL builders is a separate change to a guard, recorded here rather than made in passing.

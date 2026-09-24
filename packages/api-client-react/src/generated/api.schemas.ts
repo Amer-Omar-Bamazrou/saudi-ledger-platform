@@ -278,7 +278,37 @@ export interface SupplierPaymentClassificationRecord {
   journalEntryId?: number | null;
 }
 
+export interface SupplierAdvanceInvoiceSummary {
+  id: number;
+  billNumber: string;
+  supplierReference: string | null;
+  date: string;
+  vatRate: number;
+  total: number;
+  taxable: number;
+  tax: number;
+  credited: number;
+  /** Deducted by approved final bills */
+  adjusted: number;
+  /** Invoiced, not yet deducted or credited — its VAT is claimed */
+  open: number;
+  /** The claimed input VAT still open — what a final bill deducting all of it will NOT claim again */
+  openTax: number;
+}
+
 export type SupplierPaymentDetail = SupplierPayment & ({
+  /** Z-AP1: approved supplier advance invoices against this payment */
+  advanceInvoicedAmount: number;
+  advanceCreditedAmount: number;
+  /** Deducted by approved final bills */
+  advanceAdjustedAmount: number;
+  /** Invoiced, not yet deducted or credited */
+  advanceOpenAmount: number;
+  /** The claimed input VAT still open on those invoices */
+  advanceOpenVat: number;
+  /** On account and not invoiced — the only part a plain allocation or refund may spend */
+  uninvoicedAmount: number;
+  advanceInvoices: SupplierAdvanceInvoiceSummary[];
   bankAccountId?: number | null;
   method?: string | null;
   notes?: string | null;
@@ -2180,8 +2210,56 @@ export interface BillItem {
   total: number;
 }
 
+export interface SupplierAdvanceInvoiceInput {
+  /** The supplier's advance invoice total, VAT-inclusive; ≤ what is still un-invoiced on the payment */
+  amount: number;
+  /** 15 (default) or 0 */
+  vatRate?: number | null;
+  /** The supplier's issue date (YYYY-MM-DD) — the VAT period of the claim; not before the payment; must be open */
+  date?: string | null;
+  /** The supplier's invoice number — the evidence the claim rests on (IR Art. 49(7)) */
+  vendorReference: string;
+  billNumber?: string | null;
+  notes?: string | null;
+}
+
+export interface SupplierAdvanceCreditNoteInput {
+  /** VAT-inclusive; defaults to everything still open on the advance invoice */
+  amount?: number | null;
+  /** The supplier's issue date — the period the VAT is reversed in */
+  date?: string | null;
+  /** The supplier's credit note number */
+  vendorReference: string;
+  billNumber?: string | null;
+  notes?: string | null;
+}
+
+export interface BillPrepaymentInput {
+  /** The supplier's approved advance tax invoice (bill of type advance_invoice) */
+  advanceBillId: number;
+  /** VAT-inclusive deduction (the supplier's BT-113 share); defaults to everything open */
+  amount?: number | null;
+  /** The supplier's KSA-32 for this deduction, when it differs from the split at the rate by rounding; checked to the halala */
+  taxAmount?: number | null;
+}
+
+export interface BillPrepayment {
+  id: number;
+  advanceBillId: number;
+  advanceBillNumber: string;
+  supplierReference: string | null;
+  amount: number;
+  /** KSA-31 */
+  taxableAmount: number;
+  /** KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again */
+  taxAmount: number;
+  vatRate: number;
+  /** Set at the bill's approval, when the deduction posted */
+  finalised: boolean;
+}
+
 /**
- * B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)).
+ * B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier's advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.
  */
 export type BillDocumentType = typeof BillDocumentType[keyof typeof BillDocumentType];
 
@@ -2190,6 +2268,8 @@ export const BillDocumentType = {
   bill: 'bill',
   credit_note: 'credit_note',
   debit_note: 'debit_note',
+  advance_invoice: 'advance_invoice',
+  advance_credit_note: 'advance_credit_note',
 } as const;
 
 export type BillStatus = typeof BillStatus[keyof typeof BillStatus];
@@ -2207,13 +2287,24 @@ export const BillStatus = {
 export interface Bill {
   id: number;
   billNumber: string;
-  /** B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). */
+  /** B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier's advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it. */
   documentType: BillDocumentType;
   /**
-     * B7: the bill this note adjusts.
+     * B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.
      * @nullable
      */
   creditNoteAgainstBillId?: number | null;
+  /**
+     * Z-AP1: on an advance_invoice, the supplier payment it invoices.
+     * @nullable
+     */
+  advanceSupplierPaymentId?: number | null;
+  /** Z-AP1: Σ the supplier advance deductions on this bill (BT-113) */
+  prepaidAmount: number;
+  /** Z-AP1: total less the advance deducted; 0 on notes and advance documents */
+  amountDue: number;
+  /** Z-AP1: present on a single-bill read */
+  prepayments?: BillPrepayment[];
   /** Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening). */
   isOpening?: boolean;
   /**
@@ -5158,6 +5249,8 @@ export const BillHeaderInputDocumentType = {
 } as const;
 
 export interface BillHeaderInput {
+  /** Z-AP1: on a bill (the supplier's FINAL invoice), the advance tax invoices it deducts. Replaces the draft's selection on update. */
+  prepayments?: BillPrepaymentInput[];
   /** B7: what this purchase document IS. A note is the SUPPLIER'S document — we receive it, so nothing is issued, no ICV is consumed and no e-invoice is sent. A note must name the bill it adjusts and a plain bill must not; a CREDIT note may not exceed what the original was charged, less what other notes have credited. Not editable after entry. */
   documentType?: BillHeaderInputDocumentType;
   /**
@@ -8778,6 +8871,10 @@ export type ListAssets200 = {
   items: Asset[];
   page: PageInfo;
   totals: AssetTotals;
+};
+
+export type ListSupplierOpenAdvanceInvoices200 = {
+  items: SupplierAdvanceInvoiceSummary[];
 };
 
 export type ListCustomersParams = {

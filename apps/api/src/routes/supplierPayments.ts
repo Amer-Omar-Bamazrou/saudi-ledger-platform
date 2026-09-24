@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { supplierPaymentsController } from "../controllers/supplierPayments.controller";
+import { supplierAdvanceInvoicesController } from "../controllers/supplierAdvanceInvoices.controller";
 
 /**
  * B3/B4 (2026-09-22) — supplier payments, advances and their allocation.
@@ -28,5 +29,6 @@ router.get("/:id", supplierPaymentsController.get);
 router.post("/:id/allocate", supplierPaymentsController.allocate);
 router.post("/:id/classify", supplierPaymentsController.classify);
 router.post("/:id/refund", supplierPaymentsController.refund);
+router.post("/:id/advance-invoices", supplierAdvanceInvoicesController.createAdvanceInvoice);
 
 export default router;
