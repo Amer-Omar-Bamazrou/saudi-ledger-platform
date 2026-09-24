@@ -2397,3 +2397,82 @@ test per finding: [`phase-11-deep-accounting-ap-decision-pack.md`](../product/ph
 ACCOUNTANT DECISION REQUIRED, blocker format in the pack §17.8; the running
 default defers the claim, lawful under IR Art. 49(8)); a RACE test for the row
 locks; the statement's server-written line descriptions are English.
+
+## PHASE 13 DISCOVERY — THREE LIVE PURCHASE-VAT DEFECTS — OPEN, 2026-09-24 (found reading shipped code; documentation only)
+
+Found during the Phase 13 (expenses + expense document intelligence)
+discovery, on branch `feat/phase13-expenses-document-intelligence` at
+`0dbfd891`. All three are in shipped code and are NOT fixed: the owner asked
+for them to be recorded here before the Phase 13 accounting research, and
+nothing is to be built until that research and the scope are approved.
+Established by reading the code paths named below — not yet reproduced by a
+test.
+
+### P13-D1 — Scanned receipts claim input VAT with no server-side evidence check
+
+**What happens.** The receipt checks run only in the browser
+(`apps/web/src/lib/receiptValidator.ts`: VAT number, VAT amount, totals,
+rate). On any error `apps/web/src/pages/ScanReview.tsx` (`handleConfirm`,
+the `window.confirm` at ~line 226) offers **"Post anyway"**; the flags are
+then discarded — nothing stores them. The page creates the bill and
+immediately calls `POST /bills/:id/post` (~line 256) with no `force`. The
+server (`apps/api/src/services/bills.approvable.ts`, `postBillToGL`) refuses
+only two things without `force`: totals that do not add up
+(`TOTALS_MISMATCH`), and a supplier VAT number that is **present but
+malformed** (`INVALID_VAT_NUMBER`, ~line 174 — the check is skipped when
+`vendorVat` is empty). **A missing supplier VAT number is not refused.**
+
+**Consequence.** The VAT read off the image — by a regex parser over browser
+OCR — is posted `Dr VAT_INPUT` and filed as recoverable input tax in the
+bill's month, whatever the evidence. A receipt that is not a tax invoice (no
+supplier VAT number) still claims its VAT, and because the flags are thrown
+away nobody can later find which posted bills were "posted anyway". Triage
+(§3): it POSTS, it is FILED in a return, and the RESULT is hidden.
+
+### P13-D2 — Box 13 of the VAT return counts VAT that posted no Input VAT line
+
+**What happens.** `apps/api/src/services/reports.service.ts` (`vatReturn`,
+the purchases loop at ~lines 892–903) adds every bill line with `vat > 0` to
+recoverable input VAT (`box13_recoverableInputVat`). It has no exclusion for
+VAT that was not claimed in the books:
+- a bill that capitalises a fixed asset with a 0 % initial recovery
+  (`apps/api/src/services/assets/capitalisation.service.ts`,
+  `capitaliseVat`, line 71) posts its VAT into the asset's cost and **no
+  `VAT_INPUT` line** (`bills.approvable.ts`, `vatLine`, ~line 284) — yet the
+  return still counts that VAT as recoverable;
+- `categories.input_vat_blocked` (Art. 50) is read only by the bank-line
+  estimate (`services/summary.service.ts`, lines 55 and 82); **no bill path
+  reads it**, so a bill whose VAT is blocked by law claims it in the GL and
+  in the return.
+
+**Consequence.** The return can claim input VAT the ledger does not hold as
+recoverable (the capitalised case — return and GL disagree), and claims
+blocked VAT outright (the category case — both are wrong together, so no
+reconciliation would show it). An over-claim of input tax is the direction a
+tax audit looks for. Related open item: the fixed-assets VAT-return wiring
+needs the accountant (fixed-assets pack §25.6; CLAUDE.md §5 board).
+
+### P13-D3 — No duplicate detection on captured receipts or supplier invoices
+
+**What happens.** `captured_documents.sha256`
+(`packages/db/src/schema/capturedDocuments.ts`, line 75) is computed and
+stored at capture (`services/capture/capture.service.ts`) and **never
+compared** — no lookup, no unique index. `bills.vendor_reference`
+(`packages/db/src/schema/bills.ts`, line 55) — the supplier's own invoice
+number — has no index, no uniqueness and no check in the bills service,
+capture or ScanReview; the only uniqueness is our own `bill_number`
+(`bills_company_number_unq`). The one duplicate check is after the fact: the
+findings engine's `duplicateBills()`
+(`repositories/findings.repository.ts`) groups by supplier + date + total.
+
+**Consequence.** The same receipt — the identical file, or a second photo of
+the same paper — can be scanned twice, becoming two posted bills and two
+input-VAT claims in the return, with nothing refusing or warning at the
+moment it happens.
+
+**What would close them** is Phase 13's scope, pending the research and the
+owner's approval: server-side evidence checks with stored flags, the
+input-VAT claim status, the return reading claimed VAT only, and duplicate
+detection at capture and at bill creation.
+
+State: OPEN (recorded; nothing changed).
