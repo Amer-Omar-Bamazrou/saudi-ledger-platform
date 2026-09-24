@@ -118,7 +118,7 @@ export async function assertTaxPointPeriodOpen(payment: { id: number; paidAt: st
           `The advance received on ${payment.paidAt} (receipt RCPT-${payment.id}) has its VAT tax point in ${period}, and ${period} is closed. ` +
           `The VAT belongs to ${period}'s return regardless of when the advance tax invoice is issued, so it cannot be dated into an open month and it will not be. ` +
           `To issue it: an admin reopens ${period} (Closed months), issue the advance tax invoice (dated ${payment.paidAt}; its IssueDate will be today), close ${period} again — ` +
-          `and correct ${period}'s VAT return under Implementing Regulations Art. 63: an understated net tax is corrected by a submission to ZATCA within 20 days of discovering it, or, when the understatement is below SAR 5,000, in the next return (Art. 63(3)).`,
+          `and correct ${period}'s VAT return under Implementing Regulations Art. 63: an understated net tax is corrected by a submission to ZATCA within 20 days of discovering it, or, when the understatement is below SAR 15,000, by adding it to the return for the tax period in which the error was discovered (Art. 63(3), as amended 19/11/2024).`,
         field: "paymentId",
         period,
         taxPoint: payment.paidAt,
@@ -289,8 +289,11 @@ export const advanceInvoicesService = {
      * reason: it never posts into a closed month, never slides the VAT to the
      * current month, never plugs. The remedy is the return-correction rule
      * (IR Art. 63): an understatement of net tax is corrected by a submission
-     * within 20 days of discovery — or, below SAR 5,000, in the next return
-     * (63(3)) — and the books are corrected by reopening the month, issuing
+     * within 20 days of discovery — or, below SAR 15,000, in the return for
+     * the tax period in which the error was discovered (63(3) as amended by
+     * Res. 24-06-01 of 19/11/2024; the Arabic text, verified in the D-5 pack —
+     * accounting-architecture-decision-pack.md) — and the books are corrected
+     * by reopening the month, issuing
      * the advance tax invoice at its tax point, and closing it again.
      */
     const date = payment.paidAt;

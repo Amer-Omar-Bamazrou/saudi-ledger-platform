@@ -2553,6 +2553,25 @@ text") — so the message contradicts our own recorded rule, not only the law.
 threshold that is a third of the real one and a filing period that is not the
 one the regulation names. Recorded only; the message is not changed yet.
 
+**CLOSED 2026-09-24 (Phase 13, 13E).** The message and its comment now state
+the current rule — SAR 15,000, corrected in the return for the tax period in
+which the error was discovered (Art. 63(3) as amended 19/11/2024) — and point
+at the D-5 pack. `ap-period-correction.test.ts` used to assert `/5,000/`,
+pinning the superseded rule green; it now asserts the current rule AND the
+absence of "SAR 5,000" / "next return", and was run RED against the old
+message before being kept. No other VAT behaviour changed.
+
+🔴 **The lesson — a distinct failure mode: RESEARCH/DECISION-TO-CODE
+PROPAGATION FAILURE — an approved, researched regulatory decision existed in
+documentation but was never propagated into the live implementation.** The
+SAR 15,000 rule had been read from the current Arabic regulation and recorded
+in the D-5 accounting decision pack; the live code, written later, displayed
+the superseded SAR 5,000 rule from the stale local English text, and a test
+certified it. When a regulatory decision is recorded, grep the code, the UI
+copy and the tests for the value it replaces in the same commit. Long form:
+[`findings-and-lessons.md`](findings-and-lessons.md), "A RESEARCHED
+REGULATORY DECISION THAT NEVER REACHED THE CODE".
+
 ### P13-N3 — CRITICAL: the repository's English Implementing Regulations are the 2021 edition
 
 **What happens.** `docs/zatca/specs/KSA_VAT_Implementing_Regulations_EN.pdf`
@@ -2582,6 +2601,14 @@ and `categories.input_vat_blocked` and any future Art. 50 work would inherit
 it. ZATCA publishes no official English text that includes the 2022–2024
 amendments; the research's English renderings of the amended Arabic are its
 own translation (read from page images), not an official one.
+
+**Documented 2026-09-24 (Phase 13, 13E)** — the stored version, the current
+Arabic source and its amendments, the translation error, and the local
+documents that rest on the English text are set out in
+[`docs/zatca/README.md`](../zatca/README.md), "The English VAT Implementing
+Regulations here are SUPERSEDED for amended articles". Still OPEN: no current
+text is stored beside the English, and the packs listed there are not yet
+re-checked.
 
 **Not done, deliberately.** The source files were NOT replaced or edited: a
 regulatory source is not silently swapped. **What would close it**: add the

@@ -198,7 +198,7 @@ describeMaybe("Advance payments — tax point, the four liabilities, bad-debt re
     expect(await depositsInvariantViolations()).toEqual([]);
   });
 
-  it("🔴 1(b): a January receipt identified as an advance later — VAT in January when January is OPEN; when January is LOCKED the 386 fails closed naming Art. 63 (20 days / SAR 5,000 / the reopen), nothing posts, nothing slides to the current month", async () => {
+  it("🔴 1(b): a January receipt identified as an advance later — VAT in January when January is OPEN; when January is LOCKED the 386 fails closed naming Art. 63 (20 days / SAR 15,000 in the discovery period / the reopen), nothing posts, nothing slides to the current month", async () => {
     const p = await receive(custA, 5_750); // unstated at receipt (presumed deposit)
     const before = await box("2026-01");
     await classify(p.id, "advance", { vatCategory: "S" });
@@ -210,7 +210,13 @@ describeMaybe("Advance payments — tax point, the four liabilities, bad-debt re
       expect(refused.body.taxPoint).toBe(JAN_RECEIPT);
       expect(refused.body.error).toMatch(/Art\. 63/);
       expect(refused.body.error).toMatch(/20 days/);
-      expect(refused.body.error).toMatch(/5,000/);
+      // 🔴 P13-N2: the CURRENT Art. 63(3) — SAR 15,000, in the return for the
+      // period the error was discovered. This line used to assert /5,000/: an
+      // assertion that pinned the superseded rule the D-5 pack had already
+      // corrected. Presence AND absence, so the old text cannot return.
+      expect(refused.body.error).toMatch(/SAR 15,000/);
+      expect(refused.body.error).toMatch(/tax period in which the error was discovered/);
+      expect(refused.body.error).not.toMatch(/SAR 5,000|next return/);
       expect(refused.body.error).toMatch(/reopen/i);
       expect(await gl("VAT_OUTPUT"), "nothing posted").toBe(vatBefore);
       expect((await pool.query(`SELECT count(*)::int n FROM invoices WHERE organization_id = $1 AND advance_payment_id = $2`, [orgId, p.id])).rows[0].n).toBe(0);
