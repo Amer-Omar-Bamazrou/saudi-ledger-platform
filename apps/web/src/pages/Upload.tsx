@@ -21,6 +21,9 @@ import Papa from "papaparse";
 import { parseStatementRow } from "@/lib/statementParser";
 import * as XLSX from "xlsx";
 import { businessToday } from "@workspace/shared";
+import { Link } from "wouter";
+import { CONTINUITY } from "@/pages/BankStatements";
+import type { BankStatementContinuity } from "@workspace/api-client-react";
 
 /* ─── types ──────────────────────────────────────────────────────────────── */
 interface TxRow {
@@ -107,6 +110,17 @@ export default function Upload() {
   /* file tab state */
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  /**
+   * Phase 12A — the FILE is the bank's statement, so it is recorded as one:
+   * its SHA-256 (computed here, from the bytes as uploaded) lets the server
+   * refuse the same file twice, and the balances the bank printed — optional —
+   * let it refuse a file that does not add up. Paste and manual entry are not
+   * the bank's file, and stay line entry.
+   */
+  const [fileSha256, setFileSha256] = useState<string | null>(null);
+  const [openingBalance, setOpeningBalance] = useState("");
+  const [closingBalance, setClosingBalance] = useState("");
+  const [lastStatement, setLastStatement] = useState<{ id: number; periodFrom: string; periodTo: string; importedCount: number; lineCount: number; continuity: string; continuityDetail?: string | null } | null>(null);
   const [preview, setPreview] = useState<TxRow[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -145,7 +159,8 @@ export default function Upload() {
             }`,
           });
         }
-        setPreview([]); setFileName(null); setCsvData("");
+        if (res.statement) setLastStatement(res.statement);
+        setPreview([]); setFileName(null); setFileSha256(null); setOpeningBalance(""); setClosingBalance(""); setCsvData("");
         setManualRows([{ date: businessToday(), description: "", amount: "", type: "debit" }]);
         qc.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
       },
@@ -156,6 +171,11 @@ export default function Upload() {
   /* ── file parsing ───────────────────────────────────────────────────── */
   const processFile = useCallback((file: File) => {
     setFileName(file.name);
+    setFileSha256(null);
+    setLastStatement(null);
+    // The file's identity, from its exact bytes (Web Crypto — no dependency).
+    void file.arrayBuffer().then((buf) => crypto.subtle.digest("SHA-256", buf)).then((d) =>
+      setFileSha256(Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("")));
     const ext = file.name.split(".").pop()?.toLowerCase();
 
     if (ext === "csv" || ext === "txt") {
@@ -196,7 +216,7 @@ export default function Upload() {
   };
 
   /* ── submit helpers ─────────────────────────────────────────────────── */
-  const submitRows = (rows: TxRow[]) => {
+  const submitRows = (rows: TxRow[], statement?: { fileName: string | null; fileSha256: string; openingBalance?: number; closingBalance?: number }) => {
     const valid = rows.filter(r => !r._error);
     if (!valid.length) { toast({ title: t("No valid rows to import", "لا توجد صفوف صالحة للاستيراد"), variant: "destructive" }); return; }
     // D-3 (2026-09-16): a statement belongs to ONE bank account, and an
@@ -212,7 +232,36 @@ export default function Upload() {
         rows: valid.map(({ _error, ...r }) => r),
         autoCategrize: autoCategorize,
         bankAccountId: Number(bankAccountId),
+        ...(statement ? { statement } : {}),
       },
+    });
+  };
+
+  /**
+   * 🔴 A statement is imported WHOLE (Phase 12A). A file with rows that could
+   * not be read is not imported as a partial statement — its balances would
+   * describe lines the books do not have. The page says so and imports
+   * nothing; the fix is the file.
+   */
+  const submitFile = () => {
+    if (errorCount > 0) {
+      toast({
+        title: t("Fix the file first — a statement is imported whole", "صحّح الملف أولًا — يُستورد الكشف كاملًا"),
+        description: t(`${errorCount} row(s) could not be read. Importing the rest would leave the statement incomplete.`, `تعذّرت قراءة ${errorCount} صف. استيراد الباقي يترك الكشف ناقصًا.`),
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!fileSha256) return;
+    const hasOpening = openingBalance.trim() !== "", hasClosing = closingBalance.trim() !== "";
+    if (hasOpening !== hasClosing) {
+      toast({ title: t("Enter both statement balances, or neither", "أدخل رصيدي الكشف معًا أو اتركهما"), variant: "destructive" });
+      return;
+    }
+    submitRows(preview, {
+      fileName,
+      fileSha256,
+      ...(hasOpening ? { openingBalance: Number(openingBalance), closingBalance: Number(closingBalance) } : {}),
     });
   };
 
@@ -288,6 +337,17 @@ export default function Upload() {
           <Switch checked={autoCategorize} onCheckedChange={setAutoCategorize} />
         </div>
       </div>
+
+      {/* Phase 12A — what the last FILE import recorded, and how it follows the one before. */}
+      {lastStatement && (
+        <div className="rounded-lg border border-border p-3 text-sm flex flex-wrap items-center gap-3" data-testid="upload-statement-recorded">
+          <span className="font-medium">{t("Statement recorded", "سُجِّل الكشف")} #{lastStatement.id}</span>
+          <span className="font-mono text-xs" dir="ltr">{lastStatement.periodFrom} → {lastStatement.periodTo}</span>
+          <span className="text-xs text-muted-foreground">{t("lines imported", "أسطر مستوردة")}: <span dir="ltr">{lastStatement.importedCount} / {lastStatement.lineCount}</span></span>
+          <Badge variant="outline" className="text-[10px]" data-testid="upload-statement-continuity">{t(CONTINUITY[lastStatement.continuity as BankStatementContinuity]?.en ?? lastStatement.continuity, CONTINUITY[lastStatement.continuity as BankStatementContinuity]?.ar ?? lastStatement.continuity)}</Badge>
+          <Link href="/bank-statements" className="text-xs text-primary underline">{t("All statements", "كل الكشوف")}</Link>
+        </div>
+      )}
 
       {/* tab bar */}
       <Card>
@@ -389,17 +449,33 @@ export default function Upload() {
                   </div>
 
                   {errorCount > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      <span className="text-negative font-medium">{errorCount} {t("rows", "صفوف")}</span> {t("have errors and will be skipped. Fix your file and re-upload to import them.", "تحتوي على أخطاء وسيتم تخطيها. صحّح ملفك وأعد رفعه لاستيرادها.")}
+                    <p className="text-xs text-negative" data-testid="upload-file-has-errors">
+                      <span className="font-medium">{errorCount} {t("rows", "صفوف")}</span> {t("could not be read. A statement is imported whole, so nothing will be imported until the file is fixed.", "تعذّرت قراءتها. يُستورد الكشف كاملًا، فلن يُستورد شيء حتى يُصحَّح الملف.")}
                     </p>
                   )}
+
+                  {/* Phase 12A — what the bank printed, optional. When given, the server
+                      refuses a file whose lines do not add up to it. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-border p-3">
+                    <p className="sm:col-span-2 text-xs text-muted-foreground">
+                      {t("Statement balances (optional) — as printed by the bank. The file must add up to them, or nothing is imported.", "أرصدة الكشف (اختياري) — كما يطبعها البنك. يجب أن تطابقها أسطر الملف، وإلا لا يُستورد شيء.")}
+                    </p>
+                    <div>
+                      <Label className="text-xs text-muted-foreground" htmlFor="stmt-opening">{t("Opening balance", "الرصيد الافتتاحي")}</Label>
+                      <Input id="stmt-opening" type="number" step="0.01" dir="ltr" className="h-9 mt-1" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} data-testid="upload-opening-balance" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground" htmlFor="stmt-closing">{t("Closing balance", "الرصيد الختامي")}</Label>
+                      <Input id="stmt-closing" type="number" step="0.01" dir="ltr" className="h-9 mt-1" value={closingBalance} onChange={(e) => setClosingBalance(e.target.value)} data-testid="upload-closing-balance" />
+                    </div>
+                  </div>
 
                   <div className="flex items-center justify-between pt-1">
                     <Button variant="outline" size="sm" className="gap-2" onClick={() => fileInputRef.current?.click()}>
                       <UploadCloud className="w-4 h-4" /> {t("Replace file", "استبدال الملف")}
                       <input ref={fileInputRef} type="file" accept=".csv,.xls,.xlsx,.txt" className="hidden" onChange={onFileChange} />
                     </Button>
-                    <Button onClick={() => submitRows(preview)} disabled={uploadMut.isPending || validCount === 0} className="gap-2">
+                    <Button onClick={submitFile} disabled={uploadMut.isPending || validCount === 0 || !fileSha256} className="gap-2" data-testid="upload-import-file">
                       {uploadMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
                       {t("Import", "استيراد")} {validCount} {validCount !== 1 ? t("rows", "صفوف") : t("row", "صف")}
                     </Button>

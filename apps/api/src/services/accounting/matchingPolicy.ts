@@ -19,3 +19,13 @@ export const MATCH_AMOUNT_TOLERANCE = 0;
 
 /** Tokens shorter than this never identify anything (they collide with everything). */
 export const MATCH_MIN_REFERENCE_LENGTH = 4;
+
+/** Upper-cased alphanumeric tokens of a narrative, long enough to identify something. */
+export function referenceTokens(text: string): string[] {
+  const out = new Set<string>();
+  for (const t of text.toUpperCase().split(/[^A-Z0-9-]+/)) {
+    const tok = t.replace(/^-+|-+$/g, "");
+    if (tok.length >= MATCH_MIN_REFERENCE_LENGTH) out.add(tok);
+  }
+  return [...out];
+}

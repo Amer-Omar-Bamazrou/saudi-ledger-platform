@@ -29,6 +29,7 @@ import { PaymentHistory } from "@/components/PaymentHistory";
 const BILL_PAGE_SIZE = 50;
 
 import type { Bill, BillApproveInput, CreateBillInput, ListBills200, PaymentInput, UpdateBillInput, Vendor } from "@workspace/api-client-react";
+import { listSupplierOpenAdvanceInvoices } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 
 /**
@@ -77,6 +78,8 @@ const makeEmpty = () => ({
   // Choosing it replaces the expense account with the asset category's COST
   // account and capitalises the asset on the bill's own entry.
   capitalisesAssetId: null as number | null,
+  // Z-AP1: the supplier's advance tax invoices this (final) bill deducts, in full.
+  advanceBillIds: [] as number[],
 });
 
 // ── small JE preview used inside the manual-bill dialog ──────────────────────
@@ -271,6 +274,7 @@ export default function Bills() {
           // sends it explicitly for the one-person flow.
           expenseAccountId: body.capitalisesAssetId != null ? undefined : (body.debitAccountId ?? defaultExpenseId ?? undefined),
           capitalisesAssetId: body.capitalisesAssetId,
+          ...(body.advanceBillIds.length > 0 ? { prepayments: body.advanceBillIds.map((id) => ({ advanceBillId: id })) } : {}),
           items: [],
         }),
       });
@@ -500,6 +504,11 @@ export default function Bills() {
                     </p>
                   )}
                 </div>
+
+                {!editingBill && form.vendorId && form.capitalisesAssetId == null && (
+                  <AdvanceDeductionPicker vendorId={Number(form.vendorId)} selected={form.advanceBillIds}
+                    onChange={(ids) => setForm((p) => ({ ...p, advanceBillIds: ids }))} t={t} />
+                )}
 
                 {/* Fix 2: debit account dropdown — same 14 accounts as scanner flow */}
                 {form.capitalisesAssetId == null && (
@@ -817,6 +826,44 @@ export default function Bills() {
         onOpenChange={setScanOpen}
         onExtracted={handleScanned}
       />
+    </div>
+  );
+}
+
+/**
+ * Z-AP1 — the supplier's approved advance tax invoices this FINAL bill
+ * deducts. Their VAT was claimed when each was recorded; the bill's entry and
+ * the VAT return claim only the rest, so the same input VAT is never claimed
+ * twice. Shown only when the supplier has an advance invoice still open.
+ */
+function AdvanceDeductionPicker({ vendorId, selected, onChange, t }: {
+  vendorId: number; selected: number[]; onChange: (ids: number[]) => void; t: (en: string, ar: string) => string;
+}) {
+  const { data } = useQuery({
+    queryKey: ["vendor-open-advance-invoices", vendorId],
+    queryFn: () => listSupplierOpenAdvanceInvoices(vendorId),
+  });
+  const items = data?.items ?? [];
+  if (items.length === 0) return null;
+  const chosen = items.filter((i) => selected.includes(i.id));
+  const sum = (f: (i: (typeof items)[number]) => number) => chosen.reduce((s, i) => s + f(i), 0);
+  return (
+    <div className="space-y-1 rounded border border-border p-2" data-testid="bill-advance-picker">
+      <Label className="text-xs text-muted-foreground">{t("Deduct the supplier's advance tax invoices", "خصم الفواتير الضريبية للدفعات المقدمة من المورد")}</Label>
+      {items.map((i) => (
+        <label key={i.id} className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={selected.includes(i.id)} data-testid={`bill-advance-${i.id}`}
+            onChange={(e) => onChange(e.target.checked ? [...selected, i.id] : selected.filter((x) => x !== i.id))} />
+          <span className="font-mono" dir="ltr">{i.supplierReference ?? i.billNumber}</span>
+          <span className="text-muted-foreground">{t("open", "قائم")} <span dir="ltr">{fmtNum(i.open)}</span></span>
+        </label>
+      ))}
+      {chosen.length > 0 && (
+        <p className="text-[11px] text-muted-foreground" data-testid="bill-advance-summary">
+          {t("Advance deducted", "الدفعة المقدمة المخصومة")} <span dir="ltr">{fmtNum(sum((i) => i.open))}</span>
+          {" · "}{t("VAT already claimed, not claimed again", "ضريبة سبق خصمها ولا تُخصم مرة أخرى")} <span dir="ltr" data-testid="bill-advance-vat">{fmtNum(sum((i) => i.openTax))}</span>
+        </p>
+      )}
     </div>
   );
 }

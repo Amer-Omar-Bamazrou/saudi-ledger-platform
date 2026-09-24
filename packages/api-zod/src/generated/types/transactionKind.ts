@@ -8,8 +8,11 @@
 
 /**
  * M16.2 — operating (real income/expense; the only kind tax figures
- * read), transfer (money between the business's own pockets), or
- * settlement (M16.3: settles an existing invoice/bill).
+ * read), transfer (money between the business's own pockets),
+ * settlement (M16.3: settles an existing invoice/bill), or matched
+ * (Phase 12B: fully reconciled to a payment, refund or entry that
+ * already posted the money — it posts nothing of its own). Only the
+ * reconciliation writes matched; no input accepts it.
  */
 export type TransactionKind = typeof TransactionKind[keyof typeof TransactionKind];
 
@@ -18,4 +21,5 @@ export const TransactionKind = {
   operating: 'operating',
   transfer: 'transfer',
   settlement: 'settlement',
+  matched: 'matched',
 } as const;

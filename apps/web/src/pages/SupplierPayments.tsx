@@ -18,7 +18,7 @@
  */
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { fmtNum } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ import {
   useListVendors, useListBills, getListBillsQueryKey,
   createSupplierPayment, allocateSupplierPayment, classifySupplierPayment,
   refundSupplierPayment, reverseSupplierAllocation,
+  createSupplierAdvanceInvoice, approveBill, type SupplierAdvanceCreditNoteInput,
   type SupplierPaymentDetail, type Vendor, type Bill, type ListBillsParams,
   type SupplierPaymentClassification,
 } from "@workspace/api-client-react";
@@ -386,6 +387,10 @@ function PaymentDetailDialog({ payment, banks, vendorName, t, onDone, onToast }:
           </div>
         </section>
 
+        {payment.classification === "advance" && (
+          <AdvanceInvoicesSection payment={payment} t={t} post={(act) => post.mutate(act)} />
+        )}
+
         <section className="space-y-2">
           <h3 className="text-sm font-medium">{t("Apply to bills", "التخصيص على الفواتير")}</h3>
           {openBills.length === 0 ? (
@@ -494,5 +499,105 @@ function PaymentDetailDialog({ payment, banks, vendorName, t, onDone, onToast }:
         )}
       </div>
     </DialogContent>
+  );
+}
+
+/**
+ * Z-AP1 (accountant answer A) — the SUPPLIER'S advance-payment tax invoice.
+ * Recording it claims its input VAT in the invoice's own period; the
+ * supplier's final bill then deducts it (on the Bills page) and claims only
+ * the rest. A refund or cancellation is the supplier's credit note against
+ * the advance invoice, which reverses the VAT in the note's period.
+ */
+function AdvanceInvoicesSection({ payment, t, post }: {
+  payment: SupplierPaymentDetail;
+  t: (en: string, ar: string) => string;
+  post: (act: () => Promise<unknown>) => void;
+}) {
+  const [ref, setRef] = useState("");
+  const [date, setDate] = useState(businessToday());
+  const [amount, setAmount] = useState("");
+  const [rate, setRate] = useState("15");
+  const [noteFor, setNoteFor] = useState<number | null>(null);
+  const [noteRef, setNoteRef] = useState("");
+  const [noteDate, setNoteDate] = useState(businessToday());
+  return (
+    <section className="space-y-2" data-testid="advance-invoices-section">
+      <h3 className="text-sm font-medium">{t("Supplier's advance tax invoices", "الفواتير الضريبية للدفعات المقدمة من المورد")}</h3>
+      <p className="text-xs text-muted-foreground">
+        {t("When the supplier issues a tax invoice for this advance, record it here: its input VAT is claimed in the invoice's own period. The supplier's final bill then deducts it and claims only the rest — the same VAT is never claimed twice.",
+           "عندما يصدر المورد فاتورة ضريبية عن هذه الدفعة المقدمة، سجّلها هنا: تُخصم ضريبة المدخلات في فترة الفاتورة نفسها. ثم تخصمها فاتورة المورد النهائية ولا تُخصم إلا بقية الضريبة — فلا تُخصم الضريبة نفسها مرتين.")}
+      </p>
+      <p className="text-xs" data-testid="advance-figures">
+        {t("Invoiced", "مفوتر")}: <Money v={payment.advanceInvoicedAmount} />
+        {" · "}{t("deducted by final bills", "مخصوم في الفواتير النهائية")}: <Money v={payment.advanceAdjustedAmount} />
+        {" · "}{t("open", "قائم")}: <span data-testid="advance-open"><Money v={payment.advanceOpenAmount} /></span>
+        {" · "}{t("not yet invoiced", "غير مفوتر بعد")}: <span data-testid="advance-uninvoiced"><Money v={payment.uninvoicedAmount} /></span>
+      </p>
+      {payment.advanceInvoices.length > 0 && (
+        <table className="w-full text-sm">
+          <tbody>
+            {payment.advanceInvoices.map((i) => (
+              <tr key={i.id} className="border-b border-border/50" data-testid={`advance-invoice-${i.id}`}>
+                <td className="py-1 font-mono text-xs" dir="ltr">{i.supplierReference ?? i.billNumber}</td>
+                <td className="py-1 text-xs" dir="ltr">{i.date}</td>
+                <td className="py-1"><Money v={i.total} /></td>
+                <td className="py-1 text-xs text-muted-foreground">{t("VAT claimed", "ضريبة مخصومة")} <Money v={i.tax} /></td>
+                <td className="py-1 text-xs">{t("open", "قائم")} <Money v={i.open} /></td>
+                <td className="py-1 text-end">
+                  {i.open > 0.005 && (
+                    <Button size="sm" variant="ghost" data-testid={`advance-credit-${i.id}`} onClick={() => setNoteFor(noteFor === i.id ? null : i.id)}>
+                      {t("Supplier credit note", "إشعار دائن من المورد")}
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {noteFor != null && (
+        <div className="flex flex-wrap gap-2 items-end" data-testid="advance-credit-form">
+          <div className="space-y-1"><Label className="text-xs">{t("Supplier's credit note number", "رقم إشعار المورد الدائن")}</Label>
+            <Input value={noteRef} onChange={(e) => setNoteRef(e.target.value)} dir="ltr" data-testid="advance-credit-ref" /></div>
+          <div className="space-y-1"><Label className="text-xs">{t("Issue date", "تاريخ الإصدار")}</Label>
+            <Input type="date" value={noteDate} onChange={(e) => setNoteDate(e.target.value)} dir="ltr" data-testid="advance-credit-date" /></div>
+          <Button size="sm" variant="secondary" disabled={!noteRef.trim()} data-testid="advance-credit-submit"
+            onClick={() => post(async () => {
+              // A literal path, as the customer-side AdvanceCreditNoteDialog does: the state-machine
+              // reachability guard recognises a caller by its path (it cannot see a generated-client call).
+              const note = await apiFetch<Bill>(`/bills/${noteFor}/advance-credit-notes`, {
+                method: "POST", body: JSON.stringify({ vendorReference: noteRef.trim(), date: noteDate } satisfies SupplierAdvanceCreditNoteInput),
+              });
+              await approveBill(note.id, {});
+              setNoteFor(null); setNoteRef("");
+            })}>{t("Record — reverse its VAT", "تسجيل — عكس ضريبته")}</Button>
+        </div>
+      )}
+      {payment.uninvoicedAmount > 0.005 && (
+        <div className="flex flex-wrap gap-2 items-end" data-testid="advance-invoice-form">
+          <div className="space-y-1"><Label className="text-xs">{t("Supplier's invoice number", "رقم فاتورة المورد")}</Label>
+            <Input value={ref} onChange={(e) => setRef(e.target.value)} dir="ltr" data-testid="advance-invoice-ref" /></div>
+          <div className="space-y-1"><Label className="text-xs">{t("Issue date", "تاريخ الإصدار")}</Label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} dir="ltr" data-testid="advance-invoice-date" /></div>
+          <div className="space-y-1"><Label className="text-xs">{t("Total incl. VAT", "الإجمالي شامل الضريبة")}</Label>
+            <Input type="number" step="0.01" placeholder={String(payment.uninvoicedAmount)} value={amount} onChange={(e) => setAmount(e.target.value)} dir="ltr" data-testid="advance-invoice-amount" /></div>
+          <div className="space-y-1"><Label className="text-xs">{t("VAT rate", "نسبة الضريبة")}</Label>
+            <Select value={rate} onValueChange={setRate}>
+              <SelectTrigger className="w-24" data-testid="advance-invoice-rate"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="15">15%</SelectItem><SelectItem value="0">0%</SelectItem></SelectContent>
+            </Select></div>
+          <Button size="sm" disabled={!ref.trim()} data-testid="advance-invoice-submit"
+            onClick={() => post(async () => {
+              const inv = await createSupplierAdvanceInvoice(payment.id, {
+                vendorReference: ref.trim(), date, vatRate: Number(rate),
+                amount: amount.trim() ? Number(amount) : payment.uninvoicedAmount,
+              });
+              await approveBill(inv.id, {});
+              setRef(""); setAmount("");
+            })}>{t("Record — claim its VAT", "تسجيل — خصم ضريبته")}</Button>
+        </div>
+      )}
+    </section>
   );
 }

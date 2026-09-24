@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { billsController } from "../controllers/bills.controller";
+import { supplierAdvanceInvoicesController } from "../controllers/supplierAdvanceInvoices.controller";
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.post("/:id/post", billsController.post);
 router.patch("/:id", billsController.update);
 router.post("/:id/pay", billsController.pay);
 router.get("/:id/payments", billsController.payments);
+router.post("/:id/advance-credit-notes", supplierAdvanceInvoicesController.createAdvanceCreditNote);
 router.delete("/:id", billsController.remove);
 
 export default router;

@@ -108,6 +108,8 @@ export const supplierPaymentsTable = pgTable(
   (t) => [
     index("supplier_payments_vendor_idx").on(t.vendorId),
     index("supplier_payments_company_idx").on(t.companyId, t.paidAt),
+    // Phase 12: the reconciliation reads name a cash line's document by its entry.
+    index("supplier_payments_entry_idx").on(t.journalEntryId),
     uniqueIndex("supplier_payments_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
     check("supplier_payments_amount_positive_chk", sql`amount > 0`),
     check("supplier_payments_classification_chk", sql`classification IN ('advance', 'security_deposit', 'erroneous', 'unknown')`),
@@ -232,6 +234,8 @@ export const supplierRefundsTable = pgTable(
   },
   (t) => [
     index("supplier_refunds_payment_idx").on(t.supplierPaymentId),
+    // Phase 12: the reconciliation reads name a cash line's document by its entry.
+    index("supplier_refunds_entry_idx").on(t.journalEntryId),
     check("supplier_refunds_amount_positive_chk", sql`amount > 0`),
   ],
 );
@@ -241,3 +245,38 @@ export type SupplierPaymentAllocation = typeof supplierPaymentAllocationsTable.$
 export type SupplierPaymentAllocationReversal = typeof supplierPaymentAllocationReversalsTable.$inferSelect;
 export type SupplierPaymentClassificationRow = typeof supplierPaymentClassificationsTable.$inferSelect;
 export type SupplierRefund = typeof supplierRefundsTable.$inferSelect;
+
+/**
+ * Z-AP1 (2026-09-24, accountant answer A) — the PREPAYMENT ADJUSTMENT rows of a
+ * final supplier bill: one row per (final bill, the supplier's advance tax
+ * invoice it deducts). The purchase-side mirror of `invoice_prepayments`.
+ *
+ * The advance invoice CLAIMED its input VAT in its own period; the final bill's
+ * lines carry the FULL supply (the supplier's 388 shows full lines plus the
+ * adjustment, KSA-31/32), so these rows are what the final bill must NOT claim
+ * again — its entry nets them, and the VAT return deducts them in its period.
+ * `amount` = `taxable_amount` + `tax_amount` (CHECK). `allocation_id` is set
+ * once, at approval, to the folded supplier-payment allocation; after that the
+ * row is frozen by trigger (migration 0104).
+ */
+export const billPrepaymentsTable = pgTable(
+  "bill_prepayments",
+  {
+    id: serial("id").primaryKey(),
+    ...tenantColumns,
+    billId: integer("bill_id").notNull().references(() => billsTable.id, { onDelete: "restrict" }),
+    advanceBillId: integer("advance_bill_id").notNull().references(() => billsTable.id, { onDelete: "restrict" }),
+    amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+    taxableAmount: numeric("taxable_amount", { precision: 15, scale: 2 }).notNull(),
+    taxAmount: numeric("tax_amount", { precision: 15, scale: 2 }).notNull(),
+    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull(),
+    allocationId: integer("allocation_id").references(() => supplierPaymentAllocationsTable.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("bill_prepayments_pair_unq").on(t.billId, t.advanceBillId),
+    index("bill_prepayments_advance_idx").on(t.advanceBillId),
+    check("bill_prepayments_amount_chk", sql`amount > 0 AND taxable_amount >= 0 AND tax_amount >= 0 AND amount = taxable_amount + tax_amount`),
+  ],
+);
+export type BillPrepayment = typeof billPrepaymentsTable.$inferSelect;

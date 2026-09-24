@@ -186,7 +186,10 @@ export const supplierPaymentsService = {
         "classification", 409,
       );
     }
-    const available = await this.availableOf(id);
+    // Z-AP1: only the part the supplier has NOT invoiced may be applied here —
+    // an invoiced advance is deducted by the supplier's final bill, whose entry
+    // nets the VAT already claimed (never a plain allocation).
+    const available = await this.uninvoicedOf(id);
     const requested = Array.isArray(body.allocations) ? (body.allocations as AllocationInput[]) : [];
     if (requested.length === 0) refuse("allocations_required", "Name at least one bill to apply this advance to.", "allocations");
 
@@ -245,6 +248,15 @@ export const supplierPaymentsService = {
     const [already] = await db.select().from(supplierPaymentAllocationReversalsTable)
       .where(eq(supplierPaymentAllocationReversalsTable.allocationId, allocationId)).limit(1);
     if (already) refuse("allocation_already_reversed", "This allocation has already been corrected once; the record of that correction is its answer.", undefined, 409);
+    // Z-AP1: a final bill's deduction of an advance invoice was posted INSIDE
+    // the bill's entry (the VAT netted there). It is corrected by the supplier's
+    // credit note on that bill, never undone here.
+    {
+      const { supplierAdvanceInvoicesService } = await import("./supplierAdvanceInvoices.service.js");
+      if (await supplierAdvanceInvoicesService.isPrepaymentAllocation(allocationId)) {
+        refuse("prepayment_adjustment_immutable", "This allocation is a final bill's deduction of the supplier's advance tax invoice; the bill's entry netted its VAT. Correct it with the supplier's credit note on that bill.", undefined, 409);
+      }
+    }
 
     const reason = String(body.reason ?? "").trim();
     if (!reason) refuse("reason_required", "Say why the allocation is being undone — the supplier's balance moves and the record has to say why.", "reason");
@@ -315,6 +327,15 @@ export const supplierPaymentsService = {
       refuse("classification_unknown", "Classify the payment as an advance, a refundable security deposit, an erroneous payment, or not yet known.", "classification");
     }
     const current = payment.classification as SupplierPaymentClassificationKind;
+    // Z-AP1: an advance the supplier has invoiced has had its VAT claimed; it
+    // stays an advance until their credit note (or the final bill) clears it.
+    if (current === "advance" && next !== "advance") {
+      const { supplierAdvanceInvoicesService } = await import("./supplierAdvanceInvoices.service.js");
+      const f = await supplierAdvanceInvoicesService.figures(payment, await this.availableOf(id));
+      if (f.advanceOpenAmount > 0.005) {
+        refuse("advance_invoiced_cannot_reclassify", `The supplier has invoiced ${f.advanceOpenAmount.toFixed(2)} of this advance and its input VAT is claimed. Record their credit note against the advance invoice before reclassifying.`, "classification", 409);
+      }
+    }
     const from = supplierOnAccountAsset(current);
     const to = supplierOnAccountAsset(next);
 
@@ -353,11 +374,13 @@ export const supplierPaymentsService = {
   /** Money coming back from the supplier: the asset falls, the bank rises. */
   async refund(id: number, body: { amount?: unknown; bankAccountId?: unknown; refundedAt?: unknown; reason?: unknown }, userId: number | null) {
     const payment = await this.findOrThrow(id, { lock: true });
-    const available = await this.availableOf(id);
+    // Z-AP1: money the supplier has invoiced (its VAT claimed) comes back only
+    // after their credit note against that advance invoice reverses the claim.
+    const available = await this.uninvoicedOf(id);
     const amount = round2(Number(body.amount ?? available));
     if (!Number.isFinite(amount) || amount <= 0) refuse("amount_invalid", "A refund returns a positive amount.", "amount");
     if (amount > available + 0.005) {
-      refuse("refund_exceeds_available", `Only ${available.toFixed(2)} of this payment is still on account; ${amount.toFixed(2)} was asked for.`, "amount", 409);
+      refuse("refund_exceeds_available", `Only ${available.toFixed(2)} of this payment is on account and not invoiced by the supplier; ${amount.toFixed(2)} was asked for. An invoiced advance comes back after the supplier's credit note against their advance invoice.`, "amount", 409);
     }
     const reason = String(body.reason ?? "").trim();
     if (!reason) refuse("reason_required", "Say why the supplier is returning the money.", "reason");
@@ -423,6 +446,13 @@ export const supplierPaymentsService = {
     return round2(Number(row?.v ?? 0));
   },
 
+  /** Z-AP1: what is on account AND not invoiced by the supplier — the only part a plain allocation or refund may spend. */
+  async uninvoicedOf(id: number): Promise<number> {
+    const { supplierAdvanceInvoicesService } = await import("./supplierAdvanceInvoices.service.js");
+    const f = await supplierAdvanceInvoicesService.figures({ id }, await this.availableOf(id));
+    return f.uninvoicedAmount;
+  },
+
   async getById(id: number) {
     const payment = await this.findOrThrow(id);
     const allocations = await db.execute<{ id: number; bill_id: number; bill_number: string; amount: string; je: number | null; reversed: boolean }>(sql`
@@ -440,6 +470,20 @@ export const supplierPaymentsService = {
       classification: payment.classification, source: payment.source,
       journalEntryId: payment.journalEntryId,
       availableAmount: await this.availableOf(id),
+      // Z-AP1: the supplier's advance invoices against this payment, and what they leave.
+      ...(await (async () => {
+        const { supplierAdvanceInvoicesService } = await import("./supplierAdvanceInvoices.service.js");
+        const f = await supplierAdvanceInvoicesService.figures(payment, await this.availableOf(id));
+        return {
+          advanceInvoicedAmount: f.advanceInvoicedAmount, advanceCreditedAmount: f.advanceCreditedAmount,
+          advanceAdjustedAmount: f.advanceAdjustedAmount, advanceOpenAmount: f.advanceOpenAmount,
+          advanceOpenVat: f.advanceOpenVat, uninvoicedAmount: f.uninvoicedAmount,
+          advanceInvoices: f.advanceInvoices.map((i) => ({
+            id: i.id, billNumber: i.billNumber, supplierReference: i.vendorReference, date: i.date, vatRate: i.vatRate,
+            total: i.total, taxable: i.taxable, tax: i.tax, credited: i.credited, adjusted: i.adjusted, open: i.open, openTax: i.openTax,
+          })),
+        };
+      })()),
       allocations: allocations.rows.map((a) => ({
         id: a.id, billId: a.bill_id, billNumber: a.bill_number,
         amount: Number(a.amount), journalEntryId: a.je, reversed: a.reversed,
@@ -524,6 +568,9 @@ export const supplierPaymentsService = {
        * already a reduction of what we owe, and double-counting it. A DEBIT
        * note is a legitimate target: it is an additional charge.
        */
+      if (bill!.documentType === "advance_invoice" || bill!.documentType === "advance_credit_note") {
+        refuse("target_is_an_advance_document", `${bill!.billNumber} is a supplier ADVANCE document — it owes nothing. Apply the advance to the supplier's final bill instead.`, "allocations", 409);
+      }
       if (bill!.documentType === "credit_note") {
         refuse("target_is_a_credit_note", `${bill!.billNumber} is a supplier credit note, not something you owe. Apply the note to a bill instead.`, "allocations", 409);
       }

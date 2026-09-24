@@ -48,6 +48,22 @@ export function errorHandler(
     return;
   }
 
+  // Phase 12C/12D: the banking triggers refuse from EVERY posting path (a
+  // payment, a journal, an import, a reversal) — so they are translated here,
+  // once, into a 409 carrying the database's own sentence and a stable code
+  // the UI keys on. Drizzle may wrap the driver error in `cause`.
+  const pg = (err as { code?: string; message?: string; cause?: { code?: string; message?: string } });
+  const pgCode = pg?.code && /^[0-9A-Z]{5}$/.test(pg.code) ? pg.code : pg?.cause?.code;
+  const pgMessage = pg?.cause?.message ?? pg?.message ?? "";
+  if (pgCode === "23514" && /is reconciled through/.test(pgMessage)) {
+    res.status(409).json({ code: "bank_reconciled_through", error: pgMessage });
+    return;
+  }
+  if (pgCode === "23514" && /is reconciled to a bank statement line/.test(pgMessage)) {
+    res.status(409).json({ code: "entry_reconciled", error: pgMessage });
+    return;
+  }
+
   req.log.error({ err });
   res.status(500).json({ error: "Internal server error" });
 }

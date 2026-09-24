@@ -54,6 +54,7 @@ const EXEMPT: Record<string, string> = {
   "services/migrationCorrection.service.ts": "writes a replacement opening row with paidAmount 0 and reads the live row's total to size the correction; it sums nothing.",
   "services/purchaseOrderConversion.service.ts": "reports the converted bill's total as a label beside the PO's.",
   "services/bills.service.ts": "the legacy pay path reads what a bill owes through `billsRepository.outstandingOf` (billPosition, under a row lock); `paidAmount` here is the counter it WRITES, not a balance it computes.",
+  "services/accounting/supplierAdvanceInvoices.service.ts": "Z-AP1: computes an ADVANCE INVOICE's own open amount (its total less its advance credit notes less its finalised bill_prepayments deductions) — not what a bill owes. Advance documents owe nothing in billPosition (sign 0, outstanding 0); the FINAL bill's outstanding is billPosition's, through billsRepository.",
   "services/reconciliation.service.ts": "bank-match candidates quote the `outstanding` column `billsRepository.openForSettlement` computes through billPosition; the remaining amount expressions are the INVOICE side.",
   "services/accounting/supplierPayments.service.ts": "reads what a bill owes through `billsRepository.outstandingOf` (billPosition, under a row lock); its own SQL computes what a PAYMENT still has on account — a different figure.",
 };

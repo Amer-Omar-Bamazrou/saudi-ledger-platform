@@ -278,7 +278,37 @@ export interface SupplierPaymentClassificationRecord {
   journalEntryId?: number | null;
 }
 
+export interface SupplierAdvanceInvoiceSummary {
+  id: number;
+  billNumber: string;
+  supplierReference: string | null;
+  date: string;
+  vatRate: number;
+  total: number;
+  taxable: number;
+  tax: number;
+  credited: number;
+  /** Deducted by approved final bills */
+  adjusted: number;
+  /** Invoiced, not yet deducted or credited — its VAT is claimed */
+  open: number;
+  /** The claimed input VAT still open — what a final bill deducting all of it will NOT claim again */
+  openTax: number;
+}
+
 export type SupplierPaymentDetail = SupplierPayment & ({
+  /** Z-AP1: approved supplier advance invoices against this payment */
+  advanceInvoicedAmount: number;
+  advanceCreditedAmount: number;
+  /** Deducted by approved final bills */
+  advanceAdjustedAmount: number;
+  /** Invoiced, not yet deducted or credited */
+  advanceOpenAmount: number;
+  /** The claimed input VAT still open on those invoices */
+  advanceOpenVat: number;
+  /** On account and not invoiced — the only part a plain allocation or refund may spend */
+  uninvoicedAmount: number;
+  advanceInvoices: SupplierAdvanceInvoiceSummary[];
   bankAccountId?: number | null;
   method?: string | null;
   notes?: string | null;
@@ -997,8 +1027,11 @@ export const TransactionReviewStatus = {
 
 /**
  * M16.2 — operating (real income/expense; the only kind tax figures
- * read), transfer (money between the business's own pockets), or
- * settlement (M16.3: settles an existing invoice/bill).
+ * read), transfer (money between the business's own pockets),
+ * settlement (M16.3: settles an existing invoice/bill), or matched
+ * (Phase 12B: fully reconciled to a payment, refund or entry that
+ * already posted the money — it posts nothing of its own). Only the
+ * reconciliation writes matched; no input accepts it.
  */
 export type TransactionKind = typeof TransactionKind[keyof typeof TransactionKind];
 
@@ -1007,6 +1040,7 @@ export const TransactionKind = {
   operating: 'operating',
   transfer: 'transfer',
   settlement: 'settlement',
+  matched: 'matched',
 } as const;
 
 /**
@@ -1083,8 +1117,11 @@ export interface Transaction {
   reviewStatus?: TransactionReviewStatus;
   /**
      * M16.2 — operating (real income/expense; the only kind tax figures
-     * read), transfer (money between the business's own pockets), or
-     * settlement (M16.3: settles an existing invoice/bill).
+     * read), transfer (money between the business's own pockets),
+     * settlement (M16.3: settles an existing invoice/bill), or matched
+     * (Phase 12B: fully reconciled to a payment, refund or entry that
+     * already posted the money — it posts nothing of its own). Only the
+     * reconciliation writes matched; no input accepts it.
      */
   kind?: TransactionKind;
   /**
@@ -1157,6 +1194,7 @@ export const PendingReviewTransactionKind = {
   operating: 'operating',
   transfer: 'transfer',
   settlement: 'settlement',
+  matched: 'matched',
 } as const;
 
 /**
@@ -1492,6 +1530,23 @@ export interface TransactionUpdate {
   descriptionAr?: string | null;
 }
 
+/**
+ * Phase 12A — what the BANK sent, recorded as a statement. When present the import is ALL OR NOTHING: every row is validated first, rows must fall inside the period, and when balances are given the file must agree with itself (opening + credits − debits = closing) or nothing is imported (422 statement_does_not_balance). The same file for the same bank is refused by its SHA-256 (409 statement_already_imported).
+ */
+export interface BankStatementInput {
+  fileName?: string | null;
+  /** Lower-case hex SHA-256 of the file as uploaded. */
+  fileSha256?: string | null;
+  /** YYYY-MM-DD (checked by the service). Defaults to the earliest row date. */
+  periodFrom?: string | null;
+  /** YYYY-MM-DD (checked by the service). Defaults to the latest row date. */
+  periodTo?: string | null;
+  /** What the bank stated at the start — both balances or neither. */
+  openingBalance?: number | null;
+  /** What the bank stated at the end — both balances or neither. */
+  closingBalance?: number | null;
+}
+
 export interface TransactionUpload {
   rows: TransactionInput[];
   /** @nullable */
@@ -1505,6 +1560,437 @@ export interface TransactionUpload {
      * be accepted. A missing id is a 422 `bank_account_required`.
      */
   bankAccountId: number;
+  statement?: BankStatementInput;
+}
+
+/**
+ * DERIVED from bank_line_reconciliation: unreconciled (nothing answers the line), partial, reconciled (its whole amount is answered).
+ */
+export type ReconciliationStatus = typeof ReconciliationStatus[keyof typeof ReconciliationStatus];
+
+
+export const ReconciliationStatus = {
+  unreconciled: 'unreconciled',
+  partial: 'partial',
+  reconciled: 'reconciled',
+} as const;
+
+export type ReconciliationLineDirection = typeof ReconciliationLineDirection[keyof typeof ReconciliationLineDirection];
+
+
+export const ReconciliationLineDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export interface ReconciliationLine {
+  id: number;
+  bankAccountId: number;
+  bankStatementId?: number | null;
+  date: string;
+  description: string;
+  direction: ReconciliationLineDirection;
+  amount: number;
+  reconciledAmount: number;
+  remaining: number;
+  status: ReconciliationStatus;
+  reviewStatus: string;
+  kind: string;
+  /** The line was accepted and posted its own entry — reconciled by construction. */
+  postedOwnEntry: boolean;
+}
+
+/**
+ * The document that posted the cash line.
+ */
+export type ReconciliationCandidateSourceKind = typeof ReconciliationCandidateSourceKind[keyof typeof ReconciliationCandidateSourceKind];
+
+
+export const ReconciliationCandidateSourceKind = {
+  supplier_payment: 'supplier_payment',
+  supplier_refund: 'supplier_refund',
+  bill_payment: 'bill_payment',
+  receipt: 'receipt',
+  customer_refund: 'customer_refund',
+  statement_line: 'statement_line',
+  bank_transfer: 'bank_transfer',
+  journal: 'journal',
+} as const;
+
+export interface ReconciliationCandidate {
+  journalLineId: number;
+  journalEntryId: number;
+  entryNumber: string;
+  date: string;
+  description?: string | null;
+  lineAmount: number;
+  /** What of this ledger cash line is not yet reconciled */
+  remaining: number;
+  /** The document that posted the cash line. */
+  sourceKind: ReconciliationCandidateSourceKind;
+  sourceId?: number | null;
+  sourceReference?: string | null;
+  party?: string | null;
+}
+
+/**
+ * Which writer reconciled it — the line's own posting, a Phase D receipt match, a Review settlement, or a reconciliation link.
+ */
+export type ReconciliationLineDetailReconciledByItemSource = typeof ReconciliationLineDetailReconciledByItemSource[keyof typeof ReconciliationLineDetailReconciledByItemSource];
+
+
+export const ReconciliationLineDetailReconciledByItemSource = {
+  posted: 'posted',
+  ar_match: 'ar_match',
+  ar_settlement: 'ar_settlement',
+  link: 'link',
+} as const;
+
+export type ReconciliationLineDetailReconciledByItem = {
+  /** Which writer reconciled it — the line's own posting, a Phase D receipt match, a Review settlement, or a reconciliation link. */
+  source: ReconciliationLineDetailReconciledByItemSource;
+  sourceId: number;
+  journalLineId: number;
+  amount: number;
+  journalEntryId: number;
+  entryNumber: string;
+  entryDate: string;
+  documentKind: string;
+  documentReference?: string | null;
+  party?: string | null;
+  /** Set for a reconciliation link — the only source undone from here. */
+  linkId?: number | null;
+};
+
+export type ReconciliationLineDetail = ReconciliationLine & {
+  reconciledBy: ReconciliationLineDetailReconciledByItem[];
+  candidates: ReconciliationCandidate[];
+};
+
+export type ReconciliationLedgerItemDirection = typeof ReconciliationLedgerItemDirection[keyof typeof ReconciliationLedgerItemDirection];
+
+
+export const ReconciliationLedgerItemDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export interface ReconciliationLedgerItem {
+  journalLineId: number;
+  journalEntryId: number;
+  entryNumber: string;
+  date: string;
+  description: string | null;
+  direction: ReconciliationLedgerItemDirection;
+  lineAmount: number;
+  /** The part no statement line dated on or before the date answers. */
+  outstanding: number;
+  signedOutstanding: number;
+}
+
+export type ReconciliationStatementItemDirection = typeof ReconciliationStatementItemDirection[keyof typeof ReconciliationStatementItemDirection];
+
+
+export const ReconciliationStatementItemDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export interface ReconciliationStatementItem {
+  transactionId: number;
+  date: string;
+  description: string;
+  direction: ReconciliationStatementItemDirection;
+  lineAmount: number;
+  /** The part no ledger cash line dated on or before the date answers. */
+  outstanding: number;
+  signedOutstanding: number;
+  reviewStatus: string;
+  kind: string;
+}
+
+export interface BankReconciliationPosition {
+  bankAccountId: number;
+  asOf: string;
+  bankStatementId: number | null;
+  statementBalance: number | null;
+  ledgerBalance: number;
+  ledgerOnlyTotal: number;
+  statementOnlyTotal: number;
+  /** ledgerBalance − ledgerOnlyTotal + statementOnlyTotal */
+  expectedStatement: number;
+  /** statementBalance − expectedStatement; NULL when no statement balance was given (never a zero that reads as balanced) */
+  difference: number | null;
+  balanced: boolean;
+  reconciledThrough: string | null;
+  ledgerOnly: ReconciliationLedgerItem[];
+  statementOnly: ReconciliationStatementItem[];
+}
+
+export interface CompleteBankReconciliationInput {
+  bankAccountId: number;
+  /** YYYY-MM-DD; the statement's closing date when a statement is named */
+  asOf?: string | null;
+  /** The bank's closing balance at the date (or name a statement that states one) */
+  statementBalance?: number | null;
+  bankStatementId?: number | null;
+  notes?: string | null;
+}
+
+export interface ReopenBankReconciliationInput {
+  reason: string;
+}
+
+export type BankReconciliationRecordSnapshot = { [key: string]: unknown };
+
+export type BankReconciliationRecordReopening = {
+  reason: string;
+  reopenedAt: string;
+} | null;
+
+export interface BankReconciliationRecord {
+  id: number;
+  bankAccountId: number;
+  bankName: string;
+  asOf: string;
+  bankStatementId: number | null;
+  statementBalance: number;
+  ledgerBalance: number;
+  ledgerOnlyTotal: number;
+  statementOnlyTotal: number;
+  difference: number;
+  snapshot: BankReconciliationRecordSnapshot;
+  notes: string | null;
+  completedBy: number | null;
+  createdAt: string;
+  reopening: BankReconciliationRecordReopening;
+}
+
+export type CashPositionBankLatestStatement = {
+  id: number;
+  periodTo: string;
+  closingBalance: number;
+  ledgerAtThatDate: number;
+  /** Statement minus ledger at the statement's date, BEFORE reconciling items */
+  grossDifference: number;
+} | null;
+
+export interface CashPositionBank {
+  bankAccountId: number;
+  name: string;
+  bankName: string;
+  currency: string;
+  isActive: boolean;
+  ledgerBalance: number;
+  latestStatement: CashPositionBankLatestStatement;
+  unreconciledLines: number;
+  partialLines: number;
+  outstandingIn: number;
+  outstandingOut: number;
+  reconciledThrough: string | null;
+}
+
+export interface CashPosition {
+  asOf: string;
+  banks: CashPositionBank[];
+  /** Active SAR banks only */
+  totalLedgerBalance: number;
+}
+
+export type BankingExceptionsContinuityItem = {
+  statementId: number;
+  bankAccountId: number;
+  periodFrom: string;
+  periodTo: string;
+  continuity: string;
+  detail: string | null;
+};
+
+export type BankingExceptionsLinesItemsItemDirection = typeof BankingExceptionsLinesItemsItemDirection[keyof typeof BankingExceptionsLinesItemsItemDirection];
+
+
+export const BankingExceptionsLinesItemsItemDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+export type BankingExceptionsLinesItemsItemKind = typeof BankingExceptionsLinesItemsItemKind[keyof typeof BankingExceptionsLinesItemsItemKind];
+
+
+export const BankingExceptionsLinesItemsItemKind = {
+  stale: 'stale',
+  partial: 'partial',
+} as const;
+
+export type BankingExceptionsLinesItemsItem = {
+  transactionId: number;
+  bankAccountId: number;
+  date: string;
+  description: string;
+  direction: BankingExceptionsLinesItemsItemDirection;
+  amount: number;
+  reconciled: number;
+  kind: BankingExceptionsLinesItemsItemKind;
+};
+
+export type BankingExceptionsLines = {
+  total: number;
+  items: BankingExceptionsLinesItemsItem[];
+};
+
+export type BankingExceptionsTransferClearing = {
+  balance: number;
+  lines: number;
+  nets: boolean;
+};
+
+export type BankingExceptionsTransfersMissingLegsItem = {
+  transferId: number;
+  transferDate: string;
+  amount: number;
+  from: string;
+  to: string;
+  reconciledLegs: number;
+};
+
+export type BankingExceptionsLedgerLinesItemsItem = {
+  journalLineId: number;
+  journalEntryId: number;
+  bankAccountId: number;
+  entryNumber: string;
+  date: string;
+  amount: number;
+  outstanding: number;
+};
+
+export type BankingExceptionsLedgerLines = {
+  total: number;
+  items: BankingExceptionsLedgerLinesItemsItem[];
+};
+
+export interface BankingExceptions {
+  asOf: string;
+  staleAfterDays: number;
+  cap: number;
+  continuity: BankingExceptionsContinuityItem[];
+  lines: BankingExceptionsLines;
+  transferClearing: BankingExceptionsTransferClearing;
+  transfersMissingLegs: BankingExceptionsTransfersMissingLegsItem[];
+  ledgerLines: BankingExceptionsLedgerLines;
+}
+
+export interface BankTransferInput {
+  /** The bank the money left. */
+  fromBankAccountId: number;
+  /** The bank the money arrived in — a different one. */
+  toBankAccountId: number;
+  /** Positive; rounded to the halala. */
+  amount: number;
+  /** YYYY-MM-DD; today (Asia/Riyadh) when omitted. Must be in an open period. */
+  transferDate?: string;
+  reference?: string | null;
+  memo?: string | null;
+  /** Record it although it looks like a transfer already in the books. */
+  confirmDuplicate?: boolean;
+  /** Required with confirmDuplicate: why this is a different movement. Kept on the transfer. */
+  duplicateConfirmationReason?: string | null;
+  idempotencyKey?: string | null;
+}
+
+export interface ReverseBankTransferInput {
+  /** Why the transfer is reversed — kept on the superseding record and the mirror entry. */
+  reason: string;
+  /** YYYY-MM-DD the mirror posts on; today when omitted. Must be in an open period. */
+  date?: string | null;
+}
+
+export type BankTransferReversal = {
+  reason: string;
+  reversalJournalEntryId: number;
+  reversedAt: string;
+} | null;
+
+export interface BankTransfer {
+  id: number;
+  fromBankAccountId: number;
+  fromBankName: string;
+  toBankAccountId: number;
+  toBankName: string;
+  amount: number;
+  transferDate: string;
+  reference: string | null;
+  memo: string | null;
+  journalEntryId: number;
+  entryNumber: string;
+  duplicateConfirmationReason: string | null;
+  createdAt: string;
+  /** How many of its two cash lines a statement line is reconciled to (0, 1 or 2). */
+  reconciledLines: number;
+  reversal: BankTransferReversal;
+}
+
+export interface ReverseReconciliationLinkInput {
+  /** Why the reconciliation is undone — the record keeps both the link and its reversal. */
+  reason: string;
+}
+
+export type ReconciliationLinkInputLinesItem = {
+  journalLineId: number;
+  /** The part of the statement line this ledger line answers. */
+  amount: number;
+};
+
+export interface ReconciliationLinkInput {
+  /** @minItems 1 */
+  lines: ReconciliationLinkInputLinesItem[];
+  reason?: string | null;
+  idempotencyKey?: string | null;
+}
+
+/**
+ * How this statement follows the previous one for the same bank. REPORTED, never refused: a missing statement is a fact to see, not a reason to block an import. first · continuous · gap (days missing) · overlap (periods overlap) · balance_break (opening differs from the previous closing) · unknown (a balance is missing on either side).
+ */
+export type BankStatementContinuity = typeof BankStatementContinuity[keyof typeof BankStatementContinuity];
+
+
+export const BankStatementContinuity = {
+  first: 'first',
+  continuous: 'continuous',
+  gap: 'gap',
+  overlap: 'overlap',
+  balance_break: 'balance_break',
+  unknown: 'unknown',
+} as const;
+
+export type BankStatementSource = typeof BankStatementSource[keyof typeof BankStatementSource];
+
+
+export const BankStatementSource = {
+  file_upload: 'file_upload',
+  manual_entry: 'manual_entry',
+} as const;
+
+export interface BankStatement {
+  id: number;
+  bankAccountId: number;
+  /** YYYY-MM-DD — a plain date string (a date-format schema would be coerced to a timestamp on the wire). */
+  periodFrom: string;
+  /** YYYY-MM-DD */
+  periodTo: string;
+  openingBalance?: number | null;
+  closingBalance?: number | null;
+  source: BankStatementSource;
+  fileName?: string | null;
+  fileSha256?: string | null;
+  /** Lines in the file */
+  lineCount: number;
+  fileCreditTotal: number;
+  fileDebitTotal: number;
+  /** DERIVED — lines that carry this statement. Lower than lineCount when lines were already held (a re-exported period). */
+  importedCount: number;
+  continuity: BankStatementContinuity;
+  continuityDetail?: string | null;
+  createdAt: string;
 }
 
 export type UploadResultDuplicatesItem = {
@@ -1514,6 +2000,8 @@ export type UploadResultDuplicatesItem = {
 };
 
 export interface UploadResult {
+  /** Phase 12A — the statement record this import created, when the upload carried one. */
+  statement?: BankStatement | null;
   inserted: number;
   categorized: number;
   duplicatesSkipped?: number;
@@ -1722,8 +2210,56 @@ export interface BillItem {
   total: number;
 }
 
+export interface SupplierAdvanceInvoiceInput {
+  /** The supplier's advance invoice total, VAT-inclusive; ≤ what is still un-invoiced on the payment */
+  amount: number;
+  /** 15 (default) or 0 */
+  vatRate?: number | null;
+  /** The supplier's issue date (YYYY-MM-DD) — the VAT period of the claim; not before the payment; must be open */
+  date?: string | null;
+  /** The supplier's invoice number — the evidence the claim rests on (IR Art. 49(7)) */
+  vendorReference: string;
+  billNumber?: string | null;
+  notes?: string | null;
+}
+
+export interface SupplierAdvanceCreditNoteInput {
+  /** VAT-inclusive; defaults to everything still open on the advance invoice */
+  amount?: number | null;
+  /** The supplier's issue date — the period the VAT is reversed in */
+  date?: string | null;
+  /** The supplier's credit note number */
+  vendorReference: string;
+  billNumber?: string | null;
+  notes?: string | null;
+}
+
+export interface BillPrepaymentInput {
+  /** The supplier's approved advance tax invoice (bill of type advance_invoice) */
+  advanceBillId: number;
+  /** VAT-inclusive deduction (the supplier's BT-113 share); defaults to everything open */
+  amount?: number | null;
+  /** The supplier's KSA-32 for this deduction, when it differs from the split at the rate by rounding; checked to the halala */
+  taxAmount?: number | null;
+}
+
+export interface BillPrepayment {
+  id: number;
+  advanceBillId: number;
+  advanceBillNumber: string;
+  supplierReference: string | null;
+  amount: number;
+  /** KSA-31 */
+  taxableAmount: number;
+  /** KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again */
+  taxAmount: number;
+  vatRate: number;
+  /** Set at the bill's approval, when the deduction posted */
+  finalised: boolean;
+}
+
 /**
- * B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)).
+ * B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier's advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.
  */
 export type BillDocumentType = typeof BillDocumentType[keyof typeof BillDocumentType];
 
@@ -1732,6 +2268,8 @@ export const BillDocumentType = {
   bill: 'bill',
   credit_note: 'credit_note',
   debit_note: 'debit_note',
+  advance_invoice: 'advance_invoice',
+  advance_credit_note: 'advance_credit_note',
 } as const;
 
 export type BillStatus = typeof BillStatus[keyof typeof BillStatus];
@@ -1749,13 +2287,24 @@ export const BillStatus = {
 export interface Bill {
   id: number;
   billNumber: string;
-  /** B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). */
+  /** B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier's advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it. */
   documentType: BillDocumentType;
   /**
-     * B7: the bill this note adjusts.
+     * B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.
      * @nullable
      */
   creditNoteAgainstBillId?: number | null;
+  /**
+     * Z-AP1: on an advance_invoice, the supplier payment it invoices.
+     * @nullable
+     */
+  advanceSupplierPaymentId?: number | null;
+  /** Z-AP1: Σ the supplier advance deductions on this bill (BT-113) */
+  prepaidAmount: number;
+  /** Z-AP1: total less the advance deducted; 0 on notes and advance documents */
+  amountDue: number;
+  /** Z-AP1: present on a single-bill read */
+  prepayments?: BillPrepayment[];
   /** Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening). */
   isOpening?: boolean;
   /**
@@ -4700,6 +5249,8 @@ export const BillHeaderInputDocumentType = {
 } as const;
 
 export interface BillHeaderInput {
+  /** Z-AP1: on a bill (the supplier's FINAL invoice), the advance tax invoices it deducts. Replaces the draft's selection on update. */
+  prepayments?: BillPrepaymentInput[];
   /** B7: what this purchase document IS. A note is the SUPPLIER'S document — we receive it, so nothing is issued, no ICV is consumed and no e-invoice is sent. A note must name the bill it adjusts and a plain bill must not; a CREDIT note may not exceed what the original was charged, less what other notes have credited. Not editable after entry. */
   documentType?: BillHeaderInputDocumentType;
   /**
@@ -7967,6 +8518,115 @@ export type GetAskStatus200 = {
   available: boolean;
 };
 
+export type ListReconciliationLinesParams = {
+bankAccountId?: number;
+status?: ReconciliationStatus;
+from?: string;
+to?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListReconciliationLines200Page = {
+  limit: number;
+  offset: number;
+  total: number;
+};
+
+export type ListReconciliationLines200 = {
+  items: ReconciliationLine[];
+  page: ListReconciliationLines200Page;
+};
+
+export type ListBankReconciliationsParams = {
+bankAccountId?: number;
+};
+
+export type ListBankReconciliations200 = {
+  reconciliations: BankReconciliationRecord[];
+};
+
+export type GetBankReconciliationPositionParams = {
+bankAccountId: number;
+asOf?: string;
+statementBalance?: number;
+bankStatementId?: number;
+};
+
+export type ListBankTransfersParams = {
+bankAccountId?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListBankTransfers200 = {
+  transfers: BankTransfer[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type ClassifyApReconciliationParams = {
+bankAccountId?: number;
+};
+
+export type ClassifyApReconciliation200ItemsItemClassification = typeof ClassifyApReconciliation200ItemsItemClassification[keyof typeof ClassifyApReconciliation200ItemsItemClassification];
+
+
+export const ClassifyApReconciliation200ItemsItemClassification = {
+  DETERMINISTIC: 'DETERMINISTIC',
+  AMBIGUOUS: 'AMBIGUOUS',
+  UNMATCHED: 'UNMATCHED',
+} as const;
+
+export type ClassifyApReconciliation200ItemsItem = {
+  transactionId: number;
+  classification: ClassifyApReconciliation200ItemsItemClassification;
+  reason: string;
+  target?: ReconciliationCandidate | null;
+};
+
+export type ClassifyApReconciliation200 = {
+  items: ClassifyApReconciliation200ItemsItem[];
+};
+
+export type ApplyApReconciliationParams = {
+bankAccountId?: number;
+};
+
+export type ApplyApReconciliation200Summary = {
+  deterministic: number;
+  ambiguous: number;
+  unmatched: number;
+};
+
+export type ApplyApReconciliation200 = {
+  recorded: number[];
+  summary: ApplyApReconciliation200Summary;
+};
+
+export type ListBankStatementsParams = {
+bankAccountId?: number;
+};
+
+export type ListBankStatements200 = {
+  items: BankStatement[];
+};
+
 export type ListBudgetsParams = {
 period?: string;
 };
@@ -8211,6 +8871,10 @@ export type ListAssets200 = {
   items: Asset[];
   page: PageInfo;
   totals: AssetTotals;
+};
+
+export type ListSupplierOpenAdvanceInvoices200 = {
+  items: SupplierAdvanceInvoiceSummary[];
 };
 
 export type ListCustomersParams = {

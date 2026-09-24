@@ -7,18 +7,30 @@
  */
 import type { BillDocumentType } from './billDocumentType';
 import type { BillItem } from './billItem';
+import type { BillPrepayment } from './billPrepayment';
 import type { BillStatus } from './billStatus';
 
 export interface Bill {
   id: number;
   billNumber: string;
-  /** B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). */
+  /** B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier's advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it. */
   documentType: BillDocumentType;
   /**
-     * B7: the bill this note adjusts.
+     * B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.
      * @nullable
      */
   creditNoteAgainstBillId?: number | null;
+  /**
+     * Z-AP1: on an advance_invoice, the supplier payment it invoices.
+     * @nullable
+     */
+  advanceSupplierPaymentId?: number | null;
+  /** Z-AP1: Σ the supplier advance deductions on this bill (BT-113) */
+  prepaidAmount: number;
+  /** Z-AP1: total less the advance deducted; 0 on notes and advance documents */
+  amountDue: number;
+  /** Z-AP1: present on a single-bill read */
+  prepayments?: BillPrepayment[];
   /** Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening). */
   isOpening?: boolean;
   /**

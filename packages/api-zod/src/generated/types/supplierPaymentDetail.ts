@@ -5,12 +5,25 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { SupplierAdvanceInvoiceSummary } from './supplierAdvanceInvoiceSummary';
 import type { SupplierPayment } from './supplierPayment';
 import type { SupplierPaymentAllocation } from './supplierPaymentAllocation';
 import type { SupplierPaymentClassificationRecord } from './supplierPaymentClassificationRecord';
 import type { SupplierRefund } from './supplierRefund';
 
 export type SupplierPaymentDetail = SupplierPayment & ({
+  /** Z-AP1: approved supplier advance invoices against this payment */
+  advanceInvoicedAmount: number;
+  advanceCreditedAmount: number;
+  /** Deducted by approved final bills */
+  advanceAdjustedAmount: number;
+  /** Invoiced, not yet deducted or credited */
+  advanceOpenAmount: number;
+  /** The claimed input VAT still open on those invoices */
+  advanceOpenVat: number;
+  /** On account and not invoiced — the only part a plain allocation or refund may spend */
+  uninvoicedAmount: number;
+  advanceInvoices: SupplierAdvanceInvoiceSummary[];
   bankAccountId?: number | null;
   method?: string | null;
   notes?: string | null;

@@ -19,7 +19,10 @@ export const toNum = (v: unknown) => (v != null ? Number(v) : 0);
  * re-derived here from `total − paidAmount`, which is the expression Part 2
  * made wrong.
  */
-export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillItem[], outstanding?: string | number | null) {
+export type BillPrepaymentOut = { id: number; advanceBillId: number; advanceBillNumber: string; supplierReference: string | null; amount: number; taxableAmount: number; taxAmount: number; vatRate: number; finalised: boolean };
+
+export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillItem[], outstanding?: string | number | null, prepaid?: string | number | null, prepayments?: BillPrepaymentOut[]) {
+  const prepaidAmount = Math.round(Number(prepaid ?? 0) * 100) / 100;
   return {
     id: bill.id,
     billNumber: bill.billNumber,
@@ -27,6 +30,12 @@ export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillIte
     // field every write path sets is how a note comes back looking like a bill.
     documentType: bill.documentType,
     creditNoteAgainstBillId: bill.creditNoteAgainstBillId ?? null,
+    // Z-AP1: an advance invoice names the supplier payment it invoices; a final
+    // bill carries the advance deductions (KSA-31/32) and what is left to pay.
+    advanceSupplierPaymentId: bill.advanceSupplierPaymentId ?? null,
+    prepaidAmount: prepaidAmount,
+    amountDue: bill.documentType === "bill" || bill.documentType === "debit_note" ? Math.round((toNum(bill.total) - prepaidAmount) * 100) / 100 : 0,
+    ...(prepayments ? { prepayments } : {}),
     vendorReference: bill.vendorReference,
     date: bill.date,
     dueDate: bill.dueDate,

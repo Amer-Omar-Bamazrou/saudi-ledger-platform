@@ -63,6 +63,7 @@ import { billsRepository, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from 
 import { paymentsRepository } from "../repositories/payments.repository";
 import { round2 } from "../lib/money";
 import { businessToday } from "@workspace/shared";
+import { supplierAdvanceInvoicesService, type PrepaymentInput } from "./accounting/supplierAdvanceInvoices.service";
 
 
 export const billsService = {
@@ -73,7 +74,7 @@ export const billsService = {
       billsRepository.listMeta(filter),
     ]);
     return {
-      items: rows.map((r) => buildBillOut(r.bill, r.vendor, undefined, r.outstanding)),
+      items: rows.map((r) => buildBillOut(r.bill, r.vendor, undefined, r.outstanding, r.prepaid)),
       page: { limit: filter.limit ?? BILL_PAGE, offset: filter.offset ?? 0, total: meta.total },
       totals: { outstanding: round2(meta.outstanding), paid: round2(meta.paid), overdue: meta.overdue },
     };
@@ -83,7 +84,8 @@ export const billsService = {
     const [row] = await billsRepository.findWithVendor(id);
     if (!row) throw new NotFoundError("Not found");
     const items = await billsRepository.itemsByBill(id);
-    return buildBillOut(row.bill, row.vendor, items, row.outstanding);
+    const prepayments = await supplierAdvanceInvoicesService.prepaymentsOf(id);
+    return buildBillOut(row.bill, row.vendor, items, row.outstanding, row.prepaid, prepayments);
   },
 
   async create(body: Record<string, any>, userId: number | null) {
@@ -193,6 +195,18 @@ export const billsService = {
     if (noteAgainst) billData.vendorId = noteAgainst.vendorId;
 
     await checkPeriodOpen(billData.date ?? businessToday());
+    /**
+     * Z-AP1 — a bill (the supplier's FINAL invoice) may deduct the supplier's
+     * advance tax invoice(s). Checked here, at the write boundary, and again
+     * under the advance payments' locks at approval; a draft reserves nothing.
+     */
+    const prepayments = Array.isArray(body.prepayments) && body.prepayments.length > 0
+      ? await supplierAdvanceInvoicesService.preparePrepayments(body.prepayments as PrepaymentInput[], {
+          vendorId: billData.vendorId ?? null, date: billData.date ?? businessToday(),
+          subtotal: finalSubtotal, vatAmount: finalVatAmount, total: finalTotal,
+          documentType: String(billData.documentType ?? "bill"), capitalisesAssetId: billData.capitalisesAssetId ?? null,
+        })
+      : [];
     const [bill] = await billsRepository.insert({
       ...billData,
       subtotal: String(finalSubtotal.toFixed(2)),
@@ -207,6 +221,7 @@ export const billsService = {
     if (preparedItems.length > 0) {
       await billsRepository.insertItems(preparedItems.map((it: any) => ({ ...it, billId: bill.id })));
     }
+    if (prepayments.length > 0) await supplierAdvanceInvoicesService.writePrepayments(bill.id, prepayments);
 
     await auditService.created("bill", bill.id, bill);
     return buildBillOut(bill, null);
@@ -244,6 +259,11 @@ export const billsService = {
     const [existing] = await billsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") throw new ConflictError("Only draft bills can be edited.");
+    // Z-AP1: a supplier's advance document is derived from the payment (or the
+    // advance invoice) it records; a wrong draft is rejected and re-entered.
+    if (existing.documentType === "advance_invoice" || existing.documentType === "advance_credit_note") {
+      throw new BusinessRuleError(409, { code: "advance_document_not_editable", error: "A supplier advance tax invoice (or its credit note) is recorded from the payment it invoices. Reject this draft and record it again." });
+    }
     // 🔴 H1 — ALLOWLIST (see create). `status`/`paidAmount`/`paidAt` excluded.
     /**
      * 🔴 `documentType` and `creditNoteAgainstBillId` are deliberately NOT
@@ -269,6 +289,15 @@ export const billsService = {
     }
     await assertVendorExists(values.vendorId);
     const [bill] = await billsRepository.update(id, values);
+    // Z-AP1: the draft's advance deductions, re-checked against the bill as it now stands.
+    if (data.prepayments !== undefined) {
+      const rows = Array.isArray(data.prepayments) ? (data.prepayments as PrepaymentInput[]) : [];
+      const prepared = await supplierAdvanceInvoicesService.preparePrepayments(rows, {
+        vendorId: bill.vendorId, date: bill.date, subtotal: Number(bill.subtotal), vatAmount: Number(bill.vatAmount),
+        total: Number(bill.total), documentType: bill.documentType, capitalisesAssetId: bill.capitalisesAssetId,
+      });
+      await supplierAdvanceInvoicesService.writePrepayments(id, prepared);
+    }
     await auditService.updated("bill", id, existing, bill);
     return buildBillOut(bill, null);
   },
@@ -294,6 +323,9 @@ export const billsService = {
      *
      * A DEBIT note is payable — it is an additional charge.
      */
+    if (existing.documentType === "advance_invoice" || existing.documentType === "advance_credit_note") {
+      throw new ConflictError(`${existing.billNumber} is a supplier ADVANCE document — the advance was paid before it existed, so there is nothing to pay. It is deducted by the supplier's final bill.`);
+    }
     if (existing.documentType === "credit_note") {
       throw new ConflictError(
         `${existing.billNumber} is a supplier CREDIT note — it reduces what you owe, so it is not paid. Apply it to a bill instead.`,
@@ -345,7 +377,7 @@ export const billsService = {
     const payment = await paymentsRepository.recordBillPayment(id, paid, payDate, bankAccountId);
 
     // ── GL: Dr Accounts Payable / Cr <the bank's own cash account> ──
-    await postJournalEntry({
+    const payEntry = await postJournalEntry({
       entryNumber: `BILL-${bill.billNumber}-PAY-${payment.id}`,
       date: payDate,
       description: `Payment to vendor for bill ${bill.billNumber}`,
@@ -356,6 +388,8 @@ export const billsService = {
       ],
     });
 
+    // Phase 12B: the payment names its entry, so its cash line can be reconciled to the bank's statement line.
+    await paymentsRepository.setBillPaymentEntry(payment.id, payEntry.id);
     await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: bill });
     // Read back through the one definition, so the response carries what the
     // bill owes NOW rather than a null the pay dialog would have to guess past.
