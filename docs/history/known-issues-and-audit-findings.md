@@ -2476,3 +2476,117 @@ input-VAT claim status, the return reading claimed VAT only, and duplicate
 detection at capture and at bill creation.
 
 State: OPEN (recorded; nothing changed).
+
+## PHASE 13 RESEARCH — THE RETURN LAYOUT, A SUPERSEDED ART. 63 MESSAGE, AND A STALE REGULATORY SOURCE — OPEN, 2026-09-24 (critical; documentation only)
+
+Found by the Phase 13 accounting research (primary Saudi sources, IFRS as
+endorsed by SOCPA, ERPNext and Odoo source), on branch
+`feat/phase13-expenses-document-intelligence`. All three are recorded, not
+fixed: no behaviour, return, message or source file was changed. The
+accountant questions the same research produced are in
+[`phase-13-expenses-accountant-questions.md`](../product/phase-13-expenses-accountant-questions.md).
+
+### P13-N1 — CRITICAL: our VAT return's boxes are not ZATCA's boxes
+
+**What happens.** `apps/api/src/services/reports.service.ts` (`vatReturn`,
+~lines 943–960) returns fifteen single-value fields in OUR numbering, and
+`apps/web/src/pages/VatReport.tsx` (lines 65–79, and the headline cards at
+117 and 133) shows them to the user as numbered "Box" / "خانة" rows:
+1 standard-rated sales · 2 zero-rated sales · 3 exempt · 4 exports ·
+5 total · 6 VAT on sales · 7 sales adjustments · 8 total output VAT ·
+9 standard-rated purchases · 10 zero-rated purchases · 11 exempt purchases ·
+12 total purchases · 13 recoverable input VAT · 14 input adjustments ·
+15 total input VAT.
+
+**The official return** (ZATCA Return Filing Manual and Simplified VAT
+Filing Guidelines, EN, July 2020 — live URLs 404, read from the Internet
+Archive copies of the official PDFs; the purchase boxes confirmed by the live
+Arabic "إرشادات مبسطة حول تقديم الإقرار الضريبي", 2023) has sixteen boxes, and
+**each line carries three columns — Amount · Adjustment · VAT**:
+1 standard-rated sales · 2 special sales to citizens (private healthcare /
+education) · 3 zero-rated domestic sales · 4 exports · 5 exempt sales ·
+6 total sales · 7 standard-rated domestic purchases · 8 imports subject to
+VAT paid at customs · 9 imports under the reverse charge · 10 zero-rated
+purchases · 11 exempt purchases · 12 total purchases · 13 total VAT due for
+the current period · 14 corrections from previous periods (±15,000 in the
+2023 Arabic guide) · 15 VAT credit carried forward · 16 net VAT due.
+
+**Consequence.** A user filing on the ZATCA portal from our page copies our
+"Box 9" (standard-rated purchases) into the portal's Box 9 (reverse-charge
+imports), our "Box 13" (recoverable input VAT) into Box 13 (total VAT due),
+and so on — the figures land in the wrong boxes. The Adjustment column, where
+ZATCA's own worked examples put non-deductible VAT, does not exist in our
+return at all, and boxes 8, 9, 14, 15 and 16 have no equivalent. Every "box"
+reference in our code, tests and docs — including P13-D2 above ("box 13"),
+the e2e specs that read `box13_recoverableInputVat`, and CLAUDE.md §5's
+"box 4 (exports) is always 0 — an export is a 'Z' line in box 2" — is in OUR
+numbering, not ZATCA's.
+
+🔴 **A BLOCKER for any future VAT-return implementation**: no change to what
+the return reads (the Phase 13 claim events, blocked VAT, capitalised VAT,
+exempt vs zero-rated purchases) lands in a box until the official layout is
+adopted. Two placement questions stay open with it and were deliberately NOT
+sent to the accountant yet, because they presuppose the official layout: which
+box carries a late-claimed input VAT (reasoned, not verified: Box 7 of the
+later return, not Box 14), and how Art. 50 blocked VAT is reported (ZATCA's
+worked examples put a non-deductible share in the Adjustment column; no text
+covers Art. 50 items specifically).
+
+### P13-N2 — CRITICAL: a live refusal message cites the superseded Art. 63(3)
+
+**What happens.** `apps/api/src/services/advanceInvoices.service.ts`, line
+121 (the `advance_tax_point_period_locked` refusal, shown to the user), says
+an understatement is corrected "when the understatement is below SAR 5,000,
+in the next return (Art. 63(3))"; the comment at line 292 says the same.
+
+**The current rule.** IR Art. 63(3) as amended (Arabic, the prevailing text;
+2025 edition on zatca.gov.sa, amended by Res. 24-06-01 of 19/11/2024;
+restated by ZATCA's April 2025 amendments guideline §2.12): an understatement
+below **SAR 15,000** may be added to the net tax **in the return for the tax
+period in which the error was discovered**. This repository had ALREADY
+verified that reading from the primary text —
+[`accounting-architecture-decision-pack.md`](../product/accounting-architecture-decision-pack.md)
+(D-5, the Art. 63 table and "Current ZATCA rule — verified from the primary
+text") — so the message contradicts our own recorded rule, not only the law.
+
+**Consequence.** A user told to correct a closed period's return follows a
+threshold that is a third of the real one and a filing period that is not the
+one the regulation names. Recorded only; the message is not changed yet.
+
+### P13-N3 — CRITICAL: the repository's English Implementing Regulations are the 2021 edition
+
+**What happens.** `docs/zatca/specs/KSA_VAT_Implementing_Regulations_EN.pdf`
+and `.txt` are the Eighth Edition (09/11/2021) — byte-identical to the English
+file ZATCA still serves. The prevailing ARABIC text on zatca.gov.sa (2025
+edition) includes three later amendments (1444H/2022; Res. 23-4-1 of
+15/06/2023; Res. 24-06-01 of 19/11/2024). Superseded or changed in the
+articles the Phase 13 research read:
+- **Art. 40** — ¶3 amended (2024); ¶7(d) amended (2023); ¶10–11 now count
+  twelve months "from the month following the month of supply", with a
+  financing-contract exception.
+- **Art. 50** — ¶1–2 rewritten (2024): employee insurance and healthcare
+  added to the blocked list unless a law requires it; catering deductible
+  where a law requires it at the workplace; a restricted vehicle is now one
+  designed to carry **10 persons or fewer**, with four exceptions.
+- **Art. 53(1)(c)** — the English says "summary Tax Invoice"; the Arabic
+  says **simplified** tax invoice (فاتورة ضريبية مبسطة) — a translation error,
+  not an amendment.
+- **Art. 54(6)** — new (2024): credit and debit notes issued by the 15th day
+  of the following month.
+- **Art. 63** — ¶1–4 amended (see P13-N2).
+
+**Consequence.** Every design pack that quotes the local English file quotes
+text that may no longer be the law; the fixed-assets pack's Art. 50 table
+(restricted vehicles, "entertainment, private use") predates the 2024 list,
+and `categories.input_vat_blocked` and any future Art. 50 work would inherit
+it. ZATCA publishes no official English text that includes the 2022–2024
+amendments; the research's English renderings of the amended Arabic are its
+own translation (read from page images), not an official one.
+
+**Not done, deliberately.** The source files were NOT replaced or edited: a
+regulatory source is not silently swapped. **What would close it**: add the
+current Arabic edition beside the English (named, dated, with its amendment
+list), mark the English file as superseded for the articles above, and
+re-check each pack that quotes Art. 40, 50, 53, 54 or 63 against the Arabic.
+
+State: OPEN (recorded; nothing changed).
