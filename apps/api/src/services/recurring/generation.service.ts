@@ -24,6 +24,7 @@ import { logger } from "../../lib/logger";
 import { auditContext } from "../../lib/auditContext";
 import { invoicesService } from "../invoices.service";
 import { billsService } from "../bills.service";
+import { journalEntriesService } from "../journalEntries.service";
 import { recurringJobRepository, type DueRule } from "../../repositories/recurring.repository";
 import { nextOccurrence } from "./recurring.service";
 import { businessToday } from "@workspace/shared";
@@ -102,7 +103,7 @@ async function generateOne(rule: DueRule): Promise<"generated" | "failed" | "alr
            * path, and per-path enforcement is per-path review (§4). Blank means
            * the server allocates from the company's one C12 sequence.
            */
-          const { invoiceNumber: _n, billNumber: _b, ...pattern } =
+          const { invoiceNumber: _n, billNumber: _b, entryNumber: _e, ...pattern } =
             rule.template as Record<string, unknown>;
           const body = { ...pattern, date: scheduledFor };
           // 🔴 DRAFTS ONLY — and since 2026-08-28 that is no longer a flag this
@@ -111,9 +112,19 @@ async function generateOne(rule: DueRule): Promise<"generated" | "failed" | "alr
           // document unattended (an ICV consumed, a ZATCA chain position taken,
           // correction only by credit note — A3 spec §2), and it is now
           // inexpressible rather than declined.
-          return rule.entity === "invoice"
-            ? invoicesService.create(body, rule.createdBy)
-            : billsService.create(body, rule.createdBy);
+          if (rule.entity === "invoice") return invoicesService.create(body, rule.createdBy);
+          if (rule.entity === "bill") return billsService.create(body, rule.createdBy);
+          /**
+           * 🔴 A1 — a recurring JOURNAL ENTRY is a DRAFT too, for the same
+           * reason and a different one. The same reason: consent to a pattern
+           * in January is not consent to what it produces in November. The
+           * different one: `create` refuses a date whose period is CLOSED, so
+           * a rule that runs into a locked month fails LOUDLY and lands in the
+           * run log with `period_locked` — which is the behaviour a month-end
+           * accrual rule most needs, because the alternative is a silent gap
+           * in a series nobody is watching.
+           */
+          return journalEntriesService.create(body as Record<string, unknown>, rule.createdBy);
         },
       ),
     );

@@ -579,7 +579,14 @@ export const reportsService = {
   },
 
   async arAging() {
-    const today = new Date();
+    // 🔴 Phase 11 B6 (2026-09-22): the business day, not the server's.
+    // `new Date()` buckets on the machine's midnight, so between 00:00 and
+    // 03:00 Riyadh a document was one day younger than it is here — the
+    // night-window class this platform already fixed on its write paths
+    // (`businessToday()`, Asia/Riyadh, the one definition in
+    // @workspace/shared). Both due dates and today are read as calendar days,
+    // so the difference is whole days with no zone left in it.
+    const today = new Date(`${businessToday()}T00:00:00Z`);
     const rows = await reportsRepository.invoicesWithCustomer();
     const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
     const items: any[] = [];
@@ -619,7 +626,7 @@ export const reportsService = {
       const credited = toNum(inv.creditedAmount);
       const outstanding = Math.round((toNum(inv.total) - toNum(inv.paidAmount) - credited - toNum(inv.writtenOffAmount)) * 100) / 100;
       if (Math.abs(outstanding) < 0.01) continue;
-      const due = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.date);
+      const due = new Date(`${inv.dueDate ?? inv.date}T00:00:00Z`);
       const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
       // 🔴 A NEGATIVE balance is a credit OWED TO the customer (2026-09-15, walk
       // item 7). It is shown — hiding it would desync aging from GL AR — but it
@@ -653,14 +660,21 @@ export const reportsService = {
   },
 
   async apAging() {
-    const today = new Date();
+    // 🔴 Phase 11 B6 (2026-09-22): the business day, not the server's.
+    // `new Date()` buckets on the machine's midnight, so between 00:00 and
+    // 03:00 Riyadh a document was one day younger than it is here — the
+    // night-window class this platform already fixed on its write paths
+    // (`businessToday()`, Asia/Riyadh, the one definition in
+    // @workspace/shared). Both due dates and today are read as calendar days,
+    // so the difference is whole days with no zone left in it.
+    const today = new Date(`${businessToday()}T00:00:00Z`);
     const rows = await reportsRepository.billsWithVendor();
     const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
     const items: any[] = [];
     for (const { bill, vendor } of rows) {
       const outstanding = toNum(bill.total) - toNum(bill.paidAmount);
       if (outstanding < 0.01 || bill.status === "paid") continue;
-      const due = bill.dueDate ? new Date(bill.dueDate) : new Date(bill.date);
+      const due = new Date(`${bill.dueDate ?? bill.date}T00:00:00Z`);
       const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
       items.push({ id: bill.id, billNumber: bill.billNumber, vendorName: vendor?.name ?? "Unknown", vendorNameAr: vendor?.nameAr ?? "", dueDate: bill.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
       if (daysPast <= 0) buckets.current += outstanding;

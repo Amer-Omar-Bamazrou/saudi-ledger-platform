@@ -4262,6 +4262,165 @@ paths:
         "404":
           description: Not found
 
+  /recognition-schedules:
+    get:
+      operationId: listRecognitionSchedules
+      tags: [accounting]
+      summary: "A2/A3: accruals and prepayments — the schedules and what each has recognised so far"
+      parameters:
+        - { in: query, name: kind, required: false, schema: { type: string, enum: [accrual, prepayment] } }
+        - { in: query, name: status, required: false, schema: { type: string, enum: [draft, active, completed, cancelled] } }
+      responses:
+        "200":
+          description: The schedules
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/RecognitionSchedule" }
+    post:
+      operationId: createRecognitionSchedule
+      tags: [accounting]
+      summary: "A2/A3: create an accrual or a prepayment as a DRAFT"
+      description: >
+        An ACCRUAL is an expense incurred and not yet invoiced (IAS 37.11); it
+        credits a LIABILITY and 🔴 may never credit Accounts Payable, which is
+        the invoiced trade payable reconciled to supplier statements. A
+        PREPAYMENT releases an ASSET that cash or a bill already raised. The
+        balance account's TYPE is checked against the kind, because a
+        prepayment sitting on a liability is not a prepayment.
+
+        A draft moves nothing in any report.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRecognitionScheduleInput" }
+      responses:
+        "201":
+          description: The draft schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecognitionScheduleDetail" }
+        "422":
+          description: The kind, the account type, or the amount/periods are not usable
+
+  /recognition-schedules/{id}:
+    get:
+      operationId: getRecognitionSchedule
+      tags: [accounting]
+      summary: "A2/A3: one schedule with its periods"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The schedule and its rows
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecognitionScheduleDetail" }
+        "404": { description: Not found }
+
+  /recognition-schedules/{id}/activate:
+    post:
+      operationId: activateRecognitionSchedule
+      tags: [accounting]
+      summary: "A2/A3: generate the periods and make the schedule live"
+      description: >
+        Generates the stored schedule once and freezes each row as it posts.
+        Activation itself posts NOTHING: an accrual's liability is raised by
+        each recognition, and a prepayment's asset was raised by whatever paid
+        it — posting here would create it a second time.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The active schedule with its planned periods
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecognitionScheduleDetail" }
+        "409": { description: Not a draft }
+
+  /recognition-schedules/{id}/recognise:
+    post:
+      operationId: recogniseRecognitionSchedulePeriod
+      tags: [accounting]
+      summary: "A2/A3: recognise one period — Dr expense / Cr the balance account"
+      description: >
+        Dated the LAST DAY of the period being recognised, not the day the run
+        happened, so a closed month fails closed (423) rather than silently
+        landing in today. Periods are recognised in order and once.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecognisePeriodInput" }
+      responses:
+        "200":
+          description: What was posted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecognitionResult" }
+        "409": { description: "Already recognised, out of order, or not a period of this schedule" }
+        "423": { description: The period is closed }
+
+  /recognition-schedules/{id}/cancel:
+    post:
+      operationId: cancelRecognitionSchedule
+      tags: [accounting]
+      summary: "A2/A3: stop the remaining periods (the posted ones stay in the books)"
+      description: >
+        Cancelling is a decision about the FUTURE. It reverses nothing —
+        reversing a posted recognition is `POST /journal-entries/{id}/reverse`,
+        a separate act with its own reason and its own period check.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CancelRecognitionInput" }
+      responses:
+        "200":
+          description: How many periods were dropped and how many stay posted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, cancelled, keptPosted, reason]
+                properties:
+                  id: { type: integer }
+                  cancelled: { type: integer }
+                  keptPosted: { type: integer }
+                  reason: { type: string }
+        "422": { description: A reason is required }
+
+  /recognition-schedules/runs:
+    post:
+      operationId: runRecognitionPeriod
+      tags: [accounting]
+      summary: "A2/A3: the month-end run — recognise every schedule due in a period"
+      description: >
+        Posts each due schedule and REPORTS every skip with its reason: a run
+        that silently did nothing is indistinguishable from one that had
+        nothing to do, and month end is when that distinction matters.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RunRecognitionInput" }
+      responses:
+        "200":
+          description: What posted and what did not
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecognitionRunResult" }
+
   /assets/report:
     get:
       operationId: getFixedAssetReport
@@ -9426,6 +9585,124 @@ components:
         journalEntryId: { type: integer }
         invoiceId: { type: ["integer", "null"] }
         reason: { type: ["string", "null"] }
+
+    RecognitionSchedule:
+      type: object
+      required:
+        [id, reference, kind, description, descriptionAr, vendorId, expenseAccountId, balanceAccountId,
+         totalAmount, periods, startPeriod, status, recognisedAmount, remainingAmount,
+         postedPeriods, plannedPeriods, nextPeriod, notes, cancelReason, createdAt]
+      properties:
+        id: { type: integer }
+        reference: { type: string }
+        kind: { type: string, enum: [accrual, prepayment] }
+        description: { type: string }
+        descriptionAr: { type: ["string", "null"] }
+        vendorId: { type: ["integer", "null"] }
+        expenseAccountId: { type: integer }
+        balanceAccountId: { type: integer }
+        totalAmount: { type: number }
+        periods: { type: integer }
+        startPeriod: { type: string }
+        status: { type: string, enum: [draft, active, completed, cancelled] }
+        recognisedAmount: { type: number, description: "DERIVED from the posted rows, never stored." }
+        remainingAmount: { type: number }
+        postedPeriods: { type: integer }
+        plannedPeriods: { type: integer }
+        nextPeriod: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        cancelReason: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    RecognitionScheduleRow:
+      type: object
+      required: [id, period, sequence, amount, journalEntryId, postedAt]
+      properties:
+        id: { type: integer }
+        period: { type: string }
+        sequence: { type: integer }
+        amount: { type: number }
+        journalEntryId: { type: ["integer", "null"], description: "NULL = planned; set = posted, and then frozen." }
+        postedAt: { type: ["string", "null"] }
+
+    RecognitionScheduleDetail:
+      allOf:
+        - $ref: "#/components/schemas/RecognitionSchedule"
+        - type: object
+          required: [rows]
+          properties:
+            rows:
+              type: array
+              items: { $ref: "#/components/schemas/RecognitionScheduleRow" }
+
+    CreateRecognitionScheduleInput:
+      type: object
+      required: [kind, description, totalAmount, periods, startPeriod, expenseAccountId, balanceAccountId]
+      properties:
+        kind: { type: string, enum: [accrual, prepayment] }
+        reference: { type: string }
+        description: { type: string, minLength: 1 }
+        descriptionAr: { type: ["string", "null"] }
+        vendorId: { type: ["integer", "null"] }
+        expenseAccountId: { type: integer }
+        balanceAccountId: { type: integer }
+        totalAmount: { type: number, exclusiveMinimum: 0 }
+        periods: { type: integer, minimum: 1 }
+        startPeriod: { type: string, pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$" }
+        notes: { type: ["string", "null"] }
+
+    RecognisePeriodInput:
+      type: object
+      properties:
+        period: { type: string, description: "YYYY-MM; the next unposted period when omitted." }
+
+    RunRecognitionInput:
+      type: object
+      properties:
+        period: { type: string, description: "YYYY-MM; the current business month when omitted." }
+
+    CancelRecognitionInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
+
+    RecognitionResult:
+      type: object
+      required: [scheduleId, period, amount, journalEntryId, date]
+      properties:
+        scheduleId: { type: integer }
+        period: { type: string }
+        amount: { type: number }
+        journalEntryId: { type: integer }
+        date: { type: string, description: "The LAST DAY of the period recognised." }
+
+    RecognitionRunResult:
+      type: object
+      required: [period, posted, skipped, postedTotal]
+      properties:
+        period: { type: string }
+        postedTotal: { type: number }
+        posted:
+          type: array
+          items:
+            type: object
+            required: [scheduleId, reference, amount, journalEntryId]
+            properties:
+              scheduleId: { type: integer }
+              reference: { type: string }
+              amount: { type: number }
+              journalEntryId: { type: integer }
+        skipped:
+          type: array
+          description: "Every skip carries its reason — silence would be indistinguishable from nothing to do."
+          items:
+            type: object
+            required: [scheduleId, reference, reason]
+            properties:
+              scheduleId: { type: integer }
+              reference: { type: string }
+              reason: { type: string }
 
     FixedAssetControl:
       type: object

@@ -52,7 +52,21 @@ export const recurringRulesTable = pgTable(
     dayOfMonth: integer("day_of_month").notNull(),
     startsOn: date("starts_on").notNull(),
     endsOn: date("ends_on"),
-    /** The next date this rule is due. Advanced only on a SUCCESSFUL run. */
+    /**
+     * The next date this rule is due.
+     *
+     * 🔴 ADVANCED ON EVERY ATTEMPT, INCLUDING A FAILED ONE (corrected
+     * 2026-09-22; this comment previously read "advanced only on a SUCCESSFUL
+     * run", which the code has never done). The choice is deliberate and lives
+     * in `generation.service.ts`: not advancing would retry the same locked
+     * period every day, producing one identical failure per day and burying
+     * the signal the run log exists to send.
+     *
+     * The consequence a reader must hold: a MISSED OCCURRENCE IS A RECORD,
+     * NOT A QUEUE ITEM. Reopening the period does not make the skipped
+     * document appear — somebody reads the failed run and creates it. A reader
+     * who believed the old comment would wait for a retry that never comes.
+     */
     nextRunOn: date("next_run_on").notNull(),
 
     /**

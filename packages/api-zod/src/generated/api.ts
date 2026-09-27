@@ -9144,6 +9144,249 @@ export const DisposeAssetResponse = zod.object({
 
 
 /**
+ * @summary A2/A3: accruals and prepayments — the schedules and what each has recognised so far
+ */
+export const ListRecognitionSchedulesQueryParams = zod.object({
+  "kind": zod.enum(['accrual', 'prepayment']).optional(),
+  "status": zod.enum(['draft', 'active', 'completed', 'cancelled']).optional()
+})
+
+export const ListRecognitionSchedulesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "reference": zod.string(),
+  "kind": zod.enum(['accrual', 'prepayment']),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "expenseAccountId": zod.number(),
+  "balanceAccountId": zod.number(),
+  "totalAmount": zod.number(),
+  "periods": zod.number(),
+  "startPeriod": zod.string(),
+  "status": zod.enum(['draft', 'active', 'completed', 'cancelled']),
+  "recognisedAmount": zod.number().describe('DERIVED from the posted rows, never stored.'),
+  "remainingAmount": zod.number(),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "nextPeriod": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * An ACCRUAL is an expense incurred and not yet invoiced (IAS 37.11); it credits a LIABILITY and 🔴 may never credit Accounts Payable, which is the invoiced trade payable reconciled to supplier statements. A PREPAYMENT releases an ASSET that cash or a bill already raised. The balance account's TYPE is checked against the kind, because a prepayment sitting on a liability is not a prepayment.
+ * A draft moves nothing in any report.
+ * @summary A2/A3: create an accrual or a prepayment as a DRAFT
+ */
+
+export const createRecognitionScheduleBodyTotalAmountExclusiveMin = 0;
+
+
+export const createRecognitionScheduleBodyStartPeriodRegExp = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])$');
+
+
+export const CreateRecognitionScheduleBody = zod.object({
+  "kind": zod.enum(['accrual', 'prepayment']),
+  "reference": zod.string().optional(),
+  "description": zod.string().min(1),
+  "descriptionAr": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "expenseAccountId": zod.number(),
+  "balanceAccountId": zod.number(),
+  "totalAmount": zod.number().gt(createRecognitionScheduleBodyTotalAmountExclusiveMin),
+  "periods": zod.number().min(1),
+  "startPeriod": zod.string().regex(createRecognitionScheduleBodyStartPeriodRegExp),
+  "notes": zod.string().nullish()
+})
+
+export const CreateRecognitionScheduleResponse = zod.object({
+  "id": zod.number(),
+  "reference": zod.string(),
+  "kind": zod.enum(['accrual', 'prepayment']),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "expenseAccountId": zod.number(),
+  "balanceAccountId": zod.number(),
+  "totalAmount": zod.number(),
+  "periods": zod.number(),
+  "startPeriod": zod.string(),
+  "status": zod.enum(['draft', 'active', 'completed', 'cancelled']),
+  "recognisedAmount": zod.number().describe('DERIVED from the posted rows, never stored.'),
+  "remainingAmount": zod.number(),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "nextPeriod": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "sequence": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('NULL = planned; set = posted, and then frozen.'),
+  "postedAt": zod.string().nullable()
+}))
+}))
+
+
+/**
+ * @summary A2/A3: one schedule with its periods
+ */
+export const GetRecognitionScheduleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetRecognitionScheduleResponse = zod.object({
+  "id": zod.number(),
+  "reference": zod.string(),
+  "kind": zod.enum(['accrual', 'prepayment']),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "expenseAccountId": zod.number(),
+  "balanceAccountId": zod.number(),
+  "totalAmount": zod.number(),
+  "periods": zod.number(),
+  "startPeriod": zod.string(),
+  "status": zod.enum(['draft', 'active', 'completed', 'cancelled']),
+  "recognisedAmount": zod.number().describe('DERIVED from the posted rows, never stored.'),
+  "remainingAmount": zod.number(),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "nextPeriod": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "sequence": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('NULL = planned; set = posted, and then frozen.'),
+  "postedAt": zod.string().nullable()
+}))
+}))
+
+
+/**
+ * Generates the stored schedule once and freezes each row as it posts. Activation itself posts NOTHING: an accrual's liability is raised by each recognition, and a prepayment's asset was raised by whatever paid it — posting here would create it a second time.
+ * @summary A2/A3: generate the periods and make the schedule live
+ */
+export const ActivateRecognitionScheduleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ActivateRecognitionScheduleResponse = zod.object({
+  "id": zod.number(),
+  "reference": zod.string(),
+  "kind": zod.enum(['accrual', 'prepayment']),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "expenseAccountId": zod.number(),
+  "balanceAccountId": zod.number(),
+  "totalAmount": zod.number(),
+  "periods": zod.number(),
+  "startPeriod": zod.string(),
+  "status": zod.enum(['draft', 'active', 'completed', 'cancelled']),
+  "recognisedAmount": zod.number().describe('DERIVED from the posted rows, never stored.'),
+  "remainingAmount": zod.number(),
+  "postedPeriods": zod.number(),
+  "plannedPeriods": zod.number(),
+  "nextPeriod": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "sequence": zod.number(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable().describe('NULL = planned; set = posted, and then frozen.'),
+  "postedAt": zod.string().nullable()
+}))
+}))
+
+
+/**
+ * Dated the LAST DAY of the period being recognised, not the day the run happened, so a closed month fails closed (423) rather than silently landing in today. Periods are recognised in order and once.
+ * @summary A2/A3: recognise one period — Dr expense / Cr the balance account
+ */
+export const RecogniseRecognitionSchedulePeriodParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RecogniseRecognitionSchedulePeriodBody = zod.object({
+  "period": zod.string().optional().describe('YYYY-MM; the next unposted period when omitted.')
+})
+
+export const RecogniseRecognitionSchedulePeriodResponse = zod.object({
+  "scheduleId": zod.number(),
+  "period": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number(),
+  "date": zod.string().describe('The LAST DAY of the period recognised.')
+})
+
+
+/**
+ * Cancelling is a decision about the FUTURE. It reverses nothing — reversing a posted recognition is `POST /journal-entries/{id}/reverse`, a separate act with its own reason and its own period check.
+ * @summary A2/A3: stop the remaining periods (the posted ones stay in the books)
+ */
+export const CancelRecognitionScheduleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const CancelRecognitionScheduleBody = zod.object({
+  "reason": zod.string().min(1)
+})
+
+export const CancelRecognitionScheduleResponse = zod.object({
+  "id": zod.number(),
+  "cancelled": zod.number(),
+  "keptPosted": zod.number(),
+  "reason": zod.string()
+})
+
+
+/**
+ * Posts each due schedule and REPORTS every skip with its reason: a run that silently did nothing is indistinguishable from one that had nothing to do, and month end is when that distinction matters.
+ * @summary A2/A3: the month-end run — recognise every schedule due in a period
+ */
+export const RunRecognitionPeriodBody = zod.object({
+  "period": zod.string().optional().describe('YYYY-MM; the current business month when omitted.')
+})
+
+export const RunRecognitionPeriodResponse = zod.object({
+  "period": zod.string(),
+  "postedTotal": zod.number(),
+  "posted": zod.array(zod.object({
+  "scheduleId": zod.number(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number()
+})),
+  "skipped": zod.array(zod.object({
+  "scheduleId": zod.number(),
+  "reference": zod.string(),
+  "reason": zod.string()
+})).describe('Every skip carries its reason — silence would be indistinguishable from nothing to do.')
+})
+
+
+/**
  * The IAS 16.73(e) movement per asset category over a window — opening cost, additions, disposals, closing; opening accumulated depreciation, the charge, disposals, closing; and the net book value — with the rows behind those figures listed, and the controls that ask whether the register and the general ledger still agree.
  * 🔴 The GL side of each control is the WHOLE account, not only the lines the register produced: a fixed-asset account can be posted to from outside the register, and a difference arriving that way is exactly what the control exists to surface. A failing control reports BOTH figures and their difference, never a bare verdict.
  * The window defaults to the current year to date, in the business calendar (`Asia/Riyadh`).

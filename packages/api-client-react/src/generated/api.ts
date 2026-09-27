@@ -51,6 +51,8 @@ import type {
   BudgetInput,
   BudgetLine,
   CancelAssetInput,
+  CancelRecognitionInput,
+  CancelRecognitionSchedule200,
   CaptureResult,
   CaptureUpload,
   CapturedDocument,
@@ -83,6 +85,7 @@ import type {
   CreatePayrollRunInput,
   CreatePurchaseOrderInput,
   CreateQuotationInput,
+  CreateRecognitionScheduleInput,
   CreateRecurringRuleInput,
   CreateVendorInput,
   CreditNoteApplications,
@@ -183,6 +186,8 @@ import type {
   ListPurchaseOrdersParams,
   ListQuotations200,
   ListQuotationsParams,
+  ListRecognitionSchedules200,
+  ListRecognitionSchedulesParams,
   ListRefundsParams,
   ListTransactionsParams,
   ListVendors200,
@@ -226,6 +231,10 @@ import type {
   QuotationConversion,
   QuotationConversionResult,
   ReceivePaymentInput,
+  RecognisePeriodInput,
+  RecognitionResult,
+  RecognitionRunResult,
+  RecognitionScheduleDetail,
   RecordMigratedOpenItemIdentityInput,
   RecurringRule,
   RecurringRuleWithHealth,
@@ -233,6 +242,7 @@ import type {
   RefundCustomerInput,
   ReverseMigrationBatchInput,
   RunAssetDepreciationInput,
+  RunRecognitionInput,
   SendBackInput,
   SettleTransactionInput,
   StatementMatch,
@@ -15442,6 +15452,530 @@ export const useDisposeAsset = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDisposeAssetMutationOptions(options));
+    }
+
+export const getListRecognitionSchedulesUrl = (params?: ListRecognitionSchedulesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/recognition-schedules?${stringifiedParams}` : `/api/recognition-schedules`
+}
+
+/**
+ * @summary A2/A3: accruals and prepayments — the schedules and what each has recognised so far
+ */
+export const listRecognitionSchedules = async (params?: ListRecognitionSchedulesParams, options?: RequestInit): Promise<ListRecognitionSchedules200> => {
+
+  return customFetch<ListRecognitionSchedules200>(getListRecognitionSchedulesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRecognitionSchedulesQueryKey = (params?: ListRecognitionSchedulesParams,) => {
+    return [
+    `/api/recognition-schedules`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListRecognitionSchedulesQueryOptions = <TData = Awaited<ReturnType<typeof listRecognitionSchedules>>, TError = ErrorType<unknown>>(params?: ListRecognitionSchedulesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecognitionSchedules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRecognitionSchedulesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecognitionSchedules>>> = ({ signal }) => listRecognitionSchedules(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRecognitionSchedules>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRecognitionSchedulesQueryResult = NonNullable<Awaited<ReturnType<typeof listRecognitionSchedules>>>
+export type ListRecognitionSchedulesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary A2/A3: accruals and prepayments — the schedules and what each has recognised so far
+ */
+
+export function useListRecognitionSchedules<TData = Awaited<ReturnType<typeof listRecognitionSchedules>>, TError = ErrorType<unknown>>(
+ params?: ListRecognitionSchedulesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecognitionSchedules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRecognitionSchedulesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateRecognitionScheduleUrl = () => {
+
+
+
+
+  return `/api/recognition-schedules`
+}
+
+/**
+ * An ACCRUAL is an expense incurred and not yet invoiced (IAS 37.11); it credits a LIABILITY and 🔴 may never credit Accounts Payable, which is the invoiced trade payable reconciled to supplier statements. A PREPAYMENT releases an ASSET that cash or a bill already raised. The balance account's TYPE is checked against the kind, because a prepayment sitting on a liability is not a prepayment.
+ * A draft moves nothing in any report.
+ * @summary A2/A3: create an accrual or a prepayment as a DRAFT
+ */
+export const createRecognitionSchedule = async (createRecognitionScheduleInput: CreateRecognitionScheduleInput, options?: RequestInit): Promise<RecognitionScheduleDetail> => {
+
+  return customFetch<RecognitionScheduleDetail>(getCreateRecognitionScheduleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createRecognitionScheduleInput)
+  }
+);}
+
+
+
+
+
+export const getCreateRecognitionScheduleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecognitionSchedule>>, TError,{data: BodyType<CreateRecognitionScheduleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRecognitionSchedule>>, TError,{data: BodyType<CreateRecognitionScheduleInput>}, TContext> => {
+
+const mutationKey = ['createRecognitionSchedule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRecognitionSchedule>>, {data: BodyType<CreateRecognitionScheduleInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createRecognitionSchedule(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRecognitionScheduleMutationResult = NonNullable<Awaited<ReturnType<typeof createRecognitionSchedule>>>
+    export type CreateRecognitionScheduleMutationBody = BodyType<CreateRecognitionScheduleInput>
+    export type CreateRecognitionScheduleMutationError = ErrorType<void>
+
+    /**
+ * @summary A2/A3: create an accrual or a prepayment as a DRAFT
+ */
+export const useCreateRecognitionSchedule = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecognitionSchedule>>, TError,{data: BodyType<CreateRecognitionScheduleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRecognitionSchedule>>,
+        TError,
+        {data: BodyType<CreateRecognitionScheduleInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRecognitionScheduleMutationOptions(options));
+    }
+
+export const getGetRecognitionScheduleUrl = (id: number,) => {
+
+
+
+
+  return `/api/recognition-schedules/${id}`
+}
+
+/**
+ * @summary A2/A3: one schedule with its periods
+ */
+export const getRecognitionSchedule = async (id: number, options?: RequestInit): Promise<RecognitionScheduleDetail> => {
+
+  return customFetch<RecognitionScheduleDetail>(getGetRecognitionScheduleUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRecognitionScheduleQueryKey = (id: number,) => {
+    return [
+    `/api/recognition-schedules/${id}`
+    ] as const;
+    }
+
+
+export const getGetRecognitionScheduleQueryOptions = <TData = Awaited<ReturnType<typeof getRecognitionSchedule>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecognitionSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRecognitionScheduleQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRecognitionSchedule>>> = ({ signal }) => getRecognitionSchedule(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRecognitionSchedule>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRecognitionScheduleQueryResult = NonNullable<Awaited<ReturnType<typeof getRecognitionSchedule>>>
+export type GetRecognitionScheduleQueryError = ErrorType<void>
+
+
+/**
+ * @summary A2/A3: one schedule with its periods
+ */
+
+export function useGetRecognitionSchedule<TData = Awaited<ReturnType<typeof getRecognitionSchedule>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecognitionSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRecognitionScheduleQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getActivateRecognitionScheduleUrl = (id: number,) => {
+
+
+
+
+  return `/api/recognition-schedules/${id}/activate`
+}
+
+/**
+ * Generates the stored schedule once and freezes each row as it posts. Activation itself posts NOTHING: an accrual's liability is raised by each recognition, and a prepayment's asset was raised by whatever paid it — posting here would create it a second time.
+ * @summary A2/A3: generate the periods and make the schedule live
+ */
+export const activateRecognitionSchedule = async (id: number, options?: RequestInit): Promise<RecognitionScheduleDetail> => {
+
+  return customFetch<RecognitionScheduleDetail>(getActivateRecognitionScheduleUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getActivateRecognitionScheduleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateRecognitionSchedule>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof activateRecognitionSchedule>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['activateRecognitionSchedule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof activateRecognitionSchedule>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  activateRecognitionSchedule(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ActivateRecognitionScheduleMutationResult = NonNullable<Awaited<ReturnType<typeof activateRecognitionSchedule>>>
+
+    export type ActivateRecognitionScheduleMutationError = ErrorType<void>
+
+    /**
+ * @summary A2/A3: generate the periods and make the schedule live
+ */
+export const useActivateRecognitionSchedule = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateRecognitionSchedule>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof activateRecognitionSchedule>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getActivateRecognitionScheduleMutationOptions(options));
+    }
+
+export const getRecogniseRecognitionSchedulePeriodUrl = (id: number,) => {
+
+
+
+
+  return `/api/recognition-schedules/${id}/recognise`
+}
+
+/**
+ * Dated the LAST DAY of the period being recognised, not the day the run happened, so a closed month fails closed (423) rather than silently landing in today. Periods are recognised in order and once.
+ * @summary A2/A3: recognise one period — Dr expense / Cr the balance account
+ */
+export const recogniseRecognitionSchedulePeriod = async (id: number,
+    recognisePeriodInput?: RecognisePeriodInput, options?: RequestInit): Promise<RecognitionResult> => {
+
+  return customFetch<RecognitionResult>(getRecogniseRecognitionSchedulePeriodUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recognisePeriodInput)
+  }
+);}
+
+
+
+
+
+export const getRecogniseRecognitionSchedulePeriodMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recogniseRecognitionSchedulePeriod>>, TError,{id: number;data?: BodyType<RecognisePeriodInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recogniseRecognitionSchedulePeriod>>, TError,{id: number;data?: BodyType<RecognisePeriodInput>}, TContext> => {
+
+const mutationKey = ['recogniseRecognitionSchedulePeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recogniseRecognitionSchedulePeriod>>, {id: number;data?: BodyType<RecognisePeriodInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  recogniseRecognitionSchedulePeriod(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecogniseRecognitionSchedulePeriodMutationResult = NonNullable<Awaited<ReturnType<typeof recogniseRecognitionSchedulePeriod>>>
+    export type RecogniseRecognitionSchedulePeriodMutationBody = BodyType<RecognisePeriodInput> | undefined
+    export type RecogniseRecognitionSchedulePeriodMutationError = ErrorType<void>
+
+    /**
+ * @summary A2/A3: recognise one period — Dr expense / Cr the balance account
+ */
+export const useRecogniseRecognitionSchedulePeriod = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recogniseRecognitionSchedulePeriod>>, TError,{id: number;data?: BodyType<RecognisePeriodInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recogniseRecognitionSchedulePeriod>>,
+        TError,
+        {id: number;data?: BodyType<RecognisePeriodInput>},
+        TContext
+      > => {
+      return useMutation(getRecogniseRecognitionSchedulePeriodMutationOptions(options));
+    }
+
+export const getCancelRecognitionScheduleUrl = (id: number,) => {
+
+
+
+
+  return `/api/recognition-schedules/${id}/cancel`
+}
+
+/**
+ * Cancelling is a decision about the FUTURE. It reverses nothing — reversing a posted recognition is `POST /journal-entries/{id}/reverse`, a separate act with its own reason and its own period check.
+ * @summary A2/A3: stop the remaining periods (the posted ones stay in the books)
+ */
+export const cancelRecognitionSchedule = async (id: number,
+    cancelRecognitionInput: CancelRecognitionInput, options?: RequestInit): Promise<CancelRecognitionSchedule200> => {
+
+  return customFetch<CancelRecognitionSchedule200>(getCancelRecognitionScheduleUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cancelRecognitionInput)
+  }
+);}
+
+
+
+
+
+export const getCancelRecognitionScheduleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelRecognitionSchedule>>, TError,{id: number;data: BodyType<CancelRecognitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelRecognitionSchedule>>, TError,{id: number;data: BodyType<CancelRecognitionInput>}, TContext> => {
+
+const mutationKey = ['cancelRecognitionSchedule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelRecognitionSchedule>>, {id: number;data: BodyType<CancelRecognitionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  cancelRecognitionSchedule(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelRecognitionScheduleMutationResult = NonNullable<Awaited<ReturnType<typeof cancelRecognitionSchedule>>>
+    export type CancelRecognitionScheduleMutationBody = BodyType<CancelRecognitionInput>
+    export type CancelRecognitionScheduleMutationError = ErrorType<void>
+
+    /**
+ * @summary A2/A3: stop the remaining periods (the posted ones stay in the books)
+ */
+export const useCancelRecognitionSchedule = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelRecognitionSchedule>>, TError,{id: number;data: BodyType<CancelRecognitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelRecognitionSchedule>>,
+        TError,
+        {id: number;data: BodyType<CancelRecognitionInput>},
+        TContext
+      > => {
+      return useMutation(getCancelRecognitionScheduleMutationOptions(options));
+    }
+
+export const getRunRecognitionPeriodUrl = () => {
+
+
+
+
+  return `/api/recognition-schedules/runs`
+}
+
+/**
+ * Posts each due schedule and REPORTS every skip with its reason: a run that silently did nothing is indistinguishable from one that had nothing to do, and month end is when that distinction matters.
+ * @summary A2/A3: the month-end run — recognise every schedule due in a period
+ */
+export const runRecognitionPeriod = async (runRecognitionInput?: RunRecognitionInput, options?: RequestInit): Promise<RecognitionRunResult> => {
+
+  return customFetch<RecognitionRunResult>(getRunRecognitionPeriodUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(runRecognitionInput)
+  }
+);}
+
+
+
+
+
+export const getRunRecognitionPeriodMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runRecognitionPeriod>>, TError,{data?: BodyType<RunRecognitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runRecognitionPeriod>>, TError,{data?: BodyType<RunRecognitionInput>}, TContext> => {
+
+const mutationKey = ['runRecognitionPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runRecognitionPeriod>>, {data?: BodyType<RunRecognitionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runRecognitionPeriod(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunRecognitionPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof runRecognitionPeriod>>>
+    export type RunRecognitionPeriodMutationBody = BodyType<RunRecognitionInput> | undefined
+    export type RunRecognitionPeriodMutationError = ErrorType<unknown>
+
+    /**
+ * @summary A2/A3: the month-end run — recognise every schedule due in a period
+ */
+export const useRunRecognitionPeriod = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runRecognitionPeriod>>, TError,{data?: BodyType<RunRecognitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runRecognitionPeriod>>,
+        TError,
+        {data?: BodyType<RunRecognitionInput>},
+        TContext
+      > => {
+      return useMutation(getRunRecognitionPeriodMutationOptions(options));
     }
 
 export const getGetFixedAssetReportUrl = (params?: GetFixedAssetReportParams,) => {
