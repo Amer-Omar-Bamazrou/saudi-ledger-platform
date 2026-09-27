@@ -59,7 +59,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED**; A4/A5 as invariants (§4); follow-ups built ([`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17). Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
 **2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-H BUILT**; its four invariants are in the [`pack`](docs/product/fixed-assets-decision-pack.md) §20–§27. 🔴 THREE CLOCKS (fiscal year · tax period · accounting life) — none stands in for another.
-**2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md); §16–§17: what was NOT built, and the post-build audit). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
+**2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. Z-AP1 answered (A), built (§8); the bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
 
@@ -519,7 +519,7 @@ advisor · mail provider · R1 design · deployment + Groq.
 | # | Item | What would close it |
 | --- | --- | --- |
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, billing or plan gating exists; `ai_usage` meters but nothing makes a tenant PAYING. The last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, gating. An off-platform invoice suffices for customer #1; not for long. |
-| **ZATCA M12.7 + M12.9** | Blocked on the **registered entity** (§2 "What is blocked"). Not a technical step. | The owner registering the entity; no rework expected. **Do not** mock simulation to "finish" M12; **do not** onboard a real tenant before both have run. |
+| **ZATCA M12.7 + M12.9** | Blocked on the **registered entity** (§2 "What is blocked"). Not a technical step. | The owner registering the entity; no rework expected; the two don’ts in §2 hold. |
 | **A2 bank feeds** | Same blocker (a SAMA-licensed provider needs a Saudi CR). | Conversations stay useful without the entity; **signatures do not.** |
 | **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1"; [`design-invoice-document.md`](docs/product/design-invoice-document.md)). | **Remaining**: "send", once B1's mail provider is wired. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; business routes 403 until an operator approves. Deliberate KYC, but the WAIT is undefined. | Owner decides the turnaround, who staffs it, and what the pending screen promises. |
@@ -562,10 +562,6 @@ the order is not the severity order.**
 | **4** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
 
 **Open DECISION:** `platform-alarms` is NOT operator-runnable (one-line flip).
-
-**B-8 — NOT REPRODUCED, under a standing guard** (`e2e/rtl-direction.spec.ts`):
-routes walked **by clicking** (a `goto` repairs the loss before it is seen);
-`dir`/`lang` hold. *Tested* rather than unreproduced. Findings file, "B-8: NOT REPRODUCED".
 
 🔴 **Direction is set BEFORE FIRST PAINT** (owner, 2026-08-31): a
 render-blocking script in `index.html` sets `dir`/`lang` — React runs after the
@@ -668,14 +664,7 @@ deleted at the M12 close-out. Workspace package names are unchanged; `pnpm
 
 ## 8. Key Architectural Principles
 
-1. **Preserve the accounting core** (`services/accounting/`): balanced
-   double-entry, closed-period enforcement, and tax rules are correct and
-   tested. Extend and wrap; do not reinvent.
-2. **Everything is tenant-scoped** (§4).
-3. **Route → Controller → Service → Repository** for all new code (§4).
-4. **OpenAPI-first with codegen** (§4).
-5. **A self-grantable privilege invalidates every guard that trusts it** (§4).
-6. **AI proposes; it never posts** (§4).
+They are §4's constraints and §9's don'ts — stated there once, not restated here.
 
 ## 9. What NOT to Do
 
@@ -709,8 +698,6 @@ Operating references:
 - [`docs/development-guide.md`](docs/development-guide.md) — layering,
   tenancy/RLS, RBAC, audit, "add a new domain" cookbook. Read before backend
   work.
-- [`docs/product/owner-actions.md`](docs/product/owner-actions.md) — the four
-  owner actions as a LIVE checklist; the single writer for their state.
 - `CONTRIBUTING.md` — branch strategy, commit conventions, PR checklist.
 - [`docs/architecture-blueprint.md`](docs/architecture-blueprint.md) — target
   architecture.
@@ -780,11 +767,8 @@ Long forms, with their commits: findings file, "the CLAUDE.md split" (2026-09-15
 - **Milestone close-out:** run the standing check (§3, all six parts), update
   §2 Current State here (a STATUS line and a link — never the as-built story),
   and put the narrative record in `docs/history/` — not in this file.
-- **🔴 The same commit that CLOSES a thing REMOVES it from here.** A closed queue
-  item leaves §5; a lesson's incident narrative leaves §3; a milestone's
-  as-built account never enters §2. `tests/claude-md-budget.test.ts` (70k,
-  ratcheted) fails when this is ignored — raising the budget is a deliberate
-  commit, never a way to pass it.
+- **🔴 The same commit that CLOSES a thing REMOVES it from here** — the three
+  eviction rules at the top of this file.
 - **🔴 Docs never state current status in their own words — they DATE their
   claims and point at §2 for "now".** A status line is **"Status (YYYY-MM-DD):
   <claim>. Current state authority: CLAUDE.md §2."** — the date makes staleness
@@ -800,7 +784,7 @@ Long forms, with their commits: findings file, "the CLAUDE.md split" (2026-09-15
   document whose job is completeness is CHECKED AGAINST A COVERAGE LIST, never
   written from memory. *(findings file, "A READER CANNOT DETECT AN ABSENCE".)*
 - **pnpm only** (a preinstall guard rejects npm/yarn).
-- 🔴 **Run `pnpm run verify` before reporting work done** — typecheck, every suite, build, in CI's order. A filtered command answers a NARROWER question; never report it as the broader one.
+- 🔴 **Run `pnpm run verify` before reporting work done** (§3; the command list below).
 
 ### Common commands
 
