@@ -33,6 +33,17 @@ import { writeFileSync } from "node:fs";
 import { pool } from "@workspace/db";
 import { INVOICE_NOT_REVERSED_TEXT, BILL_NOT_REVERSED_TEXT, PAYMENT_NOT_REVERSED_TEXT } from "../repositories/openingReversal";
 import { INVOICE_ISSUED_OR_OPENING_TEXT } from "../repositories/receivableInBooks";
+import { BILL_AP_CONTRIBUTION_TEXT } from "../repositories/billPosition";
+import { SUPPLIER_ON_ACCOUNT_ASSET, SUPPLIER_ON_ACCOUNT_CODES } from "../services/accounting/supplierCreditPolicy";
+
+/**
+ * Phase 11 Part 2: the classification → asset account map as SQL, generated
+ * from the ONE map the posting path uses (supplierCreditPolicy) — never a
+ * second CASE typed out here that could drift from it.
+ */
+const SUPPLIER_ASSET_CASE = (col: string) =>
+  `(CASE ${col} ${Object.entries(SUPPLIER_ON_ACCOUNT_ASSET).map(([k, v]) => `WHEN '${k}' THEN '${v}'`).join(" ")} END)`;
+const SUPPLIER_ASSET_CODES_SQL = SUPPLIER_ON_ACCOUNT_CODES.map((c) => `'${c}'`).join(", ");
 
 type Row = Record<string, string | number | null>;
 const q = async (sql: string, params: unknown[] = []): Promise<Row[]> => (await pool.query(sql, params)).rows;
@@ -207,7 +218,7 @@ async function main() {
       SELECT b.* FROM bills b
        WHERE b.status NOT IN ('draft','submitted','rejected') AND b.vendor_id IS NOT NULL AND ${BILL_NOT_REVERSED_TEXT("b")}
          AND ( EXISTS (SELECT 1 FROM journal_entries e JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
-                        WHERE e.company_id = b.company_id AND e.entry_number = 'BILL-' || b.bill_number AND c.system_code = 'AP' AND l.vendor_id = b.vendor_id)
+                        WHERE e.company_id = b.company_id AND e.entry_number IN ('BILL-' || b.bill_number, 'BILLCN-' || b.bill_number) AND c.system_code = 'AP' AND l.vendor_id = b.vendor_id)
             OR (b.is_opening
                 AND EXISTS (SELECT 1 FROM migration_open_items o JOIN journal_entries e ON e.migration_batch_id = o.batch_id AND e.source = 'opening'
                              JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
@@ -216,13 +227,40 @@ async function main() {
                 AND EXISTS (SELECT 1 FROM bills o JOIN journal_entries e ON e.id = o.opening_correction_journal_entry_id AND e.source = 'opening_correction'
                              JOIN journal_entry_lines l ON l.journal_entry_id = e.id JOIN categories c ON c.id = l.account_id
                              WHERE o.id = b.replaces_bill_id AND c.system_code = 'AP' AND l.vendor_id = b.vendor_id)) )),
-    sub AS (SELECT organization_id AS org, vendor_id, sum(total::numeric - coalesce(paid_amount,0)) v FROM covered GROUP BY 1,2),
+    -- Phase 11 Part 2: each document's contribution to AP is billPosition's
+    -- definition — a CREDIT note (issue journal BILLCN-) is a debit to AP, and
+    -- money applied through the AP subledger (a payment or an applied advance)
+    -- settled the bill as surely as paid_amount. A credit-note APPLICATION
+    -- moves no GL line, so it is not subtracted here.
+    sub AS (SELECT organization_id AS org, vendor_id, sum(${BILL_AP_CONTRIBUTION_TEXT("covered")}) v FROM covered GROUP BY 1,2),
     gl AS (SELECT e.organization_id AS org, l.vendor_id, sum(l.credit_amount - l.debit_amount) v
              FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
             WHERE c.system_code = 'AP' AND e.status IN ('posted','reversed') AND l.vendor_id IS NOT NULL
               AND l.vendor_id IN (SELECT vendor_id FROM covered) GROUP BY 1,2)
     SELECT coalesce(gl.org, sub.org)::text AS org, coalesce(gl.vendor_id, sub.vendor_id) AS vendor_id, coalesce(gl.v,0)::text AS gl, coalesce(sub.v,0)::text AS subledger
       FROM gl FULL JOIN sub ON sub.org = gl.org AND sub.vendor_id = gl.vendor_id WHERE coalesce(gl.v,0) <> coalesce(sub.v,0)`));
+
+  // Phase 11 Part 2 (B4/B5): money a supplier HOLDS — per vendor and per
+  // on-account asset, the subledger (payments less live allocations less
+  // refunds, by CURRENT classification) against the GL. A reclassification
+  // moves the balance with one entry, so the current classification is the
+  // one the GL must show.
+  fail("ap_on_account_gl_vs_subledger — by vendor, over SUPPLIER_ADVANCES / SECURITY_DEPOSITS_PAID / UNIDENTIFIED_PAYMENTS", await q(`
+    WITH sub AS (
+      SELECT p.organization_id AS org, p.vendor_id, ${SUPPLIER_ASSET_CASE("p.classification")} AS code,
+             sum(p.amount::numeric
+                 - coalesce((SELECT sum(a.amount::numeric) FROM supplier_payment_allocations a
+                              WHERE a.supplier_payment_id = p.id
+                                AND NOT EXISTS (SELECT 1 FROM supplier_payment_allocation_reversals r WHERE r.allocation_id = a.id)), 0)
+                 - coalesce((SELECT sum(f.amount::numeric) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0)) AS v
+        FROM supplier_payments p GROUP BY 1,2,3),
+    gl AS (SELECT e.organization_id AS org, l.vendor_id, c.system_code AS code, sum(l.debit_amount - l.credit_amount) v
+             FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
+            WHERE c.system_code IN (${SUPPLIER_ASSET_CODES_SQL}) AND e.status IN ('posted','reversed') GROUP BY 1,2,3)
+    SELECT coalesce(gl.org, sub.org)::text AS org, coalesce(gl.vendor_id, sub.vendor_id) AS vendor_id, coalesce(gl.code, sub.code) AS account,
+           coalesce(gl.v,0)::text AS gl, coalesce(sub.v,0)::text AS subledger
+      FROM gl FULL JOIN sub ON sub.org = gl.org AND sub.vendor_id IS NOT DISTINCT FROM gl.vendor_id AND sub.code = gl.code
+     WHERE coalesce(gl.v,0) <> coalesce(sub.v,0)`));
 
   if (jsonOut) writeFileSync(jsonOut, JSON.stringify(report, null, 2));
   await pool.end();

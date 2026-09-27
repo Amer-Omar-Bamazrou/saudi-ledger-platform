@@ -23,6 +23,9 @@ import vendors from "./vendors.js";
 import products from "./products.js";
 import invoices from "./invoices.js";
 import payments from "./payments.js";
+import supplierPayments from "./supplierPayments.js";
+import supplierStatements from "./supplierStatements.js";
+import supplierCreditNotes from "./supplierCreditNotes.js";
 import migration from "./migration.js";
 import quotations from "./quotations.js";
 import purchaseOrders from "./purchaseOrders.js";
@@ -107,6 +110,14 @@ router.use("/vendors", requirePermission("vendors"), vendors);
 router.use("/products", requirePermission("products"), products);
 router.use("/invoices", requirePermission("invoices"), invoices);
 router.use("/payments", requirePermission("payments"), payments);
+// B3/B4: paying a supplier is a payment, so it carries the SAME authority as
+// the customer side — one resource, not a second one nobody remembers to grant.
+router.use("/supplier-payments", requirePermission("payments"), supplierPayments);
+// B5: a supplier statement READS the AP subledger and the bills behind it;
+// the bills grant is what decides who may see what a supplier is owed.
+router.use("/supplier-statements", requirePermission("bills"), supplierStatements);
+// B7: a purchase-side note IS a bill row, so it carries the bills authority.
+router.use("/supplier-credit-notes", requirePermission("bills"), supplierCreditNotes);
 router.use("/migration", requirePermission("migration"), migration);
 router.use("/quotations", requirePermission("quotations"), quotations);
 router.use("/purchase-orders", requirePermission("purchase_orders"), purchaseOrders);

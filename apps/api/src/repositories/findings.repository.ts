@@ -14,6 +14,7 @@
 import { db, findingsTable, findingRunsTable, findingSchedulesTable, type Finding, type FindingRun } from "@workspace/db";
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { invoiceNotReversedSql, billNotReversedSql } from "./openingReversal";
+import { billIsPayableSql, billOutstandingSql } from "./billPosition";
 
 export interface DetectedFinding {
   kind: string;
@@ -173,17 +174,25 @@ export const findingsRepository = {
     }));
   },
 
-  /** Approved bills past due with an unpaid balance (bills carry no credit notes — verified, not mirrored). */
+  /**
+   * Approved bills past due with an unpaid balance.
+   *
+   * 🔴 Phase 11 Part 2: "bills carry no credit notes" stopped being true when
+   * B7 added `document_type`. What a bill owes is `billPosition`'s definition —
+   * a credit note is never overdue, and money applied through the AP subledger
+   * (a payment, an advance, a credit note) counts as well as `paid_amount`.
+   */
   async overduePayables(): Promise<DetectedFinding[]> {
     const { rows } = await db.execute<{ id: number; bill_number: string; due_date: string; outstanding: string; days_overdue: number }>(sql`
       SELECT id, bill_number, due_date,
-             round(total - COALESCE(paid_amount, 0), 2) AS outstanding,
+             round(${billOutstandingSql("bills")}, 2) AS outstanding,
              (current_date - due_date::date)::int AS days_overdue
         FROM bills
        WHERE status NOT IN ('draft','submitted','paid')
          AND ${billNotReversedSql("bills")}
+         AND ${billIsPayableSql("bills")}
          AND due_date IS NOT NULL AND due_date::date < current_date
-         AND total - COALESCE(paid_amount, 0) > 0.005
+         AND ${billOutstandingSql("bills")} > 0.005
     `);
     return rows.map((r) => ({
       kind: "overdue_payable",

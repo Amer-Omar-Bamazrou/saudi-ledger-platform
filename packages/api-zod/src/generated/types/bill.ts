@@ -5,12 +5,20 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { BillDocumentType } from './billDocumentType';
 import type { BillItem } from './billItem';
 import type { BillStatus } from './billStatus';
 
 export interface Bill {
   id: number;
   billNumber: string;
+  /** B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). */
+  documentType: BillDocumentType;
+  /**
+     * B7: the bill this note adjusts.
+     * @nullable
+     */
+  creditNoteAgainstBillId?: number | null;
   /** Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening). */
   isOpening?: boolean;
   /**
@@ -40,7 +48,13 @@ export interface Bill {
   total: number;
   /** @nullable */
   currency?: string | null;
+  /** The LEGACY per-bill counter written by `POST /bills/{id}/pay` only. Not what the bill owes — see `outstanding`. */
   paidAmount: number;
+  /**
+     * What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.
+     * @nullable
+     */
+  outstanding?: number | null;
   /** @nullable */
   paidAt?: string | null;
   /** @nullable */

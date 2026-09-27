@@ -50,6 +50,7 @@ const EXEMPT: Record<string, string> = {
   "analytics.repository.ts": "customerTotals/vendorTotals exclude EVERY opening row (`is_opening = false`, R7: a migrated item is never a sales/purchase event); monthlyReceivables reads the GL, where the mirror nets the reversed pair.",
   "migration.repository.ts": "reads its OWN batch's opening rows by design — the reversal preview and R2/R3/R10 must see the rows they created, reversed or not.",
   "openingReversal.ts": "the predicate itself.",
+  "billPosition.ts": "SQL FRAGMENTS for a bill's sign and outstanding (Phase 11 Part 2), not a query: it selects no rows, and every caller supplies its own WHERE carrying billNotReversed (bills, vendors, findings, reports, supplierStatement, ledgerInvariants) or excludes every opening row (analytics).",
   "approvalsQueue.repository.ts": "lists DRAFT and SUBMITTED documents for the approvals worklist with their total as a label; an opening item is created 'sent'/'approved' and never enters the queue, reversed or not.",
   "reports.repository.ts.__NOT_EXEMPT__": "placeholder proving the map is a map — never matched",
 };

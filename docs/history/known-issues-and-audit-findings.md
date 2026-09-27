@@ -2359,3 +2359,41 @@ correction incl. locked month and before-opening refusals, migrated relief
 → recovery) and the migration workspace e2e in four modes by real clicks.
 
 State: CLOSED. Current state authority: CLAUDE.md §2.
+
+## PHASE 11 PART 2 — THE AP SUBLEDGER'S POST-BUILD AUDIT: H1–H10 CLOSED 2026-09-23
+
+Part 2 (B3 supplier payments, B4 advances and deposits, B5 statements, B6 the
+ageing, B7 purchase notes, B8's WHT foundation) was built and left
+uncommitted when a working session ended. The resumed session ran it (green),
+then audited it by asking of every path a new fact reaches *what else reads
+the thing this changed?* Ten findings, all at EDGES — none inside the files the
+first build was working on, none visible to the suites it shipped with.
+
+The two that POSTED wrong: **H1** the legacy `POST /bills/{id}/pay` read
+`total − paid_amount`, so a bill an advance had settled could be paid again in
+full (Dr AP twice); **H2** undoing a CREDIT-NOTE application went through the
+payment branch and posted Dr SUPPLIER_ADVANCES / Cr AP — an advance no payment
+explained. Also: **H3** one request naming a bill twice over-settled it; **H4**
+eight readers (vendor balances, the Bills headline and overdue count, bank-
+match candidates, the overdue finding, spend analytics, the migration-reversal
+guard, the AP invariant) kept `total − paid_amount` or summed a credit note
+positively — H4 composed with H1, since a bank debit matched to a settled bill
+was paid through H1's path; **H5** the migration-reversal guard ignored
+subledger allocations and notes; **H6** the append-only tables were UPDATE-able
+(a note application, having no journal entry, escaped the trigger); **H7**
+`source` was client-writable and idempotency keys were stored but never
+honoured; **H8** no row locks; **H9** the statement had no window, opening
+balance or GL tie; **H10** the UI posted a refund to `banks[0]` (a D-3
+violation), invented an undo reason, offered Pay on a credit note, and declared
+local `type` aliases over endpoints in the contract.
+
+Fixed in the same batch; each proven on real rows, the three that POSTED wrong
+also proven RED on a mutant of the old code; the readers made to share ONE
+definition, `repositories/billPosition`, under a sweep written red first
+(`tests/bill-position-reader-sweep.test.ts`). Full record, with the fix and the
+test per finding: [`phase-11-deep-accounting-ap-decision-pack.md`](../product/phase-11-deep-accounting-ap-decision-pack.md) §17.
+
+**Still open, named:** Z-AP1 (input VAT on a supplier's ADVANCE tax invoice —
+ACCOUNTANT DECISION REQUIRED, blocker format in the pack §17.8; the running
+default defers the claim, lawful under IR Art. 49(8)); a RACE test for the row
+locks; the statement's server-written line descriptions are English.

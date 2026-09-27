@@ -271,16 +271,6 @@ export const COMING_SOON: readonly ComingSoonEntry[] = [
     whenClearedAr: "مُدرج في خطة التطوير، مع بقية أعمال القوالب.",
   },
   {
-    slug: "vendor-statements",
-    title: "Vendor statements",
-    titleAr: "كشوف حساب الموردين",
-    summary: "A vendor's full account — bills, payments and running balance over a period.",
-    summaryAr: "حساب المورد كاملًا — الفواتير والمدفوعات والرصيد الجاري خلال فترة.",
-    blocker: "build",
-    whenCleared: "🔴 A deliberate asymmetry today: the customer equivalent (`/reports/customer-ledger`) exists and this does not. `VendorDetail.tsx` records that in a comment and omits the button rather than linking to nothing. Build the vendor mirror of the customer ledger.",
-    whenClearedAr: "🔴 عدم تماثل مقصود اليوم: النظير الخاص بالعملاء موجود وهذا غير موجود. تُبنى النسخة المقابلة لكشف حساب العميل.",
-  },
-  {
     slug: "purchases-by-vendor",
     title: "Purchases by vendor",
     titleAr: "المشتريات حسب المورد",

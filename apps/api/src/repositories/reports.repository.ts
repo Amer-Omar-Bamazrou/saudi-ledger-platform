@@ -21,6 +21,7 @@ import {
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 import { invoiceNotReversed, billNotReversed } from "./openingReversal";
+import { billOutstandingSql } from "./billPosition";
 
 /**
  * 🔴 Journal-entry statuses that ARE the books (fixed 2026-08-17, found
@@ -297,10 +298,20 @@ export const reportsRepository = {
       .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id))
       .where(approvedInvoicesOnly());
   },
-  // ap-aging — approved bills only (drafts/submitted are not payable AP yet).
+  /**
+   * ap-aging — approved bills only (drafts/submitted are not payable AP yet),
+   * each with what it still OWES.
+   *
+   * B6 (2026-09-22): outstanding is `billPosition`'s definition — `paid_amount`
+   * AND live AP-subledger allocations (payments, applied advances, applied
+   * credit notes), and 0 for a credit note. A reversed allocation stops being
+   * live, so a correction puts the exposure straight back into the ageing.
+   * 🔴 Neither fact is folded into the other: `paid_amount` has one writer
+   * (`billsService.pay`), allocations have theirs.
+   */
   billsWithVendor() {
     return db
-      .select({ bill: billsTable, vendor: vendorsTable })
+      .select({ bill: billsTable, vendor: vendorsTable, outstanding: sql<string>`${billOutstandingSql("bills")}` })
       .from(billsTable)
       .leftJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id))
       .where(approvedBillsOnly());

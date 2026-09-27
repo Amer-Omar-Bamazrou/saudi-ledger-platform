@@ -29,6 +29,8 @@ import type { ApAgingReport } from "@workspace/api-client-react";
 const EMPTY: ApAgingReport = {
   buckets: { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 },
   total: 0,
+  assets: { supplierCredits: 0, supplierAdvances: 0, supplierDeposits: 0, unidentifiedPayments: 0 },
+  netSupplierPosition: 0,
   items: [],
 };
 
@@ -91,6 +93,44 @@ export default function ApAging() {
           </Card>
         ))}
       </div>
+
+      {/*
+        B6 (2026-09-22): the buckets carry ONLY real payable exposure. What the
+        SUPPLIER holds is shown BESIDE the ageing — as the assets it is — never
+        folded into a bucket as a negative payable, which would make an overdue
+        bill read as less overdue because unrelated money sits with the same
+        supplier. The net is derived and labelled so.
+      */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Payable vs what suppliers hold", "الذمم الدائنة مقابل ما يحتفظ به الموردون")}</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
+            <div className="rounded-md border border-border p-3">
+              <p className="text-xs text-muted-foreground">{t("Total AP (Σ buckets)", "إجمالي الذمم (مجموع الفئات)")}</p>
+              <p className="font-mono font-semibold text-lg" data-testid="ap-recon-total">{fmtNum(report.total)}</p>
+            </div>
+            <div className="rounded-md border border-border p-3">
+              <p className="text-xs text-muted-foreground">{t("− Supplier credit notes", "− إشعارات دائن من الموردين")}</p>
+              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-credits">{fmtNum(report.assets.supplierCredits)}</p>
+            </div>
+            <div className="rounded-md border border-border p-3">
+              <p className="text-xs text-muted-foreground">{t("− Advances paid", "− دفعات مقدمة مدفوعة")}</p>
+              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-advances">{fmtNum(report.assets.supplierAdvances)}</p>
+            </div>
+            <div className="rounded-md border border-border p-3">
+              <p className="text-xs text-muted-foreground">{t("− Deposits & unidentified", "− تأمينات ومدفوعات غير محددة")}</p>
+              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-deposits">{fmtNum(report.assets.supplierDeposits + report.assets.unidentifiedPayments)}</p>
+            </div>
+            <div className="rounded-md border border-primary/40 p-3">
+              <p className="text-xs text-muted-foreground">{t("= Net supplier position (derived)", "= صافي مركز الموردين (مشتق)")}</p>
+              <p className="font-mono font-semibold text-lg" data-testid="ap-recon-net">{fmtNum(report.netSupplierPosition)}</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            {t("Advances, deposits and unapplied credit notes are ASSETS — money the supplier holds or owes back. They never appear inside an ageing bucket.", "الدفعات المقدمة والتأمينات وإشعارات الدائن غير المطبقة أصول — أموال يحتفظ بها المورد أو يدين بها. ولا تظهر أبدًا داخل فئة أعمار.")}
+          </p>
+        </CardContent>
+      </Card>
 
       <Card className="border-border bg-card">
         <CardContent className="pt-6">

@@ -32,6 +32,7 @@ import {
 } from "@workspace/db";
 import { and, eq, gte, inArray, lte, notInArray, sql } from "drizzle-orm";
 import { taxVisible } from "./summary.repository";
+import { billSignSql } from "./billPosition";
 import { companyScoped } from "./companyScope";
 import { JE_IN_BOOKS } from "./reports.repository";
 
@@ -159,7 +160,10 @@ export const analyticsRepository = {
         id: sql<string>`coalesce(${billsTable.vendorId}::text, 'none')`,
         name: sql<string>`coalesce(max(${vendorsTable.name}), 'No vendor')`,
         nameAr: sql<string>`coalesce(max(${vendorsTable.nameAr}), '')`,
-        total: sql<string>`coalesce(sum(${billsTable.total}::numeric), 0)`,
+        // Phase 11 Part 2: a supplier CREDIT note reduces what was bought from
+        // the supplier in the period — signed through billPosition, never summed
+        // positively into "spend".
+        total: sql<string>`coalesce(sum(${billSignSql("bills")} * ${billsTable.total}::numeric), 0)`,
         count: sql<number>`count(*)::int`,
       })
       .from(billsTable)

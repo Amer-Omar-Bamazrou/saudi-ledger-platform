@@ -227,10 +227,13 @@ export const NAV_TREE: readonly NavSection[] = [
         ...built("/vendors", "Vendors", "الموردون", Building2),
         children: [
           built("/vendors", "All Vendors", "كل الموردين"),
-          soon("vendor-statements", "Vendor Statements", "كشوف حساب الموردين"),
+          // B5 (2026-09-22): built. It was a `soon` entry until the statement existed.
+          built("/supplier-statements", "Vendor Statements", "كشوف حساب الموردين"),
           built("/ap-aging", "Vendor Aging", "أعمار ذمم الموردين"),
         ],
       },
+      built("/supplier-payments", "Supplier Payments", "مدفوعات الموردين", Banknote),
+      built("/supplier-credit-notes", "Supplier Credit Notes", "إشعارات الدائن من الموردين", FileMinus),
       built("/ap-aging", "AP Aging", "أعمار الذمم الدائنة", Clock),
       {
         label: "Purchase Reports", labelAr: "تقارير المشتريات", marker: "built",

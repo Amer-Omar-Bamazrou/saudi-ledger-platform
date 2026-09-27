@@ -2,6 +2,26 @@
 import { db, vendorsTable, billsTable } from "@workspace/db";
 import { and, eq, ilike, notInArray, or, sql } from "drizzle-orm";
 import { DEFAULT_PAGE } from "../lib/httpParams";
+import { billIsPayableSql, billLivePaidBySubledgerSql, billSignSql } from "./billPosition";
+
+/**
+ * 🔴 PHASE 11 PART 2 — what a vendor was billed and paid, from `billPosition`.
+ *
+ *   totalBilled = Σ signed totals — a CREDIT note reduces it (it is the
+ *                 supplier crediting us, not a charge);
+ *   totalPaid   = Σ over bills/debit notes of money that settled them: the
+ *                 legacy `paid_amount` AND live AP-subledger allocations from
+ *                 a PAYMENT (an advance applied is money paid earlier);
+ *   balance     = totalBilled − totalPaid — what AP carries for the vendor in
+ *                 the GL.
+ *
+ * A credit note's APPLICATION is deliberately not in totalPaid: its effect is
+ * already in totalBilled as the note's negative total, and counting the
+ * application too would reduce the balance twice for one note.
+ */
+const TOTAL_BILLED = sql<number>`COALESCE(SUM(${billSignSql("bills")} * ${billsTable.total}::numeric), 0)::float8`;
+const TOTAL_PAID = sql<number>`COALESCE(SUM(CASE WHEN ${billIsPayableSql("bills")}
+  THEN COALESCE(${billsTable.paidAmount}::numeric, 0) + ${billLivePaidBySubledgerSql("bills")} ELSE 0 END), 0)::float8`;
 
 export interface VendorListFilter {
   search?: string;
@@ -55,10 +75,7 @@ export const vendorsRepository = {
    */
   async listTotals(filter: VendorListFilter) {
     const [row] = await db
-      .select({
-        totalBilled: sql<number>`COALESCE(SUM(${billsTable.total}), 0)::float8`,
-        totalPaid: sql<number>`COALESCE(SUM(COALESCE(${billsTable.paidAmount}, 0)), 0)::float8`,
-      })
+      .select({ totalBilled: TOTAL_BILLED, totalPaid: TOTAL_PAID })
       .from(billsTable)
       .innerJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id))
       .where(and(notInArray(billsTable.status, NOT_IN_BOOKS), billNotReversed(), vendorListConditions(filter)));
@@ -79,9 +96,10 @@ export const vendorsRepository = {
    * column, so the page summed a field the API never sent. Same defect as the
    * customer side, on the payable half.
    *
-   * There is no sign case here and that is deliberate, not an omission: `bills`
-   * has no `document_type` column (checked — the M21.3 "a mirror is a
-   * hypothesis" rule), so there is no supplier credit note to reverse.
+   * 🔴 There IS a sign case now. Until Phase 11 Part 2 this comment said there
+   * was none because `bills` had no `document_type` — true when written, and
+   * an obsolete assertion the day B7 added the column. The sign and the paid
+   * figure come from `billPosition` (see TOTAL_BILLED / TOTAL_PAID above).
    *
    * Omit `vendorId` for every vendor (one grouped query, not N+1).
    */
@@ -89,8 +107,8 @@ export const vendorsRepository = {
     return db
       .select({
         vendorId: billsTable.vendorId,
-        totalBilled: sql<number>`COALESCE(SUM(${billsTable.total}), 0)::float8`,
-        totalPaid: sql<number>`COALESCE(SUM(COALESCE(${billsTable.paidAmount}, 0)), 0)::float8`,
+        totalBilled: TOTAL_BILLED,
+        totalPaid: TOTAL_PAID,
         billCount: sql<number>`COUNT(*)::int`,
       })
       .from(billsTable)

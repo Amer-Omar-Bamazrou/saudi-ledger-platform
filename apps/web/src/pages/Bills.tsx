@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
@@ -642,7 +642,16 @@ export default function Bills() {
               <tbody>
                 {bills.map(b => (
                   <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                    <td className="py-3 pe-4 font-mono text-xs text-primary">{b.billNumber}</td>
+                    <td className="py-3 pe-4 font-mono text-xs text-primary">
+                      {b.billNumber}
+                      {/* B7: a purchase NOTE is a bills row; say which, so a credit
+                          note never reads as a bill somebody forgot to pay. */}
+                      {b.documentType && b.documentType !== "bill" && (
+                        <span className="ms-2 inline-block rounded border border-border px-1 text-[10px] font-sans text-muted-foreground" data-testid={`bill-kind-${b.id}`}>
+                          {b.documentType === "credit_note" ? t("Credit note", "إشعار دائن") : t("Debit note", "إشعار مدين")}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 pe-4 font-medium">{b.vendorName ?? "—"}</td>
                     <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={b.date} /></td>
                     <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={b.dueDate} /></td>
@@ -680,9 +689,19 @@ export default function Bills() {
                           paid"), so `!== "draft"` still offered Pay on a
                           `submitted` bill — a control that could only fail.
                           Payable = received | approved, matching the server. */}
-                      {(b.status === "received" || b.status === "approved") && (
-                        <Button variant="ghost" size="sm" className="text-xs h-7 text-positive"
-                          onClick={() => { setPayOpen(b.id); setPayAmount(String(b.total - b.paidAmount)); }}>
+                      {/* 🔴 Phase 11 Part 2: a CREDIT note is not paid — it reduces
+                          what you owe, and the server refuses to pay it. The control
+                          offered instead is the one that works: apply it. A bill's pay
+                          amount is what it still OWES by the server's figure (net of
+                          advances and notes already applied), never total − paid. */}
+                      {(b.status === "received" || b.status === "approved") && b.documentType === "credit_note" && (
+                        <Link href="/supplier-credit-notes">
+                          <Button variant="ghost" size="sm" className="text-xs h-7 text-info" data-testid={`apply-note-link-${b.id}`}>{t("Apply", "تطبيق")}</Button>
+                        </Link>
+                      )}
+                      {(b.status === "received" || b.status === "approved") && b.documentType !== "credit_note" && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-positive" data-testid={`pay-bill-${b.id}`}
+                          onClick={() => { setPayOpen(b.id); setPayAmount(String(b.outstanding ?? "")); }}>
                           {t("Pay", "دفع")}
                         </Button>
                       )}
@@ -773,7 +792,7 @@ export default function Bills() {
           <div className="mt-2">
             <Label className="text-xs text-muted-foreground">{t("Amount Paid (SAR)", "المبلغ المدفوع (ر.س)")}</Label>
             <Input type="number" value={payAmount}
-              onChange={e => setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" />
+              onChange={e => setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" data-testid="pay-amount" />
             <Label className="text-xs text-muted-foreground mt-3 block">{t("Paid from bank account *", "دُفع من الحساب البنكي *")}</Label>
             <Select value={payBank || (defaultBankId != null ? String(defaultBankId) : "")} onValueChange={setPayBank}>
               <SelectTrigger className="mt-1 h-8 text-sm" data-testid="pay-bank-account"><SelectValue placeholder={t("Choose the bank account", "اختر الحساب البنكي")} /></SelectTrigger>
