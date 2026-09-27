@@ -3,11 +3,12 @@
  * API/audit response object. Extracted from the service so both the service and
  * the approval adapter share one shape without a circular import.
  */
-import type { billsTable, billItemsTable, vendorsTable } from "@workspace/db";
+import type { billsTable, billItemsTable, vendorsTable, capturedDocumentsTable } from "@workspace/db";
 
 type Bill = typeof billsTable.$inferSelect;
 type BillItem = typeof billItemsTable.$inferSelect;
 type Vendor = typeof vendorsTable.$inferSelect;
+type Capture = typeof capturedDocumentsTable.$inferSelect;
 
 export const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 
@@ -21,7 +22,7 @@ export const toNum = (v: unknown) => (v != null ? Number(v) : 0);
  */
 export type BillPrepaymentOut = { id: number; advanceBillId: number; advanceBillNumber: string; supplierReference: string | null; amount: number; taxableAmount: number; taxAmount: number; vatRate: number; finalised: boolean };
 
-export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillItem[], outstanding?: string | number | null, prepaid?: string | number | null, prepayments?: BillPrepaymentOut[]) {
+export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillItem[], outstanding?: string | number | null, prepaid?: string | number | null, prepayments?: BillPrepaymentOut[], capture?: Capture | null) {
   const prepaidAmount = Math.round(Number(prepaid ?? 0) * 100) / 100;
   return {
     id: bill.id,
@@ -53,6 +54,40 @@ export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillIte
     expenseAccountId: bill.expenseAccountId ?? null,
     // FA-B: the draft fixed asset this bill buys (its approval capitalises it).
     capitalisesAssetId: bill.capitalisesAssetId ?? null,
+    // 🔴 Phase 13A: the supplier document held, and the SERVER's verdict on
+    // whether it evidences the VAT — with its reasons by structured code.
+    supplierDocumentKind: bill.supplierDocumentKind ?? null,
+    vendorTaxNumber: vendor?.taxNumber ?? null,
+    vatEvidence: {
+      status: bill.vatEvidenceStatus,
+      basis: bill.vatEvidenceBasis ?? null,
+      flags: (bill.vatEvidenceFlags as Array<{ code: string; severity: string; message: string }> | null) ?? [],
+      checkedAt: bill.vatEvidenceCheckedAt ? bill.vatEvidenceCheckedAt.toISOString() : null,
+    },
+    // 🔴 Phase 13A (X1/X3/X5): where a POSTED document's input VAT sits — null on a draft.
+    inputVat: {
+      state: (bill.inputVatState as "claimed" | "awaiting_evidence" | "not_deductible" | null) ?? null,
+      pending: toNum(bill.inputVatPending),
+      claimedOn: bill.inputVatClaimedOn ?? null,
+      claimEntryId: bill.inputVatClaimEntryId ?? null,
+    },
+    // Phase 13C: an expense — paid when recorded, from this bank, on this date.
+    recordedAsExpense: bill.recordedAsExpense,
+    expensePaidFromBankAccountId: bill.expensePaidFromBankAccountId ?? null,
+    expensePaidAt: bill.expensePaidAt ?? null,
+    // Phase 13A: the evidence document, on a single-bill read (the original is never overwritten).
+    ...(capture !== undefined ? {
+      evidenceDocument: capture ? {
+        captureId: capture.id,
+        status: capture.status,
+        contentType: capture.contentType,
+        source: capture.source,
+        signatureStatus: capture.signatureStatus ?? null,
+        fieldSources: (capture.fieldSources as Record<string, string> | null) ?? null,
+        reviewCorrections: (capture.reviewCorrections as Array<{ field: string; extracted: unknown; final: unknown }> | null) ?? [],
+        capturedAt: capture.capturedAt.toISOString(),
+      } : null,
+    } : {}),
     notes: bill.notes,
     isOpening: bill.isOpening,
     reversedAt: bill.reversedAt ? bill.reversedAt.toISOString() : null,

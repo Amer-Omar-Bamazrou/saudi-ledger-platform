@@ -83,7 +83,7 @@ describeMaybe("FA-B — capitalisation, the monthly run, the estimate change (re
          JOIN categories c ON c.id = l.account_id WHERE l.journal_entry_id = $1 ORDER BY l.id`, [entryId])).rows.map((r) => [r.system_code ?? r.name, r.d, r.c]);
   /** A bill that buys the asset, entered and approved through the product's own paths. */
   const buyAsset = async (assetId: number, number: string, date: string, subtotal: number, vat: number) => {
-    const bill = await inTenant(() => billsService.create({ billNumber: number, date, vendorId, subtotal, vatAmount: vat, total: subtotal + vat, capitalisesAssetId: assetId, items: [{ description: "Asset purchase", quantity: 1, unitPrice: subtotal }] }, userId));
+    const bill = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-11", billNumber: number, date, vendorId, subtotal, vatAmount: vat, total: subtotal + vat, capitalisesAssetId: assetId, items: [{ description: "Asset purchase", quantity: 1, unitPrice: subtotal }] }, userId));
     return inTenant(() => billsService.approve(bill.id, {}, userId));
   };
 
@@ -93,7 +93,7 @@ describeMaybe("FA-B — capitalisation, the monthly run, the estimate change (re
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_year_start) VALUES ($1,'FA B Co',1) RETURNING id`, [orgId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','FA B',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Equipment Supplier') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Equipment Supplier','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     const cat = await inTenant(() => assetsService.createCategory({ name: "Computers", defaultUsefulLifeMonths: 48, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" }, userId));
     catId = cat.id;
   }, 60_000);
@@ -139,6 +139,19 @@ describeMaybe("FA-B — capitalisation, the monthly run, the estimate change (re
     expect(await gl("VAT_INPUT")).toBe(vatBefore);
     const a = await inTenant(() => assetsService.getById(vanId));
     expect([a.cost, a.status, a.vatInitialRecoveryPct]).toEqual([115_000, "in_service", 0]);
+
+    // 🔴 Phase 13A narrow guard (closes P13-D2's remaining half): capitalised VAT
+    // is COST, so the return claims none of it. Absence in April — while the
+    // van's purchase IS in April's return (box 9 carries its base, so the
+    // absence is not an empty period) — and presence in March, where the
+    // laptop's evidenced 15,000 is claimed.
+    const april = (await inTenant(() => reportsService.vatReturn("2026-04", "2026-04"))).purchasesSection;
+    expect(april.box9_standardRatedPurchases, "the van's purchase is in April's return").toBe(100_000);
+    expect(april.box13_recoverableInputVat, "its capitalised VAT is claimed nowhere").toBe(0);
+    const march = (await inTenant(() => reportsService.vatReturn("2026-03", "2026-03"))).purchasesSection;
+    expect(march.box13_recoverableInputVat, "the laptop's evidenced VAT is claimed in its own period").toBe(15_000);
+    const state = (await pool.query(`SELECT input_vat_state FROM bills WHERE organization_id = $1 AND bill_number = 'BILL-FA-VAN'`, [orgId])).rows[0];
+    expect(state.input_vat_state).toBe("not_deductible");
   }, 60_000);
 
   it("🔴 row 7 — the monthly run posts Dr depreciation expense / Cr accumulated for the row's amount, marks the row posted, moves the derived figures; a SECOND run for the period is refused with nothing posted; out of order is refused", async () => {

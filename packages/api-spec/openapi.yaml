@@ -5306,6 +5306,135 @@ paths:
         "423":
           description: The accounting period is locked
 
+  /bills/evidence-preview:
+    post:
+      operationId: previewBillVatEvidence
+      tags: [bills]
+      summary: The VAT-evidence verdict for figures not yet saved (Phase 13A)
+      description: >
+        What the server would decide about the input VAT these figures claim —
+        the same verdict a save writes and an approval enforces — without
+        writing anything. The review page and the bill form show it while the
+        user types, so a document is never saved believing it will post.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VatEvidencePreviewInput" }
+      responses:
+        "200":
+          description: The verdict
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VatEvidenceVerdict" }
+
+  /bills/duplicates:
+    get:
+      operationId: listBillPossibleDuplicates
+      tags: [bills]
+      summary: Possible duplicates of a purchase document (Phase 13A) — a WARNING, never a refusal
+      description: >
+        The same file captured before (SHA-256), the same supplier with the
+        same supplier invoice number, or the same supplier, date and total —
+        in this company only. Two identical receipts can be two real purchases,
+        so nothing is refused: the user sees the earlier documents and decides.
+      parameters:
+        - { in: query, name: bill_id, schema: { type: integer }, description: "The document itself, excluded from its own matches" }
+        - { in: query, name: vendor_id, schema: { type: integer } }
+        - { in: query, name: vendor_reference, schema: { type: string } }
+        - { in: query, name: date, schema: { type: string } }
+        - { in: query, name: total, schema: { type: number } }
+        - { in: query, name: capture_id, schema: { type: string } }
+      responses:
+        "200":
+          description: The possible duplicates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PossibleDuplicate" }
+
+  /bills/vat-evidence:
+    get:
+      operationId: listBillsHeldForVatEvidence
+      tags: [bills]
+      summary: Every unposted purchase document held for VAT evidence, and why (Phase 13A)
+      description: >
+        Unposted documents whose input VAT cannot be claimed yet — awaiting
+        evidence, not deductible (Art. 50), or older than Phase 13 and never
+        evaluated. Filter by a reason code, search by number or supplier;
+        `totals` are over the whole held set, never the page.
+      parameters:
+        - { in: query, name: reason, schema: { type: string }, description: "A blocking flag code, or not_evaluated" }
+        - { in: query, name: q, schema: { type: string } }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page of held documents, with set-wide counts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HeldForEvidencePage" }
+
+  /bills/{id}/evidence:
+    post:
+      operationId: attachBillEvidence
+      tags: [bills]
+      summary: Attach a captured document to an UNPOSTED bill and re-decide its VAT evidence (Phase 13A)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AttachEvidenceInput" }
+      responses:
+        "200":
+          description: The bill with its new verdict
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bill" }
+        "409":
+          description: The bill is already posted
+        "422":
+          description: "`capture_unavailable` — the document is another bill's evidence, posted, or discarded"
+
+  /expenses:
+    get:
+      operationId: listExpenses
+      tags: [expenses]
+      summary: Purchases paid when they were recorded (Phase 13C)
+      description: >
+        An EXPENSE is a supplier bill recorded as already paid, from a named
+        bank on a stated date (POST /bills with recordedAsExpense). Its
+        approval posts it and pays it through the bill-payment path in one
+        transaction, so no payable is left outstanding. This view READS those
+        bills with their payments and evidence — there is no second source of
+        truth.
+      parameters:
+        - { in: query, name: status, schema: { type: string, enum: [unposted, posted] } }
+        - { in: query, name: q, schema: { type: string } }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page of expenses, with set-wide totals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExpensesPage" }
+
   /bills/{id}/pay:
     post:
       operationId: payBill
@@ -8298,6 +8427,21 @@ components:
             is not a draft, has no available-for-use date, or states a cost the bill does not.
         notes:
           type: ["string", "null"]
+        supplierDocumentKind:
+          type: ["string", "null"]
+          enum: [tax_invoice, simplified_tax_invoice, no_tax_invoice, null]
+          description: "Phase 13A: the supplier document the user states they hold. Null = not stated."
+        vendorTaxNumber: { type: ["string", "null"], description: "The supplier's VAT number, as recorded on the supplier." }
+        vatEvidence: { $ref: "#/components/schemas/BillVatEvidence" }
+        inputVat: { $ref: "#/components/schemas/BillInputVat" }
+        recordedAsExpense: { type: boolean, description: "Phase 13C: paid when recorded — approval posts AND pays it." }
+        expensePaidFromBankAccountId: { type: ["integer", "null"] }
+        expensePaidAt: { type: ["string", "null"] }
+        evidenceDocument:
+          description: On a single-bill read — the document linked as this bill's evidence.
+          oneOf:
+            - { $ref: "#/components/schemas/BillEvidenceDocument" }
+            - { type: "null" }
         createdAt:
           type: string
         items:
@@ -8897,6 +9041,196 @@ components:
         errorDetail: { type: ["string", "null"] }
         ranAt: { type: ["string", "null"] }
 
+    EvidenceFlag:
+      type: object
+      required: [code, severity, message]
+      properties:
+        code: { type: string, description: "A structured reason — the UI keys its wording on this, never on the message." }
+        severity: { type: string, enum: [blocking, warning, info] }
+        message: { type: string }
+
+    VatEvidenceVerdict:
+      type: object
+      required: [status, flags]
+      description: >
+        Every purchase document posts whatever this says (accountant X1/X5); the
+        status decides where its VAT goes — evidenced / not_required: Input VAT;
+        awaiting_evidence: the holding asset "Input VAT awaiting evidence", never
+        on a return until the evidence is held; not_deductible: the cost.
+      properties:
+        status: { type: string, enum: [not_required, evidenced, awaiting_evidence, not_deductible] }
+        basis: { type: ["string", "null"], enum: [qr_signature_verified, qr_unsigned, document_attached, attested, null] }
+        flags: { type: array, items: { $ref: "#/components/schemas/EvidenceFlag" } }
+
+    BillVatEvidence:
+      type: object
+      required: [status, flags]
+      description: >
+        Phase 13A — the server's verdict on whether the supplier document
+        evidences the input VAT this bill claims. `not_evaluated` = a bill older
+        than Phase 13; an approval decides it. A posted bill keeps the verdict
+        it was posted on.
+      properties:
+        status: { type: string, enum: [not_evaluated, not_required, evidenced, awaiting_evidence, not_deductible] }
+        basis: { type: ["string", "null"] }
+        flags: { type: array, items: { $ref: "#/components/schemas/EvidenceFlag" } }
+        checkedAt: { type: ["string", "null"] }
+
+    BillInputVat:
+      type: object
+      required: [state, pending, claimedOn, claimEntryId]
+      description: >
+        Phase 13A (accountant X1/X3/X5) — where a POSTED document's input VAT
+        sits; `state` is null on a draft (and on a row posted before Phase 13
+        outside the approval, which reads as claimed on its own date).
+        claimed: in Input VAT, on the return for the period of `claimedOn`.
+        awaiting_evidence: `pending` is held in "Input VAT awaiting evidence" —
+        no return claims it until the evidence entry moves it into Input VAT,
+        dated when the evidence is held (that date is the claim period).
+        not_deductible: part of the cost (Art. 50, 0 %-recovery asset).
+      properties:
+        state: { type: ["string", "null"], enum: [claimed, awaiting_evidence, not_deductible, null] }
+        pending: { type: number, description: "Input VAT still held for evidence (net of credit notes against it)." }
+        claimedOn: { type: ["string", "null"], description: "YYYY-MM-DD — the date whose VAT period claims it." }
+        claimEntryId: { type: ["integer", "null"], description: "The evidence entry (Dr Input VAT / Cr awaiting); null when claimed on the document's own entry." }
+
+    BillEvidenceDocument:
+      type: object
+      required: [captureId, status, contentType, source]
+      properties:
+        captureId: { type: string }
+        status: { type: string, description: "staged (the draft's evidence, still deletable) | promotion_pending | promoted" }
+        contentType: { type: string }
+        source: { type: string, enum: [qr, ocr, manual] }
+        signatureStatus: { type: ["string", "null"] }
+        fieldSources: { type: ["object", "null"], additionalProperties: true }
+        reviewCorrections:
+          type: array
+          description: What the reviewer changed against the extraction — beside it, never over it.
+          items:
+            type: object
+            additionalProperties: true
+        capturedAt: { type: string }
+
+    VatEvidencePreviewInput:
+      type: object
+      properties:
+        documentType: { type: ["string", "null"] }
+        supplierDocumentKind: { type: ["string", "null"], enum: [tax_invoice, simplified_tax_invoice, no_tax_invoice, null] }
+        vendorId: { type: ["integer", "null"] }
+        vendorReference: { type: ["string", "null"] }
+        date: { type: ["string", "null"] }
+        subtotal: { type: ["number", "null"] }
+        vatAmount: { type: ["number", "null"] }
+        total: { type: ["number", "null"] }
+        expenseAccountId: { type: ["integer", "null"] }
+        capitalisesAssetId: { type: ["integer", "null"] }
+        captureId: { type: ["string", "null"] }
+
+    AttachEvidenceInput:
+      type: object
+      properties:
+        captureId:
+          type: ["string", "null"]
+          description: A staged capture (POST /capture) to link as this bill's evidence. Omit to re-check only.
+        supplierDocumentKind:
+          type: ["string", "null"]
+          enum: [tax_invoice, simplified_tax_invoice, no_tax_invoice, null]
+          description: POSTED bill held for evidence only — the supplier document now held (a draft states it by PATCH).
+        vendorReference:
+          type: ["string", "null"]
+          description: POSTED bill held for evidence only — the supplier's invoice number.
+        evidenceDate:
+          type: ["string", "null"]
+          description: >
+            POSTED bill held for evidence only — YYYY-MM-DD, the day the evidence
+            is held (default today). When the evidence now supports the claim,
+            the held VAT moves into Input VAT on this date: its VAT period is the
+            claim's (IR Art. 49(8), within five calendar years of the supply).
+
+    PossibleDuplicate:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, enum: [same_file, same_supplier_invoice, same_supplier_date_amount] }
+        billId: { type: ["integer", "null"] }
+        billNumber: { type: ["string", "null"] }
+        status: { type: ["string", "null"] }
+        date: { type: ["string", "null"] }
+        total: { type: ["number", "null"] }
+        vendorReference: { type: ["string", "null"] }
+        captureId: { type: ["string", "null"] }
+        capturedAt: { type: ["string", "null"] }
+
+    HeldForEvidencePage:
+      type: object
+      required: [items, page, totals]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Bill" } }
+        page: { $ref: "#/components/schemas/PageInfo" }
+        totals:
+          type: object
+          required: [heldVat, byStatus, byReason]
+          properties:
+            heldVat: { type: number, description: "Input VAT not claimed while held — a posted document's held amount (net of credit notes), a draft's VAT." }
+            byStatus:
+              type: object
+              required: [postedHeld, awaitingEvidence, notEvaluated]
+              properties:
+                postedHeld: { type: integer, description: "Posted, VAT in Input VAT awaiting evidence." }
+                awaitingEvidence: { type: integer, description: "Drafts whose evidence does not yet support the claim." }
+                notEvaluated: { type: integer }
+            byReason:
+              type: array
+              items:
+                type: object
+                required: [code, count]
+                properties:
+                  code: { type: string }
+                  count: { type: integer }
+
+    ExpensePayment:
+      type: object
+      required: [id, amount, paidAt]
+      properties:
+        id: { type: integer }
+        amount: { type: number }
+        paidAt: { type: string }
+        bankAccountId: { type: ["integer", "null"] }
+        journalEntryId: { type: ["integer", "null"] }
+        backfilled: { type: boolean }
+
+    Expense:
+      allOf:
+        - { $ref: "#/components/schemas/Bill" }
+        - type: object
+          required: [paymentStatus, payments]
+          properties:
+            expenseAccountName: { type: ["string", "null"] }
+            paidFromBankName: { type: ["string", "null"] }
+            paymentStatus:
+              type: string
+              enum: [not_posted, paid, part_paid, unpaid]
+              description: Read from the bill's payments and what it still owes — never assumed from the flag.
+            payments: { type: array, items: { $ref: "#/components/schemas/ExpensePayment" } }
+            evidenceDocument:
+              type: ["object", "null"]
+              additionalProperties: true
+
+    ExpensesPage:
+      type: object
+      required: [items, page, totals]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Expense" } }
+        page: { $ref: "#/components/schemas/PageInfo" }
+        totals:
+          type: object
+          required: [postedAmount, postedVat, unposted]
+          properties:
+            postedAmount: { type: number }
+            postedVat: { type: number }
+            unposted: { type: integer, description: A COUNT of expenses not yet posted. }
+
     CaptureUpload:
       # `format: binary` deliberately omitted: the generated zod package is
       # Node-side (no File/Blob types). Fields: document (the image file,
@@ -8916,6 +9250,10 @@ components:
           type: string
         signatureDetail: { type: ["string", "null"] }
         signatureFailed: { type: boolean }
+        duplicates:
+          type: array
+          description: "Phase 13A: earlier captures of the SAME FILE in this company — a warning, never a refusal."
+          items: { $ref: "#/components/schemas/PossibleDuplicate" }
 
     CapturedDocument:
       type: object
@@ -10645,6 +10983,25 @@ components:
           description: Header totals are used only when there are NO lines; with lines they are recomputed.
         vatAmount: { type: number, minimum: 0 }
         total: { type: number, minimum: 0 }
+        supplierDocumentKind:
+          type: ["string", "null"]
+          enum: [tax_invoice, simplified_tax_invoice, no_tax_invoice, null]
+          description: >
+            Phase 13A: the supplier document you HOLD — a tax invoice (IR Art.
+            53(5)), a simplified tax invoice (53(8)), or no tax invoice. Never
+            defaulted: input VAT is claimed only on a tax invoice, and a claim
+            with nothing stated is held for evidence.
+        captureId:
+          type: ["string", "null"]
+          description: A staged capture (POST /capture) to link as this draft's evidence document.
+        recordedAsExpense:
+          type: ["boolean", "null"]
+          description: >
+            Phase 13C: an EXPENSE — already paid when recorded. Requires the
+            bank it was paid from and the date; its approval posts the bill and
+            pays it through the bill-payment path in the same transaction.
+        expensePaidFromBankAccountId: { type: ["integer", "null"] }
+        expensePaidAt: { type: ["string", "null"] }
 
     CreateBillInput:
       description: |

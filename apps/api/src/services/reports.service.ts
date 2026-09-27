@@ -789,7 +789,7 @@ export const reportsService = {
     // box (advance-payments decision pack §4; the boxes read documents only).
     const review = await depositReviewService.review({ asOf: period_to ? endOfMonth(period_to) : null });
 
-    const [invoiceRows, invoiceLines, billRows, billLines, prepaymentRows, reliefRows, billPrepaymentRows] = await Promise.all([
+    const [invoiceRows, invoiceLines, billRows, billLines, prepaymentRows, reliefRows, billPrepaymentRows, claimedBillRows, claimedBillLines, claimedBillPrepaymentRows] = await Promise.all([
       reportsRepository.invoicesInRange(dateFrom, dateTo),
       reportsRepository.invoiceLinesInRange(dateFrom, dateTo),
       reportsRepository.billsInRange(dateFrom, dateTo),
@@ -797,6 +797,9 @@ export const reportsService = {
       reportsRepository.prepaymentsInRange(dateFrom, dateTo),
       reportsRepository.badDebtReliefsInRange(dateFrom, dateTo),
       reportsRepository.billPrepaymentsInRange(dateFrom, dateTo),
+      reportsRepository.billsClaimedInRange(dateFrom, dateTo),
+      reportsRepository.billLinesClaimedInRange(dateFrom, dateTo),
+      reportsRepository.billPrepaymentsClaimedInRange(dateFrom, dateTo),
     ]);
 
     /**
@@ -867,62 +870,77 @@ export const reportsService = {
       else if (row.taxCategoryCode === "E") exemptSales -= taxable;
     }
 
-    const billLinesByDoc = new Map<number, (typeof billLines)[number][]>();
-    for (const l of billLines) {
-      (billLinesByDoc.get(l.billId) ?? billLinesByDoc.set(l.billId, []).get(l.billId)!).push(l);
-    }
-
-    let standardRatedPurchases = 0, inputVat = 0, zeroRatedPurchases = 0;
-    for (const bill of billRows) {
-      /**
-       * 🔴 B7 (2026-09-22) — THE PURCHASE SIDE CARRIES A SIGN, and until
-       * this batch it did not. A supplier CREDIT NOTE reduces the input tax we
-       * may deduct; filing it positive would claim a deduction twice, in the
-       * one direction the taxpayer benefits from and the auditor looks for.
-       *
-       * 🔴 And it lands in the note's OWN period: IR Art. 40(6) has the
-       * CUSTOMER correct its Input Tax "in the Tax Period in which the Credit
-       * Note or Debit Note is issued". This loop filters on `bills.date`, which
-       * for a note is the SUPPLIER'S issue date — so the correction files in
-       * the right period by construction, never re-dated into the supply's.
-       *
-       * A DEBIT note is +1: an additional charge, not a reversal.
-       */
-      const sign = documentSign(bill.documentType);
-      const lines = billLinesByDoc.get(bill.id) ?? [];
-      if (lines.length === 0) {
-        if (toNum(bill.vatAmount) > 0) { standardRatedPurchases += sign * toNum(bill.subtotal); inputVat += sign * toNum(bill.vatAmount); }
-        else zeroRatedPurchases += sign * toNum(bill.subtotal);
-        continue;
-      }
-      for (const { line } of lines) {
-        const vat = toNum(line.vatAmount);
-        const net = toNum(line.total) - vat;
-        if (vat > 0) { standardRatedPurchases += sign * net; inputVat += sign * vat; }
-        else zeroRatedPurchases += sign * net;
-      }
-    }
-
     /**
-     * 🔴 Z-AP1 (2026-09-24, accountant answer A) — THE SAME INPUT VAT IS NEVER
-     * CLAIMED TWICE. The supplier's ADVANCE tax invoice is a bill row above: its
-     * line claimed the advance's base and VAT in ITS period (IR Art. 49(7) —
-     * we held the invoice; GCC Agreement Art. 23(1) — their tax point was our
-     * payment). The supplier's FINAL invoice shows the full supply (the XML
-     * Standard's worked example: TaxInclusiveAmount on the full base, the
-     * prepayment only in KSA-31/32), so its lines above claimed the full VAT;
-     * the part the advance invoice already claimed is taken back here, per
-     * rate, from the prepayment rows finalised at the bill's approval — the
-     * same rows its GL entry netted. A refund of the advance is the supplier's
-     * credit note against the advance invoice: a bill row above, signed −1, in
-     * the note's period (IR Art. 40(6)).
+     * The purchase side, per line — ONE set of rules, run over two selections
+     * of the same documents (Phase 13A narrow guard): the PURCHASE amounts of
+     * the documents dated in this period (boxes 9/10/12, unchanged), and the
+     * INPUT VAT of the documents whose VAT is CLAIMED in this period (boxes
+     * 13/15 — `billsClaimedInRange`: evidenced VAT in its claim period; held,
+     * blocked and capitalised VAT on no return). Nothing else moved.
      */
-    for (const { row } of billPrepaymentRows) {
-      const taxable = toNum(row.taxableAmount);
-      const tax = toNum(row.taxAmount);
-      if (tax > 0) { standardRatedPurchases -= taxable; inputVat -= tax; }
-      else zeroRatedPurchases -= taxable;
-    }
+    const purchasesOf = (
+      billSet: typeof billRows, lineSet: typeof billLines, prepaymentSet: typeof billPrepaymentRows,
+    ) => {
+      const billLinesByDoc = new Map<number, (typeof lineSet)[number][]>();
+      for (const l of lineSet) {
+        (billLinesByDoc.get(l.billId) ?? billLinesByDoc.set(l.billId, []).get(l.billId)!).push(l);
+      }
+
+      let standardRatedPurchases = 0, inputVat = 0, zeroRatedPurchases = 0;
+      for (const bill of billSet) {
+        /**
+         * 🔴 B7 (2026-09-22) — THE PURCHASE SIDE CARRIES A SIGN, and until
+         * this batch it did not. A supplier CREDIT NOTE reduces the input tax we
+         * may deduct; filing it positive would claim a deduction twice, in the
+         * one direction the taxpayer benefits from and the auditor looks for.
+         *
+         * 🔴 And it lands in the note's OWN period: IR Art. 40(6) has the
+         * CUSTOMER correct its Input Tax "in the Tax Period in which the Credit
+         * Note or Debit Note is issued". This loop filters on `bills.date`, which
+         * for a note is the SUPPLIER'S issue date — so the correction files in
+         * the right period by construction, never re-dated into the supply's.
+         *
+         * A DEBIT note is +1: an additional charge, not a reversal.
+         */
+        const sign = documentSign(bill.documentType);
+        const lines = billLinesByDoc.get(bill.id) ?? [];
+        if (lines.length === 0) {
+          if (toNum(bill.vatAmount) > 0) { standardRatedPurchases += sign * toNum(bill.subtotal); inputVat += sign * toNum(bill.vatAmount); }
+          else zeroRatedPurchases += sign * toNum(bill.subtotal);
+          continue;
+        }
+        for (const { line } of lines) {
+          const vat = toNum(line.vatAmount);
+          const net = toNum(line.total) - vat;
+          if (vat > 0) { standardRatedPurchases += sign * net; inputVat += sign * vat; }
+          else zeroRatedPurchases += sign * net;
+        }
+      }
+
+      /**
+       * 🔴 Z-AP1 (2026-09-24, accountant answer A) — THE SAME INPUT VAT IS NEVER
+       * CLAIMED TWICE. The supplier's ADVANCE tax invoice is a bill row above: its
+       * line claimed the advance's base and VAT in ITS period (IR Art. 49(7) —
+       * we held the invoice; GCC Agreement Art. 23(1) — their tax point was our
+       * payment). The supplier's FINAL invoice shows the full supply (the XML
+       * Standard's worked example: TaxInclusiveAmount on the full base, the
+       * prepayment only in KSA-31/32), so its lines above claimed the full VAT;
+       * the part the advance invoice already claimed is taken back here, per
+       * rate, from the prepayment rows finalised at the bill's approval — the
+       * same rows its GL entry netted. A refund of the advance is the supplier's
+       * credit note against the advance invoice: a bill row above, signed −1, in
+       * the note's period (IR Art. 40(6)).
+       */
+      for (const { row } of prepaymentSet) {
+        const taxable = toNum(row.taxableAmount);
+        const tax = toNum(row.taxAmount);
+        if (tax > 0) { standardRatedPurchases -= taxable; inputVat -= tax; }
+        else zeroRatedPurchases -= taxable;
+      }
+      return { standardRatedPurchases, zeroRatedPurchases, inputVat };
+    };
+    const { standardRatedPurchases, zeroRatedPurchases } = purchasesOf(billRows, billLines, billPrepaymentRows);
+    const { inputVat } = purchasesOf(claimedBillRows, claimedBillLines, claimedBillPrepaymentRows);
 
     /**
      * 🔴 2026-09-22 — BAD-DEBT RELIEF (IR Art. 40(7)): the Output Tax on

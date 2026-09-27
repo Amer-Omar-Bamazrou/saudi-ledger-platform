@@ -272,7 +272,18 @@ export const CaptureDocumentResponse = zod.object({
   "captureId": zod.string(),
   "signatureStatus": zod.string().describe('ZATCA QR signature verdict: verified | failed | unsigned | not_applicable.'),
   "signatureDetail": zod.string().nullish(),
-  "signatureFailed": zod.boolean().optional()
+  "signatureFailed": zod.boolean().optional(),
+  "duplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 13A: earlier captures of the SAME FILE in this company — a warning, never a refusal.')
 })
 
 
@@ -1675,6 +1686,37 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -5617,6 +5659,37 @@ export const CreateSupplierAdvanceInvoiceResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -5688,6 +5761,37 @@ export const CreateSupplierAdvanceCreditNoteResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -5777,6 +5881,37 @@ export const SubmitBillResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -5845,6 +5980,37 @@ export const SendBackBillResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -5916,6 +6082,37 @@ export const ApproveBillResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -6656,6 +6853,37 @@ export const ListBillsResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -6722,7 +6950,12 @@ export const CreateBillBody = zod.object({
   "capitalisesAssetId": zod.number().nullish().describe('FA-B: the DRAFT fixed asset (GET \/assets?status=draft) this bill buys. Set it and the bill capitalises the asset at approval instead of expensing its cost; the asset\'s own cost account, tax group and VAT facts then govern the entry.\n'),
   "subtotal": zod.number().min(createBillBodyOneSubtotalMin).optional().describe('Header totals are used only when there are NO lines; with lines they are recomputed.'),
   "vatAmount": zod.number().min(createBillBodyOneVatAmountMin).optional(),
-  "total": zod.number().min(createBillBodyOneTotalMin).optional()
+  "total": zod.number().min(createBillBodyOneTotalMin).optional(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document you HOLD — a tax invoice (IR Art. 53(5)), a simplified tax invoice (53(8)), or no tax invoice. Never defaulted: input VAT is claimed only on a tax invoice, and a claim with nothing stated is held for evidence.\n'),
+  "captureId": zod.string().nullish().describe('A staged capture (POST \/capture) to link as this draft\'s evidence document.'),
+  "recordedAsExpense": zod.boolean().nullish().describe('Phase 13C: an EXPENSE — already paid when recorded. Requires the bank it was paid from and the date; its approval posts the bill and pays it through the bill-payment path in the same transaction.\n'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish()
 }).and(zod.object({
   "items": zod.array(zod.object({
   "description": zod.string().min(1),
@@ -6774,6 +7007,37 @@ export const CreateBillResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -11296,6 +11560,37 @@ export const GetBillResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -11347,7 +11642,12 @@ export const UpdateBillBody = zod.object({
   "capitalisesAssetId": zod.number().nullish().describe('FA-B: the DRAFT fixed asset (GET \/assets?status=draft) this bill buys. Set it and the bill capitalises the asset at approval instead of expensing its cost; the asset\'s own cost account, tax group and VAT facts then govern the entry.\n'),
   "subtotal": zod.number().min(updateBillBodySubtotalMin).optional().describe('Header totals are used only when there are NO lines; with lines they are recomputed.'),
   "vatAmount": zod.number().min(updateBillBodyVatAmountMin).optional(),
-  "total": zod.number().min(updateBillBodyTotalMin).optional()
+  "total": zod.number().min(updateBillBodyTotalMin).optional(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document you HOLD — a tax invoice (IR Art. 53(5)), a simplified tax invoice (53(8)), or no tax invoice. Never defaulted: input VAT is claimed only on a tax invoice, and a claim with nothing stated is held for evidence.\n'),
+  "captureId": zod.string().nullish().describe('A staged capture (POST \/capture) to link as this draft\'s evidence document.'),
+  "recordedAsExpense": zod.boolean().nullish().describe('Phase 13C: an EXPENSE — already paid when recorded. Requires the bank it was paid from and the date; its approval posts the bill and pays it through the bill-payment path in the same transaction.\n'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish()
 })
 
 export const UpdateBillResponse = zod.object({
@@ -11390,6 +11690,37 @@ export const UpdateBillResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -11470,6 +11801,37 @@ export const PostBillResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -11483,6 +11845,420 @@ export const PostBillResponse = zod.object({
   "vatAmount": zod.number(),
   "total": zod.number()
 }))
+})
+
+
+/**
+ * What the server would decide about the input VAT these figures claim — the same verdict a save writes and an approval enforces — without writing anything. The review page and the bill form show it while the user types, so a document is never saved believing it will post.
+ * @summary The VAT-evidence verdict for figures not yet saved (Phase 13A)
+ */
+export const PreviewBillVatEvidenceBody = zod.object({
+  "documentType": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "subtotal": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "total": zod.number().nullish(),
+  "expenseAccountId": zod.number().nullish(),
+  "capitalisesAssetId": zod.number().nullish(),
+  "captureId": zod.string().nullish()
+})
+
+export const PreviewBillVatEvidenceResponse = zod.object({
+  "status": zod.enum(['not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.union([zod.literal('qr_signature_verified'),zod.literal('qr_unsigned'),zod.literal('document_attached'),zod.literal('attested'),zod.literal(null)]).nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+}))
+}).describe('Every purchase document posts whatever this says (accountant X1\/X5); the status decides where its VAT goes — evidenced \/ not_required: Input VAT; awaiting_evidence: the holding asset \"Input VAT awaiting evidence\", never on a return until the evidence is held; not_deductible: the cost.\n')
+
+
+/**
+ * The same file captured before (SHA-256), the same supplier with the same supplier invoice number, or the same supplier, date and total — in this company only. Two identical receipts can be two real purchases, so nothing is refused: the user sees the earlier documents and decides.
+ * @summary Possible duplicates of a purchase document (Phase 13A) — a WARNING, never a refusal
+ */
+export const ListBillPossibleDuplicatesQueryParams = zod.object({
+  "bill_id": zod.coerce.number().optional().describe('The document itself, excluded from its own matches'),
+  "vendor_id": zod.coerce.number().optional(),
+  "vendor_reference": zod.coerce.string().optional(),
+  "date": zod.coerce.string().optional(),
+  "total": zod.coerce.number().optional(),
+  "capture_id": zod.coerce.string().optional()
+})
+
+export const ListBillPossibleDuplicatesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+}))
+})
+
+
+/**
+ * Unposted documents whose input VAT cannot be claimed yet — awaiting evidence, not deductible (Art. 50), or older than Phase 13 and never evaluated. Filter by a reason code, search by number or supplier; `totals` are over the whole held set, never the page.
+ * @summary Every unposted purchase document held for VAT evidence, and why (Phase 13A)
+ */
+export const listBillsHeldForVatEvidenceQueryLimitDefault = 50;
+export const listBillsHeldForVatEvidenceQueryLimitMax = 200;
+
+export const listBillsHeldForVatEvidenceQueryOffsetDefault = 0;
+export const listBillsHeldForVatEvidenceQueryOffsetMin = 0;
+
+
+
+export const ListBillsHeldForVatEvidenceQueryParams = zod.object({
+  "reason": zod.coerce.string().optional().describe('A blocking flag code, or not_evaluated'),
+  "q": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().min(1).max(listBillsHeldForVatEvidenceQueryLimitMax).default(listBillsHeldForVatEvidenceQueryLimitDefault),
+  "offset": zod.coerce.number().min(listBillsHeldForVatEvidenceQueryOffsetMin).default(listBillsHeldForVatEvidenceQueryOffsetDefault)
+})
+
+export const ListBillsHeldForVatEvidenceResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
+  "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.object({
+  "heldVat": zod.number().describe('Input VAT not claimed while held — a posted document\'s held amount (net of credit notes), a draft\'s VAT.'),
+  "byStatus": zod.object({
+  "postedHeld": zod.number().describe('Posted, VAT in Input VAT awaiting evidence.'),
+  "awaitingEvidence": zod.number().describe('Drafts whose evidence does not yet support the claim.'),
+  "notEvaluated": zod.number()
+}),
+  "byReason": zod.array(zod.object({
+  "code": zod.string(),
+  "count": zod.number()
+}))
+})
+})
+
+
+/**
+ * @summary Attach a captured document to an UNPOSTED bill and re-decide its VAT evidence (Phase 13A)
+ */
+export const AttachBillEvidenceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AttachBillEvidenceBody = zod.object({
+  "captureId": zod.string().nullish().describe('A staged capture (POST \/capture) to link as this bill\'s evidence. Omit to re-check only.'),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('POSTED bill held for evidence only — the supplier document now held (a draft states it by PATCH).'),
+  "vendorReference": zod.string().nullish().describe('POSTED bill held for evidence only — the supplier\'s invoice number.'),
+  "evidenceDate": zod.string().nullish().describe('POSTED bill held for evidence only — YYYY-MM-DD, the day the evidence is held (default today). When the evidence now supports the claim, the held VAT moves into Input VAT on this date: its VAT period is the claim\'s (IR Art. 49(8), within five calendar years of the supply).\n')
+})
+
+export const AttachBillEvidenceResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
+  "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * An EXPENSE is a supplier bill recorded as already paid, from a named bank on a stated date (POST /bills with recordedAsExpense). Its approval posts it and pays it through the bill-payment path in one transaction, so no payable is left outstanding. This view READS those bills with their payments and evidence — there is no second source of truth.
+ * @summary Purchases paid when they were recorded (Phase 13C)
+ */
+export const listExpensesQueryLimitDefault = 50;
+export const listExpensesQueryLimitMax = 200;
+
+export const listExpensesQueryOffsetDefault = 0;
+export const listExpensesQueryOffsetMin = 0;
+
+
+
+export const ListExpensesQueryParams = zod.object({
+  "status": zod.enum(['unposted', 'posted']).optional(),
+  "q": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().min(1).max(listExpensesQueryLimitMax).default(listExpensesQueryLimitDefault),
+  "offset": zod.coerce.number().min(listExpensesQueryOffsetMin).default(listExpensesQueryOffsetDefault)
+})
+
+export const ListExpensesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
+  "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+}).and(zod.object({
+  "expenseAccountName": zod.string().nullish(),
+  "paidFromBankName": zod.string().nullish(),
+  "paymentStatus": zod.enum(['not_posted', 'paid', 'part_paid', 'unpaid']).describe('Read from the bill\'s payments and what it still owes — never assumed from the flag.'),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "amount": zod.number(),
+  "paidAt": zod.string(),
+  "bankAccountId": zod.number().nullish(),
+  "journalEntryId": zod.number().nullish(),
+  "backfilled": zod.boolean().optional()
+})),
+  "evidenceDocument": zod.record(zod.string(), zod.unknown()).nullish()
+}))),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+}),
+  "totals": zod.object({
+  "postedAmount": zod.number(),
+  "postedVat": zod.number(),
+  "unposted": zod.number().describe('A COUNT of expenses not yet posted.')
+})
 })
 
 
@@ -11546,6 +12322,37 @@ export const PayBillResponse = zod.object({
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string()
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
   "createdAt": zod.string(),
   "items": zod.array(zod.object({
   "id": zod.number(),

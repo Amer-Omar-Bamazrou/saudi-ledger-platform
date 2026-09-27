@@ -54,7 +54,7 @@ describeMaybe("FA-G — the fixed-asset report and its reconciliation (real rows
     } catch (err) { await client.query("ROLLBACK"); throw err; } finally { client.release(); }
   };
   const buyAsset = async (assetId: number, number: string, date: string, subtotal: number) => {
-    const bill = await inTenant(() => billsService.create({ billNumber: number, date, vendorId, subtotal, vatAmount: 0, total: subtotal, capitalisesAssetId: assetId, items: [{ description: "Asset purchase", quantity: 1, unitPrice: subtotal }] }, userId));
+    const bill = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-13", billNumber: number, date, vendorId, subtotal, vatAmount: 0, total: subtotal, capitalisesAssetId: assetId, items: [{ description: "Asset purchase", quantity: 1, unitPrice: subtotal }] }, userId));
     return inTenant(() => billsService.approve(bill.id, {}, userId));
   };
   const controlsOf = (r: Awaited<ReturnType<typeof assetReportsService.report>>) =>
@@ -68,7 +68,7 @@ describeMaybe("FA-G — the fixed-asset report and its reconciliation (real rows
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_year_start) VALUES ($1,'FA G Co',1) RETURNING id`, [orgId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','FA G',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Equipment Supplier') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Equipment Supplier','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     catId = (await inTenant(() => assetsService.createCategory({ name: "Plant", defaultUsefulLifeMonths: 60, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" }, userId))).id;
 
     // KEPT: in service 2026-01-31, two months depreciated.

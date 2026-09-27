@@ -1,5 +1,5 @@
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
-import { uniqueIndex, pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { uniqueIndex, pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -106,6 +106,65 @@ export const billsTable = pgTable(
     /** 2026-09-22: on an ORIGINAL opening payable corrected under A4/answer 5 — the entry whose other side is retained earnings (see invoices.openingCorrectionJournalEntryId). */
     openingCorrectionJournalEntryId: integer("opening_correction_journal_entry_id"),
     replacesBillId: integer("replaces_bill_id"),
+    /**
+     * 🔴 PHASE 13A (2026-09-24) — THE SUPPLIER'S DOCUMENT, AND WHETHER IT
+     * EVIDENCES THE INPUT VAT THIS BILL WOULD CLAIM.
+     *
+     * `supplier_document_kind` is what the user states they HOLD:
+     * `tax_invoice` (IR Art. 53(5)), `simplified_tax_invoice` (53(8)) or
+     * `no_tax_invoice` (a receipt or statement that is not a tax invoice).
+     * NULL = not stated — and a claim of VAT with nothing stated is not
+     * evidenced. Never defaulted: a default would be the platform asserting a
+     * document the user never said they hold.
+     *
+     * `vat_evidence_*` is the SERVER's verdict (`services/purchaseEvidence`),
+     * written on every draft write and re-decided at approval:
+     * `not_required` (nothing to claim) · `evidenced` · `awaiting_evidence` ·
+     * `not_deductible` (VAT IR Art. 50) · `not_evaluated` (a row older than
+     * Phase 13). CHECKs and the approval trigger are hand-written in migration
+     * 0105: a draft can only become POSTED when its verdict supports the
+     * claim — the rule holds for every path, including ones not yet written.
+     */
+    supplierDocumentKind: text("supplier_document_kind"),
+    vatEvidenceStatus: text("vat_evidence_status").notNull().default("not_evaluated"),
+    /** `qr_signature_verified` · `qr_unsigned` · `document_attached` · `attested` — what the verdict rests on. */
+    vatEvidenceBasis: text("vat_evidence_basis"),
+    /** [{ code, severity: blocking|warning|info, message }] — WHY, by structured code. */
+    vatEvidenceFlags: jsonb("vat_evidence_flags"),
+    vatEvidenceCheckedAt: timestamp("vat_evidence_checked_at", { withTimezone: true }),
+    /**
+     * 🔴 PHASE 13A (accountant answers X1/X3/X5, 2026-09-27) — WHERE this
+     * posted document's input VAT sits. Written by the approval, in the same
+     * UPDATE that posts it; NULL on a draft.
+     *   `claimed`            in VAT_INPUT — deductible, on the return in the
+     *                        period `input_vat_claimed_on` names;
+     *   `awaiting_evidence`  in VAT_AWAITING_EVIDENCE (`input_vat_pending`),
+     *                        never on the return until the evidence entry moves
+     *                        it (Dr VAT_INPUT / Cr awaiting), dated the day the
+     *                        evidence is held — that date is the claim period;
+     *   `not_deductible`     in the cost (Art. 50 expense, a 0 %-recovery asset)
+     *                        — never input VAT.
+     * A supplier credit note follows the document it corrects. NULL on a
+     * posted row = inserted posted outside the approval (opening items, older
+     * rows): the pre-Phase-13 reading, claimed on its own date. Transitions and
+     * the five-year window are enforced by `bills_vat_evidence_gate` (0106).
+     */
+    inputVatState: text("input_vat_state"),
+    inputVatPending: numeric("input_vat_pending", { precision: 15, scale: 2 }).notNull().default("0"),
+    inputVatClaimedOn: text("input_vat_claimed_on"),
+    /** The evidence entry that moved held VAT into VAT_INPUT; NULL when claimed on the document's own entry. */
+    inputVatClaimEntryId: integer("input_vat_claim_entry_id"),
+    /**
+     * 🔴 PHASE 13C — an EXPENSE: a purchase already paid when it is recorded.
+     * It is a bill (one posting path) that states the bank it was paid from
+     * and the date; its APPROVAL posts it and pays it through the existing
+     * bill-payment path in the same transaction, so no payable is left
+     * outstanding. The bank FK is hand-written in 0105 (no import cycle); the
+     * service checks the bank is this tenant's (FK checks run outside RLS).
+     */
+    recordedAsExpense: boolean("recorded_as_expense").notNull().default(false),
+    expensePaidFromBankAccountId: integer("expense_paid_from_bank_account_id"),
+    expensePaidAt: text("expense_paid_at"),
     createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -114,6 +173,10 @@ export const billsTable = pgTable(
     // N3: a bill number means ONE bill. Declared so drizzle-kit cannot read
     // the index as drift (the N4 lesson); pinned by money-unique-indexes.
     uniqueIndex("bills_company_number_unq").on(t.companyId, t.billNumber),
+    // Phase 13A: the duplicate check reads supplier + the SUPPLIER'S number.
+    index("bills_company_vendor_ref_idx").on(t.companyId, t.vendorId, t.vendorReference),
+    // Phase 13A: the awaiting-evidence list.
+    index("bills_company_evidence_idx").on(t.companyId, t.vatEvidenceStatus),
   ],
 );
 

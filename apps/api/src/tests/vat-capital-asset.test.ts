@@ -58,7 +58,7 @@ describeMaybe("FA-F — the VAT IR Art. 52 capital-asset adjustment (real rows)"
   };
 
   const buyAsset = async (assetId: number, number: string, date: string, subtotal: number, vat: number) => {
-    const bill = await inTenant(() => billsService.create({ billNumber: number, date, vendorId, subtotal, vatAmount: vat, total: subtotal + vat, capitalisesAssetId: assetId, items: [{ description: "Asset purchase", quantity: 1, unitPrice: subtotal }] }, userId));
+    const bill = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-28", billNumber: number, date, vendorId, subtotal, vatAmount: vat, total: subtotal + vat, capitalisesAssetId: assetId, items: [{ description: "Asset purchase", quantity: 1, unitPrice: subtotal }] }, userId));
     return inTenant(() => billsService.approve(bill.id, {}, userId));
   };
   /** An ordinary sales invoice of this product, with one line in a chosen tax category. */
@@ -84,7 +84,7 @@ describeMaybe("FA-F — the VAT IR Art. 52 capital-asset adjustment (real rows)"
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, vat_number) VALUES ($1,'FA F Co','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','FA F',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Plant Supplier') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Plant Supplier','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'A Customer') RETURNING id`, [orgId])).rows[0].id;
     catId = (await inTenant(() => assetsService.createCategory({ name: "Machinery", defaultUsefulLifeMonths: 120, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" }, userId))).id;
   }, 60_000);

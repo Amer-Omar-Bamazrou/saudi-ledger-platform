@@ -12,7 +12,8 @@ import { randomUUID } from "node:crypto";
 import { BadRequestError, NotFoundError } from "../../lib/errors";
 import { logger } from "../../lib/logger";
 import { auditService } from "../audit.service";
-import { sanitizeFilename, validateDocumentBytes } from "../../lib/fileValidation";
+import { sanitizeFilename, validateCaptureBytes } from "../../lib/fileValidation";
+import { duplicatesService, type PossibleDuplicate } from "../purchaseEvidence/duplicates.service";
 import { assertFileIsClean } from "../../lib/malwareScanner";
 import { capturedDocumentsRepository } from "../../repositories/capturedDocuments.repository";
 import { sha256Hex, verifyQrSignature } from "./signatureVerification";
@@ -37,6 +38,23 @@ export interface CaptureResult {
   signatureDetail: string | null;
   /** 🔴 True when the document's signature did NOT verify — surface prominently. */
   signatureFailed: boolean;
+  /** Phase 13A: earlier captures of the SAME FILE in this company — a warning, never a refusal. */
+  duplicates: PossibleDuplicate[];
+}
+
+/**
+ * Phase 13A — per-field provenance values the capture accepts. Where a figure
+ * came from is the question a disputed VAT figure raises, so an arbitrary
+ * label is refused rather than stored as if it answered it.
+ */
+const FIELD_SOURCES = new Set(["qr", "qr_derived", "ocr", "manual"]);
+function checkFieldSources(fs: Record<string, string> | undefined): Record<string, string> | null {
+  if (fs == null) return null;
+  if (typeof fs !== "object" || Array.isArray(fs)) throw new BadRequestError("fieldSources must be an object of field → source.");
+  for (const [k, v] of Object.entries(fs)) {
+    if (!FIELD_SOURCES.has(String(v))) throw new BadRequestError(`fieldSources.${k} must be one of: ${[...FIELD_SOURCES].join(", ")}.`);
+  }
+  return fs;
 }
 
 export const captureService = {
@@ -56,7 +74,9 @@ export const captureService = {
     // Same magic-byte sniff M11.4 uses: the declared mime and the extension are
     // both spoofable, the bytes are not. Reused rather than reimplemented — a
     // second file-validation path would be a second place to get it wrong.
-    const mimeType = validateDocumentBytes(input.bytes);
+    // Phase 13A: PDF, JPEG, PNG and WEBP — the capture allow-list, by magic bytes.
+    const mimeType = validateCaptureBytes(input.bytes);
+    const fieldSources = checkFieldSources(input.fieldSources);
     const validated = { mimeType, fileName: sanitizeFilename(input.fileName, mimeType) };
 
     // C4 — the same scan gate as the verification-document path, for the same
@@ -88,7 +108,7 @@ export const captureService = {
         byteSize: input.bytes.byteLength,
         sha256: sha256Hex(input.bytes),
         source: input.source,
-        fieldSources: input.fieldSources ?? null,
+        fieldSources,
         extraction: (input.extraction as never) ?? null,
         qrPayload: input.qrPayload ?? null,
         signatureStatus: verdict.status,
@@ -122,6 +142,7 @@ export const captureService = {
       signatureStatus: verdict.status,
       signatureDetail: verdict.detail,
       signatureFailed: verdict.status === "failed",
+      duplicates: await duplicatesService.forCapture(row.id, row.sha256),
     };
   },
 
@@ -141,6 +162,7 @@ export const captureService = {
       contentType: row.contentType,
       capturedAt: row.capturedAt,
       billId: row.billId,
+      reviewCorrections: row.reviewCorrections ?? [],
     };
   },
 
@@ -227,6 +249,13 @@ export const captureService = {
       status: "discarded",
       imageDeleted,
     });
+    // Phase 13A: a discarded document is no longer its draft's evidence — the
+    // draft's verdict is re-decided at once, so it is never shown as evidenced
+    // by a photograph the user just deleted.
+    if (row.billId != null) {
+      const { vatEvidenceService } = await import("../purchaseEvidence/vatEvidence.service.js");
+      await vatEvidenceService.refresh(row.billId);
+    }
     return { status: "discarded", imageDeleted };
   },
 };

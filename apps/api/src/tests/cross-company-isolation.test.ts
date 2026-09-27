@@ -252,8 +252,14 @@ describeMaybe("same-org cross-company isolation", () => {
   // OLDER readers (list, allocations, refunds) still rely on the row-level
   // backstop alone; the departure is the detector's (one explicit filter in
   // the file), not a claim that every query in it is company-scoped.
+  // 🔴 "bills" LEFT this list on 2026-09-24 (Phase 13) because the file now
+  // carries explicit company predicates — on its NEW queries (the held-for-
+  // evidence list, the expense view). Its OLDER queries (list, listMeta,
+  // findById, openForSettlement…) still rely on RLS's company arm (0065)
+  // alone. This detector reads the FILE, so it cannot tell the two apart:
+  // the removal is the ratchet's requirement, not an audit of every query.
   const NO_COMPANY_FILTER = [
-    "assets", "bankAccounts", "bills", "budgets", "categorize",
+    "assets", "bankAccounts", "budgets", "categorize",
     "employees", "journalEntries", "payroll",
     "transactions", "vendors",
   ];

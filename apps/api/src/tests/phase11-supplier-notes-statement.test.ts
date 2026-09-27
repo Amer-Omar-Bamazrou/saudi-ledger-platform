@@ -83,14 +83,14 @@ describeMaybe("Phase 11 B5/B6/B7 — supplier notes, ageing and statement (real 
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'P11 Note Co') RETURNING id`, [orgId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','P11',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Note Supplies') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Note Supplies','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     bankId = (await pool.query(
       `INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'Note Bank','Riyad') RETURNING id`,
       [orgId, companyId])).rows[0].id;
 
     // One approved bill: 10,000 net + 1,500 VAT = 11,500, dated in MAY.
     const bill = await inTenant(() => billsService.create({
-      billNumber: "NB-1", date: "2026-05-10", dueDate: "2026-06-10", vendorId,
+      supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-20", billNumber: "NB-1", date: "2026-05-10", dueDate: "2026-06-10", vendorId,
       items: [{ description: "Supply", quantity: 1, unitPrice: 10_000, vatRate: 15 }],
     }, userId));
     const approved = await inTenant(() => billsService.approve(bill.id, {}, userId));
@@ -102,19 +102,19 @@ describeMaybe("Phase 11 B5/B6/B7 — supplier notes, ageing and statement (real 
   it("🔴 a purchase note is refused unless it adjusts an approved bill, and a CREDIT note may not exceed what was charged", async () => {
     // a bill that names a document it adjusts is a note somebody forgot to type
     await expectRefusal(inTenant(() => billsService.create({
-      billNumber: "NB-BAD", date: "2026-06-01", vendorId, creditNoteAgainstBillId: billId,
+      supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-21", billNumber: "NB-BAD", date: "2026-06-01", vendorId, creditNoteAgainstBillId: billId,
       items: [{ description: "x", quantity: 1, unitPrice: 10, vatRate: 0 }],
     }, userId)), 422, "against_bill_on_a_bill");
 
     // a note with nothing to adjust
     await expectRefusal(inTenant(() => billsService.create({
-      billNumber: "NB-BAD2", date: "2026-06-01", vendorId, documentType: "credit_note",
+      supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-22", billNumber: "NB-BAD2", date: "2026-06-01", vendorId, documentType: "credit_note",
       items: [{ description: "x", quantity: 1, unitPrice: 10, vatRate: 0 }],
     }, userId)), 422, "against_bill_required");
 
     // 🔴 the ceiling is what was CHARGED (11,500), not what is outstanding
     await expectRefusal(inTenant(() => billsService.create({
-      billNumber: "NB-BAD3", date: "2026-06-01", vendorId, documentType: "credit_note",
+      supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-23", billNumber: "NB-BAD3", date: "2026-06-01", vendorId, documentType: "credit_note",
       creditNoteAgainstBillId: billId,
       items: [{ description: "x", quantity: 1, unitPrice: 20_000, vatRate: 0 }],
     }, userId)), 409, "credit_exceeds_bill");
@@ -127,7 +127,7 @@ describeMaybe("Phase 11 B5/B6/B7 — supplier notes, ageing and statement (real 
     // 2,000 net + 300 VAT, ISSUED BY THE SUPPLIER IN JUNE — a different period
     // from the bill's May, which is the whole point of Art. 40(6).
     const draft = await inTenant(() => billsService.create({
-      billNumber: "NB-CN-1", date: "2026-06-05", vendorId, documentType: "credit_note",
+      supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-24", billNumber: "NB-CN-1", date: "2026-06-05", vendorId, documentType: "credit_note",
       creditNoteAgainstBillId: billId,
       items: [{ description: "Returned goods", quantity: 1, unitPrice: 2_000, vatRate: 15 }],
     }, userId));

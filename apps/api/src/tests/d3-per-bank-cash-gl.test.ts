@@ -104,7 +104,7 @@ describeMaybe("D-3 — per-bank cash GL", () => {
       await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, o]);
     }
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'D3 Customer') RETURNING id`, [orgId])).rows[0].id;
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, name_ar) VALUES ($1,'D3 Vendor','مورد') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, name_ar, tax_number) VALUES ($1,'D3 Vendor','مورد','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     rentId = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'RENT_UTILITIES'`, [orgId])).rows[0].id;
     // Two banks in company 1, one in company 2, one in the other org — the
     // company-1 banks through the SERVICE (the product path), the rest raw.
@@ -132,7 +132,7 @@ describeMaybe("D-3 — per-bank cash GL", () => {
     return inv.id;
   };
   const postBill = async (n: string, price: number) => {
-    const bill = await inTenant(() => billsService.create({ billNumber: n, date: DATE, vendorId, items: [{ description: "S", quantity: 1, unitPrice: price, vatRate: 15 }] } as never, userId));
+    const bill = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-9", billNumber: n, date: DATE, vendorId, items: [{ description: "S", quantity: 1, unitPrice: price, vatRate: 15 }] } as never, userId));
     await inTenant(() => billsService.approve(bill.id, {}, userId));
     return bill.id;
   };

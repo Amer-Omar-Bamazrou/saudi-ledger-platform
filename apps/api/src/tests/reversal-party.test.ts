@@ -68,7 +68,7 @@ describeMaybe("Phase B — a journal reversal preserves the party on control-acc
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','Rev',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'Rev Customer') RETURNING id`, [orgId])).rows[0].id;
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, name_ar) VALUES ($1,'Rev Vendor','مورد') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, name_ar, tax_number) VALUES ($1,'Rev Vendor','مورد','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     expenseId = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'RENT_UTILITIES'`, [orgId])).rows[0].id;
     bank = (await inTenant(() => bankAccountsService.create({ name: "Rev Main", bankName: "Riyad Bank", currency: "SAR" }))).id;
   });
@@ -120,7 +120,7 @@ describeMaybe("Phase B — a journal reversal preserves the party on control-acc
   });
 
   it("🔴 reversing a bill payment keeps the VENDOR on the mirrored AP line; AP nets BY VENDOR", async () => {
-    const bill = await inTenant(() => createApproved<{ id: number; billNumber: string }>(billsService, { billNumber: "REV-BILL-1", date: DATE, dueDate: DATE, vendorId, items: [{ description: "Rent", quantity: 1, unitPrice: 2000, vatRate: 15, expenseAccountId: expenseId }] }, userId));
+    const bill = await inTenant(() => createApproved<{ id: number; billNumber: string }>(billsService, { supplierDocumentKind: "tax_invoice", vendorReference: "REV-SUP-1", billNumber: "REV-BILL-1", date: DATE, dueDate: DATE, vendorId, items: [{ description: "Rent", quantity: 1, unitPrice: 2000, vatRate: 15, expenseAccountId: expenseId }] }, userId));
     await inTenant(() => billsService.pay(bill.id, { amount: 2300, paidAt: DATE, bankAccountId: bank }, userId));
     const { rows: [pay] } = await pool.query(`SELECT id, entry_number FROM journal_entries WHERE organization_id = $1 AND entry_number LIKE 'BILL-REV-BILL-1-PAY-%'`, [orgId]);
     expect(await glByParty("AP")).toEqual([{ party_type: "vendor", customer_id: null, vendor_id: vendorId, v: "0.00" }]);

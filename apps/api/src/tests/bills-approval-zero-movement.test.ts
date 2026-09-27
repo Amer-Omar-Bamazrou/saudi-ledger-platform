@@ -111,7 +111,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
   it("creates a bill as a draft (no caller status honored)", async () => {
     const bill = await inTenant(() =>
       billsService.create(
-        { billNumber: "BILL-Z1", date: DATE, vendorId, status: "received", subtotal: SUBTOTAL, vatAmount: VAT, total: TOTAL, items: [] },
+        { supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-1", billNumber: "BILL-Z1", date: DATE, vendorId, status: "received", subtotal: SUBTOTAL, vatAmount: VAT, total: TOTAL, items: [] },
         userId,
       ),
     );
@@ -188,7 +188,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
 
   it("reject hard-deletes a non-approved draft (no archive)", async () => {
     const draft = await inTenant(() =>
-      billsService.create({ billNumber: "BILL-Z2", date: DATE, vendorId, subtotal: 10, vatAmount: 0, total: 10, items: [] }, userId),
+      billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-2", billNumber: "BILL-Z2", date: DATE, vendorId, subtotal: 10, vatAmount: 0, total: 10, items: [] }, userId),
     );
     await inTenant(() => billsService.reject(draft.id, userId));
     const rows = await pool.query(`SELECT id FROM bills WHERE id = $1`, [draft.id]);

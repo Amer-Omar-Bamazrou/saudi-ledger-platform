@@ -2429,6 +2429,15 @@ supplier VAT number) still claims its VAT, and because the flags are thrown
 away nobody can later find which posted bills were "posted anyway". Triage
 (§3): it POSTS, it is FILED in a return, and the RESULT is hidden.
 
+**CLOSED 2026-09-24 (Phase 13A).** The evidence verdict is decided and
+PERSISTED on the server (`services/purchaseEvidence/vatEvidence.ts`) on every
+draft write, re-decided at approval, and enforced by the database trigger
+`bills_vat_evidence_gate` (migration 0105). A document whose evidence does not
+support its claim is refused and stays a draft, listed on Purchases → VAT
+evidence with its reasons; a missing supplier VAT number now holds it. The scan
+review SAVES A DRAFT and never posts; "Post anyway" is gone. Record:
+[`phase-13-expenses-decision-pack.md`](../product/phase-13-expenses-decision-pack.md).
+
 ### P13-D2 — Box 13 of the VAT return counts VAT that posted no Input VAT line
 
 **What happens.** `apps/api/src/services/reports.service.ts` (`vatReturn`,
@@ -2452,6 +2461,22 @@ reconciliation would show it). An over-claim of input tax is the direction a
 tax audit looks for. Related open item: the fixed-assets VAT-return wiring
 needs the accountant (fixed-assets pack §25.6; CLAUDE.md §5 board).
 
+**CLOSED 2026-09-27 (Phase 13A, the narrow return guard — decision pack
+§9.4).** Input VAT now comes from the documents whose VAT is CLAIMED
+(`bills.input_vat_state`), in the claim period: a 0 %-recovery asset's
+capitalised VAT (`not_deductible`, back-filled by migration 0106 for bills
+already posted) and Art. 50 VAT (now posted into the expense's cost, X5) are
+never counted; `fixed-assets-capitalisation.test.ts` row 3 asserts the
+absence beside a present claim. The return's layout is unchanged (P13-N1).
+
+**NARROWED 2026-09-24 (Phase 13A).** The blocked-category half is closed at
+the source: a bill on an Art. 50 blocked account is now `not_deductible` and
+REFUSED at approval (neither posted with nor without its VAT — X3 is the
+accountant's), so it never reaches the GL or the return. 🔴 **Still OPEN:** the
+capitalised-fixed-asset half — the return still counts a 0 %-recovery asset's
+VAT as recoverable. The return is untouched in Phase 13 (13D waits on the
+official layout, P13-N1, and on the accountant).
+
 ### P13-D3 — No duplicate detection on captured receipts or supplier invoices
 
 **What happens.** `captured_documents.sha256`
@@ -2469,6 +2494,14 @@ findings engine's `duplicateBills()`
 the same paper — can be scanned twice, becoming two posted bills and two
 input-VAT claims in the return, with nothing refusing or warning at the
 moment it happens.
+
+**CLOSED 2026-09-24 (Phase 13A) — as a WARNING, by owner decision.** The same
+file (SHA-256), the same supplier (or a supplier record with the same VAT
+number) with the same supplier invoice number, and the same supplier/date/
+total are shown at capture, on the review page, in the bill form and the
+expense form (`GET /bills/duplicates`). Nothing is refused: two identical
+receipts can be two real purchases. Scoped to the company by an explicit
+predicate and to the organisation by RLS; indexes added (0105).
 
 **What would close them** is Phase 13's scope, pending the research and the
 owner's approval: server-side evidence checks with stored flags, the
@@ -2617,3 +2650,42 @@ list), mark the English file as superseded for the articles above, and
 re-check each pack that quotes Art. 40, 50, 53, 54 or 63 against the Arabic.
 
 State: OPEN (recorded; nothing changed).
+
+## THE DEMO SEED'S CUSTOMERS HAVE NO VAT NUMBER — OPEN, 2026-09-24 (found by Phase 13A)
+
+**What happens.** `apps/api/src/services/demo/demoSeed.service.ts` creates its
+customers with `vatNumber: "…"`, but the customer field is `taxNumber`; the
+service's allow-list drops the unknown key and an `as never` cast hid the
+mismatch from the typechecker. So the demo's customers have never had a VAT
+number. The same defect on the demo's VENDORS was found when the Phase 13
+evidence gate held the demo's bills (a tax invoice names its supplier's VAT
+number), and was fixed there.
+
+**Why not fixed here.** A buyer VAT number changes how the demo issues its
+invoices (standard vs simplified, the buyer fields ZATCA then requires) —
+outside Phase 13, and a behaviour change to the demo nobody asked for.
+
+**What would close it.** `taxNumber` in the two customer creates, a run of the
+demo seed and its test, and a look at the invoices it then issues. And the
+class: an `as never` cast on a service call is a place a wrong key cannot be
+seen — grep them.
+
+State: OPEN.
+
+## A PROMOTED CAPTURE IS ARCHIVED UNDER AN `.xml` NAME, WHATEVER IT IS — OPEN, 2026-09-24 (found during the Phase 13 browser walk; pre-existing, A1)
+
+**What happens.** `services/capture/promotion.service.ts` names an inbound
+capture with `archiveFileName()` — the OUTBOUND e-invoice convention — so a
+promoted PDF or photograph lands in the archive as `BILL_<timestamp>_<bill>-<capture>.xml`.
+The bytes are the original's and `captured_documents.content_type` is correct,
+so the product serves it correctly (`GET /capture/:id/image` reads the type from
+the row). **Consequence:** anyone reading the archive DIRECTLY — the "direct
+audit link" `ArchiveStore.directLink` exists for — sees a file whose name
+states a type it is not. Phase 13 made PDFs and WEBPs capturable, so more
+archived files now carry a wrong extension.
+
+**What would close it.** An inbound name that keeps the real extension (the
+capture allow-list already maps type → extension), and a note on how existing
+archived names are left (the archive has no rename — no delete, by design).
+
+State: OPEN (recorded; not changed in Phase 13).

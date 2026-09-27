@@ -736,6 +736,20 @@
       "when": 1790249511885,
       "tag": "0104_zap1_supplier_advance_invoice",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1790269105608,
+      "tag": "0105_phase13_evidence_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1790507131383,
+      "tag": "0106_phase13_input_vat_state",
+      "breakpoints": true
     }
   ]
 }

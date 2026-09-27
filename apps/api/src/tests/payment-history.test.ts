@@ -95,7 +95,7 @@ describeMaybe("B4 — every payment keeps its date", () => {
       await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'B4 Client') RETURNING id`, [orgId])
     ).rows[0].id;
     vendorId = (
-      await pool.query(`INSERT INTO vendors (organization_id, name, name_ar) VALUES ($1,'B4 Vendor','مورد') RETURNING id`, [orgId])
+      await pool.query(`INSERT INTO vendors (organization_id, name, name_ar, tax_number) VALUES ($1,'B4 Vendor','مورد','300000000000003') RETURNING id`, [orgId])
     ).rows[0].id;
   });
 
@@ -130,7 +130,7 @@ describeMaybe("B4 — every payment keeps its date", () => {
   it("the bills twin records the same way", async () => {
     const bill = await inTenant(() =>
       billsService.create(
-        { billNumber: "B4-BILL-1", date: "2026-07-05", vendorId, subtotal: 200, vatAmount: 30, total: 230, items: [] },
+        { supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-17", billNumber: "B4-BILL-1", date: "2026-07-05", vendorId, subtotal: 200, vatAmount: 30, total: 230, items: [] },
         userId,
       ),
     );

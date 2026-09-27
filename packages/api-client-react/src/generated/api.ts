@@ -44,6 +44,7 @@ import type {
   AssetDisposalResult,
   AssetVatUseInput,
   AssetVatUseRecord,
+  AttachEvidenceInput,
   AuditLogPage,
   BalanceSheetReport,
   BankReconciliationPosition,
@@ -124,6 +125,7 @@ import type {
   Employee,
   EmployeeInputFields,
   ErrorResponse,
+  ExpensesPage,
   FinancialSummary,
   Finding,
   FindingsPage,
@@ -165,6 +167,7 @@ import type {
   GetVatSummaryParams,
   GroundedAnswersPage,
   HealthStatus,
+  HeldForEvidencePage,
   ImportMigrationAdvancesInput,
   ImportMigrationAssetsInput,
   ImportMigrationChartInput,
@@ -192,13 +195,17 @@ import type {
   ListBankStatementsParams,
   ListBankTransfers200,
   ListBankTransfersParams,
+  ListBillPossibleDuplicates200,
+  ListBillPossibleDuplicatesParams,
   ListBills200,
+  ListBillsHeldForVatEvidenceParams,
   ListBillsParams,
   ListBudgetsParams,
   ListCustomers200,
   ListCustomersParams,
   ListEmployees200,
   ListEmployeesParams,
+  ListExpensesParams,
   ListFindingsParams,
   ListIncomeTaxPoolDeclarations200,
   ListInvoices200,
@@ -314,6 +321,8 @@ import type {
   UpdateQuotationInput,
   UploadResult,
   VatAdjustmentReport,
+  VatEvidencePreviewInput,
+  VatEvidenceVerdict,
   VatReturn,
   VatSummary,
   Vendor,
@@ -19175,6 +19184,405 @@ export const usePostBill = <TError = ErrorType<void>,
       > => {
       return useMutation(getPostBillMutationOptions(options));
     }
+
+export const getPreviewBillVatEvidenceUrl = () => {
+
+
+
+
+  return `/api/bills/evidence-preview`
+}
+
+/**
+ * What the server would decide about the input VAT these figures claim — the same verdict a save writes and an approval enforces — without writing anything. The review page and the bill form show it while the user types, so a document is never saved believing it will post.
+ * @summary The VAT-evidence verdict for figures not yet saved (Phase 13A)
+ */
+export const previewBillVatEvidence = async (vatEvidencePreviewInput: VatEvidencePreviewInput, options?: RequestInit): Promise<VatEvidenceVerdict> => {
+
+  return customFetch<VatEvidenceVerdict>(getPreviewBillVatEvidenceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(vatEvidencePreviewInput)
+  }
+);}
+
+
+
+
+
+export const getPreviewBillVatEvidenceMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewBillVatEvidence>>, TError,{data: BodyType<VatEvidencePreviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewBillVatEvidence>>, TError,{data: BodyType<VatEvidencePreviewInput>}, TContext> => {
+
+const mutationKey = ['previewBillVatEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewBillVatEvidence>>, {data: BodyType<VatEvidencePreviewInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewBillVatEvidence(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewBillVatEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof previewBillVatEvidence>>>
+    export type PreviewBillVatEvidenceMutationBody = BodyType<VatEvidencePreviewInput>
+    export type PreviewBillVatEvidenceMutationError = ErrorType<unknown>
+
+    /**
+ * @summary The VAT-evidence verdict for figures not yet saved (Phase 13A)
+ */
+export const usePreviewBillVatEvidence = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewBillVatEvidence>>, TError,{data: BodyType<VatEvidencePreviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof previewBillVatEvidence>>,
+        TError,
+        {data: BodyType<VatEvidencePreviewInput>},
+        TContext
+      > => {
+      return useMutation(getPreviewBillVatEvidenceMutationOptions(options));
+    }
+
+export const getListBillPossibleDuplicatesUrl = (params?: ListBillPossibleDuplicatesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/bills/duplicates?${stringifiedParams}` : `/api/bills/duplicates`
+}
+
+/**
+ * The same file captured before (SHA-256), the same supplier with the same supplier invoice number, or the same supplier, date and total — in this company only. Two identical receipts can be two real purchases, so nothing is refused: the user sees the earlier documents and decides.
+ * @summary Possible duplicates of a purchase document (Phase 13A) — a WARNING, never a refusal
+ */
+export const listBillPossibleDuplicates = async (params?: ListBillPossibleDuplicatesParams, options?: RequestInit): Promise<ListBillPossibleDuplicates200> => {
+
+  return customFetch<ListBillPossibleDuplicates200>(getListBillPossibleDuplicatesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBillPossibleDuplicatesQueryKey = (params?: ListBillPossibleDuplicatesParams,) => {
+    return [
+    `/api/bills/duplicates`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListBillPossibleDuplicatesQueryOptions = <TData = Awaited<ReturnType<typeof listBillPossibleDuplicates>>, TError = ErrorType<unknown>>(params?: ListBillPossibleDuplicatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBillPossibleDuplicates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBillPossibleDuplicatesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBillPossibleDuplicates>>> = ({ signal }) => listBillPossibleDuplicates(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBillPossibleDuplicates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBillPossibleDuplicatesQueryResult = NonNullable<Awaited<ReturnType<typeof listBillPossibleDuplicates>>>
+export type ListBillPossibleDuplicatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Possible duplicates of a purchase document (Phase 13A) — a WARNING, never a refusal
+ */
+
+export function useListBillPossibleDuplicates<TData = Awaited<ReturnType<typeof listBillPossibleDuplicates>>, TError = ErrorType<unknown>>(
+ params?: ListBillPossibleDuplicatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBillPossibleDuplicates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBillPossibleDuplicatesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListBillsHeldForVatEvidenceUrl = (params?: ListBillsHeldForVatEvidenceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/bills/vat-evidence?${stringifiedParams}` : `/api/bills/vat-evidence`
+}
+
+/**
+ * Unposted documents whose input VAT cannot be claimed yet — awaiting evidence, not deductible (Art. 50), or older than Phase 13 and never evaluated. Filter by a reason code, search by number or supplier; `totals` are over the whole held set, never the page.
+ * @summary Every unposted purchase document held for VAT evidence, and why (Phase 13A)
+ */
+export const listBillsHeldForVatEvidence = async (params?: ListBillsHeldForVatEvidenceParams, options?: RequestInit): Promise<HeldForEvidencePage> => {
+
+  return customFetch<HeldForEvidencePage>(getListBillsHeldForVatEvidenceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBillsHeldForVatEvidenceQueryKey = (params?: ListBillsHeldForVatEvidenceParams,) => {
+    return [
+    `/api/bills/vat-evidence`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListBillsHeldForVatEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof listBillsHeldForVatEvidence>>, TError = ErrorType<unknown>>(params?: ListBillsHeldForVatEvidenceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBillsHeldForVatEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBillsHeldForVatEvidenceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBillsHeldForVatEvidence>>> = ({ signal }) => listBillsHeldForVatEvidence(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBillsHeldForVatEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBillsHeldForVatEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof listBillsHeldForVatEvidence>>>
+export type ListBillsHeldForVatEvidenceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Every unposted purchase document held for VAT evidence, and why (Phase 13A)
+ */
+
+export function useListBillsHeldForVatEvidence<TData = Awaited<ReturnType<typeof listBillsHeldForVatEvidence>>, TError = ErrorType<unknown>>(
+ params?: ListBillsHeldForVatEvidenceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBillsHeldForVatEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBillsHeldForVatEvidenceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAttachBillEvidenceUrl = (id: number,) => {
+
+
+
+
+  return `/api/bills/${id}/evidence`
+}
+
+/**
+ * @summary Attach a captured document to an UNPOSTED bill and re-decide its VAT evidence (Phase 13A)
+ */
+export const attachBillEvidence = async (id: number,
+    attachEvidenceInput?: AttachEvidenceInput, options?: RequestInit): Promise<Bill> => {
+
+  return customFetch<Bill>(getAttachBillEvidenceUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(attachEvidenceInput)
+  }
+);}
+
+
+
+
+
+export const getAttachBillEvidenceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachBillEvidence>>, TError,{id: number;data?: BodyType<AttachEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof attachBillEvidence>>, TError,{id: number;data?: BodyType<AttachEvidenceInput>}, TContext> => {
+
+const mutationKey = ['attachBillEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof attachBillEvidence>>, {id: number;data?: BodyType<AttachEvidenceInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  attachBillEvidence(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AttachBillEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof attachBillEvidence>>>
+    export type AttachBillEvidenceMutationBody = BodyType<AttachEvidenceInput> | undefined
+    export type AttachBillEvidenceMutationError = ErrorType<void>
+
+    /**
+ * @summary Attach a captured document to an UNPOSTED bill and re-decide its VAT evidence (Phase 13A)
+ */
+export const useAttachBillEvidence = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachBillEvidence>>, TError,{id: number;data?: BodyType<AttachEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof attachBillEvidence>>,
+        TError,
+        {id: number;data?: BodyType<AttachEvidenceInput>},
+        TContext
+      > => {
+      return useMutation(getAttachBillEvidenceMutationOptions(options));
+    }
+
+export const getListExpensesUrl = (params?: ListExpensesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/expenses?${stringifiedParams}` : `/api/expenses`
+}
+
+/**
+ * An EXPENSE is a supplier bill recorded as already paid, from a named bank on a stated date (POST /bills with recordedAsExpense). Its approval posts it and pays it through the bill-payment path in one transaction, so no payable is left outstanding. This view READS those bills with their payments and evidence — there is no second source of truth.
+ * @summary Purchases paid when they were recorded (Phase 13C)
+ */
+export const listExpenses = async (params?: ListExpensesParams, options?: RequestInit): Promise<ExpensesPage> => {
+
+  return customFetch<ExpensesPage>(getListExpensesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExpensesQueryKey = (params?: ListExpensesParams,) => {
+    return [
+    `/api/expenses`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListExpensesQueryOptions = <TData = Awaited<ReturnType<typeof listExpenses>>, TError = ErrorType<unknown>>(params?: ListExpensesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExpenses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExpensesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExpenses>>> = ({ signal }) => listExpenses(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExpenses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListExpensesQueryResult = NonNullable<Awaited<ReturnType<typeof listExpenses>>>
+export type ListExpensesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Purchases paid when they were recorded (Phase 13C)
+ */
+
+export function useListExpenses<TData = Awaited<ReturnType<typeof listExpenses>>, TError = ErrorType<unknown>>(
+ params?: ListExpensesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExpenses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListExpensesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getPayBillUrl = (id: number,) => {
 

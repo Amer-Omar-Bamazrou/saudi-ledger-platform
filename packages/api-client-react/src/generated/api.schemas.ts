@@ -2284,6 +2284,121 @@ export const BillStatus = {
   overdue: 'overdue',
 } as const;
 
+/**
+ * Phase 13A: the supplier document the user states they hold. Null = not stated.
+ * @nullable
+ */
+export type BillSupplierDocumentKind = typeof BillSupplierDocumentKind[keyof typeof BillSupplierDocumentKind] | null;
+
+
+export const BillSupplierDocumentKind = {
+  tax_invoice: 'tax_invoice',
+  simplified_tax_invoice: 'simplified_tax_invoice',
+  no_tax_invoice: 'no_tax_invoice',
+} as const;
+
+export type BillVatEvidenceStatus = typeof BillVatEvidenceStatus[keyof typeof BillVatEvidenceStatus];
+
+
+export const BillVatEvidenceStatus = {
+  not_evaluated: 'not_evaluated',
+  not_required: 'not_required',
+  evidenced: 'evidenced',
+  awaiting_evidence: 'awaiting_evidence',
+  not_deductible: 'not_deductible',
+} as const;
+
+export type EvidenceFlagSeverity = typeof EvidenceFlagSeverity[keyof typeof EvidenceFlagSeverity];
+
+
+export const EvidenceFlagSeverity = {
+  blocking: 'blocking',
+  warning: 'warning',
+  info: 'info',
+} as const;
+
+export interface EvidenceFlag {
+  /** A structured reason — the UI keys its wording on this, never on the message. */
+  code: string;
+  severity: EvidenceFlagSeverity;
+  message: string;
+}
+
+/**
+ * Phase 13A — the server's verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.
+ */
+export interface BillVatEvidence {
+  status: BillVatEvidenceStatus;
+  /** @nullable */
+  basis?: string | null;
+  flags: EvidenceFlag[];
+  /** @nullable */
+  checkedAt?: string | null;
+}
+
+/**
+ * @nullable
+ */
+export type BillInputVatState = typeof BillInputVatState[keyof typeof BillInputVatState] | null;
+
+
+export const BillInputVatState = {
+  claimed: 'claimed',
+  awaiting_evidence: 'awaiting_evidence',
+  not_deductible: 'not_deductible',
+} as const;
+
+/**
+ * Phase 13A (accountant X1/X3/X5) — where a POSTED document's input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in "Input VAT awaiting evidence" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).
+ */
+export interface BillInputVat {
+  /** @nullable */
+  state: BillInputVatState;
+  /** Input VAT still held for evidence (net of credit notes against it). */
+  pending: number;
+  /**
+     * YYYY-MM-DD — the date whose VAT period claims it.
+     * @nullable
+     */
+  claimedOn: string | null;
+  /**
+     * The evidence entry (Dr Input VAT / Cr awaiting); null when claimed on the document's own entry.
+     * @nullable
+     */
+  claimEntryId: number | null;
+}
+
+export type BillEvidenceDocumentSource = typeof BillEvidenceDocumentSource[keyof typeof BillEvidenceDocumentSource];
+
+
+export const BillEvidenceDocumentSource = {
+  qr: 'qr',
+  ocr: 'ocr',
+  manual: 'manual',
+} as const;
+
+/**
+ * @nullable
+ */
+export type BillEvidenceDocumentFieldSources = { [key: string]: unknown } | null;
+
+export type BillEvidenceDocumentReviewCorrectionsItem = { [key: string]: unknown };
+
+export interface BillEvidenceDocument {
+  captureId: string;
+  /** staged (the draft's evidence, still deletable) | promotion_pending | promoted */
+  status: string;
+  contentType: string;
+  source: BillEvidenceDocumentSource;
+  /** @nullable */
+  signatureStatus?: string | null;
+  /** @nullable */
+  fieldSources?: BillEvidenceDocumentFieldSources;
+  /** What the reviewer changed against the extraction — beside it, never over it. */
+  reviewCorrections?: BillEvidenceDocumentReviewCorrectionsItem[];
+  capturedAt?: string;
+}
+
 export interface Bill {
   id: number;
   billNumber: string;
@@ -2357,6 +2472,26 @@ export interface Bill {
   capitalisesAssetId?: number | null;
   /** @nullable */
   notes?: string | null;
+  /**
+     * Phase 13A: the supplier document the user states they hold. Null = not stated.
+     * @nullable
+     */
+  supplierDocumentKind?: BillSupplierDocumentKind;
+  /**
+     * The supplier's VAT number, as recorded on the supplier.
+     * @nullable
+     */
+  vendorTaxNumber?: string | null;
+  vatEvidence?: BillVatEvidence;
+  inputVat?: BillInputVat;
+  /** Phase 13C: paid when recorded — approval posts AND pays it. */
+  recordedAsExpense?: boolean;
+  /** @nullable */
+  expensePaidFromBankAccountId?: number | null;
+  /** @nullable */
+  expensePaidAt?: string | null;
+  /** On a single-bill read — the document linked as this bill's evidence. */
+  evidenceDocument?: BillEvidenceDocument | null;
   createdAt: string;
   items: BillItem[];
 }
@@ -3284,6 +3419,228 @@ export interface RecurringRun {
   ranAt?: string | null;
 }
 
+export type VatEvidenceVerdictStatus = typeof VatEvidenceVerdictStatus[keyof typeof VatEvidenceVerdictStatus];
+
+
+export const VatEvidenceVerdictStatus = {
+  not_required: 'not_required',
+  evidenced: 'evidenced',
+  awaiting_evidence: 'awaiting_evidence',
+  not_deductible: 'not_deductible',
+} as const;
+
+/**
+ * @nullable
+ */
+export type VatEvidenceVerdictBasis = typeof VatEvidenceVerdictBasis[keyof typeof VatEvidenceVerdictBasis] | null;
+
+
+export const VatEvidenceVerdictBasis = {
+  qr_signature_verified: 'qr_signature_verified',
+  qr_unsigned: 'qr_unsigned',
+  document_attached: 'document_attached',
+  attested: 'attested',
+} as const;
+
+/**
+ * Every purchase document posts whatever this says (accountant X1/X5); the status decides where its VAT goes — evidenced / not_required: Input VAT; awaiting_evidence: the holding asset "Input VAT awaiting evidence", never on a return until the evidence is held; not_deductible: the cost.
+ */
+export interface VatEvidenceVerdict {
+  status: VatEvidenceVerdictStatus;
+  /** @nullable */
+  basis?: VatEvidenceVerdictBasis;
+  flags: EvidenceFlag[];
+}
+
+/**
+ * @nullable
+ */
+export type VatEvidencePreviewInputSupplierDocumentKind = typeof VatEvidencePreviewInputSupplierDocumentKind[keyof typeof VatEvidencePreviewInputSupplierDocumentKind] | null;
+
+
+export const VatEvidencePreviewInputSupplierDocumentKind = {
+  tax_invoice: 'tax_invoice',
+  simplified_tax_invoice: 'simplified_tax_invoice',
+  no_tax_invoice: 'no_tax_invoice',
+} as const;
+
+export interface VatEvidencePreviewInput {
+  /** @nullable */
+  documentType?: string | null;
+  /** @nullable */
+  supplierDocumentKind?: VatEvidencePreviewInputSupplierDocumentKind;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorReference?: string | null;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  subtotal?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  /** @nullable */
+  total?: number | null;
+  /** @nullable */
+  expenseAccountId?: number | null;
+  /** @nullable */
+  capitalisesAssetId?: number | null;
+  /** @nullable */
+  captureId?: string | null;
+}
+
+/**
+ * POSTED bill held for evidence only — the supplier document now held (a draft states it by PATCH).
+ * @nullable
+ */
+export type AttachEvidenceInputSupplierDocumentKind = typeof AttachEvidenceInputSupplierDocumentKind[keyof typeof AttachEvidenceInputSupplierDocumentKind] | null;
+
+
+export const AttachEvidenceInputSupplierDocumentKind = {
+  tax_invoice: 'tax_invoice',
+  simplified_tax_invoice: 'simplified_tax_invoice',
+  no_tax_invoice: 'no_tax_invoice',
+} as const;
+
+export interface AttachEvidenceInput {
+  /**
+     * A staged capture (POST /capture) to link as this bill's evidence. Omit to re-check only.
+     * @nullable
+     */
+  captureId?: string | null;
+  /**
+     * POSTED bill held for evidence only — the supplier document now held (a draft states it by PATCH).
+     * @nullable
+     */
+  supplierDocumentKind?: AttachEvidenceInputSupplierDocumentKind;
+  /**
+     * POSTED bill held for evidence only — the supplier's invoice number.
+     * @nullable
+     */
+  vendorReference?: string | null;
+  /**
+     * POSTED bill held for evidence only — YYYY-MM-DD, the day the evidence is held (default today). When the evidence now supports the claim, the held VAT moves into Input VAT on this date: its VAT period is the claim's (IR Art. 49(8), within five calendar years of the supply).
+     * @nullable
+     */
+  evidenceDate?: string | null;
+}
+
+export type PossibleDuplicateReason = typeof PossibleDuplicateReason[keyof typeof PossibleDuplicateReason];
+
+
+export const PossibleDuplicateReason = {
+  same_file: 'same_file',
+  same_supplier_invoice: 'same_supplier_invoice',
+  same_supplier_date_amount: 'same_supplier_date_amount',
+} as const;
+
+export interface PossibleDuplicate {
+  reason: PossibleDuplicateReason;
+  /** @nullable */
+  billId?: number | null;
+  /** @nullable */
+  billNumber?: string | null;
+  /** @nullable */
+  status?: string | null;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  total?: number | null;
+  /** @nullable */
+  vendorReference?: string | null;
+  /** @nullable */
+  captureId?: string | null;
+  /** @nullable */
+  capturedAt?: string | null;
+}
+
+export type HeldForEvidencePageTotalsByStatus = {
+  /** Posted, VAT in Input VAT awaiting evidence. */
+  postedHeld: number;
+  /** Drafts whose evidence does not yet support the claim. */
+  awaitingEvidence: number;
+  notEvaluated: number;
+};
+
+export type HeldForEvidencePageTotalsByReasonItem = {
+  code: string;
+  count: number;
+};
+
+export type HeldForEvidencePageTotals = {
+  /** Input VAT not claimed while held — a posted document's held amount (net of credit notes), a draft's VAT. */
+  heldVat: number;
+  byStatus: HeldForEvidencePageTotalsByStatus;
+  byReason: HeldForEvidencePageTotalsByReasonItem[];
+};
+
+export interface PageInfo {
+  limit: number;
+  offset: number;
+  /** Rows matching the filter, not rows on this page. */
+  total: number;
+}
+
+export interface HeldForEvidencePage {
+  items: Bill[];
+  page: PageInfo;
+  totals: HeldForEvidencePageTotals;
+}
+
+export interface ExpensePayment {
+  id: number;
+  amount: number;
+  paidAt: string;
+  /** @nullable */
+  bankAccountId?: number | null;
+  /** @nullable */
+  journalEntryId?: number | null;
+  backfilled?: boolean;
+}
+
+/**
+ * Read from the bill's payments and what it still owes — never assumed from the flag.
+ */
+export type ExpensePaymentStatus = typeof ExpensePaymentStatus[keyof typeof ExpensePaymentStatus];
+
+
+export const ExpensePaymentStatus = {
+  not_posted: 'not_posted',
+  paid: 'paid',
+  part_paid: 'part_paid',
+  unpaid: 'unpaid',
+} as const;
+
+/**
+ * @nullable
+ */
+export type ExpenseEvidenceDocument = { [key: string]: unknown } | null;
+
+export type Expense = Bill & ({
+  /** @nullable */
+  expenseAccountName?: string | null;
+  /** @nullable */
+  paidFromBankName?: string | null;
+  /** Read from the bill's payments and what it still owes — never assumed from the flag. */
+  paymentStatus: ExpensePaymentStatus;
+  payments: ExpensePayment[];
+  /** @nullable */
+  evidenceDocument?: ExpenseEvidenceDocument;
+});
+
+export type ExpensesPageTotals = {
+  postedAmount: number;
+  postedVat: number;
+  /** A COUNT of expenses not yet posted. */
+  unposted: number;
+};
+
+export interface ExpensesPage {
+  items: Expense[];
+  page: PageInfo;
+  totals: ExpensesPageTotals;
+}
+
 export interface CaptureUpload { [key: string]: unknown }
 
 export interface CaptureResult {
@@ -3293,6 +3650,8 @@ export interface CaptureResult {
   /** @nullable */
   signatureDetail?: string | null;
   signatureFailed?: boolean;
+  /** Phase 13A: earlier captures of the SAME FILE in this company — a warning, never a refusal. */
+  duplicates?: PossibleDuplicate[];
 }
 
 export type CapturedDocumentSource = typeof CapturedDocumentSource[keyof typeof CapturedDocumentSource];
@@ -4010,13 +4369,6 @@ export interface ActivityReport {
   count: number;
   hasPosted: number;
   hasDraft: number;
-}
-
-export interface PageInfo {
-  limit: number;
-  offset: number;
-  /** Rows matching the filter, not rows on this page. */
-  total: number;
 }
 
 /**
@@ -5248,6 +5600,19 @@ export const BillHeaderInputDocumentType = {
   debit_note: 'debit_note',
 } as const;
 
+/**
+ * Phase 13A: the supplier document you HOLD — a tax invoice (IR Art. 53(5)), a simplified tax invoice (53(8)), or no tax invoice. Never defaulted: input VAT is claimed only on a tax invoice, and a claim with nothing stated is held for evidence.
+ * @nullable
+ */
+export type BillHeaderInputSupplierDocumentKind = typeof BillHeaderInputSupplierDocumentKind[keyof typeof BillHeaderInputSupplierDocumentKind] | null;
+
+
+export const BillHeaderInputSupplierDocumentKind = {
+  tax_invoice: 'tax_invoice',
+  simplified_tax_invoice: 'simplified_tax_invoice',
+  no_tax_invoice: 'no_tax_invoice',
+} as const;
+
 export interface BillHeaderInput {
   /** Z-AP1: on a bill (the supplier's FINAL invoice), the advance tax invoices it deducts. Replaces the draft's selection on update. */
   prepayments?: BillPrepaymentInput[];
@@ -5292,6 +5657,25 @@ export interface BillHeaderInput {
   vatAmount?: number;
   /** @minimum 0 */
   total?: number;
+  /**
+     * Phase 13A: the supplier document you HOLD — a tax invoice (IR Art. 53(5)), a simplified tax invoice (53(8)), or no tax invoice. Never defaulted: input VAT is claimed only on a tax invoice, and a claim with nothing stated is held for evidence.
+     * @nullable
+     */
+  supplierDocumentKind?: BillHeaderInputSupplierDocumentKind;
+  /**
+     * A staged capture (POST /capture) to link as this draft's evidence document.
+     * @nullable
+     */
+  captureId?: string | null;
+  /**
+     * Phase 13C: an EXPENSE — already paid when recorded. Requires the bank it was paid from and the date; its approval posts the bill and pays it through the bill-payment path in the same transaction.
+     * @nullable
+     */
+  recordedAsExpense?: boolean | null;
+  /** @nullable */
+  expensePaidFromBankAccountId?: number | null;
+  /** @nullable */
+  expensePaidAt?: string | null;
 }
 
 /**
@@ -9136,6 +9520,61 @@ export type GetInvoiceDocumentLang = typeof GetInvoiceDocumentLang[keyof typeof 
 export const GetInvoiceDocumentLang = {
   ar: 'ar',
   en: 'en',
+} as const;
+
+export type ListBillPossibleDuplicatesParams = {
+/**
+ * The document itself, excluded from its own matches
+ */
+bill_id?: number;
+vendor_id?: number;
+vendor_reference?: string;
+date?: string;
+total?: number;
+capture_id?: string;
+};
+
+export type ListBillPossibleDuplicates200 = {
+  items: PossibleDuplicate[];
+};
+
+export type ListBillsHeldForVatEvidenceParams = {
+/**
+ * A blocking flag code, or not_evaluated
+ */
+reason?: string;
+q?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListExpensesParams = {
+status?: ListExpensesStatus;
+q?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListExpensesStatus = typeof ListExpensesStatus[keyof typeof ListExpensesStatus];
+
+
+export const ListExpensesStatus = {
+  unposted: 'unposted',
+  posted: 'posted',
 } as const;
 
 export type ListSupplierPaymentsParams = {

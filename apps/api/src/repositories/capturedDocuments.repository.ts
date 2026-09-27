@@ -10,7 +10,7 @@
  * rows (findings around M14/A1).
  */
 import { db, pool, capturedDocumentsTable } from "@workspace/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 export const capturedDocumentsRepository = {
   async insert(values: typeof capturedDocumentsTable.$inferInsert) {
@@ -52,6 +52,91 @@ export const capturedDocumentsRepository = {
       .where(and(eq(capturedDocumentsTable.id, id), eq(capturedDocumentsTable.status, "staged")))
       .returning();
     return row ?? null;
+  },
+
+  /**
+   * 🔴 Phase 13A — link a STAGED capture to a DRAFT bill as its evidence.
+   * The capture stays deletable staging (it is not evidence of a POSTED
+   * document yet), but a bill_id makes it the draft's document: the purge job
+   * leaves it alone and the approval promotes it. Idempotent for the same bill;
+   * a capture already linked to ANOTHER bill, promoted or discarded is refused
+   * (null) — one document is not the evidence for two bills.
+   */
+  async linkToBill(id: string, billId: number) {
+    const [row] = await db
+      .update(capturedDocumentsTable)
+      .set({ billId })
+      .where(and(
+        eq(capturedDocumentsTable.id, id),
+        eq(capturedDocumentsTable.status, "staged"),
+        sql`(${capturedDocumentsTable.billId} IS NULL OR ${capturedDocumentsTable.billId} = ${billId})`,
+      ))
+      .returning();
+    return row ?? null;
+  },
+
+  /** The evidence document of a bill — the newest capture linked to it that was not discarded. */
+  async activeForBill(billId: number) {
+    const [row] = await db
+      .select()
+      .from(capturedDocumentsTable)
+      .where(and(eq(capturedDocumentsTable.billId, billId), ne(capturedDocumentsTable.status, "discarded")))
+      .orderBy(desc(capturedDocumentsTable.capturedAt))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /** The evidence documents of a PAGE of bills, in one read (never one query per row). */
+  async activeForBills(billIds: number[]) {
+    if (billIds.length === 0) return [];
+    return db
+      .select({ id: capturedDocumentsTable.id, billId: capturedDocumentsTable.billId, contentType: capturedDocumentsTable.contentType, source: capturedDocumentsTable.source, signatureStatus: capturedDocumentsTable.signatureStatus, capturedAt: capturedDocumentsTable.capturedAt })
+      .from(capturedDocumentsTable)
+      .where(and(inArray(capturedDocumentsTable.billId, billIds), ne(capturedDocumentsTable.status, "discarded")))
+      .orderBy(desc(capturedDocumentsTable.capturedAt));
+  },
+
+  /**
+   * A draft bill is being DELETED: its still-staged captures stop being its
+   * evidence (they become ordinary abandoned captures the purge job may
+   * remove). A capture already promoted is never touched — only a posted bill
+   * has one, and a posted bill is not deleted.
+   */
+  async unlinkStagedFromBill(billId: number) {
+    await db
+      .update(capturedDocumentsTable)
+      .set({ billId: null })
+      .where(and(eq(capturedDocumentsTable.billId, billId), eq(capturedDocumentsTable.status, "staged")));
+  },
+
+  /** What the reviewer changed, beside — never over — the extraction. */
+  async setReviewCorrections(id: string, corrections: unknown) {
+    await db.update(capturedDocumentsTable).set({ reviewCorrections: corrections as never }).where(eq(capturedDocumentsTable.id, id));
+  },
+
+  /**
+   * Phase 13A — the SAME FILE captured before in this company (SHA-256).
+   * RLS scopes the organisation; the company predicate is explicit (N1).
+   * Discarded captures are excluded: a file the user threw away is not a
+   * document they recorded.
+   */
+  async sameFile(sha256: string, excludeId: string) {
+    return db
+      .select({
+        id: capturedDocumentsTable.id,
+        capturedAt: capturedDocumentsTable.capturedAt,
+        billId: capturedDocumentsTable.billId,
+        status: capturedDocumentsTable.status,
+      })
+      .from(capturedDocumentsTable)
+      .where(and(
+        eq(capturedDocumentsTable.sha256, sha256),
+        ne(capturedDocumentsTable.id, excludeId),
+        ne(capturedDocumentsTable.status, "discarded"),
+        sql`${capturedDocumentsTable.companyId}::text = current_setting('app.current_company_id', true)`,
+      ))
+      .orderBy(desc(capturedDocumentsTable.capturedAt))
+      .limit(20);
   },
 
   async discard(id: string) {
@@ -165,12 +250,17 @@ export const capturedDocumentsJobRepository = {
    * 🔴 `promotion_pending` and `promoted` are NEVER returned. A capture that
    * reached a bill is evidence for an input-VAT deduction and is not the purge
    * job's business — only staged and explicitly discarded ones are.
+   *
+   * 🔴 Phase 13A: nor is a STAGED capture linked to a draft bill — it is that
+   * draft's evidence, and a draft held for evidence may wait longer than the
+   * purge window. It becomes purgeable only if the draft is deleted (which
+   * unlinks it).
    */
   async listPurgeable(olderThanDays: number, limit = 100, organizationId?: string) {
     const { rows } = await pool.query(
       `SELECT id, staging_path AS "stagingPath"
          FROM captured_documents
-        WHERE status IN ('staged', 'discarded')
+        WHERE (status = 'discarded' OR (status = 'staged' AND bill_id IS NULL))
           AND captured_at < now() - ($1 || ' days')::interval
           AND ($3::uuid IS NULL OR organization_id = $3::uuid)
         ORDER BY captured_at

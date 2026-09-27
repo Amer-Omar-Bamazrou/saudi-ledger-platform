@@ -18,7 +18,8 @@
  * records it made, so a second run starts where the first did.
  */
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
-import { E2E } from "./global-setup";
+import { readFileSync } from "node:fs";
+import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 
 test.use({ storageState: E2E.storageState });
 
@@ -72,9 +73,12 @@ test.beforeAll(async () => {
   });
   assetId = asset.id;
   assetNumber = asset.assetNumber;
-  const vendors = await (await api.get("/api/vendors?limit=1")).json();
+  // Phase 13A: the SEEDED supplier (it carries a VAT number), and the supplier's tax invoice stated — the
+  // first vendor listed could be any spec's, and one without a VAT number would hold the bill for evidence.
+  const { vendorId } = JSON.parse(readFileSync(SEEDED_IDS_PATH, "utf8")) as SeededIds;
   const bill = await post("/bills", {
-    billNumber: `BILL-VATWALK-${Date.now()}`, date: `${year}-05-20`, vendorId: (vendors.items ?? vendors)[0].id,
+    billNumber: `BILL-VATWALK-${Date.now()}`, date: `${year}-05-20`, vendorId,
+    supplierDocumentKind: "tax_invoice", vendorReference: `SUP-VATWALK-${Date.now()}`,
     subtotal: 100000, vatAmount: 15000, total: 115000, capitalisesAssetId: assetId,
     items: [{ description: "Machine", quantity: 1, unitPrice: 100000 }],
   });

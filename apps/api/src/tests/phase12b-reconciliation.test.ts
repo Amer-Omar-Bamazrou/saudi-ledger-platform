@@ -93,7 +93,7 @@ describeMaybe("Phase 12B — bank reconciliation (real rows)", () => {
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','P12B',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'Rec Bank','Riyad') RETURNING id`, [orgId, companyId])).rows[0].id;
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Acme Supplies') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Acme Supplies','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'Delta Retail') RETURNING id`, [orgId])).rows[0].id;
     orgB = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('P12B Other','${SLUG_B}') RETURNING id`)).rows[0].id;
     companyB = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'P12B Other Co') RETURNING id`, [orgB])).rows[0].id;
@@ -231,7 +231,7 @@ describeMaybe("Phase 12B — bank reconciliation (real rows)", () => {
   }, 60_000);
 
   it("🔴 a bill settled from Review is linked to its payment's cash line; the payment names its entry", async () => {
-    const draft = await inTenant(() => billsService.create({ billNumber: "P12B-BILL-1", date: "2026-06-01", dueDate: "2026-06-30", vendorId, items: [{ description: "Rent", quantity: 1, unitPrice: 1000, vatRate: 15 }] }, userId));
+    const draft = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-25", billNumber: "P12B-BILL-1", date: "2026-06-01", dueDate: "2026-06-30", vendorId, items: [{ description: "Rent", quantity: 1, unitPrice: 1000, vatRate: 15 }] }, userId));
     const bill = await inTenant(() => billsService.approve(draft.id, {}, userId));
     await importLines([{ date: "2026-06-25", description: "RENT P12B-BILL-1", amount: 1150, type: "debit" }]);
     const line = await lineByDesc("RENT P12B-BILL-1");

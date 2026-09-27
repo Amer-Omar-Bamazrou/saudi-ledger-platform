@@ -60,6 +60,7 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED**; A4/A5 as invariants (§4); follow-ups built ([`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17). Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
 **2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-H BUILT**; its four invariants are in the [`pack`](docs/product/fixed-assets-decision-pack.md) §20–§27. 🔴 THREE CLOCKS (fiscal year · tax period · accounting life) — none stands in for another.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
+**2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13B/13D wait on P13-N1.
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. Z-AP1 answered (A), built (§8); the bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
 
@@ -446,6 +447,9 @@ doing the thing it governs rather than only once you know its name.
   transfer is ONE entry, its legs reconciled; links append-only; a bank
   reconciliation completes only at ZERO difference (no plug account) and locks
   the bank through its date until reopened with a reason.
+- **🔴 INPUT VAT ONLY ON EVIDENCE (13A, X1/X5)**: held VAT posts to VAT_AWAITING_EVIDENCE —
+  never VAT_INPUT, never a return — until the evidence entry claims it, dated that day;
+  Art. 50 VAT is cost. Trigger `bills_vat_evidence_gate`. An EXPENSE's approval also pays it.
 
 ### ZATCA operating rules
 
@@ -585,7 +589,7 @@ fresh hold-out before launch. Record: findings file,
 - 🔴 **Pre-D-3 cash history stays on the `CASH` header until the per-company cut-over (`scripts/cashCutover.ts`, dry-run first) runs clean.** Every local company is blocked by rows naming no bank; NO override mechanism exists (an open accountant decision). Record: known-issues file, "THE CASH CUT-OVER IS BLOCKED".
 - 🔴 **The business calendar day is ONE ZONE, `Asia/Riyadh`, a constant in `@workspace/shared` `businessDate.ts`** — a named IANA zone (not a `+03:00` literal), with no per-company setting or column anywhere. When a tenant zone is needed it becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
 
-- VAT-return **box 4 (exports) is always 0** — an export is a 'Z' line in box 2.
+- 🔴 **Our VAT-return boxes are NOT ZATCA's** (P13-N1).
 - Manual transaction create has no `kind`/`taxTreatment`: every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
 - Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the gate).
 - The income-statement **transactions-fallback** (zero journal lines) reports gross of VAT.

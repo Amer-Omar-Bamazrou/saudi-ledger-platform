@@ -65,6 +65,14 @@ const BILL_NOT_IN_BOOKS = ["draft", "submitted"];
 // every bill-reading report through this one helper.
 // Policy C: a reversed opening bill is out of every money report (openingReversal.ts).
 const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BOOKS), billNotReversed(), companyScoped(billsTable.companyId))!;
+/**
+ * Phase 13A — a bill whose input VAT is CLAIMED, in the period of its claim
+ * date (see `billsClaimedInRange`). NULL state = posted outside the approval:
+ * claimed on its own date, the pre-Phase-13 reading.
+ */
+const claimedInputVatIn = (dateFrom: string, dateTo: string) =>
+  sql`(coalesce(${billsTable.inputVatState}, 'claimed') = 'claimed'
+       AND coalesce(${billsTable.inputVatClaimedOn}, ${billsTable.date}) BETWEEN ${dateFrom} AND ${dateTo})`;
 
 // Draft/approval workflow (M10.4): an invoice affects AR/revenue/VAT only once
 // APPROVED (issued). Draft and submitted invoices are NOT in the books — and are
@@ -447,5 +455,45 @@ export const reportsRepository = {
       .from(billItemsTable)
       .innerJoin(billsTable, eq(billItemsTable.billId, billsTable.id))
       .where(and(gte(billsTable.date, dateFrom), lte(billsTable.date, dateTo), approvedBillsOnly()));
+  },
+
+  /**
+   * 🔴 PHASE 13A — THE INPUT-VAT CLAIM SET (the narrow return guard,
+   * accountant X1/X2/X3/X5, 2026-09-27). The three queries above select the
+   * purchases of a period by the DOCUMENT's date; these select the same rows —
+   * same filters — by the date their input VAT is CLAIMED, and only the
+   * documents whose VAT reached VAT_INPUT:
+   *   · `claimed`: in the period of `input_vat_claimed_on` — the document's own
+   *     date when it was evidenced at posting, the evidence date when the
+   *     evidence entry moved held VAT (X2: a later return, never a
+   *     prior-period correction); a credit note on held VAT follows its
+   *     original into that period (X3), so the claim is the NET;
+   *   · `awaiting_evidence`: on NO return — the VAT is in the holding asset;
+   *   · `not_deductible`: on NO return as input VAT — it is cost (X5, and the
+   *     0 %-recovery fixed asset, closing P13-D2's remaining half);
+   *   · NULL (posted outside the approval — opening items, older rows): the
+   *     pre-Phase-13 reading, claimed on its own date.
+   * Only the input-VAT figure reads this set; nothing about boxes or layout
+   * changes (P13-N1 stays open).
+   */
+  billsClaimedInRange(dateFrom: string, dateTo: string) {
+    return db
+      .select()
+      .from(billsTable)
+      .where(and(claimedInputVatIn(dateFrom, dateTo), approvedBillsOnly(), eq(billsTable.isOpening, false)));
+  },
+  billLinesClaimedInRange(dateFrom: string, dateTo: string) {
+    return db
+      .select({ line: billItemsTable, billId: billItemsTable.billId })
+      .from(billItemsTable)
+      .innerJoin(billsTable, eq(billItemsTable.billId, billsTable.id))
+      .where(and(claimedInputVatIn(dateFrom, dateTo), approvedBillsOnly()));
+  },
+  billPrepaymentsClaimedInRange(dateFrom: string, dateTo: string) {
+    return db
+      .select({ row: billPrepaymentsTable, billId: billPrepaymentsTable.billId })
+      .from(billPrepaymentsTable)
+      .innerJoin(billsTable, eq(billPrepaymentsTable.billId, billsTable.id))
+      .where(and(claimedInputVatIn(dateFrom, dateTo), approvedBillsOnly(), isNotNull(billPrepaymentsTable.allocationId)));
   },
 };

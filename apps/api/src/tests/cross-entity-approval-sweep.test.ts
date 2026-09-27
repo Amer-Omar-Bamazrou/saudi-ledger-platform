@@ -104,7 +104,7 @@ describeMaybe("cross-entity sweep — zero movement until approved, across all f
       );
       ids.je = je.id;
 
-      const bill = await billsService.create({ billNumber: "SWP-BILL", date: DATE, vendorId, subtotal: 200, vatAmount: 30, total: 230, items: [] }, userId);
+      const bill = await billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-7", billNumber: "SWP-BILL", date: DATE, vendorId, subtotal: 200, vatAmount: 30, total: 230, items: [] }, userId);
       ids.bill = bill.id;
 
       // Invoice via the workflow (bookkeeper path → draft, not auto-approved).
@@ -176,7 +176,7 @@ describeMaybe("cross-entity sweep — zero movement until approved, across all f
 
   it("FULL LIFECYCLE: create → submit → send-back → resubmit → approve works for a bill", async () => {
     await inTenant(async () => {
-      const bill = await billsService.create({ billNumber: "SWP-LC", date: DATE, vendorId, subtotal: 10, vatAmount: 0, total: 10, items: [] }, userId);
+      const bill = await billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-8", billNumber: "SWP-LC", date: DATE, vendorId, subtotal: 10, vatAmount: 0, total: 10, items: [] }, userId);
       expect(bill.status).toBe("draft");
       expect((await billsService.submit(bill.id, userId)).status).toBe("submitted");
       const back = await billsService.sendBack(bill.id, "fix it", userId);

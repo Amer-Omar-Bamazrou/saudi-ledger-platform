@@ -40,7 +40,7 @@ import {
   LayoutDashboard, ShieldCheck, ClipboardList, Tags, BookOpen, Scale,
   CalendarClock, Users, FileText, FileMinus, FilePlus2, Clock, BarChart3,
   Building2, ShoppingCart, FileInput, CreditCard, ListChecks, BrainCog,
-  UploadCloud, ArrowLeftRight, Landmark, Receipt, TrendingUp, Waves,
+  UploadCloud, ArrowLeftRight, Landmark, Receipt, TrendingUp, Waves, ShieldAlert,
   PieChart, SearchCheck, Repeat, ScanLine, Sparkles, Plug, UserCog,
   KeyRound, ScrollText, Wallet, SlidersHorizontal, UserRound, Eye,
   ListOrdered, Package, Banknote, UserCheck, Target, ShoppingBag, Database, Layers,
@@ -232,6 +232,9 @@ export const NAV_TREE: readonly NavSection[] = [
           built("/ap-aging", "Vendor Aging", "أعمار ذمم الموردين"),
         ],
       },
+      // Phase 13: purchases paid when recorded, and the documents held for VAT evidence.
+      built("/expenses", "Expenses", "المصروفات", Receipt),
+      built("/vat-evidence", "VAT Evidence", "إثبات ضريبة المدخلات", ShieldAlert),
       built("/supplier-payments", "Supplier Payments", "مدفوعات الموردين", Banknote),
       built("/supplier-credit-notes", "Supplier Credit Notes", "إشعارات الدائن من الموردين", FileMinus),
       built("/ap-aging", "AP Aging", "أعمار الذمم الدائنة", Clock),

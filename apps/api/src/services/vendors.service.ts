@@ -11,6 +11,7 @@ const VENDOR_FIELDS = [
   "residency",
 ] as const;
 import { auditService } from "./audit.service";
+import { vatEvidenceService } from "./purchaseEvidence/vatEvidence.service";
 import { vendorsRepository, type VendorListFilter } from "../repositories/vendors.repository";
 import { DEFAULT_PAGE } from "../lib/httpParams";
 import type { vendorsTable } from "@workspace/db";
@@ -115,6 +116,8 @@ export const vendorsService = {
     if (!before) throw new NotFoundError("Not found");
     const [row] = await vendorsRepository.update(id, normalize(pick<VendorInsert>(data, VENDOR_FIELDS)));
     await auditService.updated("vendor", id, before, row);
+    // Phase 13A: the supplier's VAT number is evidence — their unposted bills are re-decided.
+    if ((before.taxNumber ?? null) !== (row?.taxNumber ?? null)) await vatEvidenceService.refreshForVendor(id);
     return row;
   },
 

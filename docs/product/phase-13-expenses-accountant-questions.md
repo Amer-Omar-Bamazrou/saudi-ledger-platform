@@ -1,7 +1,9 @@
 # Phase 13 — Expenses: questions for the accountant
 
-**Status (2026-09-24): three questions OPEN with the accountant; nothing that
-depends on them is built. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-27): ANSWERED and APPLIED (see "Answers" at the end, and
+the decision pack §9). Still open: the capitalised-VAT recovery details and
+the SAR 1,000 threshold's VAT basis — neither is built on. Current state
+authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 Asked under the [accounting escalation protocol](../accounting-escalation-protocol.md):
 each question below is one the Phase 13 research could NOT settle from primary
@@ -158,3 +160,32 @@ exactly question X1.
 
 Both presuppose the official ZATCA return layout, which our return does not
 yet use (known-issues P13-N1). They are asked once that layout is adopted.
+
+---
+
+## Answers (received 2026-09-26, verified, applied 2026-09-27)
+
+🔴 **The accountant numbered FIVE items; this file asked THREE.** The map, so
+an "X3" is never read against the wrong question:
+
+| Accountant | This file | Answer, as applied |
+| --- | --- | --- |
+| X1 VAT awaiting evidence | X1 | A separate VAT asset while recoverable; cost if not. On evidence: the accountant wrote "debit VAT payable, credit the VAT asset" — in our chart "VAT Payable" is `VAT_OUTPUT` (a liability), so the owner settled it as **Dr `VAT_INPUT` / Cr `VAT_AWAITING_EVIDENCE`**. |
+| X2 late claim | not asked (recorded above as settled) | The later return, no prior-period correction, five years from the year of supply — as IR Art. 49(8) says. |
+| X3 credit note before the claim | **X2** | Account for the net; claim only the net VAT. |
+| X4 simplified invoice | not asked (recorded above as settled) | Valid evidence if correctly issued. The SAR 1,000 figure was not confirmed by the accountant; ZATCA's Tax Invoicing guideline (v3, May 2026) confirms the threshold but not whether it is before or after VAT — the conservative VAT-inclusive reading stays. |
+| X5 non-deductible VAT | **X3** | Excluded from input VAT; capitalised into cost — expenses, inventory and fixed assets alike. |
+
+**Still open (not built on):**
+
+- Capitalised-VAT RECOVERY — the accountant's proposal (`Dr VAT_INPUT / Cr
+  inventory or asset`; profit or loss once sold or fully depreciated) is
+  consistent with IAS 8.37 and IFRIC 1 by analogy, but prospective vs
+  catch-up depreciation, the cap at carrying amount and the partly-sold
+  inventory split are unconfirmed (decision pack §9.6).
+- "Not recoverable" at recording (X1's second arm) is not a separate user
+  choice today: a document is held while its evidence is insufficient, and
+  blocked only under Art. 50. Writing held VAT off when evidence never
+  arrives (after the five-year window) has no entry yet.
+- The SAR 1,000 threshold's VAT basis — an advisor or ZATCA question.
+- The two return-placement questions below stay with P13-N1.

@@ -289,6 +289,22 @@ async function main() {
        AND (coalesce(adj.tax, 0) + coalesce(cr.tax, 0) > ai.vat_amount::numeric + 0.005
             OR coalesce(adj.total, 0) + coalesce(cr.total, 0) > ai.total::numeric + 0.005)`));
 
+  // Phase 13A (X1): the holding account IS the documents' held VAT — by
+  // vendor, the GL balance of VAT_AWAITING_EVIDENCE equals Σ input_vat_pending
+  // of the posted bills holding it. A difference is VAT held (or released) by
+  // an entry no document accounts for, or a document whose held amount no
+  // entry carries.
+  fail("vat_awaiting_evidence_gl_vs_bills — the holding account's balance differs from the held VAT the documents record", await q(`
+    WITH gl AS (SELECT l.organization_id AS org, l.vendor_id, sum(l.debit_amount - l.credit_amount) v
+                  FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
+                 WHERE c.system_code = 'VAT_AWAITING_EVIDENCE' AND e.status IN ('posted','reversed') GROUP BY 1,2),
+         doc AS (SELECT organization_id AS org, vendor_id, sum(input_vat_pending) v FROM bills
+                  WHERE status NOT IN ('draft','submitted') AND input_vat_state = 'awaiting_evidence' GROUP BY 1,2)
+    SELECT coalesce(gl.org, doc.org)::text AS org, coalesce(gl.vendor_id, doc.vendor_id) AS vendor_id,
+           coalesce(gl.v,0)::text AS gl, coalesce(doc.v,0)::text AS documents
+      FROM gl FULL JOIN doc ON doc.org = gl.org AND doc.vendor_id IS NOT DISTINCT FROM gl.vendor_id
+     WHERE coalesce(gl.v,0) <> coalesce(doc.v,0)`));
+
   // ── Phase 12B: bank reconciliation, over the ONE view ─────────────────
   // A statement line is the bank's evidence of ONE movement. These read
   // bank_line_reconciliation — every source — and name what no trigger can

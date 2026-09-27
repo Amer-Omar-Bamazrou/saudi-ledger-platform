@@ -68,7 +68,7 @@ describeMaybe("bill posting — the expense account is resolved by id, refused w
     await cleanup();
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Bill Acct Org','${SLUG}') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'BA Co','1010101097','399999999999993') RETURNING id`, [orgId])).rows[0].id;
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'BA Vendor') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'BA Vendor','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     // The seeded chart (the org-seed trigger) is the chart the picker will offer.
     // "Rent & Utilities" — a seeded expense account that is NOT Purchases, so
     // a resolved id is distinguishable from the default.
@@ -81,7 +81,7 @@ describeMaybe("bill posting — the expense account is resolved by id, refused w
   });
   afterAll(cleanup);
 
-  const draft = () => billsService.create({ date: DATE, vendorId, subtotal: 400, vatAmount: 60, total: 460, items: [] }, null);
+  const draft = () => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-3", date: DATE, vendorId, subtotal: 400, vatAmount: 60, total: 460, items: [] }, null);
   const expenseLine = async (billNumber: string) =>
     (await pool.query(
       `SELECT l.account_id, l.account_name, c.name AS real_name, c.system_code
@@ -129,7 +129,7 @@ describeMaybe("bill posting — the expense account is resolved by id, refused w
   });
 
   it("🔴 TWO-PERSON FLOW: the account chosen at ENTRY survives submit → approve with NO body — it used to fall back to Purchases", async () => {
-    const bill = await inTenant(() => billsService.create({ date: DATE, vendorId, subtotal: 400, vatAmount: 60, total: 460, items: [], expenseAccountId: rentId }, null));
+    const bill = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-4", date: DATE, vendorId, subtotal: 400, vatAmount: 60, total: 460, items: [], expenseAccountId: rentId }, null));
     expect(bill.expenseAccountId).toBe(rentId);
     await inTenant(() => billsService.submit(bill.id, null));
     // The Approvals queue approves with an EMPTY body — exactly what the page sends.
@@ -140,12 +140,12 @@ describeMaybe("bill posting — the expense account is resolved by id, refused w
   });
 
   it("the body still WINS over the bill's own choice, and a non-expense account is refused at ENTRY", async () => {
-    const bill = await inTenant(() => billsService.create({ date: DATE, vendorId, subtotal: 400, vatAmount: 60, total: 460, items: [], expenseAccountId: rentId }, null));
+    const bill = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-5", date: DATE, vendorId, subtotal: 400, vatAmount: 60, total: 460, items: [], expenseAccountId: rentId }, null));
     const purchases = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'PURCHASES'`, [orgId])).rows[0].id;
     await inTenant(() => billsService.post(bill.id, { debitAccountId: purchases }, null));
     expect((await expenseLine(bill.billNumber)).system_code).toBe("PURCHASES");
     await expect(
-      inTenant(() => billsService.create({ date: DATE, vendorId, subtotal: 1, vatAmount: 0, total: 1, items: [], expenseAccountId: cashId }, null)),
+      inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-6", date: DATE, vendorId, subtotal: 1, vatAmount: 0, total: 1, items: [], expenseAccountId: cashId }, null)),
     ).rejects.toMatchObject({ statusCode: 422, payload: { code: "expense_account_unresolved", field: "expenseAccountId" } });
   });
 

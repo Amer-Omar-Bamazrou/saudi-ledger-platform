@@ -114,7 +114,7 @@ describeMaybe("document contract conformance — invoices & bills, detail and wr
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','DC',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number) VALUES ($1,'Doc Customer','عميل','310000000000003') RETURNING id`, [orgId])).rows[0].id;
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Doc Vendor') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Doc Vendor','300000000000003') RETURNING id`, [orgId])).rows[0].id;
   });
 
   afterAll(cleanup);
@@ -222,8 +222,8 @@ describeMaybe("document contract conformance — invoices & bills, detail and wr
 
   it("POST /bills — a draft from header totals (the form's `items: []` path)", async () => {
     expect(CreateBillBody.safeParse({ date: DATE }).success).toBe(true); // shape-valid; the SERVICE refuses a bill recording nothing
-    await expect(inTenant(() => billsService.create({ date: DATE, vendorId, items: [] }, userId))).rejects.toMatchObject({ payload: { code: "bill_records_nothing" } });
-    const body = CreateBillBody.parse({ date: DATE, vendorId, subtotal: 400, vatAmount: 60, total: 460, items: [] });
+    await expect(inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-10", date: DATE, vendorId, items: [] }, userId))).rejects.toMatchObject({ payload: { code: "bill_records_nothing" } });
+    const body = CreateBillBody.parse({ date: DATE, vendorId, vendorReference: "DOC-SUP-1", supplierDocumentKind: "tax_invoice", subtotal: 400, vatAmount: 60, total: 460, items: [] });
     const out = await inTenant(() => billsService.create(body, userId));
     billId = out.id;
     expect(out.status).toBe("draft");

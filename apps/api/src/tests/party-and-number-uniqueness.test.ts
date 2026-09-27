@@ -114,7 +114,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
     ).rows[0].id;
     vendorId = (
       await pool.query(
-        `INSERT INTO vendors (organization_id, name, name_ar) VALUES ($1,'Party Vendor','مورد') RETURNING id`,
+        `INSERT INTO vendors (organization_id, name, name_ar, tax_number) VALUES ($1,'Party Vendor','مورد','300000000000003') RETURNING id`,
         [orgId],
       )
     ).rows[0].id;
@@ -174,6 +174,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
   it("the AP lines carry the vendor", async () => {
     const bill = await inTenant(() =>
       createApproved<{ id: number }>(billsService, {
+        supplierDocumentKind: "tax_invoice", vendorReference: "N3-SUP-1",
         billNumber: "N3-BILL-1",
         date: DATE,
         dueDate: DATE,

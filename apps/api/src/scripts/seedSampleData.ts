@@ -232,9 +232,10 @@ async function seedAll(inTenant: InTenant, userId: number) {
 
   // ── Bills: approved, so AP and input VAT appear ──────────────────────────
   const billSpecs = [
-    { billNumber: "GOS-4471", date: `${M1}-12`, vendorId: vendA.id, items: [{ description: "Office consumables", quantity: 1, unitPrice: 2400, vatRate: 15 }] },
-    { billNumber: "TAM-2210", date: `${M2}-03`, vendorId: vendB.id, items: [{ description: "Facilities management — July", quantity: 1, unitPrice: 9500, vatRate: 15 }] },
-    { billNumber: "GOS-4620", date: `${M3}-05`, vendorId: vendA.id, items: [{ description: "Printer toner", quantity: 6, unitPrice: 310, vatRate: 15 }] },
+    // Phase 13A: each is the supplier's full tax invoice, named by its own number.
+    { billNumber: "GOS-4471", supplierDocumentKind: "tax_invoice", vendorReference: "GOS-4471", date: `${M1}-12`, vendorId: vendA.id, items: [{ description: "Office consumables", quantity: 1, unitPrice: 2400, vatRate: 15 }] },
+    { billNumber: "TAM-2210", supplierDocumentKind: "tax_invoice", vendorReference: "TAM-2210", date: `${M2}-03`, vendorId: vendB.id, items: [{ description: "Facilities management — July", quantity: 1, unitPrice: 9500, vatRate: 15 }] },
+    { billNumber: "GOS-4620", supplierDocumentKind: "tax_invoice", vendorReference: "GOS-4620", date: `${M3}-05`, vendorId: vendA.id, items: [{ description: "Printer toner", quantity: 6, unitPrice: 310, vatRate: 15 }] },
   ];
   const bills: { id: number }[] = [];
   for (const spec of billSpecs) {
