@@ -11,6 +11,8 @@ import { billIsPayableSql, billOutstandingSql } from "./billPosition";
  * restates `total − paid_amount`.
  */
 const OUTSTANDING = billOutstandingSql("bills");
+/** Z-AP1: Σ the supplier advance deductions on a final bill (its prepayment rows). */
+const PREPAID = sql<string>`coalesce((SELECT sum(bp.amount) FROM bill_prepayments bp WHERE bp.bill_id = ${billsTable}."id"), 0)::text`; // qualified: a bare "id" would bind to bp.id
 
 export interface BillListFilter {
   status?: string;
@@ -57,7 +59,7 @@ export const billsRepository = {
   /** A PAGE. See the note on `invoicesRepository.list` for why offset, not cursor. */
   list(filter: BillListFilter) {
     return db
-      .select({ bill: billsTable, vendor: vendorsTable, outstanding: sql<string>`${OUTSTANDING}` })
+      .select({ bill: billsTable, vendor: vendorsTable, outstanding: sql<string>`${OUTSTANDING}`, prepaid: PREPAID })
       .from(billsTable)
       .leftJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id))
       .where(billListConditions(filter))
@@ -93,7 +95,7 @@ export const billsRepository = {
 
   findWithVendor(id: number) {
     return db
-      .select({ bill: billsTable, vendor: vendorsTable, outstanding: sql<string>`${OUTSTANDING}` })
+      .select({ bill: billsTable, vendor: vendorsTable, outstanding: sql<string>`${OUTSTANDING}`, prepaid: PREPAID })
       .from(billsTable)
       .leftJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id))
       .where(eq(billsTable.id, id))
@@ -127,7 +129,7 @@ export const billsRepository = {
    */
   openForSettlement() {
     return db
-      .select({ bill: billsTable, vendor: vendorsTable, outstanding: sql<string>`${OUTSTANDING}` })
+      .select({ bill: billsTable, vendor: vendorsTable, outstanding: sql<string>`${OUTSTANDING}`, prepaid: PREPAID })
       .from(billsTable)
       .leftJoin(vendorsTable, eq(billsTable.vendorId, vendorsTable.id))
       .where(

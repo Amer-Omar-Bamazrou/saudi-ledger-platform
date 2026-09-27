@@ -252,7 +252,18 @@ async function main() {
                  - coalesce((SELECT sum(a.amount::numeric) FROM supplier_payment_allocations a
                               WHERE a.supplier_payment_id = p.id
                                 AND NOT EXISTS (SELECT 1 FROM supplier_payment_allocation_reversals r WHERE r.allocation_id = a.id)), 0)
-                 - coalesce((SELECT sum(f.amount::numeric) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0)) AS v
+                 - coalesce((SELECT sum(f.amount::numeric) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0)
+                 -- Z-AP1: the VAT the supplier's advance invoice CLAIMED has left the
+                 -- advance for Input VAT; what is still open (not credited, not yet
+                 -- deducted by a final bill) is off the asset in the GL.
+                 - coalesce((SELECT sum(ai.vat_amount::numeric
+                                        - coalesce((SELECT sum(n.vat_amount::numeric) FROM bills n
+                                                     WHERE n.credit_note_against_bill_id = ai.id AND n.document_type = 'advance_credit_note'
+                                                       AND n.status NOT IN ('draft','submitted')), 0)
+                                        - coalesce((SELECT sum(bp.tax_amount::numeric) FROM bill_prepayments bp
+                                                     WHERE bp.advance_bill_id = ai.id AND bp.allocation_id IS NOT NULL), 0))
+                               FROM bills ai WHERE ai.advance_supplier_payment_id = p.id AND ai.document_type = 'advance_invoice'
+                                AND ai.status NOT IN ('draft','submitted')), 0)) AS v
         FROM supplier_payments p GROUP BY 1,2,3),
     gl AS (SELECT e.organization_id AS org, l.vendor_id, c.system_code AS code, sum(l.debit_amount - l.credit_amount) v
              FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
@@ -261,6 +272,70 @@ async function main() {
            coalesce(gl.v,0)::text AS gl, coalesce(sub.v,0)::text AS subledger
       FROM gl FULL JOIN sub ON sub.org = gl.org AND sub.vendor_id IS NOT DISTINCT FROM gl.vendor_id AND sub.code = gl.code
      WHERE coalesce(gl.v,0) <> coalesce(sub.v,0)`));
+
+  // Z-AP1: the input VAT of a supplier's advance tax invoice is claimed ONCE —
+  // what final bills deduct plus what credit notes reverse can never exceed
+  // what the advance invoice claimed (in VAT or in total).
+  fail("advance_invoice_vat_overused — a supplier advance invoice whose VAT (or amount) has been deducted by final bills and credited by notes beyond what it claimed", await q(`
+    SELECT ai.organization_id::text AS org, ai.id AS advance_bill_id, ai.vat_amount::text AS claimed,
+           (coalesce(adj.tax, 0) + coalesce(cr.tax, 0))::text AS used_tax, ai.total::text AS total, (coalesce(adj.total, 0) + coalesce(cr.total, 0))::text AS used_total
+      FROM bills ai
+      LEFT JOIN LATERAL (SELECT sum(bp.tax_amount::numeric) tax, sum(bp.amount::numeric) total FROM bill_prepayments bp
+                          WHERE bp.advance_bill_id = ai.id AND bp.allocation_id IS NOT NULL) adj ON true
+      LEFT JOIN LATERAL (SELECT sum(n.vat_amount::numeric) tax, sum(n.total::numeric) total FROM bills n
+                          WHERE n.credit_note_against_bill_id = ai.id AND n.document_type = 'advance_credit_note'
+                            AND n.status NOT IN ('draft','submitted')) cr ON true
+     WHERE ai.document_type = 'advance_invoice' AND ai.status NOT IN ('draft','submitted')
+       AND (coalesce(adj.tax, 0) + coalesce(cr.tax, 0) > ai.vat_amount::numeric + 0.005
+            OR coalesce(adj.total, 0) + coalesce(cr.total, 0) > ai.total::numeric + 0.005)`));
+
+  // ── Phase 12B: bank reconciliation, over the ONE view ─────────────────
+  // A statement line is the bank's evidence of ONE movement. These read
+  // bank_line_reconciliation — every source — and name what no trigger can
+  // repair after the fact.
+  fail("bank_line_reconciled_twice — a statement line that posted its OWN entry and is ALSO matched or linked (the same money in the ledger twice)", await q(`
+    SELECT r.organization_id::text AS org, r.transaction_id, string_agg(DISTINCT r.source, ',') AS sources
+      FROM bank_line_reconciliation r
+     GROUP BY r.organization_id, r.transaction_id
+    HAVING bool_or(r.source = 'posted') AND bool_or(r.source <> 'posted')`));
+  fail("bank_line_over_reconciled — a statement line reconciled beyond its amount", await q(`
+    SELECT t.organization_id::text AS org, t.id AS transaction_id, abs(t.amount)::text AS amount, sum(r.amount)::text AS reconciled
+      FROM transactions t JOIN bank_line_reconciliation r ON r.transaction_id = t.id
+     GROUP BY t.organization_id, t.id, t.amount HAVING sum(r.amount) > abs(t.amount) + 0.005`));
+  fail("cash_line_over_reconciled — a ledger cash line answered by statement lines beyond its own amount", await q(`
+    SELECT v.organization_id::text AS org, v.line_id, abs(v.debit_amount - v.credit_amount)::text AS amount, sum(r.amount)::text AS reconciled
+      FROM journal_line_bank_identity v JOIN bank_line_reconciliation r ON r.line_id = v.line_id
+     GROUP BY v.organization_id, v.line_id, v.debit_amount, v.credit_amount
+    HAVING sum(r.amount) > abs(v.debit_amount - v.credit_amount) + 0.005`));
+  fail("matched_line_not_reconciled — a statement line marked `matched` (it posts nothing) that the view no longer fully reconciles: its money is in no ledger", await q(`
+    SELECT t.organization_id::text AS org, t.id AS transaction_id, abs(t.amount)::text AS amount,
+           coalesce((SELECT sum(r.amount) FROM bank_line_reconciliation r WHERE r.transaction_id = t.id), 0)::text AS reconciled
+      FROM transactions t
+     WHERE t.kind = 'matched'
+       AND coalesce((SELECT sum(r.amount) FROM bank_line_reconciliation r WHERE r.transaction_id = t.id), 0) < abs(t.amount) - 0.005`));
+
+  // Phase 12C — a transfer and its entry must agree: a live transfer on a
+  // reversed entry (reversed behind the document) or a reversal row whose
+  // entry is still live both make the document lie about the books.
+  fail("bank_transfer_reversal_mismatch — a transfer whose entry's reversal and the transfer's own reversal record disagree", await q(`
+    SELECT bt.organization_id::text AS org, bt.id AS transfer_id, e.status, (r.id IS NOT NULL) AS has_reversal_record
+      FROM bank_transfers bt JOIN journal_entries e ON e.id = bt.journal_entry_id
+      LEFT JOIN bank_transfer_reversals r ON r.transfer_id = bt.id
+     WHERE (e.status = 'reversed') <> (r.id IS NOT NULL)`));
+
+  // Phase 12D — a completed reconciliation that still stands must still be
+  // TRUE: the bank's ledger at its date equals what it recorded. The lock
+  // triggers keep this so; a violation means something wrote past them.
+  fail("bank_reconciliation_moved — a completed, unreopened reconciliation whose bank ledger at its date no longer equals the recorded ledger balance", await q(`
+    SELECT r.organization_id::text AS org, r.id AS reconciliation_id, r.as_of::text, r.ledger_balance::text AS recorded,
+           coalesce((SELECT sum(v.debit_amount - v.credit_amount) FROM journal_line_bank_identity v
+                       JOIN journal_entries e ON e.id = v.journal_entry_id
+                      WHERE v.bank_account_id = r.bank_account_id AND e.status IN ('posted','reversed') AND e.date::date <= r.as_of), 0)::text AS now
+      FROM bank_reconciliations r
+     WHERE NOT EXISTS (SELECT 1 FROM bank_reconciliation_reopenings o WHERE o.reconciliation_id = r.id)
+       AND abs(r.ledger_balance - coalesce((SELECT sum(v.debit_amount - v.credit_amount) FROM journal_line_bank_identity v
+                       JOIN journal_entries e ON e.id = v.journal_entry_id
+                      WHERE v.bank_account_id = r.bank_account_id AND e.status IN ('posted','reversed') AND e.date::date <= r.as_of), 0)) > 0.005`));
 
   if (jsonOut) writeFileSync(jsonOut, JSON.stringify(report, null, 2));
   await pool.end();

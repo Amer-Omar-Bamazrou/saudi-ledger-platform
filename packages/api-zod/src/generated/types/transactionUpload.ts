@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { BankStatementInput } from './bankStatementInput';
 import type { TransactionInput } from './transactionInput';
 
 export interface TransactionUpload {
@@ -20,4 +21,5 @@ export interface TransactionUpload {
      * be accepted. A missing id is a 422 `bank_account_required`.
      */
   bankAccountId: number;
+  statement?: BankStatementInput;
 }

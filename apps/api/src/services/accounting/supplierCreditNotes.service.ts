@@ -94,7 +94,8 @@ export const supplierCreditNotesService = {
     const q = db.select().from(billsTable).where(eq(billsTable.id, id)).limit(1);
     const [row] = opts.lock ? await q.for("update") : await q;
     if (!row) throw new NotFoundError("Note not found.");
-    if (row.documentType === "bill") refuse("not_a_note", `Document ${row.billNumber} is a bill, not a note.`, "id", 409);
+    // Z-AP1: a note against a supplier's ADVANCE tax invoice is not an AP note — it has its own path.
+    if (row.documentType !== "credit_note" && row.documentType !== "debit_note") refuse("not_a_note", `Document ${row.billNumber} is not a supplier credit or debit note.`, "id", 409);
     return row;
   },
 
@@ -136,7 +137,7 @@ export const supplierCreditNotesService = {
   async list(filter: { vendorId?: number } = {}) {
     const rows = await db.execute<{ id: number }>(sql`
       SELECT b.id FROM bills b
-       WHERE b.document_type <> 'bill'
+       WHERE b.document_type IN ('credit_note', 'debit_note')
          ${filter.vendorId ? sql`AND b.vendor_id = ${filter.vendorId}` : sql``}
        ORDER BY b.id`);
     const items = [];

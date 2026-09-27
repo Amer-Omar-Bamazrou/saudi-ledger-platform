@@ -446,3 +446,45 @@ owes.
 Not built, with reasons: A5–A8; migrated supplier advances; statement-line
 matching for supplier payments; approval limits; Z-AP1 (accountant).
 Decision record: [`phase-11-deep-accounting-ap-decision-pack.md`](../product/phase-11-deep-accounting-ap-decision-pack.md).
+
+## PHASE 12 — ADVANCED BANKING & RECONCILIATION (2026-09-23)
+
+**Audit first**: a statement line Phase D had matched to a receipt stayed
+`pending_review` and could be accepted, posting the same money twice — fixed
+before anything new (lines another record answers become `kind = 'matched'`,
+post nothing, and acceptance refuses them).
+
+**12A** statements as records: `bank_statements` with period, stated
+balances, file SHA-256 and totals; whole-or-nothing import; re-import refused;
+continuity per bank; the All Statements register. **12B** the reconciliation
+workbench over ONE definition (`bank_line_reconciliation`): links to any
+ledger cash line, partial and multi-document, append-only with superseding
+reversals, caps enforced by triggers; supplier payments, refunds and bill
+payments reconciled by reference (Phase D's policy) or by hand. **12C**
+transfers between own banks as ONE document and ONE entry, legs reconciled,
+never accepted; possible duplicates refused unless confirmed with a reason;
+reversal through the transfer only. **12D** reconciliation as of a date —
+completed only at a zero difference, snapshotted, locking the bank through
+its date until reopened with a reason; the cash position per bank; the
+banking exceptions; the Bank Accounts headline moved from the typed balance
+to the ledger. **12E** the cross-module audit, with an independent review:
+seven findings fixed, two left open and named. Migrations 0099–0102.
+
+Not built, with reasons: live bank feeds (A2, needs the entity); transfer
+reports by account/direction/period; the document-owned-entry guard for
+invoices, bills and payments (open, CLAUDE.md §5). Z-AP1 was answered on 2026-09-24 (A) and built — see below.
+Decision record: [`phase-12-banking-reconciliation-decision-pack.md`](../product/phase-12-banking-reconciliation-decision-pack.md).
+
+## Z-AP1 AND THE BANK-LOCK DECISION (2026-09-24)
+
+**Z-AP1 answered — A**, and built as the purchase-side mirror of AP-2:
+
+- The supplier's advance tax invoice (`bills.document_type = 'advance_invoice'`) claims its input VAT in its own period: Dr Input VAT / Cr Supplier advances.
+- The supplier's final invoice deducts it (`bill_prepayments`, KSA-31/32). Its entry and the VAT return claim only the rest, and the database freezes the deductions.
+- The supplier's credit note against the advance invoice (`advance_credit_note`) reverses the claim in its own period and unlocks the refund.
+- A ledger invariant, `advance_invoice_vat_overused`, fails on any second claim.
+- Migration 0104.
+
+The **completed-bank-reconciliation lock** was researched against the Commercial Books Law (Arabic), VAT IR Art. 66, SOCPA, IFRS, ERPNext and Odoo. Nothing requires or prohibits it (classification D): it is recorded as an internal Saudi Ledger control and kept unchanged.
+
+Decision record: [`phase-12-banking-reconciliation-decision-pack.md`](../product/phase-12-banking-reconciliation-decision-pack.md) §8–§10.

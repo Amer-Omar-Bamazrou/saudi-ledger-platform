@@ -6,8 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BillHeaderInputDocumentType } from './billHeaderInputDocumentType';
+import type { BillPrepaymentInput } from './billPrepaymentInput';
 
 export interface BillHeaderInput {
+  /** Z-AP1: on a bill (the supplier's FINAL invoice), the advance tax invoices it deducts. Replaces the draft's selection on update. */
+  prepayments?: BillPrepaymentInput[];
   /** B7: what this purchase document IS. A note is the SUPPLIER'S document — we receive it, so nothing is issued, no ICV is consumed and no e-invoice is sent. A note must name the bill it adjusts and a plain bill must not; a CREDIT note may not exceed what the original was charged, less what other notes have credited. Not editable after entry. */
   documentType?: BillHeaderInputDocumentType;
   /**

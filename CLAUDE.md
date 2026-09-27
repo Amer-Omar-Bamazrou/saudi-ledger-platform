@@ -60,6 +60,7 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED**; A4/A5 as invariants (§4); follow-ups built ([`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17). Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
 **2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-H BUILT**; its four invariants are in the [`pack`](docs/product/fixed-assets-decision-pack.md) §20–§27. 🔴 THREE CLOCKS (fiscal year · tax period · accounting life) — none stands in for another.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md); §16–§17: what was NOT built, and the post-build audit). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
+**2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. Z-AP1 answered (A), built (§8); the bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
@@ -426,7 +427,7 @@ doing the thing it governs rather than only once you know its name.
   [`design-per-bank-cash.md`](docs/product/design-per-bank-cash.md).
 - **🔴 AP IS ITS OWN SUBLEDGER** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §9–§17). A supplier advance is an ASSET
   (`SUPPLIER_ADVANCES` / `SECURITY_DEPOSITS_PAID` / `UNIDENTIFIED_PAYMENTS`: their exits differ); only an
-  **advance** settles a bill; 🔴 **no input VAT on any AP payment path** (Art. 49(7)). 🔴 What a bill OWES
+  **advance** settles a bill; 🔴 **no input VAT on any AP payment path** (Art. 49(7)); the supplier's advance TAX INVOICE claims it, ONCE (Z-AP1). 🔴 What a bill OWES
   is ONE definition, `repositories/billPosition` — never `total − paid_amount` (ratchet:
   `tests/bill-position-reader-sweep.test.ts`). Posted rows are append-only AT THE DATABASE.
 - **🔴 A PURCHASE-SIDE NOTE IS THE SUPPLIER’S DOCUMENT (B7)** — no ICV, QR, chain or outbox; a `bills` row
@@ -440,6 +441,11 @@ doing the thing it governs rather than only once you know its name.
   provenance only. An unbalanced opening position is REFUSED — there is no
   opening-balance-equity account, no declaration, no clearing journal. Staging
   before commit may be rebuilt freely. Record: the 1C decision pack §16.12.
+- **🔴 "RECONCILED" IS ONE VIEW, `bank_line_reconciliation` (Phase 12).** A line
+  another record answers is never accepted (`kind='matched'`); a recorded
+  transfer is ONE entry, its legs reconciled; links append-only; a bank
+  reconciliation completes only at ZERO difference (no plug account) and locks
+  the bank through its date until reopened with a reason.
 
 ### ZATCA operating rules
 
@@ -551,8 +557,9 @@ the order is not the severity order.**
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
 | **1** | **Password recovery — break-glass ✅ SHIPPED** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
-| **2** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — legal, not code. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
-| **3** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
+| **2** | 🔴 **The generic journal reverse accepts an entry an invoice, bill or payment OWNS** — the document reads live while its entry is cancelled (Phase 12 guards transfers and statement lines only). | posts + hides. | Phase 12 pack §7 #8. |
+| **3** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — legal, not code. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
+| **4** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
 
 **Open DECISION:** `platform-alarms` is NOT operator-runnable (one-line flip).
 

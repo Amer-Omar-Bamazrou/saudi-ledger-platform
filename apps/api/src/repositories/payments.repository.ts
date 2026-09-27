@@ -32,6 +32,16 @@ export const paymentsRepository = {
     return row;
   },
 
+  /** Phase 12B — the entry a bill payment posted; written once, by the pay path. */
+  async setBillPaymentEntry(billPaymentId: number, journalEntryId: number) {
+    await db.update(billPaymentsTable).set({ journalEntryId }).where(eq(billPaymentsTable.id, billPaymentId));
+  },
+
+  /** The bill's most recent payment — within one request, the one just recorded (the bill row is locked by the pay path). */
+  async latestBillPayment(billId: number) {
+    return db.select().from(billPaymentsTable).where(eq(billPaymentsTable.billId, billId)).orderBy(desc(billPaymentsTable.id)).limit(1);
+  },
+
   async listForInvoice(invoiceId: number) {
     return db
       .select()

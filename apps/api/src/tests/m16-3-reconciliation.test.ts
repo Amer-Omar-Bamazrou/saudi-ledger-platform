@@ -67,7 +67,12 @@ describeMaybe("M16.3 — bank reconciliation", () => {
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    // Phase 12B: a Review settlement links the line to the payment's cash line
+    // (append-only links reference both), and bill_payments names its entry.
+    await pool.query(`DELETE FROM bank_statement_link_reversals WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM bank_statement_links WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
+    await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${org}`);

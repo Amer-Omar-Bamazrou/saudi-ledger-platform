@@ -44,6 +44,8 @@ import { statementMatchesRepository } from "../repositories/statementMatches.rep
 import { pairOneToOne } from "./accounting/evidencePairing";
 import { MATCH_DATE_WINDOW_DAYS, MATCH_MIN_REFERENCE_LENGTH } from "./accounting/matchingPolicy";
 import { auditService } from "./audit.service";
+import { bankReconciliationService } from "./accounting/bankReconciliation.service";
+import { bankReconciliationRepository } from "../repositories/bankReconciliation.repository";
 import type { StatementMatch, StatementMatchReversal } from "@workspace/db";
 
 export type MatchClassification = "MATCHED" | "DETERMINISTIC" | "AMBIGUOUS" | "UNMATCHED" | "INCONSISTENT";
@@ -91,15 +93,10 @@ function toMatchOut(m: StatementMatch, r: StatementMatchReversal | null = null):
   };
 }
 
-/** Upper-cased alphanumeric tokens of a narrative, long enough to identify something. */
-export function referenceTokens(text: string): string[] {
-  const out = new Set<string>();
-  for (const t of text.toUpperCase().split(/[^A-Z0-9-]+/)) {
-    const tok = t.replace(/^-+|-+$/g, "");
-    if (tok.length >= MATCH_MIN_REFERENCE_LENGTH) out.add(tok);
-  }
-  return [...out];
-}
+// `referenceTokens` lives with the rest of the matching policy (one definition,
+// shared by this AR matcher and the AP reconciliation of Phase 12B).
+export { referenceTokens } from "./accounting/matchingPolicy";
+import { referenceTokens } from "./accounting/matchingPolicy";
 
 function shiftDate(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -121,6 +118,10 @@ export const statementMatchingService = {
     const rows = await statementMatchesRepository.statementRows({ bankAccountId: filter.bankAccountId, from: filter.from, to: filter.to, limit: Math.min(500, Math.max(1, filter.limit ?? 200)) });
     const active = (await statementMatchesRepository.activeMatches()).map((r) => r.m);
     const activeByRow = new Map(active.map((m) => [m.transactionId, m]));
+    // Phase 12B: a line the ledger already answers — its own posting, or a
+    // reconciliation link — is not a candidate for a receipt match; matching it
+    // too would count the same money twice (the database refuses it as well).
+    const reconciledElsewhere = await bankReconciliationRepository.reconciledIds(rows.map((r) => r.id));
     const results: RowClassification[] = [];
 
     for (const row of rows) {
@@ -142,6 +143,12 @@ export const statementMatchingService = {
           ...base, classification: "MATCHED", reason: "the receipt was created from this row (settlement)", candidates: [], match: null,
           target: { kind: "payment", id: settled.id, amount: num(settled.amount), date: settled.paidAt, reference: settled.reference ?? null, identifiedBy: "settlement" },
         });
+        continue;
+      }
+      // After the two specific answers above (an explicit match, a Review
+      // settlement), which name their target: a line reconciled any OTHER way.
+      if (reconciledElsewhere.has(row.id)) {
+        results.push({ ...base, classification: "MATCHED", reason: row.journalEntryId != null ? "accepted and posted as its own entry" : "reconciled in the bank reconciliation workbench", target: null, candidates: [], match: null });
         continue;
       }
 
@@ -270,6 +277,8 @@ export const statementMatchingService = {
       }
       recorded.push(toMatchOut(m));
       await auditService.record({ action: "match", entityType: "statement_match", entityId: m.id, after: toMatchOut(m) });
+      // 12B: a fully matched line leaves review as `matched` — it can no longer be accepted and post again.
+      await bankReconciliationService.refreshLineState(r.transactionId);
     }
     return {
       recorded,
@@ -341,10 +350,13 @@ export const statementMatchingService = {
     } catch (err) {
       const e = pgError(err);
       if (e?.code === "23505") throw new ConflictError(`Statement row ${transactionId} or its counterpart was matched concurrently.`);
+      // 12B: the database refuses a match on a line (or a receipt) already reconciled another way.
+      if (e?.code === "23514") throw new BusinessRuleError(409, { error: (err as Error).message.replace(/^.*?: /, ""), code: "already_reconciled", field: "transactionId" });
       throw err;
     }
     const out = toMatchOut(m);
     await auditService.record({ action: "match_override", entityType: "statement_match", entityId: m.id, after: out });
+    await bankReconciliationService.refreshLineState(transactionId);
     return out;
   },
 
@@ -364,6 +376,8 @@ export const statementMatchingService = {
       throw err;
     }
     await auditService.record({ action: "unmatch", entityType: "statement_match", entityId: matchId, before: toMatchOut(found.m), after: { reversalId: r.id, reason } });
+    // 12B: an unmatched line goes back to review, where it can be matched, linked or accepted.
+    await bankReconciliationService.refreshLineState(found.m.transactionId);
     return toMatchOut(found.m, r);
   },
 

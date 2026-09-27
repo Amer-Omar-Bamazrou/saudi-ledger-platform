@@ -1225,6 +1225,370 @@ paths:
               schema:
                 $ref: "#/components/schemas/UploadResult"
 
+  /bank-reconciliation/lines:
+    get:
+      operationId: listReconciliationLines
+      tags: [transactions]
+      summary: "Phase 12B: statement lines with how much of each is reconciled (the one definition: bank_line_reconciliation)"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+        - { in: query, name: status, required: false, schema: { $ref: "#/components/schemas/ReconciliationStatus" } }
+        - { in: query, name: from, required: false, schema: { type: string } }
+        - { in: query, name: to, required: false, schema: { type: string } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+        - { in: query, name: offset, required: false, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: A page of statement lines
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ReconciliationLine" }
+                  page:
+                    type: object
+                    required: [limit, offset, total]
+                    properties:
+                      limit: { type: integer }
+                      offset: { type: integer }
+                      total: { type: integer }
+
+  /bank-reconciliation/lines/{id}:
+    get:
+      operationId: getReconciliationLine
+      tags: [transactions]
+      summary: "Phase 12B: one statement line — what reconciles it, and (while it is not fully reconciled) the ledger cash lines that could"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The line
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReconciliationLineDetail" }
+
+  /bank-reconciliation/lines/{id}/links:
+    post:
+      operationId: linkReconciliationLine
+      tags: [transactions]
+      summary: "Phase 12B: reconcile a statement line to one or more ledger cash lines (partial and multi-document). Posts nothing."
+      description: >
+        Refused (409) when the line posted its own entry, when an amount exceeds
+        what is left on the statement line or on the ledger line, or when a
+        ledger line is not a cash line on the same bank moving money the same
+        way. A ledger line dated more than the matching window from the
+        statement line needs a reason (422 reason_required). The caps are also
+        enforced by the database, across every source.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReconciliationLinkInput" }
+      responses:
+        "200":
+          description: The line, after the link
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReconciliationLineDetail" }
+
+  /bank-reconciliations:
+    get:
+      operationId: listBankReconciliations
+      tags: [transactions]
+      summary: "Phase 12D: completed bank reconciliations, newest first, each with its reopening if any"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: The completed reconciliations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reconciliations]
+                properties:
+                  reconciliations: { type: array, items: { $ref: "#/components/schemas/BankReconciliationRecord" } }
+    post:
+      operationId: completeBankReconciliation
+      tags: [transactions]
+      summary: "Phase 12D: record a reconciliation as of a date — ONLY at a zero difference (no plug), only after the bank's last one. It locks what it relied on."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompleteBankReconciliationInput" }
+      responses:
+        "200":
+          description: The recorded reconciliation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankReconciliationRecord" }
+        "409":
+          description: "reconciliation_difference (carries the difference) or already_reconciled_through"
+
+  /bank-reconciliations/position:
+    get:
+      operationId: getBankReconciliationPosition
+      tags: [transactions]
+      summary: "Phase 12D: the reconciliation's terms for a bank as of a date — ledger balance, ledger-only and statement-only items, and the difference. Pure read."
+      parameters:
+        - { in: query, name: bankAccountId, required: true, schema: { type: integer } }
+        - { in: query, name: asOf, required: false, schema: { type: string } }
+        - { in: query, name: statementBalance, required: false, schema: { type: number } }
+        - { in: query, name: bankStatementId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: The terms
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankReconciliationPosition" }
+
+  /bank-reconciliations/exceptions:
+    get:
+      operationId: getBankingExceptions
+      tags: [transactions]
+      summary: "Phase 12D: what needs a person — continuity breaks, stale and partial statement lines, Transfer clearing that does not net, transfers missing legs, ledger cash lines no statement answers (capped lists carry their true totals)"
+      responses:
+        "200":
+          description: The exceptions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankingExceptions" }
+
+  /bank-reconciliations/{id}:
+    get:
+      operationId: getBankReconciliation
+      tags: [transactions]
+      summary: "Phase 12D: one completed reconciliation with its snapshot"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The reconciliation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankReconciliationRecord" }
+
+  /bank-reconciliations/{id}/reopen:
+    post:
+      operationId: reopenBankReconciliation
+      tags: [transactions]
+      summary: "Phase 12D: reopen the bank's LATEST reconciliation — a superseding record with a reason; the lock moves back to the one before"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReopenBankReconciliationInput" }
+      responses:
+        "200":
+          description: The reconciliation, now carrying its reopening
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankReconciliationRecord" }
+
+  /cash-position:
+    get:
+      operationId: getCashPosition
+      tags: [reports]
+      summary: "Phase 12D: per bank — the ledger balance (the one definition), the latest statement's closing balance beside the ledger at its date, what is unreconciled, and how far the bank is reconciled"
+      responses:
+        "200":
+          description: The cash position
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CashPosition" }
+
+  /bank-transfers:
+    get:
+      operationId: listBankTransfers
+      tags: [transactions]
+      summary: "Phase 12C: transfers between the business's own banks, newest first (reversed ones included, marked)"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+        - { in: query, name: offset, required: false, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: A page of transfers, with the true total
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transfers, total, limit, offset]
+                properties:
+                  transfers: { type: array, items: { $ref: "#/components/schemas/BankTransfer" } }
+                  total: { type: integer }
+                  limit: { type: integer }
+                  offset: { type: integer }
+    post:
+      operationId: createBankTransfer
+      tags: [transactions]
+      summary: "Phase 12C: record a transfer — ONE entry, Dr the destination bank / Cr the source bank. Its statement legs are reconciled to it, never accepted to post."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BankTransferInput" }
+      responses:
+        "200":
+          description: The transfer (a retried idempotency key returns the original)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankTransfer" }
+        "409":
+          description: "possible_duplicate_transfer — carries the transfers or clearing legs it may duplicate; confirm with a reason to record it anyway"
+
+  /bank-transfers/{id}:
+    get:
+      operationId: getBankTransfer
+      tags: [transactions]
+      summary: "Phase 12C: one transfer, with its entry and reversal"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The transfer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankTransfer" }
+
+  /bank-transfers/{id}/reverse:
+    post:
+      operationId: reverseBankTransfer
+      tags: [transactions]
+      summary: "Phase 12C: reverse a transfer — a mirror entry in an OPEN period and a superseding record with the reason. Refused while a statement line is reconciled to it."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReverseBankTransferInput" }
+      responses:
+        "200":
+          description: The transfer, now carrying its reversal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankTransfer" }
+
+  /bank-reconciliation/links/{id}/reverse:
+    post:
+      operationId: reverseReconciliationLink
+      tags: [transactions]
+      summary: "Phase 12B: undo a reconciliation link with a superseding record (reason required). The link row stays."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReverseReconciliationLinkInput" }
+      responses:
+        "200":
+          description: The line, after the undo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReconciliationLineDetail" }
+
+  /bank-reconciliation/ap-matching:
+    get:
+      operationId: classifyApReconciliation
+      tags: [transactions]
+      summary: "Phase 12B: the deterministic rule over supplier payments, refunds and bill payments — classified, nothing recorded"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: One classification per unreconciled statement line
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [transactionId, classification, reason]
+                      properties:
+                        transactionId: { type: integer }
+                        classification: { type: string, enum: [DETERMINISTIC, AMBIGUOUS, UNMATCHED] }
+                        reason: { type: string }
+                        target:
+                          nullable: true
+                          allOf:
+                            - $ref: "#/components/schemas/ReconciliationCandidate"
+
+  /bank-reconciliation/ap-matching/apply:
+    post:
+      operationId: applyApReconciliation
+      tags: [transactions]
+      summary: "Phase 12B: record the DETERMINISTIC links only — an explicit act, never a side effect of an import"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: What was recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recorded, summary]
+                properties:
+                  recorded:
+                    type: array
+                    items: { type: integer }
+                  summary:
+                    type: object
+                    required: [deterministic, ambiguous, unmatched]
+                    properties:
+                      deterministic: { type: integer }
+                      ambiguous: { type: integer }
+                      unmatched: { type: integer }
+
+  /bank-statements:
+    get:
+      operationId: listBankStatements
+      tags: [transactions]
+      summary: "Phase 12A: imported bank statements, with continuity between them"
+      parameters:
+        - { in: query, name: bankAccountId, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Statements, oldest first per bank
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/BankStatement" }
+
+  /bank-statements/{id}:
+    get:
+      operationId: getBankStatement
+      tags: [transactions]
+      summary: "Phase 12A: one statement"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The statement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankStatement" }
+
   /transactions/{id}:
     get:
       operationId: getTransaction
@@ -2552,6 +2916,64 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /supplier-payments/{id}/advance-invoices:
+    post:
+      operationId: createSupplierAdvanceInvoice
+      tags: [payments]
+      summary: "Z-AP1: record the SUPPLIER'S advance-payment tax invoice (their 386) against an ADVANCE payment, as a DRAFT bill of type advance_invoice. Approving it (POST /bills/{id}/approve) claims its input VAT in its own period."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupplierAdvanceInvoiceInput" }
+      responses:
+        "201":
+          description: The draft advance invoice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bill" }
+        "409":
+          description: "advance_invoice_requires_advance · advance_invoice_exceeds_uninvoiced"
+
+  /bills/{id}/advance-credit-notes:
+    post:
+      operationId: createSupplierAdvanceCreditNote
+      tags: [bills]
+      summary: "Z-AP1: record the supplier's credit note against their advance tax invoice (the advance refunded or cancelled), as a DRAFT advance_credit_note. Approving it reverses the VAT in the note's own period (IR Art. 40(6))."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer }, description: "The advance invoice (bill) it credits" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupplierAdvanceCreditNoteInput" }
+      responses:
+        "201":
+          description: The draft credit note
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bill" }
+
+  /vendors/{id}/open-advance-invoices:
+    get:
+      operationId: listSupplierOpenAdvanceInvoices
+      tags: [vendors]
+      summary: "Z-AP1: the supplier's approved advance tax invoices with something still open — what a final bill may deduct"
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The open advance invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/SupplierAdvanceInvoiceSummary" } }
 
   /bills/{id}/submit:
     post:
@@ -5840,8 +6262,15 @@ components:
       allOf:
         - $ref: "#/components/schemas/SupplierPayment"
         - type: object
-          required: [allocations, refunds, classificationHistory]
+          required: [allocations, refunds, classificationHistory, advanceInvoicedAmount, advanceCreditedAmount, advanceAdjustedAmount, advanceOpenAmount, advanceOpenVat, uninvoicedAmount, advanceInvoices]
           properties:
+            advanceInvoicedAmount: { type: number, description: "Z-AP1: approved supplier advance invoices against this payment" }
+            advanceCreditedAmount: { type: number }
+            advanceAdjustedAmount: { type: number, description: "Deducted by approved final bills" }
+            advanceOpenAmount: { type: number, description: "Invoiced, not yet deducted or credited" }
+            advanceOpenVat: { type: number, description: "The claimed input VAT still open on those invoices" }
+            uninvoicedAmount: { type: number, description: "On account and not invoiced — the only part a plain allocation or refund may spend" }
+            advanceInvoices: { type: array, items: { $ref: "#/components/schemas/SupplierAdvanceInvoiceSummary" } }
             bankAccountId: { type: integer, nullable: true }
             method: { type: string, nullable: true }
             notes: { type: string, nullable: true }
@@ -6649,10 +7078,13 @@ components:
         kind:
           description: |
             M16.2 — operating (real income/expense; the only kind tax figures
-            read), transfer (money between the business's own pockets), or
-            settlement (M16.3: settles an existing invoice/bill).
+            read), transfer (money between the business's own pockets),
+            settlement (M16.3: settles an existing invoice/bill), or matched
+            (Phase 12B: fully reconciled to a payment, refund or entry that
+            already posted the money — it posts nothing of its own). Only the
+            reconciliation writes matched; no input accepts it.
           type: string
-          enum: [operating, transfer, settlement]
+          enum: [operating, transfer, settlement, matched]
         taxTreatment:
           description: "VAT treatment: S/Z/E/O; null = unknown (and only unknown)."
           type: ["string", "null"]
@@ -6721,7 +7153,7 @@ components:
         categoryName: { type: ["string", "null"] }
         confidenceScore: { type: ["number", "null"] }
         vatAmount: { type: ["number", "null"] }
-        kind: { type: string, enum: [operating, transfer, settlement] }
+        kind: { type: string, enum: [operating, transfer, settlement, matched] }
         taxTreatment: { type: ["string", "null"], enum: [S, Z, E, O, null] }
         vatBasis:
           description: "Flaw #6 — whether VAT was actually charged (see Transaction.vatBasis)."
@@ -6973,11 +7405,404 @@ components:
             posts to this bank's own GL account, and a row with no bank cannot
             be accepted. A missing id is a 422 `bank_account_required`.
           type: integer
+        statement:
+          $ref: "#/components/schemas/BankStatementInput"
+
+    ReconciliationStatus:
+      type: string
+      description: "DERIVED from bank_line_reconciliation: unreconciled (nothing answers the line), partial, reconciled (its whole amount is answered)."
+      enum: [unreconciled, partial, reconciled]
+
+    ReconciliationLine:
+      type: object
+      required: [id, bankAccountId, date, description, direction, amount, reconciledAmount, remaining, status, reviewStatus, kind, postedOwnEntry]
+      properties:
+        id: { type: integer }
+        bankAccountId: { type: integer }
+        bankStatementId: { type: integer, nullable: true }
+        date: { type: string }
+        description: { type: string }
+        direction: { type: string, enum: [in, out] }
+        amount: { type: number }
+        reconciledAmount: { type: number }
+        remaining: { type: number }
+        status: { $ref: "#/components/schemas/ReconciliationStatus" }
+        reviewStatus: { type: string }
+        kind: { type: string }
+        postedOwnEntry: { type: boolean, description: "The line was accepted and posted its own entry — reconciled by construction." }
+
+    ReconciliationCandidate:
+      type: object
+      required: [journalLineId, journalEntryId, entryNumber, date, lineAmount, remaining, sourceKind]
+      properties:
+        journalLineId: { type: integer }
+        journalEntryId: { type: integer }
+        entryNumber: { type: string }
+        date: { type: string }
+        description: { type: string, nullable: true }
+        lineAmount: { type: number }
+        remaining: { type: number, description: What of this ledger cash line is not yet reconciled }
+        sourceKind:
+          type: string
+          description: The document that posted the cash line.
+          enum: [supplier_payment, supplier_refund, bill_payment, receipt, customer_refund, statement_line, bank_transfer, journal]
+        sourceId: { type: integer, nullable: true }
+        sourceReference: { type: string, nullable: true }
+        party: { type: string, nullable: true }
+
+    ReconciliationLineDetail:
+      allOf:
+        - $ref: "#/components/schemas/ReconciliationLine"
+        - type: object
+          required: [reconciledBy, candidates]
+          properties:
+            reconciledBy:
+              type: array
+              items:
+                type: object
+                required: [source, sourceId, journalLineId, amount, journalEntryId, entryNumber, entryDate, documentKind]
+                properties:
+                  source: { type: string, enum: [posted, ar_match, ar_settlement, link], description: "Which writer reconciled it — the line's own posting, a Phase D receipt match, a Review settlement, or a reconciliation link." }
+                  sourceId: { type: integer }
+                  journalLineId: { type: integer }
+                  amount: { type: number }
+                  journalEntryId: { type: integer }
+                  entryNumber: { type: string }
+                  entryDate: { type: string }
+                  documentKind: { type: string }
+                  documentReference: { type: string, nullable: true }
+                  party: { type: string, nullable: true }
+                  linkId: { type: integer, nullable: true, description: "Set for a reconciliation link — the only source undone from here." }
+            candidates:
+              type: array
+              items: { $ref: "#/components/schemas/ReconciliationCandidate" }
+
+    ReconciliationLedgerItem:
+      type: object
+      required: [journalLineId, journalEntryId, entryNumber, date, description, direction, lineAmount, outstanding, signedOutstanding]
+      properties:
+        journalLineId: { type: integer }
+        journalEntryId: { type: integer }
+        entryNumber: { type: string }
+        date: { type: string }
+        description: { type: string, nullable: true }
+        direction: { type: string, enum: [in, out] }
+        lineAmount: { type: number }
+        outstanding: { type: number, description: "The part no statement line dated on or before the date answers." }
+        signedOutstanding: { type: number }
+
+    ReconciliationStatementItem:
+      type: object
+      required: [transactionId, date, description, direction, lineAmount, outstanding, signedOutstanding, reviewStatus, kind]
+      properties:
+        transactionId: { type: integer }
+        date: { type: string }
+        description: { type: string }
+        direction: { type: string, enum: [in, out] }
+        lineAmount: { type: number }
+        outstanding: { type: number, description: "The part no ledger cash line dated on or before the date answers." }
+        signedOutstanding: { type: number }
+        reviewStatus: { type: string }
+        kind: { type: string }
+
+    BankReconciliationPosition:
+      type: object
+      required: [bankAccountId, asOf, bankStatementId, statementBalance, ledgerBalance, ledgerOnlyTotal, statementOnlyTotal, expectedStatement, difference, balanced, reconciledThrough, ledgerOnly, statementOnly]
+      properties:
+        bankAccountId: { type: integer }
+        asOf: { type: string }
+        bankStatementId: { type: integer, nullable: true }
+        statementBalance: { type: number, nullable: true }
+        ledgerBalance: { type: number }
+        ledgerOnlyTotal: { type: number }
+        statementOnlyTotal: { type: number }
+        expectedStatement: { type: number, description: "ledgerBalance − ledgerOnlyTotal + statementOnlyTotal" }
+        difference: { type: number, nullable: true, description: "statementBalance − expectedStatement; NULL when no statement balance was given (never a zero that reads as balanced)" }
+        balanced: { type: boolean }
+        reconciledThrough: { type: string, nullable: true }
+        ledgerOnly: { type: array, items: { $ref: "#/components/schemas/ReconciliationLedgerItem" } }
+        statementOnly: { type: array, items: { $ref: "#/components/schemas/ReconciliationStatementItem" } }
+
+    CompleteBankReconciliationInput:
+      type: object
+      required: [bankAccountId]
+      properties:
+        bankAccountId: { type: integer }
+        asOf: { type: string, nullable: true, description: "YYYY-MM-DD; the statement's closing date when a statement is named" }
+        statementBalance: { type: number, nullable: true, description: "The bank's closing balance at the date (or name a statement that states one)" }
+        bankStatementId: { type: integer, nullable: true }
+        notes: { type: string, nullable: true }
+
+    ReopenBankReconciliationInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string }
+
+    BankReconciliationRecord:
+      type: object
+      required: [id, bankAccountId, bankName, asOf, bankStatementId, statementBalance, ledgerBalance, ledgerOnlyTotal, statementOnlyTotal, difference, snapshot, notes, completedBy, createdAt, reopening]
+      properties:
+        id: { type: integer }
+        bankAccountId: { type: integer }
+        bankName: { type: string }
+        asOf: { type: string }
+        bankStatementId: { type: integer, nullable: true }
+        statementBalance: { type: number }
+        ledgerBalance: { type: number }
+        ledgerOnlyTotal: { type: number }
+        statementOnlyTotal: { type: number }
+        difference: { type: number }
+        snapshot: { type: object, additionalProperties: true }
+        notes: { type: string, nullable: true }
+        completedBy: { type: integer, nullable: true }
+        createdAt: { type: string }
+        reopening:
+          type: object
+          nullable: true
+          required: [reason, reopenedAt]
+          properties:
+            reason: { type: string }
+            reopenedAt: { type: string }
+
+    CashPositionBank:
+      type: object
+      required: [bankAccountId, name, bankName, currency, isActive, ledgerBalance, latestStatement, unreconciledLines, partialLines, outstandingIn, outstandingOut, reconciledThrough]
+      properties:
+        bankAccountId: { type: integer }
+        name: { type: string }
+        bankName: { type: string }
+        currency: { type: string }
+        isActive: { type: boolean }
+        ledgerBalance: { type: number }
+        latestStatement:
+          type: object
+          nullable: true
+          required: [id, periodTo, closingBalance, ledgerAtThatDate, grossDifference]
+          properties:
+            id: { type: integer }
+            periodTo: { type: string }
+            closingBalance: { type: number }
+            ledgerAtThatDate: { type: number }
+            grossDifference: { type: number, description: "Statement minus ledger at the statement's date, BEFORE reconciling items" }
+        unreconciledLines: { type: integer }
+        partialLines: { type: integer }
+        outstandingIn: { type: number }
+        outstandingOut: { type: number }
+        reconciledThrough: { type: string, nullable: true }
+
+    CashPosition:
+      type: object
+      required: [asOf, banks, totalLedgerBalance]
+      properties:
+        asOf: { type: string }
+        banks: { type: array, items: { $ref: "#/components/schemas/CashPositionBank" } }
+        totalLedgerBalance: { type: number, description: "Active SAR banks only" }
+
+    BankingExceptions:
+      type: object
+      required: [asOf, staleAfterDays, cap, continuity, lines, transferClearing, transfersMissingLegs, ledgerLines]
+      properties:
+        asOf: { type: string }
+        staleAfterDays: { type: integer }
+        cap: { type: integer }
+        continuity:
+          type: array
+          items:
+            type: object
+            required: [statementId, bankAccountId, periodFrom, periodTo, continuity, detail]
+            properties:
+              statementId: { type: integer }
+              bankAccountId: { type: integer }
+              periodFrom: { type: string }
+              periodTo: { type: string }
+              continuity: { type: string }
+              detail: { type: string, nullable: true }
+        lines:
+          type: object
+          required: [total, items]
+          properties:
+            total: { type: integer }
+            items:
+              type: array
+              items:
+                type: object
+                required: [transactionId, bankAccountId, date, description, direction, amount, reconciled, kind]
+                properties:
+                  transactionId: { type: integer }
+                  bankAccountId: { type: integer }
+                  date: { type: string }
+                  description: { type: string }
+                  direction: { type: string, enum: [in, out] }
+                  amount: { type: number }
+                  reconciled: { type: number }
+                  kind: { type: string, enum: [stale, partial] }
+        transferClearing:
+          type: object
+          required: [balance, lines, nets]
+          properties:
+            balance: { type: number }
+            lines: { type: integer }
+            nets: { type: boolean }
+        transfersMissingLegs:
+          type: array
+          items:
+            type: object
+            required: [transferId, transferDate, amount, from, to, reconciledLegs]
+            properties:
+              transferId: { type: integer }
+              transferDate: { type: string }
+              amount: { type: number }
+              from: { type: string }
+              to: { type: string }
+              reconciledLegs: { type: integer }
+        ledgerLines:
+          type: object
+          required: [total, items]
+          properties:
+            total: { type: integer }
+            items:
+              type: array
+              items:
+                type: object
+                required: [journalLineId, journalEntryId, bankAccountId, entryNumber, date, amount, outstanding]
+                properties:
+                  journalLineId: { type: integer }
+                  journalEntryId: { type: integer }
+                  bankAccountId: { type: integer }
+                  entryNumber: { type: string }
+                  date: { type: string }
+                  amount: { type: number }
+                  outstanding: { type: number }
+
+    BankTransferInput:
+      type: object
+      required: [fromBankAccountId, toBankAccountId, amount]
+      properties:
+        fromBankAccountId: { type: integer, description: "The bank the money left." }
+        toBankAccountId: { type: integer, description: "The bank the money arrived in — a different one." }
+        amount: { type: number, description: "Positive; rounded to the halala." }
+        transferDate: { type: string, description: "YYYY-MM-DD; today (Asia/Riyadh) when omitted. Must be in an open period." }
+        reference: { type: string, nullable: true }
+        memo: { type: string, nullable: true }
+        confirmDuplicate: { type: boolean, description: "Record it although it looks like a transfer already in the books." }
+        duplicateConfirmationReason: { type: string, nullable: true, description: "Required with confirmDuplicate: why this is a different movement. Kept on the transfer." }
+        idempotencyKey: { type: string, nullable: true }
+
+    ReverseBankTransferInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, description: "Why the transfer is reversed — kept on the superseding record and the mirror entry." }
+        date: { type: string, nullable: true, description: "YYYY-MM-DD the mirror posts on; today when omitted. Must be in an open period." }
+
+    BankTransfer:
+      type: object
+      required: [id, fromBankAccountId, fromBankName, toBankAccountId, toBankName, amount, transferDate, reference, memo, journalEntryId, entryNumber, duplicateConfirmationReason, createdAt, reconciledLines, reversal]
+      properties:
+        id: { type: integer }
+        fromBankAccountId: { type: integer }
+        fromBankName: { type: string }
+        toBankAccountId: { type: integer }
+        toBankName: { type: string }
+        amount: { type: number }
+        transferDate: { type: string }
+        reference: { type: string, nullable: true }
+        memo: { type: string, nullable: true }
+        journalEntryId: { type: integer }
+        entryNumber: { type: string }
+        duplicateConfirmationReason: { type: string, nullable: true }
+        createdAt: { type: string }
+        reconciledLines: { type: integer, description: "How many of its two cash lines a statement line is reconciled to (0, 1 or 2)." }
+        reversal:
+          type: object
+          nullable: true
+          required: [reason, reversalJournalEntryId, reversedAt]
+          properties:
+            reason: { type: string }
+            reversalJournalEntryId: { type: integer }
+            reversedAt: { type: string }
+
+    ReverseReconciliationLinkInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, description: "Why the reconciliation is undone — the record keeps both the link and its reversal." }
+
+    ReconciliationLinkInput:
+      type: object
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [journalLineId, amount]
+            properties:
+              journalLineId: { type: integer }
+              amount: { type: number, description: "The part of the statement line this ledger line answers." }
+        reason: { type: string, nullable: true }
+        idempotencyKey: { type: string, nullable: true }
+
+    BankStatementInput:
+      type: object
+      description: >
+        Phase 12A — what the BANK sent, recorded as a statement. When present
+        the import is ALL OR NOTHING: every row is validated first, rows must
+        fall inside the period, and when balances are given the file must agree
+        with itself (opening + credits − debits = closing) or nothing is
+        imported (422 statement_does_not_balance). The same file for the same
+        bank is refused by its SHA-256 (409 statement_already_imported).
+      properties:
+        fileName: { type: string, nullable: true }
+        fileSha256: { type: string, nullable: true, description: "Lower-case hex SHA-256 of the file as uploaded." }
+        periodFrom: { type: string, nullable: true, description: "YYYY-MM-DD (checked by the service). Defaults to the earliest row date." }
+        periodTo: { type: string, nullable: true, description: "YYYY-MM-DD (checked by the service). Defaults to the latest row date." }
+        openingBalance: { type: number, nullable: true, description: "What the bank stated at the start — both balances or neither." }
+        closingBalance: { type: number, nullable: true, description: "What the bank stated at the end — both balances or neither." }
+
+    BankStatementContinuity:
+      type: string
+      description: >
+        How this statement follows the previous one for the same bank. REPORTED,
+        never refused: a missing statement is a fact to see, not a reason to
+        block an import. first · continuous · gap (days missing) · overlap
+        (periods overlap) · balance_break (opening differs from the previous
+        closing) · unknown (a balance is missing on either side).
+      enum: [first, continuous, gap, overlap, balance_break, unknown]
+
+    BankStatement:
+      type: object
+      required: [id, bankAccountId, periodFrom, periodTo, source, lineCount, fileCreditTotal, fileDebitTotal, importedCount, continuity, createdAt]
+      properties:
+        id: { type: integer }
+        bankAccountId: { type: integer }
+        periodFrom: { type: string, description: "YYYY-MM-DD — a plain date string (a date-format schema would be coerced to a timestamp on the wire)." }
+        periodTo: { type: string, description: "YYYY-MM-DD" }
+        openingBalance: { type: number, nullable: true }
+        closingBalance: { type: number, nullable: true }
+        source: { type: string, enum: [file_upload, manual_entry] }
+        fileName: { type: string, nullable: true }
+        fileSha256: { type: string, nullable: true }
+        lineCount: { type: integer, description: Lines in the file }
+        fileCreditTotal: { type: number }
+        fileDebitTotal: { type: number }
+        importedCount: { type: integer, description: "DERIVED — lines that carry this statement. Lower than lineCount when lines were already held (a re-exported period)." }
+        continuity:
+          $ref: "#/components/schemas/BankStatementContinuity"
+        continuityDetail: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
 
     UploadResult:
       type: object
       required: [inserted, categorized, errors]
       properties:
+        statement:
+          description: Phase 12A — the statement record this import created, when the upload carried one.
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/BankStatement"
         inserted:
           type: integer
         categorized:
@@ -7329,12 +8154,74 @@ components:
         total:
           type: number
 
+    SupplierAdvanceInvoiceInput:
+      type: object
+      required: [amount, vendorReference]
+      properties:
+        amount: { type: number, description: "The supplier's advance invoice total, VAT-inclusive; ≤ what is still un-invoiced on the payment" }
+        vatRate: { type: number, nullable: true, description: "15 (default) or 0" }
+        date: { type: string, nullable: true, description: "The supplier's issue date (YYYY-MM-DD) — the VAT period of the claim; not before the payment; must be open" }
+        vendorReference: { type: string, description: "The supplier's invoice number — the evidence the claim rests on (IR Art. 49(7))" }
+        billNumber: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+    SupplierAdvanceCreditNoteInput:
+      type: object
+      required: [vendorReference]
+      properties:
+        amount: { type: number, nullable: true, description: "VAT-inclusive; defaults to everything still open on the advance invoice" }
+        date: { type: string, nullable: true, description: "The supplier's issue date — the period the VAT is reversed in" }
+        vendorReference: { type: string, description: "The supplier's credit note number" }
+        billNumber: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+    SupplierAdvanceInvoiceSummary:
+      type: object
+      required: [id, billNumber, supplierReference, date, vatRate, total, taxable, tax, credited, adjusted, open, openTax]
+      properties:
+        id: { type: integer }
+        billNumber: { type: string }
+        supplierReference: { type: string, nullable: true }
+        date: { type: string }
+        vatRate: { type: number }
+        total: { type: number }
+        taxable: { type: number }
+        tax: { type: number }
+        credited: { type: number }
+        adjusted: { type: number, description: "Deducted by approved final bills" }
+        open: { type: number, description: "Invoiced, not yet deducted or credited — its VAT is claimed" }
+        openTax: { type: number, description: "The claimed input VAT still open — what a final bill deducting all of it will NOT claim again" }
+
+    BillPrepaymentInput:
+      type: object
+      required: [advanceBillId]
+      properties:
+        advanceBillId: { type: integer, description: "The supplier's approved advance tax invoice (bill of type advance_invoice)" }
+        amount: { type: number, nullable: true, description: "VAT-inclusive deduction (the supplier's BT-113 share); defaults to everything open" }
+        taxAmount: { type: number, nullable: true, description: "The supplier's KSA-32 for this deduction, when it differs from the split at the rate by rounding; checked to the halala" }
+
+    BillPrepayment:
+      type: object
+      required: [id, advanceBillId, advanceBillNumber, supplierReference, amount, taxableAmount, taxAmount, vatRate, finalised]
+      properties:
+        id: { type: integer }
+        advanceBillId: { type: integer }
+        advanceBillNumber: { type: string }
+        supplierReference: { type: string, nullable: true }
+        amount: { type: number }
+        taxableAmount: { type: number, description: "KSA-31" }
+        taxAmount: { type: number, description: "KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again" }
+        vatRate: { type: number }
+        finalised: { type: boolean, description: "Set at the bill's approval, when the deduction posted" }
+
     Bill:
       type: object
       required:
         - id
         - billNumber
         - documentType
+        - prepaidAmount
+        - amountDue
         - date
         - status
         - subtotal
@@ -7350,9 +8237,13 @@ components:
           type: string
         documentType:
           type: string
-          enum: [bill, credit_note, debit_note]
-          description: "B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6))."
-        creditNoteAgainstBillId: { type: ["integer", "null"], description: "B7: the bill this note adjusts." }
+          enum: [bill, credit_note, debit_note, advance_invoice, advance_credit_note]
+          description: "B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier's advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it."
+        creditNoteAgainstBillId: { type: ["integer", "null"], description: "B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits." }
+        advanceSupplierPaymentId: { type: ["integer", "null"], description: "Z-AP1: on an advance_invoice, the supplier payment it invoices." }
+        prepaidAmount: { type: number, description: "Z-AP1: Σ the supplier advance deductions on this bill (BT-113)" }
+        amountDue: { type: number, description: "Z-AP1: total less the advance deducted; 0 on notes and advance documents" }
+        prepayments: { type: array, items: { $ref: "#/components/schemas/BillPrepayment" }, description: "Z-AP1: present on a single-bill read" }
         isOpening: { type: boolean, description: "Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening)." }
         reversedAt: { type: ["string", "null"], description: "Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt)." }
         reversedByMigrationBatchId: { type: ["integer", "null"] }
@@ -9705,6 +10596,10 @@ components:
     BillHeaderInput:
       type: object
       properties:
+        prepayments:
+          type: array
+          items: { $ref: "#/components/schemas/BillPrepaymentInput" }
+          description: "Z-AP1: on a bill (the supplier's FINAL invoice), the advance tax invoices it deducts. Replaces the draft's selection on update."
         documentType:
           type: string
           enum: [bill, credit_note, debit_note]

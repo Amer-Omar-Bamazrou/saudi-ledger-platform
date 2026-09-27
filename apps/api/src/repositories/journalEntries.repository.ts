@@ -16,6 +16,27 @@ const jeConditions = (f: JournalEntryListFilter) =>
   f.status ? eq(journalEntriesTable.status, f.status) : undefined;
 
 export const journalEntriesRepository = {
+  /** Phase 12C: whether a statement line is reconciled to one of this entry's cash lines by another record (not the line's own posting). */
+  async reconciledToStatement(entryId: number): Promise<boolean> {
+    const { rows } = await db.execute<{ r: boolean }>(sql`SELECT EXISTS (SELECT 1 FROM bank_line_reconciliation x JOIN journal_entry_lines l ON l.id = x.line_id
+      WHERE l.journal_entry_id = ${entryId} AND x.source <> 'posted') AS r`);
+    return rows[0]?.r === true;
+  },
+
+  /**
+   * Phase 12C: the Phase 12 document that owns this entry, if any — it is then
+   * reversed through that document. (Invoices, bills and payments are not yet
+   * covered here: the decision pack §5.3 records that class as open.)
+   */
+  async documentOwner(entryId: number): Promise<"bank_transfer" | "statement_line" | null> {
+    const { rows } = await db.execute<{ owner: "bank_transfer" | "statement_line" | null }>(sql`
+      SELECT CASE WHEN EXISTS (SELECT 1 FROM bank_transfers WHERE journal_entry_id = ${entryId}) THEN 'bank_transfer'
+                  WHEN EXISTS (SELECT 1 FROM transactions WHERE journal_entry_id = ${entryId}) THEN 'statement_line'
+             END AS owner`);
+    return rows[0]?.owner ?? null;
+  },
+
+
   /** A PAGE. See `invoicesRepository.list` for why offset rather than cursor. */
   list(f: JournalEntryListFilter = {}) {
     return db

@@ -2393,7 +2393,7 @@ definition, `repositories/billPosition`, under a sweep written red first
 (`tests/bill-position-reader-sweep.test.ts`). Full record, with the fix and the
 test per finding: [`phase-11-deep-accounting-ap-decision-pack.md`](../product/phase-11-deep-accounting-ap-decision-pack.md) §17.
 
-**Still open, named:** Z-AP1 (input VAT on a supplier's ADVANCE tax invoice —
+**Still open, named (at the time):** Z-AP1 *(answered 2026-09-24: A — built, Phase 12 pack §8)* (input VAT on a supplier's ADVANCE tax invoice —
 ACCOUNTANT DECISION REQUIRED, blocker format in the pack §17.8; the running
 default defers the claim, lawful under IR Art. 49(8)); a RACE test for the row
 locks; the statement's server-written line descriptions are English.

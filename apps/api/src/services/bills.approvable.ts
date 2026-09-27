@@ -20,6 +20,7 @@
  * (`debitAccount`, `force`); submit/send-back/reject need no options.
  */
 import { BusinessRuleError } from "../lib/errors";
+import { round2 } from "../lib/money";
 import { postJournalEntry } from "./accounting/glPosting";
 import { documentSign } from "../repositories/reports.repository";
 import { billsRepository } from "../repositories/bills.repository";
@@ -27,6 +28,8 @@ import { assetCapitalisationService } from "./assets/capitalisation.service";
 import { categoriesRepository } from "../repositories/categories.repository";
 import { captureService } from "./capture/capture.service";
 import { buildBillOut, toNum, type BillOut } from "./bills.presenter";
+import { supplierAdvanceInvoicesService } from "./accounting/supplierAdvanceInvoices.service";
+import { SUPPLIER_ON_ACCOUNT_ASSET_NAME } from "./accounting/supplierCreditPolicy";
 import type { Approvable, ApprovalActor, ApprovalState } from "./approval";
 import type { billsTable, vendorsTable } from "@workspace/db";
 
@@ -99,9 +102,21 @@ export interface BillApproveOptions {
   force?: boolean;
 }
 
+/**
+ * The bill as every read returns it — with its outstanding, its advance
+ * deductions and what is left to pay (Z-AP1). One builder for every response
+ * this adapter gives, so an approval can never answer `prepaidAmount: 0` for a
+ * bill that deducted an advance.
+ */
+async function fullOut(billId: number): Promise<BillOut> {
+  const [r] = await billsRepository.findWithVendor(billId);
+  const items = await billsRepository.itemsByBill(billId);
+  const prepayments = await supplierAdvanceInvoicesService.prepaymentsOf(billId);
+  return buildBillOut(r!.bill, r!.vendor, items, r!.outstanding, r!.prepaid, prepayments);
+}
+
 async function snapshot(row: BillRow): Promise<BillOut> {
-  const items = await billsRepository.itemsByBill(row.bill.id);
-  return buildBillOut(row.bill, row.vendor, items);
+  return fullOut(row.bill.id);
 }
 
 /**
@@ -138,6 +153,21 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
         `diff=${diff.toFixed(2)} SAR; using computed total ${computed} for GL — ` +
         `userId=${actor.userId ?? "unknown"} at ${new Date().toISOString()}`,
     );
+  }
+
+  /**
+   * 🔴 Z-AP1 (2026-09-24, accountant answer A) — the SUPPLIER'S ADVANCE
+   * documents post only their VAT: the advance tax invoice CLAIMS it (Dr Input
+   * VAT / Cr Supplier advances), the supplier's credit note against it
+   * reverses it (the mirror), each in its own date's period. Neither touches
+   * AP or an expense — the advance was paid before either existed.
+   * (supplierAdvanceInvoices.service; the same approval path, one writer.)
+   */
+  if (bill.documentType === "advance_invoice" || bill.documentType === "advance_credit_note") {
+    if (bill.documentType === "advance_invoice") await supplierAdvanceInvoicesService.approveAdvanceInvoice(bill);
+    else await supplierAdvanceInvoicesService.approveAdvanceCreditNote(bill);
+    await billsRepository.update(bill.id, { status: "received", reviewNote: null });
+    return fullOut(bill.id);
   }
 
   // ── vendor ZATCA VAT number format ──
@@ -234,19 +264,34 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
     : { ...(await resolveExpenseLine(debitAccountId ?? bill.expenseAccountId ?? undefined, debitAccount)), description: `Bill ${bill.billNumber}` };
   const debitAmount = plan ? plan.capitalised : subtotal;
   /**
+   * 🔴 Z-AP1 — a FINAL bill that deducts the supplier's advance tax
+   * invoice(s). Its lines are the FULL supply; the advance invoice already
+   * CLAIMED its VAT, so this entry claims only the rest (VAT − Σ prepaid tax),
+   * credits AP only with what is still owed (total − Σ prepaid), and releases
+   * the net advance from the asset (Cr Supplier advances Σ prepaid taxable).
+   * THE SAME INPUT VAT IS NEVER CLAIMED TWICE. Re-checked under every advance
+   * payment's lock before anything posts.
+   */
+  const prepaid = isNote ? null : await supplierAdvanceInvoicesService.lockAndCheckFinalBill(bill);
+  /**
    * 🔴 Art. 40(6): on a purchase note the CUSTOMER corrects its INPUT tax "in
    * the Tax Period in which the Credit Note or Debit Note is issued" — the
    * note's own `date`, which is the SUPPLIER'S issue date. The VAT return
    * filters on that date, so the correction lands in the right period by
    * construction; nothing re-dates into the original bill's period.
    */
-  const vatLine = plan && plan.capitaliseVat
+  const vatToClaim = round2(vatAmount - (prepaid?.tax ?? 0));
+  const vatLine = (plan && plan.capitaliseVat) || vatToClaim <= 0
     ? []
     : [{
         systemCode: "VAT_INPUT" as const, accountName: "Input VAT Receivable",
         description: `VAT on ${bill.billNumber}`,
-        ...(sign > 0 ? { debitAmount: vatAmount, creditAmount: 0 } : { debitAmount: 0, creditAmount: vatAmount }),
+        ...(sign > 0 ? { debitAmount: vatToClaim, creditAmount: 0 } : { debitAmount: 0, creditAmount: vatToClaim }),
       }];
+  const apAmount = round2(effectiveTotal - (prepaid?.amount ?? 0));
+  const advanceLine = prepaid && prepaid.taxable > 0
+    ? [{ systemCode: "SUPPLIER_ADVANCES" as const, accountName: SUPPLIER_ON_ACCOUNT_ASSET_NAME.SUPPLIER_ADVANCES!, description: `Advance deducted on ${bill.billNumber}`, debitAmount: 0, creditAmount: prepaid.taxable, party: { type: "vendor" as const, vendorId: bill.vendorId! } }]
+    : [];
 
   /** Put an amount on the side this document type calls for — the whole sign rule, in one place. */
   const side = (amount: number, naturalDebit: boolean) =>
@@ -262,9 +307,12 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
     lines: [
       { ...debitLine, ...side(debitAmount, true) },
       ...vatLine,
-      { systemCode: "AP", accountName: "Accounts Payable", description: `${isNote ? "Credit note" : "Bill"} ${bill.billNumber}`, ...side(effectiveTotal, false), party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } },
+      ...advanceLine,
+      ...(apAmount > 0 ? [{ systemCode: "AP" as const, accountName: "Accounts Payable", description: `${isNote ? "Credit note" : "Bill"} ${bill.billNumber}`, ...side(apAmount, false), party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } }] : []),
     ],
   });
+  // Z-AP1: the advance now settles the bill — one folded allocation per advance payment, naming THIS entry.
+  if (prepaid) await supplierAdvanceInvoicesService.finaliseFinalBill(bill.id, prepaid, je.id, actor.userId ?? null);
 
   // In the same transaction: the draft becomes an asset in service with its
   // stored schedule. If this throws, the bill does not post.
@@ -277,8 +325,8 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   if (captureId) await captureService.attachToBill(captureId, bill.id);
 
   // Approved & posted; clear any prior review note.
-  const [updated] = await billsRepository.update(bill.id, { status: "received", reviewNote: null });
-  return buildBillOut(updated, row.vendor);
+  await billsRepository.update(bill.id, { status: "received", reviewNote: null });
+  return fullOut(bill.id);
 }
 
 /** Build the bill approval adapter for one request. */
@@ -305,8 +353,8 @@ export function billApprovable(opts: BillApproveOptions = {}): Approvable<BillRo
 
     async onSubmit(row) {
       // draft → submitted: enters the approver's queue, clears any prior note.
-      const [updated] = await billsRepository.update(row.bill.id, { status: "submitted", reviewNote: null });
-      return buildBillOut(updated, row.vendor);
+      await billsRepository.update(row.bill.id, { status: "submitted", reviewNote: null });
+      return fullOut(row.bill.id);
     },
 
     async onSendBack(row, _actor, note) {
@@ -315,7 +363,8 @@ export function billApprovable(opts: BillApproveOptions = {}): Approvable<BillRo
         status: "draft",
         reviewNote: note?.trim() ? note.trim() : null,
       });
-      return buildBillOut(updated, row.vendor);
+      void updated;
+      return fullOut(row.bill.id);
     },
 
     async hardDelete(row) {

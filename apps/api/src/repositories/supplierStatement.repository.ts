@@ -102,9 +102,11 @@ export const supplierStatementRepository = {
                sum(${billSignSql("b")} * b.total::numeric) AS total_billed,
                sum(CASE WHEN ${billIsPayableSql("b")}
                         THEN coalesce(b.paid_amount::numeric, 0) + ${billLivePaidBySubledgerSql("b")} ELSE 0 END) AS total_paid,
-               count(*) AS bill_count,
+               -- Z-AP1: the supplier's ADVANCE documents carry VAT only; they are
+               -- not bills received, not notes received, and owe nothing.
+               count(*) FILTER (WHERE b.document_type NOT IN ('advance_invoice', 'advance_credit_note')) AS bill_count,
                sum(greatest(${billOutstandingSql("b")}, 0)) AS payable,
-               sum(CASE WHEN ${billIsPayableSql("b")} THEN 0 ELSE b.total::numeric END) AS notes_received
+               sum(CASE WHEN b.document_type = 'credit_note' THEN b.total::numeric ELSE 0 END) AS notes_received
           FROM bills b
          WHERE ${IN_BOOKS} AND ${scopedCo("b")} AND b.vendor_id IS NOT NULL
          GROUP BY b.vendor_id),
@@ -206,7 +208,7 @@ export const supplierStatementRepository = {
                b.total::numeric AS amount, b.total::numeric AS payable_delta, 0::numeric AS credit_delta, 0::numeric AS on_account_delta,
                b.id AS bill_id, NULL::int AS payment_id, NULL::int AS credit_note_id, NULL::int AS allocation_id, NULL::int AS refund_id, NULL::int AS journal_entry_id
           FROM bills b
-         WHERE b.vendor_id = ${vendorId} AND b.document_type <> 'credit_note' AND ${IN_BOOKS} AND ${scopedCo("b")}
+         WHERE b.vendor_id = ${vendorId} AND b.document_type IN ('bill', 'debit_note') AND ${IN_BOOKS} AND ${scopedCo("b")}
         UNION ALL
         -- a credit note the supplier issued to us: their balance in our favour rises
         SELECT 'credit_note', b.date::date::text, b.created_at, 0, b.id,

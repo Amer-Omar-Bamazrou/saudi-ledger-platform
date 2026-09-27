@@ -694,6 +694,48 @@
       "when": 1790166716535,
       "tag": "0098_phase11_ap_subledger_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1790174339913,
+      "tag": "0099_phase12a_bank_statements",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1790175394347,
+      "tag": "0100_phase12b_bank_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1790178863729,
+      "tag": "0101_phase12c_bank_transfers",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1790179798734,
+      "tag": "0102_phase12d_bank_reconciliations",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1790184205785,
+      "tag": "0103_phase12e_reconciliation_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1790249511885,
+      "tag": "0104_zap1_supplier_advance_invoice",
+      "breakpoints": true
     }
   ]
 }

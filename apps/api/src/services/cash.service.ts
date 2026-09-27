@@ -109,7 +109,9 @@ export const cashService = {
       // is still a question only the tenant can answer.
       if (r.kind === "transfer" && !r.transfer_direction) transfersUndeclared += net;
 
-      if (r.kind === "settlement") {
+      // A MATCHED line (Phase 12B) is the same case: its cash effect was posted
+      // by the payment, refund or entry it is reconciled to.
+      if (r.kind === "settlement" || r.kind === "matched") {
         settlements += net;
       } else if (r.posted) {
         postedCash += net;

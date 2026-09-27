@@ -5,9 +5,12 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { BankStatement } from './bankStatement';
 import type { UploadResultDuplicatesItem } from './uploadResultDuplicatesItem';
 
 export interface UploadResult {
+  /** Phase 12A — the statement record this import created, when the upload carried one. */
+  statement?: BankStatement | null;
   inserted: number;
   categorized: number;
   duplicatesSkipped?: number;

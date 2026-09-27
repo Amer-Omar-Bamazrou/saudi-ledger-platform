@@ -39,12 +39,22 @@ const ident = (alias: string) => {
   return alias;
 };
 
+/**
+ * 🔴 Z-AP1 (2026-09-24): the SUPPLIER'S ADVANCE documents — `advance_invoice`
+ * (their advance-payment tax invoice) and `advance_credit_note` (their note
+ * against it) — carry VAT only. The advance was PAID before either existed, so
+ * neither owes, bills or settles anything: sign 0, never payable, outstanding
+ * 0, no AP contribution. Their only effects are input VAT (the VAT return reads
+ * their lines) and the split of the advance asset (their own GL entries).
+ */
+const ADVANCE_DOCUMENT_TYPES_SQL = `('advance_invoice', 'advance_credit_note')`;
+
 /** Plain-text forms — the source of truth; the SQL forms wrap these. */
 export const BILL_SIGN_TEXT = (alias: string) =>
-  `(CASE WHEN ${ident(alias)}.document_type = 'credit_note' THEN -1 ELSE 1 END)`;
+  `(CASE WHEN ${ident(alias)}.document_type = 'credit_note' THEN -1 WHEN ${alias}.document_type IN ${ADVANCE_DOCUMENT_TYPES_SQL} THEN 0 ELSE 1 END)`;
 
-/** A document that can OWE something: a bill or a debit note. A credit note never can. */
-export const BILL_IS_PAYABLE_TEXT = (alias: string) => `${ident(alias)}.document_type <> 'credit_note'`;
+/** A document that can OWE something: a bill or a debit note. A credit note never can, nor can an advance document. */
+export const BILL_IS_PAYABLE_TEXT = (alias: string) => `${ident(alias)}.document_type IN ('bill', 'debit_note')`;
 
 /**
  * Σ live allocations TO this bill — payments, applied advances AND applied
@@ -72,7 +82,7 @@ export const BILL_LIVE_PAID_BY_SUBLEDGER_TEXT = (alias: string) =>
  * subledger allocations.
  */
 export const BILL_OUTSTANDING_TEXT = (alias: string) =>
-  `(CASE WHEN ${ident(alias)}.document_type = 'credit_note' THEN 0::numeric
+  `(CASE WHEN ${ident(alias)}.document_type NOT IN ('bill', 'debit_note') THEN 0::numeric
          ELSE ${alias}.total::numeric - coalesce(${alias}.paid_amount::numeric, 0) - ${BILL_LIVE_APPLIED_TEXT(alias)} END)`;
 
 /**
@@ -83,6 +93,7 @@ export const BILL_OUTSTANDING_TEXT = (alias: string) =>
  */
 export const BILL_AP_CONTRIBUTION_TEXT = (alias: string) =>
   `(CASE WHEN ${ident(alias)}.document_type = 'credit_note' THEN -${alias}.total::numeric
+         WHEN ${alias}.document_type IN ${ADVANCE_DOCUMENT_TYPES_SQL} THEN 0::numeric
          ELSE ${alias}.total::numeric - coalesce(${alias}.paid_amount::numeric, 0) - ${BILL_LIVE_PAID_BY_SUBLEDGER_TEXT(alias)} END)`;
 
 /** SQL forms, for a query that aliases `bills` as `alias` (a Drizzle query over `billsTable` passes "bills"). */

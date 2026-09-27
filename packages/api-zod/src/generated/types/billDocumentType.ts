@@ -7,7 +7,7 @@
  */
 
 /**
- * B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)).
+ * B7: a purchase-side note is the SUPPLIER'S document; its date is the supplier's issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier's advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.
  */
 export type BillDocumentType = typeof BillDocumentType[keyof typeof BillDocumentType];
 
@@ -16,4 +16,6 @@ export const BillDocumentType = {
   bill: 'bill',
   credit_note: 'credit_note',
   debit_note: 'debit_note',
+  advance_invoice: 'advance_invoice',
+  advance_credit_note: 'advance_credit_note',
 } as const;

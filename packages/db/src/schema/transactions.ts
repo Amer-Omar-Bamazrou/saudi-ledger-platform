@@ -19,6 +19,7 @@ import { bankAccountsTable } from "./bankAccounts";
 import { invoicesTable } from "./invoices";
 import { billsTable } from "./bills";
 import { journalEntriesTable } from "./journalEntries";
+import { bankStatementsTable } from "./bankStatements";
 
 export const transactionsTable = pgTable(
   "transactions",
@@ -199,12 +200,20 @@ export const transactionsTable = pgTable(
     counterpartyBankAccountId: integer("counterparty_bank_account_id").references(
       () => bankAccountsTable.id,
     ),
+    /**
+     * Phase 12A — the statement this line was imported under (provenance).
+     * NULL for manual entries and for lines imported before 12A: those
+     * carry no statement, and the continuity report says so rather than
+     * inventing one.
+     */
+    bankStatementId: integer("bank_statement_id").references(() => bankStatementsTable.id, { onDelete: "restrict" }),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
     index("transactions_org_date_idx").on(t.organizationId, t.date),
     index("transactions_org_account_idx").on(t.organizationId, t.bankAccountId),
+    index("transactions_statement_idx").on(t.bankStatementId),
   ],
 );
 
