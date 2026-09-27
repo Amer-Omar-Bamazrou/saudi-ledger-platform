@@ -10,6 +10,10 @@ out-tsc
 
 # dependencies
 node_modules
+# pnpm's content-addressable package cache — never source. A committed copy
+# (32,718 files, 2026-09-20) put 20 third-party false positives into every
+# full-history secrets scan.
+.pnpm-store/
 
 # IDEs and editors
 /.idea
