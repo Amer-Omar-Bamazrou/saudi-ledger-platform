@@ -11,6 +11,12 @@ export interface JournalEntryListFilter {
   offset?: number;
 }
 
+/**
+ * Who owns a journal entry, when a document does. The Phase 13B-1 values are
+ * the ones `input_vat_journal_owner()` (migration 0107) returns.
+ */
+export type JournalEntryOwner = "bank_transfer" | "statement_line" | "bill" | "supplier_note" | "bill_vat_claim" | "input_vat_event";
+
 /** One predicate for the rows AND the count — so they cannot describe different sets. */
 const jeConditions = (f: JournalEntryListFilter) =>
   f.status ? eq(journalEntriesTable.status, f.status) : undefined;
@@ -24,14 +30,22 @@ export const journalEntriesRepository = {
   },
 
   /**
-   * Phase 12C: the Phase 12 document that owns this entry, if any — it is then
-   * reversed through that document. (Invoices, bills and payments are not yet
-   * covered here: the decision pack §5.3 records that class as open.)
+   * The document that owns this entry, if any — it is then corrected through
+   * that document, never reversed generically.
+   *
+   * Phase 12C: a bank transfer, a statement line's own posting.
+   * 🔴 Phase 13B-1 (A-5): a bill's or supplier note's own entry, a bill's
+   * evidence-claim entry, and any entry an input-VAT event references — read
+   * through `input_vat_journal_owner()`, the ONE definition migration 0107
+   * gives, which the database guards also use (never restated here). It runs
+   * as the caller, under RLS. (Invoices and payments are still not covered —
+   * the rest of CLAUDE.md §5 rank 2.)
    */
-  async documentOwner(entryId: number): Promise<"bank_transfer" | "statement_line" | null> {
-    const { rows } = await db.execute<{ owner: "bank_transfer" | "statement_line" | null }>(sql`
+  async documentOwner(entryId: number): Promise<JournalEntryOwner | null> {
+    const { rows } = await db.execute<{ owner: JournalEntryOwner | null }>(sql`
       SELECT CASE WHEN EXISTS (SELECT 1 FROM bank_transfers WHERE journal_entry_id = ${entryId}) THEN 'bank_transfer'
                   WHEN EXISTS (SELECT 1 FROM transactions WHERE journal_entry_id = ${entryId}) THEN 'statement_line'
+                  ELSE input_vat_journal_owner(${entryId})
              END AS owner`);
     return rows[0]?.owner ?? null;
   },

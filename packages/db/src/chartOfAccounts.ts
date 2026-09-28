@@ -45,6 +45,22 @@ export const SYSTEM_ACCOUNTS = {
    * or by a supplier credit note reducing it (X3).
    */
   VAT_AWAITING_EVIDENCE: "VAT_AWAITING_EVIDENCE",
+  /**
+   * 🔴 Phase 13B-1 (FIN-ACC-1, owner A-1, 2026-09-28): input VAT REVERSED under
+   * Art. 40(10) because the consideration stayed unpaid at the end of M+12,
+   * net of Art. 40(11) restorations. A CONTRA-asset (credit balance, the
+   * ACCUMULATED_DEPRECIATION precedent), kept apart from VAT_INPUT because
+   * VAT_INPUT represents recoverable VAT. Nothing posts here until 13B-6.
+   * Record: docs/product/phase-13b-vat-claim-ledger-architecture.md §7.
+   */
+  VAT_ADJ_NONPAYMENT: "VAT_ADJ_NONPAYMENT",
+  /**
+   * 🔴 Phase 13B-1 (accountant M1b, owner A-1, 2026-09-28): input VAT that was
+   * CLAIMED and later corrected as non-deductible under Art. 50. A contra-asset
+   * (credit balance); a correction NEVER credits VAT_INPUT. Nothing restores
+   * it. Nothing posts here until 13B-8.
+   */
+  VAT_ADJ_BLOCKED: "VAT_ADJ_BLOCKED",
   PURCHASES: "PURCHASES",
   CASH: "CASH",
   SUSPENSE: "SUSPENSE",
@@ -133,6 +149,8 @@ export const TAX_ACCOUNT_SYSTEM_CODES: readonly string[] = [
   SYSTEM_ACCOUNTS.VAT_OUTPUT,
   SYSTEM_ACCOUNTS.VAT_INPUT,
   SYSTEM_ACCOUNTS.VAT_AWAITING_EVIDENCE,
+  SYSTEM_ACCOUNTS.VAT_ADJ_NONPAYMENT,
+  SYSTEM_ACCOUNTS.VAT_ADJ_BLOCKED,
   "VAT_PAYMENT",
   "ZAKAT_PAYMENT",
 ];
@@ -202,6 +220,10 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "VAT_INPUT", name: "Input VAT Receivable", nameAr: "ضريبة القيمة المضافة على المشتريات", type: "asset", liquidityClass: "quick", legacyNames: ["Input VAT Receivable"] },
   // Phase 13A (X1): not yet deductible, so not `quick` like VAT_INPUT — it may never be recovered.
   { code: "VAT_AWAITING_EVIDENCE", name: "Input VAT awaiting evidence", nameAr: "ضريبة مدخلات بانتظار الإثبات", type: "asset", liquidityClass: "current", legacyNames: [] },
+  // Phase 13B-1 (A-1): the two input-VAT CONTRA-assets — credit balances, like
+  // ACCUMULATED_DEPRECIATION. Names are the owner-approved strings, verbatim.
+  { code: "VAT_ADJ_NONPAYMENT", name: "VAT Adjustment – Non-Payment (Art. 40(10))", nameAr: "تعديل ضريبة المدخلات – عدم السداد (المادة 40(10))", type: "asset", liquidityClass: "current", legacyNames: [] },
+  { code: "VAT_ADJ_BLOCKED", name: "VAT Adjustment – Blocked (Art. 50)", nameAr: "تعديل ضريبة المدخلات – غير قابلة للخصم (المادة 50)", type: "asset", liquidityClass: "current", legacyNames: [] },
   // Fixed assets FA-A (2026-09-22): the contra-asset the depreciation schedule posts into. Non-current, like the cost it offsets.
   { code: "PREPAID_EXPENSES", name: "Prepaid expenses", nameAr: "مصروفات مدفوعة مقدمًا", type: "asset", liquidityClass: "current", legacyNames: [] },
   // 🔴 THE AP ON-ACCOUNT ASSETS. A customer advance is a LIABILITY (we owe

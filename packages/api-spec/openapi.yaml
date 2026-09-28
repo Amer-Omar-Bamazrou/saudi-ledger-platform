@@ -2557,7 +2557,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/JournalEntryReversal" }
         "409":
-          description: Not posted, or already reversed
+          description: Not posted, already reversed, or OWNED by a document — a bank transfer, a statement line, a bill's or supplier note's own posting, a bill's input-VAT claim, or an input-VAT event (Phase 13B-1) — which is corrected through that document, never reversed generically
 
   /payroll:
     get:
