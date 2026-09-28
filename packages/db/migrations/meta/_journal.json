@@ -750,6 +750,13 @@
       "when": 1790507131383,
       "tag": "0106_phase13_input_vat_state",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1790626151128,
+      "tag": "0107_phase13b1_vat_event_ledger",
+      "breakpoints": true
     }
   ]
 }

@@ -22,12 +22,33 @@ import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
 import { journalEntryApprovable } from "./journalEntries.approvable";
 import { buildJEOut } from "./journalEntries.presenter";
-import { journalEntriesRepository, DEFAULT_PAGE as JE_PAGE } from "../repositories/journalEntries.repository";
+import { journalEntriesRepository, DEFAULT_PAGE as JE_PAGE, type JournalEntryOwner } from "../repositories/journalEntries.repository";
 import { categoriesRepository } from "../repositories/categories.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
 import type { journalEntriesTable } from "@workspace/db";
 import { businessToday } from "@workspace/shared";
+
+/**
+ * The refusal for an entry a document owns — it names the document and the
+ * way to correct it (CLAUDE.md §3: explain a refusal; do not hide the control).
+ */
+function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): string {
+  switch (owner) {
+    case "bank_transfer":
+      return "This entry records a bank transfer. Reverse the transfer instead, so the transfer carries its reversal.";
+    case "statement_line":
+      return "This entry is a bank statement line's own posting. Change or delete that line in Transactions instead, so the line and its entry stay in step.";
+    case "bill":
+      return `This entry is bill ${documentRef}'s own posting. A posted bill is corrected with a supplier credit note, never by reversing its entry.`;
+    case "supplier_note":
+      return `This entry is supplier note ${documentRef}'s own posting. A supplier's note is the supplier's document; its entry cannot be reversed from here.`;
+    case "bill_vat_claim":
+      return `This entry claims bill ${documentRef}'s input VAT. It cannot be reversed from here; a change to a VAT claim is recorded as a new VAT movement on the bill.`;
+    case "input_vat_event":
+      return `This entry records an input VAT movement on ${documentRef}. It cannot be reversed from here; a VAT movement changes only through a new VAT movement.`;
+  }
+}
 
 export const journalEntriesService = {
   /** A PAGE of entries, plus the count for the whole filtered set. */
@@ -314,11 +335,13 @@ export const journalEntriesService = {
     // would read as live while its entry is cancelled, and a statement line
     // would read as reconciled by its own posting while that posting is gone.
     // (`owner` is an argument, never read from a request body.)
+    // 🔴 Phase 13B-1 (A-5): a bill's or supplier note's own entry, a bill's
+    // evidence-claim entry and any input-VAT event's entry are owned too — and
+    // no path passes those owners in, so they are ALWAYS refused here. The
+    // trigger on journal_entries (migration 0107) is the boundary.
     const documentOwner = await journalEntriesRepository.documentOwner(id);
     if (documentOwner && owner.document !== documentOwner) {
-      throw new ConflictError(documentOwner === "bank_transfer"
-        ? "This entry records a bank transfer. Reverse the transfer instead, so the transfer carries its reversal."
-        : "This entry is a bank statement line's own posting. Change or delete that line in Transactions instead, so the line and its entry stay in step.");
+      throw new ConflictError(ownedEntryRefusal(documentOwner, original.reference ?? original.entryNumber));
     }
     // 🔴 Phase 12C: a statement line reconciled to this entry would go on
     // "reconciling" money the books now cancel. Refused in words here; the

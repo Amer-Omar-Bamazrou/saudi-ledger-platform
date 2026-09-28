@@ -305,6 +305,37 @@ async function main() {
       FROM gl FULL JOIN doc ON doc.org = gl.org AND doc.vendor_id IS NOT DISTINCT FROM gl.vendor_id
      WHERE coalesce(gl.v,0) <> coalesce(doc.v,0)`));
 
+  // ── Phase 13B-1: the input-VAT event ledger's own integrity ──────────
+  // Foundation only: no production writer exists yet, so these hold
+  // vacuously on live data until 13B-3 — they are here so the first writer
+  // is checked from its first row. Each re-checks AFTER the fact what the
+  // migration-0107 triggers check at write time.
+  fail("input_vat_balances_vs_events — a document's balance row differs from the sum of its events' transfers", await q(`
+    WITH ev AS (
+      SELECT document_id,
+             sum(CASE WHEN to_bucket = 'HELD' THEN amount ELSE 0 END) - sum(CASE WHEN from_bucket = 'HELD' THEN amount ELSE 0 END) AS held,
+             sum(CASE WHEN to_bucket = 'CLAIMED' THEN amount ELSE 0 END) - sum(CASE WHEN from_bucket = 'CLAIMED' THEN amount ELSE 0 END) AS claimed,
+             sum(CASE WHEN to_bucket = 'REVERSED_UNPAID' THEN amount ELSE 0 END) - sum(CASE WHEN from_bucket = 'REVERSED_UNPAID' THEN amount ELSE 0 END) AS reversed_unpaid,
+             sum(CASE WHEN to_bucket = 'BLOCKED' THEN amount ELSE 0 END) - sum(CASE WHEN from_bucket = 'BLOCKED' THEN amount ELSE 0 END) AS blocked,
+             sum(CASE WHEN to_bucket = 'CORRECTED_BLOCKED' THEN amount ELSE 0 END) - sum(CASE WHEN from_bucket = 'CORRECTED_BLOCKED' THEN amount ELSE 0 END) AS corrected_blocked,
+             sum(CASE WHEN to_bucket = 'LAPSED' THEN amount ELSE 0 END) - sum(CASE WHEN from_bucket = 'LAPSED' THEN amount ELSE 0 END) AS lapsed
+        FROM input_vat_events GROUP BY document_id)
+    SELECT coalesce(b.organization_id, d.organization_id)::text AS org, coalesce(ev.document_id, b.document_id) AS document_id
+      FROM ev FULL JOIN input_vat_balances b ON b.document_id = ev.document_id
+      LEFT JOIN bills d ON d.id = coalesce(ev.document_id, b.document_id)
+     WHERE coalesce(ev.held,0) <> coalesce(b.held,0) OR coalesce(ev.claimed,0) <> coalesce(b.claimed,0)
+        OR coalesce(ev.reversed_unpaid,0) <> coalesce(b.reversed_unpaid,0) OR coalesce(ev.blocked,0) <> coalesce(b.blocked,0)
+        OR coalesce(ev.corrected_blocked,0) <> coalesce(b.corrected_blocked,0) OR coalesce(ev.lapsed,0) <> coalesce(b.lapsed,0)`));
+  fail("input_vat_event_journal_intact — an event's entry is gone, no longer posted, in another company, or not dated the event's posting date", await q(`
+    SELECT v.organization_id::text AS org, v.id AS event_id, v.event_type, v.journal_entry_id, e.status, e.date AS entry_date, v.posting_date
+      FROM input_vat_events v LEFT JOIN journal_entries e ON e.id = v.journal_entry_id
+     WHERE v.journal_entry_id IS NOT NULL
+       AND (e.id IS NULL OR e.status <> 'posted' OR e.company_id <> v.company_id OR e.date <> v.posting_date)`));
+  fail("input_vat_event_entry_unreferenced — an entry marked input_vat_event that exactly one event does not reference", await q(`
+    SELECT e.organization_id::text AS org, e.id, e.entry_number, (SELECT count(*) FROM input_vat_events v WHERE v.journal_entry_id = e.id)::int AS events
+      FROM journal_entries e
+     WHERE e.source = 'input_vat_event' AND (SELECT count(*) FROM input_vat_events v WHERE v.journal_entry_id = e.id) <> 1`));
+
   // ── Phase 12B: bank reconciliation, over the ONE view ─────────────────
   // A statement line is the bank's evidence of ONE movement. These read
   // bank_line_reconciliation — every source — and name what no trigger can
