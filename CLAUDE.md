@@ -561,7 +561,7 @@ the order is not the severity order.**
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
 | **1** | **Password recovery — break-glass ✅ SHIPPED** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
-| **2** | 🔴 **The generic journal reverse accepts an entry an invoice, bill or payment OWNS** — the document reads live while its entry is cancelled (Phase 12 guards transfers and statement lines only). | posts + hides. | Phase 12 pack §7 #8. |
+| **2** | 🔴 **The generic journal reverse accepts an entry an invoice or payment OWNS** — the document reads live while its entry is cancelled (guarded: transfers, statement lines; bills + VAT claims since 13B-1). | posts + hides. | Phase 12 pack §7 #8. |
 | **3** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — legal, not code. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **4** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
 
