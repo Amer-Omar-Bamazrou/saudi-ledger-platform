@@ -69,6 +69,10 @@ test.describe.serial("Z-AP1 — the supplier's advance tax invoice", () => {
     await page.getByTestId("bill-vendor").click();
     await page.getByRole("option", { name: /E2E Vendor/ }).first().click();
     await page.getByTestId("bill-number").fill(BILL_NO);
+    // Phase 13A: the supplier's final TAX invoice, stated by clicking, with its number.
+    await page.getByTestId("bill-vendor-reference").fill(`SUP-${BILL_NO}`);
+    await page.getByTestId("bill-document-kind").click();
+    await page.getByRole("option", { name: /^Tax invoice$/ }).click();
     await page.locator('input[type="date"]').first().fill("2026-03-10");
     const picker = page.getByTestId("bill-advance-picker");
     await expect(picker).toBeVisible();

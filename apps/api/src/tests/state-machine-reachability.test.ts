@@ -125,6 +125,12 @@ const SEMANTICS: Record<string, { from: State[]; to: State }> = {
   // both act on an approved record and leave it approved.
   "bad-debt-relief": { from: ["approved"], to: "approved" },
   "bad-debt-recoveries": { from: ["approved"], to: "approved" },
+  // Phase 13A (2026-09-24): supply or re-check the VAT evidence of an UNPOSTED
+  // bill — it links a captured document and re-decides the verdict, changing
+  // no figure and no lifecycle state. Modelled on the draft, where the UI
+  // offers it (the server also accepts a submitted bill, which it leaves
+  // submitted). Posting stays the ordinary `approve`.
+  evidence: { from: ["draft"], to: "draft" },
 };
 
 /**

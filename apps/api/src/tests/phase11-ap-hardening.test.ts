@@ -95,7 +95,7 @@ describeMaybe("Phase 11 Part 2 — the AP subledger's edges, hardened (real rows
     Number((await pool.query(`SELECT count(*)::int n FROM journal_entries WHERE organization_id = $1`, [orgId])).rows[0].n);
   const approvedBill = async (billNumber: string, date: string, dueDate: string, net: number) => {
     const draft = await inTenant(() => billsService.create({
-      billNumber, date, dueDate, vendorId,
+      supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-18", billNumber, date, dueDate, vendorId,
       items: [{ description: "Supply", quantity: 1, unitPrice: net, vatRate: 15 }],
     }, userId));
     return (await inTenant(() => billsService.approve(draft.id, {}, userId))).id;
@@ -108,7 +108,7 @@ describeMaybe("Phase 11 Part 2 — the AP subledger's edges, hardened (real rows
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'P11 Hard Co') RETURNING id`, [orgId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','P11H',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Hardening Supplies') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Hardening Supplies','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     bankId = (await pool.query(
       `INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'Hard Bank','Riyad') RETURNING id`,
       [orgId, companyId])).rows[0].id;
@@ -176,7 +176,7 @@ describeMaybe("Phase 11 Part 2 — the AP subledger's edges, hardened (real rows
 
   it("🔴 2 — undoing a CREDIT-NOTE application posts NOTHING (its application posted nothing) — no phantom advance, AP unmoved", async () => {
     const draft = await inTenant(() => billsService.create({
-      billNumber: "HB-CN", date: "2026-07-15", vendorId, documentType: "credit_note", creditNoteAgainstBillId: billB,
+      supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-19", billNumber: "HB-CN", date: "2026-07-15", vendorId, documentType: "credit_note", creditNoteAgainstBillId: billB,
       items: [{ description: "Returned", quantity: 1, unitPrice: 200, vatRate: 15 }],
     }, userId));
     noteId = (await inTenant(() => billsService.approve(draft.id, {}, userId))).id;

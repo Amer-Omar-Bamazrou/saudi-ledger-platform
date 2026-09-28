@@ -20,13 +20,16 @@
  * (`debitAccount`, `force`); submit/send-back/reject need no options.
  */
 import { BusinessRuleError } from "../lib/errors";
-import { round2 } from "../lib/money";
+import { money2, round2 } from "../lib/money";
 import { postJournalEntry } from "./accounting/glPosting";
 import { documentSign } from "../repositories/reports.repository";
 import { billsRepository } from "../repositories/bills.repository";
 import { assetCapitalisationService } from "./assets/capitalisation.service";
 import { categoriesRepository } from "../repositories/categories.repository";
 import { captureService } from "./capture/capture.service";
+import { blockedAccount, vatEvidenceService } from "./purchaseEvidence/vatEvidence.service";
+import { describeHold, inputVatTreatment, type VatEvidenceVerdict } from "./purchaseEvidence/vatEvidence";
+import { payBill } from "./bills.payment";
 import { buildBillOut, toNum, type BillOut } from "./bills.presenter";
 import { supplierAdvanceInvoicesService } from "./accounting/supplierAdvanceInvoices.service";
 import { SUPPLIER_ON_ACCOUNT_ASSET_NAME } from "./accounting/supplierCreditPolicy";
@@ -83,6 +86,25 @@ async function resolveExpenseLine(
   return { systemCode: "PURCHASES" as const, accountName: purchases?.name ?? "Purchases" };
 }
 const ZATCA_VAT_RE = /^3\d{13}3$/;
+
+/**
+ * 🔴 PHASE 13A — a supplier's ADVANCE tax invoice (Z-AP1) is a VAT-only
+ * document: its entry IS the claim (Dr Input VAT / Cr Supplier advances). With
+ * evidence that does not support the claim there is nothing else to post, so
+ * it stays a draft and the refusal names what is missing. Every OTHER purchase
+ * document posts whatever its evidence — X1/X5 decide where its VAT goes.
+ */
+function refuseUnevidenced(verdict: VatEvidenceVerdict): never {
+  const notDeductible = verdict.status === "not_deductible";
+  throw new BusinessRuleError(422, {
+    code: notDeductible ? "input_vat_not_deductible" : "input_vat_evidence_insufficient",
+    error:
+      "A supplier's advance tax invoice only claims input VAT, and its evidence does not support the claim — so it cannot be posted; it stays a draft. " +
+      describeHold(verdict),
+    vatEvidenceStatus: verdict.status,
+    flags: verdict.flags,
+  });
+}
 
 export interface BillApproveOptions {
   /** The id of an expense account in the tenant's chart — the resolved form. */
@@ -164,9 +186,16 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
    * (supplierAdvanceInvoices.service; the same approval path, one writer.)
    */
   if (bill.documentType === "advance_invoice" || bill.documentType === "advance_credit_note") {
+    // Phase 13A: the supplier's advance TAX invoice claims input VAT, so its
+    // evidence is decided like any other claim (a credit note: not required).
+    const { verdict } = await vatEvidenceService.evaluate(bill, row.vendor);
+    if (verdict.status !== "evidenced" && verdict.status !== "not_required") refuseUnevidenced(verdict);
     if (bill.documentType === "advance_invoice") await supplierAdvanceInvoicesService.approveAdvanceInvoice(bill);
     else await supplierAdvanceInvoicesService.approveAdvanceCreditNote(bill);
-    await billsRepository.update(bill.id, { status: "received", reviewNote: null });
+    await billsRepository.update(bill.id, {
+      status: "received", reviewNote: null, ...vatEvidenceService.columns(verdict),
+      inputVatState: "claimed", inputVatClaimedOn: bill.date,
+    });
     return fullOut(bill.id);
   }
 
@@ -262,7 +291,7 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   const debitLine = plan
     ? { accountId: plan.costAccountId, accountName: plan.costAccountName, description: `Asset ${plan.asset.assetNumber} — ${plan.asset.name}` }
     : { ...(await resolveExpenseLine(debitAccountId ?? bill.expenseAccountId ?? undefined, debitAccount)), description: `Bill ${bill.billNumber}` };
-  const debitAmount = plan ? plan.capitalised : subtotal;
+  let debitAmount = plan ? plan.capitalised : subtotal;
   /**
    * 🔴 Z-AP1 — a FINAL bill that deducts the supplier's advance tax
    * invoice(s). Its lines are the FULL supply; the advance invoice already
@@ -281,13 +310,78 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
    * construction; nothing re-dates into the original bill's period.
    */
   const vatToClaim = round2(vatAmount - (prepaid?.tax ?? 0));
-  const vatLine = (plan && plan.capitaliseVat) || vatToClaim <= 0
+  /**
+   * 🔴 Phase 13A — the evidence verdict, AUTHORITATIVELY, on the entry as it
+   * will post: the account actually resolved (the body may override the
+   * bill's own), the advance VAT already claimed, the fixed-asset treatment,
+   * and the document linked as evidence. Decided before anything posts.
+   */
+  const expenseAccountId = !plan && "accountId" in debitLine ? debitLine.accountId : null;
+  const { verdict: evidence, capture: evidenceCapture } = await vatEvidenceService.evaluate(bill, row.vendor, {
+    expenseAccountId,
+    captureId: captureId ?? null,
+    prepaidTax: prepaid?.tax ?? 0,
+    capitalisesVat: plan?.capitaliseVat ?? false,
+  });
+  /**
+   * 🔴 WHERE THE VAT GOES (accountant X1/X3/X5) — `inputVatTreatment`, the one
+   * mapping. The document posts in every case; what the evidence decides is
+   * the ACCOUNT:
+   *
+   *   claimed            Dr VAT_INPUT              (the return claims it, this date)
+   *   awaiting_evidence  Dr VAT_AWAITING_EVIDENCE  (an asset; no return claim until
+   *                                                 the evidence entry moves it)
+   *   not_deductible     Dr the expense / asset    (Art. 50, 0 % recovery: cost)
+   *
+   * A supplier CREDIT note follows the original it corrects (X3), mirrored:
+   * against held VAT it reduces the held amount — never VAT_INPUT, never the
+   * return — so the later claim is the NET; against blocked VAT it reduces
+   * the cost. The original's row is locked, so a note and the evidence entry
+   * cannot interleave on the same held balance.
+   */
+  const original = isNote && bill.creditNoteAgainstBillId != null
+    ? await billsRepository.lockForUpdate(bill.creditNoteAgainstBillId)
+    : null;
+  const treatment = inputVatTreatment(evidence, original ? { state: original.inputVatState } : null);
+  if (original && treatment === "awaiting_evidence" && vatToClaim > round2(Number(original.inputVatPending)) + 0.005) {
+    throw new BusinessRuleError(422, {
+      code: "credit_note_exceeds_held_vat",
+      error: `This credit note reduces VAT by ${vatToClaim.toFixed(2)}, but bill ${original.billNumber} holds only ${Number(original.inputVatPending).toFixed(2)} of input VAT awaiting evidence.`,
+      field: "vatAmount",
+    });
+  }
+  /**
+   * Art. 50 VAT that a supplier's advance tax invoice already CLAIMED (Z-AP1)
+   * cannot be made non-deductible by moving the rest into cost: the claim is on
+   * the advance invoice's own return. Refused, naming the next step, rather
+   * than posted half-claimed.
+   */
+  if (!isNote && (prepaid?.tax ?? 0) > 0 && !plan && (await blockedAccount(expenseAccountId))) {
+    throw new BusinessRuleError(422, {
+      code: "blocked_vat_claimed_on_advance",
+      error: "This bill is on an expense account whose input VAT is blocked (VAT IR Art. 50), but it deducts a supplier advance tax invoice that already claimed VAT. Correct the advance invoice with the supplier's credit note first, or choose the right expense account.",
+      field: "debitAccountId",
+    });
+  }
+  const vatAccount = treatment === "claimed"
+    ? { systemCode: "VAT_INPUT" as const, accountName: "Input VAT Receivable" }
+    : treatment === "awaiting_evidence"
+      // The held VAT is the ORIGINAL's: a note reducing it names the original's supplier, so the holding account reconciles by vendor.
+      ? (() => {
+          const heldVendorId = original?.vendorId ?? bill.vendorId;
+          return { systemCode: "VAT_AWAITING_EVIDENCE" as const, accountName: "Input VAT awaiting evidence", ...(heldVendorId != null ? { party: { type: "vendor" as const, vendorId: heldVendorId } } : {}) };
+        })()
+      : null;
+  const vatLine = !vatAccount || (plan && plan.capitaliseVat) || vatToClaim <= 0
     ? []
     : [{
-        systemCode: "VAT_INPUT" as const, accountName: "Input VAT Receivable",
+        ...vatAccount,
         description: `VAT on ${bill.billNumber}`,
         ...(sign > 0 ? { debitAmount: vatToClaim, creditAmount: 0 } : { debitAmount: 0, creditAmount: vatToClaim }),
       }];
+  // X5: blocked VAT is part of the expense line's cost (the fixed-asset plan already capitalises its own).
+  if (treatment === "not_deductible" && !plan && vatToClaim > 0) debitAmount = round2(debitAmount + vatToClaim);
+
   const apAmount = round2(effectiveTotal - (prepaid?.amount ?? 0));
   const advanceLine = prepaid && prepaid.taxable > 0
     ? [{ systemCode: "SUPPLIER_ADVANCES" as const, accountName: SUPPLIER_ON_ACCOUNT_ASSET_NAME.SUPPLIER_ADVANCES!, description: `Advance deducted on ${bill.billNumber}`, debitAmount: 0, creditAmount: prepaid.taxable, party: { type: "vendor" as const, vendorId: bill.vendorId! } }]
@@ -322,10 +416,41 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   // status flips. A capture that cannot be attached (already used, discarded)
   // fails the whole approval rather than silently posting a bill whose evidence
   // is unaccounted for — the document is what supports the input-VAT deduction.
-  if (captureId) await captureService.attachToBill(captureId, bill.id);
+  // Phase 13A: the document linked to the DRAFT as its evidence is promoted
+  // the same way — it becomes immutable evidence of the posted bill.
+  const evidenceId = captureId ?? evidenceCapture?.id ?? null;
+  if (evidenceId) await captureService.attachToBill(evidenceId, bill.id);
 
-  // Approved & posted; clear any prior review note.
-  await billsRepository.update(bill.id, { status: "received", reviewNote: null });
+  // X3: a credit note on held VAT reduces what the original holds — its later claim is the net.
+  if (original && treatment === "awaiting_evidence" && vatToClaim > 0) {
+    await billsRepository.update(original.id, { inputVatPending: money2(Number(original.inputVatPending) - vatToClaim) });
+  }
+
+  // Approved & posted; clear any prior review note; record the verdict it posted
+  // on and WHERE ITS VAT SITS — in the same UPDATE, which the trigger
+  // `bills_vat_evidence_gate` checks against the verdict.
+  await billsRepository.update(bill.id, {
+    status: "received", reviewNote: null, ...vatEvidenceService.columns(evidence),
+    inputVatState: treatment,
+    inputVatPending: treatment === "awaiting_evidence" && !isNote && vatToClaim > 0 ? money2(vatToClaim) : "0",
+    inputVatClaimedOn: treatment === "claimed" ? bill.date : null,
+  });
+
+  /**
+   * 🔴 PHASE 13C — AN EXPENSE IS PAID AS PART OF RECORDING IT. Its approval
+   * pays what it owes through THE bill-payment path (`payBill` — the same
+   * function the Pay button runs: the bill's row lock, `billPosition`'s
+   * outstanding, the named bank, the period lock, the dated payment row and
+   * its entry), from the bank and on the date the expense states. In this
+   * transaction: if the payment cannot post (a closed month, an inactive
+   * bank), the approval rolls back with it and nothing is left half-recorded.
+   */
+  if (bill.recordedAsExpense) {
+    const owed = await billsRepository.outstandingOf(bill.id);
+    if (owed >= 0.01) {
+      await payBill(bill.id, { amount: owed, paidAt: bill.expensePaidAt ?? undefined, bankAccountId: bill.expensePaidFromBankAccountId }, actor.userId ?? null);
+    }
+  }
   return fullOut(bill.id);
 }
 

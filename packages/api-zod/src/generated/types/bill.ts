@@ -6,9 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BillDocumentType } from './billDocumentType';
+import type { BillEvidenceDocument } from './billEvidenceDocument';
+import type { BillInputVat } from './billInputVat';
 import type { BillItem } from './billItem';
 import type { BillPrepayment } from './billPrepayment';
 import type { BillStatus } from './billStatus';
+import type { BillSupplierDocumentKind } from './billSupplierDocumentKind';
+import type { BillVatEvidence } from './billVatEvidence';
 
 export interface Bill {
   id: number;
@@ -83,6 +87,26 @@ export interface Bill {
   capitalisesAssetId?: number | null;
   /** @nullable */
   notes?: string | null;
+  /**
+     * Phase 13A: the supplier document the user states they hold. Null = not stated.
+     * @nullable
+     */
+  supplierDocumentKind?: BillSupplierDocumentKind;
+  /**
+     * The supplier's VAT number, as recorded on the supplier.
+     * @nullable
+     */
+  vendorTaxNumber?: string | null;
+  vatEvidence?: BillVatEvidence;
+  inputVat?: BillInputVat;
+  /** Phase 13C: paid when recorded — approval posts AND pays it. */
+  recordedAsExpense?: boolean;
+  /** @nullable */
+  expensePaidFromBankAccountId?: number | null;
+  /** @nullable */
+  expensePaidAt?: string | null;
+  /** On a single-bill read — the document linked as this bill's evidence. */
+  evidenceDocument?: BillEvidenceDocument | null;
   createdAt: string;
   items: BillItem[];
 }

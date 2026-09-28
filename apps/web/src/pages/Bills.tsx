@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmtNum } from "@/lib/api";
+import { ApiError, apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,11 +25,14 @@ import { FilterScope } from "@/components/FilterScope";
 import { BILL_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
 import { PaymentHistory } from "@/components/PaymentHistory";
+import { VatEvidencePanel } from "@/components/VatEvidencePanel";
+import { DuplicateWarning } from "@/components/DuplicateWarning";
+import { SUPPLIER_DOCUMENT_KINDS, inputVatLabel, kindLabel, statusLabel as evidenceStatusLabel, type SupplierDocumentKind } from "@/lib/vatEvidence";
 
 const BILL_PAGE_SIZE = 50;
 
 import type { Bill, BillApproveInput, CreateBillInput, ListBills200, PaymentInput, UpdateBillInput, Vendor } from "@workspace/api-client-react";
-import { listSupplierOpenAdvanceInvoices } from "@workspace/api-client-react";
+import { listSupplierOpenAdvanceInvoices, previewBillVatEvidence, type AttachEvidenceInput, type VatEvidencePreviewInput } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 
 /**
@@ -80,14 +83,43 @@ const makeEmpty = () => ({
   capitalisesAssetId: null as number | null,
   // Z-AP1: the supplier's advance tax invoices this (final) bill deducts, in full.
   advanceBillIds: [] as number[],
+  // 🔴 Phase 13A: the supplier document the user HOLDS. Never pre-selected —
+  // input VAT is claimed only on a tax invoice, and the page does not assume one.
+  supplierDocumentKind: "" as SupplierDocumentKind | "",
 });
 
+/** 🔴 Phase 13A — the approval refused this document for its VAT evidence (only a supplier's advance tax invoice can be): it is SAVED as a draft, not failed. */
+const isEvidenceHold = (e: unknown): e is ApiError =>
+  e instanceof ApiError && (e.code === "input_vat_evidence_insufficient" || e.code === "input_vat_not_deductible");
+
+/**
+ * 🔴 Phase 13A (accountant X1/X5) — every purchase document posts; the toast
+ * says where its VAT went, keyed on the server's `inputVat.state`.
+ */
+function postedToast(b: Pick<Bill, "billNumber" | "inputVat">, t: (en: string, ar: string) => string) {
+  if (b.inputVat?.state === "awaiting_evidence") {
+    return { title: t(`${b.billNumber} posted — VAT held for evidence`, `رُحّلت ${b.billNumber} — الضريبة محتجزة بانتظار الإثبات`), description: t("Its VAT is in \"Input VAT awaiting evidence\", not claimed. It is listed under VAT evidence; supply the evidence there and the VAT is claimed in that period.", "ضريبتها في حساب «ضريبة مدخلات بانتظار الإثبات» دون خصم. تظهر في قائمة إثبات الضريبة؛ استكمل الإثبات هناك فتُخصم الضريبة في تلك الفترة.") };
+  }
+  if (b.inputVat?.state === "not_deductible") {
+    return { title: t(`${b.billNumber} posted — VAT in cost`, `رُحّلت ${b.billNumber} — الضريبة ضمن التكلفة`), description: t("Its VAT is not deductible and was recorded as part of the cost; no input VAT is claimed.", "ضريبتها غير قابلة للخصم وسُجّلت ضمن التكلفة؛ لا تُخصم ضريبة مدخلات.") };
+  }
+  return { title: t(`${b.billNumber} posted to the ledger`, `رُحّلت ${b.billNumber} إلى دفتر الأستاذ`) };
+}
+
 // ── small JE preview used inside the manual-bill dialog ──────────────────────
-function JePreview({ subtotal, vatAmount, total, debitAccount }: {
+function JePreview({ subtotal, vatAmount, total, debitAccount, evidenceStatus }: {
   subtotal: number; vatAmount: number; total: number; debitAccount: string;
+  /** The server's evidence verdict — it decides the VAT line's account (X1/X5), exactly as the approval will. */
+  evidenceStatus?: string | null;
 }) {
   const { t } = useLanguage();
   const reconciled = Math.abs(subtotal + vatAmount - total) <= 0.02;
+  // X5: non-deductible VAT is part of the expense line; X1: held VAT goes to the holding asset.
+  const vatInCost = evidenceStatus === "not_deductible";
+  const debitShown = vatInCost ? subtotal + vatAmount : subtotal;
+  const vatAccount = evidenceStatus === "awaiting_evidence"
+    ? t("Input VAT awaiting evidence", "ضريبة مدخلات بانتظار الإثبات")
+    : t("Input VAT Receivable", "ضريبة القيمة المضافة المدخلة المستحقة");
   return (
     <div className="rounded-lg border border-border overflow-hidden text-xs mt-1">
       <div className="bg-secondary/40 px-3 py-1.5 text-muted-foreground font-medium">
@@ -104,14 +136,16 @@ function JePreview({ subtotal, vatAmount, total, debitAccount }: {
         <tbody className="divide-y divide-border/30">
           <tr>
             <td className="px-3 py-1.5 truncate max-w-[160px]">{debitAccount || "—"}</td>
-            <td className="px-3 py-1.5 text-end font-mono tabular-nums">{subtotal > 0 ? fmtNum(subtotal) : "—"}</td>
+            <td className="px-3 py-1.5 text-end font-mono tabular-nums">{debitShown > 0 ? fmtNum(debitShown) : "—"}</td>
             <td className="px-3 py-1.5 text-end font-mono tabular-nums text-muted-foreground">—</td>
           </tr>
-          <tr>
-            <td className="px-3 py-1.5 text-muted-foreground">{t("Input VAT Receivable", "ضريبة القيمة المضافة المدخلة المستحقة")}</td>
-            <td className="px-3 py-1.5 text-end font-mono tabular-nums">{vatAmount > 0 ? fmtNum(vatAmount) : "—"}</td>
-            <td className="px-3 py-1.5 text-end font-mono tabular-nums text-muted-foreground">—</td>
-          </tr>
+          {!vatInCost && (
+            <tr>
+              <td className="px-3 py-1.5 text-muted-foreground" data-testid="je-preview-vat-account">{vatAccount}</td>
+              <td className="px-3 py-1.5 text-end font-mono tabular-nums">{vatAmount > 0 ? fmtNum(vatAmount) : "—"}</td>
+              <td className="px-3 py-1.5 text-end font-mono tabular-nums text-muted-foreground">—</td>
+            </tr>
+          )}
           <tr>
             <td className="px-3 py-1.5 text-muted-foreground">{t("Accounts Payable", "الذمم الدائنة")}</td>
             <td className="px-3 py-1.5 text-end font-mono tabular-nums text-muted-foreground">—</td>
@@ -136,6 +170,10 @@ export default function Bills() {
   /** AUD-10/AUD-12 — editing and deleting a DRAFT bill, the only state the API allows. */
   const [editingBill, setEditingBill] = useState<{ id: number; billNumber: string } | null>(null);
   const [confirmDeleteBill, setConfirmDeleteBill] = useState<{ id: number; billNumber: string } | null>(null);
+  /** Phase 13A: the edited draft's evidence (its verdict and linked document). */
+  const [editingEvidence, setEditingEvidence] = useState<Pick<Bill, "vatEvidence" | "evidenceDocument"> | null>(null);
+  const [attaching, setAttaching] = useState(false);
+  const evidenceFileRef = useRef<HTMLInputElement>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const { demoMode } = useDeployment();
   const [payOpen, setPayOpen] = useState<number | null>(null);
@@ -207,11 +245,13 @@ export default function Bills() {
           notes: body.notes || undefined,
           expenseAccountId: body.capitalisesAssetId != null ? undefined : (body.debitAccountId ?? undefined),
           capitalisesAssetId: body.capitalisesAssetId,
+          ...(body.supplierDocumentKind ? { supplierDocumentKind: body.supplierDocumentKind } : {}),
         }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
-      setOpen(false); setEditingBill(null); setForm(makeEmpty());
+      qc.invalidateQueries({ queryKey: ["vat-evidence"] });
+      setOpen(false); setEditingBill(null); setEditingEvidence(null); setForm(makeEmpty());
       toast({ title: t("Changes saved", "تم حفظ التعديلات") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
@@ -243,8 +283,10 @@ export default function Bills() {
         notes: d.notes ?? "",
         debitAccountId: d.expenseAccountId ?? null,
         capitalisesAssetId: d.capitalisesAssetId ?? null,
+        supplierDocumentKind: (d.supplierDocumentKind ?? "") as SupplierDocumentKind | "",
       } as never);
-      setEditingBill(row);
+      setEditingBill({ id: d.id, billNumber: d.billNumber });
+      setEditingEvidence({ vatEvidence: d.vatEvidence, evidenceDocument: d.evidenceDocument ?? null });
       setOpen(true);
     } catch (e) {
       toast({ title: t("Error", "خطأ"), description: (e as Error).message, variant: "destructive" } as any);
@@ -275,25 +317,37 @@ export default function Bills() {
           expenseAccountId: body.capitalisesAssetId != null ? undefined : (body.debitAccountId ?? defaultExpenseId ?? undefined),
           capitalisesAssetId: body.capitalisesAssetId,
           ...(body.advanceBillIds.length > 0 ? { prepayments: body.advanceBillIds.map((id) => ({ advanceBillId: id })) } : {}),
+          // An unchosen document is an ABSENCE, not "" (the raw spread above carried the form's "").
+          supplierDocumentKind: body.supplierDocumentKind || undefined,
           items: [],
         }),
       });
       // Post GL through the single shared endpoint, passing the accountant's
-      // chosen debit account — same call shape as ScanReview.
+      // chosen debit account — same call shape as the Post dialog.
+      let posted: Bill | null = null;
       if (Number(body.total) > 0) {
-        await apiFetch(`/bills/${bill.id}/post`, {
-          method: "POST",
-          // A capitalising bill takes its debit account from the ASSET's category, never from this picker.
-          body: json.post(body.capitalisesAssetId != null ? {} : { debitAccountId: body.debitAccountId ?? defaultExpenseId }),
-        });
+        try {
+          posted = await apiFetch<Bill>(`/bills/${bill.id}/post`, {
+            method: "POST",
+            // A capitalising bill takes its debit account from the ASSET's category, never from this picker.
+            body: json.post(body.capitalisesAssetId != null ? {} : { debitAccountId: body.debitAccountId ?? defaultExpenseId }),
+          });
+        } catch (e) {
+          // 🔴 Phase 13A: the bill IS saved — as a draft (an advance tax invoice without evidence).
+          if (isEvidenceHold(e)) return { bill, posted: null, held: e.message };
+          throw e;
+        }
       }
-      return bill;
+      return { bill, posted, held: null as string | null };
     },
-    onSuccess: () => {
+    onSuccess: ({ bill, posted, held }) => {
       qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["vat-evidence"] });
       setOpen(false);
       setForm(makeEmpty());
-      toast({ title: t("Bill created & posted", "تم إنشاء الفاتورة وترحيلها") });
+      toast(held
+        ? { title: t(`${bill.billNumber} saved as a draft — not posted`, `حُفظت ${bill.billNumber} كمسودة — لم تُرحّل`), description: held }
+        : posted ? postedToast(posted, t) : { title: t("Bill saved", "حُفظت الفاتورة") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
   });
@@ -303,16 +357,19 @@ export default function Bills() {
   // matching the scanner review flow.
   const postMut = useMutation({
     mutationFn: ({ id, debitAccountId }: { id: number; debitAccountId: number | null }) =>
-      apiFetch(`/bills/${id}/post`, {
+      apiFetch<Bill>(`/bills/${id}/post`, {
         method: "POST",
         body: json.post({ debitAccountId }),
       }),
-    onSuccess: () => {
+    onSuccess: (b) => {
       qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["vat-evidence"] });
       setPostReviewOpen(null);
-      toast({ title: t("Bill posted to ledger", "تم ترحيل الفاتورة إلى دفتر الأستاذ") });
+      toast(postedToast(b, t));
     },
-    onError: (e: Error) => toast({ title: t("Posting failed", "فشل الترحيل"), description: e.message, variant: "destructive" } as any),
+    onError: (e: Error) => toast(isEvidenceHold(e)
+      ? { title: t("Not posted — the evidence does not support the claim", "لم تُرحّل — الإثبات لا يدعم الخصم"), description: e.message }
+      : { title: t("Posting failed", "فشل الترحيل"), description: e.message, variant: "destructive" } as any),
   });
 
   const payMut = useMutation({
@@ -337,23 +394,38 @@ export default function Bills() {
    * photograph server-side (A1: the capture pipeline finally has its caller),
    * then go to the review page carrying the captureId.
    */
-  const handleScanned = async (data: ParsedReceipt, qr: QrCaptureResult | undefined, file: File) => {
+  const handleScanned = async (data: ParsedReceipt, qr: QrCaptureResult | undefined, file: File, source: "qr" | "ocr" | "manual") => {
     const payload = {
       parsed: data,
       // Provenance travels with the extraction: a figure decoded from a ZATCA
-      // QR is exact, one read by OCR is a guess, and the review page must be
-      // able to tell the user which it is looking at.
-      source: (qr ? "qr" : "ocr") as "qr" | "ocr",
+      // QR is exact, one read by OCR is a guess, one typed is typed — and the
+      // review page must be able to tell the user which it is looking at.
+      source,
       isPhase2: qr?.isPhase2,
       missing: qr?.missing,
       payloadBase64: qr?.payloadBase64,
     };
+    /**
+     * 🔴 Phase 13A: PER-FIELD provenance, persisted with the capture. A QR
+     * carries seller, VAT number, date, total and VAT (tags 1–5); the subtotal
+     * is DERIVED from two of them; the invoice number is never in a QR. OCR
+     * marks only what it actually read. A PDF (or a skipped read) sends none —
+     * every field on it will be typed.
+     */
+    const fieldSources: Record<string, string> = {};
+    if (source === "qr") {
+      for (const k of ["vendorName", "supplierVatNumber", "date", "total", "vatAmount"] as const) if (data[k]) fieldSources[k] = "qr";
+      if (data.subtotal) fieldSources.subtotal = "qr_derived";
+    } else if (source === "ocr") {
+      for (const k of ["vendorName", "supplierVatNumber", "vendorReference", "date", "subtotal", "vatAmount", "total"] as const) if (data[k]) fieldSources[k] = "ocr";
+    }
     try {
       const form = new FormData();
       form.append("document", file, file.name);
       form.append("source", payload.source);
       if (qr?.payloadBase64) form.append("qrPayload", qr.payloadBase64);
       form.append("extraction", JSON.stringify(data));
+      if (Object.keys(fieldSources).length > 0) form.append("fieldSources", JSON.stringify(fieldSources));
       const capture: { captureId: string; signatureStatus?: string; signatureFailed?: boolean } =
         await apiFetch("/capture", { method: "POST", body: form });
       storeScanData({ ...payload, captureId: capture.captureId, signatureStatus: capture.signatureStatus });
@@ -363,14 +435,62 @@ export default function Bills() {
       // bill posted from this scan will have NO stored source document.
       toast({
         title: t("Document could not be stored", "تعذّر حفظ المستند"),
-        description: t(
-          "You can still review and post the bill, but the photograph will not be retained as evidence.",
-          "يمكنك مراجعة الفاتورة وترحيلها، لكن لن يتم الاحتفاظ بالصورة كمستند داعم.",
+        description: `${e?.message ?? ""} ` + t(
+          "You can still review the bill and save it as a draft, but without the document as its evidence.",
+          "يمكنك مراجعة الفاتورة وحفظها كمسودة، لكن دون المستند دليلًا لها.",
         ),
         variant: "destructive",
       } as any);
       storeScanData(payload);
       navigate("/scan-review");
+    }
+  };
+
+  // ── 🔴 Phase 13A: the SERVER's evidence verdict for the form, live ─────────
+  const formPreview: VatEvidencePreviewInput = {
+    supplierDocumentKind: form.supplierDocumentKind || null,
+    vendorId: form.vendorId ? Number(form.vendorId) : null,
+    vendorReference: form.vendorReference || null,
+    date: form.date || null,
+    subtotal: Number(form.subtotal) || 0,
+    vatAmount: Number(form.vatAmount) || 0,
+    total: Number(form.total) || 0,
+    expenseAccountId: form.capitalisesAssetId != null ? null : (form.debitAccountId ?? defaultExpenseId ?? null),
+    capitalisesAssetId: form.capitalisesAssetId,
+    captureId: editingEvidence?.evidenceDocument?.captureId ?? null,
+  };
+  const { data: formVerdict } = useQuery({
+    queryKey: ["evidence-preview", formPreview],
+    queryFn: () => previewBillVatEvidence(formPreview),
+    enabled: open && (Number(form.total) > 0 || Number(form.vatAmount) > 0),
+  });
+
+  // A deep link from the VAT-evidence list or a duplicate warning: /bills?edit=<id> opens that draft.
+  useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("edit"));
+    if (Number.isInteger(id) && id > 0) void openEditBill({ id, billNumber: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Attach a document to the draft being edited: stage it (the capture pipeline), then link it as its evidence. */
+  const attachEvidenceFile = async (file: File) => {
+    if (!editingBill) return;
+    setAttaching(true);
+    try {
+      const fd = new FormData();
+      fd.append("document", file, file.name);
+      fd.append("source", "manual");
+      const cap: { captureId: string } = await apiFetch("/capture", { method: "POST", body: fd });
+      // A literal path (typed by the GENERATED Bill): the state-machine reachability guard reads apps/web for it.
+      const updated = await apiFetch<Bill>(`/bills/${editingBill.id}/evidence`, { method: "POST", body: JSON.stringify({ captureId: cap.captureId } satisfies AttachEvidenceInput) });
+      setEditingEvidence({ vatEvidence: updated.vatEvidence, evidenceDocument: updated.evidenceDocument ?? null });
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["vat-evidence"] });
+      toast({ title: t("Document attached as evidence", "أُرفق المستند دليلًا") });
+    } catch (e) {
+      toast({ title: t("Could not attach the document", "تعذّر إرفاق المستند"), description: (e as Error).message, variant: "destructive" } as any);
+    } finally {
+      setAttaching(false);
     }
   };
 
@@ -430,7 +550,7 @@ export default function Bills() {
                     <Label className="text-xs text-muted-foreground">{t("Vendor Ref / Invoice #", "مرجع المورد / رقم الفاتورة")}</Label>
                     <Input value={form.vendorReference}
                       onChange={e => setForm(p => ({ ...p, vendorReference: e.target.value }))}
-                      className="mt-1 h-8 text-sm" />
+                      className="mt-1 h-8 text-sm" data-testid="bill-vendor-reference" />
                   </div>
                 </div>
 
@@ -458,6 +578,18 @@ export default function Bills() {
                     <SelectContent>
                       {vendors.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>)}
                     <PickerLimitNotice shown={vendors.length} total={vendorsPage?.total ?? vendors.length} /></SelectContent>
+                  </Select>
+                </div>
+
+                {/* 🔴 Phase 13A: the supplier document held — never pre-selected. */}
+                <div>
+                  <Label className="text-xs text-muted-foreground">{t("Supplier document you hold", "مستند المورد الذي بحوزتك")}</Label>
+                  <Select value={form.supplierDocumentKind || "unset"} onValueChange={v => setForm(p => ({ ...p, supplierDocumentKind: v === "unset" ? "" : (v as SupplierDocumentKind) }))}>
+                    <SelectTrigger className="mt-1 h-8 text-sm" data-testid="bill-document-kind"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unset" className="text-xs">{t("— Choose —", "— اختر —")}</SelectItem>
+                      {SUPPLIER_DOCUMENT_KINDS.map(k => <SelectItem key={k} value={k} className="text-xs" data-testid={`bill-document-kind-${k}`}>{kindLabel(k, t)}</SelectItem>)}
+                    </SelectContent>
                   </Select>
                 </div>
 
@@ -535,6 +667,29 @@ export default function Bills() {
                     className="mt-1 h-8 text-sm" />
                 </div>
 
+                {/* 🔴 Phase 13A: the server's verdict — what approval will decide about the VAT. */}
+                <VatEvidencePanel verdict={formVerdict} context="preview" />
+                <DuplicateWarning billId={editingBill?.id ?? null} vendorId={form.vendorId ? Number(form.vendorId) : null}
+                  vendorReference={form.vendorReference} date={form.date} total={Number(form.total) || null}
+                  captureId={editingEvidence?.evidenceDocument?.captureId ?? null} />
+                {editingBill && (
+                  <div className="rounded border border-border p-2 space-y-1" data-testid="bill-evidence-document">
+                    <Label className="text-xs text-muted-foreground">{t("Evidence document", "مستند الإثبات")}</Label>
+                    {editingEvidence?.evidenceDocument ? (
+                      <a href={`/api/capture/${editingEvidence.evidenceDocument.captureId}/image`} target="_blank" rel="noreferrer" className="block text-xs text-primary underline">
+                        {t("View the attached document", "عرض المستند المرفق")}
+                      </a>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">{t("No document attached.", "لا يوجد مستند مرفق.")}</p>
+                    )}
+                    <input ref={evidenceFileRef} type="file" accept="image/*,application/pdf" className="hidden" data-testid="bill-evidence-file"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) void attachEvidenceFile(f); e.target.value = ""; }} />
+                    <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={attaching} onClick={() => evidenceFileRef.current?.click()} data-testid="bill-attach-evidence">
+                      {attaching ? t("Attaching…", "جارٍ الإرفاق…") : t("Attach a document", "إرفاق مستند")}
+                    </Button>
+                  </div>
+                )}
+
                 {/* Fix 2: live JE preview — same structure as ScanReview */}
                 {(previewSubtotal > 0 || previewVat > 0 || previewTotal > 0) && (
                   <JePreview
@@ -542,6 +697,7 @@ export default function Bills() {
                     vatAmount={previewVat}
                     total={previewTotal}
                     debitAccount={expenseLabel(form.debitAccountId ?? defaultExpenseId)}
+                    evidenceStatus={formVerdict?.status}
                   />
                 )}
               </div>
@@ -659,6 +815,22 @@ export default function Bills() {
                         <span className="ms-2 inline-block rounded border border-border px-1 text-[10px] font-sans text-muted-foreground" data-testid={`bill-kind-${b.id}`}>
                           {b.documentType === "credit_note" ? t("Credit note", "إشعار دائن") : t("Debit note", "إشعار مدين")}
                         </span>
+                      )}
+                      {/* Phase 13A: a document whose VAT is held for evidence says so — posted (VAT in the holding account) or a draft — and where to see why. */}
+                      {(b.inputVat?.state === "awaiting_evidence" || ((b.status === "draft" || b.status === "submitted") && b.vatEvidence?.status === "awaiting_evidence")) && (
+                        <Link href={`/vat-evidence?q=${encodeURIComponent(b.billNumber)}`}>
+                          <span className="ms-2 inline-block rounded border border-attention-surface/40 bg-attention-surface/10 px-1 text-[10px] font-sans text-attention" data-testid={`bill-held-${b.id}`}>
+                            {b.inputVat?.state === "awaiting_evidence" ? inputVatLabel(b.inputVat.state, t) : evidenceStatusLabel(b.vatEvidence?.status, t)}
+                          </span>
+                        </Link>
+                      )}
+                      {b.inputVat?.state === "not_deductible" && (
+                        <span className="ms-2 inline-block rounded border border-border px-1 text-[10px] font-sans text-muted-foreground" data-testid={`bill-vat-cost-${b.id}`}>
+                          {inputVatLabel(b.inputVat.state, t)}
+                        </span>
+                      )}
+                      {b.recordedAsExpense && (
+                        <span className="ms-2 inline-block rounded border border-border px-1 text-[10px] font-sans text-muted-foreground">{t("Expense", "مصروف")}</span>
                       )}
                     </td>
                     <td className="py-3 pe-4 font-medium">{b.vendorName ?? "—"}</td>
@@ -781,7 +953,17 @@ export default function Bills() {
                 vatAmount={postReviewOpen.vatAmount}
                 total={postReviewOpen.total}
                 debitAccount={expenseLabel(effectivePostAccountId)}
+                evidenceStatus={postReviewOpen.vatEvidence?.status}
               />
+              {postReviewOpen.vatEvidence && postReviewOpen.vatEvidence.status !== "not_evaluated" && (
+                <VatEvidencePanel verdict={postReviewOpen.vatEvidence} />
+              )}
+              {postReviewOpen.recordedAsExpense && (
+                <p className="text-xs text-muted-foreground" data-testid="post-expense-note">
+                  {t("This is an EXPENSE: posting it also pays it from its bank on its paid date, so no payable is left.",
+                     "هذا مصروف: ترحيله يدفعه أيضًا من حسابه البنكي في تاريخ دفعه، فلا يبقى مستحق.")}
+                </p>
+              )}
               <Button
                 className="w-full"
                 disabled={postMut.isPending}

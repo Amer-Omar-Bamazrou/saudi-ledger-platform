@@ -176,6 +176,9 @@ export const supplierAdvanceInvoicesService = {
     const billNumber = text(body.billNumber) ?? await documentNumbersRepository.allocate("bill");
     const [bill] = await db.insert(billsTable).values({
       billNumber, vendorReference, date, vendorId: payment.vendorId, documentType: "advance_invoice",
+      // Phase 13A: this row IS the supplier's advance TAX invoice (their 386,
+      // IR Art. 53(1)(a)(2)) — recorded as such, so its evidence is judged as one.
+      supplierDocumentKind: "tax_invoice",
       advanceSupplierPaymentId: paymentId, status: "draft",
       subtotal: money2(split.taxable), vatAmount: money2(split.vat), total: money2(amount),
       notes: text(body.notes), createdBy: userId,
@@ -185,6 +188,9 @@ export const supplierAdvanceInvoicesService = {
       quantity: "1", unitPrice: money2(split.taxable), vatRate: String(rate), vatAmount: money2(split.vat), total: money2(amount),
     });
     await auditService.record({ action: "create", entityType: "bill", entityId: String(bill!.id), before: null, after: { documentType: "advance_invoice", supplierPaymentId: paymentId, amount, taxable: split.taxable, vat: split.vat, date } });
+    // Phase 13A: its evidence verdict is written now, so a held one is listed (lazy: the evidence service reads this one).
+    const { vatEvidenceService } = await import("../purchaseEvidence/vatEvidence.service.js");
+    await vatEvidenceService.refresh(bill!.id);
     return bill!;
   },
 
@@ -221,6 +227,8 @@ export const supplierAdvanceInvoicesService = {
       quantity: "1", unitPrice: money2(split.taxable), vatRate: String(inv!.vatRate), vatAmount: money2(split.vat), total: money2(amount),
     });
     await auditService.record({ action: "create", entityType: "bill", entityId: String(note!.id), before: null, after: { documentType: "advance_credit_note", against: advanceBillId, amount, date } });
+    const { vatEvidenceService } = await import("../purchaseEvidence/vatEvidence.service.js");
+    await vatEvidenceService.refresh(note!.id);
     return note!;
   },
 

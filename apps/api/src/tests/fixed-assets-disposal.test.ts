@@ -99,7 +99,7 @@ describeMaybe("FA-C — disposal (real rows)", () => {
     }, userId));
     const net = opts.vatRecovery === 0 ? Math.round((cost / 1.15) * 100) / 100 : cost;
     const billVat = opts.vatRecovery === 0 ? Math.round((cost - net) * 100) / 100 : Math.round(cost * 0.15 * 100) / 100;
-    const bill = await inTenant(() => billsService.create({ billNumber: `B-${name}-${Date.now()}`, date: opts.available, vendorId, subtotal: net, vatAmount: billVat, total: Math.round((net + billVat) * 100) / 100, capitalisesAssetId: draft.id, items: [] }, userId));
+    const bill = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-12", billNumber: `B-${name}-${Date.now()}`, date: opts.available, vendorId, subtotal: net, vatAmount: billVat, total: Math.round((net + billVat) * 100) / 100, capitalisesAssetId: draft.id, items: [] }, userId));
     await inTenant(() => billsService.approve(bill.id, {}, userId));
     return inTenant(() => assetsService.getById(draft.id));
   };
@@ -111,7 +111,7 @@ describeMaybe("FA-C — disposal (real rows)", () => {
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number, fiscal_year_start, building_number, street, district, city, postal_code, additional_number) VALUES ($1,'FA C Co','1010868391','310123456789013',1,'1234','King Fahd Road','Al Olaya','Riyadh','12345','6789') RETURNING id`, [orgId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','FA C',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Machine Supplier') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Machine Supplier','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'Buyer Co') RETURNING id`, [orgId])).rows[0].id;
     catId = (await inTenant(() => assetsService.createCategory({ name: "Machines", defaultUsefulLifeMonths: 60, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" }, userId))).id;
   }, 120_000);

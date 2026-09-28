@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { CreateBillBody, PayBillBody, PostBillBody, UpdateBillBody } from "@workspace/api-zod";
+import { AttachBillEvidenceBody, CreateBillBody, PayBillBody, PostBillBody, PreviewBillVatEvidenceBody, UpdateBillBody } from "@workspace/api-zod";
 import { billsService } from "../services/bills.service";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
@@ -81,6 +81,33 @@ export const billsController = {
   /** B4 — the dated payment history; backfilled rows are aggregates. */
   async payments(req: Request, res: Response) {
     res.json(await billsService.payments(requireIdParam(req)));
+  },
+  // ── Phase 13A: evidence ──
+  async evidencePreview(req: Request, res: Response) {
+    res.json(await billsService.evidencePreview(parseOr400(PreviewBillVatEvidenceBody.safeParse(req.body ?? {}))));
+  },
+  async duplicates(req: Request, res: Response) {
+    const q = req.query as Record<string, string | undefined>;
+    const num = (v: string | undefined) => (v != null && v !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
+    res.json(await billsService.duplicates({
+      billId: num(q.bill_id), vendorId: num(q.vendor_id), vendorReference: q.vendor_reference ?? null,
+      date: q.date ?? null, total: num(q.total), captureId: q.capture_id || null,
+    }));
+  },
+  async heldForEvidence(req: Request, res: Response) {
+    const { reason, q, limit, offset } = req.query as Record<string, string | undefined>;
+    res.json(await billsService.heldForEvidence({
+      reason: reason || undefined, q: q || undefined, limit: clampPage(limit), offset: Math.max(0, Number(offset) || 0),
+    }));
+  },
+  async attachEvidence(req: Request, res: Response) {
+    const body = req.body == null || Object.keys(req.body).length === 0 ? {} : parseOr400(AttachBillEvidenceBody.safeParse(req.body));
+    res.json(await billsService.attachEvidence(requireIdParam(req), {
+      captureId: body.captureId ?? null,
+      supplierDocumentKind: body.supplierDocumentKind ?? null,
+      vendorReference: body.vendorReference ?? null,
+      evidenceDate: body.evidenceDate ?? null,
+    }, req.session?.userId ?? null));
   },
   async remove(req: Request, res: Response) {
     await billsService.deleteDraft(requireIdParam(req));

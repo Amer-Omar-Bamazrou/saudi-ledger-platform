@@ -115,7 +115,7 @@ describeMaybe("M16.3 — bank reconciliation", () => {
       await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'Almarai Trading') RETURNING id`, [orgId])
     ).rows[0].id;
     vendorId = (
-      await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Office Supplies Co') RETURNING id`, [orgId])
+      await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Office Supplies Co','300000000000003') RETURNING id`, [orgId])
     ).rows[0].id;
     accountId = (
       await pool.query(
@@ -147,7 +147,7 @@ describeMaybe("M16.3 — bank reconciliation", () => {
     const bill = await inTenant(() =>
       billsService.create(
         {
-          billNumber: num,
+          supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-16", billNumber: num,
           date: "2026-07-01",
           vendorId,
           items: [{ description: "Supplies", quantity: 1, unitPrice, vatRate: 15 }],

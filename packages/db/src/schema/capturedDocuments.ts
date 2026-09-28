@@ -88,6 +88,12 @@ export const capturedDocumentsTable = pgTable(
     fieldSources: jsonb("field_sources"),
     /** The extraction as captured, before any human edit. */
     extraction: jsonb("extraction"),
+    /**
+     * Phase 13A — what the reviewer CHANGED: [{ field, extracted, final }],
+     * recomputed from the bill each time the evidence is re-checked. The
+     * extraction above is never overwritten; this sits beside it.
+     */
+    reviewCorrections: jsonb("review_corrections"),
 
     // ── ZATCA QR ────────────────────────────────────────────────────────────
     /** Raw TLV payload, when one was read. Kept for re-verification. */
@@ -105,7 +111,12 @@ export const capturedDocumentsTable = pgTable(
     signatureDetail: text("signature_detail"),
 
     // ── linkage + retention ─────────────────────────────────────────────────
-    /** Set inside the bill's transaction — this is what makes the link atomic. */
+    /**
+     * Set inside the bill's transaction — this is what makes the link atomic.
+     * 🔴 Phase 13A: a STAGED capture may carry a bill_id — it is linked to a
+     * DRAFT bill as its evidence, and the purge job leaves it alone. It becomes
+     * `promotion_pending` (immutable evidence) only when that bill posts.
+     */
     billId: integer("bill_id").references(() => billsTable.id),
     /**
      * Conservative default (queue C7): inbound documents are retained to the
@@ -125,6 +136,8 @@ export const capturedDocumentsTable = pgTable(
     index("captured_documents_bill_idx").on(table.billId),
     // The purge job's query: staged/discarded captures older than the window.
     index("captured_documents_captured_at_idx").on(table.status, table.capturedAt),
+    // Phase 13A: the duplicate check — the same file captured twice in a company.
+    index("captured_documents_company_sha_idx").on(table.companyId, table.sha256),
   ],
 );
 

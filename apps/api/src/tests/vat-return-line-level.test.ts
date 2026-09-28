@@ -96,7 +96,7 @@ describeMaybe("VAT return — line-level classification + header=Σlines", () =>
       await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'Mixed Rate Co') RETURNING id`, [orgId])
     ).rows[0].id;
     vendorId = (
-      await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Line Vendor') RETURNING id`, [orgId])
+      await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Line Vendor','300000000000003') RETURNING id`, [orgId])
     ).rows[0].id;
   });
 
@@ -197,7 +197,7 @@ describeMaybe("VAT return — line-level classification + header=Σlines", () =>
     const bill = await inTenant(() =>
       billsService.create(
         {
-          billNumber: "VL-BILL",
+          supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-29", billNumber: "VL-BILL",
           date: "2026-08-06",
           vendorId,
           items: [

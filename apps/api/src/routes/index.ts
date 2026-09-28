@@ -35,6 +35,7 @@ import migration from "./migration.js";
 import quotations from "./quotations.js";
 import purchaseOrders from "./purchaseOrders.js";
 import bills from "./bills.js";
+import expenses from "./expenses.js";
 import journalEntries from "./journalEntries.js";
 import recognitionSchedules from "./recognitionSchedules.js";
 import employees from "./employees.js";
@@ -135,6 +136,8 @@ router.use("/migration", requirePermission("migration"), migration);
 router.use("/quotations", requirePermission("quotations"), quotations);
 router.use("/purchase-orders", requirePermission("purchase_orders"), purchaseOrders);
 router.use("/bills", requirePermission("bills"), bills);
+// Phase 13C: the Expenses view — bills paid when recorded (read-only; written through /bills).
+router.use("/expenses", requirePermission("bills"), expenses);
 router.use("/journal-entries", requirePermission("journal_entries"), journalEntries);
 router.use("/recognition-schedules", requirePermission("journal_entries"), recognitionSchedules);
 // Spans four resources: at least one READ grant to reach it, and the service

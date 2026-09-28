@@ -262,12 +262,16 @@ export async function seedDemoTenant(opts: {
     const vendorA = await vendorsService.create({
       name: "Tamimi Office Supplies",
       nameAr: "التميمي للأدوات المكتبية",
-      vatNumber: "311111111111113",
+      // 🔴 Phase 13A: this said `vatNumber`, which is not a vendor field — the
+      // allow-list dropped it and the `as never` cast hid that, so the demo's
+      // suppliers never had a VAT number. The evidence gate found it: a tax
+      // invoice names its supplier's VAT number (IR Art. 53(5)(c)).
+      taxNumber: "311111111111113",
     } as never);
     const vendorB = await vendorsService.create({
       name: "Saudi Telecom Business",
       nameAr: "الاتصالات السعودية للأعمال",
-      vatNumber: "312222222222223",
+      taxNumber: "312222222222223",
     } as never);
 
     let invoiceCount = 0;
@@ -320,6 +324,9 @@ export async function seedDemoTenant(opts: {
       const bill = await billsService.create(
         {
           billNumber: `BILL-${seq}`,
+          // Phase 13A: the demo's bills are the suppliers' full tax invoices.
+          supplierDocumentKind: "tax_invoice",
+          vendorReference: `INV-${seq}`,
           date: dateIn(now, i, 12),
           dueDate: dateIn(now, i, 30),
           vendorId: idx % 2 === 0 ? vendorA.id : vendorB.id,

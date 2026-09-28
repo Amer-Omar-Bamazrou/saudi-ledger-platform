@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { PossibleDuplicate } from './possibleDuplicate';
 
 export interface CaptureResult {
   captureId: string;
@@ -13,4 +14,6 @@ export interface CaptureResult {
   /** @nullable */
   signatureDetail?: string | null;
   signatureFailed?: boolean;
+  /** Phase 13A: earlier captures of the SAME FILE in this company — a warning, never a refusal. */
+  duplicates?: PossibleDuplicate[];
 }

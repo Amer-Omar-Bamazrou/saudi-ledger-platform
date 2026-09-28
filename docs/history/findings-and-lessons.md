@@ -8125,3 +8125,46 @@ edited after applying); migrate a THROWAWAY database from the files and diff
 its schema against the dev database (identical but for line endings); run the
 suites with the database exported (they skip, and report green, without it);
 then audit.
+
+## 🔴 2026-09-24 — A RESEARCHED REGULATORY DECISION THAT NEVER REACHED THE CODE (P13-N2)
+
+**The failure mode — research/decision-to-code propagation failure: an
+approved, researched regulatory decision existed in documentation but was never
+propagated into the live implementation.**
+
+**The incident.** The D-5 accounting decision pack
+(`docs/product/accounting-architecture-decision-pack.md`) read Article 63 of
+the VAT Implementing Regulations from the current ARABIC text, as amended by
+Resolution 01-06-24 (19/11/2024), and recorded it as "verified from the
+primary text": an understatement below **SAR 15,000** is corrected in the
+return for **the tax period in which the error was discovered**. The live
+refusal `advance_tax_point_period_locked`
+(`apps/api/src/services/advanceInvoices.service.ts`) — written LATER, for
+AP-2 — told the user "below SAR 5,000, in the next return": the superseded
+2021 English text, which is the copy the repository holds. And a test
+(`ap-period-correction.test.ts`) asserted `/5,000/`, so the suite pinned the
+superseded rule green. Found by the Phase 13 research, not by any check.
+
+**Why nothing caught it.** The decision lived in a document; the rule lived in
+a string. Nothing joined them — no shared constant, no test reading the
+decision, no reference from the message to the pack. The author of the later
+message reached for the regulation text nearest to hand (the local English
+file) rather than the decision record, and the nearest text was the stale one.
+This is the "two definitions of one fact with no forcing function" family
+(CLAUDE.md §3), with a sharper edge: here one definition had been VERIFIED and
+the other was the one users saw.
+
+**The fix (2026-09-24).** The message and its code comment now state the
+current rule (SAR 15,000, the discovery-period return, Art. 63(3) as amended
+19/11/2024) and point at the D-5 pack; the test asserts the current rule AND
+the absence of "SAR 5,000" / "next return", and was run red against the old
+message before being kept. The stale source is itself recorded (P13-N3), with
+the rule "for Art. 40, 50, 53(1)(c), 54 or 63 cite the Arabic edition" in
+`docs/zatca/README.md`.
+
+**The countermeasure, as a question to ask.** When a regulatory rule is
+researched and recorded as a decision, ask *where does the product already
+say this?* — grep the code, the UI copy and the tests for the old value (here:
+"5,000", "next return", "63(3)") in the same commit that records the
+decision. A decision recorded without that sweep is research that has not
+reached the product.

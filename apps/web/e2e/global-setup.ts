@@ -251,7 +251,8 @@ export default async function globalSetup(): Promise<void> {
   });
 
   const customer = await api(ctx, "POST", "/customers", { name: "E2E Customer", taxNumber: "310000000000003" });
-  const vendor = await api(ctx, "POST", "/vendors", { name: "E2E Vendor" });
+  // Phase 13A: a tax invoice names its supplier's VAT number (IR Art. 53(5)(c)) — without one, every bill is held for evidence.
+  const vendor = await api(ctx, "POST", "/vendors", { name: "E2E Vendor", taxNumber: "302222222222223" });
   const customerId = customer.id as number;
   const vendorId = vendor.id as number;
 
@@ -331,6 +332,9 @@ export default async function globalSetup(): Promise<void> {
   const bill = async (billNumber: string, date: string, dueDate: string, subtotal: number) =>
     api(ctx, "POST", "/bills", {
       billNumber,
+      // Phase 13A: each is the supplier's full tax invoice, with its own number.
+      supplierDocumentKind: "tax_invoice",
+      vendorReference: `SUP-${billNumber}`,
       date,
       dueDate,
       vendorId,

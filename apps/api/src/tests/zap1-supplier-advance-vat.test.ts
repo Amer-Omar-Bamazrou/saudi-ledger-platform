@@ -93,7 +93,7 @@ describeMaybe("Z-AP1 — supplier advance tax invoice: claimed once (real rows)"
     return inTenant(() => billsService.approve(d.id, {}, userId));
   };
   const finalBill = async (net: number, date: string, prepayments: Array<{ advanceBillId: number; amount?: number; taxAmount?: number }>, number: string) => {
-    const b = await inTenant(() => billsService.create({ billNumber: number, date, vendorId, items: [{ description: "Supply", quantity: 1, unitPrice: net, vatRate: 15 }], prepayments }, userId));
+    const b = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-30", billNumber: number, date, vendorId, items: [{ description: "Supply", quantity: 1, unitPrice: net, vatRate: 15 }], prepayments }, userId));
     return inTenant(() => billsService.approve(b.id, {}, userId));
   };
   const payment = (id: number) => inTenant(() => supplierPaymentsService.getById(id));
@@ -104,7 +104,7 @@ describeMaybe("Z-AP1 — supplier advance tax invoice: claimed once (real rows)"
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'Z-AP1 Co') RETURNING id`, [orgId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','Z',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Najd Steel') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Najd Steel','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'ZAP Bank','SNB') RETURNING id`, [orgId, companyId])).rows[0].id;
     orgB = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Z-AP1 Other','${SLUG_B}') RETURNING id`)).rows[0].id;
     companyB = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'Z-AP1 Other Co') RETURNING id`, [orgB])).rows[0].id;
@@ -207,7 +207,7 @@ describeMaybe("Z-AP1 — supplier advance tax invoice: claimed once (real rows)"
     expect((await payment(p.id)).availableAmount).toBe(0);
 
     // A B7 credit note on the FINAL bill of test 2: the ordinary purchase-note path, unchanged.
-    const cn = await inTenant(() => billsService.create({ billNumber: "NS-FINAL-1-CN", documentType: "credit_note", creditNoteAgainstBillId: final1, date: "2026-06-05", vendorId, items: [{ description: "Price reduction", quantity: 1, unitPrice: 1_000, vatRate: 15 }] }, userId));
+    const cn = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-31", billNumber: "NS-FINAL-1-CN", documentType: "credit_note", creditNoteAgainstBillId: final1, date: "2026-06-05", vendorId, items: [{ description: "Price reduction", quantity: 1, unitPrice: 1_000, vatRate: 15 }] }, userId));
     await inTenant(() => billsService.approve(cn.id, {}, userId));
     expect((await purchases("2026-06")).vat, "the B7 note reduces June's input VAT").toBeCloseTo(-150, 2);
     // The folded deduction is corrected by that note, never undone.
@@ -226,7 +226,7 @@ describeMaybe("Z-AP1 — supplier advance tax invoice: claimed once (real rows)"
     expect(await gl("VAT_INPUT"), "nothing claimed").toBeCloseTo(vatIn, 2);
     expect((await purchases("2025-01")).vat, "a draft files nothing").toBeCloseTo(0, 2);
     // A final bill dated into a closed month is refused as before.
-    await expectRefusal(inTenant(() => billsService.create({ billNumber: "NS-L-F", date: "2025-02-15", vendorId, items: [{ description: "x", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId)), 423);
+    await expectRefusal(inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-32", billNumber: "NS-L-F", date: "2025-02-15", vendorId, items: [{ description: "x", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId)), 423);
     await pool.query(`DELETE FROM period_locks WHERE organization_id = $1 AND period IN ('2025-01','2025-02')`, [orgId]);
   }, 90_000);
 
@@ -238,7 +238,7 @@ describeMaybe("Z-AP1 — supplier advance tax invoice: claimed once (real rows)"
     try { await inTenant(() => db.execute(sql`DELETE FROM bill_prepayments WHERE bill_id = ${final1}`)); } catch (e) { del = e; }
     expect(pgCode(del)).toBe("23514");
     // A draft bill cannot join a deduction to something that is not an advance invoice.
-    const draft = await inTenant(() => billsService.create({ billNumber: "NS-D-1", date: "2026-07-01", vendorId, items: [{ description: "x", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId));
+    const draft = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-33", billNumber: "NS-D-1", date: "2026-07-01", vendorId, items: [{ description: "x", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId));
     let wrong: unknown;
     try { await pool.query(`INSERT INTO bill_prepayments (organization_id, company_id, bill_id, advance_bill_id, amount, taxable_amount, tax_amount, vat_rate) VALUES ($1,$2,$3,$4,10,10,0,0)`, [orgId, companyId, draft.id, final1]); } catch (e) { wrong = e; }
     expect(pgCode(wrong)).toBe("23514");
@@ -282,12 +282,12 @@ describeMaybe("Z-AP1 — supplier advance tax invoice: claimed once (real rows)"
 
   it("🔴 isolation: another company neither sees these advance invoices nor can deduct them", async () => {
     const mine = await inTenant(() => supplierAdvanceInvoicesService.openForVendor(vendorId));
-    const vendorB = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Other Vendor') RETURNING id`, [orgB])).rows[0].id;
+    const vendorB = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Other Vendor','300000000000003') RETURNING id`, [orgB])).rows[0].id;
     const theirs = await inTenant(() => supplierAdvanceInvoicesService.openForVendor(vendorB), orgB, companyB);
     expect(theirs).toEqual([]);
     const visible = await inTenant(() => supplierAdvanceInvoicesService.openForVendor(vendorId), orgB, companyB);
     expect(visible, "RLS: none of ours").toEqual([]);
     expect(Array.isArray(mine)).toBe(true);
-    await expectRefusal(inTenant(() => billsService.create({ billNumber: "B-X", date: "2026-07-02", vendorId: vendorB, items: [{ description: "x", quantity: 1, unitPrice: 100, vatRate: 15 }], prepayments: [{ advanceBillId: adv1 }] }, userId), orgB, companyB), 422, "advance_invoice_unknown");
+    await expectRefusal(inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-34", billNumber: "B-X", date: "2026-07-02", vendorId: vendorB, items: [{ description: "x", quantity: 1, unitPrice: 100, vatRate: 15 }], prepayments: [{ advanceBillId: adv1 }] }, userId), orgB, companyB), 422, "advance_invoice_unknown");
   }, 60_000);
 });

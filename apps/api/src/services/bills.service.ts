@@ -41,6 +41,50 @@ async function assertExpenseAccount(id: unknown): Promise<void> {
   }
 }
 
+/**
+ * 🔴 Phase 13C — an EXPENSE names the bank it was paid from and the date, and
+ * it is a plain bill (a note or an advance document is never "paid when
+ * recorded"). Checked here, where the row is written; the DB CHECK
+ * `bills_expense_chk` is the backstop. Both fields are REQUIRED, never
+ * defaulted — the paid date is not assumed to be the document date, and the
+ * bank is never inferred (D-3).
+ */
+async function normaliseExpense(v: Record<string, any>, documentType: string): Promise<void> {
+  if (v.recordedAsExpense !== true) {
+    v.recordedAsExpense = false;
+    v.expensePaidFromBankAccountId = null;
+    v.expensePaidAt = null;
+    return;
+  }
+  if (documentType !== "bill") {
+    throw new BusinessRuleError(422, {
+      code: "expense_must_be_bill",
+      error: "Only a supplier bill can be recorded as an expense paid when recorded — a credit note, debit note or advance document is not.",
+      field: "recordedAsExpense",
+    });
+  }
+  v.expensePaidFromBankAccountId = await assertBankAccount(v.expensePaidFromBankAccountId, { field: "expensePaidFromBankAccountId", what: "the expense was paid from" });
+  if (v.expensePaidAt == null || v.expensePaidAt === "") {
+    throw new BusinessRuleError(422, { code: "expense_paid_at_required", error: "Enter the date the expense was paid.", field: "expensePaidAt" });
+  }
+  assertDateString(v.expensePaidAt, "expensePaidAt");
+  // The payment posts on this date at approval — a closed month is refused NOW.
+  await checkPeriodOpen(v.expensePaidAt);
+}
+
+/** Link a staged capture to a draft as its evidence; refused (not skipped) when it cannot be. */
+async function linkEvidence(captureId: unknown, billId: number): Promise<void> {
+  if (captureId == null || captureId === "") return;
+  const linked = await capturedDocumentsRepository.linkToBill(String(captureId), billId);
+  if (!linked) {
+    throw new BusinessRuleError(422, {
+      code: "capture_unavailable",
+      error: "That document cannot be attached: it is already the evidence of another bill, has been posted, or was discarded.",
+      field: "captureId",
+    });
+  }
+}
+
 async function assertVendorExists(vendorId: unknown): Promise<void> {
   if (vendorId == null) return;
   const [v] = await vendorsRepository.findById(Number(vendorId));
@@ -58,12 +102,17 @@ import { assertBankAccount } from "./accounting/bankIdentity";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { billApprovable, type BillApproveOptions } from "./bills.approvable";
+import { payBill } from "./bills.payment";
 import { buildBillOut } from "./bills.presenter";
 import { billsRepository, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { round2 } from "../lib/money";
 import { businessToday } from "@workspace/shared";
 import { supplierAdvanceInvoicesService, type PrepaymentInput } from "./accounting/supplierAdvanceInvoices.service";
+import { capturedDocumentsRepository } from "../repositories/capturedDocuments.repository";
+import { vatEvidenceService, assertSupplierDocumentKind } from "./purchaseEvidence/vatEvidence.service";
+import { duplicatesService } from "./purchaseEvidence/duplicates.service";
+import { captureService } from "./capture/capture.service";
 
 
 export const billsService = {
@@ -85,7 +134,8 @@ export const billsService = {
     if (!row) throw new NotFoundError("Not found");
     const items = await billsRepository.itemsByBill(id);
     const prepayments = await supplierAdvanceInvoicesService.prepaymentsOf(id);
-    return buildBillOut(row.bill, row.vendor, items, row.outstanding, row.prepaid, prepayments);
+    const capture = await capturedDocumentsRepository.activeForBill(id);
+    return buildBillOut(row.bill, row.vendor, items, row.outstanding, row.prepaid, prepayments, capture);
   },
 
   async create(body: Record<string, any>, userId: number | null) {
@@ -138,7 +188,13 @@ export const billsService = {
       // B7: a purchase-side note is a bills row. Both fields are checked
       // together by assertPurchaseNote below, at this write boundary.
       "documentType", "creditNoteAgainstBillId",
+      // Phase 13A: the supplier document the user states they hold.
+      "supplierDocumentKind",
+      // Phase 13C: an expense — paid when recorded, from this bank, on this date.
+      "recordedAsExpense", "expensePaidFromBankAccountId", "expensePaidAt",
     ]) as Record<string, any>;
+    assertSupplierDocumentKind(billData.supplierDocumentKind);
+    await normaliseExpense(billData, String(billData.documentType ?? "bill"));
     // The chosen expense account must be one of the tenant's EXPENSE accounts —
     // the same rule resolveExpenseLine applies at posting, checked at entry so
     // a wrong choice is refused when it is made, not when it is approved.
@@ -223,8 +279,14 @@ export const billsService = {
     }
     if (prepayments.length > 0) await supplierAdvanceInvoicesService.writePrepayments(bill.id, prepayments);
 
+    // 🔴 Phase 13A: the scanned document becomes this DRAFT's evidence (still
+    // deletable staging — it is promoted only when the bill posts), and the
+    // server's evidence verdict is written now, so a held draft is listed.
+    await linkEvidence(body.captureId, bill.id);
+    await vatEvidenceService.refresh(bill.id);
+
     await auditService.created("bill", bill.id, bill);
-    return buildBillOut(bill, null);
+    return billsService.getById(bill.id);
   },
 
   /** Submit a draft bill into the approval queue (bookkeeper action). */
@@ -274,7 +336,19 @@ export const billsService = {
     const values = pick<typeof import("@workspace/db").billsTable.$inferInsert>(data, [
       "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
       "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId", "capitalisesAssetId",
+      "supplierDocumentKind", "recordedAsExpense", "expensePaidFromBankAccountId", "expensePaidAt",
     ]);
+    assertSupplierDocumentKind(values.supplierDocumentKind);
+    // An expense is judged on the draft as it will STAND (a partial PATCH keeps the stored fields).
+    if (values.recordedAsExpense !== undefined || values.expensePaidFromBankAccountId !== undefined || values.expensePaidAt !== undefined) {
+      const merged: Record<string, any> = {
+        recordedAsExpense: values.recordedAsExpense ?? existing.recordedAsExpense,
+        expensePaidFromBankAccountId: values.expensePaidFromBankAccountId !== undefined ? values.expensePaidFromBankAccountId : existing.expensePaidFromBankAccountId,
+        expensePaidAt: values.expensePaidAt !== undefined ? values.expensePaidAt : existing.expensePaidAt,
+      };
+      await normaliseExpense(merged, existing.documentType);
+      Object.assign(values, merged);
+    }
     if (values.expenseAccountId != null) await assertExpenseAccount(values.expenseAccountId);
     if (values.date !== undefined) {
       assertDateString(values.date, "date");
@@ -298,101 +372,97 @@ export const billsService = {
       });
       await supplierAdvanceInvoicesService.writePrepayments(id, prepared);
     }
+    await linkEvidence(data.captureId, id);
+    await vatEvidenceService.refresh(id);
     await auditService.updated("bill", id, existing, bill);
-    return buildBillOut(bill, null);
+    return billsService.getById(id);
   },
 
-  async pay(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown }, userId: number | null) {
-    const { amount, paidAt } = body;
-
+  /**
+   * 🔴 Phase 13A — supply (or re-check) the evidence of an UNPOSTED document:
+   * attach a captured document and re-decide the verdict. The one way a held
+   * draft becomes postable without being re-keyed. Draft or submitted — adding
+   * evidence changes no figure, so it does not need the draft back.
+   */
+  async attachEvidence(
+    id: number,
+    body: { captureId?: string | null; supplierDocumentKind?: string | null; vendorReference?: string | null; evidenceDate?: string | null },
+    userId: number | null,
+  ) {
     const [existing] = await billsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
-
-    // A bill must be approved (posted to AP) before it can be paid — a draft or
-    // queued bill has no payable AP balance yet.
-    if (existing.status === "draft" || existing.status === "submitted") {
-      throw new ConflictError("Bill must be approved before it can be paid.");
+    if (existing.status !== "draft" && existing.status !== "submitted") {
+      return billsService.evidenceForPosted(existing, body, userId);
     }
-    if (existing.status === "paid") throw new ConflictError("Bill is already paid.");
-    /**
-     * 🔴 B7 — A CREDIT NOTE IS NOT PAYABLE. It is money the supplier owes US,
-     * and a posted note's status is `received` like any other posted purchase
-     * document, so without this the pay path would happily post Dr AP / Cr
-     * cash against it: paying a document that reduces what we owe. The note's
-     * balance leaves by being APPLIED to a bill, or by a refund.
-     *
-     * A DEBIT note is payable — it is an additional charge.
-     */
-    if (existing.documentType === "advance_invoice" || existing.documentType === "advance_credit_note") {
-      throw new ConflictError(`${existing.billNumber} is a supplier ADVANCE document — the advance was paid before it existed, so there is nothing to pay. It is deducted by the supplier's final bill.`);
-    }
-    if (existing.documentType === "credit_note") {
-      throw new ConflictError(
-        `${existing.billNumber} is a supplier CREDIT note — it reduces what you owe, so it is not paid. Apply it to a bill instead.`,
-      );
-    }
-    assertNotReversedOpening(existing, `Bill ${existing.billNumber}`, "paid");
-
-    // Validate the amount up front — a missing/non-numeric amount previously
-    // reached the numeric column and surfaced as an unhandled 500.
-    const paid = Number(amount);
-    if (!Number.isFinite(paid) || paid <= 0) {
-      throw new BadRequestError("A positive payment amount is required.");
-    }
-    // 🔴 D-3 (2026-09-16): WHICH bank did the money move through? Checked at
-    // the same boundary as the amount — before any balance arithmetic and
-    // before any write — with the one shared rule (accounting/bankIdentity).
-    const bankAccountId = await assertBankAccount(body.bankAccountId, { what: "the payment left from" });
-
-    // M16.3: payments accumulate; a partial keeps the bill open (it must stay
-    // in AP aging); overpay is refused. Mirrors invoices.service.pay — see the
-    // note there.
-    //
-    // 🔴 Phase 11 Part 2: what the bill still owes is `billPosition`'s
-    // definition, read under a row lock — NOT `total − paid_amount`. Money now
-    // also reaches a bill through the AP subledger (a supplier payment, an
-    // applied advance, an applied credit note); reading the legacy counter
-    // alone accepted a full payment on a bill an advance had already settled,
-    // and posted Dr AP twice for one debt.
-    const alreadyPaid = Number(existing.paidAmount ?? 0);
-    const outstanding = await billsRepository.outstandingOf(id, { lock: true });
-    if (paid > outstanding + 0.005) {
-      throw new ConflictError(
-        `Payment of ${paid.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} on this bill.`,
-      );
-    }
-    const newPaid = Math.round((alreadyPaid + paid) * 100) / 100;
-    const fullySettled = outstanding - paid < 0.01;
-
-    const payDate = paidAt ?? businessToday();
-    const [bill] = await billsRepository.update(id, {
-      paidAmount: String(newPaid),
-      paidAt: payDate,
-      status: fullySettled ? "paid" : existing.status,
+    await linkEvidence(body.captureId, id);
+    const verdict = await vatEvidenceService.refresh(id);
+    await auditService.record({
+      action: "evidence", entityType: "bill", entityId: id, before: { vatEvidenceStatus: existing.vatEvidenceStatus },
+      after: { captureId: body.captureId ?? null, vatEvidenceStatus: verdict?.status ?? null, userId },
     });
+    return billsService.getById(id);
+  },
 
-    // B4 — the dated record of THIS payment (see invoices.service.pay).
-    // 🔴 N3: recorded BEFORE the GL entry so its id makes the entry number
-    // unique — `BILL-x-PAY` alone collided on the second partial payment.
-    const payment = await paymentsRepository.recordBillPayment(id, paid, payDate, bankAccountId);
-
-    // ── GL: Dr Accounts Payable / Cr <the bank's own cash account> ──
-    const payEntry = await postJournalEntry({
-      entryNumber: `BILL-${bill.billNumber}-PAY-${payment.id}`,
-      date: payDate,
-      description: `Payment to vendor for bill ${bill.billNumber}`,
-      reference: bill.billNumber ?? undefined,
-      lines: [
-        { systemCode: "AP", accountName: "Accounts Payable", description: `Payment for ${bill.billNumber}`, debitAmount: paid, creditAmount: 0, party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } },
-        { bankAccountId, description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: paid },
-      ],
+  /**
+   * 🔴 X1 — evidence for a POSTED document whose input VAT is held. Only the
+   * evidence facts may change (the supplier document held, its number, the
+   * document itself) — never a figure: the document is in the books. The
+   * attached document becomes the posted bill's immutable evidence at once.
+   * When the evidence now supports the claim, the held VAT is claimed on the
+   * evidence date (`vatEvidenceService.claimHeldVat`); otherwise the new
+   * verdict is stored and nothing posts.
+   */
+  async evidenceForPosted(
+    existing: typeof import("@workspace/db").billsTable.$inferSelect,
+    body: { captureId?: string | null; supplierDocumentKind?: string | null; vendorReference?: string | null; evidenceDate?: string | null },
+    userId: number | null,
+  ) {
+    if (existing.inputVatState !== "awaiting_evidence") {
+      throw new ConflictError("This bill is posted and its input VAT is not held for evidence — there is no evidence left to supply.");
+    }
+    assertSupplierDocumentKind(body.supplierDocumentKind);
+    const facts: Record<string, string | null> = {};
+    if (body.supplierDocumentKind != null) facts.supplierDocumentKind = body.supplierDocumentKind;
+    if (body.vendorReference != null && body.vendorReference.trim()) facts.vendorReference = body.vendorReference.trim();
+    if (Object.keys(facts).length) await billsRepository.update(existing.id, facts);
+    if (body.captureId != null && body.captureId !== "") await captureService.attachToBill(String(body.captureId), existing.id);
+    const claim = await vatEvidenceService.claimHeldVat(existing.id, { date: body.evidenceDate ?? null, userId });
+    const [after] = await billsRepository.findById(existing.id);
+    await auditService.record({
+      action: "evidence", entityType: "bill", entityId: existing.id,
+      before: { vatEvidenceStatus: existing.vatEvidenceStatus, inputVatState: existing.inputVatState, ...(Object.keys(facts).length ? { supplierDocumentKind: existing.supplierDocumentKind, vendorReference: existing.vendorReference } : {}) },
+      after: { captureId: body.captureId ?? null, ...facts, vatEvidenceStatus: after?.vatEvidenceStatus ?? null, inputVatState: after?.inputVatState ?? null, claimedOn: claim?.claimedOn ?? null, userId },
     });
+    return billsService.getById(existing.id);
+  },
 
-    // Phase 12B: the payment names its entry, so its cash line can be reconciled to the bank's statement line.
-    await paymentsRepository.setBillPaymentEntry(payment.id, payEntry.id);
-    await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: bill });
-    // Read back through the one definition, so the response carries what the
-    // bill owes NOW rather than a null the pay dialog would have to guess past.
+  /** 🔴 Phase 13A — the verdict for figures not yet saved (the review page, the bill form). */
+  evidencePreview(body: Parameters<typeof vatEvidenceService.preview>[0]) {
+    return vatEvidenceService.preview(body);
+  },
+
+  /** 🔴 Phase 13A — possible duplicates of a document being entered. WARN, never refuse. */
+  async duplicates(q: Parameters<typeof duplicatesService.forBill>[0]) {
+    return { items: await duplicatesService.forBill(q) };
+  },
+
+  /** 🔴 Phase 13A — every unposted document held for VAT evidence, and why. */
+  async heldForEvidence(filter: { reason?: string; q?: string; limit: number; offset: number }) {
+    const [rows, meta] = await Promise.all([billsRepository.heldForEvidence(filter), billsRepository.heldMeta(filter)]);
+    return {
+      items: rows.map((r) => buildBillOut(r.bill, r.vendor, undefined, null, null)),
+      page: { limit: filter.limit, offset: filter.offset, total: meta.total },
+      totals: { heldVat: meta.heldVat, byStatus: meta.byStatus, byReason: meta.byReason },
+    };
+  },
+
+  /**
+   * Record a payment against an approved bill — the one bill-payment path
+   * (`bills.payment.ts`), then read the bill back through the one definition,
+   * so the response carries what it owes NOW.
+   */
+  async pay(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown }, userId: number | null) {
+    await payBill(id, body, userId);
     return billsService.getById(id);
   },
 

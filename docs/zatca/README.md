@@ -50,6 +50,70 @@ the date printed inside the PDF, which is often the original release). Verified
 The **sandbox Developer Portal manual is the freshest document ZATCA publishes**
 (7 Jul 2026) and is the best guide to the sandbox APIs specifically.
 
+## 🔴 The English VAT Implementing Regulations here are SUPERSEDED for amended articles (P13-N3, 2026-09-24)
+
+**What is stored.** `specs/KSA_VAT_Implementing_Regulations_EN.pdf` (gitignored)
+and its committed extract `specs/KSA_VAT_Implementing_Regulations_EN.txt` are
+the **Eighth Edition — 04/04/1443H = 09/11/2021G**, last amendment listed
+Res. 2-7-21 (checksum in the table above). It is byte-identical to the English
+file ZATCA still serves today at
+`https://zatca.gov.sa/en/RulesRegulations/Taxes/Documents/Implmenting%20Regulations%20of%20the%20VAT%20Law_EN.pdf`.
+**ZATCA publishes no English edition that includes the later amendments.**
+
+**What is authoritative.** The **Arabic** Implementing Regulations prevail, and
+the current Arabic edition (2025, 1446H) at
+`https://zatca.gov.sa/ar/RulesRegulations/Taxes/Documents/Implmenting%20Regulations%20of%20the%20VAT%20Law.pdf`
+carries three amendments the English file does not:
+
+| Amendment | Date | Articles it changed (in what Phase 13 read) |
+| --- | --- | --- |
+| Res. 22-09-05 | 1444H (2022) | per its footnotes in the Arabic edition |
+| Res. 23-4-1 | 26/11/1444H = 15/06/2023 | Art. 40(7)(d) |
+| Res. 24-06-01 (01-06-24) | 17/05/1446H = 19/11/2024 | Art. 40(3), 40(10)–(11); **Art. 50(1)–(2)** (the blocked list and the restricted-vehicle definition); new **Art. 54(6)** (notes within 15 days of the following month); **Art. 63(1)–(4)** (SAR 15,000, the discovery-period return) |
+
+Also a **translation error** that is not an amendment: the English Art.
+53(1)(c) says "summary Tax Invoice"; the Arabic says **simplified** tax
+invoice (فاتورة ضريبية مبسطة) — the SAR 1,000 B2B simplified-invoice rule.
+ZATCA's own English summary of Res. 24-06-01 is the "Guideline for Amendments
+to the Implementing Regulation of VAT", Issue 1, April 2025
+(`https://zatca.gov.sa/en/HelpCenter/guidelines/Documents/Amendments-to-the-Implementing-Regulation-of-(VAT).PDF`).
+Articles read in Phase 13 with NO later amendment footnote: 49, 51, 52,
+53(5)/(7)/(8)/(11), 62.
+
+**The files were NOT replaced**, deliberately: a regulatory source is not
+swapped silently, and the Arabic PDF has no extractable text layer (Phase 13
+read it as page images). The rule until a current text is added beside this
+one: 🔴 **for Art. 40, 50, 53(1)(c), 54 or 63, cite the Arabic edition (or
+ZATCA's April 2025 amendments guideline), never the English `.txt` alone.**
+
+**Local documents that cite the English file or the amended articles** (a
+coverage list to re-check, not a verdict that each is wrong — found by grepping
+`docs/` for the file name and for Art. 40 / 50 / 53 / 54 / 63):
+
+- `docs/product/fixed-assets-decision-pack.md` — its Art. 50 table predates
+  the 2024 list (no employee insurance/healthcare item, no statutory-catering
+  carve-out, the old "designed to be used on the road" vehicle definition).
+- `docs/product/design-transaction-accounting.md` and
+  `docs/tax/vat-treatment-verification.md` — C9's Art. 50 verdicts, and the
+  `input_vat_blocked` flag they set (only `FOOD_MEALS` is seeded blocked).
+- `docs/product/advance-payments-decision-pack.md`,
+  `docs/product/batch-1c-migration-opening-balances-decision-pack.md`,
+  `docs/product/phase-11-deep-accounting-ap-decision-pack.md`,
+  `docs/product/batch-1b-decision-pack.md`,
+  `docs/product/d3-cash-policy-research-2026-09-17.md`,
+  `docs/product/ai-build-order-proposal.md`,
+  `docs/tax/invoice-numbering-verification.md`,
+  `docs/history/milestone-as-built-records.md`,
+  `docs/accounting-escalation-protocol.md` — cite Art. 40, 50 or 63 from the
+  English text in places.
+- `docs/product/accounting-architecture-decision-pack.md` (D-5) — already read
+  the AMENDED Art. 63 from the Arabic; it is the correct one.
+- Code: `apps/api/src/services/assets/vatCapitalAsset.ts` cites the English
+  file (Art. 52 — not amended); `advanceInvoices.service.ts` cited the
+  superseded Art. 63(3) until P13-N2 was fixed (2026-09-24).
+
+Record: `docs/history/known-issues-and-audit-findings.md`, P13-N3.
+
 ## Compliance & Enablement Toolbox (SDK) — obtained ✅
 
 **Publicly downloadable — no account, no login, no VAT registration.** Fetch with

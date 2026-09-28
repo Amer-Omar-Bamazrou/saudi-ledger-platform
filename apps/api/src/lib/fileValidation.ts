@@ -21,9 +21,29 @@ export const ALLOWED_MIME: Record<string, string> = {
   "image/png": "png",
 };
 
+/**
+ * 🔴 Phase 13A — CAPTURED purchase documents: PDF, JPEG, PNG and WEBP.
+ *
+ * A separate allow-list from `ALLOWED_MIME` on purpose: the onboarding
+ * verification-document path keeps its own (PDF/JPEG/PNG), and widening a
+ * shared list to fix one caller would silently widen the other. WEBP is what
+ * many phone cameras and browsers now hand over; before this, the capture
+ * page accepted it and the server refused it, so the bill was entered with
+ * NO stored evidence. The same magic-byte discipline applies — the bytes
+ * decide, never the declared type or the extension.
+ */
+export const CAPTURE_ALLOWED_MIME: Record<string, string> = {
+  ...ALLOWED_MIME,
+  "image/webp": "webp",
+};
+
 /** Sniff the true content type from leading bytes; null if unrecognized. */
 export function sniffMimeType(buf: Buffer): string | null {
   if (buf.length >= 5 && buf.subarray(0, 5).toString("latin1") === "%PDF-") return "application/pdf";
+  // WEBP: "RIFF" <4-byte size> "WEBP" (RIFF container, WebP form type).
+  if (buf.length >= 12 && buf.subarray(0, 4).toString("latin1") === "RIFF" && buf.subarray(8, 12).toString("latin1") === "WEBP") {
+    return "image/webp";
+  }
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
   if (
     buf.length >= 8 &&
@@ -39,16 +59,22 @@ export function sniffMimeType(buf: Buffer): string | null {
  * Validate a buffer's true type + size. Returns the sniffed (trusted) mime type.
  * Throws BadRequestError (400) on any violation.
  */
-export function validateDocumentBytes(buf: Buffer): string {
+export function validateDocumentBytes(buf: Buffer, allowed: Record<string, string> = ALLOWED_MIME): string {
   if (buf.length === 0) throw new BadRequestError("Uploaded file is empty.");
   if (buf.length > MAX_DOCUMENT_BYTES) {
     throw new BadRequestError(`File exceeds the ${Math.floor(MAX_DOCUMENT_BYTES / (1024 * 1024))} MB limit.`);
   }
   const sniffed = sniffMimeType(buf);
-  if (!sniffed || !(sniffed in ALLOWED_MIME)) {
-    throw new BadRequestError("Unsupported file type. Allowed: PDF, JPEG, PNG.");
+  if (!sniffed || !(sniffed in allowed)) {
+    const names = Object.values(allowed).map((e) => (e === "jpg" ? "JPEG" : e.toUpperCase()));
+    throw new BadRequestError(`Unsupported file type. Allowed: ${names.join(", ")}.`);
   }
   return sniffed;
+}
+
+/** Phase 13A — a captured purchase document: PDF, JPEG, PNG or WEBP, by its bytes. */
+export function validateCaptureBytes(buf: Buffer): string {
+  return validateDocumentBytes(buf, CAPTURE_ALLOWED_MIME);
 }
 
 // ── Company logo (L1 level-1 branding) ──────────────────────────────────────
@@ -111,7 +137,7 @@ export function sanitizeFilename(rawName: string, sniffedMime: string): string {
     .replace(/_{2,}/g, "_")
     .replace(/^[._]+/, "") // no leading dot/underscore (hidden/relative)
     .slice(0, 120);
-  const ext = ALLOWED_MIME[sniffedMime];
+  const ext = CAPTURE_ALLOWED_MIME[sniffedMime];
   const stem = cleaned.replace(/\.[^.]*$/, "") || "document";
   return `${stem}.${ext}`;
 }

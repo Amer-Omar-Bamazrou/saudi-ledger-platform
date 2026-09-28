@@ -365,6 +365,9 @@ describeMaybe("Purchase orders (M21.3)", () => {
       "a DRAFT bill must not move AP",
     ).toBe(apBefore);
 
+    // Phase 13A: a PO is not the supplier's tax invoice. The converted draft
+    // records the invoice the supplier sent — as a user does — before it posts.
+    await inTenant(() => billsService.update(bill.id, { supplierDocumentKind: "tax_invoice", vendorReference: "SUP-PO-INV-1" }));
     await inTenant(() => billsService.approve(bill.id, {}, userId));
     const apAfterConverted = (await inTenant(() => reportsService.balanceSheet())).liabilities.accountsPayable;
     const movedByConversion = Math.round((apAfterConverted - apBefore) * 100) / 100;
@@ -372,7 +375,7 @@ describeMaybe("Purchase orders (M21.3)", () => {
     await inTenant(() =>
       billsService.create(
         {
-          billNumber: "BILL-HANDTYPED-1",
+          supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-27", billNumber: "BILL-HANDTYPED-1",
           date: DATE,
           vendorId,
           items: [{ description: "Same shape", quantity: 4, unitPrice: 100, vatRate: 15 }],

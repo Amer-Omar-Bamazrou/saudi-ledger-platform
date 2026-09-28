@@ -5,6 +5,10 @@ import { supplierAdvanceInvoicesController } from "../controllers/supplierAdvanc
 const router = Router();
 
 router.get("/", billsController.list);
+// Phase 13A — declared BEFORE "/:id", which would otherwise take them as ids.
+router.post("/evidence-preview", billsController.evidencePreview);
+router.get("/duplicates", billsController.duplicates);
+router.get("/vat-evidence", billsController.heldForEvidence);
 router.get("/:id", billsController.get);
 router.post("/", billsController.create);
 // Draft/approval workflow (M10.3): submit is a create-level (bookkeeper) action;
@@ -17,6 +21,7 @@ router.post("/:id/approve", billsController.approve);
 router.post("/:id/post", billsController.post);
 router.patch("/:id", billsController.update);
 router.post("/:id/pay", billsController.pay);
+router.post("/:id/evidence", billsController.attachEvidence);
 router.get("/:id/payments", billsController.payments);
 router.post("/:id/advance-credit-notes", supplierAdvanceInvoicesController.createAdvanceCreditNote);
 router.delete("/:id", billsController.remove);

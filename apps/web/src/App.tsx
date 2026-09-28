@@ -88,6 +88,8 @@ import PayrollReport from '@/pages/PayrollReport';
 import AssetSchedule from '@/pages/AssetSchedule';
 // Scanner review page
 import ScanReview from '@/pages/ScanReview';
+import Expenses from '@/pages/Expenses';
+import VatEvidence from '@/pages/VatEvidence';
 // Reports Hub + new report pages
 import ReportsHub from '@/pages/ReportsHub';
 import FinanceHub from '@/pages/FinanceHub';
@@ -132,6 +134,13 @@ const queryClient = new QueryClient({
       if (mutation.options.onError) return; // the form handles it itself
       const status = error instanceof ApiError ? error.status : 0;
       if (status === 401) return;
+      // Phase 13A: only a supplier's ADVANCE tax invoice is refused for its
+      // evidence (it only claims VAT) — it stays a draft; say that, keyed on
+      // the structured code (the Approvals page lands here).
+      if (error instanceof ApiError && (error.code === "input_vat_evidence_insufficient" || error.code === "input_vat_not_deductible")) {
+        toast({ title: tOutside("Not posted — the evidence does not support the claim", "لم يُرحّل — الإثبات لا يدعم الخصم"), description: error.message });
+        return;
+      }
       toast({
         variant: "destructive",
         title:
@@ -220,6 +229,9 @@ function Router() {
               <Route path="/vendors/:id" component={VendorDetail} />
               <Route path="/purchase-orders" component={PurchaseOrders} />
               <Route path="/bills" component={Bills} />
+              {/* Phase 13: expenses (bills paid when recorded) and the documents held for VAT evidence */}
+              <Route path="/expenses" component={Expenses} />
+              <Route path="/vat-evidence" component={VatEvidence} />
               {/* Report pages (each backed by a mounted API route) */}
               <Route path="/ar-aging" component={ArAging} />
               <Route path="/invoice-summary" component={InvoiceSummary} />

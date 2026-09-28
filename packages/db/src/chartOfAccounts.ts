@@ -37,6 +37,14 @@ export const SYSTEM_ACCOUNTS = {
   SALES: "SALES",
   VAT_OUTPUT: "VAT_OUTPUT",
   VAT_INPUT: "VAT_INPUT",
+  /**
+   * 🔴 Phase 13A (accountant X1, 2026-09-27): input VAT charged on a posted
+   * purchase whose evidence does not yet support the deduction. An ASSET, and
+   * never VAT_INPUT: nothing here is on a VAT return. It leaves only by the
+   * evidence entry (Dr VAT_INPUT / Cr this), dated when the evidence is held,
+   * or by a supplier credit note reducing it (X3).
+   */
+  VAT_AWAITING_EVIDENCE: "VAT_AWAITING_EVIDENCE",
   PURCHASES: "PURCHASES",
   CASH: "CASH",
   SUSPENSE: "SUSPENSE",
@@ -124,6 +132,7 @@ export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACC
 export const TAX_ACCOUNT_SYSTEM_CODES: readonly string[] = [
   SYSTEM_ACCOUNTS.VAT_OUTPUT,
   SYSTEM_ACCOUNTS.VAT_INPUT,
+  SYSTEM_ACCOUNTS.VAT_AWAITING_EVIDENCE,
   "VAT_PAYMENT",
   "ZAKAT_PAYMENT",
 ];
@@ -191,6 +200,8 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   // exactly what the withholding exists for (owner decision, 2026-08-17).
   { code: "TRANSFER_SUSPENSE", name: "Transfers awaiting declaration", nameAr: "تحويلات بانتظار الإقرار", type: "asset", liquidityClass: "current", legacyNames: [] },
   { code: "VAT_INPUT", name: "Input VAT Receivable", nameAr: "ضريبة القيمة المضافة على المشتريات", type: "asset", liquidityClass: "quick", legacyNames: ["Input VAT Receivable"] },
+  // Phase 13A (X1): not yet deductible, so not `quick` like VAT_INPUT — it may never be recovered.
+  { code: "VAT_AWAITING_EVIDENCE", name: "Input VAT awaiting evidence", nameAr: "ضريبة مدخلات بانتظار الإثبات", type: "asset", liquidityClass: "current", legacyNames: [] },
   // Fixed assets FA-A (2026-09-22): the contra-asset the depreciation schedule posts into. Non-current, like the cost it offsets.
   { code: "PREPAID_EXPENSES", name: "Prepaid expenses", nameAr: "مصروفات مدفوعة مقدمًا", type: "asset", liquidityClass: "current", legacyNames: [] },
   // 🔴 THE AP ON-ACCOUNT ASSETS. A customer advance is a LIABILITY (we owe

@@ -2397,3 +2397,295 @@ test per finding: [`phase-11-deep-accounting-ap-decision-pack.md`](../product/ph
 ACCOUNTANT DECISION REQUIRED, blocker format in the pack §17.8; the running
 default defers the claim, lawful under IR Art. 49(8)); a RACE test for the row
 locks; the statement's server-written line descriptions are English.
+
+## PHASE 13 DISCOVERY — THREE LIVE PURCHASE-VAT DEFECTS — OPEN, 2026-09-24 (found reading shipped code; documentation only)
+
+Found during the Phase 13 (expenses + expense document intelligence)
+discovery, on branch `feat/phase13-expenses-document-intelligence` at
+`0dbfd891`. All three are in shipped code and are NOT fixed: the owner asked
+for them to be recorded here before the Phase 13 accounting research, and
+nothing is to be built until that research and the scope are approved.
+Established by reading the code paths named below — not yet reproduced by a
+test.
+
+### P13-D1 — Scanned receipts claim input VAT with no server-side evidence check
+
+**What happens.** The receipt checks run only in the browser
+(`apps/web/src/lib/receiptValidator.ts`: VAT number, VAT amount, totals,
+rate). On any error `apps/web/src/pages/ScanReview.tsx` (`handleConfirm`,
+the `window.confirm` at ~line 226) offers **"Post anyway"**; the flags are
+then discarded — nothing stores them. The page creates the bill and
+immediately calls `POST /bills/:id/post` (~line 256) with no `force`. The
+server (`apps/api/src/services/bills.approvable.ts`, `postBillToGL`) refuses
+only two things without `force`: totals that do not add up
+(`TOTALS_MISMATCH`), and a supplier VAT number that is **present but
+malformed** (`INVALID_VAT_NUMBER`, ~line 174 — the check is skipped when
+`vendorVat` is empty). **A missing supplier VAT number is not refused.**
+
+**Consequence.** The VAT read off the image — by a regex parser over browser
+OCR — is posted `Dr VAT_INPUT` and filed as recoverable input tax in the
+bill's month, whatever the evidence. A receipt that is not a tax invoice (no
+supplier VAT number) still claims its VAT, and because the flags are thrown
+away nobody can later find which posted bills were "posted anyway". Triage
+(§3): it POSTS, it is FILED in a return, and the RESULT is hidden.
+
+**CLOSED 2026-09-24 (Phase 13A).** The evidence verdict is decided and
+PERSISTED on the server (`services/purchaseEvidence/vatEvidence.ts`) on every
+draft write, re-decided at approval, and enforced by the database trigger
+`bills_vat_evidence_gate` (migration 0105). A document whose evidence does not
+support its claim is refused and stays a draft, listed on Purchases → VAT
+evidence with its reasons; a missing supplier VAT number now holds it. The scan
+review SAVES A DRAFT and never posts; "Post anyway" is gone. Record:
+[`phase-13-expenses-decision-pack.md`](../product/phase-13-expenses-decision-pack.md).
+
+### P13-D2 — Box 13 of the VAT return counts VAT that posted no Input VAT line
+
+**What happens.** `apps/api/src/services/reports.service.ts` (`vatReturn`,
+the purchases loop at ~lines 892–903) adds every bill line with `vat > 0` to
+recoverable input VAT (`box13_recoverableInputVat`). It has no exclusion for
+VAT that was not claimed in the books:
+- a bill that capitalises a fixed asset with a 0 % initial recovery
+  (`apps/api/src/services/assets/capitalisation.service.ts`,
+  `capitaliseVat`, line 71) posts its VAT into the asset's cost and **no
+  `VAT_INPUT` line** (`bills.approvable.ts`, `vatLine`, ~line 284) — yet the
+  return still counts that VAT as recoverable;
+- `categories.input_vat_blocked` (Art. 50) is read only by the bank-line
+  estimate (`services/summary.service.ts`, lines 55 and 82); **no bill path
+  reads it**, so a bill whose VAT is blocked by law claims it in the GL and
+  in the return.
+
+**Consequence.** The return can claim input VAT the ledger does not hold as
+recoverable (the capitalised case — return and GL disagree), and claims
+blocked VAT outright (the category case — both are wrong together, so no
+reconciliation would show it). An over-claim of input tax is the direction a
+tax audit looks for. Related open item: the fixed-assets VAT-return wiring
+needs the accountant (fixed-assets pack §25.6; CLAUDE.md §5 board).
+
+**CLOSED 2026-09-27 (Phase 13A, the narrow return guard — decision pack
+§9.4).** Input VAT now comes from the documents whose VAT is CLAIMED
+(`bills.input_vat_state`), in the claim period: a 0 %-recovery asset's
+capitalised VAT (`not_deductible`, back-filled by migration 0106 for bills
+already posted) and Art. 50 VAT (now posted into the expense's cost, X5) are
+never counted; `fixed-assets-capitalisation.test.ts` row 3 asserts the
+absence beside a present claim. The return's layout is unchanged (P13-N1).
+
+**NARROWED 2026-09-24 (Phase 13A).** The blocked-category half is closed at
+the source: a bill on an Art. 50 blocked account is now `not_deductible` and
+REFUSED at approval (neither posted with nor without its VAT — X3 is the
+accountant's), so it never reaches the GL or the return. 🔴 **Still OPEN:** the
+capitalised-fixed-asset half — the return still counts a 0 %-recovery asset's
+VAT as recoverable. The return is untouched in Phase 13 (13D waits on the
+official layout, P13-N1, and on the accountant).
+
+### P13-D3 — No duplicate detection on captured receipts or supplier invoices
+
+**What happens.** `captured_documents.sha256`
+(`packages/db/src/schema/capturedDocuments.ts`, line 75) is computed and
+stored at capture (`services/capture/capture.service.ts`) and **never
+compared** — no lookup, no unique index. `bills.vendor_reference`
+(`packages/db/src/schema/bills.ts`, line 55) — the supplier's own invoice
+number — has no index, no uniqueness and no check in the bills service,
+capture or ScanReview; the only uniqueness is our own `bill_number`
+(`bills_company_number_unq`). The one duplicate check is after the fact: the
+findings engine's `duplicateBills()`
+(`repositories/findings.repository.ts`) groups by supplier + date + total.
+
+**Consequence.** The same receipt — the identical file, or a second photo of
+the same paper — can be scanned twice, becoming two posted bills and two
+input-VAT claims in the return, with nothing refusing or warning at the
+moment it happens.
+
+**CLOSED 2026-09-24 (Phase 13A) — as a WARNING, by owner decision.** The same
+file (SHA-256), the same supplier (or a supplier record with the same VAT
+number) with the same supplier invoice number, and the same supplier/date/
+total are shown at capture, on the review page, in the bill form and the
+expense form (`GET /bills/duplicates`). Nothing is refused: two identical
+receipts can be two real purchases. Scoped to the company by an explicit
+predicate and to the organisation by RLS; indexes added (0105).
+
+**What would close them** is Phase 13's scope, pending the research and the
+owner's approval: server-side evidence checks with stored flags, the
+input-VAT claim status, the return reading claimed VAT only, and duplicate
+detection at capture and at bill creation.
+
+State: OPEN (recorded; nothing changed).
+
+## PHASE 13 RESEARCH — THE RETURN LAYOUT, A SUPERSEDED ART. 63 MESSAGE, AND A STALE REGULATORY SOURCE — OPEN, 2026-09-24 (critical; documentation only)
+
+Found by the Phase 13 accounting research (primary Saudi sources, IFRS as
+endorsed by SOCPA, ERPNext and Odoo source), on branch
+`feat/phase13-expenses-document-intelligence`. All three are recorded, not
+fixed: no behaviour, return, message or source file was changed. The
+accountant questions the same research produced are in
+[`phase-13-expenses-accountant-questions.md`](../product/phase-13-expenses-accountant-questions.md).
+
+### P13-N1 — CRITICAL: our VAT return's boxes are not ZATCA's boxes
+
+**What happens.** `apps/api/src/services/reports.service.ts` (`vatReturn`,
+~lines 943–960) returns fifteen single-value fields in OUR numbering, and
+`apps/web/src/pages/VatReport.tsx` (lines 65–79, and the headline cards at
+117 and 133) shows them to the user as numbered "Box" / "خانة" rows:
+1 standard-rated sales · 2 zero-rated sales · 3 exempt · 4 exports ·
+5 total · 6 VAT on sales · 7 sales adjustments · 8 total output VAT ·
+9 standard-rated purchases · 10 zero-rated purchases · 11 exempt purchases ·
+12 total purchases · 13 recoverable input VAT · 14 input adjustments ·
+15 total input VAT.
+
+**The official return** (ZATCA Return Filing Manual and Simplified VAT
+Filing Guidelines, EN, July 2020 — live URLs 404, read from the Internet
+Archive copies of the official PDFs; the purchase boxes confirmed by the live
+Arabic "إرشادات مبسطة حول تقديم الإقرار الضريبي", 2023) has sixteen boxes, and
+**each line carries three columns — Amount · Adjustment · VAT**:
+1 standard-rated sales · 2 special sales to citizens (private healthcare /
+education) · 3 zero-rated domestic sales · 4 exports · 5 exempt sales ·
+6 total sales · 7 standard-rated domestic purchases · 8 imports subject to
+VAT paid at customs · 9 imports under the reverse charge · 10 zero-rated
+purchases · 11 exempt purchases · 12 total purchases · 13 total VAT due for
+the current period · 14 corrections from previous periods (±15,000 in the
+2023 Arabic guide) · 15 VAT credit carried forward · 16 net VAT due.
+
+**Consequence.** A user filing on the ZATCA portal from our page copies our
+"Box 9" (standard-rated purchases) into the portal's Box 9 (reverse-charge
+imports), our "Box 13" (recoverable input VAT) into Box 13 (total VAT due),
+and so on — the figures land in the wrong boxes. The Adjustment column, where
+ZATCA's own worked examples put non-deductible VAT, does not exist in our
+return at all, and boxes 8, 9, 14, 15 and 16 have no equivalent. Every "box"
+reference in our code, tests and docs — including P13-D2 above ("box 13"),
+the e2e specs that read `box13_recoverableInputVat`, and CLAUDE.md §5's
+"box 4 (exports) is always 0 — an export is a 'Z' line in box 2" — is in OUR
+numbering, not ZATCA's.
+
+🔴 **A BLOCKER for any future VAT-return implementation**: no change to what
+the return reads (the Phase 13 claim events, blocked VAT, capitalised VAT,
+exempt vs zero-rated purchases) lands in a box until the official layout is
+adopted. Two placement questions stay open with it and were deliberately NOT
+sent to the accountant yet, because they presuppose the official layout: which
+box carries a late-claimed input VAT (reasoned, not verified: Box 7 of the
+later return, not Box 14), and how Art. 50 blocked VAT is reported (ZATCA's
+worked examples put a non-deductible share in the Adjustment column; no text
+covers Art. 50 items specifically).
+
+### P13-N2 — CRITICAL: a live refusal message cites the superseded Art. 63(3)
+
+**What happens.** `apps/api/src/services/advanceInvoices.service.ts`, line
+121 (the `advance_tax_point_period_locked` refusal, shown to the user), says
+an understatement is corrected "when the understatement is below SAR 5,000,
+in the next return (Art. 63(3))"; the comment at line 292 says the same.
+
+**The current rule.** IR Art. 63(3) as amended (Arabic, the prevailing text;
+2025 edition on zatca.gov.sa, amended by Res. 24-06-01 of 19/11/2024;
+restated by ZATCA's April 2025 amendments guideline §2.12): an understatement
+below **SAR 15,000** may be added to the net tax **in the return for the tax
+period in which the error was discovered**. This repository had ALREADY
+verified that reading from the primary text —
+[`accounting-architecture-decision-pack.md`](../product/accounting-architecture-decision-pack.md)
+(D-5, the Art. 63 table and "Current ZATCA rule — verified from the primary
+text") — so the message contradicts our own recorded rule, not only the law.
+
+**Consequence.** A user told to correct a closed period's return follows a
+threshold that is a third of the real one and a filing period that is not the
+one the regulation names. Recorded only; the message is not changed yet.
+
+**CLOSED 2026-09-24 (Phase 13, 13E).** The message and its comment now state
+the current rule — SAR 15,000, corrected in the return for the tax period in
+which the error was discovered (Art. 63(3) as amended 19/11/2024) — and point
+at the D-5 pack. `ap-period-correction.test.ts` used to assert `/5,000/`,
+pinning the superseded rule green; it now asserts the current rule AND the
+absence of "SAR 5,000" / "next return", and was run RED against the old
+message before being kept. No other VAT behaviour changed.
+
+🔴 **The lesson — a distinct failure mode: RESEARCH/DECISION-TO-CODE
+PROPAGATION FAILURE — an approved, researched regulatory decision existed in
+documentation but was never propagated into the live implementation.** The
+SAR 15,000 rule had been read from the current Arabic regulation and recorded
+in the D-5 accounting decision pack; the live code, written later, displayed
+the superseded SAR 5,000 rule from the stale local English text, and a test
+certified it. When a regulatory decision is recorded, grep the code, the UI
+copy and the tests for the value it replaces in the same commit. Long form:
+[`findings-and-lessons.md`](findings-and-lessons.md), "A RESEARCHED
+REGULATORY DECISION THAT NEVER REACHED THE CODE".
+
+### P13-N3 — CRITICAL: the repository's English Implementing Regulations are the 2021 edition
+
+**What happens.** `docs/zatca/specs/KSA_VAT_Implementing_Regulations_EN.pdf`
+and `.txt` are the Eighth Edition (09/11/2021) — byte-identical to the English
+file ZATCA still serves. The prevailing ARABIC text on zatca.gov.sa (2025
+edition) includes three later amendments (1444H/2022; Res. 23-4-1 of
+15/06/2023; Res. 24-06-01 of 19/11/2024). Superseded or changed in the
+articles the Phase 13 research read:
+- **Art. 40** — ¶3 amended (2024); ¶7(d) amended (2023); ¶10–11 now count
+  twelve months "from the month following the month of supply", with a
+  financing-contract exception.
+- **Art. 50** — ¶1–2 rewritten (2024): employee insurance and healthcare
+  added to the blocked list unless a law requires it; catering deductible
+  where a law requires it at the workplace; a restricted vehicle is now one
+  designed to carry **10 persons or fewer**, with four exceptions.
+- **Art. 53(1)(c)** — the English says "summary Tax Invoice"; the Arabic
+  says **simplified** tax invoice (فاتورة ضريبية مبسطة) — a translation error,
+  not an amendment.
+- **Art. 54(6)** — new (2024): credit and debit notes issued by the 15th day
+  of the following month.
+- **Art. 63** — ¶1–4 amended (see P13-N2).
+
+**Consequence.** Every design pack that quotes the local English file quotes
+text that may no longer be the law; the fixed-assets pack's Art. 50 table
+(restricted vehicles, "entertainment, private use") predates the 2024 list,
+and `categories.input_vat_blocked` and any future Art. 50 work would inherit
+it. ZATCA publishes no official English text that includes the 2022–2024
+amendments; the research's English renderings of the amended Arabic are its
+own translation (read from page images), not an official one.
+
+**Documented 2026-09-24 (Phase 13, 13E)** — the stored version, the current
+Arabic source and its amendments, the translation error, and the local
+documents that rest on the English text are set out in
+[`docs/zatca/README.md`](../zatca/README.md), "The English VAT Implementing
+Regulations here are SUPERSEDED for amended articles". Still OPEN: no current
+text is stored beside the English, and the packs listed there are not yet
+re-checked.
+
+**Not done, deliberately.** The source files were NOT replaced or edited: a
+regulatory source is not silently swapped. **What would close it**: add the
+current Arabic edition beside the English (named, dated, with its amendment
+list), mark the English file as superseded for the articles above, and
+re-check each pack that quotes Art. 40, 50, 53, 54 or 63 against the Arabic.
+
+State: OPEN (recorded; nothing changed).
+
+## THE DEMO SEED'S CUSTOMERS HAVE NO VAT NUMBER — OPEN, 2026-09-24 (found by Phase 13A)
+
+**What happens.** `apps/api/src/services/demo/demoSeed.service.ts` creates its
+customers with `vatNumber: "…"`, but the customer field is `taxNumber`; the
+service's allow-list drops the unknown key and an `as never` cast hid the
+mismatch from the typechecker. So the demo's customers have never had a VAT
+number. The same defect on the demo's VENDORS was found when the Phase 13
+evidence gate held the demo's bills (a tax invoice names its supplier's VAT
+number), and was fixed there.
+
+**Why not fixed here.** A buyer VAT number changes how the demo issues its
+invoices (standard vs simplified, the buyer fields ZATCA then requires) —
+outside Phase 13, and a behaviour change to the demo nobody asked for.
+
+**What would close it.** `taxNumber` in the two customer creates, a run of the
+demo seed and its test, and a look at the invoices it then issues. And the
+class: an `as never` cast on a service call is a place a wrong key cannot be
+seen — grep them.
+
+State: OPEN.
+
+## A PROMOTED CAPTURE IS ARCHIVED UNDER AN `.xml` NAME, WHATEVER IT IS — OPEN, 2026-09-24 (found during the Phase 13 browser walk; pre-existing, A1)
+
+**What happens.** `services/capture/promotion.service.ts` names an inbound
+capture with `archiveFileName()` — the OUTBOUND e-invoice convention — so a
+promoted PDF or photograph lands in the archive as `BILL_<timestamp>_<bill>-<capture>.xml`.
+The bytes are the original's and `captured_documents.content_type` is correct,
+so the product serves it correctly (`GET /capture/:id/image` reads the type from
+the row). **Consequence:** anyone reading the archive DIRECTLY — the "direct
+audit link" `ArchiveStore.directLink` exists for — sees a file whose name
+states a type it is not. Phase 13 made PDFs and WEBPs capturable, so more
+archived files now carry a wrong extension.
+
+**What would close it.** An inbound name that keeps the real extension (the
+capture allow-list already maps type → extension), and a note on how existing
+archived names are left (the archive has no rename — no delete, by design).
+
+State: OPEN (recorded; not changed in Phase 13).

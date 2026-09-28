@@ -71,7 +71,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
     });
 
   const buyAsset = async (assetId: number, number: string, date: string, subtotal: number) => {
-    const bill = await inTenant(() => billsService.create({ billNumber: number, date, vendorId, subtotal, vatAmount: 0, total: subtotal, capitalisesAssetId: assetId, items: [{ description: "Asset purchase", quantity: 1, unitPrice: subtotal }] }, userId));
+    const bill = await inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-14", billNumber: number, date, vendorId, subtotal, vatAmount: 0, total: subtotal, capitalisesAssetId: assetId, items: [{ description: "Asset purchase", quantity: 1, unitPrice: subtotal }] }, userId));
     return inTenant(() => billsService.approve(bill.id, {}, userId));
   };
 
@@ -83,7 +83,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'FA E Co') RETURNING id`, [orgId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','FA E',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Plant Supplier') RETURNING id`, [orgId])).rows[0].id;
+    vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Plant Supplier','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     machineryCat = (await inTenant(() => assetsService.createCategory({ name: "Machinery", defaultUsefulLifeMonths: 60, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" }, userId))).id;
     furnitureCat = (await inTenant(() => assetsService.createCategory({ name: "Furniture", defaultUsefulLifeMonths: 120, incomeTaxGroup: 5, vatCapitalAssetClass: "movable" }, userId))).id;
   }, 60_000);
@@ -263,7 +263,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
       catch (err) { await conn.rollback(); throw err; }
     };
     try {
-      const otherVendor = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Other Supplier') RETURNING id`, [otherOrg])).rows[0].id;
+      const otherVendor = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Other Supplier','300000000000003') RETURNING id`, [otherOrg])).rows[0].id;
       const cat = await inOther(() => assetsService.createCategory({ name: "Other machinery", defaultUsefulLifeMonths: 60, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" }, userId));
       const a = await inOther(() => assetsService.create({ name: "Other lathe", categoryId: cat.id, acquisitionDate: "2026-02-01", availableForUseDate: "2026-02-01", cost: 500_000 }, userId));
       await inOther(() => incomeTaxPoolService.declare({ incomeTaxGroup: 3, taxYear: 2024, closingBalanceDeclared: 0, additionsDeclared: 0, disposalsDeclared: 0 }, userId));
@@ -279,7 +279,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
       // the asset really is in service and really is 500,000. Without this the
       // absence below would pass on an empty register, which is the way an
       // isolation test most often lies.
-      const otherBill = await inOther(() => billsService.create({ billNumber: "BILL-OTHER-1", date: "2026-02-01", vendorId: otherVendor, subtotal: 500_000, vatAmount: 0, total: 500_000, capitalisesAssetId: a.id, items: [{ description: "Lathe", quantity: 1, unitPrice: 500_000 }] }, userId));
+      const otherBill = await inOther(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-15", billNumber: "BILL-OTHER-1", date: "2026-02-01", vendorId: otherVendor, subtotal: 500_000, vatAmount: 0, total: 500_000, capitalisesAssetId: a.id, items: [{ description: "Lathe", quantity: 1, unitPrice: 500_000 }] }, userId));
       await inOther(() => billsService.approve(otherBill.id, {}, userId));
       expect((await inOther(() => assetsService.getById(a.id))).status).toBe("in_service");
 

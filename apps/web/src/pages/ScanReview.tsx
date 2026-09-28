@@ -9,8 +9,13 @@
  *       accountant confirm, pick from suggestions, or create a new supplier
  *   4 — validation flags shown prominently (not buried)
  *   5 — proposed journal entry with editable debit account
- *   6 — posts through POST /bills/:id/post — the same single code path
- *       used for manually-created vendor bills
+ *   6 — 🔴 Phase 13A: SAVES A DRAFT (POST /bills with the capture as its
+ *       evidence) — it NEVER posts. Posting is the ordinary approval, where
+ *       the server decides whether the evidence supports the VAT; a document
+ *       whose evidence does not is listed under VAT evidence and, once
+ *       approved, holds its VAT in "Input VAT awaiting evidence" (X1).
+ *       The client-side "Post anyway" is gone: the verdict shown here is the
+ *       SERVER's (POST /bills/evidence-preview), the same one approval enforces.
  */
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
@@ -20,9 +25,11 @@ import { fetchPickerOptions } from "@/lib/pagedList";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import type { ParsedReceipt } from "@/lib/receiptParser";
 import { loadAndClearScanData } from "@/lib/scanReviewStore";
-import { validateReceipt } from "@/lib/receiptValidator";
-import type { ValidationFlag } from "@/lib/receiptValidator";
 import { useExpenseAccounts } from "@/lib/accounts";
+import { VatEvidencePanel } from "@/components/VatEvidencePanel";
+import { previewBillVatEvidence, type VatEvidencePreviewInput } from "@workspace/api-client-react";
+import { DuplicateWarning } from "@/components/DuplicateWarning";
+import { SUPPLIER_DOCUMENT_KINDS, kindLabel, type SupplierDocumentKind } from "@/lib/vatEvidence";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,6 +115,19 @@ export default function ScanReview() {
   // ── posting state ─────────────────────────────────────────────────────────
   const [isPosting, setIsPosting] = useState(false);
 
+  // ── Phase 13A/13C: what document is held, and was it already paid? ─────────
+  // Never pre-selected: input VAT is claimed only on a tax invoice, and the
+  // platform does not assume which document the user holds.
+  const [docKind, setDocKind] = useState<SupplierDocumentKind | "">("");
+  const [asExpense, setAsExpense] = useState(false);
+  const [expenseBank, setExpenseBank] = useState<string>("");
+  const [expensePaidAt, setExpensePaidAt] = useState<string>("");
+  const { data: bankAccounts = [] } = useQuery<Array<{ id: number; name: string; bankName: string; isDefault: boolean; isActive: boolean }>>({
+    queryKey: ["bank-accounts"],
+    queryFn: () => apiFetch("/bank-accounts"),
+  });
+  const activeBanks = bankAccounts.filter((b) => b.isActive);
+
   // ── vendors dropdown (for manual override) ────────────────────────────────
   const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({
     queryKey: ["vendors", "picker"],
@@ -166,15 +186,26 @@ export default function ScanReview() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── validation flags (recomputed whenever amounts change) ─────────────────
-  const flags: ValidationFlag[] = validateReceipt({
-    supplierVatNumber: String(fields.supplierVatNumber),
-    subtotal:  n(fields.subtotal),
+  // ── 🔴 the SERVER's evidence verdict, live (Phase 13A) ─────────────────────
+  // The same verdict a save writes and an approval enforces — never a
+  // client-side guess, and never a "post anyway".
+  const chosenVendorId = createNew ? null : (selectedVendorId ?? (manualVendorId ? Number(manualVendorId) : null));
+  const previewBody: VatEvidencePreviewInput = {
+    supplierDocumentKind: docKind || null,
+    vendorId: chosenVendorId,
+    vendorReference: fields.invoiceNumber || null,
+    date: fields.date || null,
+    subtotal: n(fields.subtotal),
     vatAmount: n(fields.vatAmount),
-    total:     n(fields.total),
+    total: n(fields.total),
+    expenseAccountId: effectiveDebitAccountId ?? null,
+    captureId,
+  };
+  const { data: verdict } = useQuery({
+    queryKey: ["evidence-preview", previewBody],
+    queryFn: () => previewBillVatEvidence(previewBody),
+    enabled: n(fields.total) > 0,
   });
-  const errors = flags.filter(f => f.severity === "error");
-  const warnings = flags.filter(f => f.severity === "warning");
 
   // ── vendor match API call ─────────────────────────────────────────────────
   async function runMatch(vatNumber: string, vendorName: string) {
@@ -216,21 +247,24 @@ export default function ScanReview() {
     onError: (e: Error) => toast({ title: t("Could not create supplier", "تعذّر إنشاء المورّد"), description: e.message, variant: "destructive" } as any),
   });
 
-  // ── confirm & post ────────────────────────────────────────────────────────
+  // ── save as a DRAFT — never post (Phase 13A) ─────────────────────────────
   async function handleConfirm() {
-    const vendorId = createNew ? null : (selectedVendorId ?? (manualVendorId ? Number(manualVendorId) : null));
+    const vendorId = chosenVendorId;
     if (!vendorId) {
-      toast({ title: t("Supplier required", "المورّد مطلوب"), description: t("Select or create a supplier before posting.", "اختر مورّدًا أو أنشئ واحدًا قبل الترحيل."), variant: "destructive" });
+      toast({ title: t("Supplier required", "المورّد مطلوب"), description: t("Select or create a supplier before saving.", "اختر مورّدًا أو أنشئ واحدًا قبل الحفظ."), variant: "destructive" });
       return;
     }
-    if (errors.length > 0 && !window.confirm(
-      t(`There ${errors.length === 1 ? "is 1 validation error" : `are ${errors.length} validation errors`}. Post anyway?`, `يوجد ${errors.length} من أخطاء التحقق. هل تريد الترحيل رغم ذلك؟`)
-    )) return;
+    const bank = asExpense ? Number(expenseBank || activeBanks.find((b) => b.isDefault)?.id || 0) : 0;
+    if (asExpense && !bank) {
+      toast({ title: t("Bank account required", "الحساب البنكي مطلوب"), description: t("Choose the bank account the expense was paid from.", "اختر الحساب البنكي الذي دُفع منه المصروف."), variant: "destructive" });
+      return;
+    }
 
     setIsPosting(true);
     try {
-      // Step 1: create draft bill (no GL posting yet)
-      const bill: { id: number; billNumber: string } = await apiFetch("/bills", {
+      // ONE act: the draft, with the staged document linked as its evidence.
+      // Nothing posts here; the draft goes through the ordinary approval.
+      const bill: { id: number; billNumber: string; vatEvidence?: { status: string } } = await apiFetch("/bills", {
         method: "POST",
         body: JSON.stringify({
           // 🔴 Blank: the server allocates from the company's bill counter.
@@ -240,29 +274,32 @@ export default function ScanReview() {
           vendorReference: fields.invoiceNumber || undefined,
           date:            fields.date,
           vendorId,
-          status:          "draft",
           subtotal:        n(fields.subtotal),
           vatAmount:       n(fields.vatAmount),
           total:           n(fields.total),
           notes:           fields.notes || undefined,
+          expenseAccountId: effectiveDebitAccountId ?? undefined,
+          supplierDocumentKind: docKind || undefined,
+          ...(captureId ? { captureId } : {}),
+          ...(asExpense ? { recordedAsExpense: true, expensePaidFromBankAccountId: bank, expensePaidAt: expensePaidAt || fields.date } : {}),
           items:           [],
         }),
       });
 
-      // Step 2: post the journal entry (same endpoint as manual bill post).
-      // `captureId` links the bill to its staged photograph ATOMICALLY with the
-      // posting (bills.approvable attaches inside the same transaction) — the
-      // A1 provenance chain: figure → extraction → stored source document.
-      await apiFetch(`/bills/${bill.id}/post`, {
-        method: "POST",
-        body: JSON.stringify({ debitAccountId: effectiveDebitAccountId, ...(captureId ? { captureId } : {}) }),
-      });
-
       qc.invalidateQueries({ queryKey: ["bills"] });
-      toast({ title: t("Bill posted", "تم ترحيل الفاتورة"), description: t(`${bill.billNumber} posted to the general ledger.`, `تم ترحيل ${bill.billNumber} إلى دفتر الأستاذ.`) });
-      navigate("/bills");
+      qc.invalidateQueries({ queryKey: ["vat-evidence"] });
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      // Held = the evidence does not support the claim (Art. 50 VAT is not held — it is cost, X5).
+      const held = bill.vatEvidence?.status === "awaiting_evidence";
+      toast({
+        title: t("Saved as a draft", "حُفظت كمسودة"),
+        description: held
+          ? t(`${bill.billNumber} is awaiting VAT evidence — it is listed under VAT evidence with what is missing. If it is approved first, its VAT is held, not claimed.`, `${bill.billNumber} بانتظار إثبات الضريبة — تظهر في قائمة إثبات الضريبة مع ما ينقصها. وإن اعتُمدت قبل ذلك تُحتجز ضريبتها دون خصم.`)
+          : t(`${bill.billNumber} is ready for approval. Nothing is posted until it is approved.`, `${bill.billNumber} جاهزة للاعتماد. لا يُرحّل شيء حتى تُعتمد.`),
+      });
+      navigate(held ? "/vat-evidence" : asExpense ? "/expenses" : "/bills");
     } catch (e: any) {
-      toast({ title: t("Posting failed", "فشل الترحيل"), description: e?.message ?? t("Check the fields and try again.", "راجع الحقول وحاول مرة أخرى."), variant: "destructive" });
+      toast({ title: t("Could not save", "تعذّر الحفظ"), description: e?.message ?? t("Check the fields and try again.", "راجع الحقول وحاول مرة أخرى."), variant: "destructive" });
     } finally {
       setIsPosting(false);
     }
@@ -317,8 +354,10 @@ export default function ScanReview() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {source === "qr"
-              ? "Read from the invoice's ZATCA QR code — check and post"
-              : "Correct any OCR errors before posting to the ledger"}
+              ? t("Read from the invoice's ZATCA QR code — check, then save as a draft", "قُرئت من رمز الاستجابة الخاص بالهيئة — راجعها ثم احفظها كمسودة")
+              : source === "manual"
+                ? t("Type the fields from the document, then save as a draft", "أدخل الحقول من المستند ثم احفظها كمسودة")
+                : t("Correct any text-recognition errors, then save as a draft", "صحّح أخطاء التعرف على النص ثم احفظها كمسودة")}
           </p>
         </div>
         {/* A1: evidence status — stored means the posted bill will be traceable
@@ -447,29 +486,29 @@ export default function ScanReview() {
         </div>
       )}
 
-      {/* ── validation flags ──────────────────────────────────────────────── */}
-      {flags.length > 0 && (
-        <div className="space-y-2">
-          {errors.map((f, i) => (
-            <div key={i} className="flex items-start gap-2.5 p-3 rounded-lg bg-negative-surface/10 border border-negative-surface/30 text-sm">
-              <AlertCircle className="w-4 h-4 text-negative shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-negative capitalize">{f.field.replace("_", " ")}: </span>
-                <span className="text-foreground">{f.message}</span>
-              </div>
-            </div>
-          ))}
-          {warnings.map((f, i) => (
-            <div key={i} className="flex items-start gap-2.5 p-3 rounded-lg bg-attention-surface/10 border border-attention-surface/30 text-sm">
-              <AlertTriangle className="w-4 h-4 text-attention shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-attention capitalize">{f.field.replace("_", " ")}: </span>
-                <span className="text-foreground">{f.message}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* ── 🔴 Phase 13A: which document is this, and does it evidence the VAT? ── */}
+      <Card className="border-border bg-card" data-testid="scan-document-kind">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">{t("Which supplier document is this?", "ما نوع مستند المورد هذا؟")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-3" role="radiogroup">
+            {SUPPLIER_DOCUMENT_KINDS.map((k) => (
+              <label key={k} className={`flex items-start gap-2 rounded-lg border p-2.5 text-sm cursor-pointer ${docKind === k ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/30"}`}>
+                <input type="radio" name="docKind" className="accent-primary mt-0.5" checked={docKind === k} onChange={() => setDocKind(k)} data-testid={`doc-kind-${k}`} />
+                <span>{kindLabel(k, t)}</span>
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t("Input VAT is claimed only on a tax invoice. A simplified tax invoice to a business is valid only below SAR 1,000 and must carry its ZATCA QR code.",
+               "لا تُخصم ضريبة المدخلات إلا بفاتورة ضريبية. ولا تصح الفاتورة المبسطة لمنشأة إلا لأقل من 1,000 ريال ويجب أن تحمل رمز الاستجابة الخاص بالهيئة.")}
+          </p>
+          <VatEvidencePanel verdict={verdict} context="preview" />
+        </CardContent>
+      </Card>
+
+      <DuplicateWarning vendorId={chosenVendorId} vendorReference={fields.invoiceNumber} date={fields.date} total={n(fields.total)} captureId={captureId} />
 
       {/* ── extracted fields ──────────────────────────────────────────────── */}
       <Card className="border-border bg-card">
@@ -506,12 +545,12 @@ export default function ScanReview() {
             <div>
               <Label className="text-xs text-muted-foreground">{t("Invoice / Receipt Number", "رقم الفاتورة / الإيصال")}</Label>
               <Input value={fields.invoiceNumber} onChange={e => setFields(p => ({ ...p, invoiceNumber: e.target.value }))}
-                className="mt-1 h-8 text-sm font-mono" placeholder={t("e.g. INV-2025-001", "مثال: INV-2025-001")} />
+                className="mt-1 h-8 text-sm font-mono" placeholder={t("e.g. INV-2025-001", "مثال: INV-2025-001")} data-testid="scan-invoice-number" />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label>
               <Input type="date" value={fields.date} onChange={e => setFields(p => ({ ...p, date: e.target.value }))}
-                className="mt-1 h-8 text-sm" />
+                className="mt-1 h-8 text-sm" data-testid="scan-date" />
             </div>
           </div>
 
@@ -520,20 +559,22 @@ export default function ScanReview() {
               <Label className="text-xs text-muted-foreground">{t("Subtotal (SAR)", "المجموع الفرعي (ر.س)")}</Label>
               <Input type="number" step="0.01" value={fields.subtotal}
                 onChange={e => setFields(p => ({ ...p, subtotal: e.target.value }))}
-                className="mt-1 h-8 text-sm font-mono" placeholder="0.00" />
+                className="mt-1 h-8 text-sm font-mono" placeholder="0.00" data-testid="scan-subtotal" />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">{t("VAT Amount (SAR)", "مبلغ الضريبة (ر.س)")}</Label>
               <Input type="number" step="0.01" value={fields.vatAmount}
+                data-testid="scan-vat"
                 onChange={e => setFields(p => ({ ...p, vatAmount: e.target.value }))}
-                className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "vat_amount") ? "border-negative-surface" : ""}`}
+                className={`mt-1 h-8 text-sm font-mono ${verdict?.flags.some(f => f.code === "vat_rate_not_standard" || f.code === "qr_vat_mismatch") ? "border-attention-surface" : ""}`}
                 placeholder="0.00" />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">{t("Total (SAR)", "الإجمالي (ر.س)")}</Label>
               <Input type="number" step="0.01" value={fields.total}
+                data-testid="scan-total"
                 onChange={e => setFields(p => ({ ...p, total: e.target.value }))}
-                className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "totals") ? "border-negative-surface" : ""}`}
+                className={`mt-1 h-8 text-sm font-mono ${verdict?.flags.some(f => f.code === "totals_do_not_reconcile" || f.code === "qr_total_mismatch") ? "border-attention-surface" : ""}`}
                 placeholder="0.00" />
             </div>
           </div>
@@ -656,7 +697,7 @@ export default function ScanReview() {
                 setSelectedVendorId(Number(v));
                 setCreateNew(false);
               }}>
-                <SelectTrigger className="h-8 text-sm flex-1">
+                <SelectTrigger className="h-8 text-sm flex-1" data-testid="scan-vendor-select">
                   <SelectValue placeholder={t("Choose existing supplier…", "اختر موردًا موجودًا…")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -688,8 +729,8 @@ export default function ScanReview() {
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-primary" /> {t("Proposed Journal Entry", "قيد اليومية المقترح")}
-            <span className="text-xs text-muted-foreground font-normal">{t("— nothing posts until you confirm below", "— لا يُرحّل شيء حتى تؤكد أدناه")}</span>
+            <BookOpen className="w-4 h-4 text-primary" /> {t("Entry when approved", "القيد عند الاعتماد")}
+            <span className="text-xs text-muted-foreground font-normal">{t("— saving makes a draft; nothing posts until it is approved", "— الحفظ ينشئ مسودة؛ لا يُرحّل شيء حتى تُعتمد")}</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -718,18 +759,26 @@ export default function ScanReview() {
                     </Select>
                   </td>
                   <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
-                    {previewSubtotal > 0 ? fmtNum(previewSubtotal) : "—"}
+                    {/* X5: non-deductible VAT is part of the expense line */}
+                    {(verdict?.status === "not_deductible" ? previewSubtotal + previewVat : previewSubtotal) > 0
+                      ? fmtNum(verdict?.status === "not_deductible" ? previewSubtotal + previewVat : previewSubtotal) : "—"}
                   </td>
                   <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
                 </tr>
-                {/* VAT line — fixed */}
-                <tr className="hover:bg-secondary/20">
-                  <td className="px-3 py-2 text-muted-foreground text-xs">{t("Input VAT Receivable", "ضريبة القيمة المضافة على المشتريات")}</td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
-                    {previewVat > 0 ? fmtNum(previewVat) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
-                </tr>
+                {/* VAT line — its account follows the server's verdict (X1: held VAT goes to the holding asset) */}
+                {verdict?.status !== "not_deductible" && (
+                  <tr className="hover:bg-secondary/20">
+                    <td className="px-3 py-2 text-muted-foreground text-xs">
+                      {verdict?.status === "awaiting_evidence"
+                        ? t("Input VAT awaiting evidence", "ضريبة مدخلات بانتظار الإثبات")
+                        : t("Input VAT Receivable", "ضريبة القيمة المضافة على المشتريات")}
+                    </td>
+                    <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
+                      {previewVat > 0 ? fmtNum(previewVat) : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
+                  </tr>
+                )}
                 {/* AP line — fixed */}
                 <tr className="hover:bg-secondary/20">
                   <td className="px-3 py-2 text-muted-foreground text-xs">{t("Accounts Payable", "الذمم الدائنة")}</td>
@@ -762,6 +811,37 @@ export default function ScanReview() {
         </CardContent>
       </Card>
 
+      {/* ── 🔴 Phase 13C: already paid? Then it is an EXPENSE ───────────────── */}
+      <Card className="border-border bg-card">
+        <CardContent className="pt-4 space-y-3">
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input type="checkbox" className="accent-primary mt-0.5" checked={asExpense} onChange={(e) => setAsExpense(e.target.checked)} data-testid="scan-as-expense" />
+            <span>
+              <span className="font-medium">{t("This purchase was already paid", "دُفعت هذه المشتريات بالفعل")}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t("Record it as an EXPENSE: when it is approved it is posted and paid from the bank below in one step, so no supplier payable is left outstanding. Leave unticked for a BILL you will pay later.",
+                   "سجّلها كمصروف: عند اعتمادها تُرحّل وتُدفع من الحساب البنكي أدناه في خطوة واحدة، فلا يبقى مستحق للمورد. اتركها دون تحديد لفاتورة ستدفعها لاحقًا.")}
+              </span>
+            </span>
+          </label>
+          {asExpense && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label className="text-xs text-muted-foreground">{t("Paid from bank account *", "دُفع من الحساب البنكي *")}</Label>
+                <Select value={expenseBank || String(activeBanks.find((b) => b.isDefault)?.id ?? "")} onValueChange={setExpenseBank}>
+                  <SelectTrigger className="mt-1 h-8 text-sm" data-testid="scan-expense-bank"><SelectValue placeholder={t("Choose the bank account", "اختر الحساب البنكي")} /></SelectTrigger>
+                  <SelectContent>{activeBanks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">{t("Date paid *", "تاريخ الدفع *")}</Label>
+                <Input type="date" value={expensePaidAt || fields.date} onChange={(e) => setExpensePaidAt(e.target.value)} className="mt-1 h-8 text-sm" data-testid="scan-expense-paid-at" />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ── action bar ───────────────────────────────────────────────────── */}
       <div className="flex gap-3 pb-8">
         <Button variant="outline" className="gap-2" onClick={() => navigate("/bills")} disabled={isPosting}>
@@ -771,10 +851,11 @@ export default function ScanReview() {
           className="flex-1 gap-2"
           onClick={handleConfirm}
           disabled={isPosting || (!selectedVendorId && !createNew && !manualVendorId)}
+          data-testid="scan-save-draft"
         >
           {isPosting
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> {t("Posting…", "جارٍ الترحيل…")}</>
-            : <><CheckCircle2 className="w-4 h-4" /> {t("Confirm & Post Bill", "تأكيد وترحيل الفاتورة")}</>}
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> {t("Saving…", "جارٍ الحفظ…")}</>
+            : <><CheckCircle2 className="w-4 h-4" /> {asExpense ? t("Save expense as draft", "حفظ المصروف كمسودة") : t("Save bill as draft", "حفظ الفاتورة كمسودة")}</>}
         </Button>
       </div>
     </div>

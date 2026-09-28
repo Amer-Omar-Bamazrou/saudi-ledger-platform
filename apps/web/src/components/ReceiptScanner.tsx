@@ -1,10 +1,15 @@
 /**
  * ReceiptScanner — drag-and-drop or click receipt OCR dialog.
  *
- * • Accepts JPEG / PNG / WEBP / PDF-page images
- * • Runs Tesseract.js (WASM) in the browser — no backend call needed
+ * • Accepts JPEG / PNG / WEBP images and PDF documents
+ * • Runs Tesseract.js (WASM) in the browser on images — no backend call needed
  * • Parses extracted text with receiptParser and returns structured fields
  *   so the caller can pre-fill the New Bill form
+ *
+ * 🔴 Phase 13A: a PDF is not read in the browser (no OCR, no QR decode) — it
+ * is STORED as the evidence document and its fields are entered on the review
+ * page (`source: "manual"`). And a failed read is never a dead end: the user
+ * may continue and type the fields, so the document is still kept as evidence.
  */
 import { useState, useRef, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -30,8 +35,14 @@ interface Props {
    * The FILE travels too (audit Tier 3 / A1): the photograph must reach the
    * server-side capture pipeline, or the posted bill has no stored evidence.
    */
-  onExtracted: (data: ParsedReceipt, qr: QrCaptureResult | undefined, file: File) => void;
+  onExtracted: (data: ParsedReceipt, qr: QrCaptureResult | undefined, file: File, source: "qr" | "ocr" | "manual") => void;
 }
+
+/** Nothing read — the fields are typed on the review page. */
+const EMPTY_RECEIPT: ParsedReceipt = {
+  vendorName: "", vendorReference: "", supplierVatNumber: "", date: "", subtotal: 0, vatAmount: 0, total: 0, notes: "", rawText: "",
+};
+const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
 
 // ── component ──────────────────────────────────────────────────────────────────
 export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
@@ -47,12 +58,14 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
   const [dragging, setDragging] = useState(false);
   /** The photograph itself — handed to onExtracted for server-side staging. */
   const [srcFile, setSrcFile] = useState<File | null>(null);
+  /** Phase 13A: nothing was READ (a PDF, or a read the user chose to skip) — the fields will be typed. */
+  const [manual, setManual] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setPhase("idle"); setProgress(0); setProgressMsg("");
-    setPreview(null); setResult(null); setQr(null); setErrorMsg(""); setSrcFile(null);
+    setPreview(null); setResult(null); setQr(null); setErrorMsg(""); setSrcFile(null); setManual(false);
   };
 
   const handleClose = () => { reset(); onOpenChange(false); };
@@ -121,13 +134,31 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
 
   // ── file handling ──────────────────────────────────────────────────────────
   const accept = (file: File) => {
+    // Phase 13A: a PDF is stored as the evidence document; its fields are typed on the review page.
+    if (isPdf(file)) {
+      setSrcFile(file);
+      setQr(null);
+      setResult(EMPTY_RECEIPT);
+      setManual(true);
+      setPhase("done");
+      return;
+    }
     if (!file.type.startsWith("image/")) {
-      setErrorMsg(t("Please upload an image file (JPEG, PNG, WEBP).", "يرجى رفع ملف صورة (JPEG أو PNG أو WEBP)."));
+      setErrorMsg(t("Please upload an image (JPEG, PNG, WEBP) or a PDF.", "يرجى رفع صورة (JPEG أو PNG أو WEBP) أو ملف PDF."));
       setPhase("error");
       return;
     }
     setSrcFile(file);
     runOcr(file);
+  };
+
+  /** Phase 13A: a failed read is not a dead end — keep the document, type the fields. */
+  const continueManually = () => {
+    if (!srcFile) return;
+    setQr(null);
+    setResult(EMPTY_RECEIPT);
+    setManual(true);
+    setPhase("done");
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -143,7 +174,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
 
   // ── confirm extracted data ─────────────────────────────────────────────────
   const confirm = () => {
-    if (result && srcFile) { onExtracted(result, qr ?? undefined, srcFile); handleClose(); }
+    if (result && srcFile) { onExtracted(result, qr ?? undefined, srcFile, qr ? "qr" : manual ? "manual" : "ocr"); handleClose(); }
   };
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -188,7 +219,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
                 className="hidden"
                 onChange={onFileChange}
               />
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+              <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={onFileChange} data-testid="scan-file-input" />
 
               <div className={`p-4 rounded-full transition-colors ${dragging ? "bg-primary/20" : "bg-secondary"}`}>
                 <FileImage className={`w-10 h-10 transition-colors ${dragging ? "text-primary" : "text-muted-foreground"}`} />
@@ -197,20 +228,24 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button size="lg" className="flex-1" onClick={() => cameraRef.current?.click()}>
                   <ScanLine className="w-4 h-4 me-2" />
-                  Photograph a receipt
+                  {t("Photograph a receipt", "تصوير إيصال")}
                 </Button>
                 <Button size="lg" variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}>
                   <UploadCloud className="w-4 h-4 me-2" />
-                  Choose a file
+                  {t("Choose a file", "اختيار ملف")}
                 </Button>
               </div>
 
               <p className="text-sm text-muted-foreground text-center">
-                {dragging ? "Drop to scan" : "or drag an image here — JPEG, PNG, WEBP"}
+                {dragging
+                  ? t("Drop to scan", "أفلت الملف للمسح")
+                  : t("or drag a file here — JPEG, PNG, WEBP or PDF", "أو اسحب ملفًا إلى هنا — JPEG أو PNG أو WEBP أو PDF")}
               </p>
               <p className="text-xs text-muted-foreground text-center max-w-xs">
-                A ZATCA QR code is read instantly and exactly. Otherwise text
-                recognition runs in your browser — the image is never uploaded.
+                {t(
+                  "A ZATCA QR code is read instantly and exactly; otherwise text recognition runs in your browser. The document itself is stored as the evidence for the bill — a PDF is stored and its fields typed on the next page.",
+                  "يُقرأ رمز الاستجابة الخاص بالهيئة فورًا وبدقة، وإلا يعمل التعرف على النص في متصفحك. ويُحفظ المستند نفسه دليلًا للفاتورة — ويُحفظ ملف PDF وتُدخل حقوله في الصفحة التالية.",
+                )}
               </p>
             </div>
           )}
@@ -246,14 +281,46 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
                   <p className="text-xs text-muted-foreground mt-1">{errorMsg}</p>
                 </div>
               </div>
-              <Button variant="outline" className="w-full gap-2" onClick={reset}>
-                <RotateCcw className="w-4 h-4" /> {t("Try another image", "جرّب صورة أخرى")}
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button variant="outline" className="flex-1 gap-2" onClick={reset}>
+                  <RotateCcw className="w-4 h-4" /> {t("Try another image", "جرّب صورة أخرى")}
+                </Button>
+                {srcFile && (
+                  <Button className="flex-1" onClick={continueManually} data-testid="scan-continue-manual">
+                    {t("Keep this document and type the fields", "الاحتفاظ بالمستند وإدخال الحقول يدويًا")}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
           {/* ── result ───────────────────────────────────────────────────── */}
-          {phase === "done" && result && (
+          {phase === "done" && result && manual && (
+            <div className="space-y-4" data-testid="scan-manual-ready">
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-secondary/40 border border-border">
+                <FileImage className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">{srcFile?.name}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t(
+                      "Nothing was read from this document. It will be stored as the evidence, and you will type its fields on the next page.",
+                      "لم تُقرأ أي بيانات من هذا المستند. سيُحفظ دليلًا، وستُدخل حقوله في الصفحة التالية.",
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={reset}>
+                  <RotateCcw className="w-3.5 h-3.5" /> {t("Choose another", "اختيار مستند آخر")}
+                </Button>
+                <Button className="flex-1 gap-2" onClick={confirm} data-testid="scan-use-fields">
+                  <CheckCircle2 className="w-4 h-4" /> {t("Continue", "متابعة")}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {phase === "done" && result && !manual && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 {/* image thumbnail */}
@@ -292,7 +359,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={reset}>
                   <RotateCcw className="w-3.5 h-3.5" /> {t("Rescan", "إعادة المسح")}
                 </Button>
-                <Button className="flex-1 gap-2" onClick={confirm}>
+                <Button className="flex-1 gap-2" onClick={confirm} data-testid="scan-use-fields">
                   <CheckCircle2 className="w-4 h-4" /> {t("Use these fields", "استخدام هذه الحقول")}
                 </Button>
               </div>

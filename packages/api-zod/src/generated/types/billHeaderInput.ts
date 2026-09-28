@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BillHeaderInputDocumentType } from './billHeaderInputDocumentType';
+import type { BillHeaderInputSupplierDocumentKind } from './billHeaderInputSupplierDocumentKind';
 import type { BillPrepaymentInput } from './billPrepaymentInput';
 
 export interface BillHeaderInput {
@@ -52,4 +53,23 @@ export interface BillHeaderInput {
   vatAmount?: number;
   /** @minimum 0 */
   total?: number;
+  /**
+     * Phase 13A: the supplier document you HOLD — a tax invoice (IR Art. 53(5)), a simplified tax invoice (53(8)), or no tax invoice. Never defaulted: input VAT is claimed only on a tax invoice, and a claim with nothing stated is held for evidence.
+     * @nullable
+     */
+  supplierDocumentKind?: BillHeaderInputSupplierDocumentKind;
+  /**
+     * A staged capture (POST /capture) to link as this draft's evidence document.
+     * @nullable
+     */
+  captureId?: string | null;
+  /**
+     * Phase 13C: an EXPENSE — already paid when recorded. Requires the bank it was paid from and the date; its approval posts the bill and pays it through the bill-payment path in the same transaction.
+     * @nullable
+     */
+  recordedAsExpense?: boolean | null;
+  /** @nullable */
+  expensePaidFromBankAccountId?: number | null;
+  /** @nullable */
+  expensePaidAt?: string | null;
 }

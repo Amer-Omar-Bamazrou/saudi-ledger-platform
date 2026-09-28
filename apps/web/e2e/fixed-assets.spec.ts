@@ -109,8 +109,12 @@ test.describe.serial("fixed assets, end to end", () => {
     // the expense-account picker is GONE: a capitalising bill takes its account from the asset's category
     await expect(page.getByText(/Expense \/ Debit Account/)).toHaveCount(0);
     await page.getByTestId("bill-vendor").click();
-    await page.getByRole("option").first().click();
+    // Phase 13A: the seeded supplier (it has a VAT number) and the tax invoice it issued, stated by clicking.
+    await page.getByRole("option", { name: /E2E Vendor/ }).first().click();
     await page.getByTestId("bill-number").fill(`FA-E2E-${Date.now()}`);
+    await page.getByTestId("bill-vendor-reference").fill(`SUP-FA-${Date.now()}`);
+    await page.getByTestId("bill-document-kind").click();
+    await page.getByRole("option", { name: /^Tax invoice$/ }).click();
     await page.getByTestId("bill-subtotal").fill("24000");
     await page.getByTestId("bill-vat").fill("3600");
     await page.getByTestId("bill-total").fill("27600");

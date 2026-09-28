@@ -488,3 +488,12 @@ Decision record: [`phase-12-banking-reconciliation-decision-pack.md`](../product
 The **completed-bank-reconciliation lock** was researched against the Commercial Books Law (Arabic), VAT IR Art. 66, SOCPA, IFRS, ERPNext and Odoo. Nothing requires or prohibits it (classification D): it is recorded as an internal Saudi Ledger control and kept unchanged.
 
 Decision record: [`phase-12-banking-reconciliation-decision-pack.md`](../product/phase-12-banking-reconciliation-decision-pack.md) §8–§10.
+
+## PHASE 13 — EVIDENCE INTEGRITY, EXPENSES, REGULATORY TEXT (13A · 13C · 13E, 2026-09-24; accountant X1–X5 applied 2026-09-27)
+
+- **13A** — one VAT-evidence verdict (`services/purchaseEvidence/vatEvidence.ts`), persisted on every draft write, re-decided at approval, backstopped by the trigger `bills_vat_evidence_gate` (migration 0105). (2026-09-24: a document whose evidence did not support its claim stayed a DRAFT.) Since X1/X5 (2026-09-27, migration 0106, decision pack §9): it POSTS with its VAT in `VAT_AWAITING_EVIDENCE` until the evidence entry (Dr `VAT_INPUT` / Cr holding) claims it on the evidence day, within five calendar years; Art. 50 VAT is cost; a credit note on held VAT nets the later claim; the return counts input VAT only when claimed (a narrow guard — boxes unchanged). The scan review saves a draft and never posts; PDF and WEBP captured by their bytes; `fieldSources` and the reviewer's corrections persisted beside the extraction; duplicates WARNED, never refused.
+- **13C** — an EXPENSE is a bill paid when recorded: it names its bank and paid date, and its approval posts it and pays it through `payBill` (the bill-payment path, moved unchanged out of `billsService.pay`) in one transaction. The Expenses page reads the bills.
+- **13E** — the Art. 63(3) refusal corrected (P13-N2, with its lesson); the stale English IR documented, not replaced (P13-N3).
+- NOT built: 13B (claim ledger), 13D (the return's layout, P13-N1), capitalised-VAT recovery, reimbursement.
+
+Decision record: [`phase-13-expenses-decision-pack.md`](../product/phase-13-expenses-decision-pack.md). Open questions: [`phase-13-expenses-accountant-questions.md`](../product/phase-13-expenses-accountant-questions.md).
