@@ -199,11 +199,15 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
       { system_code: "VAT_ADJ_BLOCKED", name: "VAT Adjustment – Blocked (Art. 50)", name_ar: "تعديل ضريبة المدخلات – غير قابلة للخصم (المادة 50)", type: "asset", is_system: true, vat_applicable: false, liquidity_class: "current" },
       { system_code: "VAT_ADJ_NONPAYMENT", name: "VAT Adjustment – Non-Payment (Art. 40(10))", name_ar: "تعديل ضريبة المدخلات – عدم السداد (المادة 40(10))", type: "asset", is_system: true, vat_applicable: false, liquidity_class: "current" },
     ]);
-    // Existing organisations got them from the migration's INSERT … SELECT: none is missing anywhere.
-    const missing = (await pool.query(
-      `SELECT o.id FROM organizations o
-        WHERE (SELECT count(*) FROM categories c WHERE c.organization_id = o.id AND c.system_code IN ('VAT_ADJ_NONPAYMENT', 'VAT_ADJ_BLOCKED')) <> 2`)).rows;
-    expect(missing, "every organisation holds both accounts").toEqual([]);
+    // Both of THIS suite's organisations hold both (the org-seed trigger copied the template rows).
+    // Scoped to our own organisations on purpose: a database-wide "none is missing" reads other
+    // suites' half-finished cleanups in a parallel run (test-suite-notes: shared state). The
+    // migration's backfill for EXISTING organisations is proven on a populated copy instead
+    // (architecture §25.20: only the two template rows and two category rows per org change).
+    const perOrg = (await pool.query(
+      `SELECT o.id::text AS id, (SELECT count(*)::int FROM categories c WHERE c.organization_id = o.id AND c.system_code IN ('VAT_ADJ_NONPAYMENT', 'VAT_ADJ_BLOCKED')) AS n
+         FROM organizations o WHERE o.id IN ($1, $2) ORDER BY 1`, [orgA, orgB])).rows;
+    expect(perOrg, "each organisation holds both accounts").toEqual([orgA, orgB].sort().map((id) => ({ id, n: 2 })));
     // Nothing posts to them in 13B-1.
     const posted = (await pool.query(
       `SELECT count(*)::int n FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id
