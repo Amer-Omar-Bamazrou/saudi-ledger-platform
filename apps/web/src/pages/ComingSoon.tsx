@@ -18,7 +18,7 @@
  * "coming soon" teaches the user to distrust every other entry in the sidebar.
  */
 import { useRoute, Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel } from "@/components/kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, ArrowLeft, CircleCheck, UserRoundCheck } from "lucide-react";
@@ -41,14 +41,12 @@ export default function ComingSoon() {
    */
   if (!entry) {
     return (
-      <div className="p-6">
-        <Card className="border-negative-surface/40">
-          <CardHeader>
-            <CardTitle className="text-base text-negative">
-              {t("This page does not exist", "هذه الصفحة غير موجودة")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
+      <div className="max-w-3xl">
+        <Panel
+          className="border-negative-surface/40"
+          title={<span className="text-negative">{t("This page does not exist", "هذه الصفحة غير موجودة")}</span>}
+          bodyClassName="space-y-3 text-sm text-muted-foreground"
+        >
             <p>
               {t(
                 "A navigation entry pointed here, and nothing is registered for it. That is a defect in the navigation, not something you did.",
@@ -57,12 +55,11 @@ export default function ComingSoon() {
             </p>
             <Link href="/">
               <Button variant="outline" size="sm" className="gap-2">
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-4 h-4 rtl:-scale-x-100" />
                 {t("Back to the dashboard", "العودة إلى لوحة التحكم")}
               </Button>
             </Link>
-          </CardContent>
-        </Card>
+        </Panel>
       </div>
     );
   }
@@ -71,10 +68,11 @@ export default function ComingSoon() {
   const isOwnerAction = "ownerAction" in blocker && blocker.ownerAction === true;
 
   return (
-    <div className="p-6 max-w-3xl space-y-6" data-testid="coming-soon" data-slug={entry.slug} data-blocker={entry.blocker}>
-      <div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-semibold text-foreground">{ar ? entry.titleAr : entry.title}</h1>
+    <div className="max-w-3xl space-y-6" data-testid="coming-soon" data-slug={entry.slug} data-blocker={entry.blocker}>
+      <PageHeader
+        title={
+        <span className="inline-flex items-center gap-3 flex-wrap">
+          {ar ? entry.titleAr : entry.title}
           <Badge className="bg-attention-surface/20 text-attention border-attention-surface/30 gap-1">
             <Clock className="w-3 h-3" />
             {/*
@@ -87,9 +85,10 @@ export default function ComingSoon() {
             */}
             {t("Not available yet", "غير متاح بعد")}
           </Badge>
-        </div>
-        <p className="text-muted-foreground mt-2">{ar ? entry.summaryAr : entry.summary}</p>
-      </div>
+        </span>
+        }
+        description={ar ? entry.summaryAr : entry.summary}
+      />
 
       {/*
         🔴 THE CAPABILITY NOTE COMES FIRST WHEN THERE IS ONE.
@@ -100,27 +99,19 @@ export default function ComingSoon() {
         claimed-but-unreachable disease running in reverse.
       */}
       {entry.capabilityLive && (
-        <Card className="border-positive-surface/40 bg-positive-surface/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2 text-positive">
-              <CircleCheck className="w-4 h-4" />
-              {t("What already works", "ما يعمل بالفعل")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-foreground/90">
+        <Panel
+          className="border-positive-surface/40 bg-positive-surface/5"
+          title={<span className="flex items-center gap-2 text-positive"><CircleCheck className="w-4 h-4" />{t("What already works", "ما يعمل بالفعل")}</span>}
+          bodyClassName="text-sm text-foreground/90"
+        >
             {ar ? entry.capabilityLiveAr : entry.capabilityLive}
-          </CardContent>
-        </Card>
+        </Panel>
       )}
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            {isOwnerAction && <UserRoundCheck className="w-4 h-4 text-attention" />}
-            {t("What this is waiting on", "ما الذي ينتظره هذا")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+      <Panel
+        title={<span className="flex items-center gap-2">{isOwnerAction && <UserRoundCheck className="w-4 h-4 text-attention" />}{t("What this is waiting on", "ما الذي ينتظره هذا")}</span>}
+        bodyClassName="space-y-3 text-sm"
+      >
           <p className="font-semibold text-foreground" data-testid="coming-soon-blocker">
             {ar ? blocker.nameAr : blocker.name}
           </p>
@@ -133,8 +124,7 @@ export default function ComingSoon() {
               )}
             </p>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {/*
         🔴 THE WORK ORDER — the corollary that makes the placeholder useful the
@@ -142,18 +132,13 @@ export default function ComingSoon() {
         moment the contract is signed, but only if the page says what to do
         next in enough detail to act on.
       */}
-      <Card className="border-info-surface/40">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-info">
-            {t("The day that clears, this is the work", "يوم يزول ذلك، هذا هو العمل المطلوب")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-foreground/90" data-testid="coming-soon-work-order">
+      <Panel title={t("The day that clears, this is the work", "يوم يزول ذلك، هذا هو العمل المطلوب")}>
+        <div className="text-sm text-foreground/90" data-testid="coming-soon-work-order">
           {ar ? entry.whenClearedAr : entry.whenCleared}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[12px] leading-relaxed text-muted-foreground">
         {t(
           "This page is deliberate. Every unbuilt feature in the navigation says what it is waiting on, so that nobody spends effort on something that cannot ship — and so that nothing in the sidebar is a dead click.",
           "هذه الصفحة مقصودة. كل ميزة غير مبنية في التنقل تُفصح عمّا تنتظره، حتى لا يُبذل جهد في ما لا يمكن إطلاقه، وحتى لا يكون في القائمة الجانبية نقرة ميتة.",

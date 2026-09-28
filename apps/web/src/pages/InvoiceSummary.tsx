@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { FileText } from "lucide-react";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
@@ -65,87 +64,81 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Invoice Summary", "ملخص الفواتير")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("All invoices with totals and status breakdown", "جميع الفواتير مع الإجماليات وتوزيع الحالات")}</p>
-        </div>
-        {/* Export removed 2026-09-01: it had no onClick — the seventh dead Export
-            button found in one sweep. Omit the control rather than promise nothing
-            (the VendorDetail precedent); export belongs to L1 artifact design. */}
-      </div>
+      <PageHeader
+        title={t("Invoice Summary", "ملخص الفواتير")}
+        description={t("All invoices with totals and status breakdown", "جميع الفواتير مع الإجماليات وتوزيع الحالات")}
+      />
+      {/* Export removed 2026-09-01: it had no onClick — the seventh dead Export
+          button found in one sweep. Omit the control rather than promise nothing
+          (the VendorDetail precedent); export belongs to L1 artifact design. */}
 
       <FiscalRangeNotice source={range.source} />
 
-      <Card className="border-border bg-card">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex gap-4 items-end">
-            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label>
-              <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label>
-              <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-          </div>
-          <div className="mt-3">
-            <PeriodShortcuts from={from} to={to} onSelect={(r)=>{setFrom(r.from);setTo(r.to);}} />
-          </div>
-        </CardContent>
-      </Card>
+      <Panel>
+        <div className="flex flex-wrap gap-4 items-end">
+          <div><Label className="text-[13px] text-muted-foreground">{t("From", "من")}</Label>
+            <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1.5 w-40" /></div>
+          <div><Label className="text-[13px] text-muted-foreground">{t("To", "إلى")}</Label>
+            <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1.5 w-40" /></div>
+        </div>
+        <div className="mt-3">
+          <PeriodShortcuts from={from} to={to} onSelect={(r)=>{setFrom(r.from);setTo(r.to);}} />
+        </div>
+      </Panel>
 
       {truncated && (
-        <p className="text-xs text-attention" data-testid="summary-truncated">
+        <p className="text-[13px] text-attention" data-testid="summary-truncated">
           {t("Showing", "يعرض")} {invoices.length} {t("of", "من")} {setTotal} {t("invoices in this range — the figures below cover only the rows shown. Narrow the range for a complete total.", "فاتورة في هذه الفترة — الأرقام أدناه تغطي الصفوف المعروضة فقط. ضيّق الفترة للحصول على إجمالي كامل.")}
         </p>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          [t("Total Invoices", "إجمالي الفواتير"), filtered.length, "text-primary"],
-          [t("Revenue (excl. VAT)", "الإيراد (دون الضريبة)"), fmtNum(totalRevenue), "text-primary"],
-          [t("VAT Charged", "الضريبة المحصلة"), fmtNum(totalVat), "text-attention"],
-          ["Outstanding", fmtNum(totalOutstanding), "text-negative"],
-        ].map(([l, v, c]) => (
-          <Card key={String(l)} className="border-border bg-card">
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
-          </Card>
-        ))}
-      </div>
+      <StatStrip cols={4}>
+        <Stat label={t("Total Invoices", "إجمالي الفواتير")} value={filtered.length} />
+        <Stat label={t("Revenue (excl. VAT)", "الإيراد (دون الضريبة)")} value={fmtNum(totalRevenue)} />
+        <Stat label={t("VAT Charged", "الضريبة المحصلة")} value={fmtNum(totalVat)} />
+        <Stat label={t("Outstanding", "المستحق")} value={fmtNum(totalOutstanding)} />
+      </StatStrip>
 
-      <Card className="border-border bg-card">
-        <CardContent className="pt-6">
-          {isLoading ? <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
-          : filtered.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <FileText className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">{t("No invoices in this date range.", "لا توجد فواتير في هذا النطاق الزمني.")}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {[t("Invoice #", "رقم الفاتورة"), t("Customer", "العميل"), t("Date", "التاريخ"), t("Due Date", "تاريخ الاستحقاق"), t("Subtotal", "المجموع الفرعي"), t("VAT", "الضريبة"), t("Total", "الإجمالي"), t("Outstanding", "المستحق"), t("Status", "الحالة")].map(h => (
-                    <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(i => (
-                  <tr key={i.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-2 pe-3 font-mono text-xs text-primary">{i.invoiceNumber}</td>
-                    <td className="py-2 pe-3 font-medium text-xs">{i.customerName}</td>
-                    <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={i.date} /></td>
-                    <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={i.dueDate} /></td>
-                    <td className="py-2 pe-3 font-mono text-xs">{fmtNum(i.subtotal)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs text-attention">{fmtNum(i.vatAmount)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs font-semibold">{fmtNum(i.total)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs text-negative">{fmtNum(i.total - i.paidAmount)}</td>
-                    <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[i.status] ?? ""}`}>{i.status}</Badge></td>
-                  </tr>
+      <Panel flush>
+        {isLoading ? <div className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</div>
+        : filtered.length === 0 ? (
+          <EmptyState icon={FileText} title={t("No invoices in this date range.", "لا توجد فواتير في هذا النطاق الزمني.")} />
+        ) : (
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                {([
+                  [t("Invoice #", "رقم الفاتورة"), false],
+                  [t("Customer", "العميل"), false],
+                  [t("Date", "التاريخ"), false],
+                  [t("Due Date", "تاريخ الاستحقاق"), false],
+                  [t("Subtotal", "المجموع الفرعي"), true],
+                  [t("VAT", "الضريبة"), true],
+                  [t("Total", "الإجمالي"), true],
+                  [t("Outstanding", "المستحق"), true],
+                  [t("Status", "الحالة"), false],
+                ] as const).map(([h, num]) => (
+                  <th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
                 ))}
-              </tbody>
-            </table></div>
-          )}
-        </CardContent>
-      </Card>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(i => (
+                <tr key={i.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                  <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{i.invoiceNumber}</td>
+                  <td className="py-3 px-3 min-w-[10rem]">{i.customerName}</td>
+                  <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={i.date} /></td>
+                  <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={i.dueDate} /></td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(i.subtotal)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(i.vatAmount)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(i.total)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(i.total - i.paidAmount)}</td>
+                  <td className="py-3 px-3"><Badge className={`text-xs capitalize ${STATUS_STYLES[i.status] ?? ""}`}>{i.status}</Badge></td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        )}
+      </Panel>
     </div>
   );
 }

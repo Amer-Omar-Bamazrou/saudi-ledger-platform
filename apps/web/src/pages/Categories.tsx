@@ -13,7 +13,8 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { Tags, Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
+import { PageHeader, Panel } from "@/components/kit";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -78,20 +79,15 @@ export default function Categories() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <Tags className="w-8 h-8 text-primary" />
-            {t("Chart of Accounts", "دليل الحسابات")}
-          </h1>
-          <p className="text-muted-foreground mt-1">{t("Manage categories and tax rules.", "إدارة الفئات وقواعد الضرائب.")}</p>
-        </div>
-        
+    <div className="space-y-6">
+      <PageHeader
+        title={t("Chart of Accounts", "دليل الحسابات")}
+        description={t("Manage categories and tax rules.", "إدارة الفئات وقواعد الضرائب.")}
+        actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="lg">
-              <Plus className="w-5 h-5 me-2" />
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" />
               {t("New Category", "فئة جديدة")}
             </Button>
           </DialogTrigger>
@@ -189,37 +185,39 @@ export default function Categories() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
-      <div className="border rounded-lg bg-card overflow-hidden shadow-sm">
+      <Panel flush>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-start">
-            <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
-              <tr>
-                <th className="px-6 py-4 font-semibold">{t("Name", "الاسم")}</th>
-                <th className="px-6 py-4 font-semibold">{t("Type", "النوع")}</th>
-                <th className="px-6 py-4 font-semibold">{t("Turns into cash", "يتحول إلى نقد")}</th>
-                <th className="px-6 py-4 font-semibold">{t("Tax & Compliance", "الضريبة والامتثال")}</th>
-                <th className="px-6 py-4 font-semibold">{t("Description", "الوصف")}</th>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-start px-3">{t("Name", "الاسم")}</th>
+                <th className="text-start px-3">{t("Type", "النوع")}</th>
+                <th className="text-start px-3">{t("Turns into cash", "يتحول إلى نقد")}</th>
+                <th className="text-start px-3">{t("Tax & Compliance", "الضريبة والامتثال")}</th>
+                <th className="text-start px-3">{t("Description", "الوصف")}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">{t("Loading categories...", "جارٍ تحميل الفئات...")}</td>
+                  <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">{t("Loading categories...", "جارٍ تحميل الفئات...")}</td>
                 </tr>
               ) : categories?.map((cat) => (
-                <tr key={cat.id} className="hover:bg-secondary/30 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-foreground">{cat.name}</div>
-                    <div className="text-xs text-muted-foreground font-arabic mt-1" dir="rtl">{cat.nameAr}</div>
+                <tr key={cat.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                  <td className="py-3 px-3">
+                    <div className="font-medium text-foreground">{cat.name}</div>
+                    <div className="text-xs text-muted-foreground font-arabic mt-0.5" dir="rtl">{cat.nameAr}</div>
                   </td>
-                  <td className="px-6 py-4 uppercase text-xs font-bold">
-                    {cat.type === 'income' && <span className="text-positive">{t("Income", "دخل")}</span>}
-                    {cat.type === 'expense' && <span className="text-destructive">{t("Expense", "مصروف")}</span>}
-                    {cat.type === 'asset' && <span className="text-primary">{t("Asset", "أصل")}</span>}
-                    {cat.type === 'liability' && <span className="text-attention-surface">{t("Liability", "التزام")}</span>}
-                    {cat.type === 'equity' && <span className="text-purple-400">{t("Equity", "حقوق الملكية")}</span>}
+                  {/* The account-TYPE tokens (not the state palette): a type is a category, not a verdict. */}
+                  <td className="py-3 px-3 text-[13px] font-medium whitespace-nowrap">
+                    {cat.type === 'income' && <span className="text-income">{t("Income", "دخل")}</span>}
+                    {cat.type === 'expense' && <span className="text-expense">{t("Expense", "مصروف")}</span>}
+                    {cat.type === 'asset' && <span className="text-asset">{t("Asset", "أصل")}</span>}
+                    {cat.type === 'liability' && <span className="text-liability">{t("Liability", "التزام")}</span>}
+                    {cat.type === 'equity' && <span className="text-equity">{t("Equity", "حقوق الملكية")}</span>}
                   </td>
                   {/*
                     M18.1 — 🔴 an UNCLASSIFIED balance-sheet account is shown as
@@ -228,7 +226,7 @@ export default function Categories() {
                     Hub's liquidity figures, and the user is the only one who
                     can fix that.
                   */}
-                  <td className="px-6 py-4 text-xs">
+                  <td className="py-3 px-3 text-[13px]">
                     {!isBalanceSheet(cat.type) ? (
                       <span className="text-muted-foreground/40">—</span>
                     ) : cat.liquidityClass ? (
@@ -239,18 +237,18 @@ export default function Categories() {
                         )}
                       </span>
                     ) : (
-                      <Badge variant="outline" className="border-attention-surface/40 text-attention-surface text-[10px]">
+                      <Badge variant="outline" className="border-attention/40 text-attention text-[11px]">
                         {t("Not set", "غير محدد")}
                       </Badge>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="py-3 px-3">
                     <div className="flex gap-2">
-                      {cat.vatApplicable && <Badge variant="outline" className="border-positive-surface/30 text-positive-surface text-[10px]">{t("VAT 15%", "ضريبة القيمة المضافة 15%")}</Badge>}
-                      {!cat.vatApplicable && <span className="text-muted-foreground text-xs italic">{t("Standard", "قياسي")}</span>}
+                      {cat.vatApplicable && <Badge variant="outline" className="text-[11px] font-medium whitespace-nowrap">{t("VAT 15%", "ضريبة القيمة المضافة 15%")}</Badge>}
+                      {!cat.vatApplicable && <span className="text-muted-foreground text-[13px]">{t("Standard", "قياسي")}</span>}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-muted-foreground max-w-[250px] truncate">
+                  <td className="py-3 px-3 text-muted-foreground max-w-[250px] truncate">
                     {cat.description || '-'}
                   </td>
                 </tr>
@@ -258,7 +256,7 @@ export default function Categories() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

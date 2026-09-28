@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileMinus, FilePlus, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { DualDate } from "@/components/DualDate";
 
 /**
@@ -42,7 +42,7 @@ const json = { create: (b: CreateInvoiceInput) => JSON.stringify(b) };
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
-  submitted: "bg-attention-surface/20 text-attention-surface",
+  submitted: "bg-attention-surface/20 text-attention",
   sent: "bg-positive-surface/20 text-positive",
   paid: "bg-positive-surface/20 text-positive",
 };
@@ -147,18 +147,14 @@ export default function CreditNotes() {
     .reduce((s, n) => s + n.total, 0);
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{t("Credit & debit notes", "الإشعارات الدائنة والمدينة")}</h1>
-          <p className="text-muted-foreground">
-            {t(
-              "Corrections to issued invoices. A credit note reduces what the customer owes; a debit note charges more.",
-              "تصحيحات على الفواتير الصادرة. الإشعار الدائن يخفّض المبلغ المستحق على العميل؛ والإشعار المدين يزيده.",
-            )}
-          </p>
-        </div>
-
+    <div className="space-y-6">
+      <PageHeader
+        title={t("Credit & debit notes", "الإشعارات الدائنة والمدينة")}
+        description={t(
+          "Corrections to issued invoices. A credit note reduces what the customer owes; a debit note charges more.",
+          "تصحيحات على الفواتير الصادرة. الإشعار الدائن يخفّض المبلغ المستحق على العميل؛ والإشعار المدين يزيده.",
+        )}
+        actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button disabled={correctable.length === 0} data-testid="new-note">
@@ -172,7 +168,7 @@ export default function CreditNotes() {
             </DialogHeader>
             <div className="space-y-3">
               <div>
-                <Label>{t("Type", "النوع")}</Label>
+                <Label className="text-[13px] mb-1.5">{t("Type", "النوع")}</Label>
                 <Select
                   value={form.documentType}
                   onValueChange={(v) =>
@@ -191,7 +187,7 @@ export default function CreditNotes() {
               </div>
 
               <div>
-                <Label>{t("Original invoice", "الفاتورة الأصلية")}</Label>
+                <Label className="text-[13px] mb-1.5">{t("Original invoice", "الفاتورة الأصلية")}</Label>
                 <Select
                   value={form.originalInvoiceId}
                   onValueChange={(v) => setForm({ ...form, originalInvoiceId: v })}
@@ -208,7 +204,7 @@ export default function CreditNotes() {
               </div>
 
               <div>
-                <Label>{t("Number", "الرقم")}</Label>
+                <Label className="text-[13px] mb-1.5">{t("Number", "الرقم")}</Label>
                 {/* Left blank = the server allocates the next number in the
                     company's single sequence (C12). A value typed here is
                     honoured for legacy imports and judged by the unique
@@ -220,7 +216,7 @@ export default function CreditNotes() {
                 />
               </div>
               <div>
-                <Label>{t("Date", "التاريخ")}</Label>
+                <Label className="text-[13px] mb-1.5">{t("Date", "التاريخ")}</Label>
                 <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
                 <p className="text-xs text-muted-foreground mt-1">
                   {t(
@@ -230,7 +226,7 @@ export default function CreditNotes() {
                 </p>
               </div>
               <div>
-                <Label>{t("Reason", "السبب")}</Label>
+                <Label className="text-[13px] mb-1.5">{t("Reason", "السبب")}</Label>
                 <Input
                   value={form.noteReason}
                   onChange={(e) => setForm({ ...form, noteReason: e.target.value })}
@@ -243,19 +239,19 @@ export default function CreditNotes() {
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-3">
-                  <Label>{t("Description", "الوصف")}</Label>
+                  <Label className="text-[13px] mb-1.5">{t("Description", "الوصف")}</Label>
                   <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                 </div>
                 <div>
-                  <Label>{t("Qty", "الكمية")}</Label>
+                  <Label className="text-[13px] mb-1.5">{t("Qty", "الكمية")}</Label>
                   <Input value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                 </div>
                 <div>
-                  <Label>{t("Unit price", "سعر الوحدة")}</Label>
+                  <Label className="text-[13px] mb-1.5">{t("Unit price", "سعر الوحدة")}</Label>
                   <Input value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: e.target.value })} />
                 </div>
                 <div>
-                  <Label>VAT %</Label>
+                  <Label className="text-[13px] mb-1.5">VAT %</Label>
                   <Input value={form.vatRate} onChange={(e) => setForm({ ...form, vatRate: e.target.value })} />
                 </div>
               </div>
@@ -277,7 +273,8 @@ export default function CreditNotes() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {correctable.length === 0 && (
         <Alert>
@@ -291,77 +288,58 @@ export default function CreditNotes() {
         </Alert>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <FileMinus className="h-4 w-4" /> {t("Total credited", "إجمالي الإشعارات الدائنة")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{fmtNum(totalCredited)}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <FilePlus className="h-4 w-4" /> {t("Total debited", "إجمالي الإشعارات المدينة")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{fmtNum(totalDebited)}</CardContent>
-        </Card>
-      </div>
+      <StatStrip cols={2}>
+        <Stat label={<span className="inline-flex items-center gap-1.5"><FileMinus className="h-3.5 w-3.5" /> {t("Total credited", "إجمالي الإشعارات الدائنة")}</span>} value={fmtNum(totalCredited)} />
+        <Stat label={<span className="inline-flex items-center gap-1.5"><FilePlus className="h-3.5 w-3.5" /> {t("Total debited", "إجمالي الإشعارات المدينة")}</span>} value={fmtNum(totalDebited)} />
+      </StatStrip>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("Notes", "الإشعارات")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
-          ) : notes.length === 0 ? (
-            <p className="text-muted-foreground">{t("No credit or debit notes yet.", "لا توجد إشعارات دائنة أو مدينة بعد.")}</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th className="py-2">{t("Number", "الرقم")}</th>
-                    <th>{t("Type", "النوع")}</th>
-                    <th>{t("Date", "التاريخ")}</th>
-                    <th>{t("Customer", "العميل")}</th>
-                    <th>{t("Reason", "السبب")}</th>
-                    <th>{t("Status", "الحالة")}</th>
-                    <th className="text-right">{t("Amount", "المبلغ")}</th>
+      <Panel flush title={t("Notes", "الإشعارات")}>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
+        ) : notes.length === 0 ? (
+          <EmptyState icon={FileMinus} title={t("No credit or debit notes yet.", "لا توجد إشعارات دائنة أو مدينة بعد.")} />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-start px-3">{t("Number", "الرقم")}</th>
+                  <th className="text-start px-3">{t("Type", "النوع")}</th>
+                  <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                  <th className="text-start px-3">{t("Customer", "العميل")}</th>
+                  <th className="text-start px-3">{t("Reason", "السبب")}</th>
+                  <th className="text-start px-3">{t("Status", "الحالة")}</th>
+                  <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {notes.map((n) => (
+                  <tr key={n.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                    <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{n.invoiceNumber}</td>
+                    <td className="py-3 px-3">
+                      <Badge variant="outline">
+                        {n.documentType === "credit_note" ? t("Credit", "دائن") : t("Debit", "مدين")}
+                      </Badge>
+                    </td>
+                    <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={n.date} /></td>
+                    <td className="py-3 px-3 min-w-[10rem]">{n.customerName ?? "—"}</td>
+                    <td className="py-3 px-3 max-w-[16rem] truncate text-muted-foreground">{n.noteReason ?? "—"}</td>
+                    <td className="py-3 px-3">
+                      <Badge className={`capitalize ${STATUS_STYLES[n.status] ?? ""}`}>{n.status}</Badge>
+                    </td>
+                    {/* Displayed with the sign the books apply, so the row reads
+                        the way it affects the customer's balance. */}
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-medium">
+                      {n.documentType === "credit_note" ? "−" : "+"}
+                      {fmtNum(n.total)}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {notes.map((n) => (
-                    <tr key={n.id} className="border-t">
-                      <td className="py-2 font-medium">{n.invoiceNumber}</td>
-                      <td>
-                        <Badge variant="outline">
-                          {n.documentType === "credit_note" ? t("Credit", "دائن") : t("Debit", "مدين")}
-                        </Badge>
-                      </td>
-                      <td><DualDate date={n.date} /></td>
-                      <td>{n.customerName ?? "—"}</td>
-                      <td className="max-w-[16rem] truncate">{n.noteReason ?? "—"}</td>
-                      <td>
-                        <Badge className={STATUS_STYLES[n.status] ?? ""}>{n.status}</Badge>
-                      </td>
-                      {/* Displayed with the sign the books apply, so the row reads
-                          the way it affects the customer's balance. */}
-                      <td className="text-end tabular-nums">
-                        {n.documentType === "credit_note" ? "−" : "+"}
-                        {fmtNum(n.total)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

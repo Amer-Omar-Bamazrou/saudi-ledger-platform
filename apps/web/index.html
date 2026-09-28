@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Saudi Bookkeeping Engine</title>
+    <title>KSA Ledger</title>
+    <meta name="theme-color" content="#18848e" />
     <meta name="description" content="Saudi Bookkeeping Engine — built on Replit. Update this description to reflect the app." />
     <meta name="robots" content="index, follow" />
     <meta property="og:title" content="Saudi Bookkeeping Engine" />
@@ -13,9 +14,6 @@
     <meta name="twitter:title" content="Saudi Bookkeeping Engine" />
     <meta name="twitter:description" content="Saudi Bookkeeping Engine — built on Replit. Update this description to reflect the app." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!--
       🔴 DIRECTION BEFORE FIRST PAINT. DO NOT REMOVE THIS AS AN ODDITY.
       Owner decision, 2026-08-31.
@@ -57,6 +55,22 @@
         } catch (e) {
           /* site data blocked — fall through to the document's own defaults */
         }
+      })();
+    </script>
+    <!--
+      THEME BEFORE FIRST PAINT — the same reasoning as the direction script
+      above, kept as its own block so that one stays exactly as reviewed.
+      One read of `ksa_theme` (ThemeContext's key), one class write. Light is
+      the default, so only a user who chose dark pays for this, and without it
+      they would see a white flash on every load.
+    -->
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem("ksa_theme") === "dark") {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (e) {}
       })();
     </script>
   </head>

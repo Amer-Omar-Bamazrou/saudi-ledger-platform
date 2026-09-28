@@ -27,7 +27,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, FilterTabs, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -64,7 +64,7 @@ function Candidates({ list, target }: { list: MatchCandidate[]; target: MatchCan
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-muted-foreground uppercase">
+        <tr className="text-muted-foreground">
           <th className="text-start pb-1 pe-3 font-medium">{t("Candidate", "المرشّح")}</th>
           <th className="text-start pb-1 pe-3 font-medium">{t("Amount", "المبلغ")}</th>
           <th className="text-start pb-1 pe-3 font-medium">{t("Date", "التاريخ")}</th>
@@ -244,66 +244,65 @@ export default function BankMatching() {
   // The scope an Accept names: every DETERMINISTIC row of the same bank on the same date.
   const acceptScope = (r: StatementRowClassification) => rows.filter((x) => x.classification === "DETERMINISTIC" && x.bankAccountId === r.bankAccountId && x.date === r.date);
 
+  const countCls = (active: boolean) => `rounded px-1.5 text-[11px] tabular-nums ${active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("Bank Matching", "مطابقة كشوف البنك")}</h1>
-        <p className="text-muted-foreground text-sm mt-1">{t("Statement rows against receipts and refunds. A match is recorded only by a click; the evidence for every classification is shown beside it.", "أسطر الكشف مقابل الإيصالات والمبالغ المردودة. لا تُسجَّل المطابقة إلا بنقرة؛ وتُعرض أدلة كل تصنيف بجانبه.")}</p>
-      </div>
+      <PageHeader
+        title={t("Bank Matching", "مطابقة كشوف البنك")}
+        description={t("Statement rows against receipts and refunds. A match is recorded only by a click; the evidence for every classification is shown beside it.", "أسطر الكشف مقابل الإيصالات والمبالغ المردودة. لا تُسجَّل المطابقة إلا بنقرة؛ وتُعرض أدلة كل تصنيف بجانبه.")}
+      />
       <PermissionHint />
 
-      <div className="flex items-end gap-3 flex-wrap">
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">{t("Bank account", "الحساب البنكي")}</p>
-          <Select value={bank} onValueChange={setBank}>
-            <SelectTrigger className="h-9 w-56 text-sm" data-testid="matching-bank"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("All banks", "كل البنوك")}</SelectItem>
-              {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}
-            </SelectContent>
-          </Select>
+      <Panel flush>
+        <FilterTabs
+          value={only}
+          onChange={(v) => setOnly(v as "all" | Cls)}
+          options={[
+            { value: "all", label: <><span data-testid="filter-all">{t("All rows", "كل الأسطر")}</span><span className={countCls(only === "all")}>{rows.length}</span></> },
+            ...(Object.keys(CLS) as Cls[]).map((k) => ({
+              value: k,
+              label: <><span data-testid={`filter-${k}`}>{t(CLS[k].en, CLS[k].ar)}</span><span className={countCls(only === k)} data-testid={`count-${k}`}>{counts[k]}</span></>,
+            })),
+          ]}
+        />
+        <div className="flex items-end gap-3 flex-wrap border-b border-border px-5 py-3">
+          <div>
+            <p className="text-[12px] text-muted-foreground mb-1">{t("Bank account", "الحساب البنكي")}</p>
+            <Select value={bank} onValueChange={setBank}>
+              <SelectTrigger className="h-9 w-56 text-sm" data-testid="matching-bank"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("All banks", "كل البنوك")}</SelectItem>
+                {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div><p className="text-[12px] text-muted-foreground mb-1">{t("From", "من")}</p><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 text-sm" /></div>
+          <div><p className="text-[12px] text-muted-foreground mb-1">{t("To", "إلى")}</p><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 text-sm" /></div>
+          <p className="ms-auto self-center text-[13px] text-muted-foreground flex items-center gap-2"><ListChecks className="w-4 h-4" />{t("Statement rows", "أسطر الكشف")} ({shown.length})</p>
         </div>
-        <div><p className="text-xs text-muted-foreground mb-1">{t("From", "من")}</p><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 text-sm" /></div>
-        <div><p className="text-xs text-muted-foreground mb-1">{t("To", "إلى")}</p><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 text-sm" /></div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <button type="button" onClick={() => setOnly("all")} className={`rounded-md border p-3 text-start ${only === "all" ? "border-primary" : "border-border"}`} data-testid="filter-all">
-          <p className="text-xs text-muted-foreground">{t("All rows", "كل الأسطر")}</p><p className="text-xl font-mono font-semibold">{rows.length}</p>
-        </button>
-        {(Object.keys(CLS) as Cls[]).map((k) => (
-          <button type="button" key={k} onClick={() => setOnly(k)} className={`rounded-md border p-3 text-start ${only === k ? "border-primary" : "border-border"}`} data-testid={`filter-${k}`}>
-            <p className="text-xs text-muted-foreground">{t(CLS[k].en, CLS[k].ar)}</p><p className="text-xl font-mono font-semibold" data-testid={`count-${k}`}>{counts[k]}</p>
-          </button>
-        ))}
-      </div>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground flex items-center gap-2"><ListChecks className="w-4 h-4" />{t("Statement rows", "أسطر الكشف")} ({shown.length})</CardTitle>
-          {rows.length >= 500 && (
-            <p className="text-xs text-attention">{t("Showing the newest 500 rows — narrow the bank or the dates to see the rest.", "يُعرض أحدث 500 سطر — ضيّق البنك أو التواريخ لرؤية البقية.")}</p>
-          )}
-        </CardHeader>
-        <CardContent>
+        {rows.length >= 500 && (
+          <p className="px-5 pt-3 text-[13px] text-attention">{t("Showing the newest 500 rows — narrow the bank or the dates to see the rest.", "يُعرض أحدث 500 سطر — ضيّق البنك أو التواريخ لرؤية البقية.")}</p>
+        )}
+        <div>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</p>
+            <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
           ) : error ? (
-            <p className="text-sm text-destructive p-4">{t("Statement rows could not be loaded.", "تعذر تحميل أسطر الكشف.")} {(error as Error).message}</p>
+            <p className="text-sm text-destructive p-5">{t("Statement rows could not be loaded.", "تعذر تحميل أسطر الكشف.")} {(error as Error).message}</p>
           ) : shown.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground"><ListChecks className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No statement rows here. Import a bank statement with a bank account to see them.", "لا توجد أسطر كشف هنا. استورد كشف بنك مع حساب بنكي لرؤيتها.")}</p></div>
+            <EmptyState icon={ListChecks} title={t("No statement rows here. Import a bank statement with a bank account to see them.", "لا توجد أسطر كشف هنا. استورد كشف بنك مع حساب بنكي لرؤيتها.")} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                    <th className="text-start pb-2 pe-3 font-medium">{t("Date", "التاريخ")}</th>
-                    <th className="text-start pb-2 pe-3 font-medium hidden md:table-cell">{t("Bank", "البنك")}</th>
-                    <th className="text-start pb-2 pe-3 font-medium">{t("Direction", "الاتجاه")}</th>
-                    <th className="text-start pb-2 pe-3 font-medium">{t("Amount", "المبلغ")}</th>
-                    <th className="text-start pb-2 pe-3 font-medium hidden sm:table-cell">{t("Reference / narrative", "المرجع / الوصف")}</th>
-                    <th className="text-start pb-2 pe-3 font-medium">{t("Status", "الحالة")}</th>
-                    <th className="pb-2" />
+                  <tr className="border-b border-border">
+                    <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                    <th className="text-start px-3 hidden md:table-cell">{t("Bank", "البنك")}</th>
+                    <th className="text-start px-3">{t("Direction", "الاتجاه")}</th>
+                    <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+                    <th className="text-start px-3 hidden sm:table-cell">{t("Reference / narrative", "المرجع / الوصف")}</th>
+                    <th className="text-start px-3">{t("Status", "الحالة")}</th>
+                    <th className="px-3" />
                   </tr>
                 </thead>
                 <tbody>
@@ -313,18 +312,18 @@ export default function BankMatching() {
                     const scope = r.classification === "DETERMINISTIC" ? acceptScope(r) : [];
                     return (
                       <RowGroup key={r.transactionId}>
-                        <tr className="border-b border-border/50 hover:bg-secondary/20" data-testid={`statement-row-${r.transactionId}`} data-classification={r.classification}>
-                          <td className="py-3 pe-3 whitespace-nowrap text-muted-foreground"><DualDate date={r.date} inline /></td>
-                          <td className="py-3 pe-3 hidden md:table-cell text-xs"><BankName id={r.bankAccountId} /></td>
-                          <td className="py-3 pe-3">
+                        <tr className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`statement-row-${r.transactionId}`} data-classification={r.classification}>
+                          <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={r.date} inline /></td>
+                          <td className="py-3 px-3 hidden md:table-cell whitespace-nowrap"><BankName id={r.bankAccountId} /></td>
+                          <td className="py-3 px-3">
                             {r.direction === "in"
-                              ? <span className="inline-flex items-center gap-1 text-positive text-xs"><ArrowDownLeft className="w-3 h-3" />{t("In", "وارد")}</span>
-                              : <span className="inline-flex items-center gap-1 text-negative text-xs"><ArrowUpRight className="w-3 h-3" />{t("Out", "صادر")}</span>}
+                              ? <span className="inline-flex items-center gap-1 text-positive text-[13px]"><ArrowDownLeft className="w-3 h-3" />{t("In", "وارد")}</span>
+                              : <span className="inline-flex items-center gap-1 text-negative text-[13px]"><ArrowUpRight className="w-3 h-3" />{t("Out", "صادر")}</span>}
                           </td>
-                          <td className="py-3 pe-3 font-mono">{fmtNum(r.amount)}</td>
-                          <td className="py-3 pe-3 hidden sm:table-cell text-xs text-muted-foreground max-w-[18rem] truncate" title={r.description}>{r.description}</td>
-                          <td className="py-3 pe-3"><Badge className={`text-xs ${c.cls}`}>{t(c.en, c.ar)}</Badge></td>
-                          <td className="py-3 text-end whitespace-nowrap">
+                          <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-medium">{fmtNum(r.amount)}</td>
+                          <td className="py-3 px-3 hidden sm:table-cell text-[13px] text-muted-foreground max-w-[18rem] truncate" title={r.description}>{r.description}</td>
+                          <td className="py-3 px-3"><Badge className={`text-xs whitespace-nowrap ${c.cls}`}>{t(c.en, c.ar)}</Badge></td>
+                          <td className="py-3 px-3 text-end whitespace-nowrap">
                             {r.classification === "DETERMINISTIC" && (
                               <Button size="sm" className="h-7 text-xs me-1" disabled={!canPost} onClick={() => setAccepting(r)} data-testid={`accept-${r.transactionId}`}>{t("Accept", "قبول")}</Button>
                             )}
@@ -340,8 +339,8 @@ export default function BankMatching() {
                           </td>
                         </tr>
                         {open && (
-                          <tr className="border-b border-border/50 bg-secondary/10">
-                            <td colSpan={7} className="py-3 px-2 sm:px-4 space-y-2" data-testid={`evidence-panel-${r.transactionId}`}>
+                          <tr className="border-b border-border/70 bg-muted/30">
+                            <td colSpan={7} className="py-4 px-3 space-y-2" data-testid={`evidence-panel-${r.transactionId}`}>
                               <p className="text-xs"><span className="text-muted-foreground">{t("Narrative", "الوصف")}:</span> {r.description}</p>
                               <p className="text-xs"><span className="text-muted-foreground">{t("Why", "السبب")}:</span> <span data-testid={`reason-${r.transactionId}`}>{r.reason}</span></p>
                               <p className="text-xs text-muted-foreground">{t(`Date window ${r.window.from} → ${r.window.to} (±${r.window.days} days) · same bank · same direction · exact amount`, `نافذة التاريخ ${r.window.from} → ${r.window.to} (±${r.window.days} أيام) · نفس البنك · نفس الاتجاه · المبلغ بالضبط`)}</p>
@@ -362,8 +361,8 @@ export default function BankMatching() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {accepting && (
         <Dialog open onOpenChange={(o) => { if (!o) setAccepting(null); }}>

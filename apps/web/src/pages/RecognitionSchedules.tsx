@@ -14,7 +14,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,7 @@ import type { RecognitionSchedule, RecognitionScheduleDetail } from "@workspace/
 
 type Category = { id: number; name: string; nameAr: string | null; type: string; systemCode: string | null; isPosting?: boolean };
 
-const Money = ({ v }: { v: number }) => <span className="font-mono" dir="ltr">{fmtNum(v)}</span>;
+const Money = ({ v }: { v: number }) => <span className="tabular-nums whitespace-nowrap" dir="ltr">{fmtNum(v)}</span>;
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -76,15 +76,12 @@ export default function RecognitionSchedules() {
   const name = (c: Category) => (lang === "ar" && c.nameAr ? c.nameAr : c.name);
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-full" data-testid="page-recognition-schedules">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2"><CalendarClock className="w-6 h-6" />{t("Accruals & prepayments", "المستحقات والمصروفات المدفوعة مقدمًا")}</h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-            {t("An ACCRUAL is an expense you have incurred and not yet been invoiced for — it credits accrued liabilities, never Accounts Payable, because AP is the invoiced payable your supplier's statement shows (IAS 37.11). A PREPAYMENT is value you paid for in advance: the asset already exists, and the schedule releases it to expense month by month.",
+    <div className="space-y-6" data-testid="page-recognition-schedules">
+      <PageHeader
+        title={t("Accruals & prepayments", "المستحقات والمصروفات المدفوعة مقدمًا")}
+        description={t("An ACCRUAL is an expense you have incurred and not yet been invoiced for — it credits accrued liabilities, never Accounts Payable, because AP is the invoiced payable your supplier's statement shows (IAS 37.11). A PREPAYMENT is value you paid for in advance: the asset already exists, and the schedule releases it to expense month by month.",
                "المستحق مصروف تحمّلته ولم تُفاتَر به بعد — ويُقيَّد في المصروفات المستحقة لا في الذمم الدائنة، لأن الذمم الدائنة هي الالتزام المُفاتَر الذي يُظهره كشف المورّد (المعيار 37 فقرة 11). أما المدفوع مقدمًا فقيمة سددتها سلفًا: الأصل قائم فعلًا، ويطلقه الجدول إلى المصروف شهرًا بشهر.")}
-          </p>
-        </div>
+        actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2" data-testid="new-schedule"><Plus className="w-4 h-4" />{t("New schedule", "جدول جديد")}</Button></DialogTrigger>
           <NewScheduleDialog
@@ -92,42 +89,42 @@ export default function RecognitionSchedules() {
             onDone={() => { setOpen(false); invalidate(); }}
           />
         </Dialog>
-      </div>
+        }
+      />
 
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Schedules", "الجداول")}</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          {isLoading ? <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
-           : (data?.items ?? []).length === 0 ? <p className="text-sm text-muted-foreground" data-testid="no-schedules">{t("No accruals or prepayments yet.", "لا توجد مستحقات أو مدفوعات مقدمة بعد.")}</p>
+      <Panel flush title={t("Schedules", "الجداول")}>
+          {isLoading ? <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
+           : (data?.items ?? []).length === 0 ? <EmptyState data-testid="no-schedules" icon={CalendarClock} title={t("No accruals or prepayments yet.", "لا توجد مستحقات أو مدفوعات مقدمة بعد.")} />
            : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">
+              <thead><tr className="border-b border-border">
                 {[t("Reference", "المرجع"), t("Kind", "النوع"), t("Description", "الوصف"), t("Total", "الإجمالي"), t("Recognised", "المعترف به"), t("Remaining", "المتبقي"), t("Next", "التالي"), t("Status", "الحالة"), ""].map((h, i) => (
-                  <th key={i} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>
+                  <th key={i} className={`px-3 ${i >= 3 && i <= 5 ? "text-end" : "text-start"} ${i === 8 ? "sticky end-0 bg-muted shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]" : ""}`}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {(data?.items ?? []).map((s) => (
-                  <tr key={s.id} className="border-b border-border/50" data-testid={`schedule-row-${s.reference}`}>
-                    <td className="py-2 pe-3">
-                      <button className="font-mono text-primary hover:underline" dir="ltr" onClick={() => setDetailId(s.id)} data-testid={`open-schedule-${s.reference}`}>{s.reference}</button>
+                  <tr key={s.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`schedule-row-${s.reference}`}>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <button className="font-medium text-primary hover:underline" dir="ltr" onClick={() => setDetailId(s.id)} data-testid={`open-schedule-${s.reference}`}>{s.reference}</button>
                     </td>
-                    <td className="py-2 pe-3">
-                      <Badge variant="outline" className="text-[10px]" data-testid={`kind-${s.reference}`}>
+                    <td className="py-3 px-3">
+                      <Badge variant="outline" className="text-[11px] font-normal" data-testid={`kind-${s.reference}`}>
                         {s.kind === "accrual" ? t("Accrual", "مستحق") : t("Prepayment", "مدفوع مقدمًا")}
                       </Badge>
                     </td>
-                    <td className="py-2 pe-3">{s.description}</td>
-                    <td className="py-2 pe-3 text-end"><Money v={s.totalAmount} /></td>
-                    <td className="py-2 pe-3 text-end" data-testid={`recognised-${s.reference}`}><Money v={s.recognisedAmount} /></td>
-                    <td className="py-2 pe-3 text-end font-semibold"><Money v={s.remainingAmount} /></td>
-                    <td className="py-2 pe-3 font-mono text-xs" dir="ltr">{s.nextPeriod ?? "—"}</td>
-                    <td className="py-2 pe-3"><Badge className={`text-xs ${STATUS_STYLES[s.status] ?? ""}`} data-testid={`status-${s.reference}`}>{s.status}</Badge></td>
-                    <td className="py-2">
-                      <div className="flex gap-1">
+                    <td className="py-3 px-3 min-w-[12rem]">{s.description}</td>
+                    <td className="py-3 px-3 text-end"><Money v={s.totalAmount} /></td>
+                    <td className="py-3 px-3 text-end" data-testid={`recognised-${s.reference}`}><Money v={s.recognisedAmount} /></td>
+                    <td className="py-3 px-3 text-end font-semibold"><Money v={s.remainingAmount} /></td>
+                    <td className="py-3 px-3 tabular-nums whitespace-nowrap text-muted-foreground" dir="ltr">{s.nextPeriod ?? "—"}</td>
+                    <td className="py-3 px-3"><Badge className={`text-xs capitalize ${STATUS_STYLES[s.status] ?? ""}`} data-testid={`status-${s.reference}`}>{s.status}</Badge></td>
+                    <td className="py-3 px-3 sticky end-0 bg-card shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]">
+                      <div className="flex justify-end gap-1">
                         {s.status === "draft" && (
                           <Button size="sm" variant="outline" className="h-7 text-xs" data-testid={`activate-${s.reference}`}
-                            onClick={() => act.mutate({ id: s.id, what: "activate" })}><Play className="w-3 h-3 me-1" />{t("Activate", "تفعيل")}</Button>
+                            onClick={() => act.mutate({ id: s.id, what: "activate" })}><Play className="w-3 h-3 me-1 rtl:-scale-x-100" />{t("Activate", "تفعيل")}</Button>
                         )}
                         {s.status === "active" && (
                           <>
@@ -142,9 +139,9 @@ export default function RecognitionSchedules() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {detailId != null && detail && (
         <Dialog open onOpenChange={(o) => { if (!o) setDetailId(null); }}>
@@ -158,18 +155,18 @@ export default function RecognitionSchedules() {
             </DialogHeader>
             <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {[t("Period", "الفترة"), t("Amount", "المبلغ"), t("Entry", "القيد")].map((h, i) => <th key={i} className="text-start pb-2 pe-3 font-medium">{h}</th>)}
+                <thead><tr className="border-b border-border">
+                  {[t("Period", "الفترة"), t("Amount", "المبلغ"), t("Entry", "القيد")].map((h, i) => <th key={i} className={`px-3 ${i === 1 ? "text-end" : "text-start"}`}>{h}</th>)}
                 </tr></thead>
                 <tbody>
                   {detail.rows.map((r) => (
-                    <tr key={r.id} className="border-b border-border/50" data-testid={`period-${r.period}`}>
-                      <td className="py-1.5 pe-3 font-mono" dir="ltr">{r.period}</td>
-                      <td className="py-1.5 pe-3 text-end"><Money v={r.amount} /></td>
-                      <td className="py-1.5 pe-3 text-xs">
+                    <tr key={r.id} className="border-b border-border/70" data-testid={`period-${r.period}`}>
+                      <td className="py-2 px-3 tabular-nums" dir="ltr">{r.period}</td>
+                      <td className="py-2 px-3 text-end"><Money v={r.amount} /></td>
+                      <td className="py-2 px-3 text-[13px]">
                         {r.journalEntryId == null
                           ? <span className="text-muted-foreground">{t("planned", "مخطط")}</span>
-                          : <span className="font-mono text-positive" dir="ltr">#{r.journalEntryId}</span>}
+                          : <span className="tabular-nums text-primary" dir="ltr">#{r.journalEntryId}</span>}
                       </td>
                     </tr>
                   ))}
@@ -202,7 +199,7 @@ function CancelButton({ onCancel, reference, t }: { onCancel: (reason: string) =
                "تبقى الفترات المعترف بها في الدفاتر — وهذا يوقف المستقبل فقط. ولعكس فترة مُرحَّلة، اعكس قيدها.")}
           </DialogDescription>
         </DialogHeader>
-        <Label className="text-xs">{t("Why", "السبب")}</Label>
+        <Label className="text-[13px]">{t("Why", "السبب")}</Label>
         <Input value={reason} onChange={(e) => setReason(e.target.value)} data-testid="cancel-reason" />
         <Button disabled={reason.trim() === ""} data-testid="cancel-submit" onClick={() => { onCancel(reason); setOpen(false); }}>
           {t("Stop the schedule", "إيقاف الجدول")}
@@ -241,7 +238,7 @@ function NewScheduleDialog({ expenses, liabilities, assets, name, t, onDone }: {
       </DialogHeader>
       <div className="grid gap-3">
         <div>
-          <Label className="text-xs">{t("Kind", "النوع")}</Label>
+          <Label className="text-[13px]">{t("Kind", "النوع")}</Label>
           <Select value={kind} onValueChange={(v) => { setKind(v); set("balanceAccountId", ""); }}>
             <SelectTrigger data-testid="schedule-kind"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -250,28 +247,28 @@ function NewScheduleDialog({ expenses, liabilities, assets, name, t, onDone }: {
             </SelectContent>
           </Select>
         </div>
-        <div><Label className="text-xs">{t("Reference", "المرجع")}</Label><Input value={form.reference} onChange={(e) => set("reference", e.target.value)} data-testid="schedule-reference" dir="ltr" /></div>
-        <div><Label className="text-xs">{t("Description *", "الوصف *")}</Label><Input value={form.description} onChange={(e) => set("description", e.target.value)} data-testid="schedule-description" /></div>
+        <div><Label className="text-[13px]">{t("Reference", "المرجع")}</Label><Input value={form.reference} onChange={(e) => set("reference", e.target.value)} data-testid="schedule-reference" dir="ltr" /></div>
+        <div><Label className="text-[13px]">{t("Description *", "الوصف *")}</Label><Input value={form.description} onChange={(e) => set("description", e.target.value)} data-testid="schedule-description" /></div>
         <div className="grid grid-cols-3 gap-2">
-          <div><Label className="text-xs">{t("Total *", "الإجمالي *")}</Label><Input value={form.totalAmount} onChange={(e) => set("totalAmount", e.target.value)} data-testid="schedule-total" dir="ltr" /></div>
-          <div><Label className="text-xs">{t("Periods *", "عدد الفترات *")}</Label><Input value={form.periods} onChange={(e) => set("periods", e.target.value)} data-testid="schedule-periods" dir="ltr" /></div>
-          <div><Label className="text-xs">{t("From *", "من *")}</Label><Input value={form.startPeriod} onChange={(e) => set("startPeriod", e.target.value)} data-testid="schedule-start" dir="ltr" placeholder="YYYY-MM" /></div>
+          <div><Label className="text-[13px]">{t("Total *", "الإجمالي *")}</Label><Input value={form.totalAmount} onChange={(e) => set("totalAmount", e.target.value)} data-testid="schedule-total" dir="ltr" /></div>
+          <div><Label className="text-[13px]">{t("Periods *", "عدد الفترات *")}</Label><Input value={form.periods} onChange={(e) => set("periods", e.target.value)} data-testid="schedule-periods" dir="ltr" /></div>
+          <div><Label className="text-[13px]">{t("From *", "من *")}</Label><Input value={form.startPeriod} onChange={(e) => set("startPeriod", e.target.value)} data-testid="schedule-start" dir="ltr" placeholder="YYYY-MM" /></div>
         </div>
         <div>
-          <Label className="text-xs">{t("Expense account *", "حساب المصروف *")}</Label>
+          <Label className="text-[13px]">{t("Expense account *", "حساب المصروف *")}</Label>
           <Select value={form.expenseAccountId} onValueChange={(v) => set("expenseAccountId", v)}>
             <SelectTrigger data-testid="schedule-expense"><SelectValue placeholder={t("Choose", "اختر")} /></SelectTrigger>
             <SelectContent>{expenses.map((c) => <SelectItem key={c.id} value={String(c.id)}>{name(c)}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div>
-          <Label className="text-xs">{kind === "accrual" ? t("Accrued liability account *", "حساب المصروف المستحق *") : t("Prepaid asset account *", "حساب المدفوع مقدمًا *")}</Label>
+          <Label className="text-[13px]">{kind === "accrual" ? t("Accrued liability account *", "حساب المصروف المستحق *") : t("Prepaid asset account *", "حساب المدفوع مقدمًا *")}</Label>
           <Select value={form.balanceAccountId} onValueChange={(v) => set("balanceAccountId", v)}>
             <SelectTrigger data-testid="schedule-balance"><SelectValue placeholder={t("Choose", "اختر")} /></SelectTrigger>
             <SelectContent>{balanceOptions.map((c) => <SelectItem key={c.id} value={String(c.id)}>{name(c)}</SelectItem>)}</SelectContent>
           </Select>
           {kind === "accrual" && (
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {t("Accounts Payable is not offered: it is the INVOICED payable your supplier's statement shows (IAS 37.11), and an accrual has no invoice.",
                  "لا تُعرض الذمم الدائنة: فهي الالتزام المُفاتَر الذي يظهر في كشف المورّد (المعيار 37 فقرة 11)، والمستحق لا فاتورة له.")}
             </p>

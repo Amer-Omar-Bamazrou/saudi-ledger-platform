@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtDate } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel, StatStrip, Stat as KitStat } from "@/components/kit";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Archive, Clock, PlayCircle, ShieldCheck } from "lucide-react";
 
@@ -60,20 +60,15 @@ interface Onboarding {
 
 const CRED_COLOR: Record<string, string> = {
   active: "bg-positive-surface/20 text-positive border-positive-surface/30",
-  pending_csr: "bg-attention-surface/20 text-attention-surface border-attention-surface/30",
+  pending_csr: "bg-attention-surface/20 text-attention border-attention-surface/30",
   not_onboarded: "bg-muted text-muted-foreground border-border",
   superseded: "bg-info-surface/20 text-info border-info-surface/30",
   revoked: "bg-negative-surface/20 text-negative border-negative-surface/30",
 };
 
+/** The kit's Stat, with this panel's two states mapped onto its tones (a real state — a document IS late). */
 function Stat({ label, value, tone }: { label: string; value: string | number; tone?: "warn" | "danger" }) {
-  const color = tone === "danger" ? "text-negative" : tone === "warn" ? "text-attention-surface" : "text-foreground";
-  return (
-    <div className="rounded-md border border-border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-semibold ${color}`}>{value}</div>
-    </div>
-  );
+  return <KitStat label={label} value={value} tone={tone === "danger" ? "negative" : tone === "warn" ? "attention" : "default"} />;
 }
 
 export default function OperatorZatcaPanel() {
@@ -114,13 +109,11 @@ export default function OperatorZatcaPanel() {
   return (
     <div className="space-y-6">
       {/* ── Outbox health ─────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            {t("E-invoice transmission", "إرسال الفواتير الإلكترونية")}
-          </CardTitle>
-          <div className="flex gap-2">
+      <Panel
+        title={<span className="flex items-center gap-2"><Clock className="h-4 w-4 text-muted-foreground" />{t("E-invoice transmission", "إرسال الفواتير الإلكترونية")}</span>}
+        bodyClassName="space-y-3"
+        actions={
+          <>
             <Button size="sm" variant="outline" onClick={() => runJob.mutate("einvoice-outbox")} disabled={runJob.isPending}>
               <PlayCircle className="me-1 h-3 w-3" />
               {t("Drain outbox", "تفريغ الطابور")}
@@ -129,9 +122,9 @@ export default function OperatorZatcaPanel() {
               <Archive className="me-1 h-3 w-3" />
               {t("Sweep archive", "أرشفة")}
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
+          </>
+        }
+      >
           {health && !health.workerEnabled && (
             <Alert>
               <AlertDescription>
@@ -154,7 +147,7 @@ export default function OperatorZatcaPanel() {
             </Alert>
           )}
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <StatStrip cols={5}>
             <Stat
               label={t(`Overdue (>${health?.overdueMinutes ?? 60}m)`, `متأخرة`)}
               value={health?.overdue.total ?? "—"}
@@ -176,38 +169,33 @@ export default function OperatorZatcaPanel() {
               value={health?.archive.pendingArchive ?? "—"}
               tone={health?.archive.pendingArchive ? "warn" : undefined}
             />
-          </div>
-        </CardContent>
-      </Card>
+          </StatStrip>
+      </Panel>
 
       {/* ── Certificate expiry ────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" />
-            {t("Certificate expiry", "انتهاء الشهادات")}
-          </CardTitle>
+      <Panel
+        flush
+        title={<span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-muted-foreground" />{t("Certificate expiry", "انتهاء الشهادات")}</span>}
+        description={t(
+              "Renewal requires an OTP the TENANT generates in their own Fatoora portal — a late reminder cannot be resolved by the platform.",
+              "يتطلب التجديد رمزاً يولّده المكلّف في بوابة فاتورة الخاصة به — لا يمكن للمنصة معالجة تذكير متأخر.",
+            )}
+        actions={
           <Button size="sm" variant="outline" onClick={() => runJob.mutate("zatca-renewal-reminders")} disabled={runJob.isPending}>
             <PlayCircle className="me-1 h-3 w-3" />
             {t("Check now", "تحقق الآن")}
           </Button>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-3 text-xs text-muted-foreground">
-            {t(
-              "Renewal requires an OTP the TENANT generates in their own Fatoora portal — a late reminder cannot be resolved by the platform.",
-              "يتطلب التجديد رمزاً يولّده المكلّف في بوابة فاتورة الخاصة به — لا يمكن للمنصة معالجة تذكير متأخر.",
-            )}
-          </p>
+        }
+      >
           {!certificates?.length ? (
-            <p className="text-sm text-muted-foreground">{t("No certificates expiring within 120 days.", "لا توجد شهادات تنتهي خلال ١٢٠ يوماً.")}</p>
+            <p className="text-sm text-muted-foreground px-5 py-4">{t("No certificates expiring within 120 days.", "لا توجد شهادات تنتهي خلال ١٢٠ يوماً.")}</p>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-border">
               {certificates.map((c) => (
-                <div key={c.credentialId} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3">
+                <div key={c.credentialId} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
                   <div>
                     <div className="text-sm font-medium">{c.companyName ?? c.companyId}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-[12px] text-muted-foreground">
                       {c.environment} · {c.notAfter ? fmtDate(c.notAfter) : "—"}
                     </div>
                   </div>
@@ -215,7 +203,7 @@ export default function OperatorZatcaPanel() {
                     {/* A window that passed with no reminder recorded is the gap
                         an operator can act on by contacting the tenant. */}
                     {c.remindersMissing.length > 0 && (
-                      <span className="flex items-center gap-1 rounded border border-attention-surface/30 bg-attention-surface/20 px-2 py-0.5 text-xs text-attention-surface">
+                      <span className="flex items-center gap-1 rounded border border-attention-surface/30 bg-attention-surface/20 px-2 py-0.5 text-xs text-attention">
                         <AlertTriangle className="h-3 w-3" />
                         {t(`T-${c.remindersMissing.join("/T-")} not sent`, `لم تُرسل`)}
                       </span>
@@ -225,12 +213,12 @@ export default function OperatorZatcaPanel() {
                         c.expired
                           ? "border-negative-surface/30 bg-negative-surface/20 text-negative"
                           : (c.daysRemaining ?? 999) <= 30
-                            ? "border-attention-surface/30 bg-attention-surface/20 text-attention-surface"
+                            ? "border-attention-surface/30 bg-attention-surface/20 text-attention"
                             : "border-border bg-muted text-muted-foreground"
                       }`}
                     >
                       {c.expired
-                        ? t("EXPIRED — cannot invoice", "منتهية — لا يمكن إصدار فواتير")
+                        ? t("Expired — cannot invoice", "منتهية — لا يمكن إصدار فواتير")
                         : t(`${c.daysRemaining} days left`, `${c.daysRemaining} يوماً`)}
                     </span>
                   </div>
@@ -238,43 +226,37 @@ export default function OperatorZatcaPanel() {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {/* ── Onboarding status ─────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("ZATCA onboarding", "التسجيل في هيئة الزكاة")}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel flush title={t("ZATCA onboarding", "التسجيل في هيئة الزكاة")}>
           {!onboarding?.length ? (
-            <p className="text-sm text-muted-foreground">{t("No companies.", "لا توجد شركات.")}</p>
+            <p className="text-sm text-muted-foreground px-5 py-4">{t("No companies.", "لا توجد شركات.")}</p>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-border">
               {onboarding.map((c) => (
-                <div key={c.companyId} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3">
+                <div key={c.companyId} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
                   <div>
                     <div className="text-sm font-medium">{c.companyName}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-[12px] text-muted-foreground">
                       {c.organizationName ?? "—"} · VAT {c.vatNumber ?? t("not set", "غير محدد")}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {!c.readyToOnboard && (
-                      <span className="rounded border border-attention-surface/30 bg-attention-surface/20 px-2 py-0.5 text-xs text-attention-surface">
+                      <span className="rounded border border-attention-surface/30 bg-attention-surface/20 px-2 py-0.5 text-xs text-attention">
                         {t("No VAT number", "لا يوجد رقم ضريبي")}
                       </span>
                     )}
-                    <span className={`rounded border px-2 py-0.5 text-xs ${CRED_COLOR[c.credentialStatus] ?? CRED_COLOR.not_onboarded}`}>
-                      {c.credentialStatus}
+                    <span className={`rounded border px-2 py-0.5 text-xs capitalize ${CRED_COLOR[c.credentialStatus] ?? CRED_COLOR.not_onboarded}`}>
+                      {c.credentialStatus.replace(/_/g, " ")}
                     </span>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

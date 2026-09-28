@@ -21,7 +21,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,34 +116,30 @@ export default function ClosedMonths() {
   const isCurrentOrFuture = confirmClose != null && confirmClose >= thisMonth();
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-semibold">{t("Closed months", "الأشهر المُقفلة")}</h1>
-        {/* What closing MEANS, before any control — this page is where the
-            refusal dialog sends people for the explanation. */}
-        <p className="text-sm text-muted-foreground mt-2">
-          {t(
-            "When a month is closed, its figures stop changing: no invoice, bill, journal entry, or bank transaction can be added to it, and anyone who tries is told why. Reports for a closed month always show the same numbers.",
-            "عند إقفال شهر تتوقف أرقامه عن التغيّر: لا يمكن إضافة فاتورة أو فاتورة مورد أو قيد يومية أو حركة بنكية إليه، ومن يحاول يُخبر بالسبب. تقارير الشهر المُقفل تعرض الأرقام نفسها دائمًا.",
-          )}
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">
+    <div className="space-y-6 max-w-3xl">
+      {/* What closing MEANS, before any control — this page is where the
+          refusal dialog sends people for the explanation. */}
+      <PageHeader
+        title={t("Closed months", "الأشهر المُقفلة")}
+        description={t(
+          "When a month is closed, its figures stop changing: no invoice, bill, journal entry, or bank transaction can be added to it, and anyone who tries is told why. Reports for a closed month always show the same numbers.",
+          "عند إقفال شهر تتوقف أرقامه عن التغيّر: لا يمكن إضافة فاتورة أو فاتورة مورد أو قيد يومية أو حركة بنكية إليه، ومن يحاول يُخبر بالسبب. تقارير الشهر المُقفل تعرض الأرقام نفسها دائمًا.",
+        )}
+      >
+        <p className="text-[13px] text-muted-foreground mt-2 max-w-[70ch]">
           {t(
             "Closing does not touch quotations or purchase orders (they are commitments, not bookkeeping), and it never hides anything — closed months stay fully visible in every report.",
             "الإقفال لا يمس عروض الأسعار أو أوامر الشراء (فهي التزامات لا قيود)، ولا يخفي شيئًا — تبقى الأشهر المُقفلة ظاهرة بالكامل في كل التقارير.",
           )}
         </p>
-      </div>
+      </PageHeader>
 
       {isAdmin && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">{t("Close the books for a month", "إقفال دفاتر شهر")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <Panel title={t("Close the books for a month", "إقفال دفاتر شهر")}>
+          <div className="space-y-3">
             <div className="flex items-end gap-3 flex-wrap">
               <div>
-                <Label className="text-xs text-muted-foreground">{t("Month", "الشهر")}</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("Month", "الشهر")}</Label>
                 {/* No `max`: the API allows closing any month, incl. current
                     and future, and the UI must not secretly forbid what the
                     API permits (D4). The consequence is named in the confirm
@@ -156,7 +152,7 @@ export default function ClosedMonths() {
                 />
               </div>
               <div className="grow min-w-48">
-                <Label className="text-xs text-muted-foreground">{t("Note (optional)", "ملاحظة (اختياري)")}</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("Note (optional)", "ملاحظة (اختياري)")}</Label>
                 <Input
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -177,53 +173,50 @@ export default function ClosedMonths() {
                 {t("That month is already closed.", "هذا الشهر مُقفل بالفعل.")}
               </p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
       )}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">
+      <Panel
+        flush
+        title={
+          <>
             {t("Currently closed", "المُقفلة حاليًا")}
-            {locks.length > 0 && <span className="text-muted-foreground font-normal"> · {locks.length}</span>}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">{t("Loading…", "جارٍ التحميل…")}</p>
-          ) : sorted.length === 0 ? (
-            <div className="py-6 text-center space-y-1">
-              <CalendarX2 className="w-6 h-6 mx-auto text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                {t("No months are closed. Every month is open to new entries.", "لا توجد أشهر مُقفلة. كل الأشهر مفتوحة للقيود الجديدة.")}
-              </p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {sorted.map((l) => (
-                <li data-row key={l.id} className="py-3 flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <p className="font-medium flex items-center gap-2">
-                      <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-                      {monthLabel(l.period, lang)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+            {locks.length > 0 && <span className="ms-2 rounded bg-muted px-1.5 text-[12px] font-medium text-muted-foreground tabular-nums">{locks.length}</span>}
+          </>
+        }
+      >
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground p-5 text-center">{t("Loading…", "جارٍ التحميل…")}</p>
+        ) : sorted.length === 0 ? (
+          <EmptyState icon={CalendarX2} title={t("No months are closed. Every month is open to new entries.", "لا توجد أشهر مُقفلة. كل الأشهر مفتوحة للقيود الجديدة.")} />
+        ) : (
+          <ul className="divide-y divide-border/70">
+            {sorted.map((l) => (
+              <li data-row key={l.id} className="px-5 py-3.5 flex items-center justify-between gap-3 flex-wrap hover:bg-muted/40 transition-colors">
+                <div className="flex items-start gap-3 min-w-0">
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <Lock className="w-3.5 h-3.5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">{monthLabel(l.period, lang)}</p>
+                    <p className="text-[13px] text-muted-foreground mt-0.5">
                       {t("Closed on", "أُقفل بتاريخ")} <DualDate date={l.lockedAt.slice(0, 10)} />
                       {l.notes && <> · {l.notes}</>}
                     </p>
                   </div>
-                  {isAdmin && (
-                    <Button size="sm" variant="outline" onClick={() => setConfirmReopen(l.period)}>
-                      <LockOpen className="w-3.5 h-3.5 me-1" />
-                      {t("Reopen", "إعادة فتح")}
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+                {isAdmin && (
+                  <Button size="sm" variant="outline" onClick={() => setConfirmReopen(l.period)}>
+                    <LockOpen className="w-3.5 h-3.5 me-1" />
+                    {t("Reopen", "إعادة فتح")}
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
 
       {/* ── Close confirm — names the consequence, louder for current/future ── */}
       <Dialog open={!!confirmClose} onOpenChange={(o) => !o && setConfirmClose(null)}>

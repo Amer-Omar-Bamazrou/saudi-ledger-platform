@@ -84,7 +84,6 @@ const KNOWN_HAND_WRITTEN: readonly string[] = [
   "pages/BankAccounts.tsx",
   "pages/ClosedMonths.tsx",
   "pages/CompanySettings.tsx",
-  "pages/Dashboard.tsx",
   "pages/Findings.tsx",
   "pages/OperatorReview.tsx",
   "pages/OperatorZatcaPanel.tsx",

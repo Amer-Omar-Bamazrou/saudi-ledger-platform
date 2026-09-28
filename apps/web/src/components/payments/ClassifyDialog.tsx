@@ -55,13 +55,13 @@ export function ClassifyDialog({ payment, customerName, open, onClose }: { payme
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1 rounded-md border border-border p-3 text-sm">
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Receipt", "الإيصال")}</span><span className="font-mono">{receiptNumber(payment.id)}</span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Receipt", "الإيصال")}</span><span className="tabular-nums">{receiptNumber(payment.id)}</span></div>
           <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Customer", "العميل")}</span><span>{customerName}</span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("On account", "على الحساب")}</span><span className="font-mono">{fmtNum(payment.unappliedAmount)}</span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("On account", "على الحساب")}</span><span className="tabular-nums">{fmtNum(payment.unappliedAmount)}</span></div>
           <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Currently", "حاليًا")}</span><span>{label[current as DepositClassificationValue]}</span></div>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground mb-1">{t("Classification *", "التصنيف *")}</p>
+          <p className="text-[13px] text-muted-foreground mb-1.5">{t("Classification *", "التصنيف *")}</p>
           <Select value={classification} onValueChange={(v) => setClassification(v as DepositClassificationValue)}>
             <SelectTrigger className="h-9 text-sm" data-testid="classify-select"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -72,7 +72,7 @@ export function ClassifyDialog({ payment, customerName, open, onClose }: { payme
         </div>
         {classification === "advance" && (
           <div>
-            <p className="text-xs text-muted-foreground mb-1">{t("VAT category of the supply (if known)", "الفئة الضريبية للتوريد (إن عُرفت)")}</p>
+            <p className="text-[13px] text-muted-foreground mb-1.5">{t("VAT category of the supply (if known)", "الفئة الضريبية للتوريد (إن عُرفت)")}</p>
             <Select value={vatCategory || "none"} onValueChange={(v) => setVatCategory(v === "none" ? "" : v)}>
               <SelectTrigger className="h-9 text-sm" data-testid="classify-vat-category"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -85,7 +85,7 @@ export function ClassifyDialog({ payment, customerName, open, onClose }: { payme
           </div>
         )}
         <div>
-          <p className="text-xs text-muted-foreground mb-1">{t("Note", "ملاحظة")}</p>
+          <p className="text-[13px] text-muted-foreground mb-1.5">{t("Note", "ملاحظة")}</p>
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} data-testid="classify-note" placeholder={t("What the money is for, the contract or order it belongs to…", "لماذا هذا المبلغ، والعقد أو الطلب الذي يخصه…")} />
         </div>
         <div className="flex justify-end gap-2">

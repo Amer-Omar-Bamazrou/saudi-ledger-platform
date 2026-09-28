@@ -31,14 +31,14 @@ export function DemoBanner() {
 
   return (
     <div
-      // amber, not the status palette's warning step: this is a standing
-      // property of the deployment, not a condition that will clear.
-      className="w-full bg-amber-100 text-amber-950 border-b border-amber-300 px-4 py-2 text-sm text-center dark:bg-amber-950 dark:text-amber-100 dark:border-amber-800"
+      // The accent tint, not the status palette's warning step: this is a
+      // standing property of the deployment, not a condition that will clear.
+      // (Was raw amber; the 2026-09 design pass moved it onto tokens.)
+      className="w-full bg-accent text-accent-foreground border-b border-accent-border px-4 py-2 text-[13px] text-center"
       dir={isAr ? "rtl" : "ltr"}
       role="status"
     >
-      <span className="font-semibold">{isAr ? "تجريبي" : "DEMO"}</span>
-      <span className="mx-2 opacity-50">·</span>
+      <span className="me-2 inline-flex items-center rounded bg-background/60 px-1.5 py-0.5 text-[12px] font-semibold">{isAr ? "تجريبي" : "Demo"}</span>
       <span>{message}</span>
     </div>
   );

@@ -62,8 +62,8 @@ export function UnallocateDialog({
         <div className="space-y-1 rounded-md border border-border p-3">
           <Row k={t("Customer", "العميل")} v={customerName} />
           <Row k={t("Allocation", "التخصيص")} v={`#${allocation.id}`} />
-          <Row k={t("Invoice", "الفاتورة")} v={<span className="font-mono">{invoiceNumber}</span>} />
-          <Row k={t("Amount", "المبلغ")} v={<span className="font-mono">{fmtNum(allocation.amount)}</span>} />
+          <Row k={t("Invoice", "الفاتورة")} v={<span className="tabular-nums">{invoiceNumber}</span>} />
+          <Row k={t("Amount", "المبلغ")} v={<span className="tabular-nums">{fmtNum(allocation.amount)}</span>} />
           <Row k={t("Returns to", "يعود إلى")} v={`${sourceLabel} · ${origin === "deposit" ? t("customer deposit", "عربون العميل") : t("credit-note balance", "رصيد إشعار الدائن")}`} />
         </div>
         <p className="text-xs text-foreground rounded-md border border-border bg-secondary/20 p-2" data-testid="unallocate-consequence">
@@ -74,7 +74,7 @@ export function UnallocateDialog({
                 `سيُعكس التطبيق #${allocation.id} ويُعاد ${fmtNum(allocation.amount)} إلى الرصيد المتبقي لإشعار الدائن ${sourceLabel}؛ وتصبح الفاتورة ${invoiceNumber} مدينة بـ ${fmtNum(allocation.amount)} إضافية. يبقى التطبيق الأصلي في سجل التدقيق؛ ويُرحَّل قيد تصحيحي بتاريخ اليوم: من ح/ الذمم المدينة إلى ح/ أرصدة دائنة للعملاء.`)}
         </p>
         <div>
-          <p className="text-xs text-muted-foreground mb-1">{t("Reason *", "السبب *")}</p>
+          <p className="text-[13px] text-muted-foreground mb-1.5">{t("Reason *", "السبب *")}</p>
           <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} data-testid="unallocate-reason" placeholder={t("Why this allocation was wrong", "لماذا كان هذا التخصيص خاطئًا")} />
         </div>
         <div className="flex justify-end gap-2">

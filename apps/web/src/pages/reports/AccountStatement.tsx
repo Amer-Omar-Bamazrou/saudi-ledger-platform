@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,111 +45,103 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Account Statement", "كشف حساب")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Opening balance + movements + closing balance for a single account", "الرصيد الافتتاحي + الحركات + الرصيد الختامي لحساب واحد")}</p>
-        </div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <PageHeader
+        title={t("Account Statement", "كشف حساب")}
+        description={t("Opening balance + movements + closing balance for a single account", "الرصيد الافتتاحي + الحركات + الرصيد الختامي لحساب واحد")}
+      >
         {/* Export removed: no onClick — one of seven dead Export buttons (2026-09-01). */}
-      </div>
+        <div className="mt-2"><FiscalRangeNotice source={range.source} /></div>
+      </PageHeader>
 
-      <FiscalRangeNotice source={range.source} />
-
-      <Card className="border-border bg-card">
-        <CardContent className="pt-4">
-          <div className="flex items-end gap-4 flex-wrap">
-            <div className="min-w-56">
-              <Label className="text-xs text-muted-foreground">{t("Account", "الحساب")}</Label>
-              <Select value={accountId} onValueChange={setAccountId}>
-                <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select account…", "اختر حسابًا…")} /></SelectTrigger>
-                <SelectContent>
-                  {cats.map(c => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name} <span className="text-muted-foreground text-xs ms-1">({c.type})</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" disabled={!accountId} onClick={() => setApplied({ accountId, from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
+      <Panel>
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="min-w-56">
+            <Label className="text-xs text-muted-foreground">{t("Account", "الحساب")}</Label>
+            <Select value={accountId} onValueChange={setAccountId}>
+              <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select account…", "اختر حسابًا…")} /></SelectTrigger>
+              <SelectContent>
+                {cats.map(c => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name} <span className="text-muted-foreground text-xs ms-1">({c.type})</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="mt-3">
-            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);if(accountId)setApplied({accountId,from:r.from,to:r.to});}} />
-          </div>
-        </CardContent>
-      </Card>
+          <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <Button size="sm" className="h-8" disabled={!accountId} onClick={() => setApplied({ accountId, from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
+        </div>
+        <div className="mt-3">
+          <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);if(accountId)setApplied({accountId,from:r.from,to:r.to});}} />
+        </div>
+      </Panel>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            [t("Account", "الحساب"), data.account.name, "text-primary"],
-            [t("Opening Balance", "الرصيد الافتتاحي"), fmtNum(data.openingBalance), data.openingBalance >= 0 ? "text-info" : "text-negative"],
-            [t("Closing Balance", "الرصيد الختامي"), fmtNum(data.closingBalance), data.closingBalance >= 0 ? "text-positive" : "text-negative"],
-            [t("Movements", "الحركات"), data.movements.length, "text-primary"],
-          ].map(([l, v, c]) => (
-            <Card key={String(l)} className="border-border bg-card">
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-lg font-bold font-mono ${c} truncate`}>{v}</div></CardContent>
-            </Card>
-          ))}
-        </div>
+        <StatStrip cols={4}>
+          <Stat label={t("Account", "الحساب")} value={<span className="block truncate text-[18px]">{data.account.name}</span>} />
+          <Stat label={t("Opening Balance", "الرصيد الافتتاحي")} value={fmtNum(data.openingBalance)} tone={data.openingBalance >= 0 ? "default" : "negative"} />
+          <Stat label={t("Closing Balance", "الرصيد الختامي")} value={fmtNum(data.closingBalance)} tone={data.closingBalance >= 0 ? "default" : "negative"} />
+          <Stat label={t("Movements", "الحركات")} value={data.movements.length} />
+        </StatStrip>
       )}
 
       {isLoading ? (
         <div className="text-muted-foreground text-sm p-4">{t("Loading…", "جارٍ التحميل…")}</div>
       ) : !data ? (
-        <Card className="border-border bg-card">
-          <CardContent className="pt-6">
-            <div className="text-center py-16 text-muted-foreground">
-              <FileText className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">{t("Select an account and click Generate.", "اختر حسابًا ثم انقر إنشاء.")}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <Panel>
+          <EmptyState icon={FileText} title={t("Select an account and click Generate.", "اختر حسابًا ثم انقر إنشاء.")} />
+        </Panel>
       ) : (
-        <Card className="border-border bg-card">
-          <CardContent className="pt-6">
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {[t("Date", "التاريخ"), t("Entry #", "رقم القيد"), t("Reference", "المرجع"), t("Description", "الوصف"), t("Debit", "مدين"), t("Credit", "دائن"), t("Balance", "الرصيد")].map(h => (
-                    <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {/* Opening row */}
-                <tr className="border-b border-border/50 bg-secondary/20">
-                  <td colSpan={4} className="py-2.5 pe-4 text-xs font-semibold text-muted-foreground">{t("Opening Balance", "الرصيد الافتتاحي")}</td>
-                  <td className="py-2.5 pe-4" />
-                  <td className="py-2.5 pe-4" />
-                  <td className="py-2.5 font-mono font-semibold text-xs">{fmtNum(data.openingBalance)}</td>
-                </tr>
-                {data.movements.map((m, i) => (
-                  <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
-                    <td className="py-2 pe-4 text-xs text-muted-foreground"><DualDate date={m.date} /></td>
-                    <td className="py-2 pe-4 font-mono text-xs text-primary">{m.entryNumber}</td>
-                    <td className="py-2 pe-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
-                    <td className="py-2 pe-4 text-xs">{m.description}</td>
-                    <td className="py-2 pe-4 font-mono text-xs text-info">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
-                    <td className="py-2 pe-4 font-mono text-xs text-positive">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
-                    <td className="py-2 font-mono text-xs font-semibold">{fmtNum(m.balance)}</td>
-                  </tr>
+        <Panel flush>
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                {([
+                  [t("Date", "التاريخ"), false],
+                  [t("Entry #", "رقم القيد"), false],
+                  [t("Reference", "المرجع"), false],
+                  [t("Description", "الوصف"), false],
+                  [t("Debit", "مدين"), true],
+                  [t("Credit", "دائن"), true],
+                  [t("Balance", "الرصيد"), true],
+                ] as const).map(([h, num]) => (
+                  <th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
                 ))}
-                {/* Closing row */}
-                <tr className="border-t-2 border-border font-bold">
-                  <td colSpan={4} className="pt-3 text-xs font-semibold">{t("Closing Balance", "الرصيد الختامي")}</td>
-                  <td className="pt-3 font-mono text-xs text-info">{fmtNum(data.totalDebit)}</td>
-                  <td className="pt-3 font-mono text-xs text-positive">{fmtNum(data.totalCredit)}</td>
-                  <td className="pt-3 font-mono text-sm font-bold">{fmtNum(data.closingBalance)}</td>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Opening row */}
+              <tr className="border-b border-border/70 bg-muted/30">
+                <td colSpan={4} className="py-3 px-3 font-medium text-muted-foreground">{t("Opening Balance", "الرصيد الافتتاحي")}</td>
+                <td className="py-3 px-3" />
+                <td className="py-3 px-3" />
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(data.openingBalance)}</td>
+              </tr>
+              {data.movements.map((m, i) => (
+                <tr key={i} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                  <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={m.date} /></td>
+                  <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">{m.entryNumber}</td>
+                  <td className="py-3 px-3 text-muted-foreground">{m.reference ?? "—"}</td>
+                  <td className="py-3 px-3">{m.description}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(m.balance)}</td>
                 </tr>
-              </tbody>
-            </table></div>
-          </CardContent>
-        </Card>
+              ))}
+            </tbody>
+            <tfoot>
+              {/* Closing row */}
+              <tr className="font-semibold">
+                <td colSpan={4} className="py-3.5 px-3">{t("Closing Balance", "الرصيد الختامي")}</td>
+                <td className="py-3.5 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(data.totalDebit)}</td>
+                <td className="py-3.5 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(data.totalCredit)}</td>
+                <td className="py-3.5 px-3 text-end whitespace-nowrap tabular-nums text-base">{fmtNum(data.closingBalance)}</td>
+              </tr>
+            </tfoot>
+          </table></div>
+        </Panel>
       )}
     </div>
   );

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, Panel } from "@/components/kit";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Database, Plus } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
@@ -40,44 +40,42 @@ export default function Migration() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Migration & Opening Balances", "الترحيل والأرصدة الافتتاحية")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Bring a business with history in: the previous system's chart and closing balances, its customers and suppliers, the open receivables and payables, advances, bank balances and VAT position — staged, validated, then committed as ONE opening journal with the subledgers behind it.", "أدخِل منشأة لها تاريخ: دليل النظام السابق وأرصدته الختامية، وعملاءه وموردوه، والذمم المدينة والدائنة المفتوحة، والدفعات المقدمة، وأرصدة البنوك، والموقف الضريبي — تُجهَّز وتُتحقق ثم تُعتمد كقيد افتتاح واحد ومعه الدفاتر المساعدة.")}</p>
-        </div>
-        <Button className="gap-2" disabled={!canRun} onClick={() => setOpen(true)} data-testid="new-migration"><Plus className="w-4 h-4" />{t("Start a migration", "بدء ترحيل")}</Button>
-      </div>
+      <PageHeader
+        title={t("Migration & Opening Balances", "الترحيل والأرصدة الافتتاحية")}
+        description={t("Bring a business with history in: the previous system's chart and closing balances, its customers and suppliers, the open receivables and payables, advances, bank balances and VAT position — staged, validated, then committed as ONE opening journal with the subledgers behind it.", "أدخِل منشأة لها تاريخ: دليل النظام السابق وأرصدته الختامية، وعملاءه وموردوه، والذمم المدينة والدائنة المفتوحة، والدفعات المقدمة، وأرصدة البنوك، والموقف الضريبي — تُجهَّز وتُتحقق ثم تُعتمد كقيد افتتاح واحد ومعه الدفاتر المساعدة.")}
+        actions={<Button className="gap-2" disabled={!canRun} onClick={() => setOpen(true)} data-testid="new-migration"><Plus className="w-4 h-4" />{t("Start a migration", "بدء ترحيل")}</Button>}
+      />
       <MigrationPermissionHint />
 
       {isLoading ? <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
         : error ? <p className="text-sm text-destructive">{t("Migrations could not be loaded.", "تعذر تحميل عمليات الترحيل.")} {(error as Error).message}</p>
         : batches.length === 0 ? (
-          <Card><CardContent>
+          <Panel>
             <EmptyState icon={Database} title={t("No migration yet", "لا يوجد ترحيل بعد")} hint={t("Start one with the previous system's name and the cut-over date (the first day this company runs here). The opening date is the day before.", "ابدأ واحدًا باسم النظام السابق وتاريخ القطع (أول يوم تعمل فيه الشركة هنا). تاريخ الافتتاح هو اليوم السابق.")}
               action={canRun ? <Button size="sm" onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5 me-1" />{t("Start a migration", "بدء ترحيل")}</Button> : undefined} />
-          </CardContent></Card>
+          </Panel>
         ) : (
-          <Card><CardContent className="pt-4">
+          <Panel flush>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Batch", "الدفعة"), t("Status", "الحالة"), t("Source system", "النظام المصدر"), t("Opening date", "تاريخ الافتتاح"), t("Created", "تاريخ الإنشاء"), t("Validated", "تم التحقق"), t("Committed", "معتمد"), ""].map((h, i) => <th key={i} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
+                <thead><tr className="border-b border-border">{[t("Batch", "الدفعة"), t("Status", "الحالة"), t("Source system", "النظام المصدر"), t("Opening date", "تاريخ الافتتاح"), t("Created", "تاريخ الإنشاء"), t("Validated", "تم التحقق"), t("Committed", "معتمد"), ""].map((h, i) => <th key={i} className="text-start px-3">{h}</th>)}</tr></thead>
                 <tbody>
                   {batches.map((b) => (
-                    <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20" data-testid={`batch-row-${b.id}`}>
-                      <td className="py-3 pe-3 font-mono text-xs">#{b.id}{b.replacesBatchId != null && <span className="block text-[11px] text-muted-foreground">{t(`replaces #${b.replacesBatchId}`, `يستبدل #${b.replacesBatchId}`)}</span>}</td>
-                      <td className="py-3 pe-3"><BatchStatusBadge status={b.status} /></td>
-                      <td className="py-3 pe-3">{b.sourceSystem}{b.sourceVersion ? ` ${b.sourceVersion}` : ""}</td>
-                      <td className="py-3 pe-3 text-xs text-muted-foreground"><DualDate date={b.openingDate} inline /></td>
-                      <td className="py-3 pe-3 text-xs text-muted-foreground">{fmtTs(b.createdAt)}</td>
-                      <td className="py-3 pe-3 text-xs text-muted-foreground">{b.validatedAt ? fmtTs(b.validatedAt) : "—"}</td>
-                      <td className="py-3 pe-3 text-xs text-muted-foreground">{b.committedAt ? fmtTs(b.committedAt) : "—"}</td>
-                      <td className="py-3"><Link href={`/migration/${b.id}`} className="text-xs text-primary hover:underline" data-testid={`open-batch-${b.id}`}>{t("Open →", "فتح ←")}</Link></td>
+                    <tr key={b.id} className="border-b border-border/70 last:border-b-0 hover:bg-muted/40 transition-colors" data-testid={`batch-row-${b.id}`}>
+                      <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">#{b.id}{b.replacesBatchId != null && <span className="block text-[12px] font-normal text-muted-foreground">{t(`replaces #${b.replacesBatchId}`, `يستبدل #${b.replacesBatchId}`)}</span>}</td>
+                      <td className="py-3 px-3"><BatchStatusBadge status={b.status} /></td>
+                      <td className="py-3 px-3">{b.sourceSystem}{b.sourceVersion ? ` ${b.sourceVersion}` : ""}</td>
+                      <td className="py-3 px-3 text-[13px] text-muted-foreground whitespace-nowrap"><DualDate date={b.openingDate} inline /></td>
+                      <td className="py-3 px-3 text-[13px] text-muted-foreground whitespace-nowrap">{fmtTs(b.createdAt)}</td>
+                      <td className="py-3 px-3 text-[13px] text-muted-foreground whitespace-nowrap">{b.validatedAt ? fmtTs(b.validatedAt) : "—"}</td>
+                      <td className="py-3 px-3 text-[13px] text-muted-foreground whitespace-nowrap">{b.committedAt ? fmtTs(b.committedAt) : "—"}</td>
+                      <td className="py-3 px-3 text-end whitespace-nowrap"><Link href={`/migration/${b.id}`} className="text-[13px] font-medium text-primary hover:underline" data-testid={`open-batch-${b.id}`}>{t("Open →", "فتح ←")}</Link></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </CardContent></Card>
+          </Panel>
         )}
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -87,10 +85,10 @@ export default function Migration() {
             <DialogDescription>{t("Nothing is posted by starting a batch. The cut-over date is the first day this company runs on Saudi Ledger; the opening position is stated as at the day before.", "لا يُرحَّل شيء ببدء دفعة. تاريخ القطع هو أول يوم تعمل فيه الشركة على Saudi Ledger؛ ويُذكر المركز الافتتاحي كما في اليوم السابق.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs text-muted-foreground" htmlFor="mig-source">{t("Previous system *", "النظام السابق *")}</Label><Input id="mig-source" value={form.sourceSystem} onChange={(e) => setForm({ ...form, sourceSystem: e.target.value })} placeholder={t("e.g. Sage 50, Excel, Odoo", "مثال: Sage 50، Excel، Odoo")} className="mt-1 h-9 text-sm" data-testid="mig-source-system" /></div>
-            <div><Label className="text-xs text-muted-foreground" htmlFor="mig-version">{t("Version (optional)", "الإصدار (اختياري)")}</Label><Input id="mig-version" value={form.sourceVersion} onChange={(e) => setForm({ ...form, sourceVersion: e.target.value })} className="mt-1 h-9 text-sm" data-testid="mig-source-version" /></div>
-            <div><Label className="text-xs text-muted-foreground" htmlFor="mig-cutover">{t("Cut-over date *", "تاريخ القطع *")}</Label><Input id="mig-cutover" type="date" dir="ltr" value={form.cutoverDate} onChange={(e) => setForm({ ...form, cutoverDate: e.target.value })} className="mt-1 h-9 text-sm" data-testid="mig-cutover" />{form.cutoverDate && /^\d{4}-\d{2}-\d{2}$/.test(form.cutoverDate) && <p className="text-[11px] text-muted-foreground mt-1">{t("Opening date:", "تاريخ الافتتاح:")} <span dir="ltr">{new Date(Date.parse(form.cutoverDate) - 86_400_000).toISOString().slice(0, 10)}</span></p>}</div>
-            <div><Label className="text-xs text-muted-foreground" htmlFor="mig-notes">{t("Notes", "ملاحظات")}</Label><Textarea id="mig-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="mt-1 text-sm" /></div>
+            <div><Label className="text-[13px] text-muted-foreground" htmlFor="mig-source">{t("Previous system *", "النظام السابق *")}</Label><Input id="mig-source" value={form.sourceSystem} onChange={(e) => setForm({ ...form, sourceSystem: e.target.value })} placeholder={t("e.g. Sage 50, Excel, Odoo", "مثال: Sage 50، Excel، Odoo")} className="mt-1 h-9 text-sm" data-testid="mig-source-system" /></div>
+            <div><Label className="text-[13px] text-muted-foreground" htmlFor="mig-version">{t("Version (optional)", "الإصدار (اختياري)")}</Label><Input id="mig-version" value={form.sourceVersion} onChange={(e) => setForm({ ...form, sourceVersion: e.target.value })} className="mt-1 h-9 text-sm" data-testid="mig-source-version" /></div>
+            <div><Label className="text-[13px] text-muted-foreground" htmlFor="mig-cutover">{t("Cut-over date *", "تاريخ القطع *")}</Label><Input id="mig-cutover" type="date" dir="ltr" value={form.cutoverDate} onChange={(e) => setForm({ ...form, cutoverDate: e.target.value })} className="mt-1 h-9 text-sm" data-testid="mig-cutover" />{form.cutoverDate && /^\d{4}-\d{2}-\d{2}$/.test(form.cutoverDate) && <p className="text-[11px] text-muted-foreground mt-1">{t("Opening date:", "تاريخ الافتتاح:")} <span dir="ltr">{new Date(Date.parse(form.cutoverDate) - 86_400_000).toISOString().slice(0, 10)}</span></p>}</div>
+            <div><Label className="text-[13px] text-muted-foreground" htmlFor="mig-notes">{t("Notes", "ملاحظات")}</Label><Textarea id="mig-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="mt-1 text-sm" /></div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>{t("Cancel", "إلغاء")}</Button>

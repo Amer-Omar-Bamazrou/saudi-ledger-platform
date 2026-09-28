@@ -2,7 +2,7 @@ import { Fragment, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +31,8 @@ import { PeriodShortcuts } from "@/components/PeriodShortcuts";
  */
 import type { TrialBalanceReport, TrialBalanceRow } from "@workspace/api-client-react";
 
-const TYPE_STYLES: Record<string, string> = { income: "text-positive", expense: "text-negative", asset: "text-info", liability: "text-attention", equity: "text-purple-400" };
+// The account-TYPE tokens (not the state palette): a type is a category, not a verdict.
+const TYPE_STYLES: Record<string, string> = { income: "text-income", expense: "text-expense", asset: "text-asset", liability: "text-liability", equity: "text-equity" };
 
 export default function TrialBalance() {
   // M20.1 — the report does not mount until its default window is known, so a
@@ -91,89 +92,80 @@ function TrialBalanceInner({ range }: { range: ReportDefaultRange }) {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Trial Balance", "ميزان المراجعة")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("All ledger account balances — debits must equal credits", "جميع أرصدة الحسابات — المدين يجب أن يساوي الدائن")}</p>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        title={t("Trial Balance", "ميزان المراجعة")}
+        description={t("All ledger account balances — debits must equal credits", "جميع أرصدة الحسابات — المدين يجب أن يساوي الدائن")}
+        actions={data && (
+          <span className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-medium ${data.balanced ? "border-positive/30 bg-positive-surface/15 text-positive" : "border-negative/30 bg-negative-surface/15 text-negative"}`}>
+            {data.balanced ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+            {data.balanced ? t("Balanced", "متوازن") : t("Out of Balance", "غير متوازن")}
+          </span>
+        )}
+      >
+        <div className="mt-2"><FiscalRangeNotice source={range.source} /></div>
+      </PageHeader>
+
+      <Panel>
+        <div className="flex flex-wrap items-end gap-3">
+          <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <Button size="sm" className="h-8" onClick={()=>setApplied({from:dateFrom,to:dateTo})}>{t("Apply", "تطبيق")}</Button>
         </div>
-      </div>
-
-      <FiscalRangeNotice source={range.source} />
-
-      <Card className="border-border bg-card">
-        <CardContent className="pt-4">
-          <div className="flex items-end gap-4">
-            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" onClick={()=>setApplied({from:dateFrom,to:dateTo})}>{t("Apply", "تطبيق")}</Button>
-            {data && (
-              <div className={`flex items-center gap-2 ms-auto px-4 py-2 rounded-lg border ${data.balanced ? "border-positive-surface/30 bg-positive-surface/10" : "border-negative-surface/30 bg-negative-surface/10"}`}>
-                {data.balanced ? <CheckCircle className="w-4 h-4 text-positive" /> : <XCircle className="w-4 h-4 text-negative" />}
-                <span className={`text-sm font-medium ${data.balanced ? "text-positive" : "text-negative"}`}>{data.balanced ? t("Balanced", "متوازن") : t("Out of Balance", "غير متوازن")}</span>
-              </div>
-            )}
-          </div>
-          <div className="mt-3">
-            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
-          </div>
-        </CardContent>
-      </Card>
+        <div className="mt-3">
+          <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
+        </div>
+      </Panel>
 
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading trial balance...", "جارٍ التحميل...")}</div> : !data ? null : (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">{t("Trial Balance", "ميزان المراجعة")} — {applied.from} {t("to", "إلى")} {applied.to}</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  <th className="text-start pb-3 pe-4 font-medium">{t("Account", "الحساب")}</th>
-                  <th className="text-start pb-3 pe-4 font-medium">{t("Type", "النوع")}</th>
-                  <th className="text-end pb-3 pe-4 font-medium">{t("Debit (SAR)", "مدين (ر.س)")}</th>
-                  <th className="text-end pb-3 font-medium">{t("Credit (SAR)", "دائن (ر.س)")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {typeOrder.filter(tp => byType[tp]?.length > 0).map(type => (
-                  <Fragment key={type}>
-                    <tr className="bg-secondary/20">
-                      <td colSpan={4} className={`py-2 px-2 text-xs font-bold uppercase tracking-widest ${TYPE_STYLES[type] ?? "text-muted-foreground"}`}>{type}</td>
-                    </tr>
-                    {byType[type].map(row => (
-                      <tr key={row.accountId ?? row.name} className="border-b border-border/30 hover:bg-secondary/10">
-                        <td className="py-2.5 pe-4 ps-2">
+        <Panel flush title={<>{t("Trial Balance", "ميزان المراجعة")} — {applied.from} {t("to", "إلى")} {applied.to}</>}>
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-start px-3">{t("Account", "الحساب")}</th>
+                <th className="text-start px-3">{t("Type", "النوع")}</th>
+                <th className="text-end px-3">{t("Debit (SAR)", "مدين (ر.س)")}</th>
+                <th className="text-end px-3">{t("Credit (SAR)", "دائن (ر.س)")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {typeOrder.filter(tp => byType[tp]?.length > 0).map(type => (
+                <Fragment key={type}>
+                  <tr>
+                    <td colSpan={4} className={`px-3 pt-6 pb-2 text-[13px] font-semibold capitalize text-foreground`}>{type}</td>
+                  </tr>
+                  {byType[type].map(row => (
+                    <tr key={row.accountId ?? row.name} className="hover:bg-muted/40 transition-colors">
+                      <td className="py-2 px-3">
+                        <span className="block ps-4">
                           <span className="text-foreground">{n(row.name, row.nameAr)}</span>
-                          {row.nameAr && row.nameAr !== "(not yet translated)" && lang === "en" && <span className="text-muted-foreground text-xs ms-2" dir="rtl">{row.nameAr}</span>}
-                        </td>
-                        <td className="py-2.5 pe-4"><Badge variant="outline" className={`text-xs capitalize border-0 px-0 ${TYPE_STYLES[row.type]??""}`}>{row.type}</Badge></td>
-                        <td className="py-2.5 pe-4 text-end font-mono text-sm">{row.debit > 0 ? fmtNum(row.debit) : <span className="text-muted-foreground">—</span>}</td>
-                        <td className="py-2.5 text-end font-mono text-sm">{row.credit > 0 ? fmtNum(row.credit) : <span className="text-muted-foreground">—</span>}</td>
-                      </tr>
-                    ))}
-                    <tr className="border-b-2 border-border">
-                      <td className="py-2 ps-2 text-xs text-muted-foreground">{t("Subtotal", "المجموع الفرعي")} — {type}</td>
-                      <td />
-                      <td className="py-2 pe-4 text-end font-mono text-xs font-semibold text-foreground">{fmtNum(byType[type].reduce((s,r)=>s+r.debit,0))}</td>
-                      <td className="py-2 text-end font-mono text-xs font-semibold text-foreground">{fmtNum(byType[type].reduce((s,r)=>s+r.credit,0))}</td>
+                          {row.nameAr && row.nameAr !== "(not yet translated)" && lang === "en" && <span className="text-muted-foreground text-xs ms-2"><span dir="rtl">{row.nameAr}</span></span>}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3"><Badge variant="outline" className={`text-xs capitalize border-0 px-0 ${TYPE_STYLES[row.type]??""}`}>{row.type}</Badge></td>
+                      <td className="py-2 px-3 text-end whitespace-nowrap tabular-nums">{row.debit > 0 ? fmtNum(row.debit) : <span className="text-muted-foreground">—</span>}</td>
+                      <td className="py-2 px-3 text-end whitespace-nowrap tabular-nums">{row.credit > 0 ? fmtNum(row.credit) : <span className="text-muted-foreground">—</span>}</td>
                     </tr>
-                  </Fragment>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className={`font-bold text-sm ${data.balanced ? "text-positive" : "text-negative"}`}>
-                  <td className="py-4 pe-4 ps-2 uppercase tracking-wide">{t("Total", "الإجمالي")}</td>
-                  <td />
-                  <td className="py-4 pe-4 text-end font-mono text-base">{fmtNum(data.totalDebit)}</td>
-                  <td className="py-4 text-end font-mono text-base">{fmtNum(data.totalCredit)}</td>
-                </tr>
-              </tfoot>
-            </table></div>
-          </CardContent>
-        </Card>
+                  ))}
+                  <tr className="border-t border-border font-semibold">
+                    <td className="py-2.5 px-3">{t("Subtotal", "المجموع الفرعي")} — <span className="capitalize">{type}</span></td>
+                    <td />
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(byType[type].reduce((s,r)=>s+r.debit,0))}</td>
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(byType[type].reduce((s,r)=>s+r.credit,0))}</td>
+                  </tr>
+                </Fragment>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className={`font-semibold ${data.balanced ? "text-positive" : "text-negative"}`}>
+                <td className="py-3.5 px-3">{t("Total", "الإجمالي")}</td>
+                <td />
+                <td className="py-3.5 px-3 text-end whitespace-nowrap tabular-nums text-base">{fmtNum(data.totalDebit)}</td>
+                <td className="py-3.5 px-3 text-end whitespace-nowrap tabular-nums text-base">{fmtNum(data.totalCredit)}</td>
+              </tr>
+            </tfoot>
+          </table></div>
+        </Panel>
       )}
     </div>
   );

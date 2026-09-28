@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useUploadTransactions } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, FilterTabs } from "@/components/kit";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -292,16 +292,13 @@ export default function Upload() {
 
   /* ── render ─────────────────────────────────────────────────────────── */
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-6xl">
       {/* header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <UploadCloud className="w-6 h-6 text-primary" /> {t("Data Import", "استيراد البيانات")}
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Upload CSV or Excel, paste data, or enter rows manually.", "ارفع ملف CSV أو Excel، أو الصق البيانات، أو أدخل الصفوف يدوياً.")}</p>
-        </div>
-        {/* template downloads */}
+      <PageHeader
+        title={t("Data Import", "استيراد البيانات")}
+        description={t("Upload CSV or Excel, paste data, or enter rows manually.", "ارفع ملف CSV أو Excel، أو الصق البيانات، أو أدخل الصفوف يدوياً.")}
+        actions={
+        /* template downloads */
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={downloadCsvTemplate}>
             <Download className="w-3.5 h-3.5" /> {t("CSV Template", "قالب CSV")}
@@ -310,17 +307,18 @@ export default function Upload() {
             <Download className="w-3.5 h-3.5" /><FileSpreadsheet className="w-3.5 h-3.5" /> {t("Excel Template", "قالب Excel")}
           </Button>
         </div>
-      </div>
+        }
+      />
 
       {/* import settings */}
-      <div className="flex items-center justify-between p-4 rounded-lg bg-card border gap-6">
+      <Panel bodyClassName="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
         <div>
           <Label className="font-medium">{t("Auto-categorise on import", "تصنيف تلقائي عند الاستيراد")}</Label>
-          <p className="text-xs text-muted-foreground mt-0.5">{t("Runs the categorisation engine immediately after upload.", "يُشغّل محرك التصنيف فور الرفع.")}</p>
+          <p className="text-[13px] text-muted-foreground mt-0.5">{t("Runs the categorisation engine immediately after upload.", "يُشغّل محرك التصنيف فور الرفع.")}</p>
         </div>
         <div className="flex items-center gap-6">
-          <div className="w-56">
-            <Label className="text-xs text-muted-foreground">{t("Bank account * (which account is this statement for?)", "الحساب البنكي * (لأي حساب هذا الكشف؟)")}</Label>
+          <div className="w-full sm:w-64">
+            <Label className="text-[13px] text-muted-foreground">{t("Bank account * (which account is this statement for?)", "الحساب البنكي * (لأي حساب هذا الكشف؟)")}</Label>
             <Select value={bankAccountId} onValueChange={setBankAccountId}>
               <SelectTrigger className="h-9 mt-1" data-testid="upload-bank-account">
                 <SelectValue placeholder={t("Choose an account", "اختر حسابًا")} />
@@ -336,35 +334,31 @@ export default function Upload() {
           </div>
           <Switch checked={autoCategorize} onCheckedChange={setAutoCategorize} />
         </div>
-      </div>
+      </Panel>
 
       {/* Phase 12A — what the last FILE import recorded, and how it follows the one before. */}
       {lastStatement && (
-        <div className="rounded-lg border border-border p-3 text-sm flex flex-wrap items-center gap-3" data-testid="upload-statement-recorded">
+        <div className="rounded-lg border border-positive/30 bg-positive-surface/10 px-5 py-3 text-sm flex flex-wrap items-center gap-3" data-testid="upload-statement-recorded">
           <span className="font-medium">{t("Statement recorded", "سُجِّل الكشف")} #{lastStatement.id}</span>
-          <span className="font-mono text-xs" dir="ltr">{lastStatement.periodFrom} → {lastStatement.periodTo}</span>
-          <span className="text-xs text-muted-foreground">{t("lines imported", "أسطر مستوردة")}: <span dir="ltr">{lastStatement.importedCount} / {lastStatement.lineCount}</span></span>
-          <Badge variant="outline" className="text-[10px]" data-testid="upload-statement-continuity">{t(CONTINUITY[lastStatement.continuity as BankStatementContinuity]?.en ?? lastStatement.continuity, CONTINUITY[lastStatement.continuity as BankStatementContinuity]?.ar ?? lastStatement.continuity)}</Badge>
-          <Link href="/bank-statements" className="text-xs text-primary underline">{t("All statements", "كل الكشوف")}</Link>
+          <span className="tabular-nums text-[13px]" dir="ltr">{lastStatement.periodFrom} → {lastStatement.periodTo}</span>
+          <span className="text-[13px] text-muted-foreground">{t("lines imported", "أسطر مستوردة")}: <span dir="ltr">{lastStatement.importedCount} / {lastStatement.lineCount}</span></span>
+          <Badge variant="outline" className="text-[11px] font-normal" data-testid="upload-statement-continuity">{t(CONTINUITY[lastStatement.continuity as BankStatementContinuity]?.en ?? lastStatement.continuity, CONTINUITY[lastStatement.continuity as BankStatementContinuity]?.ar ?? lastStatement.continuity)}</Badge>
+          <Link href="/bank-statements" className="text-[13px] text-primary hover:underline">{t("All statements", "كل الكشوف")}</Link>
         </div>
       )}
 
       {/* tab bar */}
-      <Card>
-        <CardHeader className="border-b bg-secondary/20 pb-0 pt-4 px-6">
-          <div className="flex gap-6">
-            {(["file", "paste", "manual"] as Tab[]).map(tabKey => (
-              <button key={tabKey} onClick={() => setTab(tabKey)}
-                className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors capitalize ${
-                  tab === tabKey ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}>
-                {tabKey === "file" ? t("File Upload", "رفع ملف") : tabKey === "paste" ? t("Paste CSV", "لصق CSV") : t("Manual Entry", "إدخال يدوي")}
-              </button>
-            ))}
-          </div>
-        </CardHeader>
+      <Panel flush>
+        <FilterTabs
+          value={tab}
+          onChange={(v) => setTab(v as Tab)}
+          options={(["file", "paste", "manual"] as Tab[]).map(tabKey => ({
+            value: tabKey,
+            label: tabKey === "file" ? t("File Upload", "رفع ملف") : tabKey === "paste" ? t("Paste CSV", "لصق CSV") : t("Manual Entry", "إدخال يدوي"),
+          }))}
+        />
 
-        <CardContent className="pt-6">
+        <div className="p-5">
 
           {/* ── FILE UPLOAD TAB ────────────────────────────────────────── */}
           {tab === "file" && (
@@ -374,14 +368,14 @@ export default function Upload() {
                 <div
                   onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`relative flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed cursor-pointer transition-all py-16 px-8
+                  className={`relative flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed cursor-pointer transition-colors py-14 px-8
                     ${dragging
-                      ? "border-primary bg-primary/5 scale-[1.01]"
-                      : "border-border hover:border-primary/50 hover:bg-secondary/30"}`}
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/50 hover:bg-muted/40"}`}
                 >
                   <input ref={fileInputRef} type="file" accept=".csv,.xls,.xlsx,.txt" className="hidden" onChange={onFileChange} />
-                  <div className={`p-4 rounded-full transition-colors ${dragging ? "bg-primary/20" : "bg-secondary"}`}>
-                    <UploadCloud className={`w-10 h-10 transition-colors ${dragging ? "text-primary" : "text-muted-foreground"}`} />
+                  <div className={`p-3 rounded-full transition-colors ${dragging ? "bg-primary/20" : "bg-accent"}`}>
+                    <UploadCloud className={`w-7 h-7 transition-colors ${dragging ? "text-primary" : "text-muted-foreground"}`} />
                   </div>
                   <div className="text-center">
                     <p className="font-semibold text-foreground">
@@ -391,7 +385,7 @@ export default function Upload() {
                   </div>
                   <div className="flex gap-2">
                     {[".csv", ".xlsx", ".xls"].map(ext => (
-                      <span key={ext} className="text-xs font-mono px-2 py-0.5 rounded bg-secondary text-muted-foreground border border-border">{ext}</span>
+                      <span key={ext} dir="ltr" className="text-[12px] px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">{ext}</span>
                     ))}
                   </div>
                 </div>
@@ -401,7 +395,7 @@ export default function Upload() {
               {preview.length > 0 && (
                 <div className="space-y-4">
                   {/* file info bar */}
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/40 border border-border">
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg bg-muted/50 border border-border">
                     <div className="flex items-center gap-3">
                       <File className="w-4 h-4 text-primary" />
                       <span className="text-sm font-medium text-foreground">{fileName}</span>
@@ -417,30 +411,30 @@ export default function Upload() {
                   <div className="rounded-lg border border-border overflow-hidden">
                     <div className="overflow-x-auto max-h-80 overflow-y-auto">
                       <table className="w-full text-sm">
-                        <thead className="sticky top-0 bg-secondary border-b border-border">
-                          <tr>
+                        <thead className="sticky top-0 z-10">
+                          <tr className="border-b border-border">
                             {[t("Status", "الحالة"), t("Date", "التاريخ"), t("Description", "الوصف"), t("Amount", "المبلغ"), t("Type", "النوع"), t("Currency", "العملة")].map(h => (
-                              <th key={h} className="text-start px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</th>
+                              <th key={h} className={`${h === t("Amount", "المبلغ") ? "text-end" : "text-start"} px-3`}>{h}</th>
                             ))}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-border/50">
+                        <tbody>
                           {preview.map((row, i) => (
-                            <tr key={i} className={`transition-colors ${row._error ? "bg-negative-surface/5" : "hover:bg-secondary/30"}`}>
-                              <td className="px-3 py-2">
+                            <tr key={i} className={`border-b border-border/70 last:border-0 transition-colors ${row._error ? "bg-negative-surface/10" : "hover:bg-muted/40"}`}>
+                              <td className="px-3 py-2.5">
                                 {row._error
                                   ? <span title={row._error}><XCircle className="w-4 h-4 text-negative" /></span>
                                   : <CheckCircle2 className="w-4 h-4 text-positive" />}
                               </td>
-                              <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{row.date || "—"}</td>
-                              <td className="px-3 py-2 max-w-xs truncate" title={row.description}>{row.description || <span className="text-muted-foreground italic">{t("empty", "فارغ")}</span>}</td>
-                              <td className="px-3 py-2 font-mono text-end tabular-nums">{row.amount > 0 ? row.amount.toLocaleString("en-SA", { minimumFractionDigits: 2 }) : "—"}</td>
-                              <td className="px-3 py-2">
-                                <span className={`text-xs font-medium ${row.type === "credit" ? "text-positive" : "text-negative"}`}>
+                              <td className="px-3 py-2.5 tabular-nums text-muted-foreground whitespace-nowrap">{row.date || "—"}</td>
+                              <td className="px-3 py-2.5 max-w-xs truncate" title={row.description}>{row.description || <span className="text-muted-foreground italic">{t("empty", "فارغ")}</span>}</td>
+                              <td className="px-3 py-2.5 text-end whitespace-nowrap tabular-nums">{row.amount > 0 ? row.amount.toLocaleString("en-SA", { minimumFractionDigits: 2 }) : "—"}</td>
+                              <td className="px-3 py-2.5">
+                                <span className={`text-[13px] font-medium capitalize ${row.type === "credit" ? "text-positive" : "text-negative"}`}>
                                   {row.type}
                                 </span>
                               </td>
-                              <td className="px-3 py-2 text-xs text-muted-foreground">{row.currency}</td>
+                              <td className="px-3 py-2.5 text-[13px] text-muted-foreground">{row.currency}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -449,7 +443,7 @@ export default function Upload() {
                   </div>
 
                   {errorCount > 0 && (
-                    <p className="text-xs text-negative" data-testid="upload-file-has-errors">
+                    <p className="text-[13px] text-negative" data-testid="upload-file-has-errors">
                       <span className="font-medium">{errorCount} {t("rows", "صفوف")}</span> {t("could not be read. A statement is imported whole, so nothing will be imported until the file is fixed.", "تعذّرت قراءتها. يُستورد الكشف كاملًا، فلن يُستورد شيء حتى يُصحَّح الملف.")}
                     </p>
                   )}
@@ -457,15 +451,15 @@ export default function Upload() {
                   {/* Phase 12A — what the bank printed, optional. When given, the server
                       refuses a file whose lines do not add up to it. */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-border p-3">
-                    <p className="sm:col-span-2 text-xs text-muted-foreground">
+                    <p className="sm:col-span-2 text-[13px] text-muted-foreground">
                       {t("Statement balances (optional) — as printed by the bank. The file must add up to them, or nothing is imported.", "أرصدة الكشف (اختياري) — كما يطبعها البنك. يجب أن تطابقها أسطر الملف، وإلا لا يُستورد شيء.")}
                     </p>
                     <div>
-                      <Label className="text-xs text-muted-foreground" htmlFor="stmt-opening">{t("Opening balance", "الرصيد الافتتاحي")}</Label>
+                      <Label className="text-[13px] text-muted-foreground" htmlFor="stmt-opening">{t("Opening balance", "الرصيد الافتتاحي")}</Label>
                       <Input id="stmt-opening" type="number" step="0.01" dir="ltr" className="h-9 mt-1" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} data-testid="upload-opening-balance" />
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground" htmlFor="stmt-closing">{t("Closing balance", "الرصيد الختامي")}</Label>
+                      <Label className="text-[13px] text-muted-foreground" htmlFor="stmt-closing">{t("Closing balance", "الرصيد الختامي")}</Label>
                       <Input id="stmt-closing" type="number" step="0.01" dir="ltr" className="h-9 mt-1" value={closingBalance} onChange={(e) => setClosingBalance(e.target.value)} data-testid="upload-closing-balance" />
                     </div>
                   </div>
@@ -488,12 +482,12 @@ export default function Upload() {
           {/* ── PASTE CSV TAB ───────────────────────────────────────────── */}
           {tab === "paste" && (
             <div className="space-y-4">
-              <div className="bg-secondary/40 p-4 rounded-lg border border-border text-sm font-mono text-muted-foreground flex gap-3 items-start">
+              <div className="bg-muted/50 p-4 rounded-lg border border-border text-sm text-muted-foreground flex gap-3 items-start">
                 <FileText className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-foreground mb-2 font-sans font-semibold text-sm">{t("Accepted formats", "الصيغ المقبولة")}</p>
-                  <p className="text-xs">{t("With header:", "مع رأس:")}&nbsp;&nbsp; <span className="text-foreground">date, description, amount, type, currency</span></p>
-                  <p className="text-xs mt-1">{t("Without header:", "بدون رأس:")} <span className="text-foreground">2026-01-01, Office Supplies, 1500.50, debit, SAR</span></p>
+                  <p className="text-foreground mb-2 font-medium text-sm">{t("Accepted formats", "الصيغ المقبولة")}</p>
+                  <p className="text-[13px]">{t("With header:", "مع رأس:")}&nbsp;&nbsp; <span className="text-foreground font-mono" dir="ltr">date, description, amount, type, currency</span></p>
+                  <p className="text-[13px] mt-1">{t("Without header:", "بدون رأس:")} <span className="text-foreground font-mono" dir="ltr">2026-01-01, Office Supplies, 1500.50, debit, SAR</span></p>
                 </div>
               </div>
               <Textarea
@@ -516,7 +510,7 @@ export default function Upload() {
             <div className="space-y-4">
               <div className="space-y-2">
                 {manualRows.map((row, idx) => (
-                  <div key={idx} className="flex gap-2 items-center bg-secondary/20 p-3 rounded-lg border border-border group">
+                  <div key={idx} className="flex gap-2 items-center bg-muted/40 p-3 rounded-lg border border-border group">
                     <div className="flex-1 grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-2">
                         <Input type="date" value={row.date} className="h-8 text-sm"
@@ -527,7 +521,7 @@ export default function Upload() {
                           onChange={e => { const r = [...manualRows]; r[idx].description = e.target.value; setManualRows(r); }} />
                       </div>
                       <div className="col-span-3">
-                        <Input type="number" step="0.01" placeholder={t("Amount", "المبلغ")} value={row.amount} className="h-8 text-sm font-mono"
+                        <Input type="number" step="0.01" placeholder={t("Amount", "المبلغ")} value={row.amount} className="h-8 text-sm tabular-nums"
                           onChange={e => { const r = [...manualRows]; r[idx].amount = e.target.value; setManualRows(r); }} />
                       </div>
                       <div className="col-span-2">
@@ -561,16 +555,12 @@ export default function Upload() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {/* format reference card */}
-      <Card className="border-border bg-card/50">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm text-muted-foreground font-medium">{t("Column Reference", "مرجع الأعمدة")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <Panel title={t("Column Reference", "مرجع الأعمدة")}>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
               { col: "date", format: t("YYYY-MM-DD", "YYYY-MM-DD"), req: true },
               { col: "description", format: t("Free text", "نص حر"), req: true },
@@ -580,15 +570,14 @@ export default function Upload() {
             ].map(({ col, format, req }) => (
               <div key={col} className="space-y-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-mono font-semibold text-foreground">{col}</span>
+                  <span className="text-[13px] font-mono font-medium text-foreground">{col}</span>
                   {req && <span className="text-negative text-xs">*</span>}
                 </div>
-                <p className="text-xs text-muted-foreground">{format}</p>
+                <p className="text-[12px] text-muted-foreground">{format}</p>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel } from "@/components/kit";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CheckCircle2, ExternalLink, History, Lock, Undo2, Trash2 } from "lucide-react";
 import { summariseChecks } from "@/lib/migrationImport";
@@ -88,9 +88,7 @@ export function CommitSection({ batch, companyName }: { batch: MigrationBatchDet
             <p className="text-xs text-muted-foreground">{t("Staging is frozen. A committed migration is corrected by reversal and a corrected re-run — never by editing.", "التجهيز مجمَّد. يُصحَّح الترحيل المعتمد بالعكس وإعادة تشغيل مصحَّحة — لا بالتعديل أبدًا.")}</p>
           </div>
         </div>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><History className="w-4 h-4" />{t("Committed state", "الحالة المعتمدة")}</CardTitle></CardHeader>
-          <CardContent>
+        <Panel title={<span className="inline-flex items-center gap-2"><History className="w-4 h-4" />{t("Committed state", "الحالة المعتمدة")}</span>}>
             <Facts items={[
               [t("Migration batch", "دفعة الترحيل"), <span key="id" className="font-mono">#{batch.id}</span>],
               [t("Company", "الشركة"), companyName],
@@ -100,33 +98,27 @@ export function CommitSection({ batch, companyName }: { batch: MigrationBatchDet
               [t("Opening journal", "قيد الافتتاح"), batch.openingJournalEntryId != null ? <Link key="je" href={`/journal-entries?entry=${batch.openingJournalEntryId}`} className="text-primary inline-flex items-center gap-1" data-testid="link-opening-journal">MIG-{batch.id}-OPEN · #{batch.openingJournalEntryId}<ExternalLink className="w-3 h-3" /></Link> : "—"],
               [t("Period lock", "قفل الفترة"), batch.periodLockId != null ? <span key="pl" className="inline-flex items-center gap-1"><Lock className="w-3 h-3" />{t(`opening month locked (lock #${batch.periodLockId})`, `شهر الافتتاح مقفل (قفل #${batch.periodLockId})`)}</span> : batch.status === "reversed" ? t("lifted by the reversal", "رُفع بالعكس") : "—"],
               [t("Source", "المصدر"), `${batch.sourceSystem}${batch.sourceVersion ? ` ${batch.sourceVersion}` : ""} · ${t("cut-over", "القطع")} ${batch.cutoverDate}`],
-              [t("Content hash", "تجزئة المحتوى"), <span key="h" className="font-mono text-[11px] break-all" dir="ltr">{batch.contentHash ?? "—"}</span>],
+              [t("Content hash", "تجزئة المحتوى"), <span key="h" className="font-mono text-[12px] break-all" dir="ltr">{batch.contentHash ?? "—"}</span>],
               [t("Replaces batch", "يستبدل الدفعة"), batch.replacesBatchId != null ? `#${batch.replacesBatchId}` : t("no (first migration)", "لا (ترحيل أول)")],
               ...(batch.status === "reversed" ? [[t("Reversed at", "وقت العكس"), fmtTs(batch.reversedAt)] as [string, React.ReactNode], [t("Reversal journal", "قيد العكس"), batch.reversalJournalEntryId != null ? <Link key="rj" href={`/journal-entries?entry=${batch.reversalJournalEntryId}`} className="text-primary">#{batch.reversalJournalEntryId}</Link> : "—"] as [string, React.ReactNode], [t("Reason", "السبب"), batch.reversalReason ?? "—"] as [string, React.ReactNode]] : []),
             ]} />
-          </CardContent>
-        </Card>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="created-counts">
+          </Panel>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px overflow-hidden rounded-lg border border-border bg-border" data-testid="created-counts">
           {[[t("Customers", "العملاء"), counts.customers, "/customers"], [t("Suppliers", "الموردون"), counts.vendors, "/vendors"], [t("Opening receivables", "الذمم المدينة الافتتاحية"), counts.ar, "/invoices"], [t("Opening bills", "الفواتير الافتتاحية"), counts.ap, "/bills"], [t("Deposits", "الدفعات المقدمة"), counts.advances, "/payments"], [t("Bank accounts", "الحسابات البنكية"), counts.banks, "/bank-accounts"]].map(([l, v, href], i) => (
-            <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className="text-lg font-semibold font-mono">{v}</div><Link href={String(href)} className="text-xs text-primary">{t("Open →", "فتح ←")}</Link></CardContent></Card>
+            <div key={i} className="bg-card px-4 py-3.5 min-w-0"><div className="text-[13px] text-muted-foreground">{l}</div><div className="mt-1.5 text-[20px] leading-tight font-semibold tabular-nums">{v}</div><Link href={String(href)} className="mt-2 inline-block text-[12px] font-medium text-primary hover:underline">{t("Open →", "فتح ←")}</Link></div>
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
           {[["/journal-entries", t("Journal", "اليومية")], ["/ar-aging", t("AR aging", "أعمار الذمم المدينة")], ["/ap-aging", t("AP aging", "أعمار الذمم الدائنة")], ["/balance-sheet", t("Balance sheet", "الميزانية")], ["/trial-balance", t("Trial balance", "ميزان المراجعة")], ["/reports", t("Reports", "التقارير")]].map(([href, l]) => (
-            <Link key={href} href={href} className="inline-flex items-center gap-1 text-xs h-8 px-3 rounded-md border border-border hover:bg-secondary/60">{l}<ExternalLink className="w-3 h-3" /></Link>
+            <Link key={href} href={href} className="inline-flex items-center gap-1 text-[13px] h-8 px-3 rounded-md border border-border bg-card hover:bg-muted">{l}<ExternalLink className="w-3 h-3" /></Link>
           ))}
         </div>
         {rec && (
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm">{t("Reconciliation at commit", "المطابقة عند الاعتماد")} · {recS?.passed}/{rec.checks.length} {t("passed", "ناجح")}</CardTitle></CardHeader>
-            <CardContent><div className="flex flex-wrap gap-2">{rec.checks.map((c) => <span key={c.id} className="inline-flex items-center gap-1 text-xs"><VerdictBadge check={c} /><span className="font-mono">{c.id}</span></span>)}</div><Button variant="link" size="sm" className="px-0 text-xs" onClick={() => go("reconciliation")}>{t("Read every gate", "قراءة كل بوابة")}</Button></CardContent>
-          </Card>
+          <Panel title={<span className="inline-flex items-center gap-2">{t("Reconciliation at commit", "المطابقة عند الاعتماد")} · {recS?.passed}/{rec.checks.length} {t("passed", "ناجح")}</span>}><div className="flex flex-wrap gap-2">{rec.checks.map((c) => <span key={c.id} className="inline-flex items-center gap-1 text-xs"><VerdictBadge check={c} /><span className="font-mono">{c.id}</span></span>)}</div><Button variant="link" size="sm" className="px-0 text-xs" onClick={() => go("reconciliation")}>{t("Read every gate", "قراءة كل بوابة")}</Button></Panel>
         )}
 
         {batch.status === "committed" && (
-          <Card className="border-attention/40">
-            <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Undo2 className="w-4 h-4" />{t("Reverse this migration (Policy C)", "عكس هذا الترحيل (السياسة C)")}</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm">
+          <Panel className="border-attention/40" title={<span className="inline-flex items-center gap-2"><Undo2 className="w-4 h-4" />{t("Reverse this migration (Policy C)", "عكس هذا الترحيل (السياسة C)")}</span>} bodyClassName="space-y-3 text-sm">
               <p className="text-xs text-muted-foreground">{t("A reversal posts a mirror of the opening journal, MARKS every opening receivable, bill and deposit reversed (nothing is deleted; their numbers stay occupied), reopens the opening month and keeps the customers, suppliers and accounts it created. A corrected re-run then creates REPLACEMENT items with new OPEN-<batch>-<n> numbers. It is refused while anything has touched what the commit created.", "يُرحّل العكس قيدًا عاكسًا لقيد الافتتاح، ويسم كل ذمة مدينة وفاتورة ودفعة مقدمة افتتاحية بأنها معكوسة (لا يُحذف شيء؛ وتبقى أرقامها مشغولة)، ويعيد فتح شهر الافتتاح، ويحتفظ بالعملاء والموردين والحسابات التي أنشأها. ثم تُنشئ إعادة التشغيل المصحَّحة بنودًا بديلة بأرقام OPEN-<batch>-<n> جديدة. يُرفض ما دام أي شيء قد مسّ ما أنشأه الاعتماد.")}</p>
               <MigrationPermissionHint />
               {preview && (
@@ -144,8 +136,7 @@ export function CommitSection({ batch, companyName }: { batch: MigrationBatchDet
                 </div>
               )}
               {canRun && <Button variant="outline" size="sm" className="text-attention" disabled={!preview || preview.blockers.length > 0} onClick={() => setReversing(true)} data-testid="open-reverse">{t("Reverse…", "عكس…")}</Button>}
-            </CardContent>
-          </Card>
+            </Panel>
         )}
 
         <Dialog open={reversing} onOpenChange={(o) => !o && setReversing(false)}>
@@ -173,13 +164,11 @@ export function CommitSection({ batch, companyName }: { batch: MigrationBatchDet
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">{t("Commit the migration", "اعتماد الترحيل")}</h2>
-        <p className="text-sm text-muted-foreground">{t("One transaction: the opening journal through the posting seam, the opening receivables and bills, the deposits, the bank opening state, the lock on the opening month — then R1–R10 on what was posted, or nothing at all.", "معاملة واحدة: قيد الافتتاح عبر مسار الترحيل، والذمم والفواتير الافتتاحية، والدفعات المقدمة، وحالة البنوك الافتتاحية، وقفل شهر الافتتاح — ثم R1–R10 على ما رُحّل، أو لا شيء على الإطلاق.")}</p>
+        <h2 className="text-base font-semibold text-foreground">{t("Commit the migration", "اعتماد الترحيل")}</h2>
+        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground max-w-[80ch]">{t("One transaction: the opening journal through the posting seam, the opening receivables and bills, the deposits, the bank opening state, the lock on the opening month — then R1–R10 on what was posted, or nothing at all.", "معاملة واحدة: قيد الافتتاح عبر مسار الترحيل، والذمم والفواتير الافتتاحية، والدفعات المقدمة، وحالة البنوك الافتتاحية، وقفل شهر الافتتاح — ثم R1–R10 على ما رُحّل، أو لا شيء على الإطلاق.")}</p>
       </div>
       <MigrationPermissionHint />
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">{t("What will be committed", "ما سيُعتمد")}</CardTitle></CardHeader>
-        <CardContent>
+      <Panel title={<span className="inline-flex items-center gap-2">{t("What will be committed", "ما سيُعتمد")}</span>}>
           <Facts items={[
             [t("Company", "الشركة"), companyName],
             [t("Opening date", "تاريخ الافتتاح"), <span key="od" dir="ltr">{batch.openingDate}</span>],
@@ -197,8 +186,7 @@ export function CommitSection({ batch, companyName }: { batch: MigrationBatchDet
           ]} />
           {s && s.blocking > 0 && <ul className="text-xs text-negative mt-3 list-disc ps-4" data-testid="commit-blockers">{validation!.checks.filter((c) => c.status === "fail").map((c) => <li key={c.id}>{c.id} — {c.detail}</li>)}</ul>}
           {s && s.warnings > 0 && <ul className="text-xs text-attention mt-2 list-disc ps-4">{validation!.checks.filter((c) => c.status === "warn").map((c) => <li key={c.id}>{c.id} — {c.detail}</li>)}</ul>}
-        </CardContent>
-      </Card>
+        </Panel>
       <div className="rounded-md border border-attention/40 bg-attention-surface/10 p-3 text-sm" data-testid="commit-statement">
         {t("Committing this migration creates accounting records and cannot be undone by editing the staging data.", "يُنشئ اعتماد هذا الترحيل سجلات محاسبية ولا يمكن التراجع عنه بتعديل بيانات التجهيز.")}
       </div>

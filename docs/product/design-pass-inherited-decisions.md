@@ -130,7 +130,20 @@ the block should go, along with the token duplication.
 Either way it is one decision, made once, by whoever owns the palette — not a
 tidy-up.
 
-### What the design pass must decide
+### 🔴 Decided (2026-09-28, design pass on branch `design/teal-ledger-redesign`)
+
+**Yes, there is a light theme, and it is the default.** `:root` is now the
+LIGHT palette (white working surface) and `.dark` the dark one; the class is
+written by `contexts/ThemeContext.tsx` (key `ksa_theme`, absent = light) and,
+before first paint, by a second tiny script in `index.html`. The sidebar is
+the owner's teal `#18848e` in light, `#0f4f55` in dark. The semantic state
+tokens became theme-aware (they were fixed dark-page shades that fall under
+3:1 on white). D-1 (vendored `components/ui/**`) and D-3 (numeric alignment
+in RTL) are NOT decided by this pass — one exception: `card.tsx`'s
+`CardTitle` hard-coded `text-white`, which made every card title invisible on
+a light page, and was changed to `text-card-foreground`.
+
+### What the design pass had to decide (kept for the record)
 
 1. **Is there a light theme?** If yes, `:root` and `.dark` swap roles and a
    toggle needs a home (and a persistence story).

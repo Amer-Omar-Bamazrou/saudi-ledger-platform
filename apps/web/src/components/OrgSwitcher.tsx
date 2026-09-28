@@ -53,7 +53,7 @@ export function OrgSwitcher() {
   return (
     <select
       aria-label={t("Active organization", "المنشأة النشطة")}
-      className="w-full text-xs border border-border rounded px-1.5 py-1 bg-background text-foreground"
+      className="w-full h-8 text-xs rounded-md px-2 bg-sidebar-foreground/10 border border-sidebar-foreground/20 text-sidebar-foreground outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring [&>option]:bg-popover [&>option]:text-popover-foreground"
       value={activeOrgId ?? ""}
       disabled={busy}
       onChange={(e) => onChange(e.target.value)}

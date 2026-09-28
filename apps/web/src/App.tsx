@@ -11,6 +11,7 @@ import { DemoBanner } from '@/components/DemoBanner';
 import { PeriodClosedDialog } from '@/components/PeriodClosedDialog';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 import Login from '@/pages/Login';
 import ComingSoon from '@/pages/ComingSoon';
@@ -306,6 +307,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <LanguageProvider>
@@ -325,6 +327,7 @@ function App() {
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

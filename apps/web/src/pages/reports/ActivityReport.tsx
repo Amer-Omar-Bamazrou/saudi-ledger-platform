@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,80 +50,71 @@ export default function ActivityReport() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Activity Report", "تقرير النشاط")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("All journal entry activity — posted, draft, and reversed", "كل نشاط قيود اليومية — المرحّلة والمسودات والمعكوسة")}</p>
-        </div>
-      </div>
+      <PageHeader
+        title={t("Activity Report", "تقرير النشاط")}
+        description={t("All journal entry activity — posted, draft, and reversed", "كل نشاط قيود اليومية — المرحّلة والمسودات والمعكوسة")}
+      />
 
-      <Card className="border-border bg-card">
-        <CardContent className="pt-4">
-          <div className="flex items-end gap-4">
-            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
-          </div>
-          <div className="mt-3">
-            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
-          </div>
-        </CardContent>
-      </Card>
+      <Panel>
+        <div className="flex flex-wrap items-end gap-3">
+          <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
+        </div>
+        <div className="mt-3">
+          <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
+        </div>
+      </Panel>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          {[
-            [t("Total Entries", "إجمالي القيود"), data.count, "text-primary"],
-            [t("Posted", "مرحّلة"), data.hasPosted, "text-positive"],
-            [t("Draft", "مسودات"), data.hasDraft, "text-muted-foreground"],
-          ].map(([l, v, c]) => (
-            <Card key={String(l)} className="border-border bg-card">
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
-            </Card>
-          ))}
-        </div>
+        <StatStrip cols={3}>
+          <Stat label={t("Total Entries", "إجمالي القيود")} value={data.count} />
+          <Stat label={t("Posted", "مرحّلة")} value={data.hasPosted} />
+          <Stat label={t("Draft", "مسودات")} value={data.hasDraft} />
+        </StatStrip>
       )}
 
       {isLoading ? (
         <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
       ) : !data || data.activities.length === 0 ? (
-        <Card className="border-border bg-card">
-          <CardContent className="pt-6">
-            <div className="text-center py-16 text-muted-foreground">
-              <Activity className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">{t("No journal activity in this period.", "لا يوجد نشاط قيود في هذه الفترة.")}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <Panel>
+          <EmptyState icon={Activity} title={t("No journal activity in this period.", "لا يوجد نشاط قيود في هذه الفترة.")} />
+        </Panel>
       ) : (
-        <Card className="border-border bg-card">
-          <CardContent className="pt-6">
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {[t("Entry #", "رقم القيد"), t("Date", "التاريخ"), t("Description", "الوصف"), t("Reference", "المرجع"), t("Lines", "السطور"), t("Total", "الإجمالي"), t("Accounts", "الحسابات"), t("Status", "الحالة")].map(h => (
-                    <th key={h} className="text-start pb-2.5 pe-4 font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.activities.map(a => (
-                  <tr key={a.id} className="border-b border-border/30 hover:bg-secondary/10">
-                    <td className="py-2.5 pe-4 font-mono text-xs text-primary">{a.entryNumber}</td>
-                    <td className="py-2.5 pe-4 text-xs text-muted-foreground whitespace-nowrap"><DualDate date={a.date} /></td>
-                    <td className="py-2.5 pe-4 text-xs max-w-48 truncate">{a.description}</td>
-                    <td className="py-2.5 pe-4 text-xs text-muted-foreground">{a.reference ?? "—"}</td>
-                    <td className="py-2.5 pe-4 text-xs font-mono">{a.lineCount}</td>
-                    <td className="py-2.5 pe-4 font-mono text-xs">{fmtNum(a.totalDebit)}</td>
-                    <td className="py-2.5 pe-4 text-xs text-muted-foreground max-w-40 truncate">{a.accounts.join(", ")}</td>
-                    <td className="py-2.5"><Badge className={`text-xs ${STATUS_STYLES[a.status] ?? ""}`}>{STATUS_LABELS[a.status] ?? a.status}</Badge></td>
-                  </tr>
+        <Panel flush>
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                {([
+                  [t("Entry #", "رقم القيد"), false],
+                  [t("Date", "التاريخ"), false],
+                  [t("Description", "الوصف"), false],
+                  [t("Reference", "المرجع"), false],
+                  [t("Lines", "السطور"), true],
+                  [t("Total", "الإجمالي"), true],
+                  [t("Accounts", "الحسابات"), false],
+                  [t("Status", "الحالة"), false],
+                ] as const).map(([h, num]) => (
+                  <th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
                 ))}
-              </tbody>
-            </table></div>
-          </CardContent>
-        </Card>
+              </tr>
+            </thead>
+            <tbody>
+              {data.activities.map(a => (
+                <tr key={a.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                  <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">{a.entryNumber}</td>
+                  <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={a.date} /></td>
+                  <td className="py-3 px-3 max-w-56 truncate">{a.description}</td>
+                  <td className="py-3 px-3 text-muted-foreground">{a.reference ?? "—"}</td>
+                  <td className="py-3 px-3 text-end tabular-nums">{a.lineCount}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(a.totalDebit)}</td>
+                  <td className="py-3 px-3 text-muted-foreground max-w-48 truncate">{a.accounts.join(", ")}</td>
+                  <td className="py-3 px-3"><Badge className={`text-xs capitalize ${STATUS_STYLES[a.status] ?? ""}`}>{STATUS_LABELS[a.status] ?? a.status}</Badge></td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        </Panel>
       )}
     </div>
   );

@@ -20,12 +20,12 @@ export function FiscalRangeNotice({ source }: { source: RangeSource }) {
   if (source !== "rolling-undeclared") return null;
 
   return (
-    <p className="text-xs text-muted-foreground">
+    <p className="text-[13px] text-muted-foreground">
       {t(
         "Your financial year hasn't been set — showing the last 12 months. ",
         "لم تُحدَّد سنتك المالية — يُعرض آخر 12 شهراً. ",
       )}
-      <Link href="/company" className="underline hover:text-foreground">
+      <Link href="/company" className="text-primary underline-offset-2 hover:underline">
         {t("Set it in Company Settings", "حدِّدها في إعدادات الشركة")}
       </Link>
     </p>
@@ -39,5 +39,5 @@ export function FiscalRangeNotice({ source }: { source: RangeSource }) {
  */
 export function ReportRangeLoading() {
   const { t } = useLanguage();
-  return <p className="text-muted-foreground text-sm p-4">{t("Loading…", "جارٍ التحميل…")}</p>;
+  return <p className="text-muted-foreground text-sm py-4">{t("Loading…", "جارٍ التحميل…")}</p>;
 }

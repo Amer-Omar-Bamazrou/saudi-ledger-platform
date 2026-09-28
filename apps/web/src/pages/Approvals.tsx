@@ -22,7 +22,7 @@ import { apiFetch, fmtNum } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { statusLabel } from "@/lib/statusLabel";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -92,35 +92,36 @@ export default function Approvals() {
   });
 
   const Section = ({ title, entityKey, rows, canSubmit }: { title: string; entityKey: EntityKey; rows?: ApprovalPendingRow[]; canSubmit: boolean }) => (
-    <Card className="border-border bg-card">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
+    <Panel
+      flush
+      title={
+        <span className="inline-flex items-center gap-2">
           {title}
-          {rows && rows.length > 0 && <Badge variant="outline" className="font-mono text-xs">{rows.length}</Badge>}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+          {rows && rows.length > 0 && <span className="rounded bg-attention-surface/15 px-1.5 text-[12px] font-medium tabular-nums text-attention">{rows.length}</span>}
+        </span>
+      }
+    >
         {!rows || rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("Nothing pending.", "لا يوجد شيء قيد الانتظار.")}</p>
+          <EmptyState className="py-8" icon={ClipboardCheck} title={t("Nothing pending.", "لا يوجد شيء قيد الانتظار.")} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  <th className="text-start pb-2 pe-4 font-medium">#</th>
-                  <th className="text-start pb-2 pe-4 font-medium">{t("Status", "الحالة")}</th>
-                  <th className="text-end pb-2 pe-4 font-medium">{t("Amount", "المبلغ")}</th>
-                  <th className="text-start pb-2 font-medium">{t("Actions", "إجراءات")}</th>
+                <tr className="border-b border-border">
+                  <th className="text-start px-3">#</th>
+                  <th className="text-start px-3">{t("Status", "الحالة")}</th>
+                  <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+                  <th className="text-end px-3">{t("Actions", "إجراءات")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/50">
+              <tbody>
                 {rows.map((r) => (
-                  <tr key={r.id} data-row>
-                    <td className="py-2 pe-4 font-mono text-xs">{r.label}</td>
-                    <td className="py-2 pe-4"><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{statusLabel(r.status, lang)}</Badge></td>
-                    <td className="py-2 pe-4 text-end font-mono">{typeof r.amount === "number" ? fmtNum(r.amount) : "—"}</td>
-                    <td className="py-2">
-                      <div className="flex flex-wrap gap-1">
+                  <tr key={r.id} data-row className="border-b border-border/70 last:border-b-0 hover:bg-muted/40 transition-colors">
+                    <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">{r.label}</td>
+                    <td className="py-3 px-3"><Badge className={`text-xs capitalize ${STATUS_STYLES[r.status] ?? ""}`}>{statusLabel(r.status, lang)}</Badge></td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{typeof r.amount === "number" ? fmtNum(r.amount) : "—"}</td>
+                    <td className="py-3 px-3">
+                      <div className="flex flex-wrap justify-end gap-1">
                         {r.status === "draft" && canSubmit && (
                           <Button variant="outline" size="sm" className="h-7 text-xs" disabled={act.isPending} onClick={() => act.mutate({ key: entityKey, id: r.id, action: "submit" })}>{t("Submit", "إرسال")}</Button>
                         )}
@@ -137,21 +138,18 @@ export default function Approvals() {
             </table>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </Panel>
   );
 
   return (
-    <div className="space-y-4 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2"><ClipboardCheck className="w-6 h-6" />{t("Approvals", "الاعتمادات")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t(
+    <div className="space-y-6 max-w-5xl">
+      <PageHeader
+        title={t("Approvals", "الاعتمادات")}
+        description={t(
             "Pending drafts across all financial records. Submit is a bookkeeper action; approve / send-back / reject require approver authority (enforced by the server).",
             "المسودات المعلّقة في كل السجلات المالية. الإرسال إجراء لمُدخل البيانات؛ أما الاعتماد والإعادة والرفض فتتطلب صلاحية اعتماد (يفرضها الخادم).",
           )}
-        </p>
-      </div>
+      />
       {queue.isError && <p className="text-sm text-negative">{(queue.error as Error).message}</p>}
       {/* Journal entries have no submit stage — approved (posted) straight from draft. */}
       <Section title={t("Journal Entries", "قيود اليومية")} entityKey="journal-entries" rows={byEntity("journal-entries")} canSubmit={false} />

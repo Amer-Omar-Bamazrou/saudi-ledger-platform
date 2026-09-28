@@ -164,10 +164,10 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
               onDragOver={e => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={onDrop}
-              className={`flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed
-                transition-all py-10 px-6 select-none
+              className={`flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed
+                transition-colors py-10 px-6 select-none
                 ${dragging
-                  ? "border-primary bg-primary/5 scale-[1.01]"
+                  ? "border-primary bg-primary/5"
                   : "border-border"}`}
             >
               {/*
@@ -190,27 +190,29 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
               />
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
 
-              <div className={`p-4 rounded-full transition-colors ${dragging ? "bg-primary/20" : "bg-secondary"}`}>
-                <FileImage className={`w-10 h-10 transition-colors ${dragging ? "text-primary" : "text-muted-foreground"}`} />
+              <div className={`p-3 rounded-full transition-colors ${dragging ? "bg-primary/15" : "bg-accent"}`}>
+                <FileImage className={`w-7 h-7 transition-colors ${dragging ? "text-primary" : "text-accent-foreground"}`} />
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <Button size="lg" className="flex-1" onClick={() => cameraRef.current?.click()}>
+                <Button className="flex-1" onClick={() => cameraRef.current?.click()}>
                   <ScanLine className="w-4 h-4 me-2" />
-                  Photograph a receipt
+                  {t("Photograph a receipt", "صوّر إيصالًا")}
                 </Button>
-                <Button size="lg" variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}>
+                <Button variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}>
                   <UploadCloud className="w-4 h-4 me-2" />
-                  Choose a file
+                  {t("Choose a file", "اختر ملفًا")}
                 </Button>
               </div>
 
               <p className="text-sm text-muted-foreground text-center">
-                {dragging ? "Drop to scan" : "or drag an image here — JPEG, PNG, WEBP"}
+                {dragging ? t("Drop to scan", "أفلت للمسح") : t("or drag an image here — JPEG, PNG, WEBP", "أو اسحب صورة إلى هنا — JPEG أو PNG أو WEBP")}
               </p>
-              <p className="text-xs text-muted-foreground text-center max-w-xs">
-                A ZATCA QR code is read instantly and exactly. Otherwise text
-                recognition runs in your browser — the image is never uploaded.
+              <p className="text-[12px] text-muted-foreground text-center max-w-xs">
+                {t(
+                  "A ZATCA QR code is read instantly and exactly. Otherwise text recognition runs in your browser — the image is never uploaded.",
+                  "يُقرأ رمز QR الخاص بالهيئة فورًا وبدقة. وإلا فيجري التعرف على النص داخل متصفحك — ولا تُرفع الصورة أبدًا.",
+                )}
               </p>
             </div>
           )}
@@ -219,7 +221,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
           {phase === "loading" && (
             <div className="space-y-4">
               {preview && (
-                <div className="rounded-lg overflow-hidden border border-border max-h-48 flex items-center justify-center bg-secondary/20">
+                <div className="rounded-lg overflow-hidden border border-border max-h-48 flex items-center justify-center bg-muted/40">
                   <img src={preview} alt="receipt" className="max-h-48 object-contain" />
                 </div>
               )}
@@ -255,10 +257,10 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
           {/* ── result ───────────────────────────────────────────────────── */}
           {phase === "done" && result && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-2 gap-4">
                 {/* image thumbnail */}
                 {preview && (
-                  <div className="rounded-lg overflow-hidden border border-border bg-secondary/20 flex items-center justify-center max-h-52">
+                  <div className="rounded-lg overflow-hidden border border-border bg-muted/40 flex items-center justify-center max-h-52">
                     <img src={preview} alt="receipt" className="max-h-52 object-contain" />
                   </div>
                 )}
@@ -268,22 +270,22 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
                   <div className="flex items-center gap-2 text-sm font-medium text-positive">
                     <CheckCircle2 className="w-4 h-4" /> {t("Extracted fields", "الحقول المستخرجة")}
                   </div>
-                  <Field label="Vendor" value={result.vendorName || "—"} />
-                  <Field label="VAT Reg #" value={result.supplierVatNumber || "—"} />
-                  <Field label="Ref / Invoice #" value={result.vendorReference || "—"} />
-                  <Field label="Date" value={result.date || "—"} />
-                  <Field label="Subtotal" value={result.subtotal > 0 ? `SAR ${result.subtotal.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} />
-                  <Field label="VAT (15%)" value={result.vatAmount > 0 ? `SAR ${result.vatAmount.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} />
-                  <Field label="Total" value={result.total > 0 ? `SAR ${result.total.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} highlight />
+                  <Field label={t("Vendor", "المورد")} value={result.vendorName || "—"} />
+                  <Field label={t("VAT Reg #", "الرقم الضريبي")} value={result.supplierVatNumber || "—"} />
+                  <Field label={t("Ref / Invoice #", "المرجع / رقم الفاتورة")} value={result.vendorReference || "—"} />
+                  <Field label={t("Date", "التاريخ")} value={result.date || "—"} />
+                  <Field label={t("Subtotal", "المجموع الفرعي")} value={result.subtotal > 0 ? `SAR ${result.subtotal.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} />
+                  <Field label={t("VAT (15%)", "الضريبة (15%)")} value={result.vatAmount > 0 ? `SAR ${result.vatAmount.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} />
+                  <Field label={t("Total", "الإجمالي")} value={result.total > 0 ? `SAR ${result.total.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} highlight />
                 </div>
               </div>
 
               {/* raw text toggle */}
               <details className="rounded-lg border border-border overflow-hidden text-xs">
-                <summary className="px-3 py-2 cursor-pointer text-muted-foreground hover:bg-secondary/30 select-none">
+                <summary className="px-3 py-2 cursor-pointer text-muted-foreground hover:bg-muted/40 select-none">
                   {t("View raw OCR text", "عرض النص الخام")}
                 </summary>
-                <pre className="px-3 py-2 text-muted-foreground bg-secondary/20 whitespace-pre-wrap max-h-28 overflow-y-auto font-mono text-[11px]">
+                <pre className="px-3 py-2 text-muted-foreground bg-muted/40 whitespace-pre-wrap max-h-28 overflow-y-auto font-mono text-[12px]">
                   {result.rawText || "(no text extracted)"}
                 </pre>
               </details>
@@ -306,7 +308,7 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
 
 function Field({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-2 text-xs">
+    <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-1.5 text-[13px] last:border-b-0">
       <span className="text-muted-foreground shrink-0">{label}</span>
       <span className={`font-medium tabular-nums truncate text-end ${highlight ? "text-primary" : "text-foreground"}`}>{value}</span>
     </div>

@@ -17,7 +17,7 @@ import { AskYourBooks } from "@/components/AskYourBooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel } from "@/components/kit";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -128,16 +128,14 @@ export default function FinanceHub() {
   const closed = [...(locks ?? [])].sort((a, b) => b.period.localeCompare(a.period));
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("Finance Hub", "لوحة المالية")}</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {t(
-            "Whether your books are right, current, and closed.",
-            "ما إذا كانت دفاترك صحيحة ومحدَّثة ومقفلة.",
-          )}
-        </p>
-      </div>
+    <div className="space-y-6 max-w-4xl">
+      <PageHeader
+        title={t("Finance Hub", "لوحة المالية")}
+        description={t(
+          "Whether your books are right, current, and closed.",
+          "ما إذا كانت دفاترك صحيحة ومحدَّثة ومقفلة.",
+        )}
+      />
 
       {/* AI-6a — woven in per the hub decision; renders nothing while the assistant is dark. */}
       <AskYourBooks />
@@ -150,14 +148,15 @@ export default function FinanceHub() {
 
       {/* ── Block 1 (M18.3): can I pay what I owe? ───────────────────────── */}
       {liq && (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+        <Panel
+          title={
+            <span className="flex items-center gap-2">
               <Wallet className="w-4 h-4 text-muted-foreground" />
               {t("Can you pay what you owe?", "هل تستطيع سداد ما عليك؟")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </span>
+          }
+          bodyClassName="space-y-4"
+        >
             {/*
               🔴 The claim is WITHHELD, not caveated. When the platform cannot
               stand behind the ratios it says so instead of printing them with
@@ -218,26 +217,25 @@ export default function FinanceHub() {
                           ? "/transactions"
                           : "/categories"
                     }
-                    className="text-xs underline inline-flex items-center gap-1"
+                    className="text-[13px] font-medium text-primary hover:underline inline-flex items-center gap-1"
                   >
-                    {t("Fix this", "إصلاح ذلك")} <ChevronRight className="w-3 h-3" />
+                    {t("Fix this", "إصلاح ذلك")} <ChevronRight className="w-3 h-3 rtl:-scale-x-100" />
                   </Link>
                 </AlertDescription>
               </Alert>
             )}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+            <StatStrip cols={4} className="mb-0">
               {[
                 { label: t("Current assets", "الأصول المتداولة"), value: liq.currentAssets },
                 { label: t("Liquid assets", "الأصول السائلة"), value: liq.quickAssets },
                 { label: t("Due within a year", "المستحق خلال سنة"), value: liq.currentLiabilities },
                 { label: t("Working capital", "رأس المال العامل"), value: liq.workingCapital },
               ].map((s) => (
-                <div key={s.label} className="rounded-md border border-border bg-secondary/20 p-3">
-                  <p className="text-[11px] text-muted-foreground">{s.label}</p>
-                  <p className="text-sm font-mono mt-0.5">{formatCurrency(s.value)}</p>
-                </div>
+                <Stat key={s.label} label={s.label} value={<span className="text-[18px] sm:text-[20px]">{formatCurrency(s.value)}</span>} />
               ))}
+            </StatStrip>
             </div>
 
             {/*
@@ -246,21 +244,19 @@ export default function FinanceHub() {
               numbers (design §5.2).
             */}
             {liq.observations.length > 0 && (
-              <p className="text-xs text-attention-surface">
+              <p className="text-[13px] text-muted-foreground">
                 {t(
                   "As a rule of thumb a ratio below 1 is worth watching — it varies a lot by industry, so treat it as a prompt to look, not a verdict.",
                   "كقاعدة عامة، النسبة الأقل من 1 تستحق المتابعة — وهي تختلف كثيراً حسب القطاع، فاعتبرها دعوة للمراجعة لا حكماً نهائياً.",
                 )}
               </p>
             )}
-          </CardContent>
-        </Card>
+        </Panel>
       )}
 
       {/* ── Block 2: are my books current? (Q7 — mirror the signal) ──────── */}
       {books && books.unreviewedCount > 0 && (
-        <Card className="border-border bg-card">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
+        <div className="rounded-lg border border-border bg-card px-5 py-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <ListChecks className="w-4 h-4 text-muted-foreground shrink-0" />
               <p className="text-sm">
@@ -273,20 +269,20 @@ export default function FinanceHub() {
             <Link href="/review">
               <Button variant="outline" size="sm">{t("Review", "مراجعة")}</Button>
             </Link>
-          </CardContent>
-        </Card>
+        </div>
       )}
 
       {/* ── Block 3 (M18.5): Tax & Compliance ────────────────────────────── */}
       {tax && (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+        <Panel
+          title={
+            <span className="flex items-center gap-2">
               <Receipt className="w-4 h-4 text-muted-foreground" />
               {t("Tax & compliance", "الضريبة والامتثال")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+            </span>
+          }
+          bodyClassName="space-y-3"
+        >
             {/*
               🔴 The PERIOD IS STATED, never implied. KSA VAT is filed monthly
               or quarterly by turnover and the platform does not model which
@@ -311,7 +307,7 @@ export default function FinanceHub() {
                     )}
             </p>
             {!tax.vat.filingFrequencyKnown && (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {t(
                   "This is the calendar quarter. Your filing period may differ — open the VAT return to choose it.",
                   "هذه هي الفترة الربعية الميلادية. قد تختلف فترة إقرارك — افتح إقرار ضريبة القيمة المضافة لاختيارها.",
@@ -331,34 +327,32 @@ export default function FinanceHub() {
                   )}
             </p>
 
-            <div className="flex gap-3 pt-1">
-              <Link href="/vat" className="text-xs underline inline-flex items-center gap-1">
-                {t("VAT return", "إقرار ضريبة القيمة المضافة")} <ChevronRight className="w-3 h-3" />
+            <div className="flex gap-4 pt-1">
+              <Link href="/vat" className="text-[13px] font-medium text-primary hover:underline inline-flex items-center gap-1">
+                {t("VAT return", "إقرار ضريبة القيمة المضافة")} <ChevronRight className="w-3 h-3 rtl:-scale-x-100" />
               </Link>
-              <Link href="/zakat" className="text-xs underline inline-flex items-center gap-1">
-                {t("Zakat", "الزكاة")} <ChevronRight className="w-3 h-3" />
+              <Link href="/zakat" className="text-[13px] font-medium text-primary hover:underline inline-flex items-center gap-1">
+                {t("Zakat", "الزكاة")} <ChevronRight className="w-3 h-3 rtl:-scale-x-100" />
               </Link>
             </div>
-          </CardContent>
-        </Card>
+        </Panel>
       )}
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
+      <Panel
+        title={
+          <span className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-muted-foreground" />
             {t("Closing the books", "إقفال الدفاتر")}
-          </CardTitle>
-          <CardDescription>
-            {t(
+          </span>
+        }
+        description={t(
               "Closing a month means nothing new can be recorded in it. A later correction is recorded in the current open month instead — your closed figures never change behind you.",
               "إقفال الشهر يعني أنه لا يمكن تسجيل أي شيء جديد فيه. ويُسجَّل أي تصحيح لاحق في الشهر المفتوح الحالي بدلاً من ذلك — فلا تتغير أرقامك المقفلة من خلفك.",
             )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
+        bodyClassName="space-y-5"
+      >
           {!isOrgAdmin && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[13px] text-muted-foreground">
               {t(
                 "Only an organization admin can close or reopen a month. You can see which months are closed.",
                 "يمكن لمسؤول المؤسسة فقط إقفال شهر أو إعادة فتحه. ويمكنك الاطلاع على الأشهر المقفلة.",
@@ -368,7 +362,7 @@ export default function FinanceHub() {
           {isOrgAdmin && (
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="period">{t("Month to close", "الشهر المراد إقفاله")}</Label>
+              <Label htmlFor="period" className="text-[13px]">{t("Month to close", "الشهر المراد إقفاله")}</Label>
               <Input
                 id="period"
                 type="month"
@@ -378,7 +372,7 @@ export default function FinanceHub() {
               />
             </div>
             <div className="space-y-1.5 flex-1 min-w-[200px]">
-              <Label htmlFor="notes">{t("Note (optional)", "ملاحظة (اختياري)")}</Label>
+              <Label htmlFor="notes" className="text-[13px]">{t("Note (optional)", "ملاحظة (اختياري)")}</Label>
               <Input
                 id="notes"
                 value={notes}
@@ -397,7 +391,7 @@ export default function FinanceHub() {
           )}
 
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <p className="text-[13px] font-medium text-foreground">
               {t("Closed months", "الأشهر المقفلة")}
             </p>
             {isLoading ? (
@@ -418,10 +412,10 @@ export default function FinanceHub() {
             ) : (
               <ul className="divide-y divide-border rounded-md border border-border">
                 {closed.map((l) => (
-                  <li key={l.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                  <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-mono text-[11px]">{l.period}</Badge>
+                        <Badge variant="outline" className="tabular-nums text-[12px] font-medium">{l.period}</Badge>
                         <span className="text-xs text-muted-foreground">
                           {t("closed", "أُقفل")} <DualDate date={String(l.lockedAt)} inline />
                         </span>
@@ -439,8 +433,7 @@ export default function FinanceHub() {
               </ul>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </Panel>
 
       {/*
         Reopening is confirmed, not one-click. It is the one action here that

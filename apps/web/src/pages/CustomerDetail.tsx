@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, FileMinus, ClipboardList, Banknote, AlertCircle, ChevronDown, ChevronUp, Undo2, Plus } from "lucide-react";
@@ -11,6 +10,7 @@ import { statusLabel } from "@/lib/statusLabel";
 import { computeAging, toFetched, DETAIL_FETCH_LIMIT, type FetchedDocs } from "@/lib/partyDetail";
 import type { Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
+import { PageHeader, StatStrip, Stat, Panel, Field, EmptyState, type Tone } from "@/components/kit";
 import { OpeningRecordBadge } from "@/components/migration/OpeningRecord";
 import { PaymentDetail } from "@/components/payments/PaymentDetail";
 import { CreditNoteDetail, useCreditNoteApplications } from "@/components/payments/CreditNoteDetail";
@@ -43,25 +43,16 @@ import type { CustomerDetail as CustomerDetailView, CustomerPayment, CustomerRef
 
 const money = (n: number) => fmtNum(n ?? 0);
 
-function StatTile({ label, value, tone, testId, hint }: { label: string; value: string; tone?: "warn" | "good" | "info"; testId?: string; hint?: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <p className="text-xs uppercase text-muted-foreground mb-1">{label}</p>
-        <p className={`text-xl sm:text-2xl font-mono font-semibold ${tone === "warn" ? "text-attention" : tone === "good" ? "text-positive" : tone === "info" ? "text-info" : "text-foreground"}`} data-testid={testId}>
-          {value}
-        </p>
-        {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
+/** A position figure: the kit's Stat, with the value's test id on the figure itself. */
+function StatTile({ label, value, tone, testId, hint }: { label: string; value: string; tone?: Tone; testId?: string; hint?: string }) {
+  return <Stat label={label} hint={hint} tone={tone} value={<span data-testid={testId}>{value}</span>} />;
 }
 
 /** A stated cap, not a silent one — see partyDetail.ts. */
 function TruncationNotice({ shown, total }: { shown: number; total: number }) {
   const { t } = useLanguage();
   return (
-    <div className="flex items-start gap-2 rounded-md border border-attention-surface/30 bg-attention-surface/10 p-3 text-xs text-amber-200">
+    <div className="flex items-start gap-2 rounded-md border border-attention-surface/30 bg-attention-surface/10 p-3 text-[13px] text-attention">
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
       <span>
         {t(
@@ -75,16 +66,17 @@ function TruncationNotice({ shown, total }: { shown: number; total: number }) {
 
 function InvoiceTable({ rows }: { rows: Invoice[] }) {
   const { t, lang } = useLanguage();
+  const NUMERIC = new Set([t("Total", "الإجمالي"), t("Outstanding", "المستحق")]);
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground py-4">{t("Nothing here yet.", "لا يوجد شيء هنا بعد.")}</p>;
+    return <EmptyState icon={FileText} title={t("Nothing here yet.", "لا يوجد شيء هنا بعد.")} className="py-8" />;
   }
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-border text-muted-foreground text-xs uppercase">
+          <tr className="border-b border-border">
             {[t("Number", "الرقم"), t("Date", "التاريخ"), t("Due", "الاستحقاق"), t("Status", "الحالة"), t("Total", "الإجمالي"), t("Outstanding", "المستحق")].map((h) => (
-              <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
+              <th key={h} className={`${NUMERIC.has(h) ? "text-end" : "text-start"} px-3`}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -93,13 +85,13 @@ function InvoiceTable({ rows }: { rows: Invoice[] }) {
             // Outstanding as the server defines it (D-4): total − paid − credited.
             const outstanding = Number(r.total ?? 0) - Number(r.paidAmount ?? 0) - Number(r.creditedAmount ?? 0);
             return (
-              <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors" data-testid={`invoice-row-${r.invoiceNumber}`}>
-                <td className="py-3 pe-4 font-mono text-xs">{r.invoiceNumber}{r.isOpening && <OpeningRecordBadge />}</td>
-                <td className="py-3 pe-4 text-muted-foreground"><DualDate date={r.date} inline /></td>
-                <td className="py-3 pe-4 text-muted-foreground"><DualDate date={r.dueDate} inline /></td>
-                <td className="py-3 pe-4"><Badge variant="outline" className="text-xs">{statusLabel(r.status, lang)}</Badge></td>
-                <td className="py-3 pe-4 font-mono">{money(r.total)}</td>
-                <td className="py-3 pe-4 font-mono">
+              <tr key={r.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`invoice-row-${r.invoiceNumber}`}>
+                <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{r.invoiceNumber}{r.isOpening && <OpeningRecordBadge />}</td>
+                <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={r.date} inline /></td>
+                <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={r.dueDate} inline /></td>
+                <td className="py-3 px-3"><Badge variant="outline" className="text-xs capitalize">{statusLabel(r.status, lang)}</Badge></td>
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{money(r.total)}</td>
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">
                   <span className={outstanding > 0.005 ? "text-attention" : "text-positive"} data-testid={`invoice-outstanding-${r.invoiceNumber}`}>{money(outstanding)}</span>
                 </td>
               </tr>
@@ -117,16 +109,16 @@ function PaymentRow({ p, customerName, invoiceNumbers }: { p: CustomerPayment; c
   const [open, setOpen] = useState(false);
   return (
     <>
-      <tr className="border-b border-border/50 hover:bg-secondary/20 transition-colors" data-testid={`payment-row-${p.id}`}>
-        <td className="py-3 pe-4 font-mono text-xs">{receiptNumber(p.id)}</td>
+      <tr className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`payment-row-${p.id}`}>
+        <td className="py-3 px-2 sm:px-3 whitespace-nowrap font-medium text-primary">{receiptNumber(p.id)}</td>
         {/* Phone: the date and the bank live in the detail card; keeping them out of the row is what lets the table fit 390 px with no sideways scroll (AP-2 walk). */}
-        <td className="py-3 pe-4 text-muted-foreground hidden sm:table-cell"><DualDate date={p.paidAt} inline /></td>
-        <td className="py-3 pe-4 text-muted-foreground hidden md:table-cell"><BankName id={p.bankAccountId} /></td>
-        <td className="py-3 pe-4 font-mono text-positive">{money(p.amount)}</td>
-        <td className="py-3 pe-4 font-mono hidden sm:table-cell">{money(p.allocatedAmount)}</td>
-        <td className="py-3 pe-4 font-mono" data-testid={`payment-row-unapplied-${p.id}`}>{money(p.unappliedAmount)}</td>
-        <td className="py-3 pe-4 hidden sm:table-cell"><div className="flex flex-wrap gap-1"><PaymentStateBadge p={p} />{(p.unappliedAmount > 0.005 || p.classification) && <ClassificationBadge p={p} />}</div></td>
-        <td className="py-3 text-end">
+        <td className="py-3 px-2 sm:px-3 whitespace-nowrap text-muted-foreground hidden sm:table-cell"><DualDate date={p.paidAt} inline /></td>
+        <td className="py-3 px-2 sm:px-3 text-muted-foreground hidden md:table-cell"><BankName id={p.bankAccountId} /></td>
+        <td className="py-3 px-2 sm:px-3 text-end whitespace-nowrap tabular-nums font-medium text-positive">{money(p.amount)}</td>
+        <td className="py-3 px-2 sm:px-3 text-end whitespace-nowrap tabular-nums hidden sm:table-cell">{money(p.allocatedAmount)}</td>
+        <td className="py-3 px-2 sm:px-3 text-end whitespace-nowrap tabular-nums" data-testid={`payment-row-unapplied-${p.id}`}>{money(p.unappliedAmount)}</td>
+        <td className="py-3 px-2 sm:px-3 hidden sm:table-cell"><div className="flex flex-wrap gap-1"><PaymentStateBadge p={p} />{(p.unappliedAmount > 0.005 || p.classification) && <ClassificationBadge p={p} />}</div></td>
+        <td className="py-3 px-2 sm:px-3 text-end">
           {/* Opening the card brings the table back to its inline-start edge: on a phone the
               toggle sits at the far end of a sideways-scrolling table, and the card (bounded to the
               viewport) is otherwise revealed off-screen (AP-2 walk). */}
@@ -137,8 +129,8 @@ function PaymentRow({ p, customerName, invoiceNumbers }: { p: CustomerPayment; c
         </td>
       </tr>
       {open && (
-        <tr className="border-b border-border/50 bg-secondary/10">
-          <td colSpan={8} className="py-3 px-2 sm:px-4">
+        <tr className="border-b border-border/70 bg-muted/30">
+          <td colSpan={8} className="py-4 px-2 sm:px-3">
             <PaymentDetail payment={p} customerName={customerName} invoiceNumbers={invoiceNumbers} />
           </td>
         </tr>
@@ -155,16 +147,16 @@ function CreditNoteRow({ n, customer, invoiceNumbers }: { n: Invoice; customer: 
   const { data } = useCreditNoteApplications(n.id, issued);
   return (
     <>
-      <tr className="border-b border-border/50 hover:bg-secondary/20 transition-colors" data-testid={`credit-note-row-${n.invoiceNumber}`}>
-        <td className="py-3 pe-4 font-mono text-xs">{n.invoiceNumber}</td>
-        <td className="py-3 pe-4 text-muted-foreground"><DualDate date={n.date} inline /></td>
-        <td className="py-3 pe-4 hidden sm:table-cell"><Badge variant="outline" className="text-xs">{statusLabel(n.status, lang)}</Badge></td>
-        <td className="py-3 pe-4 text-muted-foreground text-xs hidden md:table-cell max-w-[12rem] truncate">{n.noteReason || "—"}</td>
-        <td className="py-3 pe-4 font-mono">{money(n.total)}</td>
-        <td className="py-3 pe-4 font-mono text-info" data-testid={`credit-note-remaining-${n.invoiceNumber}`}>
-          {!issued ? <span className="text-muted-foreground text-xs font-sans">{t("not issued", "غير صادر")}</span> : data ? money(data.remainingAmount) : "…"}
+      <tr className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`credit-note-row-${n.invoiceNumber}`}>
+        <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{n.invoiceNumber}</td>
+        <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={n.date} inline /></td>
+        <td className="py-3 px-3 hidden sm:table-cell"><Badge variant="outline" className="text-xs capitalize">{statusLabel(n.status, lang)}</Badge></td>
+        <td className="py-3 px-3 text-muted-foreground text-xs hidden md:table-cell max-w-[12rem] truncate">{n.noteReason || "—"}</td>
+        <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{money(n.total)}</td>
+        <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-info" data-testid={`credit-note-remaining-${n.invoiceNumber}`}>
+          {!issued ? <span className="text-muted-foreground text-xs">{t("not issued", "غير صادر")}</span> : data ? money(data.remainingAmount) : "…"}
         </td>
-        <td className="py-3 text-end">
+        <td className="py-3 px-3 text-end">
           {issued && (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen((o) => !o)} data-testid={`credit-note-toggle-${n.invoiceNumber}`} aria-expanded={open}>
               {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -174,8 +166,8 @@ function CreditNoteRow({ n, customer, invoiceNumbers }: { n: Invoice; customer: 
         </td>
       </tr>
       {open && (
-        <tr className="border-b border-border/50 bg-secondary/10">
-          <td colSpan={7} className="py-3 px-2 sm:px-4">
+        <tr className="border-b border-border/70 bg-muted/30">
+          <td colSpan={7} className="py-4 px-3">
             <CreditNoteDetail noteId={n.id} customer={customer} invoiceNumbers={invoiceNumbers} originalInvoiceId={n.originalInvoiceId} />
           </td>
         </tr>
@@ -230,7 +222,7 @@ export default function CustomerDetail() {
   if (error || !customer) {
     return (
       <div className="space-y-4">
-        <Link href="/customers"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 me-2" />{t("Back to customers", "العودة إلى العملاء")}</Button></Link>
+        <Link href="/customers"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 me-2 rtl:-scale-x-100" />{t("Back to customers", "العودة إلى العملاء")}</Button></Link>
         <p className="text-destructive">{t("Customer not found.", "لم يتم العثور على العميل.")}</p>
       </div>
     );
@@ -245,27 +237,16 @@ export default function CustomerDetail() {
   const creditNotes = all.filter((d) => d.documentType === "credit_note");
   const aging = computeAging(invoices);
   const who = { id: customer.id, name: customer.name };
+  const NUMERIC = new Set([t("Total", "الإجمالي")]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/customers">
-          <Button variant="ghost" size="sm" className="mb-2 -ms-2">
-            <ArrowLeft className="w-4 h-4 me-2" />{t("Back to customers", "العودة إلى العملاء")}
-          </Button>
-        </Link>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">{customer.name}</h1>
-            {customer.nameAr && <p className="text-muted-foreground" dir="rtl">{customer.nameAr}</p>}
-            <div className="flex gap-2 mt-2 flex-wrap">
-              {!customer.isActive && <Badge variant="destructive" className="text-xs">{t("Inactive", "غير نشط")}</Badge>}
-              {customer.taxNumber && <Badge variant="outline" className="text-xs font-mono">{t("VAT", "ض.ق.م")} {customer.taxNumber}</Badge>}
-              {customer.crNumber && <Badge variant="outline" className="text-xs font-mono">{t("CR", "س.ت")} {customer.crNumber}</Badge>}
-              {customer.paymentTermsDays && <Badge variant="outline" className="text-xs font-mono">{customer.paymentTermsDays}d</Badge>}
-            </div>
-          </div>
-          <div className="flex gap-2 flex-wrap">
+      <PageHeader
+        back={{ href: "/customers", label: t("Back to customers", "العودة إلى العملاء") }}
+        title={customer.name}
+        description={customer.nameAr ? <span dir="rtl">{customer.nameAr}</span> : undefined}
+        actions={
+          <>
             <Link href={`/customers/${customer.id}/statement`}>
               <Button variant="outline" size="sm" data-testid="open-statement">{t("Open statement", "فتح كشف الحساب")}</Button>
             </Link>
@@ -275,87 +256,88 @@ export default function CustomerDetail() {
             <Button size="sm" className="gap-1" disabled={!canPost} onClick={() => setReceiving(true)} data-testid="record-receipt">
               <Plus className="w-4 h-4" />{t("Record receipt", "تسجيل إيصال")}
             </Button>
-          </div>
+          </>
+        }
+      >
+        <div className="flex gap-2 mt-3 flex-wrap empty:hidden">
+          {!customer.isActive && <Badge variant="destructive" className="text-xs">{t("Inactive", "غير نشط")}</Badge>}
+          {customer.taxNumber && <Badge variant="outline" className="text-xs tabular-nums">{t("VAT", "ض.ق.م")} {customer.taxNumber}</Badge>}
+          {customer.crNumber && <Badge variant="outline" className="text-xs tabular-nums">{t("CR", "س.ت")} {customer.crNumber}</Badge>}
+          {customer.paymentTermsDays && <Badge variant="outline" className="text-xs tabular-nums">{customer.paymentTermsDays}d</Badge>}
         </div>
-      </div>
+      </PageHeader>
 
       {/* The position: three components apart, and a derived net. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label={t("Accounts receivable", "الذمم المدينة")} hint={t("what the customer owes", "ما يدين به العميل")} value={money(customer.receivable)} tone={customer.receivable > 0.005 ? "warn" : "good"} testId="position-receivable" />
-        <StatTile label={t("Customer credits", "أرصدة دائنة للعميل")} hint={t("credit-note balances we owe", "أرصدة إشعارات دائنة ندين بها")} value={money(customer.creditBalance)} tone={customer.creditBalance > 0.005 ? "info" : undefined} testId="position-credits" />
-        <StatTile label={t("Customer deposits", "عرابين العميل")} hint={t("receipts held on account", "إيصالات محتفظ بها على الحساب")} value={money(customer.depositBalance)} tone={customer.depositBalance > 0.005 ? "info" : undefined} testId="position-deposits" />
+      <StatStrip cols={4}>
+        <StatTile label={t("Accounts receivable", "الذمم المدينة")} hint={t("what the customer owes", "ما يدين به العميل")} value={money(customer.receivable)} testId="position-receivable" />
+        <StatTile label={t("Customer credits", "أرصدة دائنة للعميل")} hint={t("credit-note balances we owe", "أرصدة إشعارات دائنة ندين بها")} value={money(customer.creditBalance)} testId="position-credits" />
+        <StatTile label={t("Customer deposits", "عرابين العميل")} hint={t("receipts held on account", "إيصالات محتفظ بها على الحساب")} value={money(customer.depositBalance)} testId="position-deposits" />
         <StatTile label={t("Net position", "صافي المركز")} hint={t("receivable − credits − deposits", "الذمم − الأرصدة الدائنة − العرابين")} value={money(customer.netPosition)} testId="position-net" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      </StatStrip>
+      <StatStrip cols={3}>
         <StatTile label={t("Billed", "المفوتر")} value={money(customer.totalBilled)} />
-        <StatTile label={t("Paid", "المدفوع")} value={money(customer.totalPaid)} tone="good" />
-        <StatTile label={t("Invoices", "الفواتير")} value={String(customer.invoiceCount)} />
-      </div>
+        <StatTile label={t("Paid", "المدفوع")} value={money(customer.totalPaid)} tone="positive" />
+        <Stat label={t("Invoices", "الفواتير")} value={String(customer.invoiceCount)} className="col-span-2 lg:col-span-1" />
+      </StatStrip>
 
       {(customer.phone || customer.email || customer.address || customer.city) && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">{t("Contact", "بيانات الاتصال")}</CardTitle></CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2 text-sm">
-            {customer.phone && <p><span className="text-muted-foreground">{t("Phone", "الهاتف")}: </span>{customer.phone}</p>}
-            {customer.email && <p><span className="text-muted-foreground">{t("Email", "البريد الإلكتروني")}: </span>{customer.email}</p>}
-            {customer.address && <p><span className="text-muted-foreground">{t("Address", "العنوان")}: </span>{customer.address}</p>}
-            {customer.city && <p><span className="text-muted-foreground">{t("City", "المدينة")}: </span>{customer.city}</p>}
-          </CardContent>
-        </Card>
+        <Panel title={t("Contact", "بيانات الاتصال")}>
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {customer.phone && <Field label={t("Phone", "الهاتف")}><span dir="ltr">{customer.phone}</span></Field>}
+            {customer.email && <Field label={t("Email", "البريد الإلكتروني")}>{customer.email}</Field>}
+            {customer.address && <Field label={t("Address", "العنوان")}>{customer.address}</Field>}
+            {customer.city && <Field label={t("City", "المدينة")}>{customer.city}</Field>}
+          </dl>
+        </Panel>
       )}
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">{t("Aging", "أعمار الذمم")}</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          {invoiceData?.truncated && <TruncationNotice shown={all.length} total={invoiceData.total} />}
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-5 text-sm">
+      <Panel title={t("Aging", "أعمار الذمم")} bodyClassName="space-y-3">
+      {invoiceData?.truncated && <TruncationNotice shown={all.length} total={invoiceData.total} />}
+          <StatStrip cols={5} className="mb-0">
             {[
               { l: t("Current", "جارٍ"), v: aging.current },
               { l: t("1–30 days", "١–٣٠ يوم"), v: aging.d1to30 },
               { l: t("31–60 days", "٣١–٦٠ يوم"), v: aging.d31to60 },
               { l: t("61–90 days", "٦١–٩٠ يوم"), v: aging.d61to90 },
               { l: t("90+ days", "أكثر من ٩٠ يوم"), v: aging.d90plus },
-            ].map((b) => (
-              <div key={b.l} className="rounded-md border border-border p-3">
-                <p className="text-xs text-muted-foreground mb-1">{b.l}</p>
-                <p className="font-mono font-medium">{money(b.v)}</p>
-              </div>
+            ].map((b, i, all) => (
+              <Stat key={b.l} label={b.l} value={money(b.v)} className={`[&>div:nth-child(2)]:text-[18px] ${i === all.length - 1 ? "col-span-2 lg:col-span-1" : ""}`} />
             ))}
-          </div>
-        </CardContent>
-      </Card>
+          </StatStrip>
+      </Panel>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4" />{t("Invoices", "الفواتير")} ({invoices.length})</CardTitle></CardHeader>
-        <CardContent><InvoiceTable rows={invoices} /></CardContent>
-      </Card>
+      <Panel
+        flush
+        title={<span className="inline-flex items-center gap-2"><FileText className="w-4 h-4 text-muted-foreground" />{t("Invoices", "الفواتير")} ({invoices.length})</span>}
+      >
+        <InvoiceTable rows={invoices} />
+      </Panel>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Banknote className="w-4 h-4" />{t("Payments", "المدفوعات")} ({payments.length})</CardTitle>
-          <p className="text-xs text-muted-foreground">{t("Each payment is a receipt of money; open one to see the allocations that link it to invoices, and what is still on account.", "كل دفعة هي إيصال استلام مال؛ افتح إحداها لترى التخصيصات التي تربطها بالفواتير وما لا يزال على الحساب.")}</p>
-        </CardHeader>
-        <CardContent>
-          <PermissionHint />
+      <Panel
+        flush
+        title={<span className="inline-flex items-center gap-2"><Banknote className="w-4 h-4 text-muted-foreground" />{t("Payments", "المدفوعات")} ({payments.length})</span>}
+        description={t("Each payment is a receipt of money; open one to see the allocations that link it to invoices, and what is still on account.", "كل دفعة هي إيصال استلام مال؛ افتح إحداها لترى التخصيصات التي تربطها بالفواتير وما لا يزال على الحساب.")}
+      >
+          <div className="px-5 pt-3 empty:hidden"><PermissionHint /></div>
           {paymentsLoading ? (
-            <p className="text-sm text-muted-foreground py-4">{t("Loading…", "جارٍ التحميل…")}</p>
+            <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
           ) : paymentsError ? (
-            <p className="text-sm text-destructive py-4">{t("Payments could not be loaded.", "تعذر تحميل المدفوعات.")} {(paymentsError as Error).message}</p>
+            <p className="text-sm text-destructive p-5">{t("Payments could not be loaded.", "تعذر تحميل المدفوعات.")} {(paymentsError as Error).message}</p>
           ) : payments.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">{t("No payments recorded.", "لا توجد مدفوعات مسجلة.")}</p>
+            <EmptyState icon={Banknote} title={t("No payments recorded.", "لا توجد مدفوعات مسجلة.")} className="py-8" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Receipt", "الإيصال")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("Received", "الاستلام")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium hidden md:table-cell">{t("Bank", "البنك")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Amount", "المبلغ")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("Allocated", "المخصص")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium">{t("On account", "على الحساب")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("State", "الحالة")}</th>
-                    <th className="pb-2" />
+                  <tr className="border-b border-border">
+                    <th className="text-start px-2 sm:px-3">{t("Receipt", "الإيصال")}</th>
+                    <th className="text-start px-2 sm:px-3 hidden sm:table-cell">{t("Received", "الاستلام")}</th>
+                    <th className="text-start px-2 sm:px-3 hidden md:table-cell">{t("Bank", "البنك")}</th>
+                    <th className="text-end px-2 sm:px-3">{t("Amount", "المبلغ")}</th>
+                    <th className="text-end px-2 sm:px-3 hidden sm:table-cell">{t("Allocated", "المخصص")}</th>
+                    <th className="text-end px-2 sm:px-3">{t("On account", "على الحساب")}</th>
+                    <th className="text-start px-2 sm:px-3 hidden sm:table-cell">{t("State", "الحالة")}</th>
+                    <th className="px-2 sm:px-3" />
                   </tr>
                 </thead>
                 <tbody>
@@ -364,29 +346,27 @@ export default function CustomerDetail() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><FileMinus className="w-4 h-4" />{t("Credit Notes", "إشعارات الدائن")} ({creditNotes.length})</CardTitle>
-          <p className="text-xs text-muted-foreground">{t("A credit note's unconsumed balance is a credit we owe the customer — apply it to an invoice or refund it.", "الرصيد غير المستهلك من إشعار الدائن هو رصيد ندين به للعميل — طبّقه على فاتورة أو اردده.")}</p>
-        </CardHeader>
-        <CardContent>
+      <Panel
+        flush
+        title={<span className="inline-flex items-center gap-2"><FileMinus className="w-4 h-4 text-muted-foreground" />{t("Credit Notes", "إشعارات الدائن")} ({creditNotes.length})</span>}
+        description={t("A credit note's unconsumed balance is a credit we owe the customer — apply it to an invoice or refund it.", "الرصيد غير المستهلك من إشعار الدائن هو رصيد ندين به للعميل — طبّقه على فاتورة أو اردده.")}
+      >
           {creditNotes.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">{t("Nothing here yet.", "لا يوجد شيء هنا بعد.")}</p>
+            <EmptyState icon={FileMinus} title={t("Nothing here yet.", "لا يوجد شيء هنا بعد.")} className="py-8" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Number", "الرقم")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Date", "التاريخ")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("Status", "الحالة")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium hidden md:table-cell">{t("Reason", "السبب")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Total", "الإجمالي")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Remaining credit", "الرصيد المتبقي")}</th>
-                    <th className="pb-2" />
+                  <tr className="border-b border-border">
+                    <th className="text-start px-3">{t("Number", "الرقم")}</th>
+                    <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                    <th className="text-start px-3 hidden sm:table-cell">{t("Status", "الحالة")}</th>
+                    <th className="text-start px-3 hidden md:table-cell">{t("Reason", "السبب")}</th>
+                    <th className="text-end px-3">{t("Total", "الإجمالي")}</th>
+                    <th className="text-end px-3">{t("Remaining credit", "الرصيد المتبقي")}</th>
+                    <th className="px-3" />
                   </tr>
                 </thead>
                 <tbody>
@@ -395,80 +375,77 @@ export default function CustomerDetail() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {refunds.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2"><Undo2 className="w-4 h-4" />{t("Refunds", "المبالغ المردودة")} ({refunds.length})</CardTitle>
-            <p className="text-xs text-muted-foreground">{t("Money paid back to the customer. Each refund settled a deposit or a credit-note balance; the source stays listed above.", "أموال أُعيدت إلى العميل. سوّى كل ردّ عربونًا أو رصيد إشعار دائن؛ ويبقى المصدر مدرجًا أعلاه.")}</p>
-          </CardHeader>
-          <CardContent>
+        <Panel
+        flush
+        title={<span className="inline-flex items-center gap-2"><Undo2 className="w-4 h-4 text-muted-foreground" />{t("Refunds", "المبالغ المردودة")} ({refunds.length})</span>}
+        description={t("Money paid back to the customer. Each refund settled a deposit or a credit-note balance; the source stays listed above.", "أموال أُعيدت إلى العميل. سوّى كل ردّ عربونًا أو رصيد إشعار دائن؛ ويبقى المصدر مدرجًا أعلاه.")}
+      >
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Refund", "الردّ")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Date", "التاريخ")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Origin", "المصدر")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium hidden md:table-cell">{t("Bank", "البنك")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium">{t("Amount", "المبلغ")}</th>
-                    <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("Reason", "السبب")}</th>
+                  <tr className="border-b border-border">
+                    <th className="text-start px-3">{t("Refund", "الردّ")}</th>
+                    <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                    <th className="text-start px-3">{t("Origin", "المصدر")}</th>
+                    <th className="text-start px-3 hidden md:table-cell">{t("Bank", "البنك")}</th>
+                    <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+                    <th className="text-start px-3 hidden sm:table-cell">{t("Reason", "السبب")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {refunds.map((r) => (
-                    <tr key={r.id} className="border-b border-border/50" data-testid={`refund-row-${r.id}`}>
-                      <td className="py-3 pe-4 font-mono text-xs">{refundNumber(r.id)}</td>
-                      <td className="py-3 pe-4 text-muted-foreground"><DualDate date={r.refundedAt} inline /></td>
-                      <td className="py-3 pe-4 text-xs">
+                    <tr key={r.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`refund-row-${r.id}`}>
+                      <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{refundNumber(r.id)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={r.refundedAt} inline /></td>
+                      <td className="py-3 px-3 text-xs">
                         {r.origin === "deposit"
-                          ? <>{t("Deposit", "عربون")} · <span className="font-mono">{receiptNumber(r.paymentId ?? 0)}</span></>
-                          : <>{t("Credit note", "إشعار دائن")} · <span className="font-mono">{r.creditNoteId != null ? (invoiceNumbers[r.creditNoteId] ?? `#${r.creditNoteId}`) : "—"}</span></>}
+                          ? <>{t("Deposit", "عربون")} · <span className="tabular-nums">{receiptNumber(r.paymentId ?? 0)}</span></>
+                          : <>{t("Credit note", "إشعار دائن")} · <span className="tabular-nums">{r.creditNoteId != null ? (invoiceNumbers[r.creditNoteId] ?? `#${r.creditNoteId}`) : "—"}</span></>}
                       </td>
-                      <td className="py-3 pe-4 text-muted-foreground hidden md:table-cell"><BankName id={r.bankAccountId} /></td>
-                      <td className="py-3 pe-4 font-mono text-negative">−{money(r.amount)}</td>
-                      <td className="py-3 pe-4 text-xs text-muted-foreground hidden sm:table-cell max-w-[16rem] truncate">{r.reason}</td>
+                      <td className="py-3 px-3 text-muted-foreground hidden md:table-cell"><BankName id={r.bankAccountId} /></td>
+                      <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-medium text-negative">−{money(r.amount)}</td>
+                      <td className="py-3 px-3 text-xs text-muted-foreground hidden sm:table-cell max-w-[16rem] truncate">{r.reason}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
+        </Panel>
       )}
 
-      <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><ClipboardList className="w-4 h-4" />{t("Quotations", "عروض الأسعار")} ({quotationData?.items.length ?? 0})</CardTitle></CardHeader>
-        <CardContent>
+      <Panel
+        flush
+        title={<span className="inline-flex items-center gap-2"><ClipboardList className="w-4 h-4 text-muted-foreground" />{t("Quotations", "عروض الأسعار")} ({quotationData?.items.length ?? 0})</span>}
+      >
           {(quotationData?.items.length ?? 0) === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">{t("No quotations.", "لا توجد عروض أسعار.")}</p>
+            <EmptyState icon={ClipboardList} title={t("No quotations.", "لا توجد عروض أسعار.")} className="py-8" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-muted-foreground text-xs uppercase">
+                  <tr className="border-b border-border">
                     {[t("Number", "الرقم"), t("Date", "التاريخ"), t("Status", "الحالة"), t("Total", "الإجمالي")].map((h) => (
-                      <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
+                      <th key={h} className={`${NUMERIC.has(h) ? "text-end" : "text-start"} px-3`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {quotationData!.items.map((q) => (
-                    <tr key={q.id} className="border-b border-border/50">
-                      <td className="py-3 pe-4 font-mono text-xs">{q.quotationNumber}</td>
-                      <td className="py-3 pe-4 text-muted-foreground"><DualDate date={q.date} inline /></td>
-                      <td className="py-3 pe-4"><Badge variant="outline" className="text-xs">{statusLabel(q.status, lang)}</Badge></td>
-                      <td className="py-3 pe-4 font-mono">{money(q.total)}</td>
+                    <tr key={q.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                      <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{q.quotationNumber}</td>
+                      <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={q.date} inline /></td>
+                      <td className="py-3 px-3"><Badge variant="outline" className="text-xs capitalize">{statusLabel(q.status, lang)}</Badge></td>
+                      <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{money(q.total)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {receiving && <ReceiveDialog open onClose={() => setReceiving(false)} customer={who} />}
     </div>

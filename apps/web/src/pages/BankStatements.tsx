@@ -15,17 +15,17 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { fmtNum } from "@/lib/api";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileSpreadsheet, UploadCloud } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { useBankOptions } from "@/components/payments/shared";
 import { useListBankStatements, getListBankStatementsQueryKey, type BankStatementContinuity, type ListBankStatementsParams } from "@workspace/api-client-react";
 
 const Money = ({ v }: { v: number | null | undefined }) =>
-  v == null ? <span className="text-muted-foreground">—</span> : <span className="font-mono" dir="ltr">{fmtNum(v)}</span>;
+  v == null ? <span className="text-muted-foreground">—</span> : <span className="tabular-nums" dir="ltr">{fmtNum(v)}</span>;
 
 /** How a statement follows the previous one — one label set, used by the register and by the upload page. */
 export const CONTINUITY: Record<BankStatementContinuity, { en: string; ar: string; attention: boolean }> = {
@@ -46,41 +46,38 @@ export default function BankStatements() {
   const items = data?.items ?? [];
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-full" data-testid="page-bank-statements">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2"><FileSpreadsheet className="w-6 h-6" />{t("Bank statements", "كشوف الحسابات البنكية")}</h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-            {t("Every statement imported, with what the bank stated and how each one follows the last. A gap or a balance break means a statement is missing — import it; nothing here is refused for it.",
+    <div className="space-y-6" data-testid="page-bank-statements">
+      <PageHeader
+        title={t("Bank statements", "كشوف الحسابات البنكية")}
+        description={t("Every statement imported, with what the bank stated and how each one follows the last. A gap or a balance break means a statement is missing — import it; nothing here is refused for it.",
                "كل كشف تم استيراده، مع ما ذكره البنك وكيف يتبع كل كشف سابقه. الفجوة أو انقطاع الرصيد تعني أن كشفًا مفقود — استورده؛ ولا يُرفض شيء هنا بسببها.")}
-          </p>
+        actions={<Link href="/upload"><Button className="gap-2" data-testid="bank-statements-import"><UploadCloud className="w-4 h-4" />{t("Import a statement", "استيراد كشف")}</Button></Link>}
+      />
+
+      <Panel flush>
+        <div className="border-b border-border px-5 py-3">
+          <div className="w-full sm:w-64">
+            <Select value={bank} onValueChange={setBank}>
+              <SelectTrigger data-testid="bank-statements-bank"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("All bank accounts", "كل الحسابات البنكية")}</SelectItem>
+                {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <Link href="/upload"><Button className="gap-2" data-testid="bank-statements-import"><UploadCloud className="w-4 h-4" />{t("Import a statement", "استيراد كشف")}</Button></Link>
-      </div>
-
-      <div className="w-64">
-        <Select value={bank} onValueChange={setBank}>
-          <SelectTrigger data-testid="bank-statements-bank"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("All bank accounts", "كل الحسابات البنكية")}</SelectItem>
-            {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Card>
-        <CardContent className="pt-6 overflow-x-auto">
-          {isLoading ? <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
-           : isError ? <p className="text-sm text-negative">{t("Could not load the statements.", "تعذّر تحميل الكشوف.")}</p>
+          {isLoading ? <p className="p-5 text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
+           : isError ? <p className="p-5 text-sm text-negative">{t("Could not load the statements.", "تعذّر تحميل الكشوف.")}</p>
            : items.length === 0 ? (
-            <p className="text-sm text-muted-foreground" data-testid="no-bank-statements">
-              {t("No statement has been imported as a statement yet. Lines imported before statements were recorded carry none.", "لم يُستورد أي كشف ككشف بعد. الأسطر المستوردة قبل تسجيل الكشوف لا تحمل كشفًا.")}
-            </p>
+            <EmptyState
+              icon={FileSpreadsheet}
+              title={<span data-testid="no-bank-statements">{t("No statement has been imported as a statement yet. Lines imported before statements were recorded carry none.", "لم يُستورد أي كشف ككشف بعد. الأسطر المستوردة قبل تسجيل الكشوف لا تحمل كشفًا.")}</span>}
+            />
           ) : (
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                {[t("Bank", "البنك"), t("Period", "الفترة"), t("Opening", "الافتتاحي"), t("Closing", "الختامي"), t("Lines imported", "الأسطر المستوردة"), t("File", "الملف"), t("Continuity", "الاتصال")].map((h) => (
-                  <th key={h} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>
+            <div className="overflow-x-auto"><table className="w-full text-sm">
+              <thead><tr className="border-b border-border">
+                {([[t("Bank", "البنك"), false], [t("Period", "الفترة"), false], [t("Opening", "الافتتاحي"), true], [t("Closing", "الختامي"), true], [t("Lines imported", "الأسطر المستوردة"), true], [t("File", "الملف"), false], [t("Continuity", "الاتصال"), false]] as const).map(([h, num]) => (
+                  <th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
@@ -88,29 +85,28 @@ export default function BankStatements() {
                   const c = CONTINUITY[s.continuity];
                   const b = byId(s.bankAccountId);
                   return (
-                    <tr key={s.id} className="border-b border-border/50 align-top" data-testid={`bank-statement-${s.id}`}>
-                      <td className="py-2 pe-3">{b ? `${b.name} — ${b.bankName}` : `#${s.bankAccountId}`}</td>
-                      <td className="py-2 pe-3 font-mono text-xs whitespace-nowrap" dir="ltr">{s.periodFrom} → {s.periodTo}</td>
-                      <td className="py-2 pe-3"><Money v={s.openingBalance} /></td>
-                      <td className="py-2 pe-3"><Money v={s.closingBalance} /></td>
-                      <td className="py-2 pe-3 font-mono text-xs" dir="ltr" data-testid={`bank-statement-imported-${s.id}`}>{s.importedCount} / {s.lineCount}</td>
-                      <td className="py-2 pe-3 text-xs text-muted-foreground max-w-48 truncate" title={s.fileSha256 ?? undefined}>
+                    <tr key={s.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors align-top" data-testid={`bank-statement-${s.id}`}>
+                      <td className="py-3 px-3 min-w-[10rem]">{b ? `${b.name} — ${b.bankName}` : `#${s.bankAccountId}`}</td>
+                      <td className="py-3 px-3 text-[13px] whitespace-nowrap tabular-nums"><span dir="ltr">{s.periodFrom} → {s.periodTo}</span></td>
+                      <td className="py-3 px-3 text-end whitespace-nowrap"><Money v={s.openingBalance} /></td>
+                      <td className="py-3 px-3 text-end whitespace-nowrap"><Money v={s.closingBalance} /></td>
+                      <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums" data-testid={`bank-statement-imported-${s.id}`}><span dir="ltr">{s.importedCount} / {s.lineCount}</span></td>
+                      <td className="py-3 px-3 text-[13px] text-muted-foreground max-w-48 truncate" title={s.fileSha256 ?? undefined}>
                         {s.fileName ?? (s.source === "manual_entry" ? t("Entered, not a file", "مُدخل، ليس ملفًا") : "—")}
                       </td>
-                      <td className="py-2 pe-3">
-                        <Badge variant="outline" className={`text-[10px] ${c.attention ? "text-attention border-attention/40" : ""}`} data-testid={`bank-statement-continuity-${s.id}`}>{t(c.en, c.ar)}</Badge>
+                      <td className="py-3 px-3">
+                        <Badge variant="outline" className={`text-[11px] font-normal ${c.attention ? "text-attention border-attention/40" : ""}`} data-testid={`bank-statement-continuity-${s.id}`}>{t(c.en, c.ar)}</Badge>
                         {/* The detail is the server's sentence (English, with the dates and
                             amounts); the badge carries the state in both languages. */}
-                        {s.continuityDetail && lang !== "ar" && <p className="text-[11px] text-muted-foreground mt-1 max-w-64">{s.continuityDetail}</p>}
+                        {s.continuityDetail && lang !== "ar" && <p className="text-[12px] text-muted-foreground mt-1 max-w-64">{s.continuityDetail}</p>}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

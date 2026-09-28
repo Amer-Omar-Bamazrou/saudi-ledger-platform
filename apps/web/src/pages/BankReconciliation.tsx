@@ -16,7 +16,6 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { fmtNum } from "@/lib/api";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Scale, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { useBankOptions } from "@/components/payments/shared";
 import {
   useListReconciliationLines, getListReconciliationLinesQueryKey,
@@ -34,7 +34,7 @@ import {
   type ListReconciliationLinesParams, type ReconciliationStatus, type ReconciliationLineDetail,
 } from "@workspace/api-client-react";
 
-const Money = ({ v }: { v: number }) => <span className="font-mono" dir="ltr">{fmtNum(v)}</span>;
+const Money = ({ v }: { v: number }) => <span className="tabular-nums whitespace-nowrap" dir="ltr">{fmtNum(v)}</span>;
 
 const STATUS: Record<ReconciliationStatus, { en: string; ar: string; cls: string }> = {
   unreconciled: { en: "Unreconciled", ar: "غير مسوّى", cls: "text-attention border-attention/40" },
@@ -98,71 +98,68 @@ export default function BankReconciliation() {
 
   const items = data?.items ?? [];
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-full" data-testid="page-bank-reconciliation">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2"><Scale className="w-6 h-6" />{t("Bank reconciliation", "التسوية البنكية")}</h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-            {t("Each bank line, and how much of it the ledger already records. Reconcile a line to the payments, refunds or entries that ARE that money — wholly, partly, or across several. Nothing here posts.",
+    <div className="space-y-6" data-testid="page-bank-reconciliation">
+      <PageHeader
+        title={t("Bank reconciliation", "التسوية البنكية")}
+        description={t("Each bank line, and how much of it the ledger already records. Reconcile a line to the payments, refunds or entries that ARE that money — wholly, partly, or across several. Nothing here posts.",
                "كل سطر بنكي، ومقدار ما يسجله الدفتر منه. سوِّ السطر مع الدفعات أو المستردات أو القيود التي تمثل تلك الأموال — كليًا أو جزئيًا أو عبر عدة مستندات. لا يُرحَّل شيء من هنا.")}
-          </p>
-        </div>
-        <Button className="gap-2" onClick={applyAp} disabled={applying || deterministic === 0} data-testid="rec-apply-ap">
-          <Wand2 className="w-4 h-4" />{t(`Reconcile ${deterministic} supplier line(s) by reference`, `تسوية ${deterministic} سطر للموردين بالمرجع`)}
-        </Button>
-      </div>
+        actions={
+          <Button className="gap-2" onClick={applyAp} disabled={applying || deterministic === 0} data-testid="rec-apply-ap">
+            <Wand2 className="w-4 h-4" />{t(`Reconcile ${deterministic} supplier line(s) by reference`, `تسوية ${deterministic} سطر للموردين بالمرجع`)}
+          </Button>
+        }
+      />
 
-      <div className="flex flex-wrap gap-3">
-        <div className="w-64">
-          <Select value={bank} onValueChange={setBank}>
-            <SelectTrigger data-testid="rec-bank"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("All bank accounts", "كل الحسابات البنكية")}</SelectItem>
-              {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}
-            </SelectContent>
-          </Select>
+      <Panel flush>
+        <div className="flex flex-wrap gap-3 border-b border-border px-5 py-3">
+          <div className="w-full sm:w-64">
+            <Select value={bank} onValueChange={setBank}>
+              <SelectTrigger data-testid="rec-bank"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("All bank accounts", "كل الحسابات البنكية")}</SelectItem>
+                {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full sm:w-56">
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger data-testid="rec-status"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("All lines", "كل الأسطر")}</SelectItem>
+                {(Object.keys(STATUS) as ReconciliationStatus[]).map((s) => <SelectItem key={s} value={s}>{t(STATUS[s].en, STATUS[s].ar)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="w-56">
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger data-testid="rec-status"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("All lines", "كل الأسطر")}</SelectItem>
-              {(Object.keys(STATUS) as ReconciliationStatus[]).map((s) => <SelectItem key={s} value={s}>{t(STATUS[s].en, STATUS[s].ar)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="pt-6 overflow-x-auto">
-          {isLoading ? <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
-           : isError ? <p className="text-sm text-negative">{t("Could not load the lines.", "تعذّر تحميل الأسطر.")}</p>
-           : items.length === 0 ? <p className="text-sm text-muted-foreground" data-testid="rec-empty">{t("No lines in this view.", "لا أسطر في هذا العرض.")}</p>
+        <div className="overflow-x-auto">
+          {isLoading ? <p className="p-5 text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
+           : isError ? <p className="p-5 text-sm text-negative">{t("Could not load the lines.", "تعذّر تحميل الأسطر.")}</p>
+           : items.length === 0 ? <EmptyState icon={Scale} title={<span data-testid="rec-empty">{t("No lines in this view.", "لا أسطر في هذا العرض.")}</span>} />
            : (
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                {[t("Date", "التاريخ"), t("Bank", "البنك"), t("Description", "الوصف"), t("In / out", "داخل / خارج"), t("Amount", "المبلغ"), t("Left to reconcile", "المتبقي"), t("Status", "الحالة"), ""].map((h, i) => (
-                  <th key={i} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>
+              <thead><tr className="border-b border-border">
+                {([[t("Date", "التاريخ"), false], [t("Bank", "البنك"), false], [t("Description", "الوصف"), false], [t("In / out", "داخل / خارج"), false], [t("Amount", "المبلغ"), true], [t("Left to reconcile", "المتبقي"), true], [t("Status", "الحالة"), false], ["", false]] as const).map(([h, num], i) => (
+                  <th key={i} className={`${num ? "text-end" : "text-start"} px-3 ${i === 7 ? "sticky end-0 bg-muted" : ""}`}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {items.map((l) => (
-                  <tr key={l.id} className="border-b border-border/50" data-testid={`rec-line-${l.id}`}>
-                    <td className="py-2 pe-3 font-mono text-xs whitespace-nowrap" dir="ltr">{l.date}</td>
-                    <td className="py-2 pe-3 text-xs">{byId(l.bankAccountId)?.name ?? `#${l.bankAccountId}`}</td>
-                    <td className="py-2 pe-3 text-xs max-w-72 truncate" title={l.description}>{l.description}</td>
-                    <td className="py-2 pe-3 text-xs">{l.direction === "in" ? t("In", "داخل") : t("Out", "خارج")}</td>
-                    <td className="py-2 pe-3"><Money v={l.amount} /></td>
-                    <td className="py-2 pe-3" data-testid={`rec-remaining-${l.id}`}><Money v={l.remaining} /></td>
-                    <td className="py-2 pe-3"><Badge variant="outline" className={`text-[10px] ${STATUS[l.status].cls}`} data-testid={`rec-status-${l.id}`}>{t(STATUS[l.status].en, STATUS[l.status].ar)}</Badge></td>
-                    <td className="py-2"><Button size="sm" variant="ghost" onClick={() => setOpen(l.id)} data-testid={`rec-open-${l.id}`}>{t("Open", "فتح")}</Button></td>
+                  <tr key={l.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`rec-line-${l.id}`}>
+                    <td className="py-3 px-3 whitespace-nowrap tabular-nums text-muted-foreground"><span dir="ltr">{l.date}</span></td>
+                    <td className="py-3 px-3 whitespace-nowrap">{byId(l.bankAccountId)?.name ?? `#${l.bankAccountId}`}</td>
+                    <td className="py-3 px-3 max-w-72 truncate" title={l.description}>{l.description}</td>
+                    <td className="py-3 px-3 text-muted-foreground">{l.direction === "in" ? t("In", "داخل") : t("Out", "خارج")}</td>
+                    <td className="py-3 px-3 text-end"><Money v={l.amount} /></td>
+                    <td className="py-3 px-3 text-end font-medium" data-testid={`rec-remaining-${l.id}`}><Money v={l.remaining} /></td>
+                    <td className="py-3 px-3"><Badge variant="outline" className={`text-[11px] font-normal whitespace-nowrap ${STATUS[l.status].cls}`} data-testid={`rec-status-${l.id}`}>{t(STATUS[l.status].en, STATUS[l.status].ar)}</Badge></td>
+                    <td className="py-3 px-3 text-end sticky end-0 bg-card shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]"><Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOpen(l.id)} data-testid={`rec-open-${l.id}`}>{t("Open", "فتح")}</Button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       <Dialog open={open != null} onOpenChange={(v) => !v && setOpen(null)}>
         {open != null && <LineDialog id={open} lang={lang} t={t} onChanged={refresh} onClose={() => setOpen(null)} />}

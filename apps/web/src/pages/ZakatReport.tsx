@@ -2,11 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiFetch } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PageHeader, Panel } from "@/components/kit";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Landmark, TriangleAlert, Construction, HelpCircle, Ban } from "lucide-react";
+import { TriangleAlert, Construction, HelpCircle, Ban } from "lucide-react";
 
 /**
  * The Zakat surface (M17.0 + M17.1).
@@ -40,20 +40,21 @@ export default function ZakatReport() {
   });
 
   const header = (
-    <div>
-      <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-        <Landmark className="w-8 h-8 text-muted-foreground" />
-        {t("Zakat", "الزكاة")}
-        <Badge variant="outline" className="text-xs font-normal uppercase tracking-wider">
-          {t("Not implemented", "غير مُنفَّذ")}
-        </Badge>
-      </h1>
-    </div>
+    <PageHeader
+      title={
+        <span className="inline-flex items-center gap-3">
+          {t("Zakat", "الزكاة")}
+          <Badge variant="outline" className="text-xs font-normal">
+            {t("Not implemented", "غير مُنفَّذ")}
+          </Badge>
+        </span>
+      }
+    />
   );
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-6 max-w-4xl">
         {header}
         <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
       </div>
@@ -63,27 +64,25 @@ export default function ZakatReport() {
   // ── Not declared → ASK. Never assume, in either direction. ────────────────
   if (company && company.ownershipType == null) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-6 max-w-4xl">
         {header}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-muted-foreground" />
+        <Panel
+          title={
+            <span className="flex items-center gap-2">
+              <HelpCircle className="w-4 h-4 text-muted-foreground" />
               {t("Tell us who owns the company", "أخبِرنا بهيكل ملكية المنشأة")}
-            </CardTitle>
-            <CardDescription>
-              {t(
+            </span>
+          }
+          description={
+  t(
                 "Zakat applies differently depending on ownership, so we do not guess. Set your ownership structure in Company Settings and this page will tell you whether the Zakat module applies to you.",
                 "تختلف معالجة الزكاة باختلاف هيكل الملكية، ولذلك لا نفترض. حدِّد هيكل الملكية في إعدادات الشركة وستوضح لك هذه الصفحة ما إذا كانت وحدة الزكاة تنطبق عليك.",
               )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/company">
-              <Button>{t("Open Company Settings", "فتح إعدادات الشركة")}</Button>
-            </Link>
-          </CardContent>
-        </Card>
+        >
+          <Link href="/company">
+            <Button>{t("Open Company Settings", "فتح إعدادات الشركة")}</Button>
+          </Link>
+        </Panel>
       </div>
     );
   }
@@ -91,7 +90,7 @@ export default function ZakatReport() {
   // ── Foreign / mixed → out of scope, and say why. ──────────────────────────
   if (company && company.ownershipType !== "SAUDI_GCC") {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-6 max-w-4xl">
         {header}
         <Alert>
           <Ban className="h-4 w-4" />
@@ -137,9 +136,9 @@ export default function ZakatReport() {
 
   // ── In scope → the module, which is not built yet. ────────────────────────
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl">
       {header}
-      <p className="text-muted-foreground -mt-4">
+      <p className="text-sm text-muted-foreground -mt-4">
         {t("The Zakat working paper is not built yet.", "لم يتم بعد إنشاء ورقة عمل وعاء الزكاة.")}
       </p>
 
@@ -164,20 +163,18 @@ export default function ZakatReport() {
         </AlertDescription>
       </Alert>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Construction className="w-5 h-5 text-muted-foreground" />
+      <Panel
+        title={
+          <span className="flex items-center gap-2">
+            <Construction className="w-4 h-4 text-muted-foreground" />
             {t("What is being built", "ما الذي يجري بناؤه")}
-          </CardTitle>
-          <CardDescription>
-            {t(
+          </span>
+        }
+        description={t(
               "An auditable Zakat Base Working Paper you or your accountant use to complete the ZATCA filing. The platform does not submit to ZATCA on your behalf.",
               "ورقة عمل قابلة للمراجعة لوعاء الزكاة تستخدمها أنت أو محاسبك لاستكمال الإقرار لدى هيئة الزكاة والضريبة والجمارك. لا تقوم المنصة بالتقديم نيابةً عنك.",
             )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      >
           <ul className="space-y-3 text-sm">
             <li className="flex gap-3">
               <span className="text-muted-foreground shrink-0">•</span>
@@ -207,8 +204,7 @@ export default function ZakatReport() {
               </span>
             </li>
           </ul>
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

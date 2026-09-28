@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { statusLabel } from "@/lib/statusLabel";
 import { FilterScope } from "@/components/FilterScope";
+import { PageHeader, StatStrip, Stat, Panel, FilterTabs, EmptyState } from "@/components/kit";
 import { INVOICE_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
 import { OpeningRecordBadge, OpeningRecordNote } from "@/components/migration/OpeningRecord";
@@ -347,11 +348,10 @@ export default function Invoices() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Invoices", "الفواتير")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Customer invoices · Accounts Receivable", "فواتير العملاء · الذمم المدينة")}</p>
-        </div>
+      <PageHeader
+        title={t("Invoices", "الفواتير")}
+        description={t("Customer invoices and what is still owed on them.", "فواتير العملاء وما تبقى مستحقًا عليها.")}
+        actions={
         <Dialog
           open={open}
           onOpenChange={(o) => {
@@ -513,7 +513,8 @@ export default function Invoices() {
             </Button>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* 🔴 Draft-only delete. The confirm names what is and is NOT possible:
           this works because the invoice is a draft, and would be refused the
@@ -544,53 +545,45 @@ export default function Invoices() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          // Every figure here is the SERVER's, over the whole filtered set.
-          [t("Total Invoices", "إجمالي الفواتير"), pageInfo?.total ?? "—", "text-primary"],
-          [t("Outstanding", "المستحق"), totals ? fmtNum(totals.outstanding) : "—", "text-attention"],
-          [t("Collected", "المحصّل"), totals ? fmtNum(totals.collected) : "—", "text-positive"],
-          [t("Overdue", "متأخر"), totals?.overdue ?? "—", "text-negative"],
-        ].map(([l,v,c])=>(
-          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
-        ))}
-      </div>
+      {/* Every figure here is the SERVER's, over the whole filtered set. */}
+      <StatStrip cols={4}>
+        <Stat label={t("Invoices", "الفواتير")} value={pageInfo?.total ?? "—"} hint={t("in this view", "في هذا العرض")} />
+        <Stat label={t("Outstanding", "المستحق")} value={totals ? fmtNum(totals.outstanding) : "—"} />
+        <Stat label={t("Collected", "المحصّل")} value={totals ? fmtNum(totals.collected) : "—"} tone="positive" />
+        <Stat label={t("Overdue", "متأخر")} value={totals?.overdue ?? "—"} tone={totals?.overdue ? "negative" : "default"} hint={t("invoices past their due date", "فواتير تجاوزت تاريخ الاستحقاق")} />
+      </StatStrip>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <div className="flex gap-2 flex-wrap">
-            {/* "overdue" is answered from the dates by the API; "cancelled" is gone —
-                an invoice that must not stand is reversed by a credit note. */}
-            {INVOICE_FILTERS.map(o=>(
-              <Button key={o.value} variant={statusFilter===o.value?"default":"ghost"} size="sm" className="h-7 text-xs" onClick={()=>applyFilter(o.value)}>
-                {lang === "ar" ? o.labelAr : o.label}
-              </Button>
-            ))}
-          </div>
-          <div className="mt-3">
-            <FilterScope options={INVOICE_FILTERS} value={statusFilter} total={pageInfo?.total} onClear={() => applyFilter("all")} />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : invoices.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground"><FileText className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No invoices found.", "لا توجد فواتير.")}</p></div>
+      <Panel flush>
+        {/* "overdue" is answered from the dates by the API; "cancelled" is gone —
+            an invoice that must not stand is reversed by a credit note. */}
+        <FilterTabs
+          options={INVOICE_FILTERS.map((o) => ({ value: o.value, label: lang === "ar" ? o.labelAr : o.label }))}
+          value={statusFilter}
+          onChange={applyFilter}
+        />
+        <div className="px-5 pt-3 empty:hidden">
+          <FilterScope options={INVOICE_FILTERS} value={statusFilter} total={pageInfo?.total} onClear={() => applyFilter("all")} />
+        </div>
+        <div>
+          {isLoading ? <div className="text-muted-foreground text-sm p-5">{t("Loading...", "جارٍ التحميل...")}</div> : invoices.length === 0 ? (
+            <EmptyState icon={FileText} title={t("No invoices found.", "لا توجد فواتير.")} description={t("Invoices you create or import appear here.", "تظهر هنا الفواتير التي تنشئها أو تستوردها.")} />
           ) : (
             <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[
-                t("Invoice #", "رقم الفاتورة"),
-                t("Customer", "العميل"),
-                t("Date", "التاريخ"),
-                t("Due Date", "تاريخ الاستحقاق"),
-                t("Amount", "المبلغ"),
-                t("VAT", "ضريبة القيمة المضافة"),
-                t("Total", "الإجمالي"),
-                t("Due", "المستحق"),
-                t("Status", "الحالة"),
-                "",
-              ].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border">{([
+                [t("Invoice #", "رقم الفاتورة"), false],
+                [t("Customer", "العميل"), false],
+                [t("Date", "التاريخ"), false],
+                [t("Due Date", "تاريخ الاستحقاق"), false],
+                [t("Amount", "المبلغ"), true],
+                [t("VAT", "ضريبة القيمة المضافة"), true],
+                [t("Total", "الإجمالي"), true],
+                [t("Due", "المستحق"), true],
+                [t("Status", "الحالة"), false],
+                ["", false],
+              ] as const).map(([h, num])=><th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=>(
-                <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pe-4 font-mono text-xs text-primary">
+                <tr key={inv.id} className="group border-b border-border/70 hover:bg-muted/40 transition-colors">
+                  <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">
                     {inv.invoiceNumber}{inv.isOpening && <OpeningRecordBadge />}
                     {/* AP-2: the document's TYPE beside its number — a 386 declares VAT on a deposit and is never owed; a 388 that applied one says so. */}
                     {inv.documentType === "advance_invoice" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-${inv.id}`}>{t("Advance tax invoice", "فاتورة دفعة مقدمة")}</Badge>}
@@ -599,19 +592,20 @@ export default function Invoices() {
                     {inv.badDebtRelief && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-written-off-${inv.id}`}>{t("Written off", "مشطوبة")} {fmtNum(inv.writtenOffAmount)}</Badge>}
                     {inv.documentType === "invoice" && inv.prepaidAmount > 0.005 && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-prepaid-${inv.id}`}>{t("Advance applied", "طُبّقت دفعة مقدمة")} {fmtNum(inv.prepaidAmount)}</Badge>}
                   </td>
-                  <td className="py-3 pe-4 font-medium">{inv.customerName ?? "—"}</td>
-                  <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.date} /></td>
-                  <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.dueDate} /></td>
-                  <td className="py-3 pe-4 font-mono">{fmtNum(inv.subtotal)}</td>
-                  <td className="py-3 pe-4 font-mono text-muted-foreground">{fmtNum(inv.vatAmount)}</td>
-                  <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(inv.total)}</td>
+                  <td className="py-3 px-3 min-w-[10rem]">{inv.customerName ?? "—"}</td>
+                  <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={inv.date} /></td>
+                  <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={inv.dueDate} /></td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(inv.subtotal)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(inv.vatAmount)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(inv.total)}</td>
                   {/* What is still OWED on the document: nothing on a 386 or a note; total − paid − credited otherwise (the advance, once applied, sits in paid). */}
-                  <td className="py-3 pe-4 font-mono text-muted-foreground" data-testid={`due-${inv.id}`}>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground" data-testid={`due-${inv.id}`}>
                     {inv.documentType === "advance_invoice" || inv.documentType === "advance_credit_note" || inv.documentType === "recovery_invoice" || inv.documentType === "credit_note" || inv.status === "draft" || inv.status === "submitted" ? "—" : fmtNum(inv.total - inv.paidAmount - inv.creditedAmount - inv.writtenOffAmount)}
                   </td>
-                  <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{statusLabel(inv.status, lang)}</Badge></td>
-                  <td className="py-3">
-                    <div className="flex items-center gap-1">
+                  <td className="py-3 px-3"><Badge className={`gap-1 capitalize ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{statusLabel(inv.status, lang)}</Badge></td>
+                  {/* Actions stay in view while the figures scroll beneath them. */}
+                  <td className="py-3 px-3 sticky end-0 bg-card shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]">
+                    <div className="flex items-center justify-end gap-0.5">
                       {/*
                         🔴 AUD-11/AUD-12: draft-only Edit and Delete. Both routes
                         existed and had no caller, so a mistyped draft could be
@@ -705,7 +699,7 @@ export default function Invoices() {
               set the reader does not think they are looking at (B-6).
             */}
             {pageInfo && pageInfo.total > 0 && (
-              <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+              <div className="flex items-center justify-between border-t border-border px-5 py-3 text-sm text-muted-foreground">
                 <span>
                   {t(
                     `Showing ${pageInfo.offset + 1}–${Math.min(pageInfo.offset + invoices.length, pageInfo.total)} of ${pageInfo.total}`,
@@ -727,8 +721,8 @@ export default function Invoices() {
                 </div>
               </div>
             )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {writeOffFor && <WriteOffBadDebtDialog invoice={writeOffFor} open onClose={() => setWriteOffFor(null)} />}
       {recoveryFor && <BadDebtRecoveryDialog invoice={recoveryFor} open onClose={() => setRecoveryFor(null)} />}
@@ -747,7 +741,7 @@ export default function Invoices() {
             </div>
             <PaymentHistory entity="invoices" id={payOpen} />
           </div>
-          <Button className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700" onClick={()=>{ const bank = Number(payBank || defaultBankId); if (payingRef.current || !payOpen || !bank) return; payingRef.current = true; payMut.mutate({id:payOpen,amount:Number(payAmount),bankAccountId:bank}); }} disabled={!payAmount||payMut.isPending||!(payBank||defaultBankId)}>
+          <Button className="w-full mt-4" onClick={()=>{ const bank = Number(payBank || defaultBankId); if (payingRef.current || !payOpen || !bank) return; payingRef.current = true; payMut.mutate({id:payOpen,amount:Number(payAmount),bankAccountId:bank}); }} disabled={!payAmount||payMut.isPending||!(payBank||defaultBankId)}>
             {payMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record Payment", "تسجيل الدفعة")}
           </Button>
         </DialogContent>

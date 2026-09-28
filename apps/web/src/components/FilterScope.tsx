@@ -46,13 +46,13 @@ export function FilterScope({
       data-testid="filter-scope"
       data-status={value}
       data-total={total ?? ""}
-      className="flex items-center gap-2 flex-wrap text-sm rounded-md border border-border bg-secondary/30 px-3 py-2"
+      className="flex items-center gap-2 flex-wrap text-[13px] rounded-md border border-border bg-muted/40 px-3 py-2"
     >
       <span className="text-muted-foreground">{t("Showing", "عرض")}</span>
       <span data-testid="filter-scope-label" className="font-semibold text-foreground">
         {filterLabel(options, value, lang)}
       </span>
-      <span data-testid="filter-scope-count" className="font-mono text-muted-foreground">
+      <span data-testid="filter-scope-count" className="tabular-nums text-muted-foreground">
         {total === undefined ? "—" : `· ${total.toLocaleString()}`}
       </span>
       <button

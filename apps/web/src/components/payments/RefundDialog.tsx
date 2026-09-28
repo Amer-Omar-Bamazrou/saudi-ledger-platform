@@ -94,27 +94,27 @@ export function RefundDialog({ customer, source, open, onClose }: { customer: { 
             <div className="rounded-md border border-border p-3 space-y-1">
               <Row k={t("Customer", "العميل")} v={customer.name} />
               <Row k={t("Refund origin", "مصدر الردّ")} v={originLabel} />
-              <Row k={t("Refundable balance", "الرصيد القابل للردّ")} v={<span className="font-mono">{fmtNum(source.available)}</span>} testId="refund-available" />
+              <Row k={t("Refundable balance", "الرصيد القابل للردّ")} v={<span className="tabular-nums">{fmtNum(source.available)}</span>} testId="refund-available" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">{t("Amount (SAR) *", "المبلغ (ر.س) *")}</p>
-                <Input type="number" min={0} step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={`h-9 text-sm font-mono ${tooMuch ? "border-destructive" : ""}`} data-testid="refund-amount" />
+                <p className="text-[13px] text-muted-foreground mb-1.5">{t("Amount (SAR) *", "المبلغ (ر.س) *")}</p>
+                <Input type="number" min={0} step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={`h-9 text-sm tabular-nums ${tooMuch ? "border-destructive" : ""}`} data-testid="refund-amount" />
                 {tooMuch && <p className="text-xs text-destructive mt-1">{t("More than the refundable balance", "أكبر من الرصيد القابل للردّ")}</p>}
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">{t("Date", "التاريخ")}</p>
+                <p className="text-[13px] text-muted-foreground mb-1.5">{t("Date", "التاريخ")}</p>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-sm" />
               </div>
             </div>
             <BankPicker value={bank} onChange={setBank} testId="refund-bank-account" label={t("Paid from bank account *", "يُدفع من الحساب البنكي *")} />
             <div>
-              <p className="text-xs text-muted-foreground mb-1">{t("Reason *", "السبب *")}</p>
+              <p className="text-[13px] text-muted-foreground mb-1.5">{t("Reason *", "السبب *")}</p>
               <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} data-testid="refund-reason" placeholder={t("Why the customer is being refunded", "سبب ردّ المبلغ للعميل")} />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">{t("Bank reference", "المرجع البنكي")}</p>
-              <Input value={reference} onChange={(e) => setReference(e.target.value)} className="h-9 text-sm font-mono" placeholder={t("Optional — the transfer reference", "اختياري — مرجع التحويل")} />
+              <p className="text-[13px] text-muted-foreground mb-1.5">{t("Bank reference", "المرجع البنكي")}</p>
+              <Input value={reference} onChange={(e) => setReference(e.target.value)} className="h-9 text-sm tabular-nums" placeholder={t("Optional — the transfer reference", "اختياري — مرجع التحويل")} />
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={onClose}>{t("Cancel", "إلغاء")}</Button>
@@ -126,11 +126,11 @@ export function RefundDialog({ customer, source, open, onClose }: { customer: { 
             <div className="rounded-md border border-border p-3 space-y-1" data-testid="refund-summary">
               <Row k={t("Customer", "العميل")} v={customer.name} />
               <Row k={t("Refund origin", "مصدر الردّ")} v={originLabel} />
-              <Row k={t("Amount", "المبلغ")} v={<span className="font-mono">{fmtNum(n)}</span>} testId="refund-confirm-amount" />
+              <Row k={t("Amount", "المبلغ")} v={<span className="tabular-nums">{fmtNum(n)}</span>} testId="refund-confirm-amount" />
               <Row k={t("Paid from", "يُدفع من")} v={bankRow ? `${bankRow.name} — ${bankRow.bankName}` : `#${bank}`} />
               <Row k={t("Date", "التاريخ")} v={date} />
               <Row k={t("Reason", "السبب")} v={reason.trim()} />
-              <Row k={t("Balance remaining after", "الرصيد المتبقي بعده")} v={<span className="font-mono">{fmtNum(after)}</span>} testId="refund-after" />
+              <Row k={t("Balance remaining after", "الرصيد المتبقي بعده")} v={<span className="tabular-nums">{fmtNum(after)}</span>} testId="refund-after" />
             </div>
             <p className="text-xs text-foreground rounded-md border border-border bg-secondary/20 p-2" data-testid="refund-consequence">
               {t(`This will refund ${fmtNum(n)} of ${customer.name}'s ${source.origin === "deposit" ? "deposit" : "credit-note balance"} from ${bankRow ? bankRow.name : `bank #${bank}`}, leaving ${fmtNum(after)} on ${source.label}. It posts Dr ${source.origin === "deposit" ? "Customer deposits" : "Customer credit balances"} / Cr the bank account; no VAT is touched.`,

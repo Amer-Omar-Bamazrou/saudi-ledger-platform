@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, Field } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -92,8 +92,8 @@ export default function AssetDetail() {
     },
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</p>;
-  if (error || !asset) return <p className="text-sm text-destructive p-4">{t("The asset could not be loaded.", "تعذّر تحميل الأصل.")} {(error as Error)?.message}</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>;
+  if (error || !asset) return <p className="text-sm text-destructive">{t("The asset could not be loaded.", "تعذّر تحميل الأصل.")} {(error as Error)?.message}</p>;
 
   const rows = asset.schedule.length > 0 ? asset.schedule : (asset.plannedSchedule ?? []).map((r) => ({ ...r, id: -r.sequence, assetId: asset.id, journalEntryId: null, postedAt: null }));
   const facts: Array<[string, React.ReactNode, string]> = [
@@ -109,96 +109,104 @@ export default function AssetDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/assets" className="inline-flex items-center gap-1 text-xs text-primary mb-1" data-testid="back-to-assets"><ArrowLeft className="w-3 h-3" />{t("Fixed Assets", "الأصول الثابتة")}</Link>
-          <h1 className="text-2xl font-bold text-foreground">{lang === "ar" && asset.nameAr ? asset.nameAr : asset.name}</h1>
-          <p className="text-muted-foreground text-sm mt-1 font-mono" dir="ltr">{asset.assetNumber} · {asset.categoryName}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge data-testid="detail-status">{statusLabel(t, asset)}</Badge>
-          {asset.status === "in_service" && asset.nextPeriod && (
-            <Button size="sm" className="gap-1" onClick={() => setRunOpen(true)} data-testid="run-depreciation"><TrendingDown className="w-4 h-4" />{t(`Depreciate ${asset.nextPeriod}`, `إهلاك ${asset.nextPeriod}`)}</Button>
-          )}
-          {asset.status === "in_service" && (
-            <Button size="sm" variant="outline" className="gap-1" onClick={() => setEstimateOpen(true)} data-testid="change-estimate"><Pencil className="w-4 h-4" />{t("Change estimate", "تغيير التقدير")}</Button>
-          )}
-          {asset.status === "in_service" && (
-            <Button size="sm" variant="outline" className="gap-1" onClick={() => setDisposeOpen(true)} data-testid="dispose-asset"><Trash2 className="w-4 h-4" />{t("Scrap / write off", "شطب / استبعاد")}</Button>
-          )}
-        </div>
+      <div>
+        <Link href="/assets" className="mb-2 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground" data-testid="back-to-assets"><ArrowLeft className="w-3.5 h-3.5 rtl:-scale-x-100" />{t("Fixed Assets", "الأصول الثابتة")}</Link>
+        <PageHeader
+          title={
+            <span className="inline-flex flex-wrap items-center gap-3">
+              {lang === "ar" && asset.nameAr ? asset.nameAr : asset.name}
+              <Badge variant="outline" className="text-xs font-normal capitalize" data-testid="detail-status">{statusLabel(t, asset)}</Badge>
+            </span>
+          }
+          description={<span className="tabular-nums" dir="ltr">{asset.assetNumber} · {asset.categoryName}</span>}
+          actions={
+            <>
+              {asset.status === "in_service" && asset.nextPeriod && (
+                <Button size="sm" className="gap-1" onClick={() => setRunOpen(true)} data-testid="run-depreciation"><TrendingDown className="w-4 h-4" />{t(`Depreciate ${asset.nextPeriod}`, `إهلاك ${asset.nextPeriod}`)}</Button>
+              )}
+              {asset.status === "in_service" && (
+                <Button size="sm" variant="outline" className="gap-1" onClick={() => setEstimateOpen(true)} data-testid="change-estimate"><Pencil className="w-4 h-4" />{t("Change estimate", "تغيير التقدير")}</Button>
+              )}
+              {asset.status === "in_service" && (
+                <Button size="sm" variant="outline" className="gap-1" onClick={() => setDisposeOpen(true)} data-testid="dispose-asset"><Trash2 className="w-4 h-4" />{t("Scrap / write off", "شطب / استبعاد")}</Button>
+              )}
+            </>
+          }
+        />
       </div>
 
       {asset.disposal && (
-        <Card className="border-border bg-card"><CardContent className="pt-4">
+        <div className="rounded-lg border border-border bg-muted/40 px-5 py-4">
           <p className="text-sm" data-testid="disposal-notice">
             <span className="font-medium">{({ sold: t("Sold", "بيع"), scrapped: t("Scrapped", "شُطب"), destroyed: t("Destroyed", "أُتلف"), stolen: t("Stolen", "سُرق"), withdrawn: t("Withdrawn", "سُحب") } as Record<string, string>)[asset.disposal.kind]}</span>
             {" "}<span dir="ltr">{asset.disposal.date}</span>
-            {" · "}{asset.disposal.gainLoss < 0 ? t("loss", "خسارة") : t("gain", "ربح")} <span className="font-mono">{fmtNum(Math.abs(asset.disposal.gainLoss))}</span>
-            {" · "}{t("carrying amount on disposal", "القيمة الدفترية عند الاستبعاد")} <span className="font-mono">{fmtNum(asset.disposal.carryingAmountAtDisposal)}</span>
+            {" · "}{asset.disposal.gainLoss < 0 ? t("loss", "خسارة") : t("gain", "ربح")} <span className="tabular-nums">{fmtNum(Math.abs(asset.disposal.gainLoss))}</span>
+            {" · "}{t("carrying amount on disposal", "القيمة الدفترية عند الاستبعاد")} <span className="tabular-nums">{fmtNum(asset.disposal.carryingAmountAtDisposal)}</span>
             {asset.disposal.nominalSupplyValue != null && (
-              <> · <span data-testid="nominal-supply">{t("nominal supply (VAT Art. 52(8))", "توريد اعتباري (المادة 52(8))")} <span className="font-mono">{fmtNum(asset.disposal.nominalSupplyValue)}</span></span></>
+              <> · <span data-testid="nominal-supply">{t("nominal supply (VAT Art. 52(8))", "توريد اعتباري (المادة 52(8))")} <span className="tabular-nums">{fmtNum(asset.disposal.nominalSupplyValue)}</span></span></>
             )}
-            {asset.disposal.reason && <span className="block text-muted-foreground text-xs mt-1">{asset.disposal.reason}</span>}
+            {asset.disposal.reason && <span className="block text-muted-foreground text-[13px] mt-1">{asset.disposal.reason}</span>}
           </p>
-        </CardContent></Card>
+        </div>
       )}
 
       {asset.status === "draft" && (
-        <Card className="border-border bg-card"><CardContent className="pt-4">
+        <div className="rounded-lg border border-info/30 bg-info-surface/10 px-5 py-4">
           <p className="text-sm" data-testid="draft-notice">
             {t("This asset is a draft: nothing is in the books yet. It is capitalised by the BILL that buys it — enter the vendor bill and choose this asset on it; approving the bill posts the cost and starts the schedule below.",
                "هذا الأصل مسودة: لا شيء في الدفاتر بعد. تتم رسملته عبر فاتورة المورد التي تشتريه — أدخل الفاتورة واختر هذا الأصل فيها؛ واعتماد الفاتورة يرحّل التكلفة ويبدأ الجدول أدناه.")}
           </p>
-        </CardContent></Card>
+        </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {facts.map(([l, v, id]) => (
-          <Card key={id} className="border-border bg-card"><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className="text-sm font-semibold font-mono" data-testid={id}>{v}</div></CardContent></Card>
+      <StatStrip cols={4}>
+        {facts.slice(0, 4).map(([l, v, id]) => (
+          <Stat key={id} label={l} value={<span data-testid={id}>{v}</span>} />
         ))}
-      </div>
+      </StatStrip>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{asset.schedule.length > 0 ? t("Depreciation schedule", "جدول الإهلاك") : t("Planned schedule (nothing posted yet)", "الجدول المخطط (لم يُرحَّل شيء بعد)")}</CardTitle></CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto max-h-[28rem]"><table className="w-full text-sm">
-            <thead className="sticky top-0 bg-card"><tr className="border-b border-border text-muted-foreground text-xs uppercase">
-              {["#", t("Period", "الفترة"), t("Amount", "المبلغ"), t("Accumulated", "المتراكم"), t("Carrying", "الدفترية"), t("State", "الحالة")].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}
+      <Panel>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+          {facts.slice(4).map(([l, v, id]) => (
+            <Field key={id} label={l}><span className="tabular-nums" data-testid={id}>{v}</span></Field>
+          ))}
+        </dl>
+      </Panel>
+
+      <Panel flush title={asset.schedule.length > 0 ? t("Depreciation schedule", "جدول الإهلاك") : t("Planned schedule (nothing posted yet)", "الجدول المخطط (لم يُرحَّل شيء بعد)")}>
+          <div className="overflow-auto max-h-[28rem]"><table className="w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-muted"><tr className="border-b border-border">
+              {([["#", false], [t("Period", "الفترة"), false], [t("Amount", "المبلغ"), true], [t("Accumulated", "المتراكم"), true], [t("Carrying", "الدفترية"), true], [t("State", "الحالة"), false]] as const).map(([h, num]) => <th key={h} className={`px-3 ${num ? "text-end" : "text-start"}`}>{h}</th>)}
             </tr></thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.sequence} className="border-b border-border/50" data-testid={`schedule-${r.period}`}>
-                  <td className="py-1.5 pe-3 text-xs text-muted-foreground">{r.sequence}</td>
-                  <td className="py-1.5 pe-3 font-mono text-xs" dir="ltr">{r.period}</td>
-                  <td className="py-1.5 pe-3 font-mono">{fmtNum(r.amount)}</td>
-                  <td className="py-1.5 pe-3 font-mono text-muted-foreground">{fmtNum(r.accumulatedAfter)}</td>
-                  <td className="py-1.5 pe-3 font-mono">{fmtNum(r.carryingAfter)}</td>
-                  <td className="py-1.5 pe-3 text-xs">{r.journalEntryId != null
-                    ? <Link href={`/journal-entries?entry=${r.journalEntryId}`} className="text-primary" data-testid={`posted-${r.period}`}>{t("posted", "مرحَّل")} #{r.journalEntryId}</Link>
+                <tr key={r.sequence} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`schedule-${r.period}`}>
+                  <td className="py-2.5 px-3 text-xs text-muted-foreground tabular-nums">{r.sequence}</td>
+                  <td className="py-2.5 px-3 tabular-nums whitespace-nowrap" dir="ltr">{r.period}</td>
+                  <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(r.amount)}</td>
+                  <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(r.accumulatedAfter)}</td>
+                  <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(r.carryingAfter)}</td>
+                  <td className="py-2.5 px-3 text-[13px]">{r.journalEntryId != null
+                    ? <Link href={`/journal-entries?entry=${r.journalEntryId}`} className="text-primary hover:underline" data-testid={`posted-${r.period}`}>{t("posted", "مرحَّل")} #{r.journalEntryId}</Link>
                     : <span className="text-muted-foreground">{t("planned", "مخطط")}</span>}</td>
                 </tr>
               ))}
             </tbody>
           </table></div>
-        </CardContent>
-      </Card>
+      </Panel>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("History", "السجل")}</CardTitle></CardHeader>
-        <CardContent>
-          <ul className="space-y-1 text-xs">
+      <Panel flush title={t("History", "السجل")}>
+          <ul className="divide-y divide-border/70 text-sm">
             {asset.events.map((e) => (
-              <li key={e.id} className="flex flex-wrap gap-2" data-testid={`event-${e.kind}`}>
-                <span className="font-mono text-muted-foreground" dir="ltr">{e.occurredOn}</span>
+              <li key={e.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5" data-testid={`event-${e.kind}`}>
+                <span className="text-[13px] tabular-nums text-muted-foreground" dir="ltr">{e.occurredOn}</span>
                 <span className="font-medium">{e.kind}</span>
-                {e.journalEntryId != null && <Link href={`/journal-entries?entry=${e.journalEntryId}`} className="text-primary">#{e.journalEntryId}</Link>}
+                {e.journalEntryId != null && <Link href={`/journal-entries?entry=${e.journalEntryId}`} className="text-primary hover:underline">#{e.journalEntryId}</Link>}
                 {e.documentRef && <span className="text-muted-foreground" dir="ltr">{e.documentRef}</span>}
               </li>
             ))}
           </ul>
-        </CardContent>
-      </Card>
+      </Panel>
 
       <Dialog open={runOpen} onOpenChange={(o) => { if (!o) setRunOpen(false); }}>
         <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-sm" data-testid="run-depreciation-dialog">
@@ -214,7 +222,7 @@ export default function AssetDetail() {
             <span className="font-mono" data-testid="run-amount">{fmtNum(rows.find((r) => r.period === asset.nextPeriod)?.amount ?? 0)}</span>
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Catch-up date (only if the period is closed)", "تاريخ الاستدراك (فقط إذا كانت الفترة مقفلة)")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("Catch-up date (only if the period is closed)", "تاريخ الاستدراك (فقط إذا كانت الفترة مقفلة)")}</Label>
             <Input type="date" value={postingDate} onChange={(e) => setPostingDate(e.target.value)} className="mt-1 h-9" data-testid="run-posting-date" />
           </div>
           <div className="flex justify-end gap-2">
@@ -235,7 +243,7 @@ export default function AssetDetail() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-xs text-muted-foreground">{t("What happened", "ما الذي حدث")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("What happened", "ما الذي حدث")}</Label>
               <Select value={disposal.kind} onValueChange={(v) => setDisposal((p) => ({ ...p, kind: v }))}>
                 <SelectTrigger className="mt-1 h-9" data-testid="dispose-kind"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -246,14 +254,14 @@ export default function AssetDetail() {
                 </SelectContent>
               </Select>
               {disposal.kind === "withdrawn" && (
-                <p className="text-[11px] text-muted-foreground mt-1" data-testid="withdrawn-hint">
+                <p className="text-xs text-muted-foreground mt-1" data-testid="withdrawn-hint">
                   {t("A withdrawal while the asset is still usable is a NOMINAL SUPPLY for VAT (Art. 52(8)); its value is computed and recorded on the disposal.",
                      "سحب الأصل وهو ما زال صالحًا للاستخدام يُعد توريدًا اعتباريًا لأغراض ضريبة القيمة المضافة (المادة 52(8))؛ وتُحتسب قيمته وتُسجَّل مع الاستبعاد.")}
                 </p>
               )}
             </div>
-            <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={disposal.date} onChange={(e) => setDisposal((p) => ({ ...p, date: e.target.value }))} className="mt-1 h-9" data-testid="dispose-date" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("Reason and evidence", "السبب والإثبات")}</Label><Textarea rows={2} value={disposal.reason} onChange={(e) => setDisposal((p) => ({ ...p, reason: e.target.value }))} className="mt-1" data-testid="dispose-reason" /></div>
+            <div><Label className="text-[13px] text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={disposal.date} onChange={(e) => setDisposal((p) => ({ ...p, date: e.target.value }))} className="mt-1 h-9" data-testid="dispose-date" /></div>
+            <div><Label className="text-[13px] text-muted-foreground">{t("Reason and evidence", "السبب والإثبات")}</Label><Textarea rows={2} value={disposal.reason} onChange={(e) => setDisposal((p) => ({ ...p, reason: e.target.value }))} className="mt-1" data-testid="dispose-reason" /></div>
             <div className="rounded-md border border-border p-3 text-sm flex justify-between">
               <span className="text-muted-foreground">{t("Loss on disposal (the carrying amount today)", "الخسارة عند الاستبعاد (القيمة الدفترية اليوم)")}</span>
               <span className="font-mono" data-testid="dispose-loss">{fmtNum(asset.carryingAmount)}</span>
@@ -276,9 +284,9 @@ export default function AssetDetail() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label className="text-xs text-muted-foreground">{t("Useful life (months)", "العمر الإنتاجي (أشهر)")}</Label><Input type="number" min={1} value={estimate.usefulLifeMonths} onChange={(e) => setEstimate((p) => ({ ...p, usefulLifeMonths: e.target.value }))} placeholder={String(asset.usefulLifeMonths)} className="mt-1 h-9 font-mono" dir="ltr" data-testid="estimate-life" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("Residual value", "القيمة المتبقية")}</Label><Input type="number" min={0} step="0.01" value={estimate.residualValue} onChange={(e) => setEstimate((p) => ({ ...p, residualValue: e.target.value }))} placeholder={fmtNum(asset.residualValue)} className="mt-1 h-9 font-mono" dir="ltr" data-testid="estimate-residual" /></div>
-            <div className="col-span-2"><Label className="text-xs text-muted-foreground">{t("Reason (disclosed — IAS 8)", "السبب (يُفصح عنه — معيار 8)")}</Label><Textarea rows={2} value={estimate.reason} onChange={(e) => setEstimate((p) => ({ ...p, reason: e.target.value }))} className="mt-1" data-testid="estimate-reason" /></div>
+            <div><Label className="text-[13px] text-muted-foreground">{t("Useful life (months)", "العمر الإنتاجي (أشهر)")}</Label><Input type="number" min={1} value={estimate.usefulLifeMonths} onChange={(e) => setEstimate((p) => ({ ...p, usefulLifeMonths: e.target.value }))} placeholder={String(asset.usefulLifeMonths)} className="mt-1 h-9 font-mono" dir="ltr" data-testid="estimate-life" /></div>
+            <div><Label className="text-[13px] text-muted-foreground">{t("Residual value", "القيمة المتبقية")}</Label><Input type="number" min={0} step="0.01" value={estimate.residualValue} onChange={(e) => setEstimate((p) => ({ ...p, residualValue: e.target.value }))} placeholder={fmtNum(asset.residualValue)} className="mt-1 h-9 font-mono" dir="ltr" data-testid="estimate-residual" /></div>
+            <div className="col-span-2"><Label className="text-[13px] text-muted-foreground">{t("Reason (disclosed — IAS 8)", "السبب (يُفصح عنه — معيار 8)")}</Label><Textarea rows={2} value={estimate.reason} onChange={(e) => setEstimate((p) => ({ ...p, reason: e.target.value }))} className="mt-1" data-testid="estimate-reason" /></div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEstimateOpen(false)}>{t("Cancel", "إلغاء")}</Button>

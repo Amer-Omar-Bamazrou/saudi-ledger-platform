@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,85 +60,72 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
   const totalNet = filtered.reduce((s, r) => s + r.totalNetPay, 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Payroll Summary", "ملخص الرواتب")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Monthly payroll costs — gross, GOSI, and net", "تكاليف الرواتب الشهرية — الإجمالي والتأمينات والصافي")}</p>
-        </div>
-      </div>
+    <div className="space-y-6 max-w-6xl">
+      <PageHeader
+        title={t("Payroll Summary", "ملخص الرواتب")}
+        description={t("Monthly payroll costs — gross, GOSI, and net", "تكاليف الرواتب الشهرية — الإجمالي والتأمينات والصافي")}
+      />
 
       <FiscalRangeNotice source={range.source} />
 
-      <Card className="border-border bg-card">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex gap-4 items-end">
-            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label>
-              <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label>
-              <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+      <Panel>
+          <div className="flex flex-wrap gap-4 items-end">
+            <div><Label className="text-[13px] text-muted-foreground">{t("From", "من")}</Label>
+              <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1 w-44" /></div>
+            <div><Label className="text-[13px] text-muted-foreground">{t("To", "إلى")}</Label>
+              <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1 w-44" /></div>
           </div>
           <div className="mt-3">
             <PeriodShortcuts from={from} to={to} onSelect={(r)=>{setFrom(r.from);setTo(r.to);}} />
           </div>
-        </CardContent>
-      </Card>
+      </Panel>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        {[
-          [t("Total Gross", "إجمالي الرواتب"), fmtNum(totalGross), "text-primary"],
-          [t("GOSI (Employer)", "التأمينات (صاحب العمل)"), fmtNum(totalGosiEmployer), "text-attention"],
-          [t("Total Net Paid", "صافي المدفوع"), fmtNum(totalNet), "text-negative"],
-        ].map(([l, v, c]) => (
-          <Card key={String(l)} className="border-border bg-card">
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
-          </Card>
-        ))}
-      </div>
+      <StatStrip cols={3}>
+        <Stat label={t("Total Gross", "إجمالي الرواتب")} value={fmtNum(totalGross)} />
+        <Stat label={t("GOSI (Employer)", "التأمينات (صاحب العمل)")} value={fmtNum(totalGosiEmployer)} />
+        <Stat label={t("Total Net Paid", "صافي المدفوع")} value={fmtNum(totalNet)} tone="negative" />
+      </StatStrip>
 
-      <Card className="border-border bg-card">
-        <CardContent className="pt-6">
-          {isLoading ? <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
+      <Panel flush>
+          {isLoading ? <div className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</div>
           : filtered.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Banknote className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">{t("No payroll runs in this period.", "لا توجد مسيّرات رواتب في هذه الفترة.")}</p>
-              <p className="text-xs mt-1 opacity-60">Process payroll in HR &amp; Payroll to see data here.</p>
-            </div>
+            <EmptyState
+              icon={Banknote}
+              title={t("No payroll runs in this period.", "لا توجد مسيّرات رواتب في هذه الفترة.")}
+              description={t("Process payroll in HR & Payroll to see data here.", "عالِج الرواتب في الموارد البشرية والرواتب لتظهر البيانات هنا.")}
+            />
           ) : (
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {[
-                    t("Month", "الشهر"), t("Employees", "الموظفون"), t("Gross Salary", "إجمالي الراتب"),
-                    t("GOSI (Employer)", "التأمينات (صاحب العمل)"), t("GOSI (Employee)", "التأمينات (الموظف)"),
-                    t("Allowances", "البدلات"), t("Deductions", "الاستقطاعات"),
-                    t("Net Salary", "صافي الراتب"), t("Status", "الحالة"),
-                  ].map(h => (
-                    <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>
+                <tr className="border-b border-border">
+                  {([
+                    [t("Month", "الشهر"), false], [t("Employees", "الموظفون"), true], [t("Gross Salary", "إجمالي الراتب"), true],
+                    [t("GOSI (Employer)", "التأمينات (صاحب العمل)"), true], [t("GOSI (Employee)", "التأمينات (الموظف)"), true],
+                    [t("Allowances", "البدلات"), true], [t("Deductions", "الاستقطاعات"), true],
+                    [t("Net Salary", "صافي الراتب"), true], [t("Status", "الحالة"), false],
+                  ] as const).map(([h, num]) => (
+                    <th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(r => (
-                  <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-2 pe-3 font-medium">{r.period}</td>
-                    <td className="py-2 pe-3 font-mono">{r.employeeCount}</td>
-                    <td className="py-2 pe-3 font-mono">{fmtNum(r.grossSalary)}</td>
-                    <td className="py-2 pe-3 font-mono text-attention">{fmtNum(r.totalGosiEmployer)}</td>
-                    <td className="py-2 pe-3 font-mono text-attention">{fmtNum(r.totalGosiEmployee)}</td>
-                    <td className="py-2 pe-3 font-mono text-positive">{fmtNum(r.totalAllowances)}</td>
-                    <td className="py-2 pe-3 font-mono text-negative">{fmtNum(r.totalDeductions)}</td>
-                    <td className="py-2 pe-3 font-mono font-semibold">{fmtNum(r.totalNetPay)}</td>
-                    <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{r.status}</Badge></td>
+                  <tr key={r.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                    <td className="py-3 px-3 font-medium whitespace-nowrap tabular-nums">{r.period}</td>
+                    <td className="py-3 px-3 text-end tabular-nums">{r.employeeCount}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(r.grossSalary)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(r.totalGosiEmployer)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(r.totalGosiEmployee)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(r.totalAllowances)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(r.totalDeductions)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(r.totalNetPay)}</td>
+                    <td className="py-3 px-3"><Badge className={`text-xs capitalize ${STATUS_STYLES[r.status] ?? ""}`}>{r.status}</Badge></td>
                   </tr>
                 ))}
               </tbody>
             </table></div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

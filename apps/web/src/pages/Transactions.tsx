@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { DualDate } from "@/components/DualDate";
 import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
 
@@ -127,16 +128,15 @@ const PAGE_SIZE = 50;
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">{t("Ledger Entries", "قيود دفتر الأستاذ")}</h1>
-        <div className="flex gap-2">
-          {/* Action buttons could go here */}
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={t("Ledger Entries", "قيود دفتر الأستاذ")}
+        description={t("Every imported bank movement, with its category and review state.", "كل حركة بنكية مستوردة، مع فئتها وحالة مراجعتها.")}
+      />
 
-      <div className="flex flex-col md:flex-row gap-4 items-center bg-card p-4 rounded-lg border shadow-sm">
-        <div className="relative flex-1">
+      <Panel flush>
+      <div className="flex flex-col md:flex-row gap-3 md:items-center border-b border-border px-5 py-3">
+        <div className="relative flex-1 w-full">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder={t("Search descriptions...", "بحث في الأوصاف...")}
@@ -147,7 +147,7 @@ const PAGE_SIZE = 50;
         </div>
         
         <Select value={typeFilter ?? undefined} onValueChange={(v: any) => setTypeFilter(v)}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-full md:w-[140px]">
             <Filter className="w-4 h-4 me-2 text-muted-foreground" />
             <SelectValue placeholder={t("Type", "النوع")} />
           </SelectTrigger>
@@ -159,7 +159,7 @@ const PAGE_SIZE = 50;
         </Select>
 
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full md:w-[200px]">
             <SelectValue placeholder={t("Category", "الفئة")} />
           </SelectTrigger>
           <SelectContent>
@@ -172,40 +172,40 @@ const PAGE_SIZE = 50;
 
       </div>
 
-      <div className="border rounded-lg bg-card overflow-hidden shadow-sm">
+      <div>
         {loadingTx ? (
-          <div className="p-8 space-y-4">
+          <div className="p-5 space-y-4">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-start">
-              <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
-                <tr>
-                  <th className="px-6 py-4 font-semibold">{t("Date", "التاريخ")}</th>
-                  <th className="px-6 py-4 font-semibold">{t("Description", "الوصف")}</th>
-                  <th className="px-6 py-4 font-semibold text-end">{t("Amount (SAR)", "المبلغ (ر.س)")}</th>
-                  <th className="px-6 py-4 font-semibold">{t("Category", "الفئة")}</th>
-                  <th className="px-6 py-4 font-semibold">{t("Tags", "التصنيفات")}</th>
-                  <th className="px-6 py-4 text-end">{t("Actions", "إجراءات")}</th>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                  <th className="text-start px-3">{t("Description", "الوصف")}</th>
+                  <th className="text-end px-3">{t("Amount (SAR)", "المبلغ (ر.س)")}</th>
+                  <th className="text-start px-3">{t("Category", "الفئة")}</th>
+                  <th className="text-start px-3">{t("Tags", "التصنيفات")}</th>
+                  <th className="text-end px-3">{t("Actions", "إجراءات")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {visibleRows.map(tx => (
-                  <tr key={tx.id} className="hover:bg-secondary/30 transition-colors group">
-                    <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
-                    <td className="px-6 py-4 text-foreground max-w-[300px]">
+                  <tr key={tx.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors group">
+                    <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
+                    <td className="py-3 px-3 text-foreground max-w-[300px]">
                       <div className="truncate font-medium">{tx.description}</div>
                       {tx.descriptionAr && <div className="text-xs text-muted-foreground mt-1" dir="rtl">{tx.descriptionAr}</div>}
                     </td>
-                    <td className="px-6 py-4 text-end font-mono whitespace-nowrap">
-                      <span className={tx.type === 'debit' ? 'text-destructive' : 'text-primary'}>
+                    <td className="py-3 px-3 text-end tabular-nums whitespace-nowrap">
+                      <span className={tx.type === 'debit' ? 'text-negative' : 'text-positive'}>
                         {tx.type === 'debit' ? '-' : '+'}{formatCurrency(tx.amount).replace('SAR', '').trim()}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="py-3 px-3">
                       {/* Audit Tier 3: a transfer/settlement carries NO category BY
                           DESIGN — the kind IS its classification. Rendering the red
                           "Uncategorized" error badge for them read as unfinished
@@ -258,7 +258,7 @@ const PAGE_SIZE = 50;
                             {tx.categoryName}
                           </Badge>
                           {tx.confidenceScore != null && !tx.isManuallyOverridden && (
-                            <span className="text-[10px] text-muted-foreground font-mono">
+                            <span className="text-[11px] text-muted-foreground tabular-nums">
                               AI: {Math.round(tx.confidenceScore * 100)}%
                             </span>
                           )}
@@ -269,22 +269,22 @@ const PAGE_SIZE = 50;
                         </Badge>
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
+                    <td className="py-3 px-3">
+                      <div className="flex flex-wrap gap-1.5">
                         {tx.reviewStatus === "pending_review" && (
-                          <Badge variant="outline" className="border-attention-surface/30 text-attention-surface bg-attention-surface/5 text-[10px] uppercase">
+                          <Badge variant="outline" className="border-attention/40 text-attention text-[11px] font-normal whitespace-nowrap">
                             {t("Pending review", "بانتظار المراجعة")}
                           </Badge>
                         )}
                         {tx.isManuallyOverridden && (
-                          <Badge variant="secondary" className="text-[10px] uppercase">{t("Manual", "يدوي")}</Badge>
+                          <Badge variant="secondary" className="text-[11px] font-normal">{t("Manual", "يدوي")}</Badge>
                         )}
                         {(tx.vatAmount || 0) > 0 && (
-                          <Badge variant="outline" className="border-positive-surface/30 text-positive-surface bg-positive-surface/5 text-[10px] uppercase">{t("VAT", "ضريبة القيمة المضافة")}</Badge>
+                          <Badge variant="outline" className="text-muted-foreground text-[11px] font-normal">{t("VAT", "ضريبة القيمة المضافة")}</Badge>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-end">
+                    <td className="py-3 px-3 text-end">
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -298,11 +298,8 @@ const PAGE_SIZE = 50;
                 ))}
                 {visibleRows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center justify-center text-muted-foreground">
-                        <Filter className="w-8 h-8 mb-2 opacity-20" />
-                        <p>{t("No transactions match your criteria.", "لا توجد معاملات تطابق معايير البحث.")}</p>
-                      </div>
+                    <td colSpan={6}>
+                      <EmptyState icon={Filter} title={t("No transactions match your criteria.", "لا توجد معاملات تطابق معايير البحث.")} />
                     </td>
                   </tr>
                 )}
@@ -312,8 +309,8 @@ const PAGE_SIZE = 50;
                      the first 50 — narrow your search", which is honest about
                      the cap and offers no exit. */
                   <tr>
-                    <td colSpan={6} className="px-6 py-3 border-t border-border">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <td colSpan={6} className="py-3 px-3">
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
                         <span>
                           {t(
                             `Showing ${page * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE + visibleRows.length, txTotal)} of ${txTotal}`,
@@ -340,6 +337,7 @@ const PAGE_SIZE = 50;
           </div>
         )}
       </div>
+      </Panel>
 
       <Dialog open={!!editTx} onOpenChange={(open) => !open && setEditTx(null)}>
         <DialogContent>
@@ -350,7 +348,7 @@ const PAGE_SIZE = 50;
             <form onSubmit={handleUpdate} className="space-y-6 pt-4">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">{editTx.description}</p>
-                <p className="text-xl font-mono tracking-tight">{formatCurrency(editTx.amount)}</p>
+                <p className="text-xl font-semibold tabular-nums">{formatCurrency(editTx.amount)}</p>
               </div>
 
               <div className="space-y-3">

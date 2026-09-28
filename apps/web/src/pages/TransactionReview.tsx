@@ -13,13 +13,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCheck, Check, Link2 } from "lucide-react";
+import { CheckCheck, Check, Link2, Inbox } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { DualDate } from "@/components/DualDate";
 import type { AcceptPendingResult } from "@workspace/api-client-react";
 
@@ -64,7 +64,7 @@ const VAT_BASES = [
 ] as const;
 
 export default function TransactionReview() {
-  const { lang } = useLanguage();
+  const { lang, t } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -219,12 +219,12 @@ export default function TransactionReview() {
   };
 
   const Row = ({ r }: { r: PendingRow }) => (
-    <div className="flex flex-wrap items-center gap-2 border-b border-border py-2 last:border-0">
+    <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-5 py-3 last:border-0 hover:bg-muted/40 transition-colors">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm">{r.description}</div>
-        <div className="text-xs text-muted-foreground">
+        <div className="truncate text-sm font-medium">{r.description}</div>
+        <div className="mt-0.5 text-[12px] text-muted-foreground">
           <DualDate date={r.date} inline /> · {r.type} · {fmtNum(r.amount)}
-          {r.kind !== "operating" && <Badge className="ms-2" variant="outline">{r.kind}</Badge>}
+          {r.kind !== "operating" && <Badge className="ms-2 font-normal capitalize" variant="outline">{r.kind}</Badge>}
           {r.categoryName && <span className="ms-2">{r.categoryName}</span>}
           {r.kind === "operating" && (
             <span className="ms-2 inline-flex items-center gap-1">
@@ -245,7 +245,7 @@ export default function TransactionReview() {
                 {TREATMENTS.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
               {r.treatmentAssumed && (
-                <Badge variant="outline" className="border-attention-surface/40 text-attention-surface">
+                <Badge variant="outline" className="border-attention/40 text-attention font-normal">
                   {lang === "ar" ? "مفترضة" : "assumed"}
                 </Badge>
               )}
@@ -267,7 +267,7 @@ export default function TransactionReview() {
                 </select>
               )}
               {r.vatBasis === "reverse_charge" && (
-                <Badge variant="outline" className="border-info-surface/40 text-info">
+                <Badge variant="outline" className="border-info/40 text-info font-normal">
                   {lang === "ar" ? "احتساب عكسي" : "reverse charge"}
                 </Badge>
               )}
@@ -275,7 +275,7 @@ export default function TransactionReview() {
           )}
         </div>
         {r.suggestion && (
-          <div className="mt-1 flex items-center gap-1 text-xs text-info-surface">
+          <div className="mt-1 flex items-center gap-1 text-[12px] text-info">
             <Link2 className="h-3 w-3" /> {suggestionLabel(r.suggestion)}
           </div>
         )}
@@ -308,10 +308,10 @@ export default function TransactionReview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">
-          {lang === "ar" ? "مراجعة المعاملات" : "Transaction Review"}
-        </h1>
+      <PageHeader
+        title={lang === "ar" ? "مراجعة المعاملات" : "Transaction Review"}
+        description={t("Imported rows wait here until a person accepts them. Accepting posts to the ledger.", "تنتظر الصفوف المستوردة هنا حتى يقبلها شخص. القبول يُرحّل إلى دفتر الأستاذ.")}
+        actions={<>
         {/*
           Disabled on the TRUE count where we have it: every visible row needing
           attention does not mean there is nothing ready BEYOND the page. Falls
@@ -337,7 +337,8 @@ export default function TransactionReview() {
               ? `Accept ready (${readyTotal})`
               : "Accept ready"}
         </Button>
-      </div>
+        </>}
+      />
 
       {/*
         ── The blast-radius confirm ────────────────────────────────────────────
@@ -386,36 +387,27 @@ export default function TransactionReview() {
 
       {isLoading && <p className="text-sm text-muted-foreground">…</p>}
       {!isLoading && rows.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          {lang === "ar" ? "لا توجد معاملات بانتظار المراجعة." : "No transactions awaiting review."}
-        </p>
+        <Panel>
+          <EmptyState icon={Inbox} title={lang === "ar" ? "لا توجد معاملات بانتظار المراجعة." : "No transactions awaiting review."} />
+        </Panel>
       )}
 
       {ready.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {lang === "ar" ? "جاهزة للقبول" : "Ready to accept"} ({ready.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>{ready.map((r) => <Row key={r.id} r={r} />)}</CardContent>
-        </Card>
+        <Panel flush title={<>{lang === "ar" ? "جاهزة للقبول" : "Ready to accept"} ({ready.length})</>}>
+          {ready.map((r) => <Row key={r.id} r={r} />)}
+        </Panel>
       )}
 
       {attention.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {lang === "ar" ? "تحتاج انتباهًا" : "Needs attention"} ({attention.length})
-              <span className="ms-2 text-xs font-normal text-muted-foreground">
-                {lang === "ar"
+        <Panel
+          flush
+          title={<>{lang === "ar" ? "تحتاج انتباهًا" : "Needs attention"} ({attention.length})</>}
+          description={lang === "ar"
                   ? "لا يشملها القبول الجماعي — يجب قبول كل صف باسمه"
                   : "excluded from bulk accept — each row must be accepted by name"}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>{attention.map((r) => <Row key={r.id} r={r} />)}</CardContent>
-        </Card>
+        >
+          {attention.map((r) => <Row key={r.id} r={r} />)}
+        </Panel>
       )}
     </div>
   );

@@ -5,7 +5,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel } from "@/components/kit";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
@@ -57,6 +57,24 @@ interface FiscalYears {
   fiscalYearStart: number | null;
   current: FiscalPeriod;
   periods: FiscalPeriod[];
+}
+
+/**
+ * One settings group: what it is on the start side, its fields on the end side
+ * (stacked on a phone). Presentation only — the fields keep their own ids.
+ */
+function SettingsGroup({ title, description, icon, children }: { title: React.ReactNode; description?: React.ReactNode; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Panel>
+      <div className="grid md:grid-cols-[16rem_1fr] gap-6">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold text-foreground flex items-center gap-2">{icon}{title}</h2>
+          {description && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
+        </div>
+        <div className="min-w-0 space-y-4">{children}</div>
+      </div>
+    </Panel>
+  );
 }
 
 const GREGORIAN_MONTHS = [
@@ -154,7 +172,7 @@ export default function CompanySettings() {
   });
 
   if (isLoading) {
-    return <p className="text-muted-foreground text-sm p-4">{t("Loading…", "جارٍ التحميل…")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("Loading…", "جارٍ التحميل…")}</p>;
   }
 
   const submit = (e: React.FormEvent) => {
@@ -188,13 +206,11 @@ export default function CompanySettings() {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("Company Settings", "إعدادات الشركة")}</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {t("Your legal identity, as it appears on invoices and tax filings", "هويتك القانونية كما تظهر في الفواتير والإقرارات الضريبية")}
-        </p>
-      </div>
+    <div className="space-y-6 max-w-5xl">
+      <PageHeader
+        title={t("Company Settings", "إعدادات الشركة")}
+        description={t("Your legal identity, as it appears on invoices and tax filings", "هويتك القانونية كما تظهر في الفواتير والإقرارات الضريبية")}
+      />
 
       {!company?.vatNumber && (
         <Alert variant="destructive">
@@ -213,18 +229,12 @@ export default function CompanySettings() {
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
       <form onSubmit={submit} className="space-y-6">
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-primary" />
-              {t("Legal identity", "الهوية القانونية")}
-            </CardTitle>
-            <CardDescription>
-              {t("Stamped onto every issued e-invoice (ZATCA QR code and hash)", "تُطبع على كل فاتورة إلكترونية صادرة (رمز ZATCA والتجزئة)")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+        <SettingsGroup
+          icon={<ShieldCheck className="w-4 h-4 text-primary" />}
+          title={t("Legal identity", "الهوية القانونية")}
+          description={t("Stamped onto every issued e-invoice (ZATCA QR code and hash)", "تُطبع على كل فاتورة إلكترونية صادرة (رمز ZATCA والتجزئة)")}
+        >
+            <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="name">{t("Legal name *", "الاسم القانوني *")}</Label>
                 <Input id="name" value={form.name ?? ""} onChange={set("name")} required />
@@ -234,18 +244,27 @@ export default function CompanySettings() {
                 <Input id="nameAr" dir="rtl" value={form.nameAr ?? ""} onChange={set("nameAr")} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="vatNumber">{t("VAT registration number", "الرقم الضريبي")}</Label>
                 <Input id="vatNumber" inputMode="numeric" value={form.vatNumber ?? ""} onChange={set("vatNumber")} placeholder="3XXXXXXXXXXXXX3" />
-                <p className="text-[11px] text-muted-foreground">{t("15 digits, starting and ending with 3", "15 رقماً، تبدأ وتنتهي بالرقم 3")}</p>
+                <p className="text-[12px] text-muted-foreground">{t("15 digits, starting and ending with 3", "15 رقماً، تبدأ وتنتهي بالرقم 3")}</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="crNumber">{t("CR number", "رقم السجل التجاري")}</Label>
                 <Input id="crNumber" inputMode="numeric" value={form.crNumber ?? ""} onChange={set("crNumber")} placeholder="1010101010" />
-                <p className="text-[11px] text-muted-foreground">{t("10 digits", "10 أرقام")}</p>
+                <p className="text-[12px] text-muted-foreground">{t("10 digits", "10 أرقام")}</p>
               </div>
             </div>
+        </SettingsGroup>
+
+        <SettingsGroup
+          title={t("Fiscal year and tax declarations", "السنة المالية والإقرارات الضريبية")}
+          description={t(
+            "What kind of filer the company is. Reports, Zakat and the tax working papers read these and do not assume them.",
+            "نوع المكلّف الذي تمثله الشركة. تقرؤها التقارير والزكاة وأوراق العمل الضريبية ولا تفترضها.",
+          )}
+        >
             {/*
               M17.2 — the fiscal year. The calendar selector comes FIRST because
               it reinterprets the month below it (1 = January vs 1 = Muharram),
@@ -254,7 +273,7 @@ export default function CompanySettings() {
               being told the value is "stored for future use" as this page said
               from M11.6 until now.
             */}
-            <div className="grid grid-cols-2 gap-4 max-w-lg">
+            <div className="grid sm:grid-cols-2 gap-4 max-w-lg">
               <div className="space-y-1.5">
                 <Label htmlFor="fiscalCalendar">{t("Fiscal calendar", "التقويم المالي")}</Label>
                 <select
@@ -321,7 +340,7 @@ export default function CompanySettings() {
                 <option value="FOREIGN">{t("Foreign-owned", "مملوكة لأجانب")}</option>
                 <option value="MIXED">{t("Mixed ownership", "ملكية مختلطة")}</option>
               </select>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[12px] text-muted-foreground">
                 {t(
                   "Determines whether the Zakat module applies. Foreign and mixed-ownership entities are assessed differently and are out of scope for now.",
                   "يحدد ما إذا كانت وحدة الزكاة تنطبق. المنشآت ذات الملكية الأجنبية أو المختلطة تخضع لمعالجة مختلفة وهي خارج النطاق حالياً.",
@@ -359,7 +378,7 @@ export default function CompanySettings() {
                   }))
                 }
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[12px] text-muted-foreground">
                 {t(
                   "The part of the company subject to income tax rather than Zakat (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). 100% Saudi/GCC-owned is 0. The Income Tax Pool working paper needs this and will not assume it.",
                   "الجزء الخاضع لضريبة الدخل بدل الزكاة (نظام ضريبة الدخل المادة 2؛ لائحة الزكاة المادة 6(1)). والمملوكة بالكامل لسعوديين أو خليجيين تساوي صفرًا. وتحتاج ورقة عمل وعاء ضريبة الدخل هذا الرقم ولا تفترضه.",
@@ -396,7 +415,7 @@ export default function CompanySettings() {
                 <option value="monthly">{t("Monthly", "شهرية")}</option>
                 <option value="quarterly">{t("Quarterly", "ربع سنوية")}</option>
               </select>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[12px] text-muted-foreground">
                 {t(
                   "The period ZATCA assigned you (VAT IR Art. 58). The capital-asset adjustment working paper places its twelve-month windows and names the return each adjustment belongs to from this, and will not guess it.",
                   "الفترة التي حددتها الهيئة (المادة 58 من اللائحة). وعلى أساسها تُحدد ورقة عمل تعديل الأصول الرأسمالية فتراتها الاثني عشرية والإقرار الذي يخصه كل تعديل، ولا تخمّنها.",
@@ -410,7 +429,7 @@ export default function CompanySettings() {
                 enough to act on (F11's wording rule): what is not set, what the
                 platform does meanwhile, and what setting it changes.
               */
-              <div className="rounded-md border border-amber-300/40 bg-attention-surface/5 p-3 max-w-lg">
+              <div className="rounded-md border border-attention-surface/40 bg-attention-surface/5 p-3 max-w-lg">
                 <p className="text-xs text-foreground">
                   {t(
                     "Your financial year hasn't been set. Reports show the last 12 months until it is — choose the month it starts above, and they will follow your year instead.",
@@ -421,7 +440,7 @@ export default function CompanySettings() {
             )}
 
             {fiscalYears && fiscalYears.declared && fiscalYears.current && (
-              <div className="rounded-md border border-border bg-secondary/20 p-3 max-w-lg space-y-1">
+              <div className="rounded-md border border-border bg-muted/40 p-3 max-w-lg space-y-1">
                 <p className="text-xs font-medium text-foreground">
                   {t("Current fiscal year", "السنة المالية الحالية")}
                   {" · "}
@@ -430,13 +449,13 @@ export default function CompanySettings() {
                       place. */}
                   <span className="font-mono">{fiscalPeriodLabel(fiscalYears.current, lang)}</span>
                 </p>
-                <p className="text-[11px] text-muted-foreground font-mono">
+                <p className="text-[12px] text-muted-foreground font-mono">
                   {fiscalYears.current.startDate} → {fiscalYears.current.endDate}
                   {" · "}
                   {fiscalYears.current.days} {t("days", "يوماً")}
                 </p>
                 {(form.fiscalCalendar ?? "gregorian") !== fiscalYears.calendar && (
-                  <p className="text-[11px] text-attention-surface">
+                  <p className="text-[12px] text-attention">
                     {t(
                       "Unsaved calendar change — save to see the new boundaries.",
                       "تغيير غير محفوظ في التقويم — احفظ لعرض الحدود الجديدة.",
@@ -445,29 +464,24 @@ export default function CompanySettings() {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+        </SettingsGroup>
 
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">{t("National address", "العنوان الوطني")}</CardTitle>
-            <CardDescription>
-              {t("Optional today; required for ZATCA Phase 2 invoices", "اختياري حالياً؛ مطلوب لفواتير المرحلة الثانية")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+        <SettingsGroup
+          title={t("National address", "العنوان الوطني")}
+          description={t("Optional today; required for ZATCA Phase 2 invoices", "اختياري حالياً؛ مطلوب لفواتير المرحلة الثانية")}
+        >
+            <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="buildingNumber">{t("Building number", "رقم المبنى")}</Label>
                 <Input id="buildingNumber" inputMode="numeric" value={form.buildingNumber ?? ""} onChange={set("buildingNumber")} placeholder="1234" />
-                <p className="text-[11px] text-muted-foreground">{t("4 digits", "4 أرقام")}</p>
+                <p className="text-[12px] text-muted-foreground">{t("4 digits", "4 أرقام")}</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="street">{t("Street", "الشارع")}</Label>
                 <Input id="street" value={form.street ?? ""} onChange={set("street")} />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="district">{t("District", "الحي")}</Label>
                 <Input id="district" value={form.district ?? ""} onChange={set("district")} />
@@ -479,28 +493,25 @@ export default function CompanySettings() {
               <div className="space-y-1.5">
                 <Label htmlFor="postalCode">{t("Postal code", "الرمز البريدي")}</Label>
                 <Input id="postalCode" inputMode="numeric" value={form.postalCode ?? ""} onChange={set("postalCode")} placeholder="12212" />
-                <p className="text-[11px] text-muted-foreground">{t("5 digits", "5 أرقام")}</p>
+                <p className="text-[12px] text-muted-foreground">{t("5 digits", "5 أرقام")}</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </SettingsGroup>
 
-        <Button type="submit" data-testid="button-save-company" disabled={save.isPending}>
-          {save.isPending ? t("Saving…", "جارٍ الحفظ…") : t("Save changes", "حفظ التغييرات")}
-        </Button>
+        <div className="flex justify-end">
+          <Button type="submit" data-testid="button-save-company" disabled={save.isPending}>
+            {save.isPending ? t("Saving…", "جارٍ الحفظ…") : t("Save changes", "حفظ التغييرات")}
+          </Button>
+        </div>
       </form>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">{t("Logo", "الشعار")}</CardTitle>
-          <CardDescription>
-            {t(
-              "Appears on the printed invoice header. Without one, the invoice carries your registered name alone.",
-              "يظهر في ترويسة الفاتورة المطبوعة. بدونه تحمل الفاتورة الاسم المسجل فقط.",
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <SettingsGroup
+        title={t("Logo", "الشعار")}
+        description={t(
+          "Appears on the printed invoice header. Without one, the invoice carries your registered name alone.",
+          "يظهر في ترويسة الفاتورة المطبوعة. بدونه تحمل الفاتورة الاسم المسجل فقط.",
+        )}
+      >
           {company?.hasLogo && (
             <div className="flex items-center gap-4">
               <img src={logoUrl} alt={t("Company logo", "شعار الشركة")} className="max-h-16 max-w-[180px] rounded border border-border bg-white p-1" />
@@ -524,10 +535,9 @@ export default function CompanySettings() {
                 e.target.value = "";
               }}
             />
-            <p className="text-[11px] text-muted-foreground">{t("PNG, JPG or SVG, up to 2 MB", "PNG أو JPG أو SVG، حتى 2 م.ب")}</p>
+            <p className="text-[12px] text-muted-foreground">{t("PNG, JPG or SVG, up to 2 MB", "PNG أو JPG أو SVG، حتى 2 م.ب")}</p>
           </div>
-        </CardContent>
-      </Card>
+      </SettingsGroup>
     </div>
   );
 }

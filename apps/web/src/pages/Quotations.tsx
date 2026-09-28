@@ -21,7 +21,6 @@ import { fetchPickerOptions } from "@/lib/pagedList";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +33,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { FilterScope } from "@/components/FilterScope";
 import { QUOTATION_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
+import { PageHeader, Panel, FilterTabs, EmptyState } from "@/components/kit";
 
 import type { CreateQuotationInput, Customer, Quotation, QuotationConversion, UpdateQuotationInput } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
@@ -301,30 +301,16 @@ export default function Quotations() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold">{t("Quotations", "عروض الأسعار")}</h1>
-          {/* An offer, not a transaction — said plainly, because the whole
-              design rests on it and a user should not wonder. */}
-          <p className="text-sm text-muted-foreground mt-1">
-            {t(
-              "An offer to a customer. A quotation affects no report and no ledger until it becomes an invoice.",
-              "عرض مقدَّم للعميل. لا يؤثر عرض السعر على أي تقرير أو دفتر حتى يتحول إلى فاتورة.",
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Converted and Expired are DERIVED — the server answers both, one
-              from the conversion rows and one from `valid_until`. */}
-          <Select value={statusFilter} onValueChange={applyFilter}>
-            <SelectTrigger className="h-9 w-52 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {QUOTATION_FILTERS.map(o => (
-                <SelectItem key={o.value} value={o.value}>{lang === "ar" ? o.labelAr : o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="space-y-6">
+      <PageHeader
+        title={t("Quotations", "عروض الأسعار")}
+        /* An offer, not a transaction — said plainly, because the whole
+           design rests on it and a user should not wonder. */
+        description={t(
+          "An offer to a customer. A quotation affects no report and no ledger until it becomes an invoice.",
+          "عرض مقدَّم للعميل. لا يؤثر عرض السعر على أي تقرير أو دفتر حتى يتحول إلى فاتورة.",
+        )}
+        actions={
           <Dialog
             open={open}
             onOpenChange={(o) => {
@@ -339,14 +325,14 @@ export default function Quotations() {
             }}
           >
             <DialogTrigger asChild>
-              <Button size="sm"><Plus className="w-4 h-4 me-1" />{t("New quotation", "عرض سعر جديد")}</Button>
+              <Button className="gap-2"><Plus className="w-4 h-4" />{t("New quotation", "عرض سعر جديد")}</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader><DialogTitle>{editing ? t("Edit quotation", "تعديل عرض السعر") + ` — ${editing.number}` : t("New quotation", "عرض سعر جديد")}</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
+                    <Label className="text-[13px] text-muted-foreground">{t("Customer", "العميل")}</Label>
                     <Select value={form.customerId} onValueChange={(v) => setForm((p) => ({ ...p, customerId: v }))}>
                       <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select…", "اختر…")} /></SelectTrigger>
                       <SelectContent>
@@ -355,17 +341,17 @@ export default function Quotations() {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label>
+                    <Label className="text-[13px] text-muted-foreground">{t("Date", "التاريخ")}</Label>
                     <Input type="date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} className="mt-1 h-8 text-sm" />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">{t("Valid until", "صالح حتى")}</Label>
+                    <Label className="text-[13px] text-muted-foreground">{t("Valid until", "صالح حتى")}</Label>
                     <Input type="date" value={form.validUntil} onChange={(e) => setForm((p) => ({ ...p, validUntil: e.target.value }))} className="mt-1 h-8 text-sm" />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">{t("Lines", "البنود")}</Label>
+                  <Label className="text-[13px] text-muted-foreground">{t("Lines", "البنود")}</Label>
                   {lines.map((l, i) => (
                     <div key={i} className="grid grid-cols-12 gap-2 items-center">
                       <Input className="col-span-3 h-8 text-sm" placeholder={t("Description", "الوصف")} value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} />
@@ -402,43 +388,46 @@ export default function Quotations() {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+        }
+      />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">{t("Quotations", "عروض الأسعار")}</CardTitle>
-          <div className="mt-3">
+      <Panel flush>
+          {/* Converted and Expired are DERIVED — the server answers both, one
+              from the conversion rows and one from `valid_until`. */}
+          <FilterTabs
+            options={QUOTATION_FILTERS.map((o) => ({ value: o.value, label: lang === "ar" ? o.labelAr : o.label }))}
+            value={statusFilter}
+            onChange={applyFilter}
+          />
+          <div className="px-5 pt-3 empty:hidden">
             <FilterScope options={QUOTATION_FILTERS} value={statusFilter} total={quotationsPage?.page?.total} onClear={() => applyFilter("all")} />
           </div>
-        </CardHeader>
-        <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">{t("Loading…", "جارٍ التحميل…")}</p>
+            <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
           ) : quotations.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">{t("No quotations yet.", "لا توجد عروض أسعار بعد.")}</p>
+            <EmptyState icon={FileText} title={t("No quotations yet.", "لا توجد عروض أسعار بعد.")} description={t("Quotations you create appear here.", "تظهر هنا عروض الأسعار التي تنشئها.")} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-start text-xs text-muted-foreground border-b border-border">
-                    <th className="pb-2 pe-4">{t("Number", "الرقم")}</th>
-                    <th className="pb-2 pe-4">{t("Customer", "العميل")}</th>
-                    <th className="pb-2 pe-4">{t("Date", "التاريخ")}</th>
-                    <th className="pb-2 pe-4">{t("Valid until", "صالح حتى")}</th>
-                    <th className="pb-2 pe-4 text-end">{t("Total", "الإجمالي")}</th>
-                    <th className="pb-2 pe-4">{t("Status", "الحالة")}</th>
-                    <th className="pb-2 pe-4">{t("Progress", "التقدم")}</th>
-                    <th className="pb-2 text-end">{t("Actions", "إجراءات")}</th>
+                  <tr className="border-b border-border">
+                    <th className="text-start px-3">{t("Number", "الرقم")}</th>
+                    <th className="text-start px-3">{t("Customer", "العميل")}</th>
+                    <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                    <th className="text-start px-3">{t("Valid until", "صالح حتى")}</th>
+                    <th className="text-end px-3">{t("Total", "الإجمالي")}</th>
+                    <th className="text-start px-3">{t("Status", "الحالة")}</th>
+                    <th className="text-start px-3">{t("Progress", "التقدم")}</th>
+                    <th className="text-end px-3 sticky end-0 bg-muted shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]">{t("Actions", "إجراءات")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quotations.map((q) => (
-                    <tr key={q.id} className="border-b border-border/50">
-                      <td className="py-3 pe-4 font-mono text-xs text-primary">{q.quotationNumber}</td>
-                      <td className="py-3 pe-4">{q.customerName ?? "—"}</td>
-                      <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={q.date} /></td>
-                      <td className="py-3 pe-4 text-muted-foreground text-xs">
+                    <tr key={q.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                      <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{q.quotationNumber}</td>
+                      <td className="py-3 px-3 min-w-[10rem]">{q.customerName ?? "—"}</td>
+                      <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={q.date} /></td>
+                      <td className="py-3 px-3 whitespace-nowrap text-muted-foreground">
                         {q.validUntil ? (
                           <span className="inline-flex items-center gap-1">
                             <DualDate date={q.validUntil} />
@@ -455,19 +444,20 @@ export default function Quotations() {
                           </span>
                         ) : "—"}
                       </td>
-                      <td className="py-3 pe-4 text-end font-mono">{fmtNum(q.total)}</td>
-                      <td className="py-3 pe-4">
-                        <Badge className={`text-xs gap-1 ${STATUS_STYLES[q.status] ?? ""}`}>
+                      <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(q.total)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <Badge className={`text-xs gap-1 capitalize ${STATUS_STYLES[q.status] ?? ""}`}>
                           {STATUS_ICONS[q.status]}{q.status}
                         </Badge>
                         {q.outcome && (
-                          <Badge className="text-xs ms-1 bg-secondary text-muted-foreground">{q.outcome}</Badge>
+                          <Badge className="text-xs ms-1 capitalize bg-secondary text-muted-foreground">{q.outcome}</Badge>
                         )}
                       </td>
-                      <td className="py-3 pe-4 text-xs text-muted-foreground">
+                      <td className="py-3 px-3 whitespace-nowrap text-[13px] text-muted-foreground">
                         {t(...(CONVERSION_LABEL[q.conversionState] ?? ["—", "—"]))}
                       </td>
-                      <td className="py-3 text-end space-x-1 whitespace-nowrap">
+                      <td className="py-3 px-3 text-end whitespace-nowrap sticky end-0 bg-card shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]">
+                        <div className="flex items-center justify-end gap-1">
                         {/* AUD-4: editing, finally reachable. Offered while the
                             record can still change: a draft freely, and an
                             approved one for its untouched lines — the server's
@@ -536,6 +526,7 @@ export default function Quotations() {
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -543,14 +534,15 @@ export default function Quotations() {
               </table>
             </div>
           )}
-                  <ListPagination
-            page={quotationsPage?.page}
-            shown={quotations.length}
-            onPrev={() => setPage((p) => Math.max(0, p - 1))}
-            onNext={() => setPage((p) => p + 1)}
-          />
-        </CardContent>
-      </Card>
+          <div className="border-t border-border px-5 pb-3 empty:hidden">
+            <ListPagination
+              page={quotationsPage?.page}
+              shown={quotations.length}
+              onPrev={() => setPage((p) => Math.max(0, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
+          </div>
+      </Panel>
 
       {/* ── Convert to invoice (M21.2) ─────────────────────────────────────── */}
       <Dialog open={!!converting} onOpenChange={(o) => !o && setConverting(null)}>
@@ -637,7 +629,7 @@ export default function Quotations() {
             </div>
 
             <div>
-              <Label className="text-xs text-muted-foreground">{t("Invoice date", "تاريخ الفاتورة")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("Invoice date", "تاريخ الفاتورة")}</Label>
               <Input type="date" value={convertDate} onChange={(e) => setConvertDate(e.target.value)} className="mt-1 h-8 text-sm w-48" />
             </div>
 

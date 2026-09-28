@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, FilterTabs, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -52,17 +52,10 @@ export default function Budgets() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Budgeting", "الميزانية")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Budget vs. Actual · Variance analysis", "الميزانية مقابل الفعلي · تحليل الانحراف")}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1">
-            {[String(new Date().getFullYear()-1), String(new Date().getFullYear()), String(new Date().getFullYear()+1)].map(y=>(
-              <Button key={y} variant={period===y?"default":"ghost"} size="sm" className="h-8 text-xs" onClick={()=>setPeriod(y)}>{y}</Button>
-            ))}
-          </div>
+      <PageHeader
+        title={t("Budgeting", "الميزانية")}
+        description={t("Budget vs. Actual · Variance analysis", "الميزانية مقابل الفعلي · تحليل الانحراف")}
+        actions={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("Add Budget", "إضافة ميزانية")}</Button></DialogTrigger>
             <DialogContent className="max-w-md">
@@ -81,67 +74,67 @@ export default function Budgets() {
               <Button className="w-full mt-4" onClick={()=>createMut.mutate(form)} disabled={!form.name||!form.budgetedAmount||createMut.isPending}>{createMut.isPending ? t("Adding...", "جارٍ الإضافة...") : t("Add Budget Line", "إضافة سطر ميزانية")}</Button>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          [t("Total Budgeted", "إجمالي الميزانية"), fmtNum(totalBudgeted), "text-primary"],
-          [t("Total Actual", "إجمالي الفعلي"), fmtNum(totalActual), "text-foreground"],
-          [t("Variance", "الانحراف"), fmtNum(totalVariance), totalVariance >= 0 ? "text-positive" : "text-negative"],
-          [t("Over Budget Lines", "سطور تجاوزت الميزانية"), budgetsOver, "text-negative"],
-        ].map(([l,v,c])=>(
-          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
-        ))}
-      </div>
+      {/* A budget variance is a judgment, not a state (CLAUDE.md §4): neutral figures, words for direction. */}
+      <StatStrip cols={4}>
+        <Stat label={t("Total Budgeted", "إجمالي الميزانية")} value={fmtNum(totalBudgeted)} />
+        <Stat label={t("Total Actual", "إجمالي الفعلي")} value={fmtNum(totalActual)} />
+        <Stat label={t("Variance", "الانحراف")} value={fmtNum(totalVariance)} hint={totalVariance >= 0 ? t("under budget", "ضمن الميزانية") : t("over budget", "تجاوز الميزانية")} />
+        <Stat label={t("Over Budget Lines", "سطور تجاوزت الميزانية")} value={budgetsOver} />
+      </StatStrip>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Budget vs. Actual —", "الميزانية مقابل الفعلي —")} {period}</CardTitle></CardHeader>
-        <CardContent>
-          {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : budgets.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground"><Target className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No budget lines for", "لا توجد سطور ميزانية لـ")} {period}.</p></div>
+      <Panel flush>
+        <FilterTabs
+          options={[String(new Date().getFullYear()-1), String(new Date().getFullYear()), String(new Date().getFullYear()+1)].map(y => ({ value: y, label: y }))}
+          value={period}
+          onChange={setPeriod}
+          end={<span className="text-[13px] text-muted-foreground">{t("Budget vs. Actual —", "الميزانية مقابل الفعلي —")} {period}</span>}
+        />
+          {isLoading ? <div className="text-muted-foreground text-sm p-5">{t("Loading...", "جارٍ التحميل...")}</div> : budgets.length === 0 ? (
+            <EmptyState icon={Target} title={<>{t("No budget lines for", "لا توجد سطور ميزانية لـ")} {period}.</>} />
           ) : (
             <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[
-                t("Budget", "الميزانية"),
-                t("Category", "الفئة"),
-                t("Budgeted", "المدرج"),
-                t("Actual", "الفعلي"),
-                t("Variance", "الانحراف"),
-                t("Utilization", "نسبة الاستخدام"),
-                "",
-              ].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border">{([
+                [t("Budget", "الميزانية"), false],
+                [t("Category", "الفئة"), false],
+                [t("Budgeted", "المدرج"), true],
+                [t("Actual", "الفعلي"), true],
+                [t("Variance", "الانحراف"), true],
+                [t("Utilization", "نسبة الاستخدام"), false],
+                ["", false],
+              ] as const).map(([h, num])=><th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>)}</tr></thead>
               <tbody>{budgets.map(b=>{
                 const pct = b.budgetedAmount > 0 ? Math.min((b.actualAmount / b.budgetedAmount) * 100, 100) : 0;
                 const over = b.variance < 0;
                 return (
-                  <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-3 pe-4">
+                  <tr key={b.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                    <td className="py-3 px-3">
                         <p className="font-medium">{b.name}</p>
                         {b.nameAr && b.nameAr !== NEEDS_AR
                           ? <p className="text-xs text-muted-foreground" dir="rtl">{b.nameAr}</p>
-                          : <p className="text-[10px] text-attention-surface/70 italic">{t("needs Arabic translation", "يحتاج ترجمة عربية")}</p>}
+                          : <p className="text-[11px] text-attention">{t("needs Arabic translation", "يحتاج ترجمة عربية")}</p>}
                       </td>
-                    <td className="py-3 pe-4 text-muted-foreground text-xs">{b.categoryName || "—"}</td>
-                    <td className="py-3 pe-4 font-mono">{fmtNum(b.budgetedAmount)}</td>
-                    <td className="py-3 pe-4 font-mono">{fmtNum(b.actualAmount)}</td>
-                    <td className={`py-3 pe-4 font-mono font-semibold ${over?"text-negative":"text-positive"}`}>{over?"-":"+"}{ fmtNum(Math.abs(b.variance))}</td>
-                    <td className="py-3 pe-4">
+                    <td className="py-3 px-3 text-muted-foreground">{b.categoryName || "—"}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(b.budgetedAmount)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(b.actualAmount)}</td>
+                    <td className={`py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold ${over?"text-negative":"text-positive"}`}>{over?"-":"+"}{ fmtNum(Math.abs(b.variance))}</td>
+                    <td className="py-3 px-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-24 bg-secondary rounded-full h-1.5">
+                        <div className="w-24 bg-muted rounded-full h-1.5">
                           <div className={`h-1.5 rounded-full transition-all ${over?"bg-negative":"bg-positive"}`} style={{width:`${pct}%`}} />
                         </div>
-                        <span className={`text-xs font-mono ${over?"text-negative":"text-muted-foreground"}`}>{b.budgetedAmount > 0 ? ((b.actualAmount/b.budgetedAmount)*100).toFixed(0) : 0}%</span>
+                        <span className={`text-xs tabular-nums ${over?"text-negative":"text-muted-foreground"}`}>{b.budgetedAmount > 0 ? ((b.actualAmount/b.budgetedAmount)*100).toFixed(0) : 0}%</span>
                       </div>
                     </td>
-                    <td className="py-3"><Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={()=>deleteMut.mutate(b.id)}>{t("Delete", "حذف")}</Button></td>
+                    <td className="py-3 px-3 text-end"><Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={()=>deleteMut.mutate(b.id)}>{t("Delete", "حذف")}</Button></td>
                   </tr>
                 );
               })}</tbody>
             </table></div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

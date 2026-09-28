@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { Building2 } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -46,9 +45,9 @@ function bucketOf(days: number): keyof ApAgingReport["buckets"] {
 const BUCKET_COLORS: Record<string, string> = {
   current: "text-positive",
   days_1_30: "text-attention",
-  days_31_60: "text-orange-400",
+  days_31_60: "text-severe",
   days_61_90: "text-negative",
-  over_90: "text-red-600",
+  over_90: "text-critical",
 };
 
 const BUCKET_LABELS: Record<string, { en: string; ar: string }> = {
@@ -72,27 +71,26 @@ export default function ApAging() {
   const report = data ?? EMPTY;
   const totals = report.buckets;
 
+  const reconCell = "bg-card px-5 py-4 min-w-0";
+  const reconLabel = "text-[13px] text-muted-foreground";
+  const reconValue = "mt-1.5 text-lg font-semibold tabular-nums";
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("AP Aging", "أعمار الذمم الدائنة")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Payable aging — overdue bills by vendor", "أعمار الذمم الدائنة — الفواتير المتأخرة حسب المورّد")}</p>
-        </div>
-      </div>
+      <PageHeader
+        title={t("AP Aging", "أعمار الذمم الدائنة")}
+        description={t("Accounts Payable aging — overdue bills by vendor", "أعمار الذمم الدائنة — الفواتير المتأخرة حسب المورّد")}
+      />
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <StatStrip cols={5}>
         {(Object.keys(BUCKET_LABELS) as (keyof ApAgingReport["buckets"])[]).map((key) => (
-          <Card key={key} className="border-border bg-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs text-muted-foreground">{t(BUCKET_LABELS[key].en, BUCKET_LABELS[key].ar)}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-xl font-bold font-mono ${BUCKET_COLORS[key]}`}>{fmtNum(totals[key])}</div>
-            </CardContent>
-          </Card>
+          <Stat
+            key={key}
+            label={t(BUCKET_LABELS[key].en, BUCKET_LABELS[key].ar)}
+            value={<span className={BUCKET_COLORS[key]}>{fmtNum(totals[key])}</span>}
+          />
         ))}
-      </div>
+      </StatStrip>
 
       {/*
         B6 (2026-09-22): the buckets carry ONLY real payable exposure. What the
@@ -101,61 +99,62 @@ export default function ApAging() {
         bill read as less overdue because unrelated money sits with the same
         supplier. The net is derived and labelled so.
       */}
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Payable vs what suppliers hold", "الذمم الدائنة مقابل ما يحتفظ به الموردون")}</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
-            <div className="rounded-md border border-border p-3">
-              <p className="text-xs text-muted-foreground">{t("Total AP (Σ buckets)", "إجمالي الذمم (مجموع الفئات)")}</p>
-              <p className="font-mono font-semibold text-lg" data-testid="ap-recon-total">{fmtNum(report.total)}</p>
-            </div>
-            <div className="rounded-md border border-border p-3">
-              <p className="text-xs text-muted-foreground">{t("− Supplier credit notes", "− إشعارات دائن من الموردين")}</p>
-              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-credits">{fmtNum(report.assets.supplierCredits)}</p>
-            </div>
-            <div className="rounded-md border border-border p-3">
-              <p className="text-xs text-muted-foreground">{t("− Advances paid", "− دفعات مقدمة مدفوعة")}</p>
-              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-advances">{fmtNum(report.assets.supplierAdvances)}</p>
-            </div>
-            <div className="rounded-md border border-border p-3">
-              <p className="text-xs text-muted-foreground">{t("− Deposits & unidentified", "− تأمينات ومدفوعات غير محددة")}</p>
-              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-deposits">{fmtNum(report.assets.supplierDeposits + report.assets.unidentifiedPayments)}</p>
-            </div>
-            <div className="rounded-md border border-primary/40 p-3">
-              <p className="text-xs text-muted-foreground">{t("= Net supplier position (derived)", "= صافي مركز الموردين (مشتق)")}</p>
-              <p className="font-mono font-semibold text-lg" data-testid="ap-recon-net">{fmtNum(report.netSupplierPosition)}</p>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
+      <Panel
+        title={t("Payable vs what suppliers hold", "الذمم الدائنة مقابل ما يحتفظ به الموردون")}
+        bodyClassName="p-0"
+        footer={
+          <p className="text-[13px] text-muted-foreground">
             {t("Advances, deposits and unapplied credit notes are ASSETS — money the supplier holds or owes back. They never appear inside an ageing bucket.", "الدفعات المقدمة والتأمينات وإشعارات الدائن غير المطبقة أصول — أموال يحتفظ بها المورد أو يدين بها. ولا تظهر أبدًا داخل فئة أعمار.")}
           </p>
-        </CardContent>
-      </Card>
+        }
+      >
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-px bg-border text-sm">
+          <div className={reconCell}>
+            <p className={reconLabel}>{t("Total AP (Σ buckets)", "إجمالي الذمم (مجموع الفئات)")}</p>
+            <p className={reconValue} data-testid="ap-recon-total">{fmtNum(report.total)}</p>
+          </div>
+          <div className={reconCell}>
+            <p className={reconLabel}>{t("− Supplier credit notes", "− إشعارات دائن من الموردين")}</p>
+            <p className={`${reconValue} text-info`} data-testid="ap-recon-credits">{fmtNum(report.assets.supplierCredits)}</p>
+          </div>
+          <div className={reconCell}>
+            <p className={reconLabel}>{t("− Advances paid", "− دفعات مقدمة مدفوعة")}</p>
+            <p className={`${reconValue} text-info`} data-testid="ap-recon-advances">{fmtNum(report.assets.supplierAdvances)}</p>
+          </div>
+          <div className={reconCell}>
+            <p className={reconLabel}>{t("− Deposits & unidentified", "− تأمينات ومدفوعات غير محددة")}</p>
+            <p className={`${reconValue} text-info`} data-testid="ap-recon-deposits">{fmtNum(report.assets.supplierDeposits + report.assets.unidentifiedPayments)}</p>
+          </div>
+          <div className={`${reconCell} bg-accent/40`}>
+            <p className={reconLabel}>{t("= Net supplier position (derived)", "= صافي مركز الموردين (مشتق)")}</p>
+            <p className={reconValue} data-testid="ap-recon-net">{fmtNum(report.netSupplierPosition)}</p>
+          </div>
+        </div>
+      </Panel>
 
-      <Card className="border-border bg-card">
-        <CardContent className="pt-6">
-          {isLoading ? <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
+      <Panel flush>
+          {isLoading ? <div className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</div>
           : isError ? (
             /* 🔴 A failed load is NOT an empty report. Saying "no outstanding
                payables" when the request failed would be a confident wrong
                answer about money owed. */
-            <div className="text-center py-16 text-muted-foreground">
-              <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40 text-negative" />
-              <p className="text-sm text-negative">{t("Could not load accounts payable.", "تعذّر تحميل الذمم الدائنة.")}</p>
-              <p className="text-xs mt-1 opacity-60">{(error as Error)?.message ?? t("Please try again.", "يرجى المحاولة مرة أخرى.")}</p>
-            </div>
+            <EmptyState
+              icon={Building2}
+              title={<span className="text-negative">{t("Could not load accounts payable.", "تعذّر تحميل الذمم الدائنة.")}</span>}
+              description={(error as Error)?.message ?? t("Please try again.", "يرجى المحاولة مرة أخرى.")}
+            />
           ) : report.items.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">{t("No outstanding payables.", "لا توجد ذمم دائنة مستحقة.")}</p>
-              <p className="text-xs mt-1 opacity-60">{t("All bills are paid or no bills have been created.", "جميع الفواتير مدفوعة أو لم يتم إنشاء أي فاتورة.")}</p>
-            </div>
+            <EmptyState
+              icon={Building2}
+              title={t("No outstanding payables.", "لا توجد ذمم دائنة مستحقة.")}
+              description={t("All bills are paid or no bills have been created.", "جميع الفواتير مدفوعة أو لم يتم إنشاء أي فاتورة.")}
+            />
           ) : (
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {[t("Bill", "الفاتورة"), t("Vendor", "المورد"), t("Due", "الاستحقاق"), t("Bucket", "الفئة"), t("Outstanding", "المستحق")].map(h => (
-                    <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
+                <tr className="border-b border-border">
+                  {([[t("Bill", "الفاتورة"), false], [t("Vendor", "المورد"), false], [t("Due", "الاستحقاق"), false], [t("Bucket", "الفئة"), false], [t("Outstanding", "المستحق"), true]] as const).map(([h, num]) => (
+                    <th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -163,33 +162,32 @@ export default function ApAging() {
                 {report.items.map(item => {
                   const bucket = bucketOf(item.daysPastDue);
                   return (
-                    <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-3 pe-4 font-mono text-xs text-primary">{item.billNumber}</td>
-                      <td className="py-3 pe-4 font-medium">{item.vendorName}</td>
-                      <td className="py-3 pe-4 text-xs text-muted-foreground">
+                    <tr key={item.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                      <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">{item.billNumber}</td>
+                      <td className="py-3 px-3 font-medium">{item.vendorName}</td>
+                      <td className="py-3 px-3 text-muted-foreground whitespace-nowrap">
                         {item.dueDate ? <DualDate date={item.dueDate} /> : <span className="opacity-60">{t("No due date", "بدون تاريخ استحقاق")}</span>}
                       </td>
-                      <td className="py-3 pe-4">
-                        <span className={`font-mono text-xs ${BUCKET_COLORS[bucket]}`}>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className={`text-[13px] ${BUCKET_COLORS[bucket]}`}>
                           {t(BUCKET_LABELS[bucket].en, BUCKET_LABELS[bucket].ar)}
-                          {item.daysPastDue > 0 && <span className="opacity-70"> · {item.daysPastDue}d</span>}
+                          {item.daysPastDue > 0 && <span className="opacity-70 tabular-nums"> · {item.daysPastDue}d</span>}
                         </span>
                       </td>
-                      <td className="py-3 font-mono font-semibold">{fmtNum(item.outstanding)}</td>
+                      <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(item.outstanding)}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-border font-semibold">
-                  <td className="pt-3 text-xs text-muted-foreground" colSpan={4}>{t("Total outstanding", "إجمالي المستحق")}</td>
-                  <td className="pt-3 font-mono text-xs font-bold">{fmtNum(report.total)}</td>
+                <tr className="font-semibold">
+                  <td className="py-3 px-3" colSpan={4}>{t("Total outstanding", "إجمالي المستحق")}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(report.total)}</td>
                 </tr>
               </tfoot>
             </table></div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

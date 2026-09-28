@@ -5,7 +5,7 @@ import { apiFetch, fmtDate } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, Field } from "@/components/kit";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -49,12 +49,27 @@ interface OnboardResult {
   activated: boolean;
 }
 
+/** One settings group: what it is on the start side, its content on the end side (stacked on a phone). */
+function SettingsGroup({ title, description, icon, children }: { title: React.ReactNode; description?: React.ReactNode; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Panel>
+      <div className="grid md:grid-cols-[16rem_1fr] gap-6">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold text-foreground flex items-center gap-2">{icon}{title}</h2>
+          {description && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
+        </div>
+        <div className="min-w-0 space-y-4">{children}</div>
+      </div>
+    </Panel>
+  );
+}
+
 /** Renewal needs the tenant's own action, so warn well before expiry. */
 function expiryTone(days: number | null): { label: string; className: string } {
   if (days === null) return { label: "unknown", className: "text-muted-foreground" };
   if (days <= 7) return { label: `${days} days left`, className: "text-destructive font-semibold" };
   if (days <= 30) return { label: `${days} days left`, className: "text-destructive" };
-  if (days <= 90) return { label: `${days} days left`, className: "text-yellow-600" };
+  if (days <= 90) return { label: `${days} days left`, className: "text-attention" };
   return { label: `${days} days left`, className: "text-muted-foreground" };
 }
 
@@ -110,20 +125,18 @@ export default function ZatcaOnboarding() {
     onError: (err: unknown) => setError(err instanceof Error ? err.message : String(err)),
   });
 
-  if (isLoading) return <div className="p-6">{t("Loading…", "جارٍ التحميل…")}</div>;
-  if (!status) return <div className="p-6">{t("Unable to load onboarding status.", "تعذّر تحميل حالة التسجيل.")}</div>;
+  if (isLoading) return <div className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</div>;
+  if (!status) return <div className="text-sm text-muted-foreground">{t("Unable to load onboarding status.", "تعذّر تحميل حالة التسجيل.")}</div>;
 
   const cert = status.certificate;
   const tone = expiryTone(cert?.daysUntilExpiry ?? null);
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-semibold">{t("ZATCA e-invoicing (Phase 2)", "الفوترة الإلكترونية — المرحلة الثانية")}</h1>
-        <p className="text-muted-foreground">
-          {t("Connect this company to ZATCA so its invoices can be cleared and reported.", "اربط هذه الشركة بهيئة الزكاة والضريبة والجمارك لتصفية فواتيرها والإبلاغ عنها.")}
-        </p>
-      </div>
+    <div className="space-y-6 max-w-5xl">
+      <PageHeader
+        title={t("ZATCA e-invoicing (Phase 2)", "الفوترة الإلكترونية — المرحلة الثانية")}
+        description={t("Connect this company to ZATCA so its invoices can be cleared and reported.", "اربط هذه الشركة بهيئة الزكاة والضريبة والجمارك لتصفية فواتيرها والإبلاغ عنها.")}
+      />
 
       {status.environment === "sandbox" && (
         <Alert>
@@ -135,31 +148,30 @@ export default function ZatcaOnboarding() {
       )}
 
       {/* ── Certificate status ─────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" />
-            {t("Certificate", "الشهادة")}
-          </CardTitle>
-          <CardDescription>{t("The credential that signs this company's invoices.", "بيانات الاعتماد التي توقّع فواتير هذه الشركة.")}</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <SettingsGroup
+        icon={<ShieldCheck className="h-4 w-4 text-primary" />}
+        title={t("Certificate", "الشهادة")}
+        description={t("The credential that signs this company's invoices.", "بيانات الاعتماد التي توقّع فواتير هذه الشركة.")}
+      >
           {cert ? (
-            <div className="space-y-1 text-sm">
-              <div>
-                Status: <span className="font-medium">{cert.status}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Expires:{" "}
-                <span className="font-medium">
-                  {cert.notAfter ? fmtDate(cert.notAfter) : "unknown"}
-                </span>
-                <span className={tone.className}>({tone.label})</span>
-              </div>
-              {cert.egsSerialNumber && (
-                <div className="text-muted-foreground">{t("Unit:", "الوحدة:")} {cert.egsSerialNumber}</div>
-              )}
+            <div className="space-y-3 text-sm">
+              <dl className="grid gap-4 sm:grid-cols-3">
+                <Field label={t("Status", "الحالة")}>
+                  <span className="font-medium capitalize">{cert.status}</span>
+                </Field>
+                <Field label={t("Expires", "تنتهي")}>
+                  <span className="inline-flex flex-wrap items-center gap-x-2">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-medium whitespace-nowrap">
+                      {cert.notAfter ? fmtDate(cert.notAfter) : "unknown"}
+                    </span>
+                    <span className={tone.className}>({tone.label})</span>
+                  </span>
+                </Field>
+                {cert.egsSerialNumber && (
+                  <Field label={t("Unit", "الوحدة")}><span className="break-all">{cert.egsSerialNumber}</span></Field>
+                )}
+              </dl>
               {cert.daysUntilExpiry !== null && cert.daysUntilExpiry <= 90 && (
                 <Alert className="mt-3">
                   <AlertTriangle className="h-4 w-4" />
@@ -174,52 +186,46 @@ export default function ZatcaOnboarding() {
               {t("No certificate yet — complete the steps below.", "لا توجد شهادة بعد — أكمل الخطوات أدناه.")}
             </p>
           )}
-        </CardContent>
-      </Card>
+      </SettingsGroup>
 
       {/* ── Prerequisites ──────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("Before you start", "قبل أن تبدأ")}</CardTitle>
-          <CardDescription>
+      <SettingsGroup
+        title={t("Before you start", "قبل أن تبدأ")}
+        description={
+          <>
             {t("ZATCA requires these on every invoice. Set them in", "تشترط الهيئة هذه البيانات في كل فاتورة. اضبطها في")}{" "}
-            <Link href="/company" className="underline">
+            <Link href="/company" className="text-primary underline underline-offset-2">
               {t("Company Settings", "إعدادات الشركة")}
             </Link>
             .
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2">
+          </>
+        }
+      >
+          <ul className="divide-y divide-border rounded-md border border-border">
             {status.prerequisites.map((p) => (
-              <li key={p.key} className="flex items-start gap-2 text-sm">
+              <li key={p.key} className="flex items-start gap-2.5 px-4 py-2.5 text-sm">
                 {p.satisfied ? (
-                  <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-600 shrink-0" />
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 text-positive shrink-0" />
                 ) : (
                   <XCircle className="h-4 w-4 mt-0.5 text-destructive shrink-0" />
                 )}
                 <span>
                   <span className={p.satisfied ? "" : "font-medium"}>{PREREQ_TEXT(t)[p.key]?.label ?? p.label}</span>
                   {!p.satisfied && (
-                    <span className="block text-muted-foreground">{PREREQ_TEXT(t)[p.key]?.hint ?? p.hint}</span>
+                    <span className="block text-[13px] text-muted-foreground">{PREREQ_TEXT(t)[p.key]?.hint ?? p.hint}</span>
                   )}
                 </span>
               </li>
             ))}
           </ul>
-        </CardContent>
-      </Card>
+      </SettingsGroup>
 
       {/* ── OTP ────────────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("One-time password", "كلمة المرور المؤقتة")}</CardTitle>
-          <CardDescription>
-            {t("Sign in to the ZATCA Fatoora portal, generate an OTP for this solution unit, and paste it below. We never see your Fatoora credentials, and the OTP is not stored.", "سجّل الدخول إلى بوابة فاتورة، وأنشئ كلمة مرور مؤقتة لوحدة الحل هذه، والصقها أدناه. لا نطّلع على بيانات دخولك لفاتورة، ولا تُخزَّن كلمة المرور المؤقتة.")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
+      <SettingsGroup
+        title={t("One-time password", "كلمة المرور المؤقتة")}
+        description={t("Sign in to the ZATCA Fatoora portal, generate an OTP for this solution unit, and paste it below. We never see your Fatoora credentials, and the OTP is not stored.", "سجّل الدخول إلى بوابة فاتورة، وأنشئ كلمة مرور مؤقتة لوحدة الحل هذه، والصقها أدناه. لا نطّلع على بيانات دخولك لفاتورة، ولا تُخزَّن كلمة المرور المؤقتة.")}
+      >
+          <div className="space-y-1.5 max-w-xs">
             <Label htmlFor="otp">{t("OTP from Fatoora", "كلمة المرور المؤقتة من فاتورة")}</Label>
             <Input
               id="otp"
@@ -252,24 +258,19 @@ export default function ZatcaOnboarding() {
           >
             {onboard.isPending ? t("Running compliance checks…", "جارٍ تنفيذ فحوص الامتثال…") : t("Onboard with ZATCA", "التسجيل لدى الهيئة")}
           </Button>
-        </CardContent>
-      </Card>
+      </SettingsGroup>
 
       {/* ── Compliance results ─────────────────────────────────────────── */}
       {result && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("Compliance checks", "فحوص الامتثال")}</CardTitle>
-            <CardDescription>
-              {t("ZATCA validates six documents — standard and simplified invoices, credit notes and debit notes. All six must pass before a certificate is issued.", "تتحقق الهيئة من ستة مستندات — فواتير قياسية ومبسطة وإشعارات دائن ومدين. يجب اجتياز الستة جميعًا قبل إصدار الشهادة.")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <SettingsGroup
+          title={t("Compliance checks", "فحوص الامتثال")}
+          description={t("ZATCA validates six documents — standard and simplified invoices, credit notes and debit notes. All six must pass before a certificate is issued.", "تتحقق الهيئة من ستة مستندات — فواتير قياسية ومبسطة وإشعارات دائن ومدين. يجب اجتياز الستة جميعًا قبل إصدار الشهادة.")}
+        >
             {result.complianceDocuments.map((d) => (
               <div key={d.label} className="text-sm">
                 <div className="flex items-center gap-2">
                   {d.passed ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <CheckCircle2 className="h-4 w-4 text-positive" />
                   ) : (
                     <XCircle className="h-4 w-4 text-destructive" />
                   )}
@@ -281,14 +282,13 @@ export default function ZatcaOnboarding() {
                   </div>
                 ))}
                 {d.warnings.map((w) => (
-                  <div key={w.code} className="ms-6 text-yellow-600">
+                  <div key={w.code} className="ms-6 text-attention">
                     {w.code}: {w.message}
                   </div>
                 ))}
               </div>
             ))}
-          </CardContent>
-        </Card>
+        </SettingsGroup>
       )}
     </div>
   );

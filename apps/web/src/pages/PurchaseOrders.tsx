@@ -20,7 +20,7 @@ import { fetchPickerOptions } from "@/lib/pagedList";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, FilterTabs, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { FilterScope } from "@/components/FilterScope";
 import { PURCHASE_ORDER_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { DualDate } from "@/components/DualDate";
+import { statusLabel } from "@/lib/statusLabel";
 
 import type { CreatePurchaseOrderInput, PurchaseOrder, PurchaseOrderConversion, Vendor } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
@@ -289,27 +290,14 @@ export default function PurchaseOrders() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold">{t("Purchase Orders", "أوامر الشراء")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t(
-              "An intention to buy. A purchase order affects no report and no ledger until the supplier's bill arrives.",
-              "نية للشراء. لا يؤثر أمر الشراء على أي تقرير أو دفتر حتى تصل فاتورة المورد.",
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* "Converted to Bill" is DERIVED from the conversion rows. */}
-          <Select value={statusFilter} onValueChange={applyFilter}>
-            <SelectTrigger className="h-9 w-52 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {PURCHASE_ORDER_FILTERS.map(o => (
-                <SelectItem key={o.value} value={o.value}>{lang === "ar" ? o.labelAr : o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="space-y-6">
+      <PageHeader
+        title={t("Purchase Orders", "أوامر الشراء")}
+        description={t(
+          "An intention to buy. A purchase order affects no report and no ledger until the supplier's bill arrives.",
+          "نية للشراء. لا يؤثر أمر الشراء على أي تقرير أو دفتر حتى تصل فاتورة المورد.",
+        )}
+        actions={
           <Dialog
             open={open}
             onOpenChange={(o) => {
@@ -324,7 +312,7 @@ export default function PurchaseOrders() {
             }}
           >
             <DialogTrigger asChild>
-              <Button size="sm"><Plus className="w-4 h-4 me-1" />{t("New order", "أمر جديد")}</Button>
+              <Button><Plus className="w-4 h-4 me-1" />{t("New order", "أمر جديد")}</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader><DialogTitle>{editing ? t("Edit purchase order", "تعديل أمر الشراء") + ` — ${editing.number}` : t("New purchase order", "أمر شراء جديد")}</DialogTitle></DialogHeader>
@@ -387,41 +375,44 @@ export default function PurchaseOrders() {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+        }
+      />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">{t("Purchase Orders", "أوامر الشراء")}</CardTitle>
-          <div className="mt-3">
-            <FilterScope options={PURCHASE_ORDER_FILTERS} value={statusFilter} total={ordersPage?.page?.total} onClear={() => applyFilter("all")} />
-          </div>
-        </CardHeader>
-        <CardContent>
+      <Panel flush>
+        {/* "Converted to Bill" is DERIVED from the conversion rows. */}
+        <FilterTabs
+          options={PURCHASE_ORDER_FILTERS.map((o) => ({ value: o.value, label: lang === "ar" ? o.labelAr : o.label }))}
+          value={statusFilter}
+          onChange={applyFilter}
+        />
+        <div className="px-5 pt-3 empty:hidden">
+          <FilterScope options={PURCHASE_ORDER_FILTERS} value={statusFilter} total={ordersPage?.page?.total} onClear={() => applyFilter("all")} />
+        </div>
+        <div>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">{t("Loading…", "جارٍ التحميل…")}</p>
+            <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
           ) : orders.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">{t("No purchase orders yet.", "لا توجد أوامر شراء بعد.")}</p>
+            <EmptyState icon={FileText} title={t("No purchase orders yet.", "لا توجد أوامر شراء بعد.")} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-start text-xs text-muted-foreground border-b border-border">
-                    <th className="pb-2 pe-4">{t("Number", "الرقم")}</th>
-                    <th className="pb-2 pe-4">{t("Supplier", "المورد")}</th>
-                    <th className="pb-2 pe-4">{t("Date", "التاريخ")}</th>
-                    <th className="pb-2 pe-4 text-end">{t("Total", "الإجمالي")}</th>
-                    <th className="pb-2 pe-4">{t("Status", "الحالة")}</th>
-                    <th className="pb-2 pe-4">{t("Billing", "الفوترة")}</th>
-                    <th className="pb-2 text-end">{t("Actions", "إجراءات")}</th>
+                  <tr className="border-b border-border">
+                    <th className="text-start px-3">{t("Number", "الرقم")}</th>
+                    <th className="text-start px-3">{t("Supplier", "المورد")}</th>
+                    <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                    <th className="text-end px-3">{t("Total", "الإجمالي")}</th>
+                    <th className="text-start px-3">{t("Status", "الحالة")}</th>
+                    <th className="text-start px-3">{t("Billing", "الفوترة")}</th>
+                    <th className="text-end px-3 sticky end-0 bg-muted shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]">{t("Actions", "إجراءات")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.map((po) => (
-                    <tr key={po.id} className="border-b border-border/50">
-                      <td className="py-3 pe-4 font-mono text-xs text-primary">{po.orderNumber}</td>
-                      <td className="py-3 pe-4">{po.vendorName ?? "—"}</td>
-                      <td className="py-3 pe-4 text-muted-foreground text-xs">
+                    <tr key={po.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                      <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">{po.orderNumber}</td>
+                      <td className="py-3 px-3 min-w-[10rem]">{po.vendorName ?? "—"}</td>
+                      <td className="py-3 px-3 text-muted-foreground whitespace-nowrap">
                         <DualDate date={po.date} />
                         {po.expired && (
                           <span className="ms-1 inline-flex items-center gap-1 text-muted-foreground">
@@ -429,17 +420,18 @@ export default function PurchaseOrders() {
                           </span>
                         )}
                       </td>
-                      <td className="py-3 pe-4 text-end font-mono">{fmtNum(po.total)}</td>
-                      <td className="py-3 pe-4">
-                        <Badge className={`text-xs gap-1 ${STATUS_STYLES[po.status] ?? ""}`}>
-                          {STATUS_ICONS[po.status]}{po.status}
+                      <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(po.total)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <Badge className={`text-xs gap-1 capitalize ${STATUS_STYLES[po.status] ?? ""}`}>
+                          {STATUS_ICONS[po.status]}{statusLabel(po.status, lang)}
                         </Badge>
-                        {po.outcome && <Badge className="text-xs ms-1 bg-secondary text-muted-foreground">{po.outcome}</Badge>}
+                        {po.outcome && <Badge className="text-xs ms-1 capitalize bg-secondary text-muted-foreground">{po.outcome}</Badge>}
                       </td>
-                      <td className="py-3 pe-4 text-xs text-muted-foreground">
+                      <td className="py-3 px-3 text-[13px] text-muted-foreground whitespace-nowrap">
                         {t(...(BILLING_LABEL[po.billingState] ?? ["—", "—"]))}
                       </td>
-                      <td className="py-3 text-end space-x-1 whitespace-nowrap">
+                      <td className="py-3 px-3 sticky end-0 bg-card shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                         {/* AUD-4: editing, finally reachable. Offered while the
                             record can still change: a draft freely, and an
                             approved one for its untouched lines — the server's
@@ -508,6 +500,7 @@ export default function PurchaseOrders() {
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -515,14 +508,16 @@ export default function PurchaseOrders() {
               </table>
             </div>
           )}
-                  <ListPagination
-            page={ordersPage?.page}
-            shown={orders.length}
-            onPrev={() => setPage((p) => Math.max(0, p - 1))}
-            onNext={() => setPage((p) => p + 1)}
-          />
-        </CardContent>
-      </Card>
+          <div className="border-t border-border px-5 pb-3 empty:hidden">
+            <ListPagination
+              page={ordersPage?.page}
+              shown={orders.length}
+              onPrev={() => setPage((p) => Math.max(0, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
+          </div>
+        </div>
+      </Panel>
 
       {/* ── Record the supplier's bill ──────────────────────────────────────── */}
       <Dialog open={!!billing} onOpenChange={(o) => !o && setBilling(null)}>

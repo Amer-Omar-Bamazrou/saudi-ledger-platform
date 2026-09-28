@@ -27,13 +27,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel } from "@/components/kit";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
-  AlertCircle, AlertTriangle, CheckCircle2, ArrowLeft, Trash2,
-  Building2, Plus, ScanLine, BookOpen, Loader2,
+  AlertCircle, AlertTriangle, CheckCircle2, Trash2,
+  Building2, Plus, BookOpen, Loader2,
 } from "lucide-react";
 import { businessToday } from "@workspace/shared";
 
@@ -305,22 +305,16 @@ export default function ScanReview() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
+    <div className="max-w-3xl mx-auto space-y-6">
       {/* header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => navigate("/bills")}>
-          <ArrowLeft className="w-4 h-4" /> {t("Back to Bills", "العودة إلى الفواتير")}
-        </Button>
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <ScanLine className="w-5 h-5 text-primary" /> {t("Review Scanned Receipt", "مراجعة الإيصال الممسوح")}
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {source === "qr"
-              ? "Read from the invoice's ZATCA QR code — check and post"
-              : "Correct any OCR errors before posting to the ledger"}
-          </p>
-        </div>
+      <PageHeader
+        back={{ href: "/bills", label: t("Back to Bills", "العودة إلى الفواتير") }}
+        title={t("Review Scanned Receipt", "مراجعة الإيصال الممسوح")}
+        description={source === "qr"
+          ? t("Read from the invoice's ZATCA QR code — check and post", "قُرئت من رمز الاستجابة للهيئة على الفاتورة — راجِع ثم رحّل")
+          : t("Correct any OCR errors before posting to the ledger", "صحّح أي أخطاء في التعرف الضوئي قبل الترحيل إلى الدفتر")}
+        actions={
+        <>
         {/* A1: evidence status — stored means the posted bill will be traceable
             to this photograph; a missing capture means storage failed and the
             bill will carry no source document. */}
@@ -329,12 +323,12 @@ export default function ScanReview() {
             href={`/api/capture/${captureId}/image`}
             target="_blank"
             rel="noreferrer"
-            className="ms-auto inline-flex items-center gap-1 rounded border border-positive-surface/30 bg-positive-surface/10 px-2 py-1 text-xs text-positive-surface"
+            className="inline-flex items-center gap-1 rounded-md border border-positive-surface/30 bg-positive-surface/10 px-2 py-1 text-xs text-positive"
           >
             <CheckCircle2 className="w-3.5 h-3.5" /> {t("Source photograph stored — view", "الصورة المصدرية محفوظة — عرض")}
           </a>
         ) : (
-          <span className="ms-auto inline-flex items-center gap-1 rounded border border-attention-surface/30 bg-attention-surface/10 px-2 py-1 text-xs text-attention-surface">
+          <span className="inline-flex items-center gap-1 rounded-md border border-attention-surface/30 bg-attention-surface/10 px-2 py-1 text-xs text-attention">
             <AlertTriangle className="w-3.5 h-3.5" /> {t("Photograph not stored", "الصورة غير محفوظة")}
           </span>
         )}
@@ -361,7 +355,9 @@ export default function ScanReview() {
             {t("Discard photograph", "حذف الصورة")}
           </Button>
         )}
-      </div>
+        </>
+        }
+      />
 
       {/* The confirm names what is destroyed and what is not. */}
       {confirmDiscard && (
@@ -472,22 +468,19 @@ export default function ScanReview() {
       )}
 
       {/* ── extracted fields ──────────────────────────────────────────────── */}
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-primary" /> {t("Extracted Fields", "الحقول المستخرجة")}
-            <span className="text-xs text-muted-foreground font-normal">{t("(all editable — correct any OCR errors)", "(كلها قابلة للتعديل — صحّح أي أخطاء في القراءة)")}</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <Panel
+        title={<span className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-muted-foreground" /> {t("Extracted Fields", "الحقول المستخرجة")}</span>}
+        description={t("(all editable — correct any OCR errors)", "(كلها قابلة للتعديل — صحّح أي أخطاء في القراءة)")}
+        bodyClassName="space-y-4"
+      >
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs text-muted-foreground">{t("Supplier / Vendor Name", "اسم المورّد")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("Supplier / Vendor Name", "اسم المورّد")}</Label>
               <Input value={fields.vendorName} onChange={e => setFields(p => ({ ...p, vendorName: e.target.value }))}
                 className="mt-1 h-8 text-sm" placeholder={t("As printed on the document", "كما هو مطبوع على المستند")} />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">
+              <Label className="text-[13px] text-muted-foreground">
                 {t("Supplier VAT Registration #", "الرقم الضريبي للمورّد")}
                 {fields.supplierVatNumber && /^3\d{13}3$/.test(fields.supplierVatNumber)
                   ? <span className="text-positive ms-1">✓</span>
@@ -504,12 +497,12 @@ export default function ScanReview() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs text-muted-foreground">{t("Invoice / Receipt Number", "رقم الفاتورة / الإيصال")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("Invoice / Receipt Number", "رقم الفاتورة / الإيصال")}</Label>
               <Input value={fields.invoiceNumber} onChange={e => setFields(p => ({ ...p, invoiceNumber: e.target.value }))}
                 className="mt-1 h-8 text-sm font-mono" placeholder={t("e.g. INV-2025-001", "مثال: INV-2025-001")} />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("Date", "التاريخ")}</Label>
               <Input type="date" value={fields.date} onChange={e => setFields(p => ({ ...p, date: e.target.value }))}
                 className="mt-1 h-8 text-sm" />
             </div>
@@ -517,20 +510,20 @@ export default function ScanReview() {
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label className="text-xs text-muted-foreground">{t("Subtotal (SAR)", "المجموع الفرعي (ر.س)")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("Subtotal (SAR)", "المجموع الفرعي (ر.س)")}</Label>
               <Input type="number" step="0.01" value={fields.subtotal}
                 onChange={e => setFields(p => ({ ...p, subtotal: e.target.value }))}
                 className="mt-1 h-8 text-sm font-mono" placeholder="0.00" />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">{t("VAT Amount (SAR)", "مبلغ الضريبة (ر.س)")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("VAT Amount (SAR)", "مبلغ الضريبة (ر.س)")}</Label>
               <Input type="number" step="0.01" value={fields.vatAmount}
                 onChange={e => setFields(p => ({ ...p, vatAmount: e.target.value }))}
                 className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "vat_amount") ? "border-negative-surface" : ""}`}
                 placeholder="0.00" />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">{t("Total (SAR)", "الإجمالي (ر.س)")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("Total (SAR)", "الإجمالي (ر.س)")}</Label>
               <Input type="number" step="0.01" value={fields.total}
                 onChange={e => setFields(p => ({ ...p, total: e.target.value }))}
                 className={`mt-1 h-8 text-sm font-mono ${errors.some(f => f.field === "totals") ? "border-negative-surface" : ""}`}
@@ -539,7 +532,7 @@ export default function ScanReview() {
           </div>
 
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("Notes", "ملاحظات")}</Label>
             <Input value={fields.notes} onChange={e => setFields(p => ({ ...p, notes: e.target.value }))}
               className="mt-1 h-8 text-sm" />
           </div>
@@ -560,17 +553,13 @@ export default function ScanReview() {
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {/* ── supplier match ────────────────────────────────────────────────── */}
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-primary" /> {t("Supplier Match", "مطابقة المورّد")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <Panel
+        title={<span className="flex items-center gap-2"><Building2 className="w-4 h-4 text-muted-foreground" /> {t("Supplier Match", "مطابقة المورّد")}</span>}
+        bodyClassName="space-y-3"
+      >
           {matchLoading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" /> {t("Searching for existing supplier…", "جارٍ البحث عن مورّد موجود…")}
@@ -681,31 +670,27 @@ export default function ScanReview() {
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </Panel>
 
       {/* ── proposed journal entry ────────────────────────────────────────── */}
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-primary" /> {t("Proposed Journal Entry", "قيد اليومية المقترح")}
-            <span className="text-xs text-muted-foreground font-normal">{t("— nothing posts until you confirm below", "— لا يُرحّل شيء حتى تؤكد أدناه")}</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-border overflow-hidden text-sm">
+      <Panel
+        flush
+        title={<span className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-muted-foreground" /> {t("Proposed Journal Entry", "قيد اليومية المقترح")}</span>}
+        description={t("— nothing posts until you confirm below", "— لا يُرحّل شيء حتى تؤكد أدناه")}
+      >
+          <div className="text-sm">
             <div className="overflow-x-auto"><table className="w-full">
-              <thead className="bg-secondary/40">
-                <tr>
-                  <th className="text-start px-3 py-2 text-xs text-muted-foreground font-medium">{t("Account", "الحساب")}</th>
-                  <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">{t("Debit (SAR)", "مدين (ر.س)")}</th>
-                  <th className="text-end px-3 py-2 text-xs text-muted-foreground font-medium">{t("Credit (SAR)", "دائن (ر.س)")}</th>
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-start px-3">{t("Account", "الحساب")}</th>
+                  <th className="text-end px-3">{t("Debit (SAR)", "مدين (ر.س)")}</th>
+                  <th className="text-end px-3">{t("Credit (SAR)", "دائن (ر.س)")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/50">
+              <tbody className="divide-y divide-border/70">
                 {/* editable debit line */}
-                <tr className="hover:bg-secondary/20">
-                  <td className="px-3 py-2">
+                <tr className="hover:bg-muted/40 transition-colors">
+                  <td className="px-3 py-3">
                     <Select value={String(effectiveDebitAccountId ?? "")} onValueChange={v => setDebitAccountId(Number(v))}>
                       <SelectTrigger className="h-7 text-xs border-dashed w-full max-w-xs">
                         <SelectValue />
@@ -717,35 +702,35 @@ export default function ScanReview() {
                       </SelectContent>
                     </Select>
                   </td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
+                  <td className="px-3 py-3 text-end whitespace-nowrap tabular-nums text-foreground">
                     {previewSubtotal > 0 ? fmtNum(previewSubtotal) : "—"}
                   </td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
+                  <td className="px-3 py-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">—</td>
                 </tr>
                 {/* VAT line — fixed */}
-                <tr className="hover:bg-secondary/20">
-                  <td className="px-3 py-2 text-muted-foreground text-xs">{t("Input VAT Receivable", "ضريبة القيمة المضافة على المشتريات")}</td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
+                <tr className="hover:bg-muted/40 transition-colors">
+                  <td className="px-3 py-3 text-muted-foreground">{t("Input VAT Receivable", "ضريبة القيمة المضافة على المشتريات")}</td>
+                  <td className="px-3 py-3 text-end whitespace-nowrap tabular-nums text-foreground">
                     {previewVat > 0 ? fmtNum(previewVat) : "—"}
                   </td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
+                  <td className="px-3 py-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">—</td>
                 </tr>
                 {/* AP line — fixed */}
-                <tr className="hover:bg-secondary/20">
-                  <td className="px-3 py-2 text-muted-foreground text-xs">{t("Accounts Payable", "الذمم الدائنة")}</td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">—</td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums text-foreground">
+                <tr className="hover:bg-muted/40 transition-colors">
+                  <td className="px-3 py-3 text-muted-foreground">{t("Accounts Payable", "الذمم الدائنة")}</td>
+                  <td className="px-3 py-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">—</td>
+                  <td className="px-3 py-3 text-end whitespace-nowrap tabular-nums text-foreground">
                     {previewTotal > 0 ? fmtNum(previewTotal) : "—"}
                   </td>
                 </tr>
               </tbody>
-              <tfoot className="bg-secondary/20 border-t border-border">
+              <tfoot>
                 <tr>
-                  <td className="px-3 py-2 text-xs font-semibold text-muted-foreground">{t("Total", "الإجمالي")}</td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums font-semibold text-foreground">
+                  <td className="px-3 py-3 font-semibold">{t("Total", "الإجمالي")}</td>
+                  <td className="px-3 py-3 text-end whitespace-nowrap tabular-nums font-semibold text-foreground">
                     {previewSubtotal + previewVat > 0 ? fmtNum(previewSubtotal + previewVat) : "—"}
                   </td>
-                  <td className="px-3 py-2 text-end font-mono tabular-nums font-semibold text-foreground">
+                  <td className="px-3 py-3 text-end whitespace-nowrap tabular-nums font-semibold text-foreground">
                     {previewTotal > 0 ? fmtNum(previewTotal) : "—"}
                   </td>
                 </tr>
@@ -754,13 +739,12 @@ export default function ScanReview() {
           </div>
           {previewSubtotal + previewVat > 0 && previewTotal > 0 &&
            Math.abs(previewSubtotal + previewVat - previewTotal) > 0.02 && (
-            <p className="text-xs text-negative mt-2 flex items-center gap-1">
+            <p className="text-xs text-negative px-5 py-3 border-t border-border flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5" />
               {t("Journal entry does not balance — fix the amounts before posting.", "قيد اليومية غير متوازن — صحّح المبالغ قبل الترحيل.")}
             </p>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {/* ── action bar ───────────────────────────────────────────────────── */}
       <div className="flex gap-3 pb-8">

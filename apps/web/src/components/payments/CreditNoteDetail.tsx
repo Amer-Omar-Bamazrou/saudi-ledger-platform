@@ -26,7 +26,7 @@ export function useCreditNoteApplications(noteId: number, enabled = true) {
 }
 
 function Fact({ k, v, testId }: { k: string; v: React.ReactNode; testId?: string }) {
-  return <div><p className="text-xs text-muted-foreground">{k}</p><p className="text-sm font-medium font-mono" data-testid={testId}>{v}</p></div>;
+  return <div className="min-w-0"><p className="text-[12px] text-muted-foreground">{k}</p><p className="mt-0.5 text-sm font-medium tabular-nums" data-testid={testId}>{v}</p></div>;
 }
 
 export function CreditNoteDetail({ noteId, customer, invoiceNumbers, originalInvoiceId }: { noteId: number; customer: { id: number; name: string }; invoiceNumbers: Record<number, string>; originalInvoiceId: number | null }) {
@@ -44,8 +44,8 @@ export function CreditNoteDetail({ noteId, customer, invoiceNumbers, originalInv
   const originalApp = data.applications.find((a) => a.invoiceId === originalInvoiceId && !a.reversedBy && a.journalEntryId != null);
 
   return (
-    <div className="space-y-3" data-testid={`credit-note-detail-${noteId}`}>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-md border border-border p-3">
+    <div className="space-y-4" data-testid={`credit-note-detail-${noteId}`}>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 rounded-lg border border-border p-4">
         <Fact k={t("Credit note", "إشعار الدائن")} v={data.invoiceNumber} />
         <Fact k={t("Note total", "إجمالي الإشعار")} v={fmtNum(data.total)} />
         <Fact k={t("Applied", "المطبَّق")} v={fmtNum(data.appliedAmount)} testId="credit-applied" />
@@ -59,7 +59,7 @@ export function CreditNoteDetail({ noteId, customer, invoiceNumbers, originalInv
         </p>
       )}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-xs uppercase text-muted-foreground">{t("Applications — where this credit went", "التطبيقات — أين ذهب هذا الرصيد")}</p>
+        <p className="text-[13px] font-semibold text-foreground">{t("Applications — where this credit went", "التطبيقات — أين ذهب هذا الرصيد")}</p>
         {data.remainingAmount > 0.005 && (
           <div className="flex gap-2">
             <Button size="sm" className="h-8" disabled={!canPost} onClick={() => setApplying(true)} data-testid={`apply-credit-${noteId}`}>{t("Apply to invoice", "تطبيق على فاتورة")}</Button>

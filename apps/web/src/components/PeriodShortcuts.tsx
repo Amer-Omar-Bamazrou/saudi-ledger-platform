@@ -95,7 +95,7 @@ export function PeriodShortcuts({
         </Button>
       ))}
       {!activeKey && (
-        <span className="h-7 px-2 inline-flex items-center text-xs text-muted-foreground border border-border rounded-md">
+        <span className="h-7 px-2 inline-flex items-center text-xs text-muted-foreground border border-dashed border-border rounded-md">
           {t("Custom", "مخصص")}
         </span>
       )}

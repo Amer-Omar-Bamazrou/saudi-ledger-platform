@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtDate } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, StatStrip, Stat } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,11 +27,26 @@ const ROLE_COLOR: Record<string, string> = {
   admin: "bg-attention-surface/20 text-attention border-attention-surface/30",
   accountant: "bg-info-surface/20 text-info border-info-surface/30",
   bookkeeper: "bg-positive-surface/20 text-positive border-positive-surface/30",
-  viewer: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+  viewer: "bg-muted text-muted-foreground border-border",
 };
 const ROLE_ICON: Record<string, React.ElementType> = {
   admin: ShieldCheck, accountant: BookUser, bookkeeper: PencilRuler, viewer: Eye,
 };
+
+/** One settings group: what it is on the start side, its content on the end side (stacked on a phone). */
+function SettingsGroup({ title, description, children }: { title: React.ReactNode; description?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Panel>
+      <div className="grid md:grid-cols-[16rem_1fr] gap-6">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold text-foreground">{title}</h2>
+          {description && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
+        </div>
+        <div className="min-w-0 space-y-4">{children}</div>
+      </div>
+    </Panel>
+  );
+}
 
 const emptyNewUser = { name: "", email: "", password: "", role: "bookkeeper" as string };
 
@@ -195,14 +210,11 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("User Management", "إدارة المستخدمين")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {t("Create accounts and assign their role in this organization", "إنشاء الحسابات وتعيين دورهم في هذه المنظمة")}
-          </p>
-        </div>
+    <div className="space-y-6 max-w-5xl">
+      <PageHeader
+        title={t("User Management", "إدارة المستخدمين")}
+        description={t("Create accounts and assign their role in this organization", "إنشاء الحسابات وتعيين دورهم في هذه المنظمة")}
+        actions={
         <Dialog open={createOpen} onOpenChange={o => { setCreateOpen(o); setCreateError(""); }}>
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="w-4 h-4" /> {t("Add User", "إضافة مستخدم")}</Button>
@@ -214,24 +226,24 @@ export default function UserManagement() {
                 <Alert variant="destructive"><AlertDescription>{createError}</AlertDescription></Alert>
               )}
               <div>
-                <Label className="text-xs text-muted-foreground">{t("Full name *", "الاسم الكامل *")}</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("Full name *", "الاسم الكامل *")}</Label>
                 <Input value={newUser.name} onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))}
-                  className="mt-1 h-8 text-sm" placeholder="Ahmed Al-Rashidi" />
+                  className="mt-1" placeholder="Ahmed Al-Rashidi" />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">{t("Email *", "البريد الإلكتروني *")}</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("Email *", "البريد الإلكتروني *")}</Label>
                 <Input type="email" value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))}
-                  className="mt-1 h-8 text-sm" placeholder="user@company.sa" />
+                  className="mt-1" placeholder="user@company.sa" />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">{t("Temporary password *", "كلمة مرور مؤقتة *")}</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("Temporary password *", "كلمة مرور مؤقتة *")}</Label>
                 <Input type="password" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
-                  className="mt-1 h-8 text-sm" placeholder={t("Min 8 characters", "8 أحرف على الأقل")} minLength={8} />
+                  className="mt-1" placeholder={t("Min 8 characters", "8 أحرف على الأقل")} minLength={8} />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">{t("Role in this organization *", "الدور في هذه المنظمة *")}</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("Role in this organization *", "الدور في هذه المنظمة *")}</Label>
                 <select
-                  className="w-full mt-1 h-8 text-sm rounded-md border border-input bg-background px-3 py-1"
+                  className="w-full mt-1 h-9 text-sm rounded-md border border-input bg-background px-3 py-1"
                   value={newUser.role}
                   onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))}
                 >
@@ -251,68 +263,64 @@ export default function UserManagement() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* Stats — by membership role in the active org */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <StatStrip cols={4}>
         {MEMBERSHIP_ROLES.map(role => {
-          const Icon = ROLE_ICON[role];
           const count = (membersData?.members ?? []).filter(m => m.role === role).length;
           return (
-            <Card key={role} className="border-border bg-card">
-              <CardContent className="pt-4 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-                    <Icon className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-xl sm:text-2xl font-bold font-mono text-foreground">{count}</p>
-                    <p className="text-xs text-muted-foreground">{({ viewer: t("Viewers", "المشاهدون"), bookkeeper: t("Bookkeepers", "مدخلو البيانات"), accountant: t("Accountants", "المحاسبون"), admin: t("Admins", "المسؤولون") } as Record<string, string>)[role] ?? role}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <Stat
+              key={role}
+              label={({ viewer: t("Viewers", "المشاهدون"), bookkeeper: t("Bookkeepers", "مدخلو البيانات"), accountant: t("Accountants", "المحاسبون"), admin: t("Admins", "المسؤولون") } as Record<string, string>)[role] ?? role}
+              value={count}
+            />
           );
         })}
-      </div>
+      </StatStrip>
 
       {/* User list */}
+      <SettingsGroup
+        title={t("All users", "جميع المستخدمين")}
+        description={t(
+          "Each person's role in this organization decides what they can do here. Deactivating an account stops the person signing in anywhere.",
+          "يحدد دور كل شخص في هذه المنظمة ما يمكنه فعله هنا. تعطيل الحساب يمنع صاحبه من تسجيل الدخول في أي مكان.",
+        )}
+      >
       {isLoading ? (
-        <p className="text-muted-foreground text-sm p-4">{t("Loading users…", "جارٍ تحميل المستخدمين…")}</p>
+        <p className="text-muted-foreground text-sm">{t("Loading users…", "جارٍ تحميل المستخدمين…")}</p>
       ) : (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">{t("All users", "جميع المستخدمين")}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border">
+            <div className="divide-y divide-border rounded-md border border-border">
               {users.map(u => {
                 const orgRole = roleByUser.get(u.id) ?? "";
                 const Icon = ROLE_ICON[orgRole] ?? Eye;
                 const isMe = u.id === me?.id;
                 return (
-                  <div key={u.id} className="flex items-center gap-4 px-6 py-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-primary">{u.name.charAt(0).toUpperCase()}</span>
+                  <div key={u.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                    <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center shrink-0">
+                      <span className="text-xs font-semibold text-accent-foreground">{u.name.charAt(0).toUpperCase()}</span>
                     </div>
 
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-[10rem]">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground truncate">{u.name}</span>
                         {isMe && <span className="text-xs text-muted-foreground">({t("you", "أنت")})</span>}
                         {!u.isActive && <Badge variant="outline" className="text-xs text-negative border-negative/30">{t("Inactive", "غير نشط")}</Badge>}
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                      <p className="text-[13px] text-muted-foreground truncate">{u.email}</p>
                     </div>
 
                     {/* Membership role badge (the governing role) */}
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${ROLE_COLOR[orgRole] ?? "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"}`}>
-                      {orgRole ? orgRole.toUpperCase() : t("NO MEMBERSHIP", "بدون عضوية")}
+                    <span className={`inline-flex items-center gap-1 text-[12px] font-medium px-1.5 py-0.5 rounded border capitalize ${ROLE_COLOR[orgRole] ?? "bg-muted text-muted-foreground border-border"}`}>
+                      <Icon className="w-3 h-3" />
+                      {orgRole ? (({ viewer: t("Viewer", "مشاهد"), bookkeeper: t("Bookkeeper", "ماسك دفاتر"), accountant: t("Accountant", "محاسب"), admin: t("Admin", "مسؤول") } as Record<string, string>)[orgRole] ?? orgRole) : t("No membership", "بدون عضوية")}
                     </span>
 
+                    <div className="flex items-center gap-1.5">
                     {/* Membership role change (upsert in the active org) */}
                     <select
-                      className="h-7 text-xs rounded border border-input bg-background px-2"
+                      className="h-8 text-[13px] rounded-md border border-input bg-background px-2"
                       value={orgRole}
                       onChange={e => assignMut.mutate({ userId: u.id, role: e.target.value })}
                       disabled={isMe || !activeOrgId}
@@ -328,7 +336,7 @@ export default function UserManagement() {
                     {!isMe && orgRole && (
                       <button
                         onClick={() => removeMemberMut.mutate(u.id)}
-                        className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:border-negative/40 hover:text-negative transition-colors"
+                        className="text-xs h-8 px-2 rounded-md border border-border text-muted-foreground hover:border-negative/40 hover:text-negative transition-colors"
                         title={t("Remove from this organization", "إزالة من هذه المنظمة")}
                       >
                         {t("Remove", "إزالة")}
@@ -338,7 +346,7 @@ export default function UserManagement() {
                     {!isMe && (
                       <button
                         onClick={() => patchMut.mutate({ id: u.id, updates: { isActive: !u.isActive } })}
-                        className={`text-xs px-2 py-1 rounded border transition-colors ${u.isActive ? "border-border text-muted-foreground hover:border-negative/40 hover:text-negative" : "border-positive-surface/30 text-positive hover:bg-positive-surface/10"}`}
+                        className={`text-xs h-8 px-2 rounded-md border transition-colors ${u.isActive ? "border-border text-muted-foreground hover:border-negative/40 hover:text-negative" : "border-positive-surface/30 text-positive hover:bg-positive-surface/10"}`}
                       >
                         {u.isActive ? t("Deactivate", "تعطيل") : t("Activate", "تفعيل")}
                       </button>
@@ -346,46 +354,42 @@ export default function UserManagement() {
 
                     <button
                       onClick={() => { setResetTarget(u); setNewPw(""); setResetError(""); }}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                      className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
                       title={t("Reset password", "إعادة تعيين كلمة المرور")}
                     >
                       <KeyRound className="w-3.5 h-3.5" />
                     </button>
+                    </div>
                   </div>
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
       )}
+      </SettingsGroup>
 
       {/* ── Invitations (M11.7) ─────────────────────────────────────────── */}
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">{t("Invitations", "الدعوات")}</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "Invite a teammate by email. No email is sent yet — copy the link and share it with them.",
-              "ادعُ زميلاً عبر البريد. لا يتم إرسال بريد بعد — انسخ الرابط وشاركه معه.",
-            )}
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <SettingsGroup
+        title={t("Invitations", "الدعوات")}
+        description={t(
+          "Invite a teammate by email. No email is sent yet — copy the link and share it with them.",
+          "ادعُ زميلاً عبر البريد. لا يتم إرسال بريد بعد — انسخ الرابط وشاركه معه.",
+        )}
+      >
           {inviteError && <Alert variant="destructive"><AlertDescription>{inviteError}</AlertDescription></Alert>}
 
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex-1 min-w-[220px]">
-              <Label className="text-xs text-muted-foreground">{t("Email", "البريد الإلكتروني")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("Email", "البريد الإلكتروني")}</Label>
               <Input
-                type="email" className="mt-1 h-8 text-sm" placeholder="teammate@company.sa"
+                type="email" className="mt-1" placeholder="teammate@company.sa"
                 value={invite.email}
                 onChange={e => setInvite(p => ({ ...p, email: e.target.value }))}
               />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">{t("Role", "الدور")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("Role", "الدور")}</Label>
               <select
-                className="mt-1 h-8 text-sm rounded-md border border-input bg-background px-2 block"
+                className="mt-1 h-9 text-sm rounded-md border border-input bg-background px-2 block capitalize"
                 value={invite.role}
                 onChange={e => setInvite(p => ({ ...p, role: e.target.value }))}
               >
@@ -393,7 +397,6 @@ export default function UserManagement() {
               </select>
             </div>
             <Button
-              size="sm"
               disabled={!invite.email || inviteMut.isPending || !activeOrgId}
               onClick={() => inviteMut.mutate(invite)}
             >
@@ -406,7 +409,7 @@ export default function UserManagement() {
               <AlertDescription className="space-y-2">
                 <p className="text-xs font-medium">{t("Share this link with the invitee:", "شارك هذا الرابط مع المدعو:")}</p>
                 <div className="flex gap-2">
-                  <Input readOnly value={inviteLink} className="h-8 text-xs font-mono" onFocus={e => e.currentTarget.select()} />
+                  <Input readOnly value={inviteLink} className="h-8 text-xs font-mono" dir="ltr" onFocus={e => e.currentTarget.select()} />
                   <Button size="sm" variant="outline" onClick={() => navigator.clipboard?.writeText(inviteLink)}>
                     {t("Copy", "نسخ")}
                   </Button>
@@ -415,18 +418,18 @@ export default function UserManagement() {
             </Alert>
           )}
 
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border border-t border-border">
             {(invitesData?.invitations ?? []).length === 0 ? (
-              <p className="text-xs text-muted-foreground py-2">{t("No invitations yet.", "لا توجد دعوات بعد.")}</p>
+              <p className="text-[13px] text-muted-foreground pt-3">{t("No invitations yet.", "لا توجد دعوات بعد.")}</p>
             ) : invitesData!.invitations.map(inv => (
-              <div key={inv.id} className="flex items-center gap-3 py-2">
+              <div key={inv.id} className="flex items-center gap-3 py-2.5">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground truncate">{inv.email}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {inv.role} · {t("expires", "تنتهي")} {fmtDate(inv.expiresAt)}
+                  <p className="text-[12px] text-muted-foreground">
+                    <span className="capitalize">{inv.role}</span> · {t("expires", "تنتهي")} {fmtDate(inv.expiresAt)}
                   </p>
                 </div>
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-border text-muted-foreground uppercase">
+                <span className="text-[12px] font-medium px-1.5 py-0.5 rounded border border-border text-muted-foreground capitalize">
                   {inv.status}
                 </span>
                 {inv.status === "pending" && (
@@ -442,8 +445,7 @@ export default function UserManagement() {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+      </SettingsGroup>
 
       {/* Reset password dialog */}
       <Dialog open={!!resetTarget} onOpenChange={o => { if (!o) { setResetTarget(null); setNewPw(""); setResetError(""); } }}>
@@ -460,12 +462,12 @@ export default function UserManagement() {
               )}
             </p>
             <div>
-              <Label className="text-xs text-muted-foreground">{t("New password *", "كلمة المرور الجديدة *")}</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("New password *", "كلمة المرور الجديدة *")}</Label>
               <Input
                 type="password"
                 value={newPw}
                 onChange={e => setNewPw(e.target.value)}
-                className="mt-1 h-8 text-sm"
+                className="mt-1"
                 placeholder={t("Min 8 characters", "8 أحرف على الأقل")}
                 minLength={8}
               />

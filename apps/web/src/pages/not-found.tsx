@@ -6,10 +6,10 @@ export default function NotFound() {
   // ALSO be lost in English.
   const { t } = useLanguage();
   return (
-    <div className="flex items-center justify-center h-[80vh]">
-      <div className="text-center space-y-4">
-        <h1 className="text-6xl font-mono text-primary font-bold">404</h1>
-        <p className="text-xl text-muted-foreground">{t("This page does not exist.", "هذه الصفحة غير موجودة.")}</p>
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="text-center">
+        <p className="text-[13px] font-medium tabular-nums text-primary">404</p>
+        <h1 className="mt-2 text-[26px] leading-tight font-semibold text-foreground">{t("This page does not exist.", "هذه الصفحة غير موجودة.")}</h1>
       </div>
     </div>
   );

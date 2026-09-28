@@ -3,13 +3,13 @@ import { Link } from "wouter";
 import { arabicFieldStatus } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Users, TrendingUp, AlertCircle } from "lucide-react";
+import { Plus, Search, Users } from "lucide-react";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ListPagination } from "@/components/ListPagination";
@@ -73,11 +73,10 @@ export default function Customers() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Customers", "العملاء")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable", "الحسابات المدينة")} — {paged?.page.total ?? 0} {t("active customers", "عميل نشط")}</p>
-        </div>
+      <PageHeader
+        title={t("Customers", "العملاء")}
+        description={<>{t("Accounts Receivable", "الحسابات المدينة")} — {paged?.page.total ?? 0} {t("active customers", "عميل نشط")}</>}
+        actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Customer", "عميل جديد")}</Button>
@@ -87,8 +86,8 @@ export default function Customers() {
             <div className="grid grid-cols-2 gap-3 mt-2">
               {[["name",t("Company Name *","اسم الشركة *")],["nameAr","اسم الشركة"],["taxNumber",t("VAT Number","رقم ضريبة القيمة المضافة")],["crNumber",t("CR Number","رقم السجل التجاري")],["phone",t("Phone","الهاتف")],["email","Email"],["address",t("Address","العنوان")],["city",t("City","المدينة")],["paymentTermsDays",t("Payment Terms (days)","شروط الدفع (أيام)")],["creditLimit",t("Credit Limit (SAR)","حد الائتمان (ر.س)")]].map(([k,l])=>(
                 <div key={k} className={k==="address"?"col-span-2":""}>
-                  <Label className="text-xs text-muted-foreground">{l}</Label>
-                  <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" />
+                  <Label className="text-[13px] text-muted-foreground">{l}</Label>
+                  <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1.5" />
                 </div>
               ))}
             </div>
@@ -97,63 +96,70 @@ export default function Customers() {
             </Button>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Customers", "إجمالي العملاء")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-primary">{paged?.page.total ?? 0}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Billed", "إجمالي المفوتر")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-foreground">{fmtNum(totalBilled)}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Accounts receivable", "الذمم المدينة")}</CardTitle></CardHeader><CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${totalAR > 0 ? "text-attention" : "text-positive"}`} data-testid="customers-total-receivable">{fmtNum(totalAR)}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Owed to customers (credits + deposits)", "مستحق للعملاء (أرصدة دائنة + عرابين)")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-info" data-testid="customers-owed">{fmtNum(owedToCustomers)}</div></CardContent></Card>
-      </div>
+      <StatStrip cols={4}>
+        <Stat label={t("Total Customers", "إجمالي العملاء")} value={paged?.page.total ?? 0} />
+        <Stat label={t("Total Billed", "إجمالي المفوتر")} value={fmtNum(totalBilled)} />
+        <Stat label={t("Accounts receivable", "الذمم المدينة")} value={<span data-testid="customers-total-receivable">{fmtNum(totalAR)}</span>} />
+        <Stat label={t("Owed to customers (credits + deposits)", "مستحق للعملاء (أرصدة دائنة + عرابين)")} value={<span data-testid="customers-owed">{fmtNum(owedToCustomers)}</span>} />
+      </StatStrip>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
-              <Input placeholder={t("Search customers...", "بحث عن العملاء...")} className="ps-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
-            </div>
+      <Panel flush>
+        <div className="flex items-center gap-3 border-b border-border px-5 py-3">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
+            <Input placeholder={t("Search customers...", "بحث عن العملاء...")} className="ps-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : customers.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground"><Users className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No customers yet. Add your first customer.", "لا يوجد عملاء بعد. أضف أول عميل.")}</p></div>
-          ) : (
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Customer","العميل"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("Payment Terms","شروط الدفع"),t("Billed","المفوتر"),t("Receivable","الذمم المدينة"),""].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
-              <tbody>{customers.map(c=>(
-                <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pe-4">
-                    <div className="font-medium text-foreground">{c.name}</div>
-                    {arabicFieldStatus(c.nameAr) === "ok"
-                      ? <div className="text-xs text-muted-foreground" dir="rtl">{c.nameAr}</div>
-                      : arabicFieldStatus(c.nameAr) === "wrong-script"
-                      ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script — please correct", "ليس نصًا عربيًا — يرجى التصحيح")}</div>
-                      : <div className="text-[10px] text-attention-surface/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
-                  </td>
-                  <td className="py-3 pe-4 text-muted-foreground">{c.city||"—"}</td>
-                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{c.taxNumber||"—"}</td>
-                  <td className="py-3 pe-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays ?? "—"}d</Badge></td>
-                  <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(c.totalBilled??0)}</td>
-                  <td className="py-3 pe-4">
-                    <span className={`font-mono font-medium ${(c.receivable??0)>0?"text-attention":"text-positive"}`}>{fmtNum(c.receivable??0)}</span>
-                    {((c.creditBalance ?? 0) + (c.depositBalance ?? 0)) > 0.005 && (
-                      <span className="block text-xs text-info font-mono">{t("owed to them", "مستحق لهم")} {fmtNum((c.creditBalance ?? 0) + (c.depositBalance ?? 0))}</span>
-                    )}
-                  </td>
-                  <td className="py-3"><Link href={`/customers/${c.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>
-                </tr>
-              ))}</tbody>
-            </table></div>
-          )}
+        </div>
+        {isLoading ? <div className="text-muted-foreground text-sm p-5">{t("Loading...", "جارٍ التحميل...")}</div> : customers.length === 0 ? (
+          <EmptyState icon={Users} title={t("No customers yet. Add your first customer.", "لا يوجد عملاء بعد. أضف أول عميل.")} />
+        ) : (
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead><tr className="border-b border-border">{([
+              [t("Customer","العميل"), false],
+              [t("City","المدينة"), false],
+              [t("VAT Number","رقم ضريبة القيمة المضافة"), false],
+              [t("Payment Terms","شروط الدفع"), false],
+              [t("Billed","المفوتر"), true],
+              [t("Receivable","الذمم المدينة"), true],
+              ["", false],
+            ] as const).map(([h, num])=><th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>)}</tr></thead>
+            <tbody>{customers.map(c=>(
+              <tr key={c.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                <td className="py-3 px-3 min-w-[12rem]">
+                  <div className="font-medium text-foreground">{c.name}</div>
+                  {arabicFieldStatus(c.nameAr) === "ok"
+                    ? <div className="text-xs text-muted-foreground" dir="rtl">{c.nameAr}</div>
+                    : arabicFieldStatus(c.nameAr) === "wrong-script"
+                    ? <div className="text-[11px] text-severe italic mt-0.5">⚠ {t("not Arabic script — please correct", "ليس نصًا عربيًا — يرجى التصحيح")}</div>
+                    : <div className="text-[11px] text-attention italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
+                </td>
+                <td className="py-3 px-3 text-muted-foreground">{c.city||"—"}</td>
+                <td className="py-3 px-3 whitespace-nowrap tabular-nums text-muted-foreground">{c.taxNumber||"—"}</td>
+                <td className="py-3 px-3"><Badge variant="outline" className="text-xs tabular-nums">{c.paymentTermsDays ?? "—"}d</Badge></td>
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-foreground">{fmtNum(c.totalBilled??0)}</td>
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">
+                  <span className="font-medium text-foreground">{fmtNum(c.receivable??0)}</span>
+                  {((c.creditBalance ?? 0) + (c.depositBalance ?? 0)) > 0.005 && (
+                    <span className="block text-xs text-info">{t("owed to them", "مستحق لهم")} {fmtNum((c.creditBalance ?? 0) + (c.depositBalance ?? 0))}</span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-end"><Link href={`/customers/${c.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+        <div className="border-t border-border px-5 pb-3 empty:hidden">
           <ListPagination
             page={paged?.page}
             shown={customers.length}
             onPrev={() => setPage((p) => Math.max(0, p - 1))}
             onNext={() => setPage((p) => p + 1)}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
     </div>
   );
 }

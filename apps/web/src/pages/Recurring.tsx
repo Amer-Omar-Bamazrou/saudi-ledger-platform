@@ -12,12 +12,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Repeat, Pause, Play, Trash2, ChevronDown, ChevronUp, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { DualDate } from "@/components/DualDate";
 
 import type { RecurringRuleWithHealth, RecurringRun } from "@workspace/api-client-react";
@@ -28,25 +28,25 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
     queryKey: ["recurring-runs", ruleId],
     queryFn: () => apiFetch(`/recurring/${ruleId}/runs`),
   });
-  if (isLoading) return <p className="px-4 pb-3 text-xs text-muted-foreground">…</p>;
+  if (isLoading) return <p className="pt-3 text-[12px] text-muted-foreground">…</p>;
   if (runs.length === 0)
-    return <p className="px-4 pb-3 text-xs text-muted-foreground">{t("No runs yet.", "لا توجد تشغيلات بعد.")}</p>;
+    return <p className="pt-3 text-[12px] text-muted-foreground">{t("No runs yet.", "لا توجد تشغيلات بعد.")}</p>;
   return (
-    <div className="space-y-1 px-4 pb-3">
+    <div className="mt-3 space-y-1.5 rounded-md bg-muted/50 px-3 py-2.5">
       {runs.map((r) => (
-        <div key={r.id} className="flex items-center gap-2 text-xs">
+        <div key={r.id} className="flex items-center gap-2 text-[12px]">
           {r.outcome === "generated" ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-positive-surface" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-positive" />
           ) : (
-            <AlertCircle className="h-3.5 w-3.5 text-negative-surface" />
+            <AlertCircle className="h-3.5 w-3.5 text-negative" />
           )}
-          <span className="font-mono">{r.scheduledFor}</span>
+          <span className="tabular-nums" dir="ltr">{r.scheduledFor}</span>
           {r.outcome === "generated" ? (
             <span className="text-muted-foreground">
               {t("draft created", "تم إنشاء مسودة")} {r.documentId ? `#${r.documentId}` : ""}
             </span>
           ) : (
-            <span className="text-negative-surface">
+            <span className="text-negative">
               {t("FAILED", "فشل")} — {r.errorCode ?? "generation_failed"}
               {r.errorDetail ? `: ${r.errorDetail}` : ""}
             </span>
@@ -87,42 +87,36 @@ export default function Recurring() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold">
-          <Repeat className="h-5 w-5" /> {t("Recurring Documents", "المستندات المتكررة")}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t(
+      <PageHeader
+        title={t("Recurring Documents", "المستندات المتكررة")}
+        description={t(
             "Rules create DRAFTS on schedule — every generated document still needs an approver. Create a rule from an invoice's ↻ button.",
             "تنشئ القواعد مسودات حسب الجدول — كل مستند مُنشأ يحتاج موافقة. أنشئ قاعدة من زر ↻ بجانب الفاتورة.",
           )}
-        </p>
-      </div>
+      />
 
-      {isLoading && <p className="text-sm text-muted-foreground">…</p>}
+      <Panel flush>
+      {isLoading && <p className="p-5 text-sm text-muted-foreground">…</p>}
       {!isLoading && rules.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          {t("No recurring rules yet.", "لا توجد قواعد متكررة بعد.")}
-        </p>
+        <EmptyState icon={Repeat} title={t("No recurring rules yet.", "لا توجد قواعد متكررة بعد.")} />
       )}
 
       {rules.map((rule) => (
-        <Card data-row key={rule.id}>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-              <Badge variant="outline">{rule.entity === "invoice" ? t("Invoice", "فاتورة") : t("Bill", "فاتورة مورد")}</Badge>
-              <span className="font-mono text-sm">
+        <div data-row key={rule.id} className="border-b border-border/70 px-5 py-4 last:border-0">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <Badge variant="outline" className="font-normal">{rule.entity === "invoice" ? t("Invoice", "فاتورة") : t("Bill", "فاتورة مورد")}</Badge>
+              <span className="font-medium text-primary">
                 {(rule.template as { invoiceNumber?: string; billNumber?: string } | null)?.invoiceNumber ??
                   (rule.template as { billNumber?: string } | null)?.billNumber ??
                   rule.id.slice(0, 8)}
               </span>
-              <span className="text-sm font-normal text-muted-foreground">
+              <span className="text-[13px] text-muted-foreground">
                 {({ monthly: t("Monthly", "شهري"), quarterly: t("Quarterly", "ربع سنوي"), yearly: t("Yearly", "سنوي") } as Record<string, string>)[rule.frequency] ?? rule.frequency} · {t("day", "يوم")} {rule.dayOfMonth} · {t("next", "التالي")} <DualDate date={rule.nextRunOn} inline />
               </span>
               {rule.status === "paused" ? (
-                <Badge variant="secondary">{t("Paused", "متوقفة")}</Badge>
+                <Badge variant="secondary" className="font-normal">{t("Paused", "متوقفة")}</Badge>
               ) : (
-                <Badge className="bg-positive-surface/20 text-positive-surface border-transparent">{t("Active", "نشطة")}</Badge>
+                <Badge className="bg-positive-surface/20 text-positive border-transparent font-normal">{t("Active", "نشطة")}</Badge>
               )}
               {/* A failed run is a real STATE (the status palette is allowed
                   here); the streak is the load-bearing signal — visible on the
@@ -136,19 +130,20 @@ export default function Recurring() {
                   )}
                 </Badge>
               ) : rule.lastOutcome === "failed" ? (
-                <Badge className="border-transparent bg-attention-surface/20 text-amber-600 gap-1">
+                <Badge className="border-transparent bg-attention-surface/20 text-attention gap-1">
                   <AlertCircle className="h-3 w-3" />
                   {t("Last run failed", "فشل آخر تشغيل")}
                 </Badge>
               ) : null}
-              <span className="ms-auto flex gap-1">
-                <Button size="sm" variant="ghost" onClick={() => setOpenRuns(openRuns === rule.id ? null : rule.id)} className="gap-1">
+              <span className="ms-auto flex gap-0.5">
+                <Button size="sm" variant="ghost" onClick={() => setOpenRuns(openRuns === rule.id ? null : rule.id)} className="h-7 gap-1 text-xs">
                   {openRuns === rule.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                   {t("Runs", "التشغيلات")}
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="h-7"
                   onClick={() => pauseMut.mutate({ id: rule.id, resume: rule.status === "paused" })}
                   disabled={pauseMut.isPending}
                 >
@@ -157,23 +152,21 @@ export default function Recurring() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-destructive"
+                  className="h-7 text-destructive"
                   onClick={() => { if (window.confirm(t("Delete this rule? Documents it generated are untouched.", "حذف هذه القاعدة؟ المستندات المُنشأة لن تتأثر."))) deleteMut.mutate(rule.id); }}
                   disabled={deleteMut.isPending}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
+            </div>
             {(rule.template as { total?: number } | null)?.total != null && (
-              <p className="px-4 pb-2 text-xs text-muted-foreground">
+              <p className="mt-1.5 text-[12px] text-muted-foreground">
                 {t("Amount", "المبلغ")}: {fmtNum((rule.template as { total: number }).total)}
               </p>
             )}
             {rule.consecutiveFailures >= 1 && (
-              <p className="px-4 pb-2 text-xs text-negative-surface">
+              <p className="mt-1.5 text-[12px] text-negative">
                 {t("Last failure", "آخر إخفاق")} <DualDate date={rule.lastScheduledFor ?? rule.nextRunOn} inline />
                 {rule.lastErrorCode ? ` — ${rule.lastErrorCode}` : ""}
                 {rule.lastErrorDetail ? `: ${rule.lastErrorDetail}` : ""}
@@ -184,9 +177,9 @@ export default function Recurring() {
               </p>
             )}
             {openRuns === rule.id && <RuleRuns ruleId={rule.id} />}
-          </CardContent>
-        </Card>
+        </div>
       ))}
+      </Panel>
     </div>
   );
 }

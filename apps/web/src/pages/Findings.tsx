@@ -12,7 +12,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, FilterTabs, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SearchCheck, Play, Check, CircleDot } from "lucide-react";
@@ -166,25 +166,20 @@ export default function Findings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <SearchCheck className="h-5 w-5" /> {t("Findings", "الملاحظات")}
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {t(
-              "Deterministic checks over your own records — duplicates, overdue documents, waiting drafts, undeclared transfers. Observations, not verdicts: nothing here asserts a tax or compliance position.",
-              "فحوص حتمية على سجلاتك — التكرارات، والمستندات المتأخرة، والمسودات المعلقة، والتحويلات غير المعلنة. ملاحظات لا أحكام: لا شيء هنا يقرر موقفًا ضريبيًا أو نظاميًا.",
-            )}
-          </p>
-        </div>
-        <Button onClick={() => runMut.mutate()} disabled={runMut.isPending} className="gap-1">
-          <Play className="h-4 w-4" /> {t("Run checks", "تشغيل الفحوص")}
-        </Button>
-      </div>
-
+      <PageHeader
+        title={t("Findings", "الملاحظات")}
+        description={t(
+          "Deterministic checks over your own records — duplicates, overdue documents, waiting drafts, undeclared transfers. Observations, not verdicts: nothing here asserts a tax or compliance position.",
+          "فحوص حتمية على سجلاتك — التكرارات، والمستندات المتأخرة، والمسودات المعلقة، والتحويلات غير المعلنة. ملاحظات لا أحكام: لا شيء هنا يقرر موقفًا ضريبيًا أو نظاميًا.",
+        )}
+        actions={
+          <Button onClick={() => runMut.mutate()} disabled={runMut.isPending} className="gap-1">
+            <Play className="h-4 w-4 rtl:-scale-x-100" /> {t("Run checks", "تشغيل الفحوص")}
+          </Button>
+        }
+      >
       {schedStatus && (
-        <p className="text-xs text-muted-foreground">
+        <p className="mt-2 text-[13px] text-muted-foreground">
           {schedStatus.lastScheduledRun
             ? t(
                 `Scheduled review runs ${schedStatus.cadence === "monthly" ? "monthly" : "quarterly"} — last ran ${schedStatus.lastScheduledRun.ranAt.slice(0, 10)} (${schedStatus.lastScheduledRun.openAfter} open after).`,
@@ -198,7 +193,7 @@ export default function Findings() {
             <Button
               size="sm"
               variant="link"
-              className="h-auto px-1 py-0 text-xs"
+              className="h-auto px-1 py-0 text-[13px]"
               disabled={cadenceMut.isPending}
               onClick={() => cadenceMut.mutate(schedStatus.cadence === "monthly" ? "quarterly" : "monthly")}
             >
@@ -209,51 +204,50 @@ export default function Findings() {
           )}
         </p>
       )}
+      </PageHeader>
 
-      <div className="flex gap-2">
-        {(["open", "acknowledged", "resolved"] as const).map((s) => (
-          <Button
-            key={s}
-            size="sm"
-            variant={statusFilter === s ? "default" : "outline"}
-            onClick={() => setStatusFilter(statusFilter === s ? "" : s)}
-          >
-            {s === "open" && t("Open", "مفتوحة")}
-            {s === "acknowledged" && t("Acknowledged", "مُقرّة")}
-            {s === "resolved" && t("Resolved", "منتهية")}
-            {counts ? ` (${counts[s]})` : ""}
-          </Button>
-        ))}
-      </div>
+      <Panel flush>
+        <FilterTabs
+          options={(["open", "acknowledged", "resolved"] as const).map((s) => ({
+            value: s,
+            label:
+              s === "open" ? t("Open", "مفتوحة")
+              : s === "acknowledged" ? t("Acknowledged", "مُقرّة")
+              : t("Resolved", "منتهية"),
+            count: counts ? counts[s] : null,
+          }))}
+          value={statusFilter}
+          onChange={(v) => setStatusFilter(statusFilter === v ? "" : (v as "open" | "acknowledged" | "resolved"))}
+        />
 
-      {isLoading && <p className="text-sm text-muted-foreground">…</p>}
+      {isLoading && <p className="text-sm text-muted-foreground p-5">…</p>}
       {!isLoading && (data?.findings.length ?? 0) === 0 && (
-        <p className="text-sm text-muted-foreground">
-          {statusFilter === "open"
+        <EmptyState
+          icon={SearchCheck}
+          title={statusFilter === "open"
             ? t("No open findings. Run the checks to look again.", "لا توجد ملاحظات مفتوحة. شغّل الفحوص لإعادة النظر.")
             : t("Nothing here.", "لا شيء هنا.")}
-        </p>
+        />
       )}
 
+      <ul className="divide-y divide-border/70">
       {data?.findings.map((f) => (
-        <Card key={f.id}>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-              <CircleDot className="h-4 w-4 text-muted-foreground" />
-              {t(KIND_LABELS[f.kind]?.en ?? f.kind, KIND_LABELS[f.kind]?.ar ?? f.kind)}
-              {f.status === "acknowledged" && (
-                <Badge variant="secondary">
-                  {t("Acknowledged", "مُقرّة")}
-                  {f.acknowledgedByName ? ` — ${f.acknowledgedByName}` : ""}
-                </Badge>
-              )}
-              {f.status === "resolved" && <Badge variant="outline">{t("No longer detected", "لم تعد مرصودة")}</Badge>}
-              <span className="ms-auto text-xs font-normal text-muted-foreground">
-                {t("last seen", "آخر رصد")} <DualDate date={f.lastSeenAt.slice(0, 10)} inline />
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-start justify-between gap-3 pt-0">
+        <li key={f.id} className="px-5 py-4 hover:bg-muted/30 transition-colors">
+          <div className="flex flex-wrap items-center gap-2">
+            <CircleDot className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-semibold">{t(KIND_LABELS[f.kind]?.en ?? f.kind, KIND_LABELS[f.kind]?.ar ?? f.kind)}</span>
+            {f.status === "acknowledged" && (
+              <Badge variant="secondary" className="font-normal">
+                {t("Acknowledged", "مُقرّة")}
+                {f.acknowledgedByName ? ` — ${f.acknowledgedByName}` : ""}
+              </Badge>
+            )}
+            {f.status === "resolved" && <Badge variant="outline" className="font-normal">{t("No longer detected", "لم تعد مرصودة")}</Badge>}
+            <span className="ms-auto text-xs text-muted-foreground whitespace-nowrap">
+              {t("last seen", "آخر رصد")} <DualDate date={f.lastSeenAt.slice(0, 10)} inline />
+            </span>
+          </div>
+          <div className="mt-1.5 flex items-start justify-between gap-3 ps-6">
             <div className="min-w-0">
               {/* The deterministic facts are the FLOOR and always render;
                   the AI phrasing sits BESIDE them, labeled, never instead —
@@ -262,7 +256,7 @@ export default function Findings() {
               {f.explanation && (
                 <p className="mt-1 text-sm text-muted-foreground italic">
                   {t(f.explanation.en, f.explanation.ar)}{" "}
-                  <span className="not-italic text-[10px] uppercase tracking-wide">
+                  <span className="not-italic text-[11px]">
                     {t("AI phrasing of the facts above", "صياغة آلية للوقائع أعلاه")}
                   </span>
                 </p>
@@ -277,9 +271,11 @@ export default function Findings() {
                 <Check className="h-3.5 w-3.5" /> {t("Acknowledge", "إقرار")}
               </Button>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </li>
       ))}
+      </ul>
+      </Panel>
     </div>
   );
 }

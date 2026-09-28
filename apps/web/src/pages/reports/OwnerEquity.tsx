@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Scale } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
@@ -34,104 +33,95 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
     queryFn: () => apiFetch(`/reports/owner-equity?date_from=${applied.from}&date_to=${applied.to}`),
   });
 
+  const labelFor = (key: string, fallback: string) =>
+    ({ openingEquity: t("Opening Equity", "حقوق الملكية الافتتاحية"), netIncome: t("Net Income / (Loss)", "صافي الدخل / (الخسارة)"), contributions: t("Capital Contributions", "المساهمات الرأسمالية"), withdrawals: t("Withdrawals / Drawings", "المسحوبات"), closingEquity: t("Closing Equity", "حقوق الملكية الختامية") } as Record<string, string>)[key] ?? fallback;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {t("Change in Owner Equity Statement", "قائمة التغير في حقوق الملكية")}
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Opening equity + net income + contributions − withdrawals = closing equity", "حقوق الملكية الافتتاحية + صافي الدخل + المساهمات − المسحوبات = حقوق الملكية الختامية")}</p>
-        </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        title={t("Change in Owner Equity Statement", "قائمة التغير في حقوق الملكية")}
+        description={t("Opening equity + net income + contributions − withdrawals = closing equity", "حقوق الملكية الافتتاحية + صافي الدخل + المساهمات − المسحوبات = حقوق الملكية الختامية")}
+      >
         {/* Export removed: no onClick — one of seven dead Export buttons (2026-09-01). */}
-      </div>
+        <div className="mt-2"><FiscalRangeNotice source={range.source} /></div>
+      </PageHeader>
 
-      <FiscalRangeNotice source={range.source} />
-
-      <Card className="border-border bg-card">
-        <CardContent className="pt-4">
-          <div className="flex items-end gap-4">
-            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
-          </div>
-          <div className="mt-3">
-            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
-          </div>
-        </CardContent>
-      </Card>
+      <Panel>
+        <div className="flex flex-wrap items-end gap-3">
+          <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
+        </div>
+        <div className="mt-3">
+          <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
+        </div>
+      </Panel>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            [t("Opening Equity", "حقوق الملكية الافتتاحية"), fmtNum(data.openingEquity), "text-primary"],
-            [t("Net Income / (Loss)", "صافي الدخل / (الخسارة)"), fmtNum(data.netIncome), data.netIncome >= 0 ? "text-positive" : "text-negative"],
-            [t("Contributions", "المساهمات"), fmtNum(data.contributions), "text-info"],
-            [t("Withdrawals", "المسحوبات"), fmtNum(data.withdrawals), "text-attention"],
-          ].map(([l, v, c]) => (
-            <Card key={String(l)} className="border-border bg-card">
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent>
-            </Card>
-          ))}
-        </div>
+        <StatStrip cols={4}>
+          <Stat label={t("Opening Equity", "حقوق الملكية الافتتاحية")} value={fmtNum(data.openingEquity)} />
+          <Stat label={t("Net Income / (Loss)", "صافي الدخل / (الخسارة)")} value={fmtNum(data.netIncome)} tone={data.netIncome >= 0 ? "positive" : "negative"} />
+          <Stat label={t("Contributions", "المساهمات")} value={fmtNum(data.contributions)} />
+          <Stat label={t("Withdrawals", "المسحوبات")} value={fmtNum(data.withdrawals)} />
+        </StatStrip>
       )}
 
       {isLoading ? (
         <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
       ) : !data ? null : (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">{t("Statement of Changes in Owner's Equity", "قائمة التغيرات في حقوق الملكية")} — {data.period.from} {t("to", "إلى")} {data.period.to}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="max-w-md">
-              {data.breakdown.map((row, i) => {
-                const isClosing = i === data.breakdown.length - 1;
+        <Panel
+          flush
+          title={t("Statement of Changes in Owner's Equity", "قائمة التغيرات في حقوق الملكية")}
+          description={<>{data.period.from} {t("to", "إلى")} {data.period.to}</>}
+          actions={data.closingEquity !== 0 && (
+            <span className="text-[13px] text-muted-foreground">
+              {t("Closing Equity", "حقوق الملكية الختامية")}{" "}
+              <span className={cn("text-[15px] font-semibold tabular-nums", data.closingEquity >= 0 ? "text-foreground" : "text-negative")}>{fmtNum(data.closingEquity)}</span>
+            </span>
+          )}
+        >
+          <table className="w-full text-sm">
+            <tbody>
+              {data.breakdown.slice(0, -1).map((row) => {
                 const isIncome  = row.key === "netIncome";
                 const isWithdrawal = row.key === "withdrawals";
                 return (
-                  <div key={row.label} className={cn(
-                    "flex items-center justify-between py-3",
-                    isClosing ? "border-t-2 border-border mt-2 pt-4" : "border-b border-border/30",
-                    isClosing && "font-bold"
-                  )}>
-                    <span className={cn("text-sm", isClosing ? "text-foreground" : "text-muted-foreground")}>{({ openingEquity: t("Opening Equity", "حقوق الملكية الافتتاحية"), netIncome: t("Net Income / (Loss)", "صافي الدخل / (الخسارة)"), contributions: t("Capital Contributions", "المساهمات الرأسمالية"), withdrawals: t("Withdrawals / Drawings", "المسحوبات"), closingEquity: t("Closing Equity", "حقوق الملكية الختامية") } as Record<string, string>)[row.key] ?? row.label}</span>
-                    <span className={cn(
-                      "font-mono text-sm",
-                      isClosing ? "text-lg font-bold text-foreground" : "",
+                  <tr key={row.label} className="border-b border-border/70 last:border-b-0">
+                    <td className="py-3 px-3 text-foreground">{labelFor(row.key, row.label)}</td>
+                    <td className={cn(
+                      "py-3 px-3 text-end whitespace-nowrap tabular-nums",
                       isIncome && row.amount < 0 ? "text-negative" : "",
-                      isIncome && row.amount >= 0 ? "text-positive" : "",
-                      isWithdrawal ? "text-attention" : "",
                     )}>
                       {isWithdrawal && row.amount !== 0 ? `(${fmtNum(Math.abs(row.amount))})` : fmtNum(row.amount)}
-                    </span>
-                  </div>
+                    </td>
+                  </tr>
                 );
               })}
+            </tbody>
+            {data.breakdown.length > 0 && (() => {
+              const row = data.breakdown[data.breakdown.length - 1];
+              const isWithdrawal = row.key === "withdrawals";
+              return (
+                <tfoot>
+                  <tr className="font-semibold">
+                    <td className="py-3.5 px-3 text-foreground">{labelFor(row.key, row.label)}</td>
+                    <td className={cn("py-3.5 px-3 text-end whitespace-nowrap tabular-nums text-base", data.closingEquity < 0 ? "text-negative" : "text-foreground")}>
+                      {isWithdrawal && row.amount !== 0 ? `(${fmtNum(Math.abs(row.amount))})` : fmtNum(row.amount)}
+                    </td>
+                  </tr>
+                </tfoot>
+              );
+            })()}
+          </table>
+
+          {data.openingEquity === 0 && data.contributions === 0 && (
+            <div className="border-t border-border px-5 py-3">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-semibold">{t("Note:", "ملاحظة:")}</span> {t("Opening equity is zero because no equity-type accounts have been posted in journal entries before this period. Post capital contributions or retained earnings to equity accounts to see a complete statement.", "حقوق الملكية الافتتاحية صفر لأنه لم تُرحّل قيود على حسابات حقوق الملكية قبل هذه الفترة. رحّل مساهمات رأس المال أو الأرباح المحتجزة إلى حسابات حقوق الملكية لرؤية قائمة مكتملة.")}
+              </p>
             </div>
-
-            {data.closingEquity !== 0 && (
-              <div className={cn(
-                "mt-6 p-4 rounded-lg border",
-                data.closingEquity >= 0 ? "border-positive-surface/30 bg-positive-surface/5" : "border-negative-surface/30 bg-negative-surface/5"
-              )}>
-                <div className="flex items-center justify-between">
-                  <span className={cn("font-bold text-sm uppercase tracking-wide", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>{t("Closing Equity", "حقوق الملكية الختامية")}</span>
-                  <span className={cn("font-mono font-bold text-2xl", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>{fmtNum(data.closingEquity)}</span>
-                </div>
-              </div>
-            )}
-
-            {data.openingEquity === 0 && data.contributions === 0 && (
-              <div className="mt-4 p-3 rounded-lg bg-secondary/30 border border-border">
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-semibold">{t("Note:", "ملاحظة:")}</span> {t("Opening equity is zero because no equity-type accounts have been posted in journal entries before this period. Post capital contributions or retained earnings to equity accounts to see a complete statement.", "حقوق الملكية الافتتاحية صفر لأنه لم تُرحّل قيود على حسابات حقوق الملكية قبل هذه الفترة. رحّل مساهمات رأس المال أو الأرباح المحتجزة إلى حسابات حقوق الملكية لرؤية قائمة مكتملة.")}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          )}
+        </Panel>
       )}
     </div>
   );

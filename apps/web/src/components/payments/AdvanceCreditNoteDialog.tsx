@@ -64,28 +64,28 @@ export function AdvanceCreditNoteDialog({ advance, customerName, open, onClose }
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1 rounded-md border border-border p-3 text-sm">
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Advance tax invoice", "الفاتورة الضريبية للدفعة المقدمة")}</span><span className="font-mono">{advance.invoiceNumber} · <span dir="ltr">{advance.date}</span></span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Advance tax invoice", "الفاتورة الضريبية للدفعة المقدمة")}</span><span className="tabular-nums">{advance.invoiceNumber} · <span dir="ltr">{advance.date}</span></span></div>
           <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Customer", "العميل")}</span><span>{customerName}</span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Issued (incl. VAT)", "الصادر (شامل الضريبة)")}</span><span className="font-mono">{fmtNum(advance.total)}</span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Open — can be cancelled", "المتبقي — يمكن إلغاؤه")}</span><span className="font-mono" data-testid="advance-cn-open">{fmtNum(advance.openAmount)}</span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Issued (incl. VAT)", "الصادر (شامل الضريبة)")}</span><span className="tabular-nums">{fmtNum(advance.total)}</span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Open — can be cancelled", "المتبقي — يمكن إلغاؤه")}</span><span className="tabular-nums" data-testid="advance-cn-open">{fmtNum(advance.openAmount)}</span></div>
         </div>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Amount to cancel (incl. VAT)", "المبلغ المُلغى (شامل الضريبة)")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("Amount to cancel (incl. VAT)", "المبلغ المُلغى (شامل الضريبة)")}</Label>
             <Input type="number" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1 h-9" data-testid="advance-cn-amount" />
             {Number.isFinite(amountNum) && amountNum > 0 && (
               <p className="text-xs text-muted-foreground mt-1" data-testid="advance-cn-split">
-                {t("Taxable", "الخاضع للضريبة")} <span className="font-mono">{fmtNum(taxable)}</span> · {t("VAT returned to the deposit", "الضريبة المعادة إلى العربون")} <span className="font-mono">{fmtNum(vat)}</span>
+                {t("Taxable", "الخاضع للضريبة")} <span className="tabular-nums">{fmtNum(taxable)}</span> · {t("VAT returned to the deposit", "الضريبة المعادة إلى العربون")} <span className="tabular-nums">{fmtNum(vat)}</span>
               </p>
             )}
             {amountNum > advance.openAmount + 0.005 && <p className="text-xs text-destructive mt-1">{t("More than the open part of this advance tax invoice.", "أكثر من الجزء المتبقي من هذه الفاتورة.")}</p>}
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Reason (required by ZATCA)", "السبب (تطلبه هيئة الزكاة والضريبة)")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("Reason (required by ZATCA)", "السبب (تطلبه هيئة الزكاة والضريبة)")}</Label>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1" rows={2} placeholder={t("e.g. Order cancelled", "مثال: إلغاء الطلب")} data-testid="advance-cn-reason" />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Date (default: today)", "التاريخ (الافتراضي: اليوم)")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("Date (default: today)", "التاريخ (الافتراضي: اليوم)")}</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 h-9" data-testid="advance-cn-date" />
           </div>
           {mut.error && <p className="text-sm text-destructive" data-testid="advance-cn-error">{(mut.error as Error).message}</p>}

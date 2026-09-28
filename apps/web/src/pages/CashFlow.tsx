@@ -2,11 +2,10 @@ import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { useFiscalYearsQuery, useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
@@ -23,39 +22,34 @@ import type { CashFlowReport, CashFlowSection } from "@workspace/api-client-reac
  * compare individual bank movements against each other — not a question
  * anyone is asking.
  */
-function CFBlock({ title, data, color, icon, prior }: { title: string; data: CashFlowSection; color: string; icon: React.ReactNode; prior?: number }) {
+function CFBlock({ title, data, prior }: { title: string; data: CashFlowSection; prior?: number }) {
   const { t } = useLanguage();
   return (
-    <Card className="border-border bg-card">
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          {icon}
-          <CardTitle className={`text-sm font-semibold ${color}`}>{title}</CardTitle>
-        </div>
-        <div className={`text-xl sm:text-2xl font-bold font-mono mt-1 ${color}`}>{fmtNum(data.total)}</div>
-        {prior !== undefined && (
-          <div className="text-xs text-muted-foreground font-mono">
+    <tbody>
+      <tr>
+        <td colSpan={2} className="px-3 pt-6 pb-2 text-[13px] font-semibold text-foreground">{title}</td>
+      </tr>
+      {data.items.length === 0 ? (
+        <tr><td colSpan={2} className="py-2 px-3 text-muted-foreground"><span className="block ps-4">{t("No items", "لا توجد بنود")}</span></td></tr>
+      ) : data.items.slice(0, 10).map((item, i) => (
+        <tr key={i} className="hover:bg-muted/40 transition-colors">
+          <td className="py-2 px-3 text-foreground"><span className="block ps-4">{item.name}</span></td>
+          <td className={`py-2 px-3 text-end whitespace-nowrap tabular-nums ${item.amount >= 0 ? "text-positive" : "text-negative"}`}>{item.amount >= 0 ? "+" : ""}{fmtNum(item.amount)}</td>
+        </tr>
+      ))}
+      {data.items.length > 10 && <tr><td colSpan={2} className="py-1.5 px-3 text-muted-foreground text-xs"><span className="block ps-4">+{data.items.length - 10} {t("more items", "بنود إضافية")}</span></td></tr>}
+      <tr className="border-t border-border font-semibold">
+        <td className="py-2.5 px-3">{t("Total", "الإجمالي")} — {title}</td>
+        <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(data.total)}</td>
+      </tr>
+      {prior !== undefined && (
+        <tr>
+          <td colSpan={2} className="pb-2 px-3 text-end text-xs text-muted-foreground tabular-nums">
             {t("prior", "السابق")} {fmtNum(prior)} · Δ {data.total - prior >= 0 ? "+" : ""}{fmtNum(data.total - prior)} · {fmtPctChange(data.total, prior)}
-          </div>
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto"><table className="w-full text-xs">
-          <thead><tr className="border-b border-border text-muted-foreground uppercase"><th className="text-start pb-1">{t("Item", "البند")}</th><th className="text-end pb-1">{t("Amount", "المبلغ")}</th></tr></thead>
-          <tbody>
-            {data.items.length === 0 ? (
-              <tr><td colSpan={2} className="py-4 text-center text-muted-foreground">{t("No items", "لا توجد بنود")}</td></tr>
-            ) : data.items.slice(0, 10).map((item, i) => (
-              <tr key={i} className="border-b border-border/30 hover:bg-secondary/10">
-                <td className="py-1.5 pe-2 text-foreground">{item.name}</td>
-                <td className={`py-1.5 text-end font-mono ${item.amount >= 0 ? "text-positive" : "text-negative"}`}>{item.amount >= 0 ? "+" : ""}{fmtNum(item.amount)}</td>
-              </tr>
-            ))}
-            {data.items.length > 10 && <tr><td colSpan={2} className="py-1 text-center text-muted-foreground text-xs">+{data.items.length - 10} {t("more items", "بنود إضافية")}</td></tr>}
-          </tbody>
-        </table></div>
-      </CardContent>
-    </Card>
+          </td>
+        </tr>
+      )}
+    </tbody>
   );
 }
 
@@ -99,29 +93,25 @@ function CashFlowInner({ range }: { range: ReportDefaultRange }) {
   const comparing = !!prior && !!priorData && !priorEmpty;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Cash Flow Statement", "قائمة التدفق النقدي")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Operating · Investing · Financing activities", "الأنشطة التشغيلية · الاستثمارية · التمويلية")}</p>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        title={t("Cash Flow Statement", "قائمة التدفق النقدي")}
+        description={t("Operating · Investing · Financing activities", "الأنشطة التشغيلية · الاستثمارية · التمويلية")}
+      >
+        <div className="mt-2"><FiscalRangeNotice source={range.source} /></div>
+      </PageHeader>
+
+      <Panel>
+        <div className="flex flex-wrap items-end gap-3">
+          <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <Button size="sm" className="h-8" onClick={()=>setApplied({from:dateFrom,to:dateTo})}>{t("Generate", "إنشاء")}</Button>
+          <CompareSelect value={compare} onChange={setCompare} />
         </div>
-      </div>
-
-      <FiscalRangeNotice source={range.source} />
-
-      <Card className="border-border bg-card">
-        <CardContent className="pt-4">
-          <div className="flex items-end gap-4">
-            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" onClick={()=>setApplied({from:dateFrom,to:dateTo})}>{t("Generate", "إنشاء")}</Button>
-            <CompareSelect value={compare} onChange={setCompare} />
-          </div>
-          <div className="mt-3">
-            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
-          </div>
-        </CardContent>
-      </Card>
+        <div className="mt-3">
+          <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
+        </div>
+      </Panel>
 
       {compare !== "off" && !prior && (
         <ComparisonUnavailable reason={t(
@@ -135,36 +125,45 @@ function CashFlowInner({ range }: { range: ReportDefaultRange }) {
       )}
 
       {data && (
-        <div className={`rounded-lg border px-6 py-4 flex items-center justify-between ${data.netChange >= 0 ? "border-positive-surface/30 bg-positive-surface/10" : "border-negative-surface/30 bg-negative-surface/10"}`}>
-          <div>
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">{t("Net Change in Cash", "صافي التغير في النقدية")}</div>
-            <div className={`text-2xl sm:text-3xl font-bold font-mono mt-1 ${data.netChange >= 0 ? "text-positive" : "text-negative"}`}>{data.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange)}</div>
-          </div>
-          <div className="text-end text-xs text-muted-foreground space-y-1">
-            <div>{t("Operating", "التشغيلية")}: <span className={data.operating.total >= 0 ? "text-positive font-mono" : "text-negative font-mono"}>{fmtNum(data.operating.total)}</span></div>
-            <div>{t("Investing", "الاستثمارية")}: <span className={data.investing.total >= 0 ? "text-positive font-mono" : "text-negative font-mono"}>{fmtNum(data.investing.total)}</span></div>
-            <div>{t("Financing", "التمويلية")}: <span className={data.financing.total >= 0 ? "text-positive font-mono" : "text-negative font-mono"}>{fmtNum(data.financing.total)}</span></div>
-            {comparing && priorData && (
-              <div className="pt-1 border-t border-border/50 font-mono">
-                {t("prior net", "الصافي السابق")} {fmtNum(priorData.netChange)} · Δ {data.netChange - priorData.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange - priorData.netChange)}
-              </div>
-            )}
-          </div>
-        </div>
+        <StatStrip cols={4}>
+          <Stat
+            label={t("Net Change in Cash", "صافي التغير في النقدية")}
+            value={<>{data.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange)}</>}
+            tone={data.netChange >= 0 ? "positive" : "negative"}
+            hint={comparing && priorData ? <span className="tabular-nums">{t("prior net", "الصافي السابق")} {fmtNum(priorData.netChange)} · Δ {data.netChange - priorData.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange - priorData.netChange)}</span> : undefined}
+          />
+          <Stat label={t("Operating", "التشغيلية")} value={fmtNum(data.operating.total)} tone={data.operating.total > 0 ? "positive" : data.operating.total < 0 ? "negative" : "default"} />
+          <Stat label={t("Investing", "الاستثمارية")} value={fmtNum(data.investing.total)} tone={data.investing.total > 0 ? "positive" : data.investing.total < 0 ? "negative" : "default"} />
+          <Stat label={t("Financing", "التمويلية")} value={fmtNum(data.financing.total)} tone={data.financing.total > 0 ? "positive" : data.financing.total < 0 ? "negative" : "default"} />
+        </StatStrip>
       )}
 
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : !data ? null : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <CFBlock title={t("Operating Activities", "الأنشطة التشغيلية")} data={data.operating} color={data.operating.total >= 0 ? "text-positive" : "text-negative"} icon={<ArrowUpRight className="w-4 h-4 text-positive" />} prior={comparing ? priorData!.operating.total : undefined} />
-          <CFBlock title={t("Investing Activities", "الأنشطة الاستثمارية")} data={data.investing} color={data.investing.total >= 0 ? "text-positive" : "text-attention"} icon={<Minus className="w-4 h-4 text-attention" />} prior={comparing ? priorData!.investing.total : undefined} />
-          <CFBlock title={t("Financing Activities", "الأنشطة التمويلية")} data={data.financing} color={data.financing.total >= 0 ? "text-positive" : "text-info"} icon={<ArrowDownRight className="w-4 h-4 text-info" />} prior={comparing ? priorData!.financing.total : undefined} />
-          {/* Transfers between own accounts + invoice/bill settlements: the
-              bank moved, no P&L activity occurred. Previously these were
-              mis-bucketed under Operating as "Uncategorized". */}
-          {data.internal && data.internal.items.length > 0 && (
-            <CFBlock title={t("Internal Movements", "التحويلات الداخلية")} data={data.internal} color={data.internal.total >= 0 ? "text-positive" : "text-muted-foreground"} icon={<Minus className="w-4 h-4 text-muted-foreground" />} prior={comparing ? priorData!.internal?.total ?? 0 : undefined} />
-          )}
-        </div>
+        <Panel flush title={t("Cash Flow Statement", "قائمة التدفق النقدي")} description={`${fmtDate(applied.from)} – ${fmtDate(applied.to)}`}>
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-start px-3">{t("Item", "البند")}</th>
+                <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+              </tr>
+            </thead>
+            <CFBlock title={t("Operating Activities", "الأنشطة التشغيلية")} data={data.operating} prior={comparing ? priorData!.operating.total : undefined} />
+            <CFBlock title={t("Investing Activities", "الأنشطة الاستثمارية")} data={data.investing} prior={comparing ? priorData!.investing.total : undefined} />
+            <CFBlock title={t("Financing Activities", "الأنشطة التمويلية")} data={data.financing} prior={comparing ? priorData!.financing.total : undefined} />
+            {/* Transfers between own accounts + invoice/bill settlements: the
+                bank moved, no P&L activity occurred. Previously these were
+                mis-bucketed under Operating as "Uncategorized". */}
+            {data.internal && data.internal.items.length > 0 && (
+              <CFBlock title={t("Internal Movements", "التحويلات الداخلية")} data={data.internal} prior={comparing ? priorData!.internal?.total ?? 0 : undefined} />
+            )}
+            <tfoot>
+              <tr className={`font-semibold ${data.netChange >= 0 ? "text-positive" : "text-negative"}`}>
+                <td className="py-3.5 px-3">{t("Net Change in Cash", "صافي التغير في النقدية")}</td>
+                <td className="py-3.5 px-3 text-end whitespace-nowrap tabular-nums text-base">{data.netChange >= 0 ? "+" : ""}{fmtNum(data.netChange)}</td>
+              </tr>
+            </tfoot>
+          </table></div>
+        </Panel>
       )}
     </div>
   );

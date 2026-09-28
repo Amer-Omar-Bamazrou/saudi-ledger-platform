@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel } from "@/components/kit";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tags, Upload, Pencil, Plus, Wand2 } from "lucide-react";
@@ -154,16 +154,16 @@ export function ChartSection({ batchId, editable }: { batchId: number; editable:
     return null;
   };
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</p>;
-  if (error || !data) return <p className="text-sm text-destructive p-4">{t("The chart could not be loaded.", "تعذر تحميل الدليل.")} {(error as Error)?.message}</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>;
+  if (error || !data) return <p className="text-sm text-destructive">{t("The chart could not be loaded.", "تعذر تحميل الدليل.")} {(error as Error)?.message}</p>;
   const s = data.summary;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{t("Chart of accounts — closing balances of the previous system", "دليل الحسابات — الأرصدة الختامية للنظام السابق")}</h2>
-          <p className="text-sm text-muted-foreground">{t("Every old account lands on a NAMED account here. There is no balancing account and no automatic balancing: a difference blocks the migration.", "كل حساب قديم يستقر على حساب مُسمّى هنا. لا يوجد حساب موازنة ولا موازنة تلقائية: أي فرق يوقف الترحيل.")}</p>
+          <h2 className="text-base font-semibold text-foreground">{t("Chart of accounts — closing balances of the previous system", "دليل الحسابات — الأرصدة الختامية للنظام السابق")}</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground max-w-[80ch]">{t("Every old account lands on a NAMED account here. There is no balancing account and no automatic balancing: a difference blocks the migration.", "كل حساب قديم يستقر على حساب مُسمّى هنا. لا يوجد حساب موازنة ولا موازنة تلقائية: أي فرق يوقف الترحيل.")}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {can && <Button size="sm" variant="outline" onClick={() => setEditingRow(-1)} data-testid="chart-add-row"><Plus className="w-3.5 h-3.5 me-1" />{t("Add row", "إضافة صف")}</Button>}
@@ -178,7 +178,7 @@ export function ChartSection({ batchId, editable }: { batchId: number; editable:
           [t("Total debits", "إجمالي المدين"), <Money key="d" v={s.totalDebit} />],
           [t("Total credits", "إجمالي الدائن"), <Money key="c" v={s.totalCredit} />],
         ].map(([l, v, c], i) => (
-          <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-lg font-semibold font-mono ${c ?? ""}`} data-testid={`chart-kpi-${i}`}>{v}</div></CardContent></Card>
+          <div key={i} className="bg-card px-4 py-3.5 min-w-0"><div className="text-[13px] text-muted-foreground">{l}</div><div className={`mt-1.5 text-[20px] leading-tight font-semibold tabular-nums ${c ?? ""}`} data-testid={`chart-kpi-${i}`}>{v}</div></div>
         ))}
       </div>
       {data.rows.length > 0 && (
@@ -191,32 +191,27 @@ export function ChartSection({ batchId, editable }: { batchId: number; editable:
         <EmptyState icon={Tags} title={t("No chart staged yet", "لم يُجهَّز أي دليل بعد")} hint={t("Import the previous system's chart of accounts with its closing balances at the opening date. Each row states its own type; nothing is inferred from a name.", "استورد دليل حسابات النظام السابق بأرصدته الختامية في تاريخ الافتتاح. كل صف يذكر نوعه؛ لا يُستنتج شيء من الاسم.")}
           action={can ? <Button size="sm" onClick={() => setImporting(true)}><Upload className="w-3.5 h-3.5 me-1" />{t("Import chart", "استيراد الدليل")}</Button> : undefined} />
       ) : (
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2 flex-wrap">
-            <CardTitle className="text-sm text-muted-foreground">{t(`${rows.length} of ${data.rows.length} rows`, `${rows.length} من ${data.rows.length} صفًا`)}</CardTitle>
-            <Button variant={onlyBlocked ? "default" : "ghost"} size="sm" className="h-7 text-xs" onClick={() => setOnlyBlocked((v) => !v)} data-testid="chart-only-blocked">{t(`Problems only (${s.blocked})`, `المشاكل فقط (${s.blocked})`)}</Button>
-          </CardHeader>
-          <CardContent>
+        <Panel flush title={<span className="text-[13px] font-medium text-muted-foreground">{t(`${rows.length} of ${data.rows.length} rows`, `${rows.length} من ${data.rows.length} صفًا`)}</span>} actions={<><Button variant={onlyBlocked ? "default" : "ghost"} size="sm" className="h-7 text-xs" onClick={() => setOnlyBlocked((v) => !v)} data-testid="chart-only-blocked">{t(`Problems only (${s.blocked})`, `المشاكل فقط (${s.blocked})`)}</Button></>}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-card">
-                  <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                    {[t("Code", "الرمز"), t("Name", "الاسم"), t("Type", "النوع"), t("Debit", "مدين"), t("Credit", "دائن"), t("Decision", "القرار"), t("Target", "الهدف"), t("State", "الحالة"), ""].map((h, i) => <th key={i} className="text-start pb-2 pe-3 font-medium">{h}</th>)}
+                <thead>
+                  <tr className="border-b border-border">
+                    {[t("Code", "الرمز"), t("Name", "الاسم"), t("Type", "النوع"), t("Debit", "مدين"), t("Credit", "دائن"), t("Decision", "القرار"), t("Target", "الهدف"), t("State", "الحالة"), ""].map((h, i) => <th key={i} className="text-start px-3">{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
                     <Fragment key={r.id}>
-                      <tr id={`staged-${r.id}`} className={`border-b border-border/50 align-top ${focusClass(r.id, focus)}`} data-testid={`chart-row-${r.sourceCode}`}>
-                        <td className="py-2 pe-3 font-mono text-xs" dir="ltr">{r.sourceCode}{r.sourceIsGroup && <Badge variant="outline" className="ms-1 text-[10px]">{t("group", "تجميعي")}</Badge>}</td>
-                        <td className="py-2 pe-3 max-w-[14rem] break-words">{lang === "ar" && r.sourceNameAr ? r.sourceNameAr : r.sourceName}{r.sourceRole && <span className="block text-[11px] text-muted-foreground">{t("role", "الدور")}: {r.sourceRole}</span>}</td>
-                        <td className="py-2 pe-3 text-xs">{r.sourceType}</td>
-                        <td className="py-2 pe-3 text-end"><Money v={r.openingDebit} /></td>
-                        <td className="py-2 pe-3 text-end"><Money v={r.openingCredit} /></td>
-                        <td className="py-2 pe-3 text-xs">{decisionLabel(r.decision, lang)}</td>
-                        <td className="py-2 pe-3 text-xs max-w-[12rem] break-words">{target(r) ?? (r.suggestion ? <span className="text-muted-foreground">{t("suggested", "مقترح")}: {decisionLabel(r.suggestion.decision, lang)}{r.suggestion.targetSystemCode ? ` → ${r.suggestion.targetSystemCode}` : ""}</span> : "—")}</td>
-                        <td className="py-2 pe-3"><Problems list={r.problems} id={r.id} /></td>
-                        <td className="py-2">
+                      <tr id={`staged-${r.id}`} className={`border-b border-border/70 align-top ${focusClass(r.id, focus)}`} data-testid={`chart-row-${r.sourceCode}`}>
+                        <td className="py-2.5 px-3 font-mono text-xs" dir="ltr">{r.sourceCode}{r.sourceIsGroup && <Badge variant="outline" className="ms-1 text-[10px]">{t("group", "تجميعي")}</Badge>}</td>
+                        <td className="py-2.5 px-3 max-w-[14rem] break-words">{lang === "ar" && r.sourceNameAr ? r.sourceNameAr : r.sourceName}{r.sourceRole && <span className="block text-[12px] text-muted-foreground">{t("role", "الدور")}: {r.sourceRole}</span>}</td>
+                        <td className="py-2.5 px-3 text-xs">{r.sourceType}</td>
+                        <td className="py-2.5 px-3 text-end"><Money v={r.openingDebit} /></td>
+                        <td className="py-2.5 px-3 text-end"><Money v={r.openingCredit} /></td>
+                        <td className="py-2.5 px-3 text-xs">{decisionLabel(r.decision, lang)}</td>
+                        <td className="py-2.5 px-3 text-xs max-w-[12rem] break-words">{target(r) ?? (r.suggestion ? <span className="text-muted-foreground">{t("suggested", "مقترح")}: {decisionLabel(r.suggestion.decision, lang)}{r.suggestion.targetSystemCode ? ` → ${r.suggestion.targetSystemCode}` : ""}</span> : "—")}</td>
+                        <td className="py-2.5 px-3"><Problems list={r.problems} id={r.id} /></td>
+                        <td className="py-2.5 px-3">
                           {can && (
                             <div className="flex flex-col gap-1 items-start">
                               {/* Walk defect 2026-09-20: a map_to_bank suggestion has no target (the bank is the operator's choice), so applying it blindly was a 400. It opens the editor pre-set instead. */}
@@ -233,18 +228,17 @@ export function ChartSection({ batchId, editable }: { batchId: number; editable:
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="font-semibold border-t border-border">
-                    <td className="py-2 pe-3" colSpan={3}>{t("Total", "الإجمالي")}</td>
-                    <td className="py-2 pe-3 text-end"><Money v={s.totalDebit} /></td>
-                    <td className="py-2 pe-3 text-end"><Money v={s.totalCredit} /></td>
+                  <tr className="font-semibold">
+                    <td className="py-2.5 px-3" colSpan={3}>{t("Total", "الإجمالي")}</td>
+                    <td className="py-2.5 px-3 text-end"><Money v={s.totalDebit} /></td>
+                    <td className="py-2.5 px-3 text-end"><Money v={s.totalCredit} /></td>
                     <td colSpan={4} />
                   </tr>
                 </tfoot>
               </table>
             </div>
-            {s.unmapped > 0 && <p className="text-xs text-negative mt-2">{t(`${s.unmapped} row(s) still need a decision.`, `${s.unmapped} صفًا ما زال بحاجة إلى قرار.`)} <button className="underline" onClick={() => go("validation")}>{t("See validation", "عرض التحقق")}</button></p>}
-          </CardContent>
-        </Card>
+            {s.unmapped > 0 && <p className="border-t border-border px-5 py-3 text-[13px] text-negative">{t(`${s.unmapped} row(s) still need a decision.`, `${s.unmapped} صفًا ما زال بحاجة إلى قرار.`)} <button className="underline" onClick={() => go("validation")}>{t("See validation", "عرض التحقق")}</button></p>}
+          </Panel>
       )}
 
       {/* Walk defect 2026-09-20: the editor was a row inside the (horizontally scrolling) table, so on a phone its selects were clipped off-screen. A dialog fits every width. */}

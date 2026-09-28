@@ -8,9 +8,9 @@ import {
   getGetSummaryQueryKey
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { Progress } from "@/components/ui/progress";
-import { BrainCog, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { BrainCog, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 
@@ -43,117 +43,75 @@ export default function Categorize() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <BrainCog className="w-8 h-8 text-primary" />
-            {t("Categorization Engine", "محرك التصنيف")}
-          </h1>
-          <p className="text-muted-foreground mt-1">{t("Run rule-based and AI matching algorithms across uncategorized ledger entries.", "تشغيل خوارزميات المطابقة القائمة على القواعد والذكاء الاصطناعي على إدخالات دفتر الأستاذ غير المصنّفة.")}</p>
-        </div>
-      </div>
+    <div className="space-y-6 max-w-6xl">
+      <PageHeader
+        title={t("Categorization Engine", "محرك التصنيف")}
+        description={t("Run rule-based and AI matching algorithms across uncategorized ledger entries.", "تشغيل خوارزميات المطابقة القائمة على القواعد والذكاء الاصطناعي على إدخالات دفتر الأستاذ غير المصنّفة.")}
+        actions={
+          <Button
+            className="gap-2"
+            onClick={handleRun}
+            disabled={runMutation.isPending || summary?.uncategorizedCount === 0}
+          >
+            {runMutation.isPending ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> {t("Running...", "جارٍ التشغيل...")}</>
+            ) : (
+              <><BrainCog className="w-4 h-4" />{t("Run Engine", "تشغيل المحرك")}</>
+            )}
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1 border-primary/20 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="text-primary">{t("Engine Status", "حالة المحرك")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">{t("Uncategorized Entries", "الإدخالات غير المصنّفة")}</p>
-              <p className="text-4xl font-mono font-bold text-foreground mt-2">
-                {summary?.uncategorizedCount ?? '-'}
-              </p>
-            </div>
-            
-            <Button 
-              size="lg" 
-              className="w-full font-bold text-lg h-14" 
-              onClick={handleRun}
-              disabled={runMutation.isPending || summary?.uncategorizedCount === 0}
-            >
-              {runMutation.isPending ? (
-                <><Loader2 className="w-5 h-5 me-2 animate-spin" /> {t("Running...", "جارٍ التشغيل...")}</>
-              ) : (
-                <>{t("Run Engine", "تشغيل المحرك")}</>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+      <StatStrip cols={4}>
+        <Stat label={t("Uncategorized Entries", "الإدخالات غير المصنّفة")} value={summary?.uncategorizedCount ?? '-'} tone={summary?.uncategorizedCount ? "attention" : "default"} />
+        <Stat label={t("Processed", "تمت المعالجة")} value={results ? results.processed : "—"} />
+        <Stat label={t("Matched", "تمت المطابقة")} value={results ? results.categorized : "—"} />
+        <Stat label={t("Skipped", "تم التخطي")} value={results ? results.skipped : "—"} />
+      </StatStrip>
 
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>{t("Last Run Results", "نتائج آخر تشغيل")}</CardTitle>
-            <CardDescription>{t("Details of the most recent categorization job.", "تفاصيل أحدث مهمة تصنيف.")}</CardDescription>
-          </CardHeader>
-          <CardContent>
+      <Panel
+        title={t("Last Run Results", "نتائج آخر تشغيل")}
+        description={t("Details of the most recent categorization job.", "تفاصيل أحدث مهمة تصنيف.")}
+        flush
+      >
             {runMutation.isPending ? (
               <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                <Loader2 className="w-12 h-12 text-primary animate-spin" />
-                <p className="text-muted-foreground font-mono animate-pulse">{t("Analyzing transaction patterns...", "جارٍ تحليل أنماط المعاملات...")}</p>
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                <p className="text-sm text-muted-foreground">{t("Analyzing transaction patterns...", "جارٍ تحليل أنماط المعاملات...")}</p>
               </div>
             ) : results ? (
-              <div className="space-y-6">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 rounded-lg bg-secondary/50 border flex items-center gap-3">
-                    <BrainCog className="w-8 h-8 text-info" />
+              results.results && results.results.length > 0 ? (
+                  <div>
+                    <h3 className="px-5 pt-4 pb-2 text-[13px] font-medium text-muted-foreground">{t("Top Matches", "أفضل التطابقات")}</h3>
                     <div>
-                      <p className="text-sm text-muted-foreground">{t("Processed", "تمت المعالجة")}</p>
-                      <p className="text-xl font-bold">{results.processed}</p>
-                    </div>
-                  </div>
-                  <div className="p-4 rounded-lg bg-secondary/50 border flex items-center gap-3">
-                    <CheckCircle2 className="w-8 h-8 text-positive" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">{t("Matched", "تمت المطابقة")}</p>
-                      <p className="text-xl font-bold">{results.categorized}</p>
-                    </div>
-                  </div>
-                  <div className="p-4 rounded-lg bg-secondary/50 border flex items-center gap-3">
-                    <AlertCircle className="w-8 h-8 text-attention" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">{t("Skipped", "تم التخطي")}</p>
-                      <p className="text-xl font-bold">{results.skipped}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {results.results && results.results.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-lg border-b pb-2">{t("Top Matches", "أفضل التطابقات")}</h3>
-                    <div className="space-y-2">
                       {results.results.slice(0, 10).map((r: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between p-3 rounded bg-secondary/30 text-sm">
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono text-muted-foreground">ID: {r.transactionId}</span>
-                            <Badge variant="outline" className="border-primary/30 text-primary">{r.categoryName}</Badge>
-                            {r.matchedRule && <span className="text-xs text-muted-foreground ms-2">{t("Rule:", "القاعدة:")} {r.matchedRule}</span>}
+                        <div key={i} className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-3 text-sm last:border-0">
+                          <div className="flex flex-wrap items-center gap-3 min-w-0">
+                            <span className="tabular-nums text-muted-foreground">ID: {r.transactionId}</span>
+                            <Badge variant="outline" className="border-primary/30 text-primary font-normal">{r.categoryName}</Badge>
+                            {r.matchedRule && <span className="text-[12px] text-muted-foreground">{t("Rule:", "القاعدة:")} {r.matchedRule}</span>}
                           </div>
-                          <div className="flex items-center gap-3 w-32">
-                            <Progress value={r.confidence * 100} className="h-2" />
-                            <span className="font-mono text-xs w-8 text-end">{Math.round(r.confidence * 100)}%</span>
+                          <div className="flex items-center gap-3 w-32 shrink-0">
+                            <Progress value={r.confidence * 100} className="h-1.5" />
+                            <span className="tabular-nums text-[12px] w-8 text-end">{Math.round(r.confidence * 100)}%</span>
                           </div>
                         </div>
                       ))}
                     </div>
                     {results.results.length > 10 && (
-                      <p className="text-center text-sm text-muted-foreground py-2">
+                      <p className="border-t border-border px-5 py-3 text-sm text-muted-foreground">
                         + {results.results.length - 10} {t("more matches", "مطابقات إضافية")}
                       </p>
                     )}
                   </div>
-                )}
-              </div>
+              ) : <div className="h-2" />
             ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <BrainCog className="w-12 h-12 opacity-20 mb-4" />
-                <p>{t("Engine idle. Ready to process", "المحرك في وضع الخمول. جاهز لمعالجة")} {summary?.uncategorizedCount ?? 0} {t("transactions.", "معاملة.")}</p>
-              </div>
+              <EmptyState
+                icon={BrainCog}
+                title={<>{t("Engine idle. Ready to process", "المحرك في وضع الخمول. جاهز لمعالجة")} {summary?.uncategorizedCount ?? 0} {t("transactions.", "معاملة.")}</>}
+              />
             )}
-          </CardContent>
-        </Card>
-      </div>
+      </Panel>
     </div>
   );
 }

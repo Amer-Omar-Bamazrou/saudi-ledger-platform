@@ -17,12 +17,12 @@ import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 
 import type { CustomerPosition, CustomerStatement as CustomerStatementView, CustomerStatementLine } from "@workspace/api-client-react";
 
@@ -50,24 +50,18 @@ const delta = (v: number) => (Math.abs(v) < 0.005 ? "—" : `${v > 0 ? "+" : "�
 function PositionCard({ title, p, testId, hint }: { title: string; p: CustomerPosition; testId: string; hint?: string }) {
   const { t } = useLanguage();
   const row = (k: string, v: number, id: string) => (
-    <div className="flex justify-between gap-2 text-sm"><span className="text-muted-foreground">{k}</span><span className="font-mono" data-testid={`${testId}-${id}`}>{money(v)}</span></div>
+    <div className="flex justify-between gap-2 text-sm"><span className="text-muted-foreground">{k}</span><span className="tabular-nums" data-testid={`${testId}-${id}`}>{money(v)}</span></div>
   );
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm">{title}</CardTitle>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      </CardHeader>
-      <CardContent className="space-y-1">
-        {row(t("Accounts receivable", "الذمم المدينة"), p.receivable, "receivable")}
-        {row(t("Customer credits", "أرصدة دائنة"), p.creditBalance, "credits")}
-        {row(t("Customer deposits", "عرابين"), p.depositBalance, "deposits")}
-        <div className="flex justify-between gap-2 text-sm border-t border-border pt-1 mt-1">
-          <span className="text-muted-foreground">{t("Net position (derived)", "صافي المركز (مشتق)")}</span>
-          <span className="font-mono font-semibold" data-testid={`${testId}-net`}>{money(p.netPosition)}</span>
-        </div>
-      </CardContent>
-    </Card>
+    <Panel title={title} description={hint} bodyClassName="space-y-2">
+      {row(t("Accounts receivable", "الذمم المدينة"), p.receivable, "receivable")}
+      {row(t("Customer credits", "أرصدة دائنة"), p.creditBalance, "credits")}
+      {row(t("Customer deposits", "عرابين"), p.depositBalance, "deposits")}
+      <div className="flex justify-between gap-2 text-sm border-t border-border pt-2 mt-2">
+        <span className="text-muted-foreground">{t("Net position (derived)", "صافي المركز (مشتق)")}</span>
+        <span className="tabular-nums font-semibold" data-testid={`${testId}-net`}>{money(p.netPosition)}</span>
+      </div>
+    </Panel>
   );
 }
 
@@ -90,7 +84,7 @@ export default function CustomerStatement() {
     const msg = error instanceof Error ? error.message : "";
     return (
       <div className="space-y-4">
-        <Link href="/customers"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 me-2" />{t("Back to customers", "العودة إلى العملاء")}</Button></Link>
+        <Link href="/customers"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 me-2 rtl:-scale-x-100" />{t("Back to customers", "العودة إلى العملاء")}</Button></Link>
         <p className="text-destructive">{t("The statement could not be loaded.", "تعذر تحميل كشف الحساب.")} {msg}</p>
       </div>
     );
@@ -98,31 +92,27 @@ export default function CustomerStatement() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href={`/customers/${id}`}>
-          <Button variant="ghost" size="sm" className="mb-2 -ms-2"><ArrowLeft className="w-4 h-4 me-2" />{t("Back to customer", "العودة إلى العميل")}</Button>
-        </Link>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">{t("Customer statement", "كشف حساب العميل")}</h1>
-            <p className="text-muted-foreground">{data.customerName}{data.customerNameAr ? ` · ${data.customerNameAr}` : ""}</p>
-          </div>
+      <PageHeader
+        back={{ href: `/customers/${id}`, label: t("Back to customer", "العودة إلى العميل") }}
+        title={t("Customer statement", "كشف حساب العميل")}
+        description={<>{data.customerName}{data.customerNameAr ? ` · ${data.customerNameAr}` : ""}</>}
+        actions={
           <div className="flex items-end gap-2 flex-wrap">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">{t("From", "من")}</p>
+              <p className="text-[13px] text-muted-foreground mb-1.5">{t("From", "من")}</p>
               <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 text-sm" data-testid="statement-from" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">{t("To", "إلى")}</p>
+              <p className="text-[13px] text-muted-foreground mb-1.5">{t("To", "إلى")}</p>
               <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 text-sm" data-testid="statement-to" />
             </div>
             {(from || to) && <Button variant="ghost" size="sm" className="h-9" onClick={() => { setFrom(""); setTo(""); }}>{t("Clear", "مسح")}</Button>}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* The server's own verdict on its figures — shown either way. */}
-      <div className={`flex items-start gap-2 rounded-md border p-3 text-sm ${data.reconciled ? "border-border" : "border-destructive/50 bg-destructive/10"}`} data-testid="statement-reconciled" data-reconciled={String(data.reconciled)}>
+      <div className={`flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${data.reconciled ? "border-border bg-card" : "border-destructive/50 bg-destructive/10"}`} data-testid="statement-reconciled" data-reconciled={String(data.reconciled)}>
         {data.reconciled ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-positive shrink-0" /> : <AlertTriangle className="w-4 h-4 mt-0.5 text-destructive shrink-0" />}
         <span>
           {data.reconciled
@@ -138,52 +128,51 @@ export default function CustomerStatement() {
         <PositionCard title={t("Current position", "المركز الحالي")} p={data.current} testId="current" hint={t("after every event, ignoring the window", "بعد كل الأحداث، بغض النظر عن الفترة")} />
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">{t("Transactions", "الحركات")} ({data.lines.length})</CardTitle>
-          <p className="text-xs text-muted-foreground">{t("Each line moves one or more of the three balances; the running figures after each line are the server's.", "كل سطر يحرّك واحدًا أو أكثر من الأرصدة الثلاثة؛ والأرقام الجارية بعد كل سطر من الخادم.")}</p>
-        </CardHeader>
-        <CardContent>
+      <Panel
+        flush
+        title={<>{t("Transactions", "الحركات")} ({data.lines.length})</>}
+        description={t("Each line moves one or more of the three balances; the running figures after each line are the server's.", "كل سطر يحرّك واحدًا أو أكثر من الأرصدة الثلاثة؛ والأرقام الجارية بعد كل سطر من الخادم.")}
+      >
           {data.lines.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">{t("No events in this period.", "لا توجد أحداث في هذه الفترة.")}</p>
+            <EmptyState title={t("No events in this period.", "لا توجد أحداث في هذه الفترة.")} />
           ) : (
             <>
               {/* Desktop: the full ledger table. */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                      <th className="text-start pb-2 pe-3 font-medium">{t("Date", "التاريخ")}</th>
-                      <th className="text-start pb-2 pe-3 font-medium">{t("Event", "الحدث")}</th>
-                      <th className="text-start pb-2 pe-3 font-medium">{t("Document", "المستند")}</th>
-                      <th className="text-start pb-2 pe-3 font-medium">{t("Description", "الوصف")}</th>
-                      <th className="text-end pb-2 pe-3 font-medium">{t("Amount", "المبلغ")}</th>
-                      <th className="text-end pb-2 pe-3 font-medium">{t("AR Δ", "Δ الذمم")}</th>
-                      <th className="text-end pb-2 pe-3 font-medium">{t("Credits Δ", "Δ الأرصدة الدائنة")}</th>
-                      <th className="text-end pb-2 pe-3 font-medium">{t("Deposits Δ", "Δ العرابين")}</th>
-                      <th className="text-end pb-2 pe-3 font-medium">{t("AR", "الذمم")}</th>
-                      <th className="text-end pb-2 pe-3 font-medium">{t("Credits", "أرصدة دائنة")}</th>
-                      <th className="text-end pb-2 pe-3 font-medium">{t("Deposits", "عرابين")}</th>
-                      <th className="text-end pb-2 font-medium">{t("Net", "الصافي")}</th>
+                    <tr className="border-b border-border">
+                      <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                      <th className="text-start px-3">{t("Event", "الحدث")}</th>
+                      <th className="text-start px-3">{t("Document", "المستند")}</th>
+                      <th className="text-start px-3">{t("Description", "الوصف")}</th>
+                      <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+                      <th className="text-end px-3">{t("AR Δ", "Δ الذمم")}</th>
+                      <th className="text-end px-3">{t("Credits Δ", "Δ الأرصدة الدائنة")}</th>
+                      <th className="text-end px-3">{t("Deposits Δ", "Δ العرابين")}</th>
+                      <th className="text-end px-3">{t("AR", "الذمم")}</th>
+                      <th className="text-end px-3">{t("Credits", "أرصدة دائنة")}</th>
+                      <th className="text-end px-3">{t("Deposits", "عرابين")}</th>
+                      <th className="text-end px-3">{t("Net", "الصافي")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.lines.map((l) => {
                       const k = KIND_LABEL[l.kind];
                       return (
-                        <tr key={l.seq} className="border-b border-border/50 hover:bg-secondary/20" data-testid={`statement-line-${l.seq}`} data-kind={l.kind}>
-                          <td className="py-2 pe-3 text-muted-foreground whitespace-nowrap"><DualDate date={l.date} inline /></td>
-                          <td className="py-2 pe-3"><Badge className={`text-xs ${k.cls}`}>{t(k.en, k.ar)}</Badge></td>
-                          <td className="py-2 pe-3 font-mono text-xs whitespace-nowrap">{l.documentNumber}</td>
-                          <td className="py-2 pe-3 text-xs text-muted-foreground max-w-[20rem]">{l.description}</td>
-                          <td className="py-2 pe-3 font-mono text-end">{money(l.amount)}</td>
-                          <td className="py-2 pe-3 font-mono text-end text-xs">{delta(l.receivableDelta)}</td>
-                          <td className="py-2 pe-3 font-mono text-end text-xs">{delta(l.creditDelta)}</td>
-                          <td className="py-2 pe-3 font-mono text-end text-xs">{delta(l.depositDelta)}</td>
-                          <td className="py-2 pe-3 font-mono text-end" data-testid={`line-${l.seq}-receivable`}>{money(l.receivable)}</td>
-                          <td className="py-2 pe-3 font-mono text-end" data-testid={`line-${l.seq}-credits`}>{money(l.creditBalance)}</td>
-                          <td className="py-2 pe-3 font-mono text-end" data-testid={`line-${l.seq}-deposits`}>{money(l.depositBalance)}</td>
-                          <td className="py-2 font-mono text-end font-semibold">{money(l.netPosition)}</td>
+                        <tr key={l.seq} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`statement-line-${l.seq}`} data-kind={l.kind}>
+                          <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={l.date} inline /></td>
+                          <td className="py-3 px-3"><Badge className={`text-xs ${k.cls}`}>{t(k.en, k.ar)}</Badge></td>
+                          <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{l.documentNumber}</td>
+                          <td className="py-3 px-3 text-[13px] text-muted-foreground min-w-[10rem] max-w-[18rem]">{l.description}</td>
+                          <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{money(l.amount)}</td>
+                          <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{delta(l.receivableDelta)}</td>
+                          <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{delta(l.creditDelta)}</td>
+                          <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{delta(l.depositDelta)}</td>
+                          <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums" data-testid={`line-${l.seq}-receivable`}>{money(l.receivable)}</td>
+                          <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums" data-testid={`line-${l.seq}-credits`}>{money(l.creditBalance)}</td>
+                          <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums" data-testid={`line-${l.seq}-deposits`}>{money(l.depositBalance)}</td>
+                          <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{money(l.netPosition)}</td>
                         </tr>
                       );
                     })}
@@ -191,7 +180,7 @@ export default function CustomerStatement() {
                 </table>
               </div>
               {/* Phone: one card per event, the same figures. */}
-              <div className="md:hidden space-y-2">
+              <div className="md:hidden space-y-2 p-4">
                 {data.lines.map((l) => {
                   const k = KIND_LABEL[l.kind];
                   return (
@@ -201,14 +190,14 @@ export default function CustomerStatement() {
                         <span className="text-xs text-muted-foreground"><DualDate date={l.date} inline /></span>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs">{l.documentNumber}</span>
-                        <span className="font-mono">{money(l.amount)}</span>
+                        <span className="text-xs font-medium text-primary">{l.documentNumber}</span>
+                        <span className="tabular-nums">{money(l.amount)}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">{l.description}</p>
                       <div className="grid grid-cols-3 gap-2 text-xs pt-1 border-t border-border/50">
-                        <div><p className="text-muted-foreground">{t("AR", "الذمم")}</p><p className="font-mono">{money(l.receivable)}</p></div>
-                        <div><p className="text-muted-foreground">{t("Credits", "أرصدة دائنة")}</p><p className="font-mono">{money(l.creditBalance)}</p></div>
-                        <div><p className="text-muted-foreground">{t("Deposits", "عرابين")}</p><p className="font-mono">{money(l.depositBalance)}</p></div>
+                        <div><p className="text-muted-foreground">{t("AR", "الذمم")}</p><p className="tabular-nums">{money(l.receivable)}</p></div>
+                        <div><p className="text-muted-foreground">{t("Credits", "أرصدة دائنة")}</p><p className="tabular-nums">{money(l.creditBalance)}</p></div>
+                        <div><p className="text-muted-foreground">{t("Deposits", "عرابين")}</p><p className="tabular-nums">{money(l.depositBalance)}</p></div>
                       </div>
                     </div>
                   );
@@ -216,8 +205,7 @@ export default function CustomerStatement() {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

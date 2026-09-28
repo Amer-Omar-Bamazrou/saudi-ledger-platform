@@ -6,7 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthShell } from "@/pages/Signup";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Mail } from "lucide-react";
 
@@ -63,17 +63,12 @@ export default function AcceptInvite() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-border/50">
-          <CardHeader><CardTitle>{t("Invitation unavailable", "الدعوة غير متاحة")}</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+      <AuthShell title={t("Invitation unavailable", "الدعوة غير متاحة")}>
             <Alert variant="destructive"><AlertDescription>{loadError}</AlertDescription></Alert>
             <Button variant="outline" className="w-full" onClick={() => navigate("/login")}>
               {t("Go to sign in", "الذهاب لتسجيل الدخول")}
             </Button>
-          </CardContent>
-        </Card>
-      </div>
+      </AuthShell>
     );
   }
 
@@ -85,24 +80,22 @@ export default function AcceptInvite() {
   const mustSignIn = preview.hasAccount && user?.email?.toLowerCase() !== preview.email;
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-4">
-        <div className="text-center mb-4">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 mb-3">
-            <Mail className="w-5 h-5 text-primary" />
+    <AuthShell
+      icon={
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
+          <Mail className="h-5 w-5" />
+        </span>
+      }
+      title={t("You've been invited", "لقد تمت دعوتك")}
+    >
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <p className="text-[15px] font-semibold text-foreground">{preview.organizationName}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("Invitation for", "دعوة لـ")} <strong className="font-medium text-foreground">{preview.email}</strong> —{" "}
+              {t("role", "الدور")}: <strong className="font-medium text-foreground capitalize">{preview.role}</strong>
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">{t("You've been invited", "لقد تمت دعوتك")}</h1>
-        </div>
-
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>{preview.organizationName}</CardTitle>
-            <CardDescription>
-              {t("Invitation for", "دعوة لـ")} <strong>{preview.email}</strong> —{" "}
-              {t("role", "الدور")}: <strong>{preview.role}</strong>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <div className="space-y-4">
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
             {mustSignIn ? (
@@ -143,9 +136,7 @@ export default function AcceptInvite() {
                 </Button>
               </form>
             )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+          </div>
+    </AuthShell>
   );
 }

@@ -6,9 +6,86 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Languages } from "lucide-react";
+
+/**
+ * The signed-out shell — the SAME structure as the Login page (teal brand panel
+ * on the start side, the form on white), so sign-in, sign-up, an invitation and
+ * the verification wait read as one product. Presentation only: each page keeps
+ * its own state, handlers and copy and passes them in.
+ */
+export function AuthShell({
+  title,
+  description,
+  icon,
+  wide = false,
+  langToggle = false,
+  children,
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  icon?: React.ReactNode;
+  wide?: boolean;
+  langToggle?: boolean;
+  children: React.ReactNode;
+}) {
+  const { t, lang, setLang } = useLanguage();
+  return (
+    <div className="min-h-screen bg-background grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      {/* The spine — the sidebar's teal, as on Login. */}
+      <aside className="hidden lg:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-12">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-md bg-sidebar-foreground flex items-center justify-center">
+            <span className="font-display text-lg font-bold leading-none text-sidebar -mt-0.5">ك</span>
+          </div>
+          <span className="font-display font-semibold text-lg">{t("KSA Ledger", "دفتر المملكة")}</span>
+        </div>
+        <div className="max-w-md">
+          <h2 className="text-[28px] leading-[1.25] font-semibold">
+            {t("Accounting and compliance for Saudi businesses.", "المحاسبة والامتثال للمنشآت السعودية.")}
+          </h2>
+          <p className="mt-4 text-[15px] leading-relaxed text-sidebar-foreground/80">
+            {t(
+              "Invoices, bills, VAT and the general ledger — in Arabic and English, on the Saudi calendar.",
+              "الفواتير والمشتريات وضريبة القيمة المضافة ودفتر الأستاذ العام — بالعربية والإنجليزية، وعلى التقويم السعودي.",
+            )}
+          </p>
+        </div>
+        <p className="text-[12px] text-sidebar-foreground/60">© {new Date().getFullYear()} ORGINOO</p>
+      </aside>
+
+      <div className="flex items-center justify-center p-4 sm:p-8">
+        <div className={cn("w-full space-y-4 py-8", wide ? "max-w-lg" : "max-w-md")}>
+          <div className="mb-6 relative">
+            {langToggle && (
+              <button
+                type="button"
+                onClick={() => setLang(lang === "en" ? "ar" : "en")}
+                className="absolute top-0 end-0 flex items-center gap-1 text-xs font-bold px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
+                title={lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"}
+              >
+                <Languages className="w-3 h-3" />
+                {lang === "en" ? "ع" : "EN"}
+              </button>
+            )}
+            <div className="flex items-center gap-2.5 lg:hidden mb-8">
+              <div className="w-9 h-9 rounded-md bg-sidebar flex items-center justify-center">
+                <span className="font-display text-lg font-bold leading-none text-sidebar-foreground -mt-0.5">ك</span>
+              </div>
+              <span className="font-display font-semibold text-lg text-foreground">{t("KSA Ledger", "دفتر المملكة")}</span>
+            </div>
+            {icon && <div className="mb-4">{icon}</div>}
+            <h1 className="text-[28px] leading-tight font-semibold text-foreground">{title}</h1>
+            {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+          </div>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Public self-service signup (M11.5). Creates the organization + company + admin
@@ -46,27 +123,13 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-lg space-y-4 py-8">
-        <div className="text-center mb-6 relative">
-          <button
-            onClick={() => setLang(lang === "en" ? "ar" : "en")}
-            className="absolute top-0 end-0 flex items-center gap-1 text-xs font-bold px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Languages className="w-3 h-3" />
-            {lang === "en" ? "ع" : "EN"}
-          </button>
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 mb-3">
-            <span className="text-2xl font-bold text-primary">ك</span>
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">KSA Ledger</h1>
-          <p className="text-sm text-muted-foreground">{t("Create your organization account", "أنشئ حساب مؤسستك")}</p>
-        </div>
-
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>{t("Sign up", "إنشاء حساب")}</CardTitle>
-            <CardDescription>
+    <AuthShell
+      wide
+      langToggle
+      title={t("Sign up", "إنشاء حساب")}
+      description={t("Create your organization account", "أنشئ حساب مؤسستك")}
+    >
+            <p className="text-sm text-muted-foreground">
               {t(
                 // 🔴 No turnaround promise here (2026-09-15): the review SLA is
                 // an undecided owner-process question (CLAUDE.md §5, L3). A
@@ -75,9 +138,7 @@ export default function Signup() {
                 "Register your business. Your account is reviewed by our team before it is activated.",
                 "سجّل نشاطك التجاري. تتم مراجعة حسابك من قبل فريقنا قبل تفعيله.",
               )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </p>
             <form onSubmit={submit} className="space-y-4">
               {error && (
                 <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
@@ -93,16 +154,16 @@ export default function Signup() {
                 <Input id="companyName" value={form.companyName} onChange={set("companyName")} placeholder={t("Defaults to the organization name", "يُستخدم اسم المؤسسة افتراضياً")} />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="crNumber">{t("CR number *", "رقم السجل التجاري *")}</Label>
                   <Input id="crNumber" value={form.crNumber} onChange={set("crNumber")} required inputMode="numeric" placeholder="1010101010" />
-                  <p className="text-[11px] text-muted-foreground">{t("10 digits", "10 أرقام")}</p>
+                  <p className="text-[12px] text-muted-foreground">{t("10 digits", "10 أرقام")}</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="vatNumber">{t("VAT number", "الرقم الضريبي")}</Label>
                   <Input id="vatNumber" value={form.vatNumber} onChange={set("vatNumber")} inputMode="numeric" placeholder="300000000000003" />
-                  <p className="text-[11px] text-muted-foreground">{t("15 digits, if registered", "15 رقماً، إن وُجد")}</p>
+                  <p className="text-[12px] text-muted-foreground">{t("15 digits, if registered", "15 رقماً، إن وُجد")}</p>
                 </div>
               </div>
 
@@ -130,9 +191,6 @@ export default function Signup() {
                 <Link href="/login" className="text-primary hover:underline">{t("Sign in", "تسجيل الدخول")}</Link>
               </p>
             </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </AuthShell>
   );
 }

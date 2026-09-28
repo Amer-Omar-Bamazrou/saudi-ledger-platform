@@ -33,11 +33,11 @@ export function CompareSelect({
   const { t } = useLanguage();
   return (
     <div>
-      <label className="text-xs text-muted-foreground block">{t("Compare", "مقارنة")}</label>
+      <label className="text-[13px] text-muted-foreground block">{t("Compare", "مقارنة")}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as CompareSetting)}
-        className="mt-1 h-8 text-sm rounded-md border border-border bg-background px-2"
+        className="mt-1 h-9 text-sm rounded-md border border-input bg-background px-2.5"
       >
         <option value="off">{t("Off", "بدون")}</option>
         <option value="yoy">{t("Same period last year", "الفترة نفسها من العام الماضي")}</option>
@@ -66,5 +66,5 @@ export function priorAsOfLabel(prior: PriorAsOf, lang: "en" | "ar"): string {
 
 /** The comparison could not honestly run — say why, show nothing else. */
 export function ComparisonUnavailable({ reason }: { reason: string }) {
-  return <p className="text-xs text-muted-foreground border border-border rounded-md px-3 py-2">{reason}</p>;
+  return <p className="text-[13px] text-muted-foreground border border-border bg-muted/30 rounded-md px-3 py-2">{reason}</p>;
 }

@@ -104,7 +104,7 @@ export function AllocateDialog({ source, open, onClose, customerName }: { source
           <div className="overflow-x-auto min-w-0">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
+                <tr className="border-b border-border text-muted-foreground text-xs">
                   <th className="text-start pb-2 pe-3 font-medium">{t("Invoice", "الفاتورة")}</th>
                   <th className="text-start pb-2 pe-3 font-medium hidden sm:table-cell">{t("Due", "الاستحقاق")}</th>
                   <th className="text-start pb-2 pe-3 font-medium">{t("Outstanding", "المستحق")}</th>
@@ -119,18 +119,18 @@ export function AllocateDialog({ source, open, onClose, customerName }: { source
                   if (already.has(inv.id)) {
                     return (
                       <tr key={inv.id} className="border-b border-border/50 opacity-70" data-testid={`allocate-row-${inv.invoiceNumber}`} data-already-allocated="true">
-                        <td className="py-2 pe-3 font-mono text-xs">{inv.invoiceNumber}</td>
+                        <td className="py-2 pe-3 tabular-nums text-xs">{inv.invoiceNumber}</td>
                         <td className="py-2 pe-3 text-muted-foreground hidden sm:table-cell"><DualDate date={inv.dueDate} inline /></td>
-                        <td className="py-2 pe-3 font-mono">{fmtNum(os)}</td>
+                        <td className="py-2 pe-3 tabular-nums">{fmtNum(os)}</td>
                         <td className="py-2 text-xs text-muted-foreground">{t("Already allocated from this source — correct that allocation first", "مخصص بالفعل من هذا المصدر — صحّح ذلك التخصيص أولًا")}</td>
                       </tr>
                     );
                   }
                   return (
                     <tr key={inv.id} className="border-b border-border/50" data-testid={`allocate-row-${inv.invoiceNumber}`}>
-                      <td className="py-2 pe-3 font-mono text-xs">{inv.invoiceNumber}</td>
+                      <td className="py-2 pe-3 tabular-nums text-xs">{inv.invoiceNumber}</td>
                       <td className="py-2 pe-3 text-muted-foreground hidden sm:table-cell"><DualDate date={inv.dueDate} inline /></td>
-                      <td className="py-2 pe-3 font-mono">{fmtNum(os)}</td>
+                      <td className="py-2 pe-3 tabular-nums">{fmtNum(os)}</td>
                       <td className="py-2">
                         <div className="flex items-center gap-1">
                           <Input
@@ -138,7 +138,7 @@ export function AllocateDialog({ source, open, onClose, customerName }: { source
                             aria-label={t(`Amount for ${inv.invoiceNumber}`, `المبلغ لـ ${inv.invoiceNumber}`)}
                             value={amounts[inv.id] ?? ""}
                             onChange={(e) => setAmounts((a) => ({ ...a, [inv.id]: e.target.value }))}
-                            className={`h-8 w-28 text-sm font-mono ${bad ? "border-destructive" : ""}`}
+                            className={`h-8 w-28 text-sm tabular-nums ${bad ? "border-destructive" : ""}`}
                           />
                           <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => fill(inv)}>{t("Fill", "تعبئة")}</Button>
                         </div>
@@ -154,9 +154,9 @@ export function AllocateDialog({ source, open, onClose, customerName }: { source
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm border-t border-border pt-3">
           <span className="text-muted-foreground">
-            {t("Allocating", "يُخصَّص")} <span className="font-mono text-foreground">{fmtNum(requested)}</span>
+            {t("Allocating", "يُخصَّص")} <span className="tabular-nums text-foreground">{fmtNum(requested)}</span>
             {" · "}
-            {t("left on account after", "المتبقي على الحساب بعده")} <span className={`font-mono ${remaining < -0.005 ? "text-destructive" : "text-foreground"}`} data-testid="allocate-remaining">{fmtNum(remaining)}</span>
+            {t("left on account after", "المتبقي على الحساب بعده")} <span className={`tabular-nums ${remaining < -0.005 ? "text-destructive" : "text-foreground"}`} data-testid="allocate-remaining">{fmtNum(remaining)}</span>
           </span>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>{t("Cancel", "إلغاء")}</Button>

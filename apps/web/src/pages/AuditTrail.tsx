@@ -12,7 +12,7 @@
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -54,7 +54,7 @@ const ACTION_STYLES: Record<string, string> = {
   create: "bg-positive-surface/20 text-positive",
   update: "bg-info-surface/20 text-info",
   delete: "bg-negative-surface/20 text-negative",
-  approve: "bg-violet-500/20 text-violet-400",
+  approve: "bg-primary/10 text-primary",
 };
 
 const PAGE_SIZE = 50;
@@ -84,108 +84,102 @@ export default function AuditTrail() {
   const resetPaging = () => setOffset(0);
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <ScrollText className="w-5 h-5" />
-          {t("Audit Trail", "سجل التدقيق")}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t(
+    <div className="space-y-6">
+      <PageHeader
+        title={t("Audit Trail", "سجل التدقيق")}
+        description={t(
             "Every change to this organization's records: who did it, when, from where, and what changed. This log is append-only — nothing here can be edited or deleted, including by admins.",
             "كل تغيير في سجلات هذه المؤسسة: من قام به ومتى ومن أين وما الذي تغيّر. هذا السجل للإضافة فقط — لا يمكن تعديل أو حذف أي شيء هنا، حتى من قبل المسؤولين.",
           )}
-        </p>
-      </div>
+      />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <CardTitle className="text-base">
-              {t("Entries", "الإدخالات")}
-              {total > 0 && <span className="text-muted-foreground font-normal"> · {total.toLocaleString()}</span>}
-            </CardTitle>
-            <div className="flex items-center gap-2">
+      <Panel
+        flush
+        title={
+          <span className="inline-flex items-center gap-2">
+            {t("Entries", "الإدخالات")}
+            {total > 0 && <span className="rounded bg-muted px-1.5 text-[12px] font-medium tabular-nums text-muted-foreground">{total.toLocaleString()}</span>}
+          </span>
+        }
+        actions={
+            <div className="flex flex-wrap items-center gap-2">
               <Select value={entityType} onValueChange={(v) => { setEntityType(v); resetPaging(); }}>
-                <SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-48 text-[13px] capitalize"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("All record types", "كل أنواع السجلات")}</SelectItem>
-                  {ENTITY_TYPES.map((e) => <SelectItem key={e} value={e}>{e.replace(/_/g, " ")}</SelectItem>)}
+                  {ENTITY_TYPES.map((e) => <SelectItem key={e} value={e} className="capitalize">{e.replace(/_/g, " ")}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={action} onValueChange={(v) => { setAction(v); resetPaging(); }}>
-                <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-36 text-[13px] capitalize"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("All actions", "كل الإجراءات")}</SelectItem>
-                  {ACTIONS.map((a) => <SelectItem key={a} value={a}>{a.replace(/_/g, " ")}</SelectItem>)}
+                  {ACTIONS.map((a) => <SelectItem key={a} value={a} className="capitalize">{a.replace(/_/g, " ")}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+        }
+      >
           {isLoading ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">{t("Loading…", "جارٍ التحميل…")}</p>
+            <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
           ) : logs.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              {t("No entries match these filters.", "لا توجد إدخالات مطابقة لهذه المرشحات.")}
-            </p>
+            <EmptyState icon={ScrollText} title={t("No entries match these filters.", "لا توجد إدخالات مطابقة لهذه المرشحات.")} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-start text-xs text-muted-foreground border-b border-border">
-                    <th className="pb-2 pe-2 w-6"></th>
-                    <th className="pb-2 pe-4">{t("When", "متى")}</th>
-                    <th className="pb-2 pe-4">{t("Who", "من")}</th>
-                    <th className="pb-2 pe-4">{t("Action", "الإجراء")}</th>
-                    <th className="pb-2 pe-4">{t("Record", "السجل")}</th>
-                    <th className="pb-2 pe-4">{t("From (IP)", "من (IP)")}</th>
+                  <tr className="border-b border-border">
+                    <th className="px-3 w-6"></th>
+                    <th className="px-3 text-start">{t("When", "متى")}</th>
+                    <th className="px-3 text-start">{t("Who", "من")}</th>
+                    <th className="px-3 text-start">{t("Action", "الإجراء")}</th>
+                    <th className="px-3 text-start">{t("Record", "السجل")}</th>
+                    <th className="px-3 text-start">{t("From (IP)", "من (IP)")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {logs.map((l) => (
                     <Fragment key={l.id}>
                       <tr
-                        className="border-b border-border/50 cursor-pointer hover:bg-secondary/30"
+                        className="border-b border-border/70 cursor-pointer hover:bg-muted/40 transition-colors"
                         onClick={() => setExpanded(expanded === l.id ? null : l.id)}
                       >
-                        <td className="py-2 pe-2 text-muted-foreground">
-                          {expanded === l.id ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        <td className="py-3 px-3 text-muted-foreground">
+                          {expanded === l.id ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5 rtl:-scale-x-100" />}
                         </td>
-                        <td className="py-2 pe-4 text-xs whitespace-nowrap">
+                        <td className="py-3 px-3 text-[13px] whitespace-nowrap">
                           <DualDate date={l.createdAt.slice(0, 10)} />
-                          <span className="text-muted-foreground ms-1">{l.createdAt.slice(11, 19)}</span>
+                          <span className="text-muted-foreground ms-2 inline-block tabular-nums" dir="ltr">{l.createdAt.slice(11, 19)}</span>
                         </td>
-                        <td className="py-2 pe-4">
+                        <td className="py-3 px-3">
                           {/* An unresolved actor stays a number, honestly —
                               never a name borrowed from outside this org. */}
                           {l.actorName ?? (l.userId != null ? `${t("User", "مستخدم")} #${l.userId}` : t("system", "النظام"))}
                         </td>
-                        <td className="py-2 pe-4">
-                          <Badge className={`text-xs ${ACTION_STYLES[l.action] ?? "bg-secondary text-muted-foreground"}`}>
+                        <td className="py-3 px-3">
+                          <Badge className={`text-xs capitalize ${ACTION_STYLES[l.action] ?? "bg-secondary text-muted-foreground"}`}>
                             {l.action.replace(/_/g, " ")}
                           </Badge>
                         </td>
-                        <td className="py-2 pe-4 font-mono text-xs">
-                          {l.entityType.replace(/_/g, " ")} <span className="text-muted-foreground">#{l.entityId}</span>
+                        <td className="py-3 px-3 text-[13px] whitespace-nowrap">
+                          <span className="capitalize">{l.entityType.replace(/_/g, " ")}</span> <span className="text-muted-foreground">#{l.entityId}</span>
                         </td>
-                        <td className="py-2 pe-4 font-mono text-xs text-muted-foreground">{l.ipAddress ?? "—"}</td>
+                        <td className="py-3 px-3 font-mono text-xs text-muted-foreground whitespace-nowrap" dir="ltr">{l.ipAddress ?? "—"}</td>
                       </tr>
                       {expanded === l.id && (
-                        <tr className="border-b border-border/50 bg-secondary/20">
+                        <tr className="border-b border-border/70 bg-muted/30">
                           <td></td>
-                          <td colSpan={5} className="py-3 pe-4">
+                          <td colSpan={5} className="py-3 px-3">
                             <div className="grid md:grid-cols-2 gap-3 text-xs">
                               <div>
                                 <p className="text-muted-foreground mb-1">{t("Before", "قبل")}</p>
-                                <pre className="bg-background rounded p-2 overflow-x-auto max-h-64 whitespace-pre-wrap break-all">
+                                <pre className="bg-background border border-border rounded-md p-2 overflow-x-auto max-h-64 whitespace-pre-wrap break-all">
                                   {l.beforeState ? JSON.stringify(l.beforeState, null, 2) : t("(nothing — the record was created)", "(لا شيء — أُنشئ السجل)")}
                                 </pre>
                               </div>
                               <div>
                                 <p className="text-muted-foreground mb-1">{t("After", "بعد")}</p>
-                                <pre className="bg-background rounded p-2 overflow-x-auto max-h-64 whitespace-pre-wrap break-all">
+                                <pre className="bg-background border border-border rounded-md p-2 overflow-x-auto max-h-64 whitespace-pre-wrap break-all">
                                   {l.afterState ? JSON.stringify(l.afterState, null, 2) : t("(nothing — the record was removed)", "(لا شيء — أُزيل السجل)")}
                                 </pre>
                               </div>
@@ -201,8 +195,8 @@ export default function AuditTrail() {
           )}
 
           {total > PAGE_SIZE && (
-            <div className="flex items-center justify-between pt-3">
-              <span className="text-xs text-muted-foreground">
+            <div className="flex items-center justify-between border-t border-border px-5 py-3 text-sm text-muted-foreground">
+              <span>
                 {t("Showing", "عرض")} {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} {t("of", "من")} {total.toLocaleString()}
               </span>
               <div className="flex gap-2">
@@ -215,8 +209,7 @@ export default function AuditTrail() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

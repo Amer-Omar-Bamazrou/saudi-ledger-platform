@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,13 +30,20 @@ function equityRows(d: BalanceSheetReport): ReportKeyedAmount[] {
   ];
 }
 
-function Section({ title, titleAr, color, rows, extra, total, priorRows, priorExtra, priorTotal }: {
-  title: string; titleAr: string; color: string; rows: ReportKeyedAmount[];
+/**
+ * One section of the statement as a <tbody>: a sentence-case heading row, the
+ * account lines indented beneath it, and the section total under a single
+ * rule (or a double rule when `grand` — total assets closes its side of the
+ * equation the way a printed statement does).
+ */
+function Section({ title, titleAr, rows, extra, total, priorRows, priorExtra, priorTotal, grand = false }: {
+  title: string; titleAr: string; rows: ReportKeyedAmount[];
   extra?: { label: string; labelAr: string; amount: number }[]; total: number;
   /** F7-cmp — when present, the section renders Prior / Δ / Δ% columns, merged by KEY. */
   priorRows?: ReportKeyedAmount[];
   priorExtra?: number[];
   priorTotal?: number;
+  grand?: boolean;
 }) {
   const { n, t } = useLanguage();
   const comparing = priorRows !== undefined;
@@ -47,45 +54,41 @@ function Section({ title, titleAr, color, rows, extra, total, priorRows, priorEx
     ...(priorRows ?? []).filter((p) => !currentKeys.has(p.key)).map((p) => ({ item: { ...p, amount: 0 }, prior: p.amount })),
   ];
 
+  const num = "py-2 px-3 text-end whitespace-nowrap tabular-nums";
   const cells = (current: number, prior: number) =>
     !comparing ? null : (
       <>
-        <span className="font-mono text-muted-foreground w-24 text-end shrink-0">{fmtNum(prior)}</span>
-        <span className="font-mono text-muted-foreground w-24 text-end shrink-0">{current - prior >= 0 ? "+" : ""}{fmtNum(current - prior)}</span>
-        <span className="font-mono text-muted-foreground w-16 text-end shrink-0">{fmtPctChange(current, prior)}</span>
+        <td className={`${num} text-muted-foreground`}>{fmtNum(prior)}</td>
+        <td className={`${num} text-muted-foreground`}>{current - prior >= 0 ? "+" : ""}{fmtNum(current - prior)}</td>
+        <td className={`${num} text-muted-foreground`}>{fmtPctChange(current, prior)}</td>
       </>
     );
 
   return (
-    <div className="space-y-1">
-      <div className={`text-xs font-bold uppercase tracking-widest py-2 px-2 rounded ${color}`}>{t(title, titleAr)}</div>
-      {comparing && (
-        <div className="flex justify-end gap-0 px-2 text-[10px] uppercase text-muted-foreground">
-          <span className="w-24 text-end shrink-0">{t("Prior", "السابق")}</span>
-          <span className="w-24 text-end shrink-0">Δ</span>
-          <span className="w-16 text-end shrink-0">Δ%</span>
-        </div>
-      )}
+    <tbody>
+      <tr>
+        <td colSpan={comparing ? 5 : 2} className="px-3 pt-6 pb-2 text-[13px] font-semibold text-foreground">{t(title, titleAr)}</td>
+      </tr>
       {merged.map(({ item, prior }) => (
-        <div key={item.key} className="flex justify-between items-center gap-2 py-1.5 px-2 hover:bg-secondary/10 rounded text-sm">
-          <span className="text-foreground flex-1">{n(item.name, item.nameAr)}</span>
-          <span className="font-mono w-24 text-end shrink-0">{fmtNum(item.amount)}</span>
+        <tr key={item.key} className="hover:bg-muted/40 transition-colors">
+          <td className="py-2 px-3 text-foreground"><span className="block ps-4">{n(item.name, item.nameAr)}</span></td>
+          <td className={num}>{fmtNum(item.amount)}</td>
           {cells(item.amount, prior)}
-        </div>
+        </tr>
       ))}
       {extra?.map((e, i) => (
-        <div key={`ex-${i}`} className="flex justify-between items-center gap-2 py-1.5 px-2 hover:bg-secondary/10 rounded text-sm">
-          <span className="text-foreground flex-1">{t(e.label, e.labelAr)}</span>
-          <span className="font-mono w-24 text-end shrink-0">{fmtNum(e.amount)}</span>
+        <tr key={`ex-${i}`} className="hover:bg-muted/40 transition-colors">
+          <td className="py-2 px-3 text-foreground"><span className="block ps-4">{t(e.label, e.labelAr)}</span></td>
+          <td className={num}>{fmtNum(e.amount)}</td>
           {cells(e.amount, priorExtra?.[i] ?? 0)}
-        </div>
+        </tr>
       ))}
-      <div className="flex justify-between items-center gap-2 py-2 px-2 border-t border-border font-bold text-sm mt-1">
-        <span className="text-muted-foreground uppercase text-xs tracking-wide flex-1">{t("Total", "الإجمالي")} {t(title, titleAr)}</span>
-        <span className="font-mono text-base w-24 text-end shrink-0">{fmtNum(total)}</span>
+      <tr className={`font-semibold ${grand ? "border-t-[3px] border-double border-foreground/55" : "border-t border-border"}`}>
+        <td className="py-2.5 px-3">{t("Total", "الإجمالي")} {t(title, titleAr)}</td>
+        <td className={`${num} py-2.5`}>{fmtNum(total)}</td>
         {cells(total, priorTotal ?? 0)}
-      </div>
-    </div>
+      </tr>
+    </tbody>
   );
 }
 
@@ -127,30 +130,28 @@ export default function BalanceSheet() {
   const balanced = data ? Math.abs(data.assets.total - totalLE) < 1 : false;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Balance Sheet", "الميزانية العمومية")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Assets = Liabilities + Equity · Statement of Financial Position", "الأصول = الخصوم + حقوق الملكية · قائمة المركز المالي")}</p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        title={t("Balance Sheet", "الميزانية العمومية")}
+        description={t("Assets = Liabilities + Equity · Statement of Financial Position", "الأصول = الخصوم + حقوق الملكية · قائمة المركز المالي")}
+        actions={data && (
+          <span className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-medium ${balanced ? "border-positive/30 bg-positive-surface/15 text-positive" : "border-negative/30 bg-negative-surface/15 text-negative"}`}>
+            {balanced ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+            {balanced ? t("Balanced", "متوازن") : t("Check entries", "تحقق من القيود")}
+          </span>
+        )}
+      />
 
-      <Card className="border-border bg-card">
-        <CardContent className="pt-4">
-          <div className="flex items-end gap-4">
-            <div><Label className="text-xs text-muted-foreground">{t("As of Date", "بتاريخ")}</Label><Input type="date" value={asOf} onChange={e=>setAsOf(e.target.value)} className="mt-1 h-8 text-sm w-44" /></div>
-            <Button size="sm" className="h-8" onClick={()=>setApplied(asOf)}>{t("Generate", "إنشاء")}</Button>
-            <CompareSelect value={compare} onChange={setCompare} />
-            <AsOfShortcuts value={asOf} onSelect={(d)=>{setAsOf(d);setApplied(d);}} />
-            {data && (
-              <div className={`flex items-center gap-2 ms-auto px-4 py-2 rounded-lg border ${balanced ? "border-positive-surface/30 bg-positive-surface/10" : "border-negative-surface/30 bg-negative-surface/10"}`}>
-                {balanced ? <CheckCircle className="w-4 h-4 text-positive" /> : <XCircle className="w-4 h-4 text-negative" />}
-                <span className={`text-sm font-medium ${balanced ? "text-positive" : "text-negative"}`}>{balanced ? t("Balanced", "متوازن") : t("Check entries", "تحقق من القيود")}</span>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <Panel>
+        <div className="flex flex-wrap items-end gap-3">
+          <div><Label className="text-xs text-muted-foreground">{t("As of Date", "بتاريخ")}</Label><Input type="date" value={asOf} onChange={e=>setAsOf(e.target.value)} className="mt-1 h-8 text-sm w-44" /></div>
+          <Button size="sm" className="h-8" onClick={()=>setApplied(asOf)}>{t("Generate", "إنشاء")}</Button>
+          <CompareSelect value={compare} onChange={setCompare} />
+        </div>
+        <div className="mt-3">
+          <AsOfShortcuts value={asOf} onSelect={(d)=>{setAsOf(d);setApplied(d);}} />
+        </div>
+      </Panel>
 
       {compare !== "off" && !prior && (
         <ComparisonUnavailable reason={t(
@@ -165,77 +166,62 @@ export default function BalanceSheet() {
 
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Generating balance sheet...", "جارٍ التحميل...")}</div> : !data ? null : (
         <>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              [t("Total Assets", "إجمالي الأصول"), fmtNum(data.assets.total), "text-info"],
-              [t("Total Liabilities", "إجمالي الخصوم"), fmtNum(data.liabilities.total), "text-attention"],
-              [t("Equity", "حقوق الملكية"), fmtNum(data.equity.total), "text-purple-400"],
-              [t("Liab + Equity", "الخصوم + حقوق الملكية"), fmtNum(totalLE), balanced ? "text-positive" : "text-negative"],
-            ].map(([l, v, c]) => (
-              <Card key={String(l)} className="border-border bg-card">
-                <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-                <CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent>
-              </Card>
-            ))}
-          </div>
+          <StatStrip cols={4}>
+            <Stat label={t("Total Assets", "إجمالي الأصول")} value={fmtNum(data.assets.total)} />
+            <Stat label={t("Total Liabilities", "إجمالي الخصوم")} value={fmtNum(data.liabilities.total)} />
+            <Stat label={t("Equity", "حقوق الملكية")} value={fmtNum(data.equity.total)} />
+            <Stat label={t("Liab + Equity", "الخصوم + حقوق الملكية")} value={fmtNum(totalLE)} tone={balanced ? "positive" : "negative"} />
+          </StatStrip>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="border-border bg-card">
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">{t("Assets", "الأصول")}</CardTitle></CardHeader>
-              <CardContent>
-                <Section
-                  title="Assets"
-                  titleAr="الأصول"
-                  color="bg-info-surface/10 text-info"
-                  rows={data.assets.items}
-                  extra={[{ label: "Accounts Receivable (AR)", labelAr: "ذمم مدينة (AR)", amount: data.assets.accountsReceivable }]}
-                  total={data.assets.total}
-                  priorRows={comparing ? priorData!.assets.items : undefined}
-                  priorExtra={comparing ? [priorData!.assets.accountsReceivable] : undefined}
-                  priorTotal={comparing ? priorData!.assets.total : undefined}
-                />
-              </CardContent>
-            </Card>
-
-            <div className="space-y-4">
-              <Card className="border-border bg-card">
-                <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">{t("Liabilities", "الخصوم")}</CardTitle></CardHeader>
-                <CardContent>
-                  <Section
-                    title="Liabilities"
-                    titleAr="الخصوم"
-                    color="bg-attention-surface/10 text-attention"
-                    rows={data.liabilities.items}
-                    extra={[{ label: "Accounts Payable (AP)", labelAr: "ذمم دائنة (AP)", amount: data.liabilities.accountsPayable }]}
-                    total={data.liabilities.total}
-                    priorRows={comparing ? priorData!.liabilities.items : undefined}
-                    priorExtra={comparing ? [priorData!.liabilities.accountsPayable] : undefined}
-                    priorTotal={comparing ? priorData!.liabilities.total : undefined}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-card">
-                <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">{t("Equity", "حقوق الملكية")}</CardTitle></CardHeader>
-                <CardContent>
-                  <Section
-                    title="Equity"
-                    titleAr="حقوق الملكية"
-                    color="bg-purple-500/10 text-purple-400"
-                    rows={equityRows(data)}
-                    total={data.equity.total}
-                    priorRows={comparing ? equityRows(priorData!) : undefined}
-                    priorTotal={comparing ? priorData!.equity.total : undefined}
-                  />
-                </CardContent>
-              </Card>
-
-              <div className={`rounded-lg px-4 py-3 border flex justify-between items-center ${balanced ? "bg-positive-surface/10 border-positive-surface/20" : "bg-negative-surface/10 border-negative-surface/20"}`}>
-                <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("Total Liabilities + Equity", "إجمالي الخصوم + حقوق الملكية")}</span>
-                <span className={`font-mono font-bold text-lg ${balanced ? "text-positive" : "text-negative"}`}>{fmtNum(totalLE)}</span>
-              </div>
-            </div>
-          </div>
+          <Panel flush title={t("Balance Sheet", "الميزانية العمومية")} description={`${t("As of Date", "بتاريخ")} ${fmtDate(applied)}`}>
+            <div className="overflow-x-auto"><table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-start px-3">{t("Account", "الحساب")}</th>
+                  <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+                  {comparing && <th className="text-end px-3">{t("Prior", "السابق")}</th>}
+                  {comparing && <th className="text-end px-3">Δ</th>}
+                  {comparing && <th className="text-end px-3">Δ%</th>}
+                </tr>
+              </thead>
+              <Section
+                title="Assets"
+                titleAr="الأصول"
+                grand
+                rows={data.assets.items}
+                extra={[{ label: "Accounts Receivable (AR)", labelAr: "ذمم مدينة (AR)", amount: data.assets.accountsReceivable }]}
+                total={data.assets.total}
+                priorRows={comparing ? priorData!.assets.items : undefined}
+                priorExtra={comparing ? [priorData!.assets.accountsReceivable] : undefined}
+                priorTotal={comparing ? priorData!.assets.total : undefined}
+              />
+              <Section
+                title="Liabilities"
+                titleAr="الخصوم"
+                rows={data.liabilities.items}
+                extra={[{ label: "Accounts Payable (AP)", labelAr: "ذمم دائنة (AP)", amount: data.liabilities.accountsPayable }]}
+                total={data.liabilities.total}
+                priorRows={comparing ? priorData!.liabilities.items : undefined}
+                priorExtra={comparing ? [priorData!.liabilities.accountsPayable] : undefined}
+                priorTotal={comparing ? priorData!.liabilities.total : undefined}
+              />
+              <Section
+                title="Equity"
+                titleAr="حقوق الملكية"
+                rows={equityRows(data)}
+                total={data.equity.total}
+                priorRows={comparing ? equityRows(priorData!) : undefined}
+                priorTotal={comparing ? priorData!.equity.total : undefined}
+              />
+              <tfoot>
+                <tr className={`font-semibold ${balanced ? "text-positive" : "text-negative"}`}>
+                  <td className="py-3.5 px-3">{t("Total Liabilities + Equity", "إجمالي الخصوم + حقوق الملكية")}</td>
+                  <td className="py-3.5 px-3 text-end whitespace-nowrap tabular-nums text-base">{fmtNum(totalLE)}</td>
+                  {comparing && <td colSpan={3} />}
+                </tr>
+              </tfoot>
+            </table></div>
+          </Panel>
         </>
       )}
     </div>

@@ -74,38 +74,38 @@ export function AdvanceInvoiceDialog({ payment, customerName, open, onClose }: {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1 rounded-md border border-border p-3 text-sm">
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Receipt", "الإيصال")}</span><span className="font-mono">{receiptNumber(payment.id)} · <span dir="ltr">{payment.paidAt}</span></span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Receipt", "الإيصال")}</span><span className="tabular-nums">{receiptNumber(payment.id)} · <span dir="ltr">{payment.paidAt}</span></span></div>
           <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Customer", "العميل")}</span><span>{customerName}</span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("VAT category", "فئة الضريبة")}</span><span className="font-mono">{category ?? "—"}</span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Not yet invoiced", "لم تُصدر فاتورته بعد")}</span><span className="font-mono" data-testid="advance-uninvoiced">{fmtNum(payment.uninvoicedAmount)}</span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("VAT category", "فئة الضريبة")}</span><span className="tabular-nums">{category ?? "—"}</span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Not yet invoiced", "لم تُصدر فاتورته بعد")}</span><span className="tabular-nums" data-testid="advance-uninvoiced">{fmtNum(payment.uninvoicedAmount)}</span></div>
         </div>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Amount (incl. VAT)", "المبلغ (شامل الضريبة)")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("Amount (incl. VAT)", "المبلغ (شامل الضريبة)")}</Label>
             <Input type="number" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1 h-9" data-testid="advance-amount" />
             {Number.isFinite(amountNum) && amountNum > 0 && (
               <p className="text-xs text-muted-foreground mt-1" data-testid="advance-split">
-                {t("Taxable", "الخاضع للضريبة")} <span className="font-mono">{fmtNum(taxable)}</span> · {t("VAT", "الضريبة")} {rate}% <span className="font-mono">{fmtNum(vat)}</span>
+                {t("Taxable", "الخاضع للضريبة")} <span className="tabular-nums">{fmtNum(taxable)}</span> · {t("VAT", "الضريبة")} {rate}% <span className="tabular-nums">{fmtNum(vat)}</span>
               </p>
             )}
             {amountNum > payment.uninvoicedAmount + 0.005 && <p className="text-xs text-destructive mt-1">{t("More than the part of this deposit not yet invoiced.", "أكثر من الجزء الذي لم تُصدر فاتورته من هذا العربون.")}</p>}
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Date (default: the receipt date — the tax point)", "التاريخ (الافتراضي: تاريخ الاستلام — نقطة الاستحقاق الضريبي)")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("Date (default: the receipt date — the tax point)", "التاريخ (الافتراضي: تاريخ الاستلام — نقطة الاستحقاق الضريبي)")}</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 h-9" data-testid="advance-date" />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Description", "الوصف")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("Description", "الوصف")}</Label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 h-9" placeholder={t("Advance payment received…", "دفعة مقدمة مستلمة…")} data-testid="advance-description" />
           </div>
           {category && category !== "S" && (
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-xs text-muted-foreground">{t("Exemption code", "رمز الإعفاء")}</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("Exemption code", "رمز الإعفاء")}</Label>
                 <Input value={exemptionCode} onChange={(e) => setExemptionCode(e.target.value)} className="mt-1 h-9" placeholder="VATEX-SA-…" />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">{t("Exemption reason", "سبب الإعفاء")}</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("Exemption reason", "سبب الإعفاء")}</Label>
                 <Input value={exemptionText} onChange={(e) => setExemptionText(e.target.value)} className="mt-1 h-9" />
               </div>
             </div>

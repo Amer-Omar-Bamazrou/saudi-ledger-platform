@@ -16,7 +16,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageCircleQuestion, Send } from "lucide-react";
@@ -73,17 +73,16 @@ export function AskYourBooks() {
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <MessageCircleQuestion className="h-4 w-4" />
+    <Panel
+      title={
+        <span className="flex items-center gap-2">
+          <MessageCircleQuestion className="h-4 w-4 text-muted-foreground" />
           {t("Ask your books", "اسأل دفاترك")}
-          <span className="text-xs font-normal text-muted-foreground">
-            {t("figures and projections from your own records — never advice", "أرقام وإسقاطات من سجلاتك — لا نصائح")}
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+        </span>
+      }
+      description={t("figures and projections from your own records — never advice", "أرقام وإسقاطات من سجلاتك — لا نصائح")}
+      bodyClassName="space-y-3"
+    >
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -101,14 +100,14 @@ export function AskYourBooks() {
             )}
           />
           <Button type="submit" disabled={askMut.isPending} className="gap-1 shrink-0">
-            <Send className="h-3.5 w-3.5" /> {t("Ask", "اسأل")}
+            <Send className="h-3.5 w-3.5 rtl:-scale-x-100" /> {t("Ask", "اسأل")}
           </Button>
         </form>
 
         {askMut.isPending && <p className="text-sm text-muted-foreground">{t("Reading your books…", "جارٍ قراءة دفاترك…")}</p>}
 
         {last && !askMut.isPending && (
-          <div className="rounded-md border p-3">
+          <div className="rounded-md border border-border bg-muted/30 p-4">
             {last.refused ? (
               <p className="text-sm text-muted-foreground">{refusalText(last)}</p>
             ) : (
@@ -116,7 +115,6 @@ export function AskYourBooks() {
             )}
           </div>
         )}
-      </CardContent>
-    </Card>
+    </Panel>
   );
 }

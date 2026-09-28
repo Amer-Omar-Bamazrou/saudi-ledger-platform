@@ -9,7 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { AskYourBooks } from "@/components/AskYourBooks";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel } from "@/components/kit";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { formatCurrency } from "@/lib/utils";
 /** Chart-axis ticks only — compact so a currency scale fits a phone; never for a figure a reader acts on. */
 const compactTick = (v: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(v);
 import { classifyChartState, type EmptyReason } from "@/lib/chartState";
-import { TrendingUp, TriangleAlert, Table as TableIcon } from "lucide-react";
+import { TriangleAlert, Table as TableIcon } from "lucide-react";
 import { businessToday } from "@workspace/shared";
 
 /**
@@ -53,6 +53,27 @@ const SERIES_2 = "#eb6834";
 /** Diverging poles for change (blue ↔ red), NOT the status palette. */
 const UP = "#2a78d6";
 const DOWN = "#e34948";
+
+/**
+ * Chart CHROME only — axes, grid, tooltip, legend text. These read the theme
+ * tokens so they sit quietly in light and dark alike; the SERIES colours above
+ * are the validated slots and are deliberately NOT tokens.
+ */
+const AXIS_TICK = { fontSize: 11, fill: "hsl(var(--muted-foreground))" };
+const AXIS_LINE = "hsl(var(--border))";
+const GRID_STROKE = "hsl(var(--border))";
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    background: "hsl(var(--popover))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: 6,
+    fontSize: 12,
+    color: "hsl(var(--popover-foreground))",
+  },
+  labelStyle: { color: "hsl(var(--muted-foreground))", marginBottom: 2 },
+  cursor: { stroke: "hsl(var(--border))" },
+};
+const LEGEND_STYLE = { fontSize: 12, color: "hsl(var(--muted-foreground))" };
 
 type Dim = "category" | "customer" | "vendor";
 
@@ -293,32 +314,29 @@ export default function Analytics() {
     <div className="space-y-6 max-w-5xl">
       {/* AI-6a — woven in per the hub decision; renders nothing while the assistant is dark. */}
       <AskYourBooks />
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-muted-foreground" />
-            {t("Analytics", "التحليلات")}
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {t(
-              "How the business is doing over time — and where the change came from.",
-              "كيف يسير أداء المنشأة عبر الزمن — ومن أين جاء التغيّر.",
-            )}
-          </p>
-        </div>
-        <div className="flex gap-1">
-          {[3, 6, 12, 24].map((n) => (
-            <Button
-              key={n}
-              size="sm"
-              variant={months === n ? "default" : "outline"}
-              onClick={() => setMonths(n)}
-            >
-              {t(`${n}m`, `${n} ش`)}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title={t("Analytics", "التحليلات")}
+        description={t(
+          "How the business is doing over time — and where the change came from.",
+          "كيف يسير أداء المنشأة عبر الزمن — ومن أين جاء التغيّر.",
+        )}
+        actions={
+          <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label={t("Range", "النطاق")}>
+            {[3, 6, 12, 24].map((n) => (
+              <Button
+                key={n}
+                size="sm"
+                variant={months === n ? "secondary" : "ghost"}
+                aria-pressed={months === n}
+                className="h-7 px-3 text-[13px] tabular-nums"
+                onClick={() => setMonths(n)}
+              >
+                {t(`${n}m`, `${n} ش`)}
+              </Button>
+            ))}
+          </div>
+        }
+      />
 
       {/*
         The summary sentence is WITHHELD when the newest point is unclaimable —
@@ -339,24 +357,24 @@ export default function Analytics() {
 
       {/* Absorbed from the Cockpit (A11), now bounded by the chart window. */}
       {summary && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatStrip cols={3}>
           {[
             { label: t("Income", "الدخل"), value: summary.totalIncome },
             { label: t("Expenses", "المصروفات"), value: summary.totalExpenses },
             { label: t("Net", "الصافي"), value: summary.netPosition },
           ].map((s) => (
-            <div key={s.label} className="rounded-md border border-border bg-secondary/20 p-3">
-              <p className="text-[11px] text-muted-foreground">
-                {s.label} · {window_.from} → {window_.to}
-              </p>
-              <p className="text-sm font-mono mt-0.5">{formatCurrency(s.value)}</p>
-            </div>
+            <Stat
+              key={s.label}
+              label={s.label}
+              value={formatCurrency(s.value)}
+              hint={<span className="tabular-nums" dir="ltr">{window_.from} → {window_.to}</span>}
+            />
           ))}
-        </div>
+        </StatStrip>
       )}
 
       {sparse && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           {t(
             "Only a couple of months of history so far — shown, but two points are not yet a trend.",
             "لا يتوفر سوى شهرين من السجل حتى الآن — معروضان، لكن نقطتين لا تشكلان اتجاهاً بعد.",
@@ -365,17 +383,14 @@ export default function Analytics() {
       )}
 
       {/* ── Chart 1: RATIOS (unitless) ─────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{t("Can you cover what's due?", "هل تغطي ما هو مستحق؟")}</CardTitle>
-          <CardDescription>
-            {t(
+      <Panel
+          title={<>{t("Can you cover what's due?", "هل تغطي ما هو مستحق؟")}</>}
+          description={<>{t(
               "Above 1 means short-term assets cover short-term obligations. A rule of thumb, not a pass mark — it varies by industry.",
               "أعلى من 1 يعني أن الأصول قصيرة الأجل تغطي الالتزامات قصيرة الأجل. قاعدة استرشادية لا معيار نجاح — وتختلف حسب القطاع.",
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="h-[260px]">
+            )}</>}
+        >
+        <div className="h-[260px]">
           {ratioState ? (
             <div className="h-full flex items-center justify-center text-center px-6">
               <p className="text-sm text-muted-foreground max-w-md">{emptyMessage(ratioState)}</p>
@@ -383,13 +398,13 @@ export default function Analytics() {
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={series} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} width={44} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                <XAxis dataKey="period" tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} />
+                <YAxis tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} axisLine={false} width={44} />
+                <Tooltip {...TOOLTIP_STYLE} />
+                <Legend wrapperStyle={LEGEND_STYLE} />
                 {/* The rule-of-thumb line — neutral, never a status colour. */}
-                <ReferenceLine y={1} stroke="currentColor" strokeDasharray="4 4" opacity={0.35} />
+                <ReferenceLine y={1} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" opacity={0.6} />
                 <Line
                   type="monotone" dataKey="currentRatio" name={t("Current ratio", "النسبة المتداولة")}
                   stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
@@ -401,18 +416,15 @@ export default function Analytics() {
               </LineChart>
             </ResponsiveContainer>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {/* ── Chart 2: MONEY (SAR) — a SEPARATE chart, never a second y-axis ── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{t("What you hold and what you owe", "ما تملكه وما عليك")}</CardTitle>
-          <CardDescription>
-            {t("Short-term assets against short-term obligations.", "الأصول قصيرة الأجل مقابل الالتزامات قصيرة الأجل.")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="h-[260px]">
+      <Panel
+          title={<>{t("What you hold and what you owe", "ما تملكه وما عليك")}</>}
+          description={<>{t("Short-term assets against short-term obligations.", "الأصول قصيرة الأجل مقابل الالتزامات قصيرة الأجل.")}</>}
+        >
+        <div className="h-[260px]">
           {moneyState ? (
             <div className="h-full flex items-center justify-center text-center px-6">
               <p className="text-sm text-muted-foreground max-w-md">{emptyMessage(moneyState)}</p>
@@ -420,14 +432,14 @@ export default function Analytics() {
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={series} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                <XAxis dataKey="period" tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} />
                 {/* Axis ticks are a SCALE, not a figure: compact ("12K") so they fit the axis at
                     phone width; the full SAR value lives in the tooltip. The 2026-09-15 money
                     guard caught "SAR 12,000.00" clipped inside a 64px axis once the seed had real cash. */}
-                <YAxis tick={{ fontSize: 11 }} width={44} tickFormatter={(v) => compactTick(Number(v))} />
-                <Tooltip formatter={(v) => formatCurrency(Number(v))} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <YAxis tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} axisLine={false} width={44} tickFormatter={(v) => compactTick(Number(v))} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={(v) => formatCurrency(Number(v))} />
+                <Legend wrapperStyle={LEGEND_STYLE} />
                 <Line
                   type="monotone" dataKey="currentAssets" name={t("Current assets", "الأصول المتداولة")}
                   stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }} connectNulls={false}
@@ -439,27 +451,22 @@ export default function Analytics() {
               </LineChart>
             </ResponsiveContainer>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {/* ── Cash: the ledger is cash; the statement is the reconciliation ───
            A — GL owns cash (2026-08-17): transfers post now, so this stopped
            being "two numbers, neither authoritative". Both are money, so one
            axis is honest — and each remaining difference is a stated,
            deliberate reason, not a disagreement. ─────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            {t("Cash: the books, reconciled to the bank", "النقد: الدفاتر مطابَقةً مع البنك")}
-          </CardTitle>
-          <CardDescription>
-            {t(
+      <Panel
+          title={<>{t("Cash: the books, reconciled to the bank", "النقد: الدفاتر مطابَقةً مع البنك")}</>}
+          description={<>{t(
               "Ledger cash is your cash figure — every accepted bank line and every recorded payment posts to it. Bank movement is what your statement shows, and where the two differ, each reason is listed below.",
               "نقد الدفاتر هو رقم نقديتك — كل حركة بنكية مقبولة وكل دفعة مسجلة تُرحَّل إليه. حركة البنك هي ما يظهره كشف حسابك، وحيثما اختلفا فالأسباب مذكورة أدناه.",
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="h-[260px]">
+            )}</>}
+        >
+        <div className="h-[260px]">
           {cashState ? (
             <div className="h-full flex items-center justify-center text-center px-6">
               <p className="text-sm text-muted-foreground max-w-md">
@@ -474,13 +481,13 @@ export default function Analytics() {
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={cash?.points ?? []} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} width={64} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                <XAxis dataKey="period" tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} />
+                <YAxis tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} axisLine={false} width={64} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
+                <Legend wrapperStyle={LEGEND_STYLE} />
                 {/* Zero matters here: a month can move cash either way. */}
-                <ReferenceLine y={0} stroke="currentColor" strokeDasharray="4 4" opacity={0.35} />
+                <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" opacity={0.6} />
                 <Line
                   type="monotone" dataKey="bankMovement"
                   name={t("Bank movement", "حركة البنك")}
@@ -494,32 +501,32 @@ export default function Analytics() {
               </LineChart>
             </ResponsiveContainer>
           )}
-        </CardContent>
+        </div>
 
         {cash && (cash.gap !== 0 || cash.items.length > 0) && (
-          <CardContent className="pt-0">
-            <div className="rounded-md border border-border bg-secondary/20 p-3 text-sm">
+          <div className="mt-5 border-t border-border pt-4">
+            <div className="text-sm">
               <div className="flex items-baseline justify-between gap-4 flex-wrap">
-                <span className="text-muted-foreground text-xs">
+                <span className="text-muted-foreground text-[13px]">
                   {t("Bank movement", "حركة البنك")}
                 </span>
-                <span className="font-mono text-xs">{formatCurrency(cash.bankMovement)}</span>
+                <span className="tabular-nums">{formatCurrency(cash.bankMovement)}</span>
               </div>
-              <div className="flex items-baseline justify-between gap-4 flex-wrap mt-1">
-                <span className="text-muted-foreground text-xs">
+              <div className="flex items-baseline justify-between gap-4 flex-wrap mt-1.5">
+                <span className="text-muted-foreground text-[13px]">
                   {t("Ledger cash", "نقد الدفاتر")}
                 </span>
-                <span className="font-mono text-xs">{formatCurrency(cash.ledgerCash)}</span>
+                <span className="tabular-nums">{formatCurrency(cash.ledgerCash)}</span>
               </div>
 
-              <p className="text-xs text-muted-foreground mt-3 mb-1">
+              <p className="text-[13px] font-medium mt-4 mb-1.5">
                 {t("The difference, in full:", "الفارق، بالكامل:")}
               </p>
-              <ul className="space-y-1">
+              <ul className="divide-y divide-border/70 border-y border-border/70">
                 {cash.items.map((item) => (
-                  <li key={item.code} className="flex items-baseline justify-between gap-4">
-                    <span className="text-xs">{gapLabel(item.code)}</span>
-                    <span className="font-mono text-xs">{formatCurrency(item.amount)}</span>
+                  <li key={item.code} className="flex items-baseline justify-between gap-4 py-2">
+                    <span className="text-[13px]">{gapLabel(item.code)}</span>
+                    <span className="tabular-nums whitespace-nowrap">{formatCurrency(item.amount)}</span>
                   </li>
                 ))}
               </ul>
@@ -551,7 +558,7 @@ export default function Analytics() {
                 list in one click.
               */}
               {Math.abs(cash.undeclaredTransfers) >= 0.005 && (
-                <p className="text-xs mt-3">
+                <p className="text-[13px] mt-3">
                   {t(
                     `${formatCurrency(cash.undeclaredTransfers)} of transfers have not been classified. They are in your books under "Transfers awaiting declaration" — say whether each moved between your own accounts or left the business, on the Transactions page.`,
                     `لم يُصنّف ${formatCurrency(cash.undeclaredTransfers)} من التحويلات. وهي مسجلة في دفاترك تحت «تحويلات بانتظار الإقرار» — حدّد لكل منها إن كان انتقل بين حساباتك أم خرج من المنشأة، من صفحة المعاملات.`,
@@ -559,33 +566,28 @@ export default function Analytics() {
                 </p>
               )}
 
-              <p className="text-[11px] text-muted-foreground mt-3">
+              <p className="text-xs text-muted-foreground mt-3">
                 {t(
                   "The books are the cash figure. This comparison shows where the bank statement differs, and why.",
                   "الدفاتر هي رقم النقدية. تُظهر هذه المقارنة أين يختلف كشف الحساب البنكي عنها، ولماذا.",
                 )}
               </p>
             </div>
-          </CardContent>
+          </div>
         )}
-      </Card>
+      </Panel>
 
       {/* ── Chart 3: RECEIVABLES FLOWS — invoiced vs collected (M19.6) ─────
            Two series, ONE axis: both are money, so a single scale is honest
            and the gap between the lines is the point. ────────────────────── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            {t("Invoiced against collected", "المفوتر مقابل المحصّل")}
-          </CardTitle>
-          <CardDescription>
-            {t(
+      <Panel
+          title={<>{t("Invoiced against collected", "المفوتر مقابل المحصّل")}</>}
+          description={<>{t(
               "What you billed each month, and what actually came in. The gap is work done but not yet paid for — it is timing, not a loss.",
               "ما فوترته كل شهر وما تم تحصيله فعلياً. الفارق هو عمل أُنجز ولم يُدفع بعد — توقيت وليس خسارة.",
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="h-[260px]">
+            )}</>}
+        >
+        <div className="h-[260px]">
           {flowsState ? (
             <div className="h-full flex items-center justify-center text-center px-6">
               <p className="text-sm text-muted-foreground max-w-md">
@@ -600,11 +602,11 @@ export default function Analytics() {
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={bridgeSeries} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} width={64} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                <XAxis dataKey="period" tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} />
+                <YAxis tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} axisLine={false} width={64} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
+                <Legend wrapperStyle={LEGEND_STYLE} />
                 <Line
                   type="monotone" dataKey="invoiced" name={t("Invoiced", "المفوتر")}
                   stroke={SERIES_1} strokeWidth={2} dot={{ r: 3 }}
@@ -623,26 +625,21 @@ export default function Analytics() {
               </LineChart>
             </ResponsiveContainer>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {/* ── Chart 4: RECEIVABLES OUTSTANDING — the STOCK, on its own canvas ──
            Deliberately not overlaid on the flows above. A stock and a flow
            share a unit but not a meaning, and drawing them together invites the
            reader to compare a balance with a monthly movement. ───────────── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            {t("Owed to you, month by month", "المستحق لك، شهراً بشهر")}
-          </CardTitle>
-          <CardDescription>
-            {t(
+      <Panel
+          title={<>{t("Owed to you, month by month", "المستحق لك، شهراً بشهر")}</>}
+          description={<>{t(
               "The receivables balance at each month end — the same figure the balance sheet shows for that date.",
               "رصيد الذمم المدينة في نهاية كل شهر — نفس الرقم الذي تعرضه الميزانية العمومية لذلك التاريخ.",
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="h-[220px]">
+            )}</>}
+        >
+        <div className="h-[220px]">
           {outstandingState ? (
             <div className="h-full flex items-center justify-center text-center px-6">
               <p className="text-sm text-muted-foreground max-w-md">
@@ -657,10 +654,10 @@ export default function Analytics() {
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={bridgeSeries} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} width={64} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                <XAxis dataKey="period" tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} />
+                <YAxis tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} axisLine={false} width={64} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
                 {/* One series — the title names it, so no legend box (dataviz). */}
                 <Line
                   type="monotone" dataKey="outstanding" name={t("Outstanding", "المستحق")}
@@ -669,57 +666,55 @@ export default function Analytics() {
               </LineChart>
             </ResponsiveContainer>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {/* ── The bridge itself: the identity, as numbers ────────────────────── */}
       {bridge && bridge.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">
-              {t("Why the balance moved", "لماذا تغيّر الرصيد")}
-            </CardTitle>
-            <CardDescription>
-              {t(
-                "Opening + invoiced − collected − credited = closing. Every figure is a movement on the receivables account, so the row always adds up.",
-                "الافتتاحي + المفوتر − المحصّل − إشعارات الدائن = الختامي. كل رقم حركة على حساب الذمم المدينة، لذا يتوازن السطر دائماً.",
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
+        <Panel
+          flush
+          title={t("Why the balance moved", "لماذا تغيّر الرصيد")}
+          description={t(
+            "Opening + invoiced − collected − credited = closing. Every figure is a movement on the receivables account, so the row always adds up.",
+            "الافتتاحي + المفوتر − المحصّل − إشعارات الدائن = الختامي. كل رقم حركة على حساب الذمم المدينة، لذا يتوازن السطر دائماً.",
+          )}
+        >
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-muted-foreground border-b border-border">
-                  <th className="py-2 pr-3 font-medium">{t("Month", "الشهر")}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t("Opening", "الافتتاحي")}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t("Invoiced", "المفوتر")}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t("Collected", "المحصّل")}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t("Credited", "إشعارات دائن")}</th>
+                <tr className="border-b border-border">
+                  <th className="px-3 text-start">{t("Month", "الشهر")}</th>
+                  <th className="px-3 text-end">{t("Opening", "الافتتاحي")}</th>
+                  <th className="px-3 text-end">{t("Invoiced", "المفوتر")}</th>
+                  <th className="px-3 text-end">{t("Collected", "المحصّل")}</th>
+                  <th className="px-3 text-end">{t("Credited", "إشعارات دائن")}</th>
                   {bridgeOther !== 0 && (
-                    <th className="py-2 px-3 font-medium text-right">{t("Other", "أخرى")}</th>
+                    <th className="px-3 text-end">{t("Other", "أخرى")}</th>
                   )}
-                  <th className="py-2 pl-3 font-medium text-right">{t("Closing", "الختامي")}</th>
+                  <th className="px-3 text-end">{t("Closing", "الختامي")}</th>
                 </tr>
               </thead>
-              <tbody className="font-mono text-xs">
+              <tbody>
                 {bridge.map((p) => (
-                  <tr key={p.period} className="border-b border-border/50">
-                    <td className="py-1.5 pr-3 font-sans">{p.period}</td>
-                    <td className="py-1.5 px-3 text-right">{formatCurrency(p.opening)}</td>
-                    <td className="py-1.5 px-3 text-right">{formatCurrency(p.invoiced)}</td>
-                    <td className="py-1.5 px-3 text-right">{formatCurrency(p.collected)}</td>
-                    <td className="py-1.5 px-3 text-right">{formatCurrency(p.credited)}</td>
+                  <tr key={p.period} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                    <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">{p.period}</td>
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{formatCurrency(p.opening)}</td>
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{formatCurrency(p.invoiced)}</td>
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{formatCurrency(p.collected)}</td>
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{formatCurrency(p.credited)}</td>
                     {bridgeOther !== 0 && (
-                      <td className="py-1.5 px-3 text-right">{formatCurrency(p.other)}</td>
+                      <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{formatCurrency(p.other)}</td>
                     )}
-                    <td className="py-1.5 pl-3 text-right font-semibold">
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums font-semibold">
                       {formatCurrency(p.closing)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
 
+          <div className="space-y-2 px-5 py-4">
             {/*
               🔴 Shown ONLY when non-zero, and named rather than absorbed. A
               write-off or an offset is neither a payment nor a credit note;
@@ -727,7 +722,7 @@ export default function Analytics() {
               did not understand as one it did.
             */}
             {bridgeOther !== 0 && (
-              <p className="text-xs text-muted-foreground mt-3">
+              <p className="text-[13px] text-muted-foreground">
                 {t(
                   "Other is a movement on receivables that was neither a payment nor a credit note — a write-off or an offset. It is listed separately rather than assumed.",
                   "«أخرى» حركة على الذمم المدينة ليست دفعة ولا إشعار دائن — شطب أو مقاصة. تُعرض منفصلة بدلاً من افتراضها.",
@@ -743,49 +738,48 @@ export default function Analytics() {
               any month but today. Approximating it would put a number under
               "overdue" that the ledger cannot support.
             */}
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-[13px] text-muted-foreground">
               {t(
                 "How much of this is overdue is shown for today on the AR Aging report. Historically it cannot be derived, because payment dates are not kept per instalment.",
                 "نسبة المتأخر من هذا تظهر لليوم في تقرير أعمار الذمم المدينة. أما تاريخياً فلا يمكن اشتقاقها، لأن تواريخ الدفعات الجزئية غير محفوظة.",
               )}
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
       )}
 
       {/* ── Decomposition: WHERE, never WHY ────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <CardTitle className="text-base">{t("Where the change came from", "من أين جاء التغيّر")}</CardTitle>
-              <CardDescription>
-                {decomp
-                  ? t(
-                      `${decompWindow.from} to ${decompWindow.to}, against the same length before it.`,
-                      `من ${decompWindow.from} إلى ${decompWindow.to}، مقارنةً بالفترة المماثلة قبلها.`,
-                    )
-                  : ""}
-              </CardDescription>
-            </div>
-            <div className="flex gap-1">
-              {(["category", "customer", "vendor"] as Dim[]).map((d) => (
-                <Button
-                  key={d}
-                  size="sm"
-                  variant={dimension === d ? "default" : "outline"}
-                  onClick={() => setDimension(d)}
-                >
-                  {t(
-                    d === "category" ? "Category" : d === "customer" ? "Customer" : "Vendor",
-                    d === "category" ? "الفئة" : d === "customer" ? "العميل" : "المورّد",
-                  )}
-                </Button>
-              ))}
-            </div>
+      <Panel
+        title={t("Where the change came from", "من أين جاء التغيّر")}
+        description={
+          decomp
+            ? t(
+                `${decompWindow.from} to ${decompWindow.to}, against the same length before it.`,
+                `من ${decompWindow.from} إلى ${decompWindow.to}، مقارنةً بالفترة المماثلة قبلها.`,
+              )
+            : ""
+        }
+        actions={
+          <div className="inline-flex rounded-md border border-border p-0.5" role="group">
+            {(["category", "customer", "vendor"] as Dim[]).map((d) => (
+              <Button
+                key={d}
+                size="sm"
+                variant={dimension === d ? "secondary" : "ghost"}
+                aria-pressed={dimension === d}
+                className="h-7 px-3 text-[13px]"
+                onClick={() => setDimension(d)}
+              >
+                {t(
+                  d === "category" ? "Category" : d === "customer" ? "Customer" : "Vendor",
+                  d === "category" ? "الفئة" : d === "customer" ? "العميل" : "المورّد",
+                )}
+              </Button>
+            ))}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        }
+        bodyClassName="space-y-3"
+      >
           {decomp && decomp.contributors.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {t("Nothing moved in this period.", "لم يطرأ أي تغيّر في هذه الفترة.")}
@@ -815,11 +809,11 @@ export default function Analytics() {
                     layout="vertical"
                     margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.15} horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v) => formatCurrency(Number(v))} />
-                    <ReferenceLine x={0} stroke="currentColor" opacity={0.4} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
+                    <XAxis type="number" tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={140} tick={AXIS_TICK} stroke={AXIS_LINE} tickLine={false} />
+                    <Tooltip {...TOOLTIP_STYLE} formatter={(v) => formatCurrency(Number(v))} />
+                    <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" opacity={0.6} />
                     <Bar dataKey="change" radius={[0, 4, 4, 0]} name={t("Change", "التغيّر")}>
                       {decomp.contributors.slice(0, 8).map((c) => (
                         <Cell key={c.id} fill={c.change >= 0 ? UP : DOWN} />
@@ -830,14 +824,14 @@ export default function Analytics() {
               </div>
             </>
           ) : null}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {/* ── Budget vs actual — ANNUAL, and it says so (M19.5) ─────────────── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{t("Against budget", "مقارنةً بالميزانية")}</CardTitle>
-          <CardDescription>
+      <Panel
+        flush
+        title={t("Against budget", "مقارنةً بالميزانية")}
+        description={
+          <>
             {/*
               🔴 The limitation is stated, not implied by an empty axis.
               Budgets are annual; a monthly budget line would have to be
@@ -848,11 +842,11 @@ export default function Analytics() {
               `Budgets are set per year, so this compares the whole of ${budgetYear} — not the range selected above.`,
               `تُحدَّد الميزانيات سنوياً، لذا تقارن هذه البطاقة عام ${budgetYear} بأكمله — وليس النطاق المحدد أعلاه.`,
             )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </>
+        }
+      >
           {budgetRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground px-5 py-6">
               {t(
                 `No budgets are set for ${budgetYear}. Set them in Planning → Budgets and this fills in.`,
                 `لم تُحدَّد ميزانيات لعام ${budgetYear}. حدِّدها من التخطيط ← الميزانيات وسيظهر المحتوى.`,
@@ -861,29 +855,29 @@ export default function Analytics() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground uppercase border-b">
-                  <tr>
-                    <th className="px-2 py-2 text-left">{t("Category", "الفئة")}</th>
-                    <th className="px-2 py-2 text-right">{t("Budgeted", "المُدرج")}</th>
-                    <th className="px-2 py-2 text-right">{t("Actual", "الفعلي")}</th>
-                    <th className="px-2 py-2 text-right">{t("Difference", "الفرق")}</th>
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="px-3 text-start">{t("Category", "الفئة")}</th>
+                    <th className="px-3 text-end">{t("Budgeted", "المُدرج")}</th>
+                    <th className="px-3 text-end">{t("Actual", "الفعلي")}</th>
+                    <th className="px-3 text-end">{t("Difference", "الفرق")}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody>
                   {budgetRows.map((b) => (
-                    <tr key={b.id}>
-                      <td className="px-2 py-2">{b.categoryName ?? b.name ?? "—"}</td>
-                      <td className="px-2 py-2 text-right font-mono text-xs">{formatCurrency(b.budgetedAmount)}</td>
-                      <td className="px-2 py-2 text-right font-mono text-xs">{formatCurrency(b.actualAmount)}</td>
+                    <tr key={b.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                      <td className="py-2.5 px-3">{b.categoryName ?? b.name ?? "—"}</td>
+                      <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{formatCurrency(b.budgetedAmount)}</td>
+                      <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{formatCurrency(b.actualAmount)}</td>
                       {/*
                         Neutral ink, never the status palette: over budget is a
                         judgment about a plan, not a system state, and a plan
                         may have been wrong.
                       */}
-                      <td className="px-2 py-2 text-right font-mono text-xs">
+                      <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">
                         {b.variance < 0 ? "+" : ""}
                         {formatCurrency(Math.abs(b.variance))}
-                        <span className="text-muted-foreground ml-1">
+                        <span className="text-muted-foreground ms-1 text-[13px]">
                           {b.variance < 0 ? t("over", "تجاوز") : t("left", "متبقٍ")}
                         </span>
                       </td>
@@ -893,42 +887,42 @@ export default function Analytics() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {/* ── The table view. Required, not optional: an accountant wants the
            numbers, and it is the accessibility fallback for every chart. ──── */}
       <div>
         <Button variant="outline" size="sm" onClick={() => setShowTable((s) => !s)}>
-          <TableIcon className="w-3.5 h-3.5 mr-1.5" />
+          <TableIcon className="w-3.5 h-3.5 me-1.5" />
           {showTable ? t("Hide the numbers", "إخفاء الأرقام") : t("Show the numbers", "عرض الأرقام")}
         </Button>
         {showTable && trend && (
-          <div className="mt-3 border rounded-lg overflow-x-auto">
+          <Panel flush className="mt-3">
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b">
-                <tr>
-                  <th className="px-4 py-2 text-left">{t("Month", "الشهر")}</th>
-                  <th className="px-4 py-2 text-right">{t("Current assets", "الأصول المتداولة")}</th>
-                  <th className="px-4 py-2 text-right">{t("Due within a year", "المستحق خلال سنة")}</th>
-                  <th className="px-4 py-2 text-right">{t("Current", "المتداولة")}</th>
-                  <th className="px-4 py-2 text-right">{t("Quick", "السريعة")}</th>
-                  <th className="px-4 py-2 text-left">{t("Reliable?", "موثوق؟")}</th>
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-3 text-start">{t("Month", "الشهر")}</th>
+                  <th className="px-3 text-end">{t("Current assets", "الأصول المتداولة")}</th>
+                  <th className="px-3 text-end">{t("Due within a year", "المستحق خلال سنة")}</th>
+                  <th className="px-3 text-end">{t("Current", "المتداولة")}</th>
+                  <th className="px-3 text-end">{t("Quick", "السريعة")}</th>
+                  <th className="px-3 text-start">{t("Reliable?", "موثوق؟")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {trend.map((p) => (
-                  <tr key={p.period}>
-                    <td className="px-4 py-2 font-mono text-xs">{p.period}</td>
-                    <td className="px-4 py-2 text-right font-mono text-xs">{formatCurrency(p.currentAssets)}</td>
-                    <td className="px-4 py-2 text-right font-mono text-xs">{formatCurrency(p.currentLiabilities)}</td>
-                    <td className="px-4 py-2 text-right font-mono text-xs">{p.currentRatio ?? "—"}</td>
-                    <td className="px-4 py-2 text-right font-mono text-xs">{p.quickRatio ?? "—"}</td>
-                    <td className="px-4 py-2 text-xs">
+                  <tr key={p.period} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                    <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">{p.period}</td>
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{formatCurrency(p.currentAssets)}</td>
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{formatCurrency(p.currentLiabilities)}</td>
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{p.currentRatio ?? "—"}</td>
+                    <td className="py-2.5 px-3 text-end whitespace-nowrap tabular-nums">{p.quickRatio ?? "—"}</td>
+                    <td className="py-2.5 px-3 text-[13px]">
                       {p.claimable ? (
                         <span className="text-muted-foreground">{t("yes", "نعم")}</span>
                       ) : (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-[11px] font-normal">
                           {p.blockers[0]?.code === "suspense_balance"
                             ? t("unidentified money", "مبالغ غير محددة")
                             : t("unclassified accounts", "حسابات غير مصنفة")}
@@ -940,6 +934,7 @@ export default function Analytics() {
               </tbody>
             </table>
           </div>
+          </Panel>
         )}
       </div>
     </div>

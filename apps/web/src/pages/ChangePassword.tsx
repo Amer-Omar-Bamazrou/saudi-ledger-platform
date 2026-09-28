@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,18 +41,16 @@ export default function ChangePassword() {
   };
 
   return (
-    <div className="max-w-md space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("Change Password", "تغيير كلمة المرور")}</h1>
-        <p className="text-muted-foreground text-sm mt-1">{t("Update the password for", "تحديث كلمة المرور للحساب")} {user?.email}</p>
-      </div>
+    <div className="max-w-lg space-y-6">
+      <PageHeader
+        title={t("Change Password", "تغيير كلمة المرور")}
+        description={<>{t("Update the password for", "تحديث كلمة المرور للحساب")} <span className="text-foreground" dir="ltr">{user?.email}</span></>}
+      />
 
-      <Card className="border-border bg-card">
-        <CardHeader>
-          <CardTitle className="text-base">{t("New password", "كلمة المرور الجديدة")}</CardTitle>
-          <CardDescription>{t("You'll remain logged in after changing your password.", "ستظل مسجل الدخول بعد تغيير كلمة المرور.")}</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <Panel
+        title={t("New password", "كلمة المرور الجديدة")}
+        description={t("You'll remain logged in after changing your password.", "ستظل مسجل الدخول بعد تغيير كلمة المرور.")}
+      >
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
             {success && (
@@ -83,12 +81,13 @@ export default function ChangePassword() {
                 value={confirm} onChange={e => setConfirm(e.target.value)} required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? t("Updating…", "جارٍ التحديث…") : t("Change password", "تغيير كلمة المرور")}
-            </Button>
+            <div className="flex justify-end pt-1">
+              <Button type="submit" disabled={loading}>
+                {loading ? t("Updating…", "جارٍ التحديث…") : t("Change password", "تغيير كلمة المرور")}
+              </Button>
+            </div>
           </form>
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

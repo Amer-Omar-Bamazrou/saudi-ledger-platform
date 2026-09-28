@@ -3,11 +3,11 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useDeployment } from "@/hooks/useDeployment";
-import { Badge } from "@/components/ui/badge";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 import { NAV_TREE, type NavEntry, type NavSection } from "@/nav/tree";
-import { ChevronDown, ChevronRight, LogOut, Languages, Clock, Menu, X } from "lucide-react";
+import { ChevronDown, LogOut, Languages, Clock, Menu, X, Moon, Sun } from "lucide-react";
 
 /**
  * 🔴 THE NAVIGATION IS NO LONGER DEFINED HERE. It lives in `@/nav/tree`, as
@@ -36,12 +36,6 @@ import { ChevronDown, ChevronRight, LogOut, Languages, Clock, Menu, X } from "lu
  */
 const DEMO_HIDDEN = new Set(["/zatca"]);
 
-const ROLE_COLOR: Record<string, string> = {
-  admin:      "bg-attention-surface/20 text-attention border-attention-surface/30",
-  accountant: "bg-info-surface/20 text-info border-info-surface/30",
-  viewer:     "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
-};
-
 const ROLE_AR: Record<string, string> = {
   admin: "مدير", accountant: "محاسب", viewer: "مشاهد",
 };
@@ -57,37 +51,49 @@ const ROLE_AR: Record<string, string> = {
  * `window.location.search`, so "Issued" lights up on `/invoices?status=sent`
  * and does not on `/invoices?status=paid`.
  */
+function isEntryActive(entry: NavEntry, location: string, search: string): boolean {
+  const [path, query] = entry.href.split("?");
+  return location === path && (query ? search === `?${query}` : !search.includes("status="));
+}
+
 function NavLink({
   entry,
   location,
   search,
   lang,
   depth,
+  suppressActive = false,
 }: {
   entry: NavEntry;
   location: string;
   search: string;
   lang: "en" | "ar";
   depth: number;
+  /** A parent whose CHILD is the current page: the child owns the tab. */
+  suppressActive?: boolean;
 }) {
   const Icon = entry.icon;
-  const [path, query] = entry.href.split("?");
-  const isActive =
-    location === path && (query ? search === `?${query}` : !search.includes("status="));
+  const isActive = !suppressActive && isEntryActive(entry, location, search);
 
   return (
     <Link
       href={entry.href}
       data-nav-marker={entry.marker}
+      aria-current={isActive ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-md text-sm transition-colors",
-        depth === 0 ? "px-3 py-2 font-medium gap-3" : "ps-9 pe-3 py-1.5 text-[13px]",
+        // Every entry is a TAB: flush to the spine's inner edge and rounded on
+        // the start side only. The active one takes the page's own colour, so
+        // it reads as the page reaching into the sidebar (see `.nav-tab` in
+        // index.css for the two concave corners that complete the join).
+        "nav-tab relative flex items-center rounded-s-md transition-colors outline-none",
+        "focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset",
+        depth === 0 ? "h-9 ps-3 pe-3 gap-3 text-[14px]" : "h-8 ps-10 pe-3 gap-2.5 text-[13px]",
         isActive
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:text-foreground hover:bg-secondary/60",
+          ? "nav-tab-active bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+          : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
       )}
     >
-      {Icon && <Icon className="w-4 h-4 shrink-0" />}
+      {Icon && <Icon className="w-4 h-4 shrink-0" strokeWidth={isActive ? 2.25 : 1.75} />}
       <span className="truncate">{lang === "ar" ? entry.labelAr : entry.label}</span>
       {/*
         🔴 A quiet marker, not a warning. A Coming Soon entry is a real link to
@@ -95,7 +101,7 @@ function NavLink({
         user to distrust the sidebar instead of teaching them what is missing.
       */}
       {entry.marker === "coming-soon" && (
-        <Clock className="w-3 h-3 shrink-0 ms-auto opacity-40" aria-hidden />
+        <Clock className="w-3 h-3 shrink-0 ms-auto opacity-50" aria-hidden />
       )}
     </Link>
   );
@@ -120,24 +126,35 @@ function NavItemNode({
     return <NavLink entry={entry} location={location} search={search} lang={lang} depth={0} />;
   }
 
+  // When a child is the current page (e.g. "All invoices" under "Invoices",
+  // which share an href), the CHILD draws the tab and the parent is only
+  // emphasised — two stacked tabs would read as two pages.
+  const childActive = open && children.some((c) => isEntryActive(c, location, search));
+  const selfActive = !childActive && isEntryActive(entry, location, search);
+
   return (
     <div>
-      <div className="flex items-center">
-        <div className="flex-1 min-w-0">
-          <NavLink entry={entry} location={location} search={search} lang={lang} depth={0} />
-        </div>
+      {/* The disclosure sits INSIDE the tab's footprint (absolutely placed at
+          its end) so the tab can stay flush to the spine's edge. */}
+      <div className={cn("relative [&>a]:pe-9", childActive && "[&>a]:text-sidebar-foreground [&>a]:font-semibold")}>
+        <NavLink entry={entry} location={location} search={search} lang={lang} depth={0} suppressActive={childActive} />
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-label={lang === "ar" ? `توسيع ${entry.labelAr}` : `Expand ${entry.label}`}
-          className="p-1.5 me-1 rounded text-muted-foreground/60 hover:text-foreground hover:bg-secondary/60"
+          className={cn(
+            "absolute end-2 top-1/2 -translate-y-1/2 p-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+            selfActive
+              ? "text-sidebar-primary-foreground/70 hover:bg-foreground/5"
+              : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-black/10",
+          )}
         >
-          {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+          <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !open && "-rotate-90 rtl:rotate-90")} />
         </button>
       </div>
       {open && (
-        <div className="space-y-0.5 mt-0.5">
+        <div className="space-y-px mt-px">
           {children.map((child) => (
             <NavLink
               key={`${child.href}-${child.label}`}
@@ -192,13 +209,13 @@ function NavGroup({
         // instead of guessing which ones happen to be expanded.
         aria-expanded={open}
         data-nav-section={section.label}
-        className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+        className="w-full flex items-center justify-between ps-3 pe-4 pt-4 pb-1.5 text-[12px] font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground/90 transition-colors outline-none focus-visible:text-sidebar-foreground"
       >
         {lang === "ar" ? section.labelAr : section.label}
-        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        <ChevronDown className={cn("w-3 h-3 transition-transform", !open && "-rotate-90 rtl:rotate-90")} />
       </button>
       {open && (
-        <div className="space-y-0.5 mt-0.5 mb-2">
+        <div className="space-y-px">
           {section.items.map((item) => (
             <NavItemNode
               key={`${item.href}-${item.label}`}
@@ -218,6 +235,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { lang, setLang, t } = useLanguage();
+  const { theme, toggle: toggleTheme } = useTheme();
   const { demoMode } = useDeployment();
 
   /**
@@ -283,14 +301,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, [drawerOpen]);
 
   const brand = (
-    <div className="flex items-center gap-2">
-      <div className="w-6 h-6 rounded bg-primary flex items-center justify-center shrink-0">
-        <span className="text-xs font-bold text-background">ك</span>
+    <div className="flex items-center gap-2.5">
+      <div className="w-8 h-8 rounded-md bg-sidebar-foreground flex items-center justify-center shrink-0">
+        <span className="font-display text-[17px] font-bold leading-none text-sidebar -mt-0.5">ك</span>
       </div>
-      <div>
-        <span className="font-bold text-base text-primary tracking-tight">KSA Ledger</span>
-        <div className="text-xs text-muted-foreground -mt-0.5">
-          {t("ERP · Accounting", "نظام ERP · محاسبة")}
+      <div className="leading-tight">
+        <div className="font-display font-semibold text-[15px] text-sidebar-foreground">
+          {t("KSA Ledger", "دفتر المملكة")}
+        </div>
+        <div className="text-[11px] text-sidebar-foreground/65">
+          {t("Accounting and compliance", "المحاسبة والامتثال")}
         </div>
       </div>
     </div>
@@ -299,12 +319,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const sidebarInner = (
     <>
       {/* Brand (desktop header; the drawer carries its own with a close control) */}
-      <div className="h-14 hidden md:flex items-center px-4 border-b border-border shrink-0">
+      <div className="h-16 hidden md:flex items-center px-5 shrink-0">
         {brand}
       </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-3 px-2 overflow-y-auto">
+        {/* Nav — padded on the START side only: every tab runs to the edge. */}
+        <nav className="sidebar-scroll flex-1 pb-4 ps-3 overflow-y-auto overflow-x-hidden">
           {navSections.map((s, idx) => (
             <NavGroup
               key={s.label}
@@ -321,45 +341,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {/* User footer */}
         {user && (
-          <div className="border-t border-border p-3 space-y-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-primary">{user.name.charAt(0).toUpperCase()}</span>
+          <div className="border-t border-sidebar-border bg-black/10 px-4 py-3 space-y-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-sidebar-foreground/15 flex items-center justify-center shrink-0">
+                <span className="text-xs font-semibold text-sidebar-foreground">{user.name.charAt(0).toUpperCase()}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-foreground truncate">{user.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                <p className="text-[13px] font-medium text-sidebar-foreground truncate">{user.name}</p>
+                <p className="text-[11px] text-sidebar-foreground/65 truncate">{user.email}</p>
               </div>
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-sidebar-foreground/15 text-sidebar-foreground shrink-0">
+                {lang === "ar" ? (ROLE_AR[user.role] ?? user.role) : user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+              </span>
             </div>
             <OrgSwitcher />
-            <div className="flex items-center justify-between">
-              <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", ROLE_COLOR[user.role] ?? ROLE_COLOR.viewer)}>
-                {lang === "ar" ? (ROLE_AR[user.role] ?? user.role) : user.role.toUpperCase()}
-              </span>
-              <div className="flex items-center gap-2">
-                {/* Language toggle EN ⇌ ع */}
-                <button
-                  onClick={() => setLang(lang === "en" ? "ar" : "en")}
-                  className={cn(
-                    "flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors",
-                    lang === "ar"
-                      ? "border-primary/50 text-primary bg-primary/10"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground"
-                  )}
-                  title={lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"}
-                >
-                  <Languages className="w-3 h-3" />
-                  {lang === "en" ? "ع" : "EN"}
-                </button>
-                <button
-                  onClick={logout}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-negative transition-colors"
-                  title={t("Sign out", "تسجيل الخروج")}
-                >
-                  <LogOut className="w-3 h-3" />
-                  {t("Sign out", "تسجيل الخروج")}
-                </button>
-              </div>
+            <div className="flex items-center gap-1">
+              {/* Language toggle EN ⇌ ع — the accessible name is the glyph
+                  alone; rtl-direction.spec.ts finds it by exactly that. */}
+              <button
+                onClick={() => setLang(lang === "en" ? "ar" : "en")}
+                className="flex items-center gap-1.5 h-7 px-2 rounded text-[12px] font-semibold text-sidebar-foreground/85 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                title={lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"}
+              >
+                <Languages className="w-3.5 h-3.5" />
+                {lang === "en" ? "ع" : "EN"}
+              </button>
+              <button
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? t("Switch to light mode", "التبديل إلى الوضع الفاتح") : t("Switch to dark mode", "التبديل إلى الوضع الداكن")}
+                title={theme === "dark" ? t("Light mode", "الوضع الفاتح") : t("Dark mode", "الوضع الداكن")}
+                className="flex items-center justify-center h-7 w-7 rounded text-sidebar-foreground/85 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+              >
+                {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                onClick={logout}
+                className="ms-auto flex items-center gap-1.5 h-7 px-2 rounded text-[12px] text-sidebar-foreground/85 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                title={t("Sign out", "تسجيل الخروج")}
+              >
+                <LogOut className="w-3.5 h-3.5 rtl:-scale-x-100" />
+                {t("Sign out", "تسجيل الخروج")}
+              </button>
             </div>
           </div>
         )}
@@ -369,7 +391,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground flex">
       {/* Desktop sidebar — hidden below md; the drawer takes over there. */}
-      <aside className="w-60 border-e border-border bg-sidebar shrink-0 hidden md:flex flex-col">
+      <aside className="w-64 bg-sidebar text-sidebar-foreground shrink-0 hidden md:flex flex-col sticky top-0 h-screen">
         {sidebarInner}
       </aside>
 
@@ -377,21 +399,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {drawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/40"
             data-testid="nav-drawer-backdrop"
             onClick={() => setDrawerOpen(false)}
           />
           <aside
             data-testid="nav-drawer"
-            className="absolute inset-y-0 start-0 h-full w-72 max-w-[85vw] bg-sidebar border-e border-border flex flex-col shadow-xl"
+            className="absolute inset-y-0 start-0 h-full w-72 max-w-[85vw] bg-sidebar text-sidebar-foreground flex flex-col shadow-xl"
           >
-            <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
+            <div className="h-14 flex items-center justify-between px-4 shrink-0">
               {brand}
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
                 aria-label={t("Close menu", "إغلاق القائمة")}
-                className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                className="p-2 rounded text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -404,13 +426,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile top bar — the only place the hamburger exists. */}
-        <header className="h-12 md:hidden flex items-center gap-2 px-3 border-b border-border bg-sidebar shrink-0">
+        <header className="h-14 md:hidden flex items-center gap-2 px-3 bg-sidebar text-sidebar-foreground shrink-0">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label={t("Open menu", "فتح القائمة")}
             data-testid="nav-hamburger"
-            className="p-2 -ms-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+            className="p-2 -ms-1 rounded text-sidebar-foreground/85 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -419,7 +441,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {/* 🔴 min-w-0 + overflow-x-hidden: the PAGE never scrolls sideways;
             wide content (tables) scrolls inside its own container — the B-6
             rule applied to layout. Mobile e2e asserts this per route. */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 md:px-10 md:py-9">
           {children}
         </div>
       </main>

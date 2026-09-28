@@ -19,7 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel } from "@/components/kit";
 import { Link } from "wouter";
 import { FileText, FileInput, Upload, Pencil, Plus, ExternalLink } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
@@ -49,8 +49,8 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
   const blockedNow = all.filter((r) => r.itemType === side && r.problems.length > 0).length;
   useEffect(() => { if (onlyBlocked && data && blockedNow === 0) setOnlyBlocked(false); }, [onlyBlocked, data, blockedNow]);
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</p>;
-  if (error || !data) return <p className="text-sm text-destructive p-4">{t("The open items could not be loaded.", "تعذر تحميل البنود المفتوحة.")} {(error as Error)?.message}</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>;
+  if (error || !data) return <p className="text-sm text-destructive">{t("The open items could not be loaded.", "تعذر تحميل البنود المفتوحة.")} {(error as Error)?.message}</p>;
   const s = isAr ? data.summary.ar : data.summary.ap;
   const blocked = all.filter((r) => r.itemType === side && r.problems.length > 0).length;
   const bucketLabel = (b: ReturnType<typeof ageingBucket>["bucket"]) => ({ current: t("current", "جارٍ"), "1-30": t("1–30 days", "١–٣٠ يوم"), "31-60": t("31–60 days", "٣١–٦٠ يوم"), "61-90": t("61–90 days", "٦١–٩٠ يوم"), "90+": t("90+ days", "أكثر من ٩٠ يوم") })[b];
@@ -59,8 +59,8 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{isAr ? t("AR open items — historical receivables", "الذمم المدينة المفتوحة — ذمم تاريخية") : t("AP open items — historical payables", "الذمم الدائنة المفتوحة — ذمم تاريخية")}</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-base font-semibold text-foreground">{isAr ? t("AR open items — historical receivables", "الذمم المدينة المفتوحة — ذمم تاريخية") : t("AP open items — historical payables", "الذمم الدائنة المفتوحة — ذمم تاريخية")}</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground max-w-[80ch]">
             {isAr
               ? t("Documents the previous system issued and the customer still owes at the opening date. Migrated as opening receivables: collectible, allocatable, aged and on the statement — and never a tax invoice issued by Saudi Ledger (no hash, ICV, QR, VAT event or ZATCA submission).",
                   "مستندات أصدرها النظام السابق ولا يزال العميل مدينًا بها في تاريخ الافتتاح. تُرحَّل كذمم مدينة افتتاحية: قابلة للتحصيل والتخصيص والتقادم وتظهر في كشف الحساب — وليست أبدًا فاتورة ضريبية صادرة من Saudi Ledger (بلا تجزئة أو ICV أو QR أو حدث ضريبي أو إرسال إلى الهيئة).")
@@ -73,9 +73,9 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
           {can && <Button size="sm" onClick={() => setImporting(true)} data-testid={`${side}-import`}><Upload className="w-3.5 h-3.5 me-1" />{t("Import open items", "استيراد البنود المفتوحة")}</Button>}
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden rounded-lg border border-border bg-border">
         {[[t("Items", "البنود"), String(s.items)], [t("Parties", "الأطراف"), String(s.parties)], [t("Total outstanding", "إجمالي المتبقي"), <Money key="t" v={s.total} />], [t("Composition unknown", "التكوين غير معروف"), String(s.compositionUnknown)]].map(([l, v], i) => (
-          <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className="text-lg font-semibold font-mono" data-testid={`${side}-kpi-${i}`}>{v}</div></CardContent></Card>
+          <div key={i} className="bg-card px-4 py-3.5 min-w-0"><div className="text-[13px] text-muted-foreground">{l}</div><div className="mt-1.5 text-[20px] leading-tight font-semibold tabular-nums" data-testid={`${side}-kpi-${i}`}>{v}</div></div>
         ))}
       </div>
       {rows.length === 0 && all.filter((r) => r.itemType === side).length === 0 ? (
@@ -83,41 +83,36 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
           hint={t("Import AR and AP together in one file (itemType ar / ap), or add items one by one. The sum per side must equal the control account's balance in the staged chart.", "استورد الذمم المدينة والدائنة معًا في ملف واحد (itemType ar / ap)، أو أضف البنود واحدًا واحدًا. يجب أن يساوي المجموع لكل جانب رصيد حساب المراقبة في الدليل المجهّز.")}
           action={can ? <Button size="sm" onClick={() => setImporting(true)}><Upload className="w-3.5 h-3.5 me-1" />{t("Import open items", "استيراد البنود المفتوحة")}</Button> : undefined} />
       ) : (
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2 flex-wrap">
-            <CardTitle className="text-sm text-muted-foreground">{t(`${rows.length} item(s)`, `${rows.length} بندًا`)}</CardTitle>
-            <Button variant={onlyBlocked ? "default" : "ghost"} size="sm" className="h-7 text-xs" onClick={() => setOnlyBlocked((v) => !v)} data-testid={`${side}-only-blocked`}>{t(`Problems only (${blocked})`, `المشاكل فقط (${blocked})`)}</Button>
-          </CardHeader>
-          <CardContent>
+        <Panel flush title={<span className="text-[13px] font-medium text-muted-foreground">{t(`${rows.length} item(s)`, `${rows.length} بندًا`)}</span>} actions={<><Button variant={onlyBlocked ? "default" : "ghost"} size="sm" className="h-7 text-xs" onClick={() => setOnlyBlocked((v) => !v)} data-testid={`${side}-only-blocked`}>{t(`Problems only (${blocked})`, `المشاكل فقط (${blocked})`)}</Button></>}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-card">
-                  <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                    {[t("Source document", "المستند المصدري"), t("Party", "الطرف"), t("Issued", "الإصدار"), t("Due", "الاستحقاق"), t("Ageing", "التقادم"), t("Original", "الأصلي"), t("Outstanding", "المتبقي"), t("Historical VAT", "الضريبة التاريخية"), t("State", "الحالة"), ""].map((h, i) => <th key={i} className="text-start pb-2 pe-3 font-medium">{h}</th>)}
+                <thead>
+                  <tr className="border-b border-border">
+                    {[t("Source document", "المستند المصدري"), t("Party", "الطرف"), t("Issued", "الإصدار"), t("Due", "الاستحقاق"), t("Ageing", "التقادم"), t("Original", "الأصلي"), t("Outstanding", "المتبقي"), t("Historical VAT", "الضريبة التاريخية"), t("State", "الحالة"), ""].map((h, i) => <th key={i} className="text-start px-3">{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => {
                     const age = ageingBucket(r.dueDate, openingDate);
                     return (
-                      <tr key={r.id} id={`staged-${r.id}`} className={`border-b border-border/50 align-top ${focusClass(r.id, focus)}`} data-testid={`item-row-${r.documentNumber}`}>
-                        <td className="py-2 pe-3">
+                      <tr key={r.id} id={`staged-${r.id}`} className={`border-b border-border/70 align-top ${focusClass(r.id, focus)}`} data-testid={`item-row-${r.documentNumber}`}>
+                        <td className="py-2.5 px-3">
                           <span className="font-mono text-xs break-all" dir="ltr">{r.documentNumber}</span>
-                          <span className="block text-[11px] text-muted-foreground" dir="ltr">{t("source", "المصدر")}: {r.sourceId}</span>
-                          {r.ledgerDocumentNumber && r.ledgerDocumentNumber !== r.documentNumber && <span className="block text-[11px] text-muted-foreground" dir="ltr">{t("ledger number", "رقم الدفتر")}: {r.ledgerDocumentNumber}</span>}
-                          {committed && r.liveDocumentNumber && r.liveDocumentNumber !== (r.ledgerDocumentNumber ?? r.documentNumber) && <span className="block text-[11px] text-muted-foreground" dir="ltr" data-testid={`live-number-${r.documentNumber}`}>{t("live row", "الصف الحي")}: {r.liveDocumentNumber} · {t(`${r.corrections} correction(s)`, `${r.corrections} تصحيح`)}</span>}
+                          <span className="block text-[12px] text-muted-foreground" dir="ltr">{t("source", "المصدر")}: {r.sourceId}</span>
+                          {r.ledgerDocumentNumber && r.ledgerDocumentNumber !== r.documentNumber && <span className="block text-[12px] text-muted-foreground" dir="ltr">{t("ledger number", "رقم الدفتر")}: {r.ledgerDocumentNumber}</span>}
+                          {committed && r.liveDocumentNumber && r.liveDocumentNumber !== (r.ledgerDocumentNumber ?? r.documentNumber) && <span className="block text-[12px] text-muted-foreground" dir="ltr" data-testid={`live-number-${r.documentNumber}`}>{t("live row", "الصف الحي")}: {r.liveDocumentNumber} · {t(`${r.corrections} correction(s)`, `${r.corrections} تصحيح`)}</span>}
                           {isAr && (r.einvoicingStatus || (committed && r.liveIdentityRecorded)) && <Badge variant="outline" className="text-[10px] mt-1" data-testid={`identity-${r.documentNumber}`}>{r.einvoicingStatus ? { cleared: t("cleared", "معتمدة"), reported: t("reported", "مبلَّغ عنها"), pre_einvoicing: t("pre-e-invoicing", "قبل الفوترة الإلكترونية") }[r.einvoicingStatus] : t("identity recorded", "الهوية مسجَّلة")}{r.sourceUuid ? <span className="ms-1 font-mono" dir="ltr">{r.sourceUuid}</span> : null}</Badge>}
                           {isAr && !r.einvoicingStatus && !(committed && r.liveIdentityRecorded) && <Badge variant="outline" className="text-[10px] mt-1" data-testid={`identity-missing-${r.documentNumber}`}>{t("e-invoicing identity not stated", "هوية الفوترة الإلكترونية غير مذكورة")}</Badge>}
                           {r.compositionUnknown && <Badge variant="outline" className="text-[10px] mt-1">{t("balance only", "رصيد فقط")}</Badge>}
                           <Badge variant="outline" className="text-[10px] mt-1 ms-1">{t("historical record", "سجل تاريخي")}</Badge>
                         </td>
-                        <td className="py-2 pe-3 max-w-[12rem] break-words">{r.partyName ?? <span className="text-negative">{r.partySourceId}</span>}<span className="block text-[11px] text-muted-foreground" dir="ltr">{r.partySourceId}</span></td>
-                        <td className="py-2 pe-3 text-xs text-muted-foreground"><DualDate date={r.issueDate} inline /></td>
-                        <td className="py-2 pe-3 text-xs text-muted-foreground"><DualDate date={r.dueDate} inline /></td>
-                        <td className="py-2 pe-3 text-xs">{bucketLabel(age.bucket)}{age.days > 0 && <span className="block text-[11px] text-muted-foreground">{t(`${age.days} days at opening`, `${age.days} يومًا عند الافتتاح`)}</span>}</td>
-                        <td className="py-2 pe-3 text-end"><Money v={r.originalAmount} /></td>
-                        <td className="py-2 pe-3 text-end"><Money v={r.outstandingAmount} className="font-semibold" />{committed && r.liveOutstanding != null && Math.abs(r.liveOutstanding - r.outstandingAmount) >= 0.005 && <span className="block text-[11px] text-muted-foreground" data-testid={`live-outstanding-${r.documentNumber}`}>{t("now", "الآن")}: <Money v={r.liveOutstanding} /></span>}</td>
-                        <td className="py-2 pe-3 text-xs">
+                        <td className="py-2.5 px-3 max-w-[12rem] break-words">{r.partyName ?? <span className="text-negative">{r.partySourceId}</span>}<span className="block text-[12px] text-muted-foreground" dir="ltr">{r.partySourceId}</span></td>
+                        <td className="py-2.5 px-3 text-xs text-muted-foreground"><DualDate date={r.issueDate} inline /></td>
+                        <td className="py-2.5 px-3 text-xs text-muted-foreground"><DualDate date={r.dueDate} inline /></td>
+                        <td className="py-2.5 px-3 text-xs">{bucketLabel(age.bucket)}{age.days > 0 && <span className="block text-[12px] text-muted-foreground">{t(`${age.days} days at opening`, `${age.days} يومًا عند الافتتاح`)}</span>}</td>
+                        <td className="py-2.5 px-3 text-end"><Money v={r.originalAmount} /></td>
+                        <td className="py-2.5 px-3 text-end"><Money v={r.outstandingAmount} className="font-semibold" />{committed && r.liveOutstanding != null && Math.abs(r.liveOutstanding - r.outstandingAmount) >= 0.005 && <span className="block text-[12px] text-muted-foreground" data-testid={`live-outstanding-${r.documentNumber}`}>{t("now", "الآن")}: <Money v={r.liveOutstanding} /></span>}</td>
+                        <td className="py-2.5 px-3 text-xs">
                           {r.historicalVat ? (
                             <span>{r.historicalVat.category ?? "—"}{r.historicalVat.rate != null ? ` ${r.historicalVat.rate}%` : ""}{r.historicalVat.amount != null ? <> · <Money v={r.historicalVat.amount} /></> : ""}{r.historicalVat.reportedPeriod && <span className="block text-muted-foreground">{t("reported", "مبلَّغ")}: {r.historicalVat.reportedPeriod}</span>}</span>
                           ) : <span className="text-muted-foreground">{t("none recorded", "لا شيء مسجَّل")}</span>}
@@ -127,8 +122,8 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
                             </span>
                           )}
                         </td>
-                        <td className="py-2 pe-3"><Problems list={r.problems} id={r.id} /></td>
-                        <td className="py-2">
+                        <td className="py-2.5 px-3"><Problems list={r.problems} id={r.id} /></td>
+                        <td className="py-2.5 px-3">
                           {can && <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingRow(all.indexOf(r))} data-testid={`edit-item-${r.id}`}><Pencil className="w-3 h-3 me-1" />{t("Correct", "تصحيح")}</Button>}
                           {committed && r.resolvedId != null && (
                             <Link href={isAr ? `/invoices` : `/bills`} className="inline-flex items-center gap-1 text-xs text-primary h-7 px-2" data-testid={`open-record-${r.documentNumber}`}>
@@ -147,18 +142,17 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="font-semibold border-t border-border">
-                    <td className="py-2 pe-3" colSpan={5}>{t("Total", "الإجمالي")}</td>
-                    <td className="py-2 pe-3 text-end"><Money v={rows.reduce((a, r) => a + r.originalAmount, 0)} /></td>
-                    <td className="py-2 pe-3 text-end"><Money v={rows.reduce((a, r) => a + r.outstandingAmount, 0)} /></td>
+                  <tr className="font-semibold">
+                    <td className="py-2.5 px-3" colSpan={5}>{t("Total", "الإجمالي")}</td>
+                    <td className="py-2.5 px-3 text-end"><Money v={rows.reduce((a, r) => a + r.originalAmount, 0)} /></td>
+                    <td className="py-2.5 px-3 text-end"><Money v={rows.reduce((a, r) => a + r.outstandingAmount, 0)} /></td>
                     <td colSpan={3} />
                   </tr>
                 </tfoot>
               </table>
             </div>
-            {isAr && <p className="text-[11px] text-muted-foreground mt-2">{t("A migrated bad-debt relief (Art. 40(7)) is a structured fact on the opening receivable: when money later arrives, the Art. 40(9) recovery document is declared from it (Invoices → Declare recovery). It never restricts a payment or an allocation. A credit note against a migrated document names it through Fatoora, so its e-invoicing identity must be stated — here at staging, or recorded once after commit.", "إعفاء الديون المعدومة المرحَّل (المادة 40(7)) حقيقة مهيكلة على الذمة الافتتاحية: عند وصول المال لاحقًا يُعلن مستند الاسترداد (المادة 40(9)) منها (الفواتير ← إعلان استرداد). ولا يقيّد أبدًا دفعة أو تخصيصًا. أي إشعار دائن على مستند مرحَّل يسميه عبر فاتورة، لذا يجب ذكر هوية فوترته الإلكترونية — هنا عند التجهيز، أو تسجيلها مرة واحدة بعد الاعتماد.")}</p>}
-          </CardContent>
-        </Card>
+            {isAr && <p className="border-t border-border px-5 py-3 text-[12px] leading-relaxed text-muted-foreground">{t("A migrated bad-debt relief (Art. 40(7)) is a structured fact on the opening receivable: when money later arrives, the Art. 40(9) recovery document is declared from it (Invoices → Declare recovery). It never restricts a payment or an allocation. A credit note against a migrated document names it through Fatoora, so its e-invoicing identity must be stated — here at staging, or recorded once after commit.", "إعفاء الديون المعدومة المرحَّل (المادة 40(7)) حقيقة مهيكلة على الذمة الافتتاحية: عند وصول المال لاحقًا يُعلن مستند الاسترداد (المادة 40(9)) منها (الفواتير ← إعلان استرداد). ولا يقيّد أبدًا دفعة أو تخصيصًا. أي إشعار دائن على مستند مرحَّل يسميه عبر فاتورة، لذا يجب ذكر هوية فوترته الإلكترونية — هنا عند التجهيز، أو تسجيلها مرة واحدة بعد الاعتماد.")}</p>}
+          </Panel>
       )}
       {importing && <ImportDialog batchId={batchId} kind="openItems" hasRows={all.length > 0} onClose={() => setImporting(false)} />}
       {correcting && <CorrectOpenItemDialog batchId={batchId} item={correcting} open onClose={() => setCorrecting(null)} />}

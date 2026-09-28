@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { statusLabel } from "@/lib/statusLabel";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,92 +45,84 @@ export default function Payroll() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Payroll", "الرواتب")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Saudi payroll processing · GOSI · WPS-ready", "معالجة رواتب سعودية · GOSI · متوافق مع WPS")}</p>
-        </div>
+      <PageHeader
+        title={t("Payroll", "الرواتب")}
+        description={t("Saudi payroll processing · GOSI · WPS-ready", "معالجة رواتب سعودية · GOSI · متوافق مع WPS")}
+        actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2"><Play className="w-4 h-4" /> {t("Run Payroll", "تشغيل الرواتب")}</Button></DialogTrigger>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>{t("Generate Payroll Run", "إنشاء مسير رواتب")}</DialogTitle></DialogHeader>
             <div className="mt-2 space-y-3">
-              <div><Label className="text-xs text-muted-foreground">{t("Period (YYYY-MM)", "الفترة (YYYY-MM)")}</Label><Input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1 h-8 text-sm" /></div>
+              <div><Label className="text-[13px] text-muted-foreground">{t("Period (YYYY-MM)", "الفترة (YYYY-MM)")}</Label><Input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1" /></div>
               <p className="text-xs text-muted-foreground">{t("This will generate payroll items for all active employees based on their current salary setup and GOSI rates.", "سيُنشئ هذا بنود الرواتب لجميع الموظفين النشطين بناءً على إعداد الراتب الحالي ونسب GOSI.")}</p>
             </div>
             <Button className="w-full mt-4" onClick={()=>generateMut.mutate(period)} disabled={generateMut.isPending}>{generateMut.isPending ? t("Generating...", "جارٍ الإنشاء...") : t("Generate Payroll", "إنشاء مسير الرواتب")}</Button>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        {runs.length > 0 && (() => {
-          const last = runs[0];
-          return [
-            [t("Net Pay", "صافي الراتب"), fmtNum(last.totalNetPay), "text-primary"],
-            [t("Basic Salary", "الراتب الأساسي"), fmtNum(last.totalBasicSalary), "text-foreground"],
-            [t("Allowances", "البدلات"), fmtNum(last.totalAllowances), "text-muted-foreground"],
-            [t("GOSI (Employee)", "GOSI (الموظف)"), fmtNum(last.totalGosiEmployee), "text-attention"],
-            [t("GOSI (Employer)", "GOSI (صاحب العمل)"), fmtNum(last.totalGosiEmployer), "text-negative"],
-          ].map(([l,v,c])=>(
-            <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-lg font-bold font-mono ${c}`}>{v}</div><div className="text-xs text-muted-foreground mt-1">{last.period}</div></CardContent></Card>
-          ));
-        })()}
-      </div>
+      {runs.length > 0 && (() => {
+        const last = runs[0];
+        return (
+          <StatStrip cols={5}>
+            <Stat label={t("Net Pay", "صافي الراتب")} value={fmtNum(last.totalNetPay)} hint={last.period} />
+            <Stat label={t("Basic Salary", "الراتب الأساسي")} value={fmtNum(last.totalBasicSalary)} hint={last.period} />
+            <Stat label={t("Allowances", "البدلات")} value={fmtNum(last.totalAllowances)} hint={last.period} />
+            <Stat label={t("GOSI (Employee)", "GOSI (الموظف)")} value={fmtNum(last.totalGosiEmployee)} hint={last.period} />
+            <Stat label={t("GOSI (Employer)", "GOSI (صاحب العمل)")} value={fmtNum(last.totalGosiEmployer)} hint={last.period} tone="negative" />
+          </StatStrip>
+        );
+      })()}
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        <Card className="col-span-2 border-border bg-card">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Payroll Runs", "مسيرات الرواتب")}</CardTitle></CardHeader>
-          <CardContent>
-            {isLoading ? <div className="text-muted-foreground text-sm">{t("Loading...", "جارٍ التحميل...")}</div> : runs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground"><Banknote className="w-8 h-8 mx-auto mb-3 opacity-40" /><p className="text-sm">{t("No payroll runs yet.", "لا توجد مسيرات رواتب بعد.")}</p></div>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <Panel className="lg:col-span-2" title={t("Payroll Runs", "مسيرات الرواتب")} flush>
+            {isLoading ? <div className="text-muted-foreground text-sm p-5">{t("Loading...", "جارٍ التحميل...")}</div> : runs.length === 0 ? (
+              <EmptyState className="py-8" icon={Banknote} title={t("No payroll runs yet.", "لا توجد مسيرات رواتب بعد.")} />
             ) : (
-              <div className="space-y-2">
+              <div className="divide-y divide-border">
                 {runs.map(r=>(
-                  <div data-row key={r.id} className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${selectedId===r.id?"border-primary/40 bg-primary/5":"border-border hover:bg-secondary/20"}`} onClick={()=>setSelectedId(selectedId===r.id?null:r.id)}>
+                  <div data-row key={r.id} className={`flex items-center justify-between gap-3 px-5 py-3 cursor-pointer transition-colors border-s-2 ${selectedId===r.id?"border-s-primary bg-primary/5":"border-s-transparent hover:bg-muted/40"}`} onClick={()=>setSelectedId(selectedId===r.id?null:r.id)}>
                     <div>
-                      <div className="font-mono text-sm font-semibold">{r.period}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{fmtNum(r.totalNetPay)} {t("net", "صافي")}</div>
+                      <div className="text-sm font-semibold tabular-nums">{r.period}</div>
+                      <div className="text-[12px] text-muted-foreground mt-0.5 tabular-nums">{fmtNum(r.totalNetPay)} {t("net", "صافي")}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
+                      <Badge className={`text-xs capitalize ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
                       {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();approveMut.mutate(r.id);}}>{t("Approve", "موافقة")}</Button>}
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+        </Panel>
 
-        <Card className="col-span-3 border-border bg-card">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{detail ? `${t("Payslips", "قسائم الراتب")} — ${detail.period}` : t("Select a Run", "اختر مسير رواتب")}</CardTitle></CardHeader>
-          <CardContent>
-            {!detail ? <div className="text-center py-12 text-muted-foreground text-sm">{t("Select a payroll run to view payslips", "اختر مسير رواتب لعرض قسائم الراتب")}</div> : (
-              <div className="overflow-x-auto"><table className="w-full text-xs">
-                <thead><tr className="border-b border-border text-muted-foreground uppercase">{[t("Employee", "الموظف"), t("Basic", "الأساسي"), t("GOSI (Emp)", "GOSI (موظف)"), t("GOSI (Er)", "GOSI (صاحب عمل)"), t("Net Pay", "صافي الراتب")].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
+        <Panel className="lg:col-span-3" title={detail ? `${t("Payslips", "قسائم الراتب")} — ${detail.period}` : t("Select a Run", "اختر مسير رواتب")} flush>
+            {!detail ? <EmptyState className="py-12" icon={Banknote} title={t("Select a payroll run to view payslips", "اختر مسير رواتب لعرض قسائم الراتب")} /> : (
+              <div className="overflow-x-auto"><table className="w-full text-sm">
+                <thead><tr className="border-b border-border">{([[t("Employee", "الموظف"), false], [t("Basic", "الأساسي"), true], [t("GOSI (Emp)", "GOSI (موظف)"), true], [t("GOSI (Er)", "GOSI (صاحب عمل)"), true], [t("Net Pay", "صافي الراتب"), true]] as const).map(([h, num])=><th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>)}</tr></thead>
                 <tbody>{detail.items.map(item=>(
-                  <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/10">
-                    <td className="py-2 pe-3"><div className="font-medium text-sm">{item.employeeName}</div><div className="text-muted-foreground font-mono">{item.employeeNumber}</div></td>
-                    <td className="py-2 pe-3 font-mono">{fmtNum(item.basicSalary)}</td>
-                    <td className="py-2 pe-3 font-mono text-attention">{fmtNum(item.gosiEmployee)}</td>
-                    <td className="py-2 pe-3 font-mono text-negative">{fmtNum(item.gosiEmployer)}</td>
-                    <td className="py-2 font-mono font-semibold text-positive text-sm">{fmtNum(item.netPay)}</td>
+                  <tr key={item.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                    <td className="py-3 px-3"><div className="font-medium">{item.employeeName}</div><div className="text-[12px] text-muted-foreground">{item.employeeNumber}</div></td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(item.basicSalary)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(item.gosiEmployee)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(item.gosiEmployer)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(item.netPay)}</td>
                   </tr>
                 ))}</tbody>
                 <tfoot>
-                  <tr className="border-t border-border font-semibold text-sm">
-                    <td className="py-2 text-muted-foreground">{t("Total", "الإجمالي")}</td>
-                    <td className="py-2 font-mono">{fmtNum(detail.totalBasicSalary)}</td>
-                    <td className="py-2 font-mono text-attention">{fmtNum(detail.totalGosiEmployee)}</td>
-                    <td className="py-2 font-mono text-negative">{fmtNum(detail.totalGosiEmployer)}</td>
-                    <td className="py-2 font-mono text-positive">{fmtNum(detail.totalNetPay)}</td>
+                  <tr className="font-semibold">
+                    <td className="py-3 px-3">{t("Total", "الإجمالي")}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(detail.totalBasicSalary)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(detail.totalGosiEmployee)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(detail.totalGosiEmployer)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(detail.totalNetPay)}</td>
                   </tr>
                 </tfoot>
               </table></div>
             )}
-          </CardContent>
-        </Card>
+        </Panel>
       </div>
     </div>
   );

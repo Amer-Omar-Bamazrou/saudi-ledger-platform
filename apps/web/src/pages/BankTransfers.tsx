@@ -14,7 +14,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { fmtNum } from "@/lib/api";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,13 +23,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeftRight, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { useBankOptions } from "@/components/payments/shared";
 import {
   useListBankTransfers, getListBankTransfersQueryKey, createBankTransfer, reverseBankTransfer,
   ApiError, type BankTransfer, type ListBankTransfersParams,
 } from "@workspace/api-client-react";
 
-const Money = ({ v }: { v: number }) => <span className="font-mono" dir="ltr">{fmtNum(v)}</span>;
+const Money = ({ v }: { v: number }) => <span className="tabular-nums whitespace-nowrap" dir="ltr">{fmtNum(v)}</span>;
 
 type Duplicate = { kind: "bank_transfer" | "clearing_leg"; id: number; date: string; amount: number; description: string };
 
@@ -60,72 +60,72 @@ export default function BankTransfers() {
   const items = data?.transfers ?? [];
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-full" data-testid="page-bank-transfers">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2"><ArrowLeftRight className="w-6 h-6" />{t("Transfers between own banks", "التحويلات بين الحسابات البنكية")}</h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-            {t("Recording a transfer posts one entry: the destination bank up, the source bank down. When the statements arrive, reconcile both bank lines to it in the Reconciliation Workbench — never accept them, or the money moves twice.",
+    <div className="space-y-6" data-testid="page-bank-transfers">
+      <PageHeader
+        title={t("Transfers between own banks", "التحويلات بين الحسابات البنكية")}
+        description={t("Recording a transfer posts one entry: the destination bank up, the source bank down. When the statements arrive, reconcile both bank lines to it in the Reconciliation Workbench — never accept them, or the money moves twice.",
                "تسجيل التحويل يُرحِّل قيدًا واحدًا: يزيد البنك المستلم وينقص البنك المحوِّل. عند وصول الكشوف، سوِّ سطري البنكين مع التحويل في منصة التسوية — ولا تقبلهما، وإلا تحركت الأموال مرتين.")}
+        actions={
+          <Button className="gap-2" onClick={() => setCreating(true)} disabled={active.length < 2} data-testid="trf-new">
+            <Plus className="w-4 h-4" />{t("Record a transfer", "تسجيل تحويل")}
+          </Button>
+        }
+      >
+        {active.length < 2 && (
+          <p className="mt-3 text-[13px] text-attention" data-testid="trf-needs-two">
+            {t("A transfer needs two active bank accounts. Add the second one under Bank Accounts first.", "يتطلب التحويل حسابين بنكيين نشطين. أضف الحساب الثاني من صفحة الحسابات البنكية أولًا.")}
           </p>
+        )}
+      </PageHeader>
+
+      <Panel flush>
+        <div className="border-b border-border px-5 py-3">
+          <div className="w-full sm:w-64">
+            <Select value={bank} onValueChange={setBank}>
+              <SelectTrigger data-testid="trf-bank"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("All bank accounts", "كل الحسابات البنكية")}</SelectItem>
+                {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <Button className="gap-2" onClick={() => setCreating(true)} disabled={active.length < 2} data-testid="trf-new">
-          <Plus className="w-4 h-4" />{t("Record a transfer", "تسجيل تحويل")}
-        </Button>
-      </div>
-      {active.length < 2 && (
-        <p className="text-sm text-muted-foreground" data-testid="trf-needs-two">
-          {t("A transfer needs two active bank accounts. Add the second one under Bank Accounts first.", "يتطلب التحويل حسابين بنكيين نشطين. أضف الحساب الثاني من صفحة الحسابات البنكية أولًا.")}
-        </p>
-      )}
-
-      <div className="w-64">
-        <Select value={bank} onValueChange={setBank}>
-          <SelectTrigger data-testid="trf-bank"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("All bank accounts", "كل الحسابات البنكية")}</SelectItem>
-            {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          {isLoading ? <p className="p-6 text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
-            : isError ? <p className="p-6 text-sm text-destructive">{t("Could not load transfers.", "تعذر تحميل التحويلات.")}</p>
-            : items.length === 0 ? <p className="p-6 text-sm text-muted-foreground" data-testid="trf-empty">{t("No transfers recorded.", "لا توجد تحويلات مسجلة.")}</p>
+        <div className="overflow-x-auto">
+          {isLoading ? <p className="p-5 text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
+            : isError ? <p className="p-5 text-sm text-destructive">{t("Could not load transfers.", "تعذر تحميل التحويلات.")}</p>
+            : items.length === 0 ? <EmptyState icon={ArrowLeftRight} title={<span data-testid="trf-empty">{t("No transfers recorded.", "لا توجد تحويلات مسجلة.")}</span>} />
             : (
               <table className="w-full text-sm">
-                <thead className="text-muted-foreground border-b">
-                  <tr>
-                    <th className="text-start p-3">{t("Date", "التاريخ")}</th>
-                    <th className="text-start p-3">{t("From", "من")}</th>
-                    <th className="text-start p-3">{t("To", "إلى")}</th>
-                    <th className="text-end p-3">{t("Amount", "المبلغ")}</th>
-                    <th className="text-start p-3">{t("Statement lines", "أسطر الكشف")}</th>
-                    <th className="p-3" />
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                    <th className="text-start px-3">{t("From", "من")}</th>
+                    <th className="text-start px-3">{t("To", "إلى")}</th>
+                    <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+                    <th className="text-start px-3">{t("Statement lines", "أسطر الكشف")}</th>
+                    <th className="px-3" />
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((x) => (
-                    <tr key={x.id} className="border-b last:border-0" data-testid={`trf-row-${x.id}`}>
-                      <td className="p-3 whitespace-nowrap" dir="ltr">{x.transferDate}</td>
-                      <td className="p-3">{x.fromBankName}</td>
-                      <td className="p-3">{x.toBankName}</td>
-                      <td className="p-3 text-end"><Money v={x.amount} /></td>
-                      <td className="p-3" data-testid={`trf-state-${x.id}`}>
+                    <tr key={x.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors align-top" data-testid={`trf-row-${x.id}`}>
+                      <td className="py-3 px-3 whitespace-nowrap tabular-nums text-muted-foreground"><span dir="ltr">{x.transferDate}</span></td>
+                      <td className="py-3 px-3">{x.fromBankName}</td>
+                      <td className="py-3 px-3">{x.toBankName}</td>
+                      <td className="py-3 px-3 text-end whitespace-nowrap font-medium"><Money v={x.amount} /></td>
+                      <td className="py-3 px-3 min-w-[14rem]" data-testid={`trf-state-${x.id}`}>
                         {x.reversal
-                          ? <Badge variant="outline">{t("Reversed", "معكوس")}</Badge>
-                          : <Badge variant="outline">{t(`${x.reconciledLines} of 2 reconciled`, `${x.reconciledLines} من 2 مسوّى`)}</Badge>}
-                        <div className="text-xs text-muted-foreground mt-1">{x.entryNumber}{x.reference ? ` · ${x.reference}` : ""}</div>
+                          ? <Badge variant="outline" className="font-normal">{t("Reversed", "معكوس")}</Badge>
+                          : <Badge variant="outline" className="font-normal">{t(`${x.reconciledLines} of 2 reconciled`, `${x.reconciledLines} من 2 مسوّى`)}</Badge>}
+                        <div className="text-[12px] text-muted-foreground mt-1">{x.entryNumber}{x.reference ? ` · ${x.reference}` : ""}</div>
                         {x.duplicateConfirmationReason && (
-                          <div className="text-xs text-muted-foreground mt-1">{t("Confirmed not a duplicate: ", "مؤكَّد أنه ليس مكررًا: ")}{x.duplicateConfirmationReason}</div>
+                          <div className="text-[12px] text-muted-foreground mt-1">{t("Confirmed not a duplicate: ", "مؤكَّد أنه ليس مكررًا: ")}{x.duplicateConfirmationReason}</div>
                         )}
-                        {x.reversal && <div className="text-xs text-muted-foreground mt-1">{t("Reason: ", "السبب: ")}{x.reversal.reason}</div>}
+                        {x.reversal && <div className="text-[12px] text-muted-foreground mt-1">{t("Reason: ", "السبب: ")}{x.reversal.reason}</div>}
                       </td>
-                      <td className="p-3 text-end">
+                      <td className="py-3 px-3 text-end">
                         {!x.reversal && (
-                          <Button size="sm" variant="outline" onClick={() => setReversing(x)} data-testid={`trf-reverse-${x.id}`}>{t("Reverse", "عكس")}</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setReversing(x)} data-testid={`trf-reverse-${x.id}`}>{t("Reverse", "عكس")}</Button>
                         )}
                       </td>
                     </tr>
@@ -133,8 +133,8 @@ export default function BankTransfers() {
                 </tbody>
               </table>
             )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {creating && <CreateDialog onClose={() => setCreating(false)} onDone={() => { setCreating(false); refresh(); toast({ title: t("Transfer recorded", "سُجِّل التحويل") }); }} />}
       {reversing && <ReverseDialog transfer={reversing} onClose={() => setReversing(null)} onDone={() => { setReversing(null); refresh(); toast({ title: t("Transfer reversed", "عُكس التحويل") }); }} />}

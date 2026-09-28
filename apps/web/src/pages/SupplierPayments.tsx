@@ -19,7 +19,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,7 +53,7 @@ type BankOption = ReturnType<typeof useBankOptions>["active"][number];
 /** What a bill still owes, from the SERVER (billPosition) — never total − paid here. */
 const owes = (b: Bill) => Number(b.outstanding ?? 0);
 
-const Money = ({ v }: { v: number }) => <span className="font-mono" dir="ltr">{fmtNum(v)}</span>;
+const Money = ({ v }: { v: number }) => <span className="tabular-nums whitespace-nowrap" dir="ltr">{fmtNum(v)}</span>;
 
 /**
  * 🔴 The four classifications, in the user's words. These are not styling
@@ -103,48 +103,45 @@ export default function SupplierPayments() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-full" data-testid="page-supplier-payments">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2"><Banknote className="w-6 h-6" />{t("Supplier payments", "مدفوعات الموردين")}</h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-            {t("Money paid to a supplier that is not against a bill stays ON ACCOUNT — it is an ASSET, because the supplier holds it and owes us goods. Only an advance may later settle a bill: a refundable deposit is not consideration for a supply, and a payment nobody has identified has no stated purpose.",
+    <div className="space-y-6 max-w-full" data-testid="page-supplier-payments">
+      <PageHeader
+        title={t("Supplier payments", "مدفوعات الموردين")}
+        description={t("Money paid to a supplier that is not against a bill stays ON ACCOUNT — it is an ASSET, because the supplier holds it and owes us goods. Only an advance may later settle a bill: a refundable deposit is not consideration for a supply, and a payment nobody has identified has no stated purpose.",
                "الأموال المدفوعة لمورد دون أن تكون مقابل فاتورة تبقى على الحساب — وهي أصل، لأن المورد يحتفظ بها ويدين لنا ببضاعة. والدفعة المقدمة وحدها هي ما يمكن أن يسوّي فاتورة لاحقًا: فالتأمين المسترد ليس مقابلًا لتوريد، والمدفوعات غير المحددة لا غرض معلن لها.")}
-          </p>
-        </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button className="gap-2" data-testid="new-supplier-payment"><Plus className="w-4 h-4" />{t("New payment", "دفعة جديدة")}</Button></DialogTrigger>
-          <NewPaymentDialog
-            vendors={vendors} banks={banks} t={t} lang={lang}
-            onDone={() => { setOpen(false); invalidate(); }}
-          />
-        </Dialog>
-      </div>
+        actions={
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild><Button className="gap-2" data-testid="new-supplier-payment"><Plus className="w-4 h-4" />{t("New payment", "دفعة جديدة")}</Button></DialogTrigger>
+            <NewPaymentDialog
+              vendors={vendors} banks={banks} t={t} lang={lang}
+              onDone={() => { setOpen(false); invalidate(); }}
+            />
+          </Dialog>
+        }
+      />
 
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Payments", "المدفوعات")}</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          {isLoading ? <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
-           : (data?.items ?? []).length === 0 ? <p className="text-sm text-muted-foreground" data-testid="no-supplier-payments">{t("No supplier payments yet.", "لا توجد مدفوعات للموردين بعد.")}</p>
+      <Panel flush title={t("Payments", "المدفوعات")}>
+        <div className="overflow-x-auto">
+          {isLoading ? <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
+           : (data?.items ?? []).length === 0 ? <EmptyState icon={Banknote} title={t("No supplier payments yet.", "لا توجد مدفوعات للموردين بعد.")} data-testid="no-supplier-payments" />
            : (
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                {[t("Paid", "التاريخ"), t("Supplier", "المورد"), t("Reference", "المرجع"), t("Amount", "المبلغ"), t("On account", "على الحساب"), t("What it is", "طبيعتها"), ""].map((h, i) => (
-                  <th key={i} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>
+              <thead><tr className="border-b border-border">
+                {([[t("Paid", "التاريخ"), false], [t("Supplier", "المورد"), false], [t("Reference", "المرجع"), false], [t("Amount", "المبلغ"), true], [t("On account", "على الحساب"), true], [t("What it is", "طبيعتها"), false], ["", false]] as const).map(([h, num], i) => (
+                  <th key={i} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {(data?.items ?? []).map((p) => (
-                  <tr key={p.id} className="border-b border-border/50" data-testid={`supplier-payment-row-${p.id}`}>
-                    <td className="py-2 pe-3 font-mono text-xs" dir="ltr">{p.paidAt}</td>
-                    <td className="py-2 pe-3">{vendorName(p.vendorId)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs" dir="ltr">{p.reference ?? "—"}</td>
-                    <td className="py-2 pe-3"><Money v={p.amount} /></td>
-                    <td className="py-2 pe-3" data-testid={`available-${p.id}`}><Money v={p.availableAmount} /></td>
-                    <td className="py-2 pe-3">
-                      <Badge variant="outline" className="text-[10px]" data-testid={`classification-${p.id}`}>{classLabel(p.classification, t)}</Badge>
+                  <tr key={p.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`supplier-payment-row-${p.id}`}>
+                    <td className="py-3 px-3 whitespace-nowrap tabular-nums text-muted-foreground" dir="ltr">{p.paidAt}</td>
+                    <td className="py-3 px-3 min-w-[10rem]">{vendorName(p.vendorId)}</td>
+                    <td className="py-3 px-3 whitespace-nowrap text-muted-foreground" dir="ltr">{p.reference ?? "—"}</td>
+                    <td className="py-3 px-3 text-end"><Money v={p.amount} /></td>
+                    <td className="py-3 px-3 text-end font-medium" data-testid={`available-${p.id}`}><Money v={p.availableAmount} /></td>
+                    <td className="py-3 px-3">
+                      <Badge variant="outline" className="text-[11px] whitespace-nowrap" data-testid={`classification-${p.id}`}>{classLabel(p.classification, t)}</Badge>
                     </td>
-                    <td className="py-2">
+                    <td className="py-3 px-3 text-end">
                       <Button size="sm" variant="ghost" onClick={() => setDetailId(p.id)} data-testid={`open-supplier-payment-${p.id}`}>{t("Open", "فتح")}</Button>
                     </td>
                   </tr>
@@ -152,8 +149,8 @@ export default function SupplierPayments() {
               </tbody>
             </table>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       <Dialog open={detailId != null} onOpenChange={(v) => !v && setDetailId(null)}>
         {detail && (
@@ -292,7 +289,7 @@ function NewPaymentDialog({ vendors, banks, t, lang, onDone }: {
             <div className="space-y-2">
               {openBills.map((b) => (
                 <div key={b.id} className="flex items-center gap-3">
-                  <span className="font-mono text-xs w-32 shrink-0" dir="ltr">{b.billNumber}</span>
+                  <span className="text-[13px] font-medium w-32 shrink-0" dir="ltr">{b.billNumber}</span>
                   <span className="text-xs text-muted-foreground w-28 shrink-0" title={t("Still owed", "المتبقي")} data-testid={`sp-owes-${b.billNumber}`}><Money v={owes(b)} /></span>
                   <Input
                     type="number" step="0.01" placeholder="0.00" dir="ltr"
@@ -399,7 +396,7 @@ function PaymentDetailDialog({ payment, banks, vendorName, t, onDone, onToast }:
             <>
               {openBills.map((b) => (
                 <div key={b.id} className="flex items-center gap-3">
-                  <span className="font-mono text-xs w-32 shrink-0" dir="ltr">{b.billNumber}</span>
+                  <span className="text-[13px] font-medium w-32 shrink-0" dir="ltr">{b.billNumber}</span>
                   <span className="text-xs text-muted-foreground w-28 shrink-0" title={t("Still owed", "المتبقي")}><Money v={owes(b)} /></span>
                   <Input
                     type="number" step="0.01" placeholder="0.00" dir="ltr"

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,50 +25,60 @@ function CustomerRow({ cust }: { cust: CustomerLedgerCustomer }) {
   const { t } = useLanguage();
   const [expanded, setExpanded] = useState(true);
   return (
-    <div className="border border-border rounded-lg overflow-hidden mb-3">
+    <Panel flush className="overflow-hidden">
       <button
         onClick={() => setExpanded(p => !p)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-secondary/20 hover:bg-secondary/40 transition-colors"
+        className={`w-full flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-4 text-start hover:bg-muted/40 transition-colors ${expanded ? "border-b border-border" : ""}`}
       >
-        <div className="flex items-center gap-3">
-          {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-          <span className="font-semibold text-sm text-foreground">{cust.customerName}</span>
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 rtl:-scale-x-100" />}
+          <span className="font-semibold text-[15px] text-foreground">{cust.customerName}</span>
           {cust.taxNumber && <span className="text-xs text-muted-foreground">{t("VAT:", "الرقم الضريبي:")} {cust.taxNumber}</span>}
           <Badge variant="outline" className="text-xs">{cust.invoices.length} {t(cust.invoices.length !== 1 ? "invoices" : "invoice", cust.invoices.length !== 1 ? "فواتير" : "فاتورة")}</Badge>
         </div>
-        <div className="flex items-center gap-6 text-sm font-mono">
-          <span className="text-muted-foreground">{t("Invoiced:", "المفوتر:")} <span className="text-foreground">{fmtNum(cust.totalInvoiced)}</span></span>
-          <span className="text-muted-foreground">{t("Paid:", "المدفوع:")} <span className="text-positive">{fmtNum(cust.totalPaid)}</span></span>
-          <span className="text-muted-foreground">{t("Balance:", "الرصيد:")} <span className={cust.balance > 0 ? "text-negative font-bold" : "text-positive"}>{fmtNum(cust.balance)}</span></span>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[13px] tabular-nums">
+          <span className="text-muted-foreground">{t("Invoiced:", "المفوتر:")} <span className="text-foreground font-medium">{fmtNum(cust.totalInvoiced)}</span></span>
+          <span className="text-muted-foreground">{t("Paid:", "المدفوع:")} <span className="text-positive font-medium">{fmtNum(cust.totalPaid)}</span></span>
+          <span className="text-muted-foreground">{t("Balance:", "الرصيد:")} <span className={cust.balance > 0 ? "text-negative font-semibold" : "text-positive font-medium"}>{fmtNum(cust.balance)}</span></span>
         </div>
       </button>
       {expanded && (
         <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-muted-foreground text-xs uppercase bg-card">
-              {[t("Invoice #", "رقم الفاتورة"), t("Date", "التاريخ"), t("Due Date", "الاستحقاق"), t("Subtotal", "الإجمالي الفرعي"), t("VAT", "الضريبة"), t("Total", "الإجمالي"), t("Paid", "المدفوع"), t("Outstanding", "المتبقي"), t("Status", "الحالة")].map(h => (
-                <th key={h} className="text-start py-2 px-4 font-medium">{h}</th>
+            <tr className="border-b border-border">
+              {([
+                [t("Invoice #", "رقم الفاتورة"), false],
+                [t("Date", "التاريخ"), false],
+                [t("Due Date", "الاستحقاق"), false],
+                [t("Subtotal", "الإجمالي الفرعي"), true],
+                [t("VAT", "الضريبة"), true],
+                [t("Total", "الإجمالي"), true],
+                [t("Paid", "المدفوع"), true],
+                [t("Outstanding", "المتبقي"), true],
+                [t("Status", "الحالة"), false],
+              ] as const).map(([h, num]) => (
+                <th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {cust.invoices.map(inv => (
-              <tr key={inv.id} className="border-b border-border/30 hover:bg-secondary/10">
-                <td className="py-2 px-4 font-mono text-xs text-primary">{inv.invoiceNumber}</td>
-                <td className="py-2 px-4 text-xs text-muted-foreground"><DualDate date={inv.date} /></td>
-                <td className="py-2 px-4 text-xs text-muted-foreground"><DualDate date={inv.dueDate} /></td>
-                <td className="py-2 px-4 font-mono text-xs">{fmtNum(inv.subtotal)}</td>
-                <td className="py-2 px-4 font-mono text-xs text-attention">{fmtNum(inv.vatAmount)}</td>
-                <td className="py-2 px-4 font-mono text-xs font-semibold">{fmtNum(inv.total)}</td>
-                <td className="py-2 px-4 font-mono text-xs text-positive">{fmtNum(inv.paidAmount)}</td>
-                <td className="py-2 px-4 font-mono text-xs text-negative">{fmtNum(inv.outstanding)}</td>
-                <td className="py-2 px-4"><Badge className={`text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{inv.status}</Badge></td>
+              <tr key={inv.id} className="border-b border-border/70 last:border-b-0 hover:bg-muted/40 transition-colors">
+                <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">{inv.invoiceNumber}</td>
+                <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={inv.date} /></td>
+                <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={inv.dueDate} /></td>
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(inv.subtotal)}</td>
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(inv.vatAmount)}</td>
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(inv.total)}</td>
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(inv.paidAmount)}</td>
+                <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(inv.outstanding)}</td>
+                <td className="py-3 px-3"><Badge className={`text-xs capitalize ${STATUS_STYLES[inv.status] ?? ""}`}>{inv.status}</Badge></td>
               </tr>
             ))}
           </tbody>
         </table></div>
       )}
-    </div>
+    </Panel>
   );
 }
 
@@ -125,64 +135,52 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Customer Ledger Report", "تقرير كشف حساب العملاء")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("All invoices and balances per customer", "كل الفواتير والأرصدة لكل عميل")}</p>
-        </div>
+      <PageHeader
+        title={t("Customer Ledger Report", "تقرير كشف حساب العملاء")}
+        description={t("All invoices and balances per customer", "كل الفواتير والأرصدة لكل عميل")}
+      >
         {/* Export removed: no onClick — one of seven dead Export buttons
             (2026-09-01). Export belongs to L1's artifact design. */}
-      </div>
+        <div className="mt-2"><FiscalRangeNotice source={range.source} /></div>
+      </PageHeader>
 
-      <FiscalRangeNotice source={range.source} />
-
-      <Card className="border-border bg-card">
-        <CardContent className="pt-4">
-          <div className="flex items-end gap-4 flex-wrap">
-            <div className="min-w-48">
-              <Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
-              <Select value={customerId} onValueChange={setCustomerId}>
-                <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("All Customers", "كل العملاء")}</SelectItem>
-                  {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                <PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent>
-              </Select>
-            </div>
-            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" onClick={() => setApplied({ customerId, from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
+      <Panel>
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="min-w-48">
+            <Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
+            <Select value={customerId} onValueChange={setCustomerId}>
+              <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("All Customers", "كل العملاء")}</SelectItem>
+                {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+              <PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent>
+            </Select>
           </div>
-          <div className="mt-3">
-            <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied({customerId,from:r.from,to:r.to});}} />
-          </div>
-        </CardContent>
-      </Card>
+          <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
+          <Button size="sm" className="h-8" onClick={() => setApplied({ customerId, from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
+        </div>
+        <div className="mt-3">
+          <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied({customerId,from:r.from,to:r.to});}} />
+        </div>
+      </Panel>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          {[
-            [t("Customers", "العملاء"), data.customers.length, "text-primary"],
-            [t("Total AR Balance", "إجمالي رصيد الذمم"), fmtNum(data.totalBalance), "text-negative"],
-            [t("Zero Balance", "رصيد صفري"), data.customers.filter(c => c.balance <= 0).length, "text-positive"],
-          ].map(([l, v, c]) => (
-            <Card key={String(l)} className="border-border bg-card">
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
-            </Card>
-          ))}
-        </div>
+        <StatStrip cols={3}>
+          <Stat label={t("Customers", "العملاء")} value={data.customers.length} />
+          <Stat label={t("Total AR Balance", "إجمالي رصيد الذمم")} value={fmtNum(data.totalBalance)} />
+          <Stat label={t("Zero Balance", "رصيد صفري")} value={data.customers.filter(c => c.balance <= 0).length} />
+        </StatStrip>
       )}
 
       {isLoading ? (
         <div className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</div>
       ) : !data || data.customers.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <Users className="w-8 h-8 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">{t("No customer data for this period.", "لا توجد بيانات عملاء لهذه الفترة.")}</p>
-        </div>
+        <Panel>
+          <EmptyState icon={Users} title={t("No customer data for this period.", "لا توجد بيانات عملاء لهذه الفترة.")} />
+        </Panel>
       ) : (
-        <div>
+        <div className="space-y-4">
           {data.customers.map(cust => <CustomerRow key={cust.customerId} cust={cust} />)}
         </div>
       )}

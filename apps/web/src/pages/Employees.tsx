@@ -2,14 +2,14 @@ import { GOSI_RATES, gosiPercentLabel } from "@workspace/shared";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, FilterTabs, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, UserCheck, Users, TrendingUp, Shield } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ListPagination } from "@/components/ListPagination";
@@ -60,11 +60,10 @@ export default function Employees() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Employees", "الموظفون")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("HR register · GOSI auto-calculated per Saudi Labour Law", "سجل الموارد البشرية · يُحسب التأمين الاجتماعي تلقائيًا وفق نظام العمل السعودي")}</p>
-        </div>
+      <PageHeader
+        title={t("Employees", "الموظفون")}
+        description={t("HR register · GOSI auto-calculated per Saudi Labour Law", "سجل الموارد البشرية · يُحسب التأمين الاجتماعي تلقائيًا وفق نظام العمل السعودي")}
+        actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("Add Employee", "إضافة موظف")}</Button></DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -82,7 +81,7 @@ export default function Employees() {
               <div><Label className="text-xs text-muted-foreground">{t("Status", "الحالة")}</Label>
                 <Select value={form.status} onValueChange={v=>setForm(p=>({...p,status:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["active","inactive"].map(s=><SelectItem key={s} value={s}>{s === "active" ? t("active","نشط") : t("inactive","غير نشط")}</SelectItem>)}</SelectContent></Select>
               </div>
-              <div className="col-span-2 border-t border-border pt-3"><p className="text-xs text-muted-foreground uppercase tracking-wide mb-2 font-medium">{t("Compensation (SAR)", "المكافآت (ر.س)")}</p></div>
+              <div className="col-span-2 border-t border-border pt-3"><p className="text-xs text-muted-foreground mb-2 font-medium">{t("Compensation (SAR)", "المكافآت (ر.س)")}</p></div>
               {([["basicSalary",t("Basic Salary *","الراتب الأساسي *")],["housingAllowance",t("Housing Allowance","بدل السكن")],["transportAllowance",t("Transport Allowance","بدل النقل")],["otherAllowances",t("Other Allowances","بدلات أخرى")]] as [string,string][]).map(([k,l])=>(
                 <div key={k}><Label className="text-xs text-muted-foreground">{l}</Label><Input type="number" value={(form as any)[k]} onChange={f(k)} className="mt-1 h-8 text-sm font-mono" /></div>
               ))}
@@ -97,49 +96,52 @@ export default function Employees() {
             <Button className="w-full mt-4" onClick={()=>createMut.mutate(form)} disabled={!form.name||!form.basicSalary||createMut.isPending}>{createMut.isPending ? t("Adding...", "جارٍ الإضافة...") : t("Add Employee", "إضافة موظف")}</Button>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[[t("Headcount","إجمالي الموظفين"), headcount, "text-primary"],[t("Saudi Nationals","المواطنون السعوديون"), `${saudiCount} / ${headcount}`, "text-attention"],[t("Monthly Payroll","الرواتب الشهرية"), fmtNum(totalPayroll), "text-foreground"],[t("Monthly GOSI (Employer)","التأمين الاجتماعي الشهري (صاحب العمل)"), fmtNum(totalGOSIEr), "text-negative"]].map(([l,v,c])=>(
-          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
-        ))}
-      </div>
+      <StatStrip cols={4}>
+        <Stat label={t("Headcount","إجمالي الموظفين")} value={headcount} />
+        <Stat label={t("Saudi Nationals","المواطنون السعوديون")} value={`${saudiCount} / ${headcount}`} />
+        <Stat label={t("Monthly Payroll","الرواتب الشهرية")} value={fmtNum(totalPayroll)} />
+        <Stat label={t("Monthly GOSI (Employer)","التأمين الاجتماعي الشهري (صاحب العمل)")} value={fmtNum(totalGOSIEr)} tone="negative" />
+      </StatStrip>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <div className="flex gap-2">
-            {["active","inactive","terminated"].map(s=>(<Button key={s} variant={statusFilter===s?"default":"ghost"} size="sm" className="h-7 text-xs capitalize" onClick={()=>setStatusFilter(s)}>{s === "active" ? t("active","نشط") : s === "inactive" ? t("inactive","غير نشط") : t("terminated","منتهي الخدمة")}</Button>))}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : employees.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground"><Users className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No employees found.", "لا يوجد موظفون.")}</p></div>
+      <Panel flush>
+        <FilterTabs
+          options={["active","inactive","terminated"].map(s => ({ value: s, label: s === "active" ? t("active","نشط") : s === "inactive" ? t("inactive","غير نشط") : t("terminated","منتهي الخدمة") }))}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          className="[&_button]:capitalize"
+        />
+          {isLoading ? <div className="text-muted-foreground text-sm p-5">{t("Loading...", "جارٍ التحميل...")}</div> : employees.length === 0 ? (
+            <EmptyState icon={Users} title={t("No employees found.", "لا يوجد موظفون.")} />
           ) : (
             <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Employee","الموظف"),t("Department","القسم"),t("Nationality","الجنسية"),t("Basic Salary","الراتب الأساسي"),t("Gross","الإجمالي"),t("GOSI Emp","تأمين الموظف"),t("GOSI Er","تأمين صاحب العمل"),t("Join Date","تاريخ الالتحاق"),t("Status","الحالة")].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border">{([[t("Employee","الموظف"),false],[t("Department","القسم"),false],[t("Nationality","الجنسية"),false],[t("Basic Salary","الراتب الأساسي"),true],[t("Gross","الإجمالي"),true],[t("GOSI Emp","تأمين الموظف"),true],[t("GOSI Er","تأمين صاحب العمل"),true],[t("Join Date","تاريخ الالتحاق"),false],[t("Status","الحالة"),false]] as const).map(([h,num])=><th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>)}</tr></thead>
               <tbody>{employees.map(e=>(
-                <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pe-3"><div className="font-medium">{e.name}</div><div className="text-xs text-muted-foreground font-mono">{e.employeeNumber}</div></td>
-                  <td className="py-3 pe-3 text-muted-foreground text-xs">{e.department||"—"}</td>
-                  <td className="py-3 pe-3"><Badge variant="outline" className={`text-xs ${e.nationality==="SA"?"border-primary/40 text-primary":"border-info-surface/40 text-info"}`}>{e.nationality==="SA" ? t("🇸🇦 Saudi","🇸🇦 سعودي") : t("Expat","وافد")}</Badge></td>
-                  <td className="py-3 pe-3 font-mono text-sm">{fmtNum(e.basicSalary)}</td>
-                  <td className="py-3 pe-3 font-mono text-sm font-semibold">{fmtNum(e.grossSalary)}</td>
-                  <td className="py-3 pe-3 font-mono text-xs text-attention">{fmtNum(e.gosiEmployee)}</td>
-                  <td className="py-3 pe-3 font-mono text-xs text-negative">{fmtNum(e.gosiEmployer)}</td>
-                  <td className="py-3 pe-3 text-xs text-muted-foreground"><DualDate date={e.joiningDate} /></td>
-                  <td className="py-3"><Badge className={`text-xs ${e.status==="active"?"bg-positive-surface/20 text-positive":"bg-secondary text-muted-foreground"}`}>{e.status === "active" ? t("active","نشط") : e.status === "inactive" ? t("inactive","غير نشط") : t("terminated","منتهي الخدمة")}</Badge></td>
+                <tr key={e.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                  <td className="py-3 px-3"><div className="font-medium">{e.name}</div><div className="text-[12px] text-muted-foreground">{e.employeeNumber}</div></td>
+                  <td className="py-3 px-3 text-muted-foreground text-[13px]">{e.department||"—"}</td>
+                  <td className="py-3 px-3"><Badge variant="outline" className={`text-xs ${e.nationality==="SA"?"border-primary/40 text-primary":"border-info-surface/40 text-info"}`}>{e.nationality==="SA" ? t("🇸🇦 Saudi","🇸🇦 سعودي") : t("Expat","وافد")}</Badge></td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(e.basicSalary)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(e.grossSalary)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(e.gosiEmployee)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(e.gosiEmployer)}</td>
+                  <td className="py-3 px-3 text-[13px] text-muted-foreground whitespace-nowrap"><DualDate date={e.joiningDate} /></td>
+                  <td className="py-3 px-3"><Badge className={`text-xs capitalize ${e.status==="active"?"bg-positive-surface/20 text-positive":"bg-secondary text-muted-foreground"}`}>{e.status === "active" ? t("active","نشط") : e.status === "inactive" ? t("inactive","غير نشط") : t("terminated","منتهي الخدمة")}</Badge></td>
                 </tr>
               ))}</tbody>
             </table></div>
           )}
-                  <ListPagination
-            page={paged?.page}
-            shown={employees.length}
-            onPrev={() => setPage((p) => Math.max(0, p - 1))}
-            onNext={() => setPage((p) => p + 1)}
-          />
-        </CardContent>
-      </Card>
+          <div className="border-t border-border px-5 pb-3 empty:hidden">
+            <ListPagination
+              page={paged?.page}
+              shown={employees.length}
+              onPrev={() => setPage((p) => Math.max(0, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
+          </div>
+      </Panel>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { arabicFieldStatus } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -62,11 +62,10 @@ export default function Vendors() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Vendors", "الموردون")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Payable", "الحسابات الدائنة")} — {paged?.page.total ?? 0} {t("active vendors", "مورد نشط")}</p>
-        </div>
+      <PageHeader
+        title={t("Vendors", "الموردون")}
+        description={<>{t("Accounts Payable", "الحسابات الدائنة")} — {paged?.page.total ?? 0} {t("active vendors", "مورد نشط")}</>}
+        actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Vendor", "مورد جديد")}</Button></DialogTrigger>
           <DialogContent className="max-w-lg">
@@ -99,55 +98,58 @@ export default function Vendors() {
             </Button>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Vendors", "إجمالي الموردين")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-primary">{paged?.page.total ?? 0}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Billed", "إجمالي المفوتر")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-foreground">{fmtNum(totalBilled)}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Outstanding AP", "الحسابات الدائنة المستحقة")}</CardTitle></CardHeader><CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${totalAP > 0 ? "text-negative" : "text-positive"}`}>{fmtNum(totalAP)}</div></CardContent></Card>
-      </div>
+      <StatStrip cols={3}>
+        <Stat label={t("Total Vendors", "إجمالي الموردين")} value={paged?.page.total ?? 0} />
+        <Stat label={t("Total Billed", "إجمالي المفوتر")} value={fmtNum(totalBilled)} />
+        <Stat label={t("Outstanding AP", "الحسابات الدائنة المستحقة")} value={fmtNum(totalAP)} tone={totalAP > 0 ? "negative" : "positive"} />
+      </StatStrip>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
+      <Panel flush>
+        <div className="border-b border-border px-5 py-3">
           <div className="relative max-w-xs">
             <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
             <Input placeholder={t("Search vendors...", "بحث عن الموردين...")} className="ps-9 h-9" value={search} onChange={e=>setSearch(e.target.value)} />
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : vendors.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground"><Building2 className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No vendors yet. Add your first vendor.", "لا يوجد موردون بعد. أضف أول مورد.")}</p></div>
+        </div>
+        <div>
+          {isLoading ? <div className="text-muted-foreground text-sm p-5">{t("Loading...", "جارٍ التحميل...")}</div> : vendors.length === 0 ? (
+            <EmptyState icon={Building2} title={t("No vendors yet. Add your first vendor.", "لا يوجد موردون بعد. أضف أول مورد.")} />
           ) : (
             <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Vendor","المورد"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("IBAN","IBAN"),t("Total Bills","إجمالي الفواتير"),t("Outstanding","المستحق"),""].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border">{([[t("Vendor","المورد"),false],[t("City","المدينة"),false],[t("VAT Number","رقم ضريبة القيمة المضافة"),false],[t("IBAN","IBAN"),false],[t("Total Bills","إجمالي الفواتير"),true],[t("Outstanding","المستحق"),true],["",false]] as const).map(([h,num])=><th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>)}</tr></thead>
               <tbody>{vendors.map(v=>(
-                <tr key={v.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pe-4">
+                <tr key={v.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                  <td className="py-3 px-3 min-w-[12rem]">
                     <div className="font-medium text-foreground">{v.name}</div>
                     {arabicFieldStatus(v.nameAr) === "ok"
                       ? <div className="text-xs text-muted-foreground" dir="rtl">{v.nameAr}</div>
                       : arabicFieldStatus(v.nameAr) === "wrong-script"
-                      ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script", "ليس نصًا عربيًا")}</div>
+                      ? <div className="text-[10px] text-severe italic mt-0.5">⚠ {t("not Arabic script", "ليس نصًا عربيًا")}</div>
                       : <div className="text-[10px] text-attention-surface/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>
-                  <td className="py-3 pe-4 text-muted-foreground">{v.city||"—"}</td>
-                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.taxNumber||"—"}</td>
-                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}</td>
-                  <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(v.totalBilled??0)}</td>
-                  <td className="py-3 pe-4"><span className={`font-mono font-medium ${(v.balance??0)>0?"text-negative":"text-positive"}`}>{fmtNum(v.balance??0)}</span></td>
-                  <td className="py-3"><Link href={`/vendors/${v.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>
+                  <td className="py-3 px-3 text-muted-foreground">{v.city||"—"}</td>
+                  <td className="py-3 px-3 text-[13px] tabular-nums whitespace-nowrap text-muted-foreground">{v.taxNumber||"—"}</td>
+                  <td className="py-3 px-3 text-[13px] tabular-nums whitespace-nowrap text-muted-foreground" dir="ltr">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-foreground">{fmtNum(v.totalBilled??0)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums"><span className={`font-medium ${(v.balance??0)>0?"text-negative":"text-positive"}`}>{fmtNum(v.balance??0)}</span></td>
+                  <td className="py-3 px-3 text-end"><Link href={`/vendors/${v.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>
                 </tr>
               ))}</tbody>
             </table></div>
           )}
-          <ListPagination
-            page={paged?.page}
-            shown={vendors.length}
-            onPrev={() => setPage((p) => Math.max(0, p - 1))}
-            onNext={() => setPage((p) => p + 1)}
-          />
-        </CardContent>
-      </Card>
+          <div className="border-t border-border px-5 pb-3 empty:hidden">
+            <ListPagination
+              page={paged?.page}
+              shown={vendors.length}
+              onPrev={() => setPage((p) => Math.max(0, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
+          </div>
+        </div>
+      </Panel>
     </div>
   );
 }

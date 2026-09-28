@@ -25,7 +25,7 @@
  * estimate, not as greyed-out rows implying a plan that does not exist.
  */
 import { Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel } from "@/components/kit";
 import { Badge } from "@/components/ui/badge";
 import { Plug, Clock, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -42,59 +42,53 @@ export default function Integrations() {
   );
 
   return (
-    <div className="p-6 max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <Plug className="w-5 h-5" />
-          {t("Integrations", "التكاملات")}
-        </h1>
-        <p className="text-muted-foreground text-sm mt-2 max-w-2xl">
-          {t(
+    <div className="max-w-4xl space-y-6">
+      <PageHeader
+        title={t("Integrations", "التكاملات")}
+        description={t(
             "An integration connects this platform to something outside it — a bank, a payment provider, an email service. Each one is a piece of code plus, usually, an agreement with the other side.",
             "التكامل يربط هذه المنصة بجهة خارجية — بنك أو مزوّد دفع أو خدمة بريد. وكل تكامل شيفرة برمجية، ويقترن عادةً باتفاقية مع الطرف الآخر.",
           )}
-        </p>
-      </div>
+      />
 
-      <div className="space-y-3">
+      <Panel flush>
+        <ul className="divide-y divide-border">
         {entries.map(entry => {
           const blocker = BLOCKERS[entry.blocker];
           return (
-            <Card key={entry.slug} className="border-border">
-              <CardHeader className="pb-2">
+            <li key={entry.slug} className="flex gap-4 px-5 py-4">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                <Plug className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1 space-y-2 text-sm">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <CardTitle className="text-base">{ar ? entry.titleAr : entry.title}</CardTitle>
+                  <h2 className="text-[15px] font-semibold text-foreground">{ar ? entry.titleAr : entry.title}</h2>
                   <Badge className="bg-attention-surface/20 text-attention border-attention-surface/30 gap-1">
                     <Clock className="w-3 h-3" />
                     {t("Not connected", "غير مربوط")}
                   </Badge>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
                 <p className="text-muted-foreground">{ar ? entry.summaryAr : entry.summary}</p>
-                <p className="text-xs">
+                <p className="text-[13px]">
                   <span className="text-muted-foreground">{t("Waiting on: ", "بانتظار: ")}</span>
                   <span className="font-medium text-foreground">{ar ? blocker.nameAr : blocker.name}</span>
                 </p>
-                <Link href={comingSoonHref(entry.slug)} className="inline-flex items-center gap-1 text-xs text-info hover:underline">
+                <Link href={comingSoonHref(entry.slug)} className="inline-flex items-center gap-1 text-[13px] font-medium text-primary hover:underline">
                   {t("What this is waiting on, in full", "تفاصيل ما ينتظره هذا")}
-                  <ArrowRight className="w-3 h-3" />
+                  <ArrowRight className="w-3 h-3 rtl:-scale-x-100" />
                 </Link>
-              </CardContent>
-            </Card>
+              </div>
+            </li>
           );
         })}
-      </div>
+        </ul>
+      </Panel>
 
       {/*
         🔴 THE SLOT ITSELF. An empty state that teaches rather than apologises:
         what an integration costs to add, and what asking for one involves.
       */}
-      <Card className="border-dashed border-border">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{t("Need something else connected?", "تحتاج ربط شيء آخر؟")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
+      <Panel className="border-dashed" title={t("Need something else connected?", "تحتاج ربط شيء آخر؟")} bodyClassName="space-y-2 text-sm text-muted-foreground">
           <p>
             {t(
               "Nothing else is planned right now, and that is deliberate — a list of integrations nobody is building would imply a roadmap that does not exist.",
@@ -107,8 +101,7 @@ export default function Integrations() {
               "اطلبه، وسيحصل على تصميم وتقدير قبل كتابة أي شيفرة. فمعظم العمل في التكامل يكمن في الاتفاقية والحالات الاستثنائية، لا في الربط ذاته.",
             )}
           </p>
-        </CardContent>
-      </Card>
+      </Panel>
     </div>
   );
 }

@@ -16,13 +16,12 @@
  * control. OBE does not exist and is not offered; a difference blocks.
  */
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "wouter";
+import { useParams } from "wouter";
 import { apiFetch } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel } from "@/components/kit";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Database } from "lucide-react";
 import { SECTIONS, summariseChecks, type WorkspaceSection } from "@/lib/migrationImport";
 import { BatchStatusBadge, Facts, MigrationPermissionHint, Money, SECTION_LABELS, isEditable, storedValidation, useBatch, useCanRunMigration, useOpeningPosition, useWorkspaceNav } from "@/components/migration/shared";
 import { ChartSection } from "@/components/migration/ChartSection";
@@ -55,9 +54,7 @@ function Overview({ batch, companyName }: { batch: MigrationBatchDetail; company
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">{t("Migration", "الترحيل")} #{batch.id}</CardTitle></CardHeader>
-          <CardContent>
+        <Panel className="lg:col-span-2" title={<>{t("Migration", "الترحيل")} #{batch.id}</>}>
             <Facts items={[
               [t("Status", "الحالة"), <BatchStatusBadge key="s" status={batch.status} testId="overview-status" />],
               [t("Company", "الشركة"), companyName],
@@ -72,24 +69,20 @@ function Overview({ batch, companyName }: { batch: MigrationBatchDetail; company
               [t("Warnings", "التحذيرات"), s ? s.warnings : "—"],
               [t("Notes", "ملاحظات"), batch.notes ?? "—"],
             ]} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">{t("Record counts", "عدد السجلات")}</CardTitle></CardHeader>
-          <CardContent>
-            <ul className="text-sm space-y-1" data-testid="overview-counts">
+        </Panel>
+        <Panel title={t("Record counts", "عدد السجلات")}>
+            <ul className="text-sm space-y-2" data-testid="overview-counts">
               {[[t("Chart rows", "صفوف الدليل"), batch.counts.chartRows, "chart" as const], [t("— unmapped", "— غير مربوطة"), batch.counts.chartRowsUnmapped, "chart" as const], [t("Parties", "الأطراف"), batch.counts.parties, "parties" as const], [t("Open items", "البنود المفتوحة"), batch.counts.openItems, "ar" as const], [t("Advances", "الدفعات المقدمة"), batch.counts.advances, "advances" as const]].map(([l, v, sec], i) => (
-                <li key={i} className="flex justify-between gap-2"><button className="text-start hover:underline" onClick={() => go(sec as WorkspaceSection)}>{l}</button><span className={`font-mono ${i === 1 && Number(v) > 0 ? "text-negative" : ""}`}>{v}</span></li>
+                <li key={i} className="flex justify-between gap-2"><button className="text-start text-foreground hover:text-primary hover:underline" onClick={() => go(sec as WorkspaceSection)}>{l}</button><span className={`tabular-nums font-medium ${i === 1 && Number(v) > 0 ? "text-negative" : ""}`}>{v}</span></li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
+        </Panel>
       </div>
       <div className="flex flex-wrap gap-2" data-testid="overview-actions">
         {actions.map((a) => <Button key={a.label} variant={a.primary ? "default" : "outline"} size="sm" onClick={() => go(a.section)}>{a.label}</Button>)}
       </div>
       {!canRun && <MigrationPermissionHint />}
-      <p className="text-xs text-muted-foreground">{t("Lifecycle: draft → validated → committed → reversed, or discarded. The status shown is the server's. There is no opening-balance-equity account and no automatic balancing: an unbalanced position, an unresolved mapping, an undecided party, an invalid item, a failing VAT reconciliation or a failing bank check blocks the commit.", "دورة الحياة: مسودة ← تم التحقق ← معتمد ← معكوس، أو مهمل. الحالة المعروضة هي حالة الخادم. لا يوجد حساب حقوق ملكية للأرصدة الافتتاحية ولا موازنة تلقائية: أي مركز غير متوازن أو ربط غير محسوم أو طرف لم يُقرَّر أو بند غير صالح أو مطابقة ضريبية أو بنكية فاشلة يوقف الاعتماد.")}</p>
+      <p className="text-[13px] leading-relaxed text-muted-foreground max-w-[80ch]">{t("Lifecycle: draft → validated → committed → reversed, or discarded. The status shown is the server's. There is no opening-balance-equity account and no automatic balancing: an unbalanced position, an unresolved mapping, an undecided party, an invalid item, a failing VAT reconciliation or a failing bank check blocks the commit.", "دورة الحياة: مسودة ← تم التحقق ← معتمد ← معكوس، أو مهمل. الحالة المعروضة هي حالة الخادم. لا يوجد حساب حقوق ملكية للأرصدة الافتتاحية ولا موازنة تلقائية: أي مركز غير متوازن أو ربط غير محسوم أو طرف لم يُقرَّر أو بند غير صالح أو مطابقة ضريبية أو بنكية فاشلة يوقف الاعتماد.")}</p>
     </div>
   );
 }
@@ -104,29 +97,27 @@ export default function MigrationWorkspace() {
   const companyName = company ? (lang === "ar" && company.nameAr ? company.nameAr : company.name) : "—";
 
   if (!Number.isInteger(id) || id <= 0) return <p className="text-sm text-destructive">{t("Not a migration batch.", "ليست دفعة ترحيل.")}</p>;
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</p>;
-  if (error || !batch) return <p className="text-sm text-destructive p-4" data-testid="workspace-error">{t("This migration could not be loaded.", "تعذر تحميل هذا الترحيل.")} {(error as Error)?.message}</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>;
+  if (error || !batch) return <p className="text-sm text-destructive" data-testid="workspace-error">{t("This migration could not be loaded.", "تعذر تحميل هذا الترحيل.")} {(error as Error)?.message}</p>;
   const editable = isEditable(batch);
   const committed = batch.status === "committed" || batch.status === "reversed";
   const label = (s: WorkspaceSection) => SECTION_LABELS[s][lang === "ar" ? 1 : 0];
 
   return (
-    <div className="space-y-4" data-testid="migration-workspace">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <Link href="/migration" className="text-xs text-muted-foreground inline-flex items-center gap-1 hover:underline"><ArrowLeft className="w-3 h-3 rtl:rotate-180" />{t("All migrations", "كل عمليات الترحيل")}</Link>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2 flex-wrap"><Database className="w-5 h-5" />{t("Migration", "الترحيل")} #{batch.id} <BatchStatusBadge status={batch.status} /></h1>
-          <p className="text-muted-foreground text-sm mt-1">{companyName} · {t("opening date", "تاريخ الافتتاح")} <span dir="ltr">{batch.openingDate}</span> · {batch.sourceSystem}</p>
-        </div>
-      </div>
+    <div className="space-y-6" data-testid="migration-workspace">
+      <PageHeader
+        back={{ href: "/migration", label: t("All migrations", "كل عمليات الترحيل") }}
+        title={<span className="inline-flex flex-wrap items-center gap-2.5">{t("Migration", "الترحيل")} #{batch.id} <BatchStatusBadge status={batch.status} /></span>}
+        description={<>{companyName} · {t("opening date", "تاريخ الافتتاح")} <span dir="ltr">{batch.openingDate}</span> · {batch.sourceSystem}</>}
+      />
 
       {/* Section navigation: a scrollable tab strip on wide screens, a select on phones (twelve tabs do not fit a phone). */}
       {/* Walk defect 2026-09-20: twelve tabs overflowed a 1280px window into a scrolling strip with a scrollbar. They wrap instead. */}
       <div className="hidden md:block">
-        <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="tablist" data-testid="section-tabs">
+        <div className="flex flex-wrap gap-x-5 border-b border-border" role="tablist" data-testid="section-tabs">
           {SECTIONS.map((s) => (
             <button key={s} role="tab" aria-selected={section === s} onClick={() => go(s)} data-testid={`tab-${s}`}
-              className={`whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all ${section === s ? "bg-background text-foreground shadow" : "text-muted-foreground hover:text-foreground"}`}>
+              className={`-mb-px whitespace-nowrap border-b-2 py-2.5 text-[13px] font-medium transition-colors ${section === s ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"}`}>
               {label(s)}
             </button>
           ))}

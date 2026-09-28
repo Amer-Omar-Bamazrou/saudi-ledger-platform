@@ -76,7 +76,7 @@ export function ReceiveDialog({ open, onClose, customer }: { open: boolean; onCl
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">{t("Customer *", "العميل *")}</p>
+            <p className="text-[13px] text-muted-foreground mb-1.5">{t("Customer *", "العميل *")}</p>
             {customer ? (
               <p className="text-sm font-medium">{customer.name}</p>
             ) : (
@@ -91,27 +91,27 @@ export function ReceiveDialog({ open, onClose, customer }: { open: boolean; onCl
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">{t("Amount (SAR) *", "المبلغ (ر.س) *")}</p>
-              <Input type="number" min={0} step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-9 text-sm font-mono" data-testid="receive-amount" />
+              <p className="text-[13px] text-muted-foreground mb-1.5">{t("Amount (SAR) *", "المبلغ (ر.س) *")}</p>
+              <Input type="number" min={0} step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-9 text-sm tabular-nums" data-testid="receive-amount" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">{t("Received on", "تاريخ الاستلام")}</p>
+              <p className="text-[13px] text-muted-foreground mb-1.5">{t("Received on", "تاريخ الاستلام")}</p>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-sm" />
             </div>
           </div>
           <BankPicker value={bank} onChange={setBank} testId="receive-bank-account" label={t("Received into bank account *", "استُلم في الحساب البنكي *")} />
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">{t("Method", "الطريقة")}</p>
+              <p className="text-[13px] text-muted-foreground mb-1.5">{t("Method", "الطريقة")}</p>
               <Input value={method} onChange={(e) => setMethod(e.target.value)} className="h-9 text-sm" placeholder={t("transfer, cash…", "تحويل، نقد…")} />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">{t("Reference", "المرجع")}</p>
-              <Input value={reference} onChange={(e) => setReference(e.target.value)} className="h-9 text-sm font-mono" data-testid="receive-reference" placeholder={t("as on the bank statement", "كما في كشف البنك")} />
+              <p className="text-[13px] text-muted-foreground mb-1.5">{t("Reference", "المرجع")}</p>
+              <Input value={reference} onChange={(e) => setReference(e.target.value)} className="h-9 text-sm tabular-nums" data-testid="receive-reference" placeholder={t("as on the bank statement", "كما في كشف البنك")} />
             </div>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-1">{t("What is this money?", "ما هذا المبلغ؟")}</p>
+            <p className="text-[13px] text-muted-foreground mb-1.5">{t("What is this money?", "ما هذا المبلغ؟")}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Select value={classification} onValueChange={(v) => setClassification(v as DepositClassificationValue | "later")}>
                 <SelectTrigger className="h-9 text-sm" data-testid="receive-classification"><SelectValue /></SelectTrigger>

@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState, type Tone } from "@/components/kit";
 import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -11,9 +11,18 @@ import type { ArAgingReport } from "@workspace/api-client-react";
 const BUCKET_COLORS: Record<string, string> = {
   current: "text-positive",
   days_1_30: "text-attention",
-  days_31_60: "text-orange-400",
+  days_31_60: "text-severe",
   days_61_90: "text-negative",
-  over_90: "text-red-600",
+  over_90: "text-critical",
+};
+
+/** The strip's tone per bucket: overdue IS a state (CLAUDE.md §4), so it may carry one. */
+const BUCKET_TONE: Record<string, Tone> = {
+  current: "default",
+  days_1_30: "attention",
+  days_31_60: "negative",
+  days_61_90: "negative",
+  over_90: "negative",
 };
 
 const BUCKET_LABELS: Record<string, { en: string; ar: string }> = {
@@ -41,46 +50,43 @@ export default function ArAging() {
   });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("AR Aging Report", "تقرير أعمار الذمم المدينة")}</h1>
-        <p className="text-muted-foreground text-sm mt-1">{t("Outstanding customer balances by age · Auto-refreshes every minute", "أرصدة العملاء المستحقة حسب العمر · تحديث تلقائي كل دقيقة")}</p>
-      </div>
+    <div className="space-y-6 max-w-6xl">
+      <PageHeader
+        title={t("AR Aging Report", "تقرير أعمار الذمم المدينة")}
+        description={t("Outstanding customer balances by age · Auto-refreshes every minute", "أرصدة العملاء المستحقة حسب العمر · تحديث تلقائي كل دقيقة")}
+      />
 
       {data && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            {Object.entries(BUCKET_LABELS).map(([key, label]) => (
-              <Card key={key} className="border-border bg-card">
-                <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{t(label.en, label.ar)}</CardTitle></CardHeader>
-                <CardContent>
-                  <div className={`text-lg font-bold font-mono ${BUCKET_COLORS[key]}`}>{fmtNum((data.buckets as any)[key] ?? 0)}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {((((data.buckets as any)[key] ?? 0) / (data.total || 1)) * 100).toFixed(0)}%
-                  </div>
-                </CardContent>
-              </Card>
+          <StatStrip cols={5}>
+            {Object.entries(BUCKET_LABELS).map(([key, label], i, all) => (
+              <Stat
+                key={key}
+                className={i === all.length - 1 ? "col-span-2 lg:col-span-1" : undefined}
+                label={t(label.en, label.ar)}
+                value={fmtNum((data.buckets as any)[key] ?? 0)}
+                tone={((data.buckets as any)[key] ?? 0) > 0 ? BUCKET_TONE[key] : "default"}
+                hint={`${((((data.buckets as any)[key] ?? 0) / (data.total || 1)) * 100).toFixed(0)}%`}
+              />
             ))}
-          </div>
+          </StatStrip>
 
           {/* Visual bar */}
-          <Card className="border-border bg-card">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-1 h-4 rounded-full overflow-hidden">
-                {Object.entries(BUCKET_LABELS).map(([key]) => {
-                  const pct = data.total > 0 ? ((data.buckets as any)[key] / data.total) * 100 : 0;
-                  if (pct === 0) return null;
-                  const bg: Record<string, string> = { current: "bg-positive-surface", days_1_30: "bg-attention-surface", days_31_60: "bg-orange-500", days_61_90: "bg-negative-surface", over_90: "bg-red-700" };
-                  return <div key={key} style={{ width: `${pct}%` }} className={`h-full transition-all ${bg[key]}`} title={`${t(BUCKET_LABELS[key].en, BUCKET_LABELS[key].ar)}: ${fmtNum((data.buckets as any)[key])}`} />;
-                })}
-              </div>
-              <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                <span>{t("Least overdue", "الأقل تأخرًا")} ←</span>
-                <span className="font-bold text-foreground" data-testid="aging-total">{t("Total receivable", "إجمالي الذمم المدينة")}: {fmtNum(data.total)}</span>
-                <span>→ {t("Most overdue", "الأكثر تأخرًا")}</span>
-              </div>
-            </CardContent>
-          </Card>
+          <Panel>
+            <div className="flex items-center gap-1 h-3 rounded-full overflow-hidden bg-muted">
+              {Object.entries(BUCKET_LABELS).map(([key]) => {
+                const pct = data.total > 0 ? ((data.buckets as any)[key] / data.total) * 100 : 0;
+                if (pct === 0) return null;
+                const bg: Record<string, string> = { current: "bg-positive-surface", days_1_30: "bg-attention-surface", days_31_60: "bg-severe", days_61_90: "bg-negative-surface", over_90: "bg-critical" };
+                return <div key={key} style={{ width: `${pct}%` }} className={`h-full transition-all ${bg[key]}`} title={`${t(BUCKET_LABELS[key].en, BUCKET_LABELS[key].ar)}: ${fmtNum((data.buckets as any)[key])}`} />;
+              })}
+            </div>
+            <div className="flex flex-wrap justify-between gap-2 mt-3 text-xs text-muted-foreground">
+              <span>{t("Least overdue", "الأقل تأخرًا")} ←</span>
+              <span className="font-semibold text-sm text-foreground tabular-nums" data-testid="aging-total">{t("Total receivable", "إجمالي الذمم المدينة")}: {fmtNum(data.total)}</span>
+              <span>→ {t("Most overdue", "الأكثر تأخرًا")}</span>
+            </div>
+          </Panel>
 
           {/*
             Phase E/F (2026-09-17): the buckets carry ONLY real receivable
@@ -88,79 +94,65 @@ export default function ArAging() {
             the ageing — as the two liabilities it is — never folded into a
             bucket as a negative amount. The net is derived and labelled so.
           */}
-          <Card className="border-border bg-card">
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Receivable vs what we owe customers", "الذمم المدينة مقابل ما ندين به للعملاء")}</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-xs text-muted-foreground">{t("Total AR (Σ buckets)", "إجمالي الذمم (مجموع الفئات)")}</p>
-                  <p className="font-mono font-semibold text-lg" data-testid="recon-total">{fmtNum(data.total)}</p>
-                </div>
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-xs text-muted-foreground">{t("− Customer credits (credit-note balances)", "− أرصدة دائنة (أرصدة إشعارات الدائن)")}</p>
-                  <p className="font-mono font-semibold text-lg text-info" data-testid="recon-credits">{fmtNum(data.liabilities.customerCredits)}</p>
-                </div>
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-xs text-muted-foreground">{t("− Customer deposits (unapplied receipts)", "− عرابين العملاء (إيصالات غير مخصصة)")}</p>
-                  <p className="font-mono font-semibold text-lg text-info" data-testid="recon-deposits">{fmtNum(data.liabilities.customerDeposits)}</p>
-                </div>
-                <div className="rounded-md border border-primary/40 p-3">
-                  <p className="text-xs text-muted-foreground">{t("= Net customer position (derived)", "= صافي مركز العملاء (مشتق)")}</p>
-                  <p className="font-mono font-semibold text-lg" data-testid="recon-net">{fmtNum(data.netCustomerPosition)}</p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                {t("Credits and deposits are liabilities we owe, not negative receivables; they never appear inside an ageing bucket.", "الأرصدة الدائنة والعرابين التزامات ندين بها، وليست ذممًا سالبة؛ ولا تظهر أبدًا داخل فئة أعمار.")}
-              </p>
-            </CardContent>
-          </Card>
+          <Panel
+            title={t("Receivable vs what we owe customers", "الذمم المدينة مقابل ما ندين به للعملاء")}
+            description={t("Credits and deposits are liabilities we owe, not negative receivables; they never appear inside an ageing bucket.", "الأرصدة الدائنة والعرابين التزامات ندين بها، وليست ذممًا سالبة؛ ولا تظهر أبدًا داخل فئة أعمار.")}
+          >
+            <StatStrip cols={4} className="mb-0">
+              <Stat label={t("Total AR (Σ buckets)", "إجمالي الذمم (مجموع الفئات)")} value={<span data-testid="recon-total">{fmtNum(data.total)}</span>} />
+              <Stat label={t("− Customer credits (credit-note balances)", "− أرصدة دائنة (أرصدة إشعارات الدائن)")} value={<span data-testid="recon-credits">{fmtNum(data.liabilities.customerCredits)}</span>} />
+              <Stat label={t("− Customer deposits (unapplied receipts)", "− عرابين العملاء (إيصالات غير مخصصة)")} value={<span data-testid="recon-deposits">{fmtNum(data.liabilities.customerDeposits)}</span>} />
+              <Stat label={t("= Net customer position (derived)", "= صافي مركز العملاء (مشتق)")} value={<span data-testid="recon-net">{fmtNum(data.netCustomerPosition)}</span>} className="bg-accent/40" />
+            </StatStrip>
+          </Panel>
         </>
       )}
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Outstanding Invoices", "الفواتير المستحقة")}</CardTitle></CardHeader>
-        <CardContent>
-          {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : !data || data.items.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <AlertCircle className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p>{t("No outstanding invoices. All payments are current.", "لا توجد فواتير مستحقة. جميع المدفوعات محدّثة.")}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {[t("Invoice #", "رقم الفاتورة"), t("Customer", "العميل"), t("Due Date", "تاريخ الاستحقاق"), t("Days Past Due", "أيام التأخر"), t("Outstanding", "المستحق"), t("Aging", "التقادم")].map(h => (
-                    <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map(item => {
-                  const bucket = agingBucket(item.daysPastDue);
-                  return (
-                    <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                      <td className="py-3 pe-4 font-mono text-xs text-primary">{item.invoiceNumber}</td>
-                      <td className="py-3 pe-4 font-medium">{n(item.customerName, item.customerNameAr)}</td>
-                      <td className="py-3 pe-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
-                      <td className="py-3 pe-4">
-                        <span className={`font-mono font-bold ${BUCKET_COLORS[bucket]}`}>
-                          {item.daysPastDue <= 0 ? t("Current", "جارٍ") : `${item.daysPastDue}${t("d", " يوم")}`}
-                        </span>
-                      </td>
-                      <td className="py-3 pe-4 font-mono font-semibold text-foreground">{fmtNum(item.outstanding)}</td>
-                      <td className="py-3">
-                        <Badge className={`text-xs ${bucket === "current" ? "bg-positive-surface/20 text-positive" : bucket === "days_1_30" ? "bg-attention-surface/20 text-attention" : "bg-negative-surface/20 text-negative"}`}>
-                          {t(BUCKET_LABELS[bucket].en, BUCKET_LABELS[bucket].ar)}
-                        </Badge>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table></div>
-          )}
-        </CardContent>
-      </Card>
+      <Panel flush title={t("Outstanding Invoices", "الفواتير المستحقة")}>
+        {isLoading ? <div className="text-muted-foreground text-sm p-5">{t("Loading...", "جارٍ التحميل...")}</div> : !data || data.items.length === 0 ? (
+          <EmptyState icon={AlertCircle} title={t("No outstanding invoices. All payments are current.", "لا توجد فواتير مستحقة. جميع المدفوعات محدّثة.")} />
+        ) : (
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                {([
+                  [t("Invoice #", "رقم الفاتورة"), false],
+                  [t("Customer", "العميل"), false],
+                  [t("Due Date", "تاريخ الاستحقاق"), false],
+                  [t("Days Past Due", "أيام التأخر"), true],
+                  [t("Outstanding", "المستحق"), true],
+                  [t("Aging", "التقادم"), false],
+                ] as const).map(([h, num]) => (
+                  <th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map(item => {
+                const bucket = agingBucket(item.daysPastDue);
+                return (
+                  <tr key={item.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                    <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{item.invoiceNumber}</td>
+                    <td className="py-3 px-3 min-w-[10rem]">{n(item.customerName, item.customerNameAr)}</td>
+                    <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={item.dueDate} /></td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">
+                      <span className={`font-medium ${BUCKET_COLORS[bucket]}`}>
+                        {item.daysPastDue <= 0 ? t("Current", "جارٍ") : `${item.daysPastDue}${t("d", " يوم")}`}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold text-foreground">{fmtNum(item.outstanding)}</td>
+                    <td className="py-3 px-3">
+                      <Badge className={`text-xs ${bucket === "current" ? "bg-positive-surface/20 text-positive" : bucket === "days_1_30" ? "bg-attention-surface/20 text-attention" : "bg-negative-surface/20 text-negative"}`}>
+                        {t(BUCKET_LABELS[bucket].en, BUCKET_LABELS[bucket].ar)}
+                      </Badge>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table></div>
+        )}
+      </Panel>
     </div>
   );
 }

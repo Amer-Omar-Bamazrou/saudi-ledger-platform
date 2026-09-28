@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, FilterTabs, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -132,11 +132,10 @@ export default function JournalEntries() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("General Ledger", "دفتر الأستاذ العام")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Double-entry journal entries", "قيود اليومية ذات القيد المزدوج")} · {entries.length} {t("entries", "قيود")}</p>
-        </div>
+      <PageHeader
+        title={t("General Ledger", "دفتر الأستاذ العام")}
+        description={<>{t("Double-entry journal entries", "قيود اليومية ذات القيد المزدوج")} · {entries.length} {t("entries", "قيود")}</>}
+        actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Entry", "قيد جديد")}</Button></DialogTrigger>
           <DialogContent className="max-w-2xl">
@@ -150,11 +149,11 @@ export default function JournalEntries() {
 
             <div className="mt-4">
               <div className="flex justify-between items-center mb-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">{t("Journal Lines", "سطور القيد")}</Label>
+                <Label className="text-xs text-muted-foreground">{t("Journal Lines", "سطور القيد")}</Label>
                 <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={()=>setLines(p=>[...p,{...emptyLine}])}>+ {t("Add Line", "إضافة سطر")}</Button>
               </div>
               <div className="overflow-x-auto"><table className="w-full text-xs">
-                <thead><tr className="border-b border-border text-muted-foreground uppercase">{[
+                <thead><tr className="border-b border-border text-muted-foreground">{[
                   t("Account", "الحساب"),
                   t("Description", "الوصف"),
                   t("Debit (SAR)", "مدين (ر.س)"),
@@ -202,6 +201,82 @@ export default function JournalEntries() {
               </table></div>
               {!balanced && <p className="text-xs text-negative mt-1">⚠ {t("Entry must balance: debits", "يجب أن يكون القيد متوازناً: المدين")} ({fmtNum(totalDebit)}) ≠ {t("credits", "الدائن")} ({fmtNum(totalCredit)})</p>}
 
+            </div>
+
+            {partyMissing && <p className="text-xs text-negative mt-1">⚠ {t("A receivable/payable line must name its customer/vendor.", "سطر الذمم المدينة/الدائنة يجب أن يحدد العميل/المورّد.")}</p>}
+            <Button className="w-full mt-4" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||partyMissing||createMut.isPending}>
+              {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
+            </Button>
+          </DialogContent>
+        </Dialog>
+        }
+      />
+
+      {/*
+        🔴 THESE COUNTS USED TO DESCRIBE THE PAGE AND CLAIM TO DESCRIBE THE SET.
+        All three were computed from `entries` — one fetched page of 50 — so
+        "Total Entries" read 50 on an org with 4,000, and "Posted" counted the
+        posted rows that happened to be on screen. That is the volume defect
+        exactly: a count taken from a capped list, invisible to every fixture we
+        own because our fixtures are smaller than the cap.
+
+        Adding a status filter would have made it worse (the counts would then
+        describe the filtered page), so they are replaced rather than carried
+        forward: ONE figure, the server's total for the set actually being
+        shown. The per-status breakdown is not re-derived here — the chips below
+        answer that question by asking the server, which is the only place the
+        real count exists.
+      */}
+      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1fr)_340px] 2xl:items-start">
+        <Panel flush className="min-w-0">
+          <FilterTabs
+            options={JOURNAL_ENTRY_FILTERS.map(o => ({ value: o.value, label: lang === "ar" ? o.labelAr : o.label }))}
+            value={statusFilter}
+            onChange={applyFilter}
+            end={
+              <span className="text-[13px] text-muted-foreground">
+                {t("Entries", "القيود")}{" "}
+                <span className="font-semibold text-foreground tabular-nums">{jePageInfo ? jePageInfo.total.toLocaleString() : "—"}</span>
+              </span>
+            }
+          />
+          <div className="px-5 pt-3 empty:hidden">
+            <FilterScope options={JOURNAL_ENTRY_FILTERS} value={statusFilter} total={jePageInfo?.total} onClear={() => applyFilter("all")} />
+          </div>
+          {isLoading ? <div className="text-muted-foreground text-sm p-5">{t("Loading...", "جارٍ التحميل...")}</div> : entries.length === 0 ? (
+            <EmptyState icon={BookOpen} title={t("No journal entries yet.", "لا توجد قيود يومية بعد.")} />
+          ) : (
+            <div className="overflow-x-auto"><table className="w-full text-sm">
+              <thead><tr className="border-b border-border">{([
+                [t("Entry #", "رقم القيد"), false],
+                [t("Date", "التاريخ"), false],
+                [t("Description", "الوصف"), false],
+                [t("Debit", "مدين"), true],
+                [t("Credit", "دائن"), true],
+                [t("Status", "الحالة"), false],
+                ["", false],
+              ] as const).map(([h, num])=><th key={h} className={`${num ? "text-end" : "text-start"} px-3${h === "" ? " sticky end-0 bg-muted shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]" : ""}`}>{h}</th>)}</tr></thead>
+              <tbody>{entries.map(e=>(
+                <tr key={e.id} className={`border-b border-border/70 transition-colors cursor-pointer ${selectedId===e.id?"bg-accent/60":"hover:bg-muted/40"}`} onClick={()=>setSelectedId(selectedId===e.id?null:e.id)}>
+                  <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">{e.entryNumber}</td>
+                  <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={e.date} /></td>
+                  <td className="py-3 px-3 max-w-[160px] truncate">{e.description}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(e.totalDebit)}</td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(e.totalCredit)}</td>
+                  <td className="py-3 px-3"><Badge className={`text-xs capitalize ${STATUS_STYLES[e.status]??""}`}>{e.status}</Badge></td>
+                  <td className="py-3 px-3 whitespace-nowrap sticky end-0 bg-card shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]">
+                    {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-7 text-xs text-positive" onClick={ev=>{ev.stopPropagation();postMut.mutate(e.id);}}>{t("Post", "ترحيل")}</Button>}
+                    {/* 🔴 AUD-12: draft-only delete. `DELETE /journal-entries/:id`
+                        existed with no caller, so a mistyped draft entry could not
+                        be removed. A POSTED entry is corrected by a reversing
+                        entry — the service refuses it and says so. */}
+                    {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-7 text-xs text-negative" onClick={ev=>{ev.stopPropagation();if(confirmDelete!==e.id){setConfirmDelete(e.id);}else{deleteMut.mutate(e.id);}}}>{confirmDelete===e.id?t("Confirm delete", "تأكيد الحذف"):t("Delete", "حذف")}</Button>}
+                    {e.status==="posted"&&<Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={ev=>{ev.stopPropagation();reverseMut.mutate(e.id);}}>{t("Reverse", "عكس")}</Button>}
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          )}
             {/*
               🔴 The page says what it is showing and of how many, and gives a
               way to the rest. A list that silently stops at 50 is the same
@@ -209,7 +284,7 @@ export default function JournalEntries() {
               set the reader does not think they are looking at (B-6).
             */}
             {jePageInfo && jePageInfo.total > 0 && (
-              <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+              <div className="flex items-center justify-between border-t border-border px-5 py-3 text-sm text-muted-foreground">
                 <span>
                   {t(
                     `Showing ${jePageInfo.offset + 1}–${Math.min(jePageInfo.offset + entries.length, jePageInfo.total)} of ${jePageInfo.total}`,
@@ -231,127 +306,32 @@ export default function JournalEntries() {
                 </div>
               </div>
             )}
-            </div>
+        </Panel>
 
-            {partyMissing && <p className="text-xs text-negative mt-1">⚠ {t("A receivable/payable line must name its customer/vendor.", "سطر الذمم المدينة/الدائنة يجب أن يحدد العميل/المورّد.")}</p>}
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||partyMissing||createMut.isPending}>
-              {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
-            </Button>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/*
-        🔴 THESE COUNTS USED TO DESCRIBE THE PAGE AND CLAIM TO DESCRIBE THE SET.
-        All three were computed from `entries` — one fetched page of 50 — so
-        "Total Entries" read 50 on an org with 4,000, and "Posted" counted the
-        posted rows that happened to be on screen. That is the volume defect
-        exactly: a count taken from a capped list, invisible to every fixture we
-        own because our fixtures are smaller than the cap.
-
-        Adding a status filter would have made it worse (the counts would then
-        describe the filtered page), so they are replaced rather than carried
-        forward: ONE figure, the server's total for the set actually being
-        shown. The per-status breakdown is not re-derived here — the chips below
-        answer that question by asking the server, which is the only place the
-        real count exists.
-      */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">{t("Entries", "القيود")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold font-mono text-primary">
-              {jePageInfo ? jePageInfo.total.toLocaleString() : "—"}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <div className="flex gap-2 flex-wrap">
-            {JOURNAL_ENTRY_FILTERS.map(o => (
-              <Button key={o.value} variant={statusFilter === o.value ? "default" : "ghost"} size="sm"
-                className="h-7 text-xs" onClick={() => applyFilter(o.value)}>
-                {lang === "ar" ? o.labelAr : o.label}
-              </Button>
-            ))}
-          </div>
-          <div className="mt-3">
-            <FilterScope options={JOURNAL_ENTRY_FILTERS} value={statusFilter} total={jePageInfo?.total} onClear={() => applyFilter("all")} />
-          </div>
-        </CardHeader>
-      </Card>
-
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        <Card className="col-span-3 border-border bg-card">
-          <CardContent className="pt-4">
-            {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : entries.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground"><BookOpen className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No journal entries yet.", "لا توجد قيود يومية بعد.")}</p></div>
-            ) : (
-              <div className="overflow-x-auto"><table className="w-full text-sm">
-                <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[
-                  t("Entry #", "رقم القيد"),
-                  t("Date", "التاريخ"),
-                  t("Description", "الوصف"),
-                  t("Debit", "مدين"),
-                  t("Credit", "دائن"),
-                  t("Status", "الحالة"),
-                  "",
-                ].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
-                <tbody>{entries.map(e=>(
-                  <tr key={e.id} className={`border-b border-border/50 transition-colors cursor-pointer ${selectedId===e.id?"bg-primary/5":"hover:bg-secondary/20"}`} onClick={()=>setSelectedId(selectedId===e.id?null:e.id)}>
-                    <td className="py-2 pe-3 font-mono text-xs text-primary">{e.entryNumber}</td>
-                    <td className="py-2 pe-3 text-xs text-muted-foreground"><DualDate date={e.date} /></td>
-                    <td className="py-2 pe-3 max-w-[140px] truncate">{e.description}</td>
-                    <td className="py-2 pe-3 font-mono text-xs text-positive">{fmtNum(e.totalDebit)}</td>
-                    <td className="py-2 pe-3 font-mono text-xs text-negative">{fmtNum(e.totalCredit)}</td>
-                    <td className="py-2 pe-3"><Badge className={`text-xs ${STATUS_STYLES[e.status]??""}`}>{e.status}</Badge></td>
-                    <td className="py-2">
-                      {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();postMut.mutate(e.id);}}>{t("Post", "ترحيل")}</Button>}
-                      {/* 🔴 AUD-12: draft-only delete. `DELETE /journal-entries/:id`
-                          existed with no caller, so a mistyped draft entry could not
-                          be removed. A POSTED entry is corrected by a reversing
-                          entry — the service refuses it and says so. */}
-                      {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-negative" onClick={ev=>{ev.stopPropagation();if(confirmDelete!==e.id){setConfirmDelete(e.id);}else{deleteMut.mutate(e.id);}}}>{confirmDelete===e.id?t("Confirm delete", "تأكيد الحذف"):t("Delete", "حذف")}</Button>}
-                      {e.status==="posted"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={ev=>{ev.stopPropagation();reverseMut.mutate(e.id);}}>{t("Reverse", "عكس")}</Button>}
-                    </td>
+        <Panel className="min-w-0" title={t("Entry Detail", "تفاصيل القيد")}>
+          {!selectedEntry ? <div className="text-center py-8 text-muted-foreground text-sm">{t("Select an entry to view its lines", "اختر قيداً لعرض سطوره")}</div> : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 text-sm"><span className="font-medium text-primary">{selectedEntry.entryNumber}</span><Badge className={`text-xs capitalize ${STATUS_STYLES[selectedEntry.status]??""}`}>{selectedEntry.status}</Badge></div>
+              <p className="text-sm text-foreground font-medium">{selectedEntry.description}</p>
+              {selectedEntry.reference && <p className="text-[13px] text-muted-foreground">{t("Ref:", "المرجع:")} {selectedEntry.reference}</p>}
+              <div className="overflow-x-auto -mx-5"><table className="w-full text-sm mt-2">
+                <thead><tr className="border-b border-border">{([
+                  [t("Account", "الحساب"), false],
+                  [t("Dr", "مدين"), true],
+                  [t("Cr", "دائن"), true],
+                ] as const).map(([h, num])=><th key={h} className={`${num ? "text-end" : "text-start"} px-3 first:ps-5 last:pe-5`}>{h}</th>)}</tr></thead>
+                <tbody>{selectedEntry.lines.map((l, i) => (
+                  <tr key={i} className="border-b border-border/70">
+                    <td className="py-2.5 px-3 ps-5 text-foreground">{l.accountName}</td>
+                    <td className={`py-2.5 px-3 text-end whitespace-nowrap tabular-nums ${l.debitAmount>0?"":"text-muted-foreground"}`}>{l.debitAmount>0?fmtNum(l.debitAmount):"—"}</td>
+                    <td className={`py-2.5 px-3 pe-5 text-end whitespace-nowrap tabular-nums ${l.creditAmount>0?"":"text-muted-foreground"}`}>{l.creditAmount>0?fmtNum(l.creditAmount):"—"}</td>
                   </tr>
                 ))}</tbody>
+                <tfoot><tr className="font-semibold"><td className="py-3 px-3 ps-5">{t("Total", "الإجمالي")}</td><td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(selectedEntry.totalDebit)}</td><td className="py-3 px-3 pe-5 text-end whitespace-nowrap tabular-nums">{fmtNum(selectedEntry.totalCredit)}</td></tr></tfoot>
               </table></div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-2 border-border bg-card">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Entry Detail", "تفاصيل القيد")}</CardTitle></CardHeader>
-          <CardContent>
-            {!selectedEntry ? <div className="text-center py-8 text-muted-foreground text-sm">{t("Select an entry to view its lines", "اختر قيداً لعرض سطوره")}</div> : (
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm"><span className="text-muted-foreground">{selectedEntry.entryNumber}</span><Badge className={`text-xs ${STATUS_STYLES[selectedEntry.status]??""}`}>{selectedEntry.status}</Badge></div>
-                <p className="text-xs text-foreground font-medium">{selectedEntry.description}</p>
-                {selectedEntry.reference && <p className="text-xs text-muted-foreground">{t("Ref:", "المرجع:")} {selectedEntry.reference}</p>}
-                <div className="overflow-x-auto"><table className="w-full text-xs mt-2">
-                  <thead><tr className="border-b border-border text-muted-foreground">{[
-                    t("Account", "الحساب"),
-                    t("Dr", "مدين"),
-                    t("Cr", "دائن"),
-                  ].map(h=><th key={h} className="text-start pb-1 pe-2">{h}</th>)}</tr></thead>
-                  <tbody>{selectedEntry.lines.map((l, i) => (
-                    <tr key={i} className="border-b border-border/30">
-                      <td className="py-1 pe-2 text-foreground">{l.accountName}</td>
-                      <td className={`py-1 pe-2 font-mono ${l.debitAmount>0?"text-positive":"text-muted-foreground"}`}>{l.debitAmount>0?fmtNum(l.debitAmount):"—"}</td>
-                      <td className={`py-1 font-mono ${l.creditAmount>0?"text-negative":"text-muted-foreground"}`}>{l.creditAmount>0?fmtNum(l.creditAmount):"—"}</td>
-                    </tr>
-                  ))}</tbody>
-                  <tfoot><tr className="font-semibold border-t border-border"><td className="py-1 text-muted-foreground">{t("Total", "الإجمالي")}</td><td className="py-1 font-mono text-positive">{fmtNum(selectedEntry.totalDebit)}</td><td className="py-1 font-mono text-negative">{fmtNum(selectedEntry.totalCredit)}</td></tr></tfoot>
-                </table></div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </Panel>
       </div>
     </div>
   );

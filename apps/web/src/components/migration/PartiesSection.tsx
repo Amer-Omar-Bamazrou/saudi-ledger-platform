@@ -11,7 +11,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel, FilterTabs } from "@/components/kit";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Upload, Pencil, Plus } from "lucide-react";
 import { EmptyState, Money, Problems, focusClass, invalidateMigration, useCanRunMigration, useFocusRow, useParties, useWorkspaceNav } from "./shared";
@@ -73,8 +73,8 @@ export function PartiesSection({ batchId, editable }: { batchId: number; editabl
   // total. The filter switches itself off once nothing is blocked, so the corrected row is what the operator sees.
   useEffect(() => { if (onlyBlocked && data && data.summary.blocked === 0) setOnlyBlocked(false); }, [onlyBlocked, data]);
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</p>;
-  if (error || !data) return <p className="text-sm text-destructive p-4">{t("The parties could not be loaded.", "تعذر تحميل الأطراف.")} {(error as Error)?.message}</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>;
+  if (error || !data) return <p className="text-sm text-destructive">{t("The parties could not be loaded.", "تعذر تحميل الأطراف.")} {(error as Error)?.message}</p>;
   const s = data.summary;
   const decisionText = (r: MigrationParty) =>
     r.decision === "create" ? t("Create new", "إنشاء جديد") : r.decision === "use_existing" ? t(`Use existing #${r.existingId}`, `استخدام القائم #${r.existingId}`) : t("Undecided", "لم يُقرَّر");
@@ -83,49 +83,48 @@ export function PartiesSection({ batchId, editable }: { batchId: number; editabl
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{t("Customers & suppliers", "العملاء والموردون")}</h2>
-          <p className="text-sm text-muted-foreground">{t("Each party keeps its source identity (system + id). A match is proposed, never applied: you decide whether it is the same party.", "يحتفظ كل طرف بهويته المصدرية (النظام + المعرّف). يُقترح التطابق ولا يُطبَّق: أنت تقرر إن كان الطرف نفسه.")}</p>
+          <h2 className="text-base font-semibold text-foreground">{t("Customers & suppliers", "العملاء والموردون")}</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground max-w-[80ch]">{t("Each party keeps its source identity (system + id). A match is proposed, never applied: you decide whether it is the same party.", "يحتفظ كل طرف بهويته المصدرية (النظام + المعرّف). يُقترح التطابق ولا يُطبَّق: أنت تقرر إن كان الطرف نفسه.")}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {can && <Button size="sm" variant="outline" onClick={() => setEditingRow(-1)} data-testid="parties-add-row"><Plus className="w-3.5 h-3.5 me-1" />{t("Add party", "إضافة طرف")}</Button>}
           {can && <Button size="sm" onClick={() => setImporting(true)} data-testid="parties-import"><Upload className="w-3.5 h-3.5 me-1" />{t("Import parties", "استيراد الأطراف")}</Button>}
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden rounded-lg border border-border bg-border">
         {[[t("Customers", "العملاء"), s.customers], [t("Suppliers", "الموردون"), s.vendors], [t("Undecided", "لم يُقرَّر"), s.undecided, s.undecided > 0 ? "text-negative" : "text-positive"], [t("Using existing", "يستخدم قائمًا"), s.useExisting]].map(([l, v, c], i) => (
-          <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-lg font-semibold font-mono ${c ?? ""}`}>{v}</div></CardContent></Card>
+          <div key={i} className="bg-card px-4 py-3.5 min-w-0"><div className="text-[13px] text-muted-foreground">{l}</div><div className={`mt-1.5 text-[20px] leading-tight font-semibold tabular-nums ${c ?? ""}`}>{v}</div></div>
         ))}
       </div>
       {data.rows.length === 0 ? (
         <EmptyState icon={Users} title={t("No parties staged yet", "لم يُجهَّز أي طرف بعد")} hint={t("Import the customers and suppliers that open items and advances refer to, with the old system's ids.", "استورد العملاء والموردين الذين تشير إليهم البنود المفتوحة والدفعات المقدمة، بمعرّفات النظام السابق.")}
           action={can ? <Button size="sm" onClick={() => setImporting(true)}><Upload className="w-3.5 h-3.5 me-1" />{t("Import parties", "استيراد الأطراف")}</Button> : undefined} />
       ) : (
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2 flex-wrap">
-            <div className="flex gap-1">
-              {(["all", "customer", "vendor"] as const).map((k) => <Button key={k} variant={type === k ? "default" : "ghost"} size="sm" className="h-7 text-xs" onClick={() => setType(k)}>{k === "all" ? t("All", "الكل") : k === "customer" ? t("Customers", "العملاء") : t("Suppliers", "الموردون")}</Button>)}
-            </div>
-            <Button variant={onlyBlocked ? "default" : "ghost"} size="sm" className="h-7 text-xs" onClick={() => setOnlyBlocked((v) => !v)} data-testid="parties-only-blocked">{t(`Problems only (${s.blocked})`, `المشاكل فقط (${s.blocked})`)}</Button>
-          </CardHeader>
-          <CardContent>
+        <Panel flush>
+            <FilterTabs
+              options={(["all", "customer", "vendor"] as const).map((k) => ({ value: k, label: k === "all" ? t("All", "الكل") : k === "customer" ? t("Customers", "العملاء") : t("Suppliers", "الموردون") }))}
+              value={type}
+              onChange={(v) => setType(v as "all" | "customer" | "vendor")}
+              end={<Button variant={onlyBlocked ? "default" : "ghost"} size="sm" className="h-7 text-xs" onClick={() => setOnlyBlocked((v) => !v)} data-testid="parties-only-blocked">{t(`Problems only (${s.blocked})`, `المشاكل فقط (${s.blocked})`)}</Button>}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-card">
-                  <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                    {[t("Source id", "المعرّف المصدري"), t("Name", "الاسم"), t("Type", "النوع"), t("VAT / CR", "الرقم الضريبي / السجل"), t("Open items", "البنود المفتوحة"), t("Decision", "القرار"), t("State", "الحالة"), ""].map((h, i) => <th key={i} className="text-start pb-2 pe-3 font-medium">{h}</th>)}
+                <thead>
+                  <tr className="border-b border-border">
+                    {[t("Source id", "المعرّف المصدري"), t("Name", "الاسم"), t("Type", "النوع"), t("VAT / CR", "الرقم الضريبي / السجل"), t("Open items", "البنود المفتوحة"), t("Decision", "القرار"), t("State", "الحالة"), ""].map((h, i) => <th key={i} className="text-start px-3">{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} id={`staged-${r.id}`} className={`border-b border-border/50 align-top ${focusClass(r.id, focus)}`} data-testid={`party-row-${r.sourceId}`}>
-                      <td className="py-2 pe-3 font-mono text-xs" dir="ltr">{r.sourceId}{r.resolvedId != null && <span className="block text-[11px] text-muted-foreground">→ #{r.resolvedId}</span>}</td>
-                      <td className="py-2 pe-3 max-w-[14rem] break-words">{lang === "ar" && r.nameAr ? r.nameAr : r.name}{r.city && <span className="block text-[11px] text-muted-foreground">{r.city}</span>}</td>
-                      <td className="py-2 pe-3"><Badge variant="outline" className="text-xs">{r.partyType === "customer" ? t("Customer", "عميل") : t("Supplier", "مورّد")}</Badge></td>
-                      <td className="py-2 pe-3 font-mono text-xs" dir="ltr">{r.taxNumber ?? "—"}{r.crNumber ? ` / ${r.crNumber}` : ""}</td>
-                      <td className="py-2 pe-3 text-xs">{r.openItems} · <Money v={r.openTotal} />{r.advances > 0 && <span className="block text-muted-foreground">{t("advances", "دفعات مقدمة")}: {r.advances} · <Money v={r.advanceTotal} /></span>}</td>
-                      <td className="py-2 pe-3 text-xs">{decisionText(r)}</td>
-                      <td className="py-2 pe-3"><Problems list={r.problems} id={r.id} /></td>
-                      <td className="py-2">
+                    <tr key={r.id} id={`staged-${r.id}`} className={`border-b border-border/70 align-top ${focusClass(r.id, focus)}`} data-testid={`party-row-${r.sourceId}`}>
+                      <td className="py-2.5 px-3 font-mono text-xs" dir="ltr">{r.sourceId}{r.resolvedId != null && <span className="block text-[12px] text-muted-foreground">→ #{r.resolvedId}</span>}</td>
+                      <td className="py-2.5 px-3 max-w-[14rem] break-words">{lang === "ar" && r.nameAr ? r.nameAr : r.name}{r.city && <span className="block text-[12px] text-muted-foreground">{r.city}</span>}</td>
+                      <td className="py-2.5 px-3"><Badge variant="outline" className="text-xs">{r.partyType === "customer" ? t("Customer", "عميل") : t("Supplier", "مورّد")}</Badge></td>
+                      <td className="py-2.5 px-3 font-mono text-xs" dir="ltr">{r.taxNumber ?? "—"}{r.crNumber ? ` / ${r.crNumber}` : ""}</td>
+                      <td className="py-2.5 px-3 text-xs">{r.openItems} · <Money v={r.openTotal} />{r.advances > 0 && <span className="block text-muted-foreground">{t("advances", "دفعات مقدمة")}: {r.advances} · <Money v={r.advanceTotal} /></span>}</td>
+                      <td className="py-2.5 px-3 text-xs">{decisionText(r)}</td>
+                      <td className="py-2.5 px-3"><Problems list={r.problems} id={r.id} /></td>
+                      <td className="py-2.5 px-3">
                         {can && (
                           <div className="flex flex-col gap-1 items-start">
                             <PartyDecision batchId={batchId} row={r} />
@@ -138,8 +137,7 @@ export function PartiesSection({ batchId, editable }: { batchId: number; editabl
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
+          </Panel>
       )}
       {importing && <ImportDialog batchId={batchId} kind="parties" hasRows={data.rows.length > 0} onClose={() => setImporting(false)} />}
       {editingRow != null && <RowEditorDialog batchId={batchId} kind="parties" rows={data.rows as unknown as Record<string, unknown>[]} index={editingRow} onClose={() => setEditingRow(null)} />}

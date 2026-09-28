@@ -36,8 +36,12 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-/** Measured after the 2026-08-31 conversion (was 604). Ratchet DOWN only. */
-const BASELINE = 45;
+/**
+ * Measured after the 2026-08-31 conversion (was 604), then 45 → 14 with the
+ * 2026-09 design pass (aging severity and equity got tokens: `severe`,
+ * `critical`, `equity`). Ratchet DOWN only.
+ */
+const BASELINE = 14;
 
 /**
  * Files the scanner saw when this guard was written. If it sees fewer, it has

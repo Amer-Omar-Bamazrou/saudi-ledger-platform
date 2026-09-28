@@ -68,27 +68,27 @@ export function WriteOffBadDebtDialog({ invoice, open, onClose }: { invoice: Inv
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1 rounded-md border border-border p-3 text-sm">
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Invoice", "الفاتورة")}</span><span className="font-mono">{invoice.invoiceNumber} · <span dir="ltr">{invoice.date}</span></span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Unpaid — written off", "غير المسدد — يُشطب")}</span><span className="font-mono" data-testid="bad-debt-unpaid">{fmtNum(unpaid)}</span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("VAT relieved (box 7)", "الضريبة المستردة (الخانة 7)")}</span><span className="font-mono" data-testid="bad-debt-relief-vat">{fmtNum(reliefVat)}</span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Invoice", "الفاتورة")}</span><span className="tabular-nums">{invoice.invoiceNumber} · <span dir="ltr">{invoice.date}</span></span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Unpaid — written off", "غير المسدد — يُشطب")}</span><span className="tabular-nums" data-testid="bad-debt-unpaid">{fmtNum(unpaid)}</span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("VAT relieved (box 7)", "الضريبة المستردة (الخانة 7)")}</span><span className="tabular-nums" data-testid="bad-debt-relief-vat">{fmtNum(reliefVat)}</span></div>
         </div>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Date the conditions were met (the return period)", "تاريخ استيفاء الشروط (فترة الإقرار)")}</Label>
-            <Input type="date" value={claimedOn} onChange={(e) => setClaimedOn(e.target.value)} className="mt-1 h-9" data-testid="bad-debt-claimed-on" />
+            <Label className="text-[13px] text-muted-foreground">{t("Date the conditions were met (the return period)", "تاريخ استيفاء الشروط (فترة الإقرار)")}</Label>
+            <Input type="date" value={claimedOn} onChange={(e) => setClaimedOn(e.target.value)} className="mt-1.5 h-9" data-testid="bad-debt-claimed-on" />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Certified accountant's write-off certificate (reference)", "مرجع شهادة المحاسب القانوني بالشطب")}</Label>
-            <Input value={certificateRef} onChange={(e) => setCertificateRef(e.target.value)} className="mt-1 h-9" placeholder={t("e.g. CA-2026-12", "مثال: CA-2026-12")} data-testid="bad-debt-certificate" />
+            <Label className="text-[13px] text-muted-foreground">{t("Certified accountant's write-off certificate (reference)", "مرجع شهادة المحاسب القانوني بالشطب")}</Label>
+            <Input value={certificateRef} onChange={(e) => setCertificateRef(e.target.value)} className="mt-1.5 h-9" placeholder={t("e.g. CA-2026-12", "مثال: CA-2026-12")} data-testid="bad-debt-certificate" />
           </div>
           {needsLegal && (
             <div>
-              <Label className="text-xs text-muted-foreground">{t("Legal procedures taken without success (required above SAR 100,000)", "الإجراءات القانونية دون جدوى (مطلوبة فوق 100,000 ريال)")}</Label>
-              <Input value={legalRef} onChange={(e) => setLegalRef(e.target.value)} className="mt-1 h-9" placeholder={t("e.g. court order no. …", "مثال: أمر المحكمة رقم …")} data-testid="bad-debt-legal" />
+              <Label className="text-[13px] text-muted-foreground">{t("Legal procedures taken without success (required above SAR 100,000)", "الإجراءات القانونية دون جدوى (مطلوبة فوق 100,000 ريال)")}</Label>
+              <Input value={legalRef} onChange={(e) => setLegalRef(e.target.value)} className="mt-1.5 h-9" placeholder={t("e.g. court order no. …", "مثال: أمر المحكمة رقم …")} data-testid="bad-debt-legal" />
             </div>
           )}
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Note", "ملاحظة")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("Note", "ملاحظة")}</Label>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} className="mt-1" rows={2} data-testid="bad-debt-note" />
           </div>
           {mut.error && <p className="text-sm text-destructive" data-testid="bad-debt-error">{(mut.error as Error).message}</p>}
@@ -148,15 +148,15 @@ export function BadDebtRecoveryDialog({ invoice, open, onClose }: { invoice: Inv
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1 rounded-md border border-border p-3 text-sm">
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Written-off invoice", "الفاتورة المشطوبة")}</span><span className="font-mono">{invoice.invoiceNumber}</span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Relief claimed on", "تاريخ طلب الإعفاء")}</span><span className="font-mono" dir="ltr">{invoice.badDebtRelief?.claimedOn}</span></div>
-          {!migrated && <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Written off", "المشطوب")}</span><span className="font-mono">{fmtNum(invoice.writtenOffAmount ?? 0)}</span></div>}
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Written-off invoice", "الفاتورة المشطوبة")}</span><span className="tabular-nums">{invoice.invoiceNumber}</span></div>
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Relief claimed on", "تاريخ طلب الإعفاء")}</span><span className="tabular-nums" dir="ltr">{invoice.badDebtRelief?.claimedOn}</span></div>
+          {!migrated && <div className="flex justify-between gap-4"><span className="text-muted-foreground">{t("Written off", "المشطوب")}</span><span className="tabular-nums">{fmtNum(invoice.writtenOffAmount ?? 0)}</span></div>}
         </div>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs text-muted-foreground">{migrated ? t("Receipt allocated to this item", "الإيصال المخصص لهذا البند") : t("Receipt with the money on account", "الإيصال الذي يحمل المبلغ على الحساب")}</Label>
+            <Label className="text-[13px] text-muted-foreground">{migrated ? t("Receipt allocated to this item", "الإيصال المخصص لهذا البند") : t("Receipt with the money on account", "الإيصال الذي يحمل المبلغ على الحساب")}</Label>
             <Select value={paymentId} onValueChange={(v) => { setPaymentId(v); const p = candidates.find((c) => String(c.id) === v); if (p) setAmount(String(migrated ? p.allocations.filter((a) => a.invoiceId === invoice.id && a.reversedBy == null).reduce((s, a) => s + a.amount, 0) : Math.min(p.unappliedAmount, invoice.writtenOffAmount ?? p.unappliedAmount))); }}>
-              <SelectTrigger className="mt-1 h-9" data-testid="bad-debt-recovery-payment"><SelectValue placeholder={t("Choose a receipt", "اختر إيصالاً")} /></SelectTrigger>
+              <SelectTrigger className="mt-1.5 h-9" data-testid="bad-debt-recovery-payment"><SelectValue placeholder={t("Choose a receipt", "اختر إيصالاً")} /></SelectTrigger>
               <SelectContent>
                 {candidates.map((p) => <SelectItem key={p.id} value={String(p.id)} data-testid={`bad-debt-recovery-payment-${p.id}`}>RCPT-{p.id} · <span dir="ltr">{p.paidAt}</span> · {fmtNum(migrated ? p.amount : p.unappliedAmount)}</SelectItem>)}
               </SelectContent>
@@ -164,14 +164,14 @@ export function BadDebtRecoveryDialog({ invoice, open, onClose }: { invoice: Inv
             {candidates.length === 0 && <p className="text-xs text-muted-foreground mt-1">{migrated ? t("Allocate the receipt to this item first; the recovery invoice then declares the VAT on the amount allocated.", "خصّص الإيصال لهذا البند أولاً؛ ثم تُفصح فاتورة الاسترداد عن الضريبة على المبلغ المخصص.") : t("Record the receipt on account first (Payments).", "سجّل الإيصال على الحساب أولاً (المدفوعات).")}</p>}
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">{t("Amount received (incl. VAT)", "المبلغ المستلم (شامل الضريبة)")}</Label>
-            <Input type="number" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1 h-9" data-testid="bad-debt-recovery-amount" />
+            <Label className="text-[13px] text-muted-foreground">{t("Amount received (incl. VAT)", "المبلغ المستلم (شامل الضريبة)")}</Label>
+            <Input type="number" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1.5 h-9" data-testid="bad-debt-recovery-amount" />
             {chosen && amountNum > remaining + 0.005 && <p className="text-xs text-destructive mt-1">{t("More than can be declared from this receipt.", "أكثر مما يمكن الإفصاح عنه من هذا الإيصال.")}</p>}
           </div>
           {migrated && (
             <div>
-              <Label className="text-xs text-muted-foreground">{t("VAT rate the original invoice carried (only if the migration did not record it)", "نسبة الضريبة في الفاتورة الأصلية (فقط إن لم يسجلها الترحيل)")}</Label>
-              <Input type="number" inputMode="decimal" value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="mt-1 h-9" placeholder="15" data-testid="bad-debt-recovery-rate" />
+              <Label className="text-[13px] text-muted-foreground">{t("VAT rate the original invoice carried (only if the migration did not record it)", "نسبة الضريبة في الفاتورة الأصلية (فقط إن لم يسجلها الترحيل)")}</Label>
+              <Input type="number" inputMode="decimal" value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="mt-1.5 h-9" placeholder="15" data-testid="bad-debt-recovery-rate" />
             </div>
           )}
           {mut.error && <p className="text-sm text-destructive" data-testid="bad-debt-recovery-error">{(mut.error as Error).message}</p>}

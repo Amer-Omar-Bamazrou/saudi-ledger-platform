@@ -3,10 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
-import { FileText, RefreshCw } from "lucide-react";
+import { FileText, RefreshCw, Inbox } from "lucide-react";
 import OperatorZatcaPanel from "./OperatorZatcaPanel";
 
 /**
@@ -22,7 +22,7 @@ interface Review { id: string; fromStatus: string | null; toStatus: string; reas
 interface Detail extends AppRow { companies: Company[]; documents: Doc[]; reviews: Review[] }
 
 const STATUS_COLOR: Record<string, string> = {
-  pending_review: "bg-attention-surface/20 text-attention-surface border-attention-surface/30",
+  pending_review: "bg-attention-surface/20 text-attention border-attention-surface/30",
   needs_info: "bg-info-surface/20 text-info border-info-surface/30",
   rejected: "bg-negative-surface/20 text-negative border-negative-surface/30",
   approved: "bg-positive-surface/20 text-positive border-positive-surface/30",
@@ -70,7 +70,7 @@ export default function OperatorReview() {
 
   if (listError) {
     return (
-      <div className="p-6">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <Alert variant="destructive"><AlertDescription>{(listError as Error).message}</AlertDescription></Alert>
       </div>
     );
@@ -79,61 +79,64 @@ export default function OperatorReview() {
   return (
     // Standalone page (rendered outside Layout — an operator has no org
     // membership, so the sidebar's tenant-scoped queries would 403).
-    <div className="min-h-screen bg-background p-6 space-y-6">
-      <div className="flex items-center justify-between max-w-5xl">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Verification review", "مراجعة التوثيق")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {t("Organizations awaiting platform approval", "المؤسسات في انتظار موافقة المنصة")}
-          </p>
+    <div className="min-h-screen bg-background">
+      <div className="border-b border-border bg-sidebar text-sidebar-foreground">
+        <div className="mx-auto flex h-14 max-w-5xl items-center gap-2.5 px-4 sm:px-6">
+          <div className="w-8 h-8 rounded-md bg-sidebar-foreground flex items-center justify-center">
+            <span className="font-display text-base font-bold leading-none text-sidebar -mt-0.5">ك</span>
+          </div>
+          <span className="font-display font-semibold">{t("KSA Ledger", "دفتر المملكة")}</span>
+          <span className="ms-2 text-[13px] text-sidebar-foreground/70">{t("Platform operator", "مشغّل المنصة")}</span>
         </div>
+      </div>
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+      <PageHeader
+        title={t("Verification review", "مراجعة التوثيق")}
+        description={t("Organizations awaiting platform approval", "المؤسسات في انتظار موافقة المنصة")}
+        actions={
         <Button variant="outline" size="sm" className="gap-1" onClick={() => qc.invalidateQueries({ queryKey: ["operator-applications"] })}>
           <RefreshCw className="w-3.5 h-3.5" /> {t("Refresh", "تحديث")}
         </Button>
-      </div>
+        }
+      />
 
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
-      <Card className="border-border bg-card max-w-5xl">
-        <CardHeader className="pb-3"><CardTitle className="text-base">{t("Applications", "الطلبات")}</CardTitle></CardHeader>
-        <CardContent className="p-0">
+      <Panel flush title={t("Applications", "الطلبات")}>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</p>
+            <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
           ) : (data?.applications ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground p-4">{t("No applications awaiting review.", "لا توجد طلبات في انتظار المراجعة.")}</p>
+            <EmptyState icon={Inbox} title={t("No applications awaiting review.", "لا توجد طلبات في انتظار المراجعة.")} />
           ) : (
             <div className="divide-y divide-border">
               {data!.applications.map((a) => (
                 <button
                   key={a.organizationId}
                   onClick={() => { setSelected(a.organizationId === selected ? null : a.organizationId); setReason(""); setError(""); }}
-                  className={`w-full text-start flex items-center gap-3 px-6 py-3 hover:bg-muted/40 ${selected === a.organizationId ? "bg-muted/40" : ""}`}
+                  className={`w-full text-start flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/40 ${selected === a.organizationId ? "bg-muted/40" : ""}`}
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{a.name}</p>
-                    <p className="text-xs text-muted-foreground">{a.slug}</p>
+                    <p className="text-[12px] text-muted-foreground">{a.slug}</p>
                   </div>
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${STATUS_COLOR[a.status] ?? ""}`}>
-                    {a.status.replace(/_/g, " ").toUpperCase()}
+                  <span className={`text-[12px] font-medium px-1.5 py-0.5 rounded border capitalize ${STATUS_COLOR[a.status] ?? ""}`}>
+                    {a.status.replace(/_/g, " ")}
                   </span>
                 </button>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Panel>
 
       {selected && detail && (
-        <Card className="border-border bg-card max-w-5xl">
-          <CardHeader className="pb-3"><CardTitle className="text-base">{detail.name}</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+        <Panel title={detail.name} bodyClassName="space-y-5">
             {/* Registration identity */}
             <div>
-              <h3 className="text-sm font-medium mb-1">{t("Registration", "التسجيل")}</h3>
+              <h3 className="text-[13px] font-semibold mb-1.5">{t("Registration", "التسجيل")}</h3>
               {detail.companies.length === 0 ? (
                 <p className="text-xs text-muted-foreground">{t("No company on file.", "لا توجد شركة مسجلة.")}</p>
               ) : detail.companies.map((c) => (
-                <div key={c.id} className="text-xs text-muted-foreground space-x-4">
+                <div key={c.id} className="flex flex-wrap gap-x-4 text-[13px] text-muted-foreground">
                   <span className="text-foreground">{c.name}</span>
                   <span>CR: <span className="font-mono">{c.crNumber ?? "—"}</span></span>
                   <span>VAT: <span className="font-mono">{c.vatNumber ?? "—"}</span></span>
@@ -143,18 +146,18 @@ export default function OperatorReview() {
 
             {/* Documents */}
             <div>
-              <h3 className="text-sm font-medium mb-1">{t("Documents", "المستندات")}</h3>
+              <h3 className="text-[13px] font-semibold mb-1.5">{t("Documents", "المستندات")}</h3>
               {detail.documents.length === 0 ? (
                 <p className="text-xs text-muted-foreground">{t("No documents uploaded.", "لم يتم رفع مستندات.")}</p>
               ) : (
                 <ul className="space-y-1">
                   {detail.documents.map((d) => (
-                    <li key={d.id} className="flex items-center gap-2 text-xs">
+                    <li key={d.id} className="flex items-center gap-2 text-[13px]">
                       <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <button onClick={() => downloadDoc(detail.organizationId, d.id)} className="text-primary hover:underline">
                         {d.fileName}
                       </button>
-                      <span className="uppercase text-[10px] border border-border rounded px-1 text-muted-foreground">{d.type.replace(/_/g, " ")}</span>
+                      <span className="text-[12px] border border-border rounded px-1 text-muted-foreground capitalize">{d.type.replace(/_/g, " ")}</span>
                     </li>
                   ))}
                 </ul>
@@ -163,14 +166,14 @@ export default function OperatorReview() {
 
             {/* History */}
             <div>
-              <h3 className="text-sm font-medium mb-1">{t("Review history", "سجل المراجعة")}</h3>
+              <h3 className="text-[13px] font-semibold mb-1.5">{t("Review history", "سجل المراجعة")}</h3>
               {detail.reviews.length === 0 ? (
                 <p className="text-xs text-muted-foreground">{t("No decisions yet.", "لا توجد قرارات بعد.")}</p>
               ) : (
                 <ul className="space-y-1">
                   {detail.reviews.map((r) => (
-                    <li key={r.id} className="text-xs text-muted-foreground">
-                      <span className="font-mono">{new Date(r.createdAt).toLocaleString()}</span>{" · "}
+                    <li key={r.id} className="text-[13px] text-muted-foreground">
+                      <span className="tabular-nums">{new Date(r.createdAt).toLocaleString()}</span>{" · "}
                       {r.fromStatus} → <span className="text-foreground">{r.toStatus}</span>
                       {r.reason ? ` — ${r.reason}` : ""}
                       {r.operatorUserId == null ? ` (${t("applicant", "مقدم الطلب")})` : ""}
@@ -186,7 +189,6 @@ export default function OperatorReview() {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder={t("Reason (required for request-info / reject / reopen)", "السبب (مطلوب لطلب معلومات / الرفض / إعادة الفتح)")}
-                className="h-8 text-sm"
               />
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ verb: "approve", orgId: detail.organizationId })}>
@@ -205,8 +207,7 @@ export default function OperatorReview() {
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </Panel>
       )}
 
       {/* M12.8 — ZATCA e-invoicing visibility: outbox age, certificate expiry,
@@ -219,6 +220,7 @@ export default function OperatorReview() {
           over on a verified channel. Self-service email reset replaces this
           as the primary path when the mail provider lands. */}
       <BreakGlassResetCard />
+      </div>
     </div>
   );
 }
@@ -241,12 +243,12 @@ function BreakGlassResetCard() {
   });
 
   return (
-    <Card className="border-attention-surface/40 bg-card max-w-5xl">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">{t("Break-glass password reset", "إعادة تعيين كلمة المرور (طوارئ)")}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground max-w-2xl">
+    <Panel
+      className="border-attention-surface/40"
+      title={t("Break-glass password reset", "إعادة تعيين كلمة المرور (طوارئ)")}
+      bodyClassName="space-y-3"
+    >
+        <p className="text-[13px] text-muted-foreground max-w-2xl">
           {t(
             "For a locked-out user with no other route back. Generates a temporary password shown ONCE, revokes every live session, and records the act. Operator accounts cannot be reset here.",
             "لمستخدم فَقَد الوصول ولا طريق أخرى له. تُنشأ كلمة مرور مؤقتة تُعرض مرة واحدة، وتُلغى كل الجلسات، ويُسجّل الإجراء. حسابات المشغّلين لا تُعاد من هنا.",
@@ -286,7 +288,6 @@ function BreakGlassResetCard() {
             </AlertDescription>
           </Alert>
         )}
-      </CardContent>
-    </Card>
+    </Panel>
   );
 }

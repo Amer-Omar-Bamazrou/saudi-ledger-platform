@@ -17,14 +17,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Receipt, Info, Pencil } from "lucide-react";
+import { Info, Pencil, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Link } from "wouter";
@@ -37,7 +37,7 @@ const BASES: [string, string, string][] = [
   ["other", "Other", "أخرى"],
 ];
 
-const Money = ({ v }: { v: number }) => <span className="font-mono" dir="ltr">{fmtNum(v)}</span>;
+const Money = ({ v }: { v: number }) => <span className="tabular-nums whitespace-nowrap" dir="ltr">{fmtNum(v)}</span>;
 
 export default function VatCapitalAssets() {
   const { t, lang } = useLanguage();
@@ -57,67 +57,68 @@ export default function VatCapitalAssets() {
     onError: (e: Error) => toast({ title: t("Not recorded", "لم يُسجّل"), description: e.message, variant: "destructive" }),
   });
 
-  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</div>;
-  if (error || !data) return <div className="p-6 text-sm text-destructive">{t("The adjustments could not be loaded.", "تعذر تحميل التعديلات.")} {(error as Error)?.message}</div>;
+  if (isLoading) return <div className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</div>;
+  if (error || !data) return <div className="text-sm text-destructive">{t("The adjustments could not be loaded.", "تعذر تحميل التعديلات.")} {(error as Error)?.message}</div>;
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-full" data-testid="page-vat-capital-assets">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2"><Receipt className="w-6 h-6" />{t("VAT — capital-asset adjustments (Art. 52)", "ضريبة القيمة المضافة — تعديلات الأصول الرأسمالية (المادة 52)")}</h1>
-        <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-          {t("A working paper, not an entry. Input tax deducted on a capital asset is revisited once a year for the length of its adjustment period — six years for movable assets, ten for immovable, or the accounting life if that is shorter. The clock is NOT the depreciation clock: it starts at the beginning of the tax period in which the asset was bought, and each year's adjustment belongs to one named VAT return.",
+    <div className="space-y-6" data-testid="page-vat-capital-assets">
+      <PageHeader
+        title={t("VAT — capital-asset adjustments (Art. 52)", "ضريبة القيمة المضافة — تعديلات الأصول الرأسمالية (المادة 52)")}
+        description={t("A working paper, not an entry. Input tax deducted on a capital asset is revisited once a year for the length of its adjustment period — six years for movable assets, ten for immovable, or the accounting life if that is shorter. The clock is NOT the depreciation clock: it starts at the beginning of the tax period in which the asset was bought, and each year's adjustment belongs to one named VAT return.",
              "ورقة عمل لا قيد. تُراجَع ضريبة المدخلات المخصومة على الأصل الرأسمالي مرة كل سنة طوال فترة التعديل — ست سنوات للأصول المنقولة وعشر لغير المنقولة، أو العمر المحاسبي إن كان أقصر. وليست هذه ساعة الإهلاك: فهي تبدأ من أول الفترة الضريبية التي اقتُني فيها الأصل، ويخص تعديلُ كل سنة إقرارًا ضريبيًا واحدًا محددًا.")}
-        </p>
-        <Link href="/assets" className="text-sm text-primary hover:underline" data-testid="link-register">{t("The book register →", "السجل الدفتري ←")}</Link>
-      </div>
+        actions={
+          <Link href="/assets" className="text-sm text-primary hover:underline" data-testid="link-register">{t("The book register →", "السجل الدفتري ←")}</Link>
+        }
+      />
 
       {data.status !== "computed" ? (
-        <Card data-testid="vat-blocked">
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Info className="w-4 h-4" />{t("No windows yet — and this is not a company with no capital assets", "لا توجد فترات بعد — وليست هذه منشأة بلا أصول رأسمالية")}</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
+        <Panel
+          data-testid="vat-blocked"
+          title={<span className="flex items-center gap-2"><Info className="w-4 h-4 text-muted-foreground" />{t("No windows yet — and this is not a company with no capital assets", "لا توجد فترات بعد — وليست هذه منشأة بلا أصول رأسمالية")}</span>}
+        >
+          <div className="space-y-2">
             <Badge variant="outline" data-testid="vat-status">{data.status}</Badge>
             <p className="text-sm" data-testid="vat-reason">{data.reason}</p>
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
       ) : (
         <>
-          <Card data-testid="vat-fraction">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">{t("Art. 51(4) — the default proportional deduction, by calendar year", "المادة 51(4) — نسبة الخصم النسبي الافتراضية، بحسب السنة الميلادية")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground mb-2">
-                {t("Where an asset's actual use has not been stated, this is the figure used for it — taxable supplies over taxable plus exempt, excluding sales of capital assets (Art. 51(5)(a)). It is shown so it can be checked rather than trusted.",
+          <Panel
+            flush
+            data-testid="vat-fraction"
+            title={t("Art. 51(4) — the default proportional deduction, by calendar year", "المادة 51(4) — نسبة الخصم النسبي الافتراضية، بحسب السنة الميلادية")}
+            description={t("Where an asset's actual use has not been stated, this is the figure used for it — taxable supplies over taxable plus exempt, excluding sales of capital assets (Art. 51(5)(a)). It is shown so it can be checked rather than trusted.",
                    "حيثما لم يُذكر الاستخدام الفعلي للأصل، فهذه هي النسبة المستخدمة له — التوريدات الخاضعة على مجموع الخاضعة والمعفاة، مع استبعاد بيع الأصول الرأسمالية (المادة 51(5)(أ)). وتُعرض ليتسنى التحقق منها لا الوثوق بها.")}
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                    {[t("Calendar year", "السنة الميلادية"), t("Taxable", "الخاضعة"), t("Exempt", "المعفاة"), t("Recovery", "نسبة الاسترداد")].map((h, i) => <th key={i} className="text-start pb-2 pe-3 font-medium">{h}</th>)}
-                  </tr></thead>
-                  <tbody>
-                    {data.proportionalDeduction.map((p) => (
-                      <tr key={p.calendarYear} className="border-b border-border/50" data-testid={`fraction-${p.calendarYear}`}>
-                        <td className="py-1.5 pe-3 font-mono" dir="ltr">{p.calendarYear}</td>
-                        <td className="py-1.5 pe-3 text-end"><Money v={p.taxableSupplies} /></td>
-                        <td className="py-1.5 pe-3 text-end"><Money v={p.exemptSupplies} /></td>
-                        <td className="py-1.5 pe-3 text-end font-semibold">
-                          {p.pct === null
-                            ? <span className="text-[11px] font-normal text-muted-foreground">{t("no supplies — no fraction", "لا توريدات — لا نسبة")}</span>
-                            : <span className="font-mono" dir="ltr">{p.pct}%</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-border">
+                  {[t("Calendar year", "السنة الميلادية"), t("Taxable", "الخاضعة"), t("Exempt", "المعفاة"), t("Recovery", "نسبة الاسترداد")].map((h, i) => <th key={i} className={`px-3 ${i === 0 ? "text-start" : "text-end"}`}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {data.proportionalDeduction.map((p) => (
+                    <tr key={p.calendarYear} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`fraction-${p.calendarYear}`}>
+                      <td className="py-3 px-3 tabular-nums" dir="ltr">{p.calendarYear}</td>
+                      <td className="py-3 px-3 text-end"><Money v={p.taxableSupplies} /></td>
+                      <td className="py-3 px-3 text-end"><Money v={p.exemptSupplies} /></td>
+                      <td className="py-3 px-3 text-end font-semibold">
+                        {p.pct === null
+                          ? <span className="text-xs font-normal text-muted-foreground">{t("no supplies — no fraction", "لا توريدات — لا نسبة")}</span>
+                          : <span className="tabular-nums" dir="ltr">{p.pct}%</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
 
           {data.assets.length === 0 && (
-            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground" data-testid="vat-no-assets">
-              {t("No capital assets are in service. An asset whose VAT class is “not a capital asset” has no adjustment period (Art. 52(2)).", "لا توجد أصول رأسمالية في الخدمة. والأصل المصنَّف «ليس أصلًا رأسماليًا» لا فترة تعديل له (المادة 52(2)).")}
-            </CardContent></Card>
+            <Panel flush>
+              <div data-testid="vat-no-assets">
+                <EmptyState icon={Package} title={t("No capital assets are in service. An asset whose VAT class is “not a capital asset” has no adjustment period (Art. 52(2)).", "لا توجد أصول رأسمالية في الخدمة. والأصل المصنَّف «ليس أصلًا رأسماليًا» لا فترة تعديل له (المادة 52(2)).")} />
+              </div>
+            </Panel>
           )}
 
           {(data.assets as VatAdjustmentAsset[]).map((a) => (
@@ -143,80 +144,86 @@ export default function VatCapitalAssets() {
 function AssetCard({ a, t, lang, onDeclare }: { a: VatAdjustmentAsset; t: (en: string, ar: string) => string; lang: string; onDeclare: (periodIndex: number) => void }) {
   const total = a.windows.reduce((s, w) => s + w.adjustment, 0) + (a.disposal?.adjustment ?? 0);
   return (
-    <Card data-testid={`vat-asset-${a.assetNumber}`}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex flex-wrap items-baseline gap-2">
-          <Link href={`/assets/${a.assetId}`} className="hover:underline">{a.name}</Link>
-          <span className="text-xs font-normal font-mono text-muted-foreground" dir="ltr">{a.assetNumber}</span>
-          <Badge variant="outline" className="text-[10px]">{a.vatCapitalAssetClass === "immovable" ? t("immovable", "غير منقول") : t("movable", "منقول")}</Badge>
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">
+    <Panel
+      flush
+      data-testid={`vat-asset-${a.assetNumber}`}
+      title={
+        <span className="flex flex-wrap items-baseline gap-2">
+          <Link href={`/assets/${a.assetId}`} className="hover:text-primary hover:underline">{a.name}</Link>
+          <span className="text-xs font-normal text-muted-foreground" dir="ltr">{a.assetNumber}</span>
+          <Badge variant="outline" className="text-[11px] font-normal capitalize">{a.vatCapitalAssetClass === "immovable" ? t("immovable", "غير منقول") : t("movable", "منقول")}</Badge>
+        </span>
+      }
+      description={
+        <>
           {t(`Input tax ${fmtNum(a.vatInputTaxAmount)} · recovered at ${a.initialRecoveryPct}% = ${fmtNum(a.initialDeduction)} · adjustment period ${a.adjustmentPeriodYears} year(s) · ${fmtNum(a.potentiallyAdjustable)} potentially adjustable each year (Art. 52(4))`,
              `ضريبة المدخلات ${fmtNum(a.vatInputTaxAmount)} · استُردت بنسبة ${a.initialRecoveryPct}% = ${fmtNum(a.initialDeduction)} · فترة التعديل ${a.adjustmentPeriodYears} سنة · ${fmtNum(a.potentiallyAdjustable)} قابلة للتعديل كل سنة (المادة 52(4))`)}
+          {a.vatNonDeductibleReason && <span className="block mt-1">{a.vatNonDeductibleReason}</span>}
+        </>
+      }
+      footer={
+        <p className="text-xs text-muted-foreground">
+          {t(`Records for this asset are kept until ${a.recordsRetainedUntil} — the adjustment period plus five years from acquisition (Art. 66(1)).`,
+             `تُحفظ سجلات هذا الأصل حتى ${a.recordsRetainedUntil} — فترة التعديل زائد خمس سنوات من تاريخ الاقتناء (المادة 66(1)).`)}
         </p>
-        {a.vatNonDeductibleReason && <p className="text-xs text-muted-foreground">{a.vatNonDeductibleReason}</p>}
-      </CardHeader>
-      <CardContent className="overflow-x-auto">
+      }
+    >
+      <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">
-            {[t("Window", "الفترة"), t("Twelve months", "الاثنا عشر شهرًا"), t("Filed in the return for", "يُقدَّم في إقرار"), t("Actual use", "الاستخدام الفعلي"), t("Adjustment", "التعديل"), ""].map((h, i) => <th key={i} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>)}
+          <thead><tr className="border-b border-border">
+            {[t("Window", "الفترة"), t("Twelve months", "الاثنا عشر شهرًا"), t("Filed in the return for", "يُقدَّم في إقرار"), t("Actual use", "الاستخدام الفعلي"), t("Adjustment", "التعديل"), ""].map((h, i) => <th key={i} className={`px-3 ${i === 4 ? "text-end" : "text-start"}`}>{h}</th>)}
           </tr></thead>
           <tbody>
             {a.windows.map((w) => <WindowRow key={w.periodIndex} w={w} assetNumber={a.assetNumber} t={t} lang={lang} onDeclare={onDeclare} />)}
           </tbody>
           <tfoot>
-            <tr className="font-semibold border-t border-border">
-              <td className="py-2 pe-3" colSpan={4}>{t("Total adjustment over the period", "إجمالي التعديل خلال الفترة")}</td>
-              <td className="py-2 pe-3 text-end" data-testid={`vat-total-${a.assetNumber}`}><Money v={total} /></td>
+            <tr className="font-semibold">
+              <td className="py-3 px-3" colSpan={4}>{t("Total adjustment over the period", "إجمالي التعديل خلال الفترة")}</td>
+              <td className="py-3 px-3 text-end" data-testid={`vat-total-${a.assetNumber}`}><Money v={total} /></td>
               <td />
             </tr>
           </tfoot>
         </table>
+      </div>
 
-        {a.disposal && (
-          <div className="mt-3 rounded-md border border-border p-3" data-testid={`vat-disposal-${a.assetNumber}`}>
-            <p className="text-xs font-medium">{t(`Disposed ${a.disposal.date} — ${a.disposal.kind}`, `استُبعد في ${a.disposal.date} — ${a.disposal.kind}`)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{a.disposal.rule}</p>
-            <p className="text-sm mt-1">
-              {t("Adjustment for the remainder", "تعديل ما تبقى من الفترة")}: <Money v={a.disposal.adjustment} />
-              <span className="text-xs text-muted-foreground ms-2">{t(`${a.disposal.remainingPeriods} period(s) remained`, `تبقّت ${a.disposal.remainingPeriods} فترة`)}</span>
+      {a.disposal && (
+        <div className="mx-5 my-4 rounded-md border border-border bg-muted/30 p-4" data-testid={`vat-disposal-${a.assetNumber}`}>
+          <p className="text-[13px] font-medium">{t(`Disposed ${a.disposal.date} — ${a.disposal.kind}`, `استُبعد في ${a.disposal.date} — ${a.disposal.kind}`)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{a.disposal.rule}</p>
+          <p className="text-sm mt-2">
+            {t("Adjustment for the remainder", "تعديل ما تبقى من الفترة")}: <Money v={a.disposal.adjustment} />
+            <span className="text-xs text-muted-foreground ms-2">{t(`${a.disposal.remainingPeriods} period(s) remained`, `تبقّت ${a.disposal.remainingPeriods} فترة`)}</span>
+          </p>
+          {a.disposal.nominalSupplyValue != null && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("Art. 52(8) nominal supply value", "قيمة التوريد المفترض وفق المادة 52(8)")}: <Money v={a.disposal.nominalSupplyValue} />
             </p>
-            {a.disposal.nominalSupplyValue != null && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {t("Art. 52(8) nominal supply value", "قيمة التوريد المفترض وفق المادة 52(8)")}: <Money v={a.disposal.nominalSupplyValue} />
-              </p>
-            )}
-          </div>
-        )}
-
-        <p className="text-[11px] text-muted-foreground mt-2">
-          {t(`Records for this asset are kept until ${a.recordsRetainedUntil} — the adjustment period plus five years from acquisition (Art. 66(1)).`,
-             `تُحفظ سجلات هذا الأصل حتى ${a.recordsRetainedUntil} — فترة التعديل زائد خمس سنوات من تاريخ الاقتناء (المادة 66(1)).`)}
-        </p>
-      </CardContent>
-    </Card>
+          )}
+        </div>
+      )}
+    </Panel>
   );
 }
 
 function WindowRow({ w, assetNumber, t, lang, onDeclare }: { w: VatAdjustmentWindow; assetNumber: string; t: (en: string, ar: string) => string; lang: string; onDeclare: (periodIndex: number) => void }) {
   const basisLabel = BASES.find((b) => b[0] === w.declaredBasis);
   return (
-    <tr className="border-b border-border/50 align-top" data-testid={`vat-window-${assetNumber}-${w.periodIndex}`}>
-      <td className="py-2 pe-3 font-mono" dir="ltr">{w.periodIndex}</td>
-      <td className="py-2 pe-3 text-xs font-mono" dir="ltr">{w.startDate} → {w.endDate}</td>
-      <td className="py-2 pe-3 text-xs font-mono" dir="ltr">
+    <tr className="border-b border-border/70 align-top hover:bg-muted/40 transition-colors" data-testid={`vat-window-${assetNumber}-${w.periodIndex}`}>
+      <td className="py-3 px-3 tabular-nums" dir="ltr">{w.periodIndex}</td>
+      <td className="py-3 px-3 text-[13px] tabular-nums whitespace-nowrap" dir="ltr">{w.startDate} → {w.endDate}</td>
+      <td className="py-3 px-3 text-[13px] tabular-nums whitespace-nowrap" dir="ltr">
         {w.returnPeriodStart} → {w.returnPeriodEnd}
-        {!w.due && <span className="block text-[10px] font-sans text-muted-foreground">{t("not yet ended", "لم تنتهِ بعد")}</span>}
+        {!w.due && <span className="block text-xs text-muted-foreground">{t("not yet ended", "لم تنتهِ بعد")}</span>}
       </td>
-      <td className="py-2 pe-3">
+      <td className="py-3 px-3">
         {w.actualUsePct === null ? (
-          <span className="text-[11px] text-muted-foreground" data-testid={`vat-use-unavailable-${assetNumber}-${w.periodIndex}`}>
+          <span className="text-xs text-muted-foreground" data-testid={`vat-use-unavailable-${assetNumber}-${w.periodIndex}`}>
             {t("not established", "غير محدد")}
           </span>
         ) : (
           <>
-            <span className="font-mono" dir="ltr">{w.actualUsePct}%</span>
-            <span className="block text-[10px] text-muted-foreground">
+            <span className="tabular-nums" dir="ltr">{w.actualUsePct}%</span>
+            <span className="block text-xs text-muted-foreground">
               {w.actualUseSource === "declared"
                 ? (lang === "ar" ? basisLabel?.[2] : basisLabel?.[1]) ?? t("declared", "مُقرّ")
                 : t("Art. 51 default", "افتراضي المادة 51")}
@@ -224,15 +231,15 @@ function WindowRow({ w, assetNumber, t, lang, onDeclare }: { w: VatAdjustmentWin
           </>
         )}
       </td>
-      <td className="py-2 pe-3 text-end">
+      <td className="py-3 px-3 text-end">
         <Money v={w.adjustment} />
         {w.noChangeOfUse && (
-          <span className="block text-[10px] text-muted-foreground" data-testid={`vat-no-change-${assetNumber}-${w.periodIndex}`}>
+          <span className="block text-xs text-muted-foreground" data-testid={`vat-no-change-${assetNumber}-${w.periodIndex}`}>
             {t("Art. 52(6): no change of use", "المادة 52(6): لا تغيّر في الاستخدام")}
           </span>
         )}
       </td>
-      <td className="py-2">
+      <td className="py-3 px-3 text-end">
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onDeclare(w.periodIndex)} data-testid={`vat-declare-${assetNumber}-${w.periodIndex}`}>
           <Pencil className="w-3 h-3 me-1" />{t("State use", "تحديد الاستخدام")}
         </Button>
@@ -260,18 +267,18 @@ function UseDialog({ assetId, periodIndex, assetName, busy, t, lang, onClose, on
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <Label className="text-xs">{t("Actual taxable use (%)", "الاستخدام الخاضع الفعلي (%)")}</Label>
+            <Label className="text-[13px]">{t("Actual taxable use (%)", "الاستخدام الخاضع الفعلي (%)")}</Label>
             <Input value={pct} onChange={(e) => setPct(e.target.value)} data-testid="vat-use-pct" dir="ltr" type="number" min={0} max={100} step="0.01" />
           </div>
           <div>
-            <Label className="text-xs">{t("Why this rather than the Art. 51 default", "سبب اختلافه عن افتراض المادة 51")}</Label>
+            <Label className="text-[13px]">{t("Why this rather than the Art. 51 default", "سبب اختلافه عن افتراض المادة 51")}</Label>
             <Select value={basis} onValueChange={setBasis}>
               <SelectTrigger data-testid="vat-use-basis"><SelectValue /></SelectTrigger>
               <SelectContent>{BASES.map(([v, en, ar]) => <SelectItem key={v} value={v}>{lang === "ar" ? ar : en}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
-            <Label className="text-xs">{t("Note", "ملاحظة")}</Label>
+            <Label className="text-[13px]">{t("Note", "ملاحظة")}</Label>
             <Input value={note} onChange={(e) => setNote(e.target.value)} data-testid="vat-use-note" />
           </div>
           <Button

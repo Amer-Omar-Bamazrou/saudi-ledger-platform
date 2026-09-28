@@ -132,7 +132,7 @@ export function useFocusRow(focus: string | null, ready: boolean) {
 export function Money({ v, className, signed = false }: { v: number | string | null | undefined; className?: string; signed?: boolean }) {
   const n = Number(v ?? 0);
   // Latin digits and a fixed reading direction inside RTL text, so a column of amounts aligns.
-  return <span dir="ltr" className={cn("font-mono tabular-nums whitespace-nowrap", className)}>{signed && n > 0 ? "+" : ""}{fmtNum(n)}</span>;
+  return <span dir="ltr" className={cn("tabular-nums whitespace-nowrap", className)}>{signed && n > 0 ? "+" : ""}{fmtNum(n)}</span>;
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -179,10 +179,12 @@ export function Problems({ list, id }: { list: string[]; id?: string | number })
 
 export function EmptyState({ icon: Icon, title, hint, action }: { icon: React.ElementType; title: string; hint?: string; action?: React.ReactNode }) {
   return (
-    <div className="text-center py-10 text-muted-foreground" data-testid="empty-state">
-      <Icon className="w-8 h-8 mx-auto mb-3 opacity-40" />
+    <div className="flex flex-col items-center justify-center px-6 py-12 text-center" data-testid="empty-state">
+      <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
+        <Icon className="h-5 w-5" />
+      </span>
       <p className="text-sm font-medium text-foreground">{title}</p>
-      {hint && <p className="text-xs mt-1 max-w-md mx-auto">{hint}</p>}
+      {hint && <p className="mt-1 max-w-md text-[13px] text-muted-foreground">{hint}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
@@ -194,7 +196,7 @@ export function Facts({ items }: { items: Array<[string, React.ReactNode]> }) {
     <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
       {items.map(([k, v]) => (
         <div key={k} className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2 min-w-0">
-          <dt className="text-xs text-muted-foreground sm:w-44 shrink-0">{k}</dt>
+          <dt className="text-[12px] text-muted-foreground sm:w-44 shrink-0">{k}</dt>
           <dd className="min-w-0 break-words">{v ?? "—"}</dd>
         </div>
       ))}

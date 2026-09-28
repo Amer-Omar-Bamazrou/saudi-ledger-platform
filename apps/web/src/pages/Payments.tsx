@@ -14,13 +14,13 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Banknote, Plus, Undo2 } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
+import { PageHeader, Panel, EmptyState } from "@/components/kit";
 import { PaymentDetail } from "@/components/payments/PaymentDetail";
 import { ReceiveDialog } from "@/components/payments/ReceiveDialog";
 import { BankName, ClassificationBadge, PaymentStateBadge, PermissionHint, receiptNumber, refundNumber, useCanPostPayments } from "@/components/payments/shared";
@@ -78,140 +78,136 @@ export default function Payments() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Payments", "المدفوعات")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Customer receipts and refunds. A receipt is money in; its allocations say which invoices it settled.", "إيصالات العملاء والمبالغ المردودة. الإيصال مال وارد؛ وتخصيصاته تبيّن أي فواتير سوّى.")}</p>
-        </div>
-        <Button className="gap-2" disabled={!canPost} onClick={() => setReceiving(true)} data-testid="record-receipt">
-          <Plus className="w-4 h-4" />{t("Record receipt", "تسجيل إيصال")}
-        </Button>
-      </div>
-      <PermissionHint />
-
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm text-muted-foreground">{t("Customer", "العميل")}</span>
-        <Select value={customerId} onValueChange={(v) => { setCustomerId(v); setPage(0); }}>
-          <SelectTrigger className="h-9 w-64 text-sm" data-testid="payments-customer-filter"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("All customers", "كل العملاء")}</SelectItem>
-            {(customers?.items ?? []).map((c) => <SelectItem key={c.id} value={String(c.id)}>{n(c.name, c.nameAr)}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <PageHeader
+        title={t("Payments", "المدفوعات")}
+        description={t("Customer receipts and refunds. A receipt is money in; its allocations say which invoices it settled.", "إيصالات العملاء والمبالغ المردودة. الإيصال مال وارد؛ وتخصيصاته تبيّن أي فواتير سوّى.")}
+        actions={
+          <Button className="gap-2" disabled={!canPost} onClick={() => setReceiving(true)} data-testid="record-receipt">
+            <Plus className="w-4 h-4" />{t("Record receipt", "تسجيل إيصال")}
+          </Button>
+        }
+      >
+        <div className="mt-2 empty:hidden"><PermissionHint /></div>
+      </PageHeader>
 
       <Tabs defaultValue="receipts">
-        <TabsList>
-          <TabsTrigger value="receipts" data-testid="tab-receipts"><Banknote className="w-4 h-4 me-1" />{t("Receipts", "الإيصالات")} ({payments.length})</TabsTrigger>
-          <TabsTrigger value="refunds" data-testid="tab-refunds"><Undo2 className="w-4 h-4 me-1" />{t("Refunds", "المبالغ المردودة")} ({refunds.length})</TabsTrigger>
-        </TabsList>
+        <Panel flush>
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border px-5">
+            <TabsList className="border-b-0">
+              <TabsTrigger value="receipts" data-testid="tab-receipts" className="py-3"><Banknote className="w-4 h-4 me-1.5" />{t("Receipts", "الإيصالات")} ({payments.length})</TabsTrigger>
+              <TabsTrigger value="refunds" data-testid="tab-refunds" className="py-3"><Undo2 className="w-4 h-4 me-1.5" />{t("Refunds", "المبالغ المردودة")} ({refunds.length})</TabsTrigger>
+            </TabsList>
+            <div className="flex items-center gap-2 py-2">
+              <span className="text-[13px] text-muted-foreground">{t("Customer", "العميل")}</span>
+              <Select value={customerId} onValueChange={(v) => { setCustomerId(v); setPage(0); }}>
+                <SelectTrigger className="h-9 w-64 max-w-[60vw] text-sm" data-testid="payments-customer-filter"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("All customers", "كل العملاء")}</SelectItem>
+                  {(customers?.items ?? []).map((c) => <SelectItem key={c.id} value={String(c.id)}>{n(c.name, c.nameAr)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-        <TabsContent value="receipts">
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Receipts, newest first", "الإيصالات، الأحدث أولًا")}</CardTitle></CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <p className="text-sm text-muted-foreground p-4">{t("Loading…", "جارٍ التحميل…")}</p>
-              ) : error ? (
-                <p className="text-sm text-destructive p-4">{t("Payments could not be loaded.", "تعذر تحميل المدفوعات.")} {(error as Error).message}</p>
-              ) : payments.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground"><Banknote className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No payments yet.", "لا توجد مدفوعات بعد.")}</p></div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                        <th className="text-start pb-2 pe-4 font-medium">{t("Receipt", "الإيصال")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium">{t("Received", "الاستلام")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium">{t("Customer", "العميل")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium hidden md:table-cell">{t("Bank", "البنك")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium">{t("Amount", "المبلغ")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("Allocated", "المخصص")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("On account", "على الحساب")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium hidden lg:table-cell">{t("State", "الحالة")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium hidden lg:table-cell">{t("Deposit is", "العربون")}</th>
-                        <th className="pb-2" />
+          <TabsContent value="receipts" className="mt-0">
+            <p className="px-5 pt-3 pb-1 text-[13px] text-muted-foreground">{t("Receipts, newest first", "الإيصالات، الأحدث أولًا")}</p>
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground p-5">{t("Loading…", "جارٍ التحميل…")}</p>
+            ) : error ? (
+              <p className="text-sm text-destructive p-5">{t("Payments could not be loaded.", "تعذر تحميل المدفوعات.")} {(error as Error).message}</p>
+            ) : payments.length === 0 ? (
+              <EmptyState icon={Banknote} title={t("No payments yet.", "لا توجد مدفوعات بعد.")} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-start px-3">{t("Receipt", "الإيصال")}</th>
+                      <th className="text-start px-3">{t("Received", "الاستلام")}</th>
+                      <th className="text-start px-3">{t("Customer", "العميل")}</th>
+                      <th className="text-start px-3 hidden md:table-cell">{t("Bank", "البنك")}</th>
+                      <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+                      <th className="text-end px-3 hidden sm:table-cell">{t("Allocated", "المخصص")}</th>
+                      <th className="text-end px-3 hidden sm:table-cell">{t("On account", "على الحساب")}</th>
+                      <th className="text-start px-3 hidden lg:table-cell">{t("State", "الحالة")}</th>
+                      <th className="text-start px-3 hidden lg:table-cell">{t("Deposit is", "العربون")}</th>
+                      <th className="px-3 sticky end-0 bg-muted shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((p) => (
+                      <tr key={p.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`payment-row-${p.id}`}>
+                        <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{receiptNumber(p.id)}</td>
+                        <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={p.paidAt} inline /></td>
+                        <td className="py-3 px-3 min-w-[11rem]">
+                          {p.customerId != null ? <Link href={`/customers/${p.customerId}`} className="text-foreground hover:text-primary hover:underline">{nameOf(p.customerId)}</Link> : <span className="text-muted-foreground">{nameOf(null)}</span>}
+                        </td>
+                        <td className="py-3 px-3 min-w-[12rem] text-muted-foreground hidden md:table-cell"><BankName id={p.bankAccountId} /></td>
+                        <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-medium text-positive">{fmtNum(p.amount)}</td>
+                        <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums hidden sm:table-cell">{fmtNum(p.allocatedAmount)}</td>
+                        <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums hidden sm:table-cell">{fmtNum(p.unappliedAmount)}</td>
+                        <td className="py-3 px-3 hidden lg:table-cell"><PaymentStateBadge p={p} /></td>
+                        <td className="py-3 px-3 hidden lg:table-cell">{p.unappliedAmount > 0.005 || p.classification ? <ClassificationBadge p={p} /> : <span className="text-xs text-muted-foreground">—</span>}</td>
+                        <td className="py-3 px-3 text-end sticky end-0 bg-card shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]">
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelected(p)} data-testid={`payment-open-${p.id}`}>{t("Details", "التفاصيل")}</Button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {payments.map((p) => (
-                        <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors" data-testid={`payment-row-${p.id}`}>
-                          <td className="py-3 pe-4 font-mono text-xs">{receiptNumber(p.id)}</td>
-                          <td className="py-3 pe-4 text-muted-foreground"><DualDate date={p.paidAt} inline /></td>
-                          <td className="py-3 pe-4">
-                            {p.customerId != null ? <Link href={`/customers/${p.customerId}`} className="text-primary hover:underline">{nameOf(p.customerId)}</Link> : nameOf(null)}
-                          </td>
-                          <td className="py-3 pe-4 text-muted-foreground hidden md:table-cell"><BankName id={p.bankAccountId} /></td>
-                          <td className="py-3 pe-4 font-mono text-positive">{fmtNum(p.amount)}</td>
-                          <td className="py-3 pe-4 font-mono hidden sm:table-cell">{fmtNum(p.allocatedAmount)}</td>
-                          <td className="py-3 pe-4 font-mono hidden sm:table-cell">{fmtNum(p.unappliedAmount)}</td>
-                          <td className="py-3 pe-4 hidden lg:table-cell"><PaymentStateBadge p={p} /></td>
-                          <td className="py-3 pe-4 hidden lg:table-cell">{p.unappliedAmount > 0.005 || p.classification ? <ClassificationBadge p={p} /> : <span className="text-xs text-muted-foreground">—</span>}</td>
-                          <td className="py-3 text-end">
-                            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelected(p)} data-testid={`payment-open-${p.id}`}>{t("Details", "التفاصيل")}</Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {(page > 0 || payments.length === PAGE) && (
+              <div className="flex items-center justify-between border-t border-border px-5 py-3 text-sm text-muted-foreground">
+                <span>{t(`Page ${page + 1} · ${PAGE} per page`, `صفحة ${page + 1} · ${PAGE} في الصفحة`)}</span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>{t("Previous", "السابق")}</Button>
+                  <Button variant="outline" size="sm" disabled={payments.length < PAGE} onClick={() => setPage((p) => p + 1)}>{t("Next", "التالي")}</Button>
                 </div>
-              )}
-              {(page > 0 || payments.length === PAGE) && (
-                <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
-                  <span>{t(`Page ${page + 1} · ${PAGE} per page`, `صفحة ${page + 1} · ${PAGE} في الصفحة`)}</span>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>{t("Previous", "السابق")}</Button>
-                    <Button variant="outline" size="sm" disabled={payments.length < PAGE} onClick={() => setPage((p) => p + 1)}>{t("Next", "التالي")}</Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </div>
+            )}
+          </TabsContent>
 
-        <TabsContent value="refunds">
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Refunds, newest first — each settled a deposit or a credit-note balance", "المبالغ المردودة، الأحدث أولًا — سوّى كل منها عربونًا أو رصيد إشعار دائن")}</CardTitle></CardHeader>
-            <CardContent>
-              {refunds.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground"><Undo2 className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No refunds yet.", "لا توجد مبالغ مردودة بعد.")}</p></div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                        <th className="text-start pb-2 pe-4 font-medium">{t("Refund", "الردّ")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium">{t("Date", "التاريخ")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium">{t("Customer", "العميل")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium">{t("Origin", "المصدر")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium hidden md:table-cell">{t("Bank", "البنك")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium">{t("Amount", "المبلغ")}</th>
-                        <th className="text-start pb-2 pe-4 font-medium hidden sm:table-cell">{t("Reason", "السبب")}</th>
+          <TabsContent value="refunds" className="mt-0">
+            <p className="px-5 pt-3 pb-1 text-[13px] text-muted-foreground">{t("Refunds, newest first — each settled a deposit or a credit-note balance", "المبالغ المردودة، الأحدث أولًا — سوّى كل منها عربونًا أو رصيد إشعار دائن")}</p>
+            {refunds.length === 0 ? (
+              <EmptyState icon={Undo2} title={t("No refunds yet.", "لا توجد مبالغ مردودة بعد.")} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-start px-3">{t("Refund", "الردّ")}</th>
+                      <th className="text-start px-3">{t("Date", "التاريخ")}</th>
+                      <th className="text-start px-3">{t("Customer", "العميل")}</th>
+                      <th className="text-start px-3">{t("Origin", "المصدر")}</th>
+                      <th className="text-start px-3 hidden md:table-cell">{t("Bank", "البنك")}</th>
+                      <th className="text-end px-3">{t("Amount", "المبلغ")}</th>
+                      <th className="text-start px-3 hidden sm:table-cell">{t("Reason", "السبب")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {refunds.map((r) => (
+                      <tr key={r.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors" data-testid={`refund-row-${r.id}`}>
+                        <td className="py-3 px-3 whitespace-nowrap font-medium text-primary">{refundNumber(r.id)}</td>
+                        <td className="py-3 px-3 whitespace-nowrap text-muted-foreground"><DualDate date={r.refundedAt} inline /></td>
+                        <td className="py-3 px-3 min-w-[11rem]"><Link href={`/customers/${r.customerId}`} className="text-foreground hover:text-primary hover:underline">{nameOf(r.customerId)}</Link></td>
+                        <td className="py-3 px-3 text-[13px] whitespace-nowrap">
+                          {r.origin === "deposit"
+                            ? <>{t("Deposit", "عربون")} · <span className="tabular-nums">{receiptNumber(r.paymentId ?? 0)}</span></>
+                            : <>{t("Credit note", "إشعار دائن")} · <span className="tabular-nums">#{r.creditNoteId}</span></>}
+                        </td>
+                        <td className="py-3 px-3 text-muted-foreground hidden md:table-cell"><BankName id={r.bankAccountId} /></td>
+                        <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-medium text-negative">−{fmtNum(r.amount)}</td>
+                        <td className="py-3 px-3 text-[13px] text-muted-foreground hidden sm:table-cell max-w-[16rem] truncate">{r.reason}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {refunds.map((r) => (
-                        <tr key={r.id} className="border-b border-border/50" data-testid={`refund-row-${r.id}`}>
-                          <td className="py-3 pe-4 font-mono text-xs">{refundNumber(r.id)}</td>
-                          <td className="py-3 pe-4 text-muted-foreground"><DualDate date={r.refundedAt} inline /></td>
-                          <td className="py-3 pe-4"><Link href={`/customers/${r.customerId}`} className="text-primary hover:underline">{nameOf(r.customerId)}</Link></td>
-                          <td className="py-3 pe-4 text-xs">
-                            {r.origin === "deposit"
-                              ? <>{t("Deposit", "عربون")} · <span className="font-mono">{receiptNumber(r.paymentId ?? 0)}</span></>
-                              : <>{t("Credit note", "إشعار دائن")} · <span className="font-mono">#{r.creditNoteId}</span></>}
-                          </td>
-                          <td className="py-3 pe-4 text-muted-foreground hidden md:table-cell"><BankName id={r.bankAccountId} /></td>
-                          <td className="py-3 pe-4 font-mono text-negative">−{fmtNum(r.amount)}</td>
-                          <td className="py-3 pe-4 text-xs text-muted-foreground hidden sm:table-cell max-w-[16rem] truncate">{r.reason}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </TabsContent>
+        </Panel>
       </Tabs>
 
       {current && <PaymentDialog payment={current} customerName={nameOf(current.customerId)} onClose={() => setSelected(null)} />}

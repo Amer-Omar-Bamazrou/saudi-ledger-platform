@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, FilterTabs, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -386,12 +386,11 @@ export default function Bills() {
   return (
     <div className="space-y-6">
       {/* ── header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("Bills", "فواتير الموردين")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Vendor bills · Accounts Payable", "فواتير الموردين · الذمم الدائنة")}</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title={t("Bills", "فواتير الموردين")}
+        description={t("Vendor bills · Accounts Payable", "فواتير الموردين · الذمم الدائنة")}
+        actions={
+        <>
           {/*
             Scan Receipt — hidden on the demo, where POST /capture is refused
             at the route (D3). Capture is the one act a demo could make
@@ -560,8 +559,9 @@ export default function Bills() {
               </Button>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+        </>
+        }
+      />
 
       {/* ── KPI cards ───────────────────────────────────────────────────────── */}
       {/* 🔴 Draft-only delete — the confirm states why it is safe HERE. */}
@@ -590,87 +590,72 @@ export default function Bills() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          // Server figures, over the whole filtered set — not this page.
-          [t("Total Bills", "إجمالي الفواتير"), billPageInfo?.total ?? "—", "text-primary"],
-          [t("Outstanding AP", "الذمم الدائنة المستحقة"), billTotals ? fmtNum(billTotals.outstanding) : "—", "text-negative"],
-          [t("Paid", "مدفوع"), billTotals ? fmtNum(billTotals.paid) : "—", "text-positive"],
-          [t("Overdue", "متأخر"), billTotals?.overdue ?? "—", "text-negative"],
-        ].map(([l, v, c]) => (
-          <Card key={String(l)} className="border-border bg-card">
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Server figures, over the whole filtered set — not this page. */}
+      <StatStrip cols={4}>
+        <Stat label={t("Total Bills", "إجمالي الفواتير")} value={billPageInfo?.total ?? "—"} />
+        <Stat label={t("Outstanding AP", "الذمم الدائنة المستحقة")} value={billTotals ? fmtNum(billTotals.outstanding) : "—"} tone="negative" />
+        <Stat label={t("Paid", "مدفوع")} value={billTotals ? fmtNum(billTotals.paid) : "—"} tone="positive" />
+        <Stat label={t("Overdue", "متأخر")} value={billTotals?.overdue ?? "—"} tone={billTotals?.overdue ? "negative" : "default"} />
+      </StatStrip>
 
       {/* ── bills table ─────────────────────────────────────────────────────── */}
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <div className="flex gap-2 flex-wrap">
-            {BILL_FILTERS.map(o => (
-              <Button key={o.value} variant={statusFilter === o.value ? "default" : "ghost"} size="sm"
-                className="h-7 text-xs" onClick={() => applyFilter(o.value)}>
-                {lang === "ar" ? o.labelAr : o.label}
-              </Button>
-            ))}
-          </div>
-          <div className="mt-3">
-            <FilterScope options={BILL_FILTERS} value={statusFilter} total={billPageInfo?.total} onClear={() => applyFilter("all")} />
-          </div>
-        </CardHeader>
-        <CardContent>
+      <Panel flush>
+        <FilterTabs
+          options={BILL_FILTERS.map((o) => ({ value: o.value, label: lang === "ar" ? o.labelAr : o.label }))}
+          value={statusFilter}
+          onChange={applyFilter}
+        />
+        <div className="px-5 pt-3 empty:hidden">
+          <FilterScope options={BILL_FILTERS} value={statusFilter} total={billPageInfo?.total} onClear={() => applyFilter("all")} />
+        </div>
+        <div>
           {isLoading ? (
-            <div className="text-muted-foreground text-sm p-4">{t("Loading…", "جارٍ التحميل…")}</div>
+            <div className="text-muted-foreground text-sm p-5">{t("Loading…", "جارٍ التحميل…")}</div>
           ) : bills.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileInput className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">{t("No bills found.", "لا توجد فواتير.")}</p>
-              <p className="text-xs mt-1 opacity-60">{t("Create one manually or scan a receipt.", "أنشئ فاتورة يدوياً أو امسح إيصالاً.")}</p>
-            </div>
+            <EmptyState icon={FileInput} title={t("No bills found.", "لا توجد فواتير.")} description={t("Create one manually or scan a receipt.", "أنشئ فاتورة يدوياً أو امسح إيصالاً.")} />
           ) : (
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-                  {[
-                    t("Bill #", "رقم الفاتورة"),
-                    t("Vendor", "المورد"),
-                    t("Date", "التاريخ"),
-                    t("Due Date", "تاريخ الاستحقاق"),
-                    t("Subtotal", "المجموع قبل الضريبة"),
-                    t("VAT", "ضريبة القيمة المضافة"),
-                    t("Total", "الإجمالي"),
-                    t("Status", "الحالة"),
-                    "",
-                  ].map(h => (
-                    <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
+                <tr className="border-b border-border">
+                  {([
+                    [t("Bill #", "رقم الفاتورة"), false],
+                    [t("Vendor", "المورد"), false],
+                    [t("Date", "التاريخ"), false],
+                    [t("Due Date", "تاريخ الاستحقاق"), false],
+                    [t("Subtotal", "المجموع قبل الضريبة"), true],
+                    [t("VAT", "ضريبة القيمة المضافة"), true],
+                    [t("Total", "الإجمالي"), true],
+                    [t("Status", "الحالة"), false],
+                    ["", false],
+                  ] as const).map(([h, num]) => (
+                    <th key={h} className={`${num ? "text-end" : "text-start"} px-3${h === "" ? " sticky end-0 bg-muted shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]" : ""}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {bills.map(b => (
-                  <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                    <td className="py-3 pe-4 font-mono text-xs text-primary">
+                  <tr key={b.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                    <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">
                       {b.billNumber}
                       {/* B7: a purchase NOTE is a bills row; say which, so a credit
                           note never reads as a bill somebody forgot to pay. */}
                       {b.documentType && b.documentType !== "bill" && (
-                        <span className="ms-2 inline-block rounded border border-border px-1 text-[10px] font-sans text-muted-foreground" data-testid={`bill-kind-${b.id}`}>
+                        <span className="ms-2 inline-block rounded border border-border px-1 text-[11px] font-normal text-muted-foreground" data-testid={`bill-kind-${b.id}`}>
                           {b.documentType === "credit_note" ? t("Credit note", "إشعار دائن") : t("Debit note", "إشعار مدين")}
                         </span>
                       )}
                     </td>
-                    <td className="py-3 pe-4 font-medium">{b.vendorName ?? "—"}</td>
-                    <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={b.date} /></td>
-                    <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={b.dueDate} /></td>
-                    <td className="py-3 pe-4 font-mono">{fmtNum(b.subtotal)}</td>
-                    <td className="py-3 pe-4 font-mono text-muted-foreground">{fmtNum(b.vatAmount)}</td>
-                    <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(b.total)}</td>
-                    <td className="py-3 pe-4">
-                      <Badge className={`text-xs ${STATUS_STYLES[b.status] ?? ""}`}>{statusLabel(b.status, lang)}</Badge>
+                    <td className="py-3 px-3 font-medium min-w-[10rem]">{b.vendorName ?? "—"}</td>
+                    <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={b.date} /></td>
+                    <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={b.dueDate} /></td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(b.subtotal)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums text-muted-foreground">{fmtNum(b.vatAmount)}</td>
+                    <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(b.total)}</td>
+                    <td className="py-3 px-3">
+                      <Badge className={`text-xs capitalize ${STATUS_STYLES[b.status] ?? ""}`}>{statusLabel(b.status, lang)}</Badge>
                     </td>
-                    <td className="py-3 flex gap-1">
+                    <td className="py-3 px-3 sticky end-0 bg-card shadow-[inset_1px_0_0_hsl(var(--border))] rtl:shadow-[inset_-1px_0_0_hsl(var(--border))]">
+                    <div className="flex items-center justify-end gap-0.5">
                       {/* 🔴 AUD-10/AUD-12: draft-only. A posted bill is corrected
                           by its own paths, and the service refuses an edit or a
                           delete on one — this offers them only where they work. */}
@@ -714,6 +699,7 @@ export default function Bills() {
                           {t("Pay", "دفع")}
                         </Button>
                       )}
+                    </div>
                     </td>
                   </tr>
                 ))}
@@ -728,7 +714,7 @@ export default function Bills() {
               set the reader does not think they are looking at (B-6).
             */}
             {billPageInfo && billPageInfo.total > 0 && (
-              <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+              <div className="flex items-center justify-between border-t border-border px-5 py-3 text-sm text-muted-foreground">
                 <span>
                   {t(
                     `Showing ${billPageInfo.offset + 1}–${Math.min(billPageInfo.offset + bills.length, billPageInfo.total)} of ${billPageInfo.total}`,
@@ -750,8 +736,8 @@ export default function Bills() {
                 </div>
               </div>
             )}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {/* ── "Post draft bill" dialog — account selection + JE preview ───────── */}
       <Dialog open={postReviewOpen !== null} onOpenChange={v => !v && setPostReviewOpen(null)}>
@@ -811,7 +797,7 @@ export default function Bills() {
             <PaymentHistory entity="bills" id={payOpen} />
           </div>
           <Button
-            className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700"
+            className="w-full mt-4"
             onClick={() => { const bank = Number(payBank || defaultBankId); if (payingRef.current || !payOpen || !bank) return; payingRef.current = true; payMut.mutate({ id: payOpen, amount: Number(payAmount), bankAccountId: bank }); }}
             disabled={!payAmount || payMut.isPending || !(payBank || defaultBankId)}
           >

@@ -49,7 +49,7 @@ export function PeriodClosedDialog() {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Lock className="w-4 h-4" />
+            <Lock className="w-4 h-4 text-muted-foreground" />
             {t(`${month} is closed`, `${month} مُقفل`)}
           </DialogTitle>
         </DialogHeader>

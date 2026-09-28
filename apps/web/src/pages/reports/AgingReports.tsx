@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatStrip, Stat, Panel, EmptyState, SectionTitle } from "@/components/kit";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Button } from "@/components/ui/button";
 import { AlertCircle, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DualDate } from "@/components/DualDate";
@@ -31,9 +30,9 @@ function viewOf(data: ArAgingReport | ApAgingReport): AgingView {
 const BUCKET_LABELS = [
   { key: "current",    en: "Current",      ar: "جارٍ",             color: "text-positive" },
   { key: "days_1_30",  en: "1–30 Days",    ar: "1–30 يومًا",       color: "text-attention" },
-  { key: "days_31_60", en: "31–60 Days",   ar: "31–60 يومًا",      color: "text-orange-400" },
+  { key: "days_31_60", en: "31–60 Days",   ar: "31–60 يومًا",      color: "text-severe" },
   { key: "days_61_90", en: "61–90 Days",   ar: "61–90 يومًا",      color: "text-negative" },
-  { key: "over_90",    en: "Over 90 Days", ar: "أكثر من 90 يومًا", color: "text-red-600" },
+  { key: "over_90",    en: "Over 90 Days", ar: "أكثر من 90 يومًا", color: "text-critical" },
 ] as const;
 
 function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
@@ -43,29 +42,33 @@ function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
   const partyLabel = type === "ar" ? t("Customer", "العميل") : t("Vendor", "المورد");
 
   return (
-    <div className="space-y-4">
+    <>
       {/* Buckets */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <StatStrip cols={5}>
         {BUCKET_LABELS.map(b => (
-          <Card key={b.key} className="border-border bg-card">
-            <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{t(b.en, b.ar)}</CardTitle></CardHeader>
-            <CardContent><div className={cn("text-lg font-bold font-mono", b.color)}>{fmtNum(data.buckets[b.key])}</div></CardContent>
-          </Card>
+          <Stat key={b.key} label={t(b.en, b.ar)} value={<span className={b.color}>{fmtNum(data.buckets[b.key])}</span>} />
         ))}
-      </div>
+      </StatStrip>
 
       {/* Table */}
+      <Panel flush>
       {items.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          {type === "ar" ? <AlertCircle className="w-8 h-8 mx-auto mb-3 opacity-40" /> : <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40" />}
-          <p className="text-sm">{type === "ar" ? t("No outstanding receivables.", "لا توجد ذمم مدينة معلقة.") : t("No outstanding payables.", "لا توجد ذمم دائنة معلقة.")}</p>
-        </div>
+        <EmptyState
+          icon={type === "ar" ? AlertCircle : Building2}
+          title={type === "ar" ? t("No outstanding receivables.", "لا توجد ذمم مدينة معلقة.") : t("No outstanding payables.", "لا توجد ذمم دائنة معلقة.")}
+        />
       ) : (
         <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-muted-foreground text-xs uppercase">
-              {[numLabel, partyLabel, t("Due Date", "تاريخ الاستحقاق"), t("Outstanding", "المبلغ المستحق"), t("Days Overdue", "أيام التأخر")].map(h => (
-                <th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>
+            <tr className="border-b border-border">
+              {([
+                [numLabel, false],
+                [partyLabel, false],
+                [t("Due Date", "تاريخ الاستحقاق"), false],
+                [t("Outstanding", "المبلغ المستحق"), true],
+                [t("Days Overdue", "أيام التأخر"), true],
+              ] as const).map(([h, num]) => (
+                <th key={h} className={`${num ? "text-end" : "text-start"} px-3`}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -74,26 +77,27 @@ function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
               const bucket = item.daysPastDue <= 0 ? "current" : item.daysPastDue <= 30 ? "days_1_30" : item.daysPastDue <= 60 ? "days_31_60" : item.daysPastDue <= 90 ? "days_61_90" : "over_90";
               const color  = BUCKET_LABELS.find(b => b.key === bucket)?.color ?? "";
               return (
-                <tr key={item.id} className="border-b border-border/30 hover:bg-secondary/10">
-                  <td className="py-2.5 pe-4 font-mono text-xs text-primary">{item.number}</td>
-                  <td className="py-2.5 pe-4 font-medium text-sm">{n(item.name, item.nameAr)}</td>
-                  <td className="py-2.5 pe-4 text-xs text-muted-foreground"><DualDate date={item.dueDate} /></td>
-                  <td className="py-2.5 pe-4 font-mono text-sm font-semibold">{fmtNum(item.outstanding)}</td>
-                  <td className={cn("py-2.5 font-mono text-sm", color)}>{item.daysPastDue > 0 ? `${item.daysPastDue} ${t("days", "أيام")}` : t("Current", "حالي")}</td>
+                <tr key={item.id} className="border-b border-border/70 hover:bg-muted/40 transition-colors">
+                  <td className="py-3 px-3 font-medium text-primary whitespace-nowrap">{item.number}</td>
+                  <td className="py-3 px-3 font-medium">{n(item.name, item.nameAr)}</td>
+                  <td className="py-3 px-3 text-muted-foreground whitespace-nowrap"><DualDate date={item.dueDate} /></td>
+                  <td className="py-3 px-3 text-end whitespace-nowrap tabular-nums font-semibold">{fmtNum(item.outstanding)}</td>
+                  <td className={cn("py-3 px-3 text-end whitespace-nowrap tabular-nums", color)}>{item.daysPastDue > 0 ? `${item.daysPastDue} ${t("days", "أيام")}` : t("Current", "حالي")}</td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot>
-            <tr className="border-t-2 border-border font-bold">
-              <td colSpan={3} className="pt-3 text-xs text-muted-foreground">{t("Total Outstanding", "إجمالي المستحق")}</td>
-              <td className="pt-3 font-mono text-sm">{fmtNum(data.total)}</td>
+            <tr className="font-semibold">
+              <td colSpan={3} className="py-3.5 px-3">{t("Total Outstanding", "إجمالي المستحق")}</td>
+              <td className="py-3.5 px-3 text-end whitespace-nowrap tabular-nums">{fmtNum(data.total)}</td>
               <td />
             </tr>
           </tfoot>
         </table></div>
       )}
-    </div>
+      </Panel>
+    </>
   );
 }
 
@@ -109,38 +113,37 @@ export default function AgingReports() {
   });
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <PageHeader
+        title={
+          <>
             {t("Aging Reports", "تقارير الأعمار")}
-            <span className="ms-2 text-xs font-normal px-1.5 py-0.5 rounded-full bg-attention-surface/15 text-attention border border-attention-surface/20">{t("New", "جديد")}</span>
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable and Accounts Payable aged by overdue days", "الذمم المدينة والدائنة مصنّفة حسب أيام التأخر")}</p>
-        </div>
-      </div>
+            <span className="ms-2 align-middle text-xs font-normal px-1.5 py-0.5 rounded-full bg-attention-surface/15 text-attention border border-attention-surface/20">{t("New", "جديد")}</span>
+          </>
+        }
+        description={t("Accounts Receivable and Accounts Payable aged by overdue days", "الذمم المدينة والدائنة مصنّفة حسب أيام التأخر")}
+      />
 
       {/* AR */}
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <AlertCircle className="w-4 h-4 text-info" />
-          <h2 className="font-semibold text-base text-foreground">{t("Accounts Receivable Aging", "تقرير أعمار الذمم المدينة")}</h2>
-          {arData && <span className="text-xs text-muted-foreground ms-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(arData.total)}</span></span>}
-        </div>
+      <section>
+        <SectionTitle
+          className="mt-0"
+          actions={arData && <span className="text-[13px] text-muted-foreground">{t("Total:", "الإجمالي:")} <span className="tabular-nums font-semibold text-foreground">{fmtNum(arData.total)}</span></span>}
+        >
+          {t("Accounts Receivable Aging", "تقرير أعمار الذمم المدينة")}
+        </SectionTitle>
         {arLoading ? <div className="text-sm text-muted-foreground">{t("Loading AR…", "جارٍ تحميل الذمم المدينة…")}</div> : arData ? <AgingTable data={viewOf(arData)} type="ar" /> : null}
-      </div>
-
-      <div className="h-px bg-border" />
+      </section>
 
       {/* AP */}
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Building2 className="w-4 h-4 text-attention" />
-          <h2 className="font-semibold text-base text-foreground">{t("Accounts Payable Aging", "تقرير أعمار الذمم الدائنة")}</h2>
-          {apData && <span className="text-xs text-muted-foreground ms-auto">{t("Total:", "الإجمالي:")} <span className="font-mono font-semibold text-foreground">{fmtNum(apData.total)}</span></span>}
-        </div>
+      <section>
+        <SectionTitle
+          actions={apData && <span className="text-[13px] text-muted-foreground">{t("Total:", "الإجمالي:")} <span className="tabular-nums font-semibold text-foreground">{fmtNum(apData.total)}</span></span>}
+        >
+          {t("Accounts Payable Aging", "تقرير أعمار الذمم الدائنة")}
+        </SectionTitle>
         {apLoading ? <div className="text-sm text-muted-foreground">{t("Loading AP…", "جارٍ تحميل الذمم الدائنة…")}</div> : apData ? <AgingTable data={viewOf(apData)} type="ap" /> : null}
-      </div>
+      </section>
     </div>
   );
 }

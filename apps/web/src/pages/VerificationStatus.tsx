@@ -4,7 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthShell } from "@/pages/Signup";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { Clock, AlertTriangle, XCircle, CheckCircle2, FileText, Upload } from "lucide-react";
@@ -69,22 +69,15 @@ export default function VerificationStatus() {
   // Approved orgs shouldn't be here — offer the way back in.
   if (status.status === "approved") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-lg border-border/50">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-positive-surface" />
-              <CardTitle>{t("Your organization is verified", "تم توثيق مؤسستك")}</CardTitle>
-            </div>
-            <CardDescription>{status.name}</CardDescription>
-          </CardHeader>
-          <CardContent>
+      <AuthShell
+        icon={<span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-positive-surface/15 text-positive"><CheckCircle2 className="w-5 h-5" /></span>}
+        title={t("Your organization is verified", "تم توثيق مؤسستك")}
+        description={status.name}
+      >
             <Button className="w-full" onClick={() => (window.location.href = import.meta.env.BASE_URL)}>
               {t("Go to the dashboard", "الانتقال إلى لوحة التحكم")}
             </Button>
-          </CardContent>
-        </Card>
-      </div>
+      </AuthShell>
     );
   }
 
@@ -101,17 +94,17 @@ export default function VerificationStatus() {
       : t("Your application was not approved", "لم تتم الموافقة على طلبك");
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl space-y-4 py-8">
-        <Card className="border-border/50">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Icon className={`w-5 h-5 ${isPending ? "text-attention-surface" : isNeedsInfo ? "text-attention-surface" : "text-negative-surface"}`} />
-              <CardTitle>{heading}</CardTitle>
-            </div>
-            <CardDescription>{status.name}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+    <AuthShell
+      wide
+      icon={
+        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-full ${isRejected ? "bg-negative-surface/15 text-negative" : "bg-attention-surface/15 text-attention"}`}>
+          <Icon className="w-5 h-5" />
+        </span>
+      }
+      title={heading}
+      description={status.name}
+    >
+          <div className="space-y-4">
             {isPending && (
               <p className="text-sm text-muted-foreground">
                 {t(
@@ -146,16 +139,16 @@ export default function VerificationStatus() {
 
             {/* Documents */}
             <div className="border-t border-border pt-4 space-y-3">
-              <h3 className="text-sm font-medium text-foreground">{t("Your documents", "مستنداتك")}</h3>
+              <h3 className="text-[15px] font-semibold text-foreground">{t("Your documents", "مستنداتك")}</h3>
               {(docsData?.documents ?? []).length === 0 ? (
-                <p className="text-xs text-muted-foreground">{t("No documents uploaded yet.", "لم يتم رفع أي مستندات بعد.")}</p>
+                <p className="text-[13px] text-muted-foreground">{t("No documents uploaded yet.", "لم يتم رفع أي مستندات بعد.")}</p>
               ) : (
-                <ul className="space-y-1">
+                <ul className="divide-y divide-border rounded-md border border-border">
                   {docsData!.documents.map((d) => (
-                    <li key={d.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <li key={d.id} className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground">
                       <FileText className="w-3.5 h-3.5 shrink-0" />
-                      <span className="text-foreground">{d.fileName}</span>
-                      <span className="uppercase text-[10px] border border-border rounded px-1">{d.type.replace(/_/g, " ")}</span>
+                      <span className="text-foreground truncate">{d.fileName}</span>
+                      <span className="text-[12px] border border-border rounded px-1 capitalize">{d.type.replace(/_/g, " ")}</span>
                       <span>{Math.ceil(d.sizeBytes / 1024)} KB</span>
                     </li>
                   ))}
@@ -164,10 +157,10 @@ export default function VerificationStatus() {
 
               {canUpload && (
                 <div className="space-y-2 pt-2">
-                  <Label className="text-xs text-muted-foreground">{t("Upload a document (PDF, JPEG or PNG — max 10 MB)", "ارفع مستنداً (PDF أو JPEG أو PNG — 10 ميجابايت كحد أقصى)")}</Label>
+                  <Label className="text-[13px] text-muted-foreground">{t("Upload a document (PDF, JPEG or PNG — max 10 MB)", "ارفع مستنداً (PDF أو JPEG أو PNG — 10 ميجابايت كحد أقصى)")}</Label>
                   <div className="flex flex-wrap items-center gap-2">
                     <select
-                      className="h-8 text-sm rounded-md border border-input bg-background px-2"
+                      className="h-9 text-sm rounded-md border border-input bg-background px-2 capitalize"
                       value={docType}
                       onChange={(e) => setDocType(e.target.value)}
                     >
@@ -195,7 +188,7 @@ export default function VerificationStatus() {
                 <Button className="w-full" disabled={resubmitMut.isPending} onClick={() => resubmitMut.mutate()}>
                   {resubmitMut.isPending ? t("Resubmitting…", "جارٍ إعادة الإرسال…") : t("Resubmit for review", "إعادة الإرسال للمراجعة")}
                 </Button>
-                <p className="text-[11px] text-muted-foreground mt-2 text-center">
+                <p className="text-[12px] text-muted-foreground mt-2 text-center">
                   {t("Upload the requested documents first, then resubmit.", "ارفع المستندات المطلوبة أولاً، ثم أعد الإرسال.")}
                 </p>
               </div>
@@ -206,9 +199,7 @@ export default function VerificationStatus() {
                 {t("Sign out", "تسجيل الخروج")}
               </button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+          </div>
+    </AuthShell>
   );
 }

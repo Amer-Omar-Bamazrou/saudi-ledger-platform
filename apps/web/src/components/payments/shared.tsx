@@ -68,7 +68,7 @@ export function BankPicker({ value, onChange, testId, label }: { value: string; 
   const { active } = useBankOptions();
   return (
     <div>
-      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+      <p className="text-[13px] text-muted-foreground mb-1.5">{label}</p>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="h-9 text-sm" data-testid={testId}>
           <SelectValue placeholder={t("Choose the bank account", "اختر الحساب البنكي")} />

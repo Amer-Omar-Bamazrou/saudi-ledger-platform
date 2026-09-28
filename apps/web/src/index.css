@@ -61,35 +61,41 @@
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
   /* Account-TYPE colours. Distinct from the state colours below: these say what
-     an account IS, those say what a figure MEANS. */
-  --color-income: hsl(var(--color-income));
-  --color-expense: hsl(var(--color-expense));
-  --color-asset: hsl(var(--color-asset));
-  --color-liability: hsl(var(--color-liability));
-  --color-equity: hsl(var(--color-equity));
+     an account IS, those say what a figure MEANS.
+     (The runtime values are `--acct-*`. They used to share the `--color-*`
+     name with the theme token, which made each one refer to itself and
+     resolve to nothing.) */
+  --color-income: hsl(var(--acct-income));
+  --color-expense: hsl(var(--acct-expense));
+  --color-asset: hsl(var(--acct-asset));
+  --color-liability: hsl(var(--acct-liability));
+  --color-equity: hsl(var(--acct-equity));
 
   /* ── SEMANTIC STATE COLOURS ────────────────────────────────────────────────
-     Four meanings the app already expresses 583 times in raw palette classes:
-     money in, money out, wants attention, informational.
+     Four meanings the app expresses hundreds of times: money in, money out,
+     wants attention, informational.
 
-     🔴 DEFINED BY REFERENCE, NOT BY VALUE, ON PURPOSE. Each points at the exact
-     palette entry the pages already use, so adopting a token changes the NAME a
-     colour is reached by and nothing about the colour. A design pass can then
-     change a value in one place instead of in 56 files.
+     🔴 THEME-AWARE SINCE THE 2026-09 DESIGN PASS. They were defined by
+     reference to fixed palette entries (emerald-400 etc.), which were chosen
+     for a dark page and fall under 3:1 on white. Each now resolves per theme
+     (`:root` = light, `.dark`), so the NAME a page uses is unchanged and the
+     value is legible on the page it lands on.
 
-     The `-surface` half exists because the codebase consistently uses a lighter
-     shade for text and a darker one behind opacity for fills and borders
-     (`text-emerald-400` beside `bg-emerald-500/20`). One token cannot serve
-     both without changing what renders. */
-  --color-positive: var(--color-emerald-400);
-  --color-positive-surface: var(--color-emerald-500);
-  --color-negative: var(--color-red-400);
-  --color-negative-surface: var(--color-red-500);
-  --color-attention: var(--color-amber-400);
-  --color-attention-surface: var(--color-amber-500);
-  --color-info: var(--color-blue-400);
-  --color-info-surface: var(--color-blue-500);
+     The `-surface` half is for fills and borders behind opacity
+     (`bg-positive-surface/15`); the plain half is for text. */
+  --color-positive: var(--state-positive);
+  --color-positive-surface: var(--state-positive-surface);
+  --color-negative: var(--state-negative);
+  --color-negative-surface: var(--state-negative-surface);
+  --color-attention: var(--state-attention);
+  --color-attention-surface: var(--state-attention-surface);
+  --color-info: var(--state-info);
+  --color-info-surface: var(--state-info-surface);
+  /* Aging severity beyond "negative": 31–60 days and 90+ days. */
+  --color-severe: var(--state-severe);
+  --color-critical: var(--state-critical);
 
+  --font-display: var(--app-font-display);
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
@@ -101,70 +107,173 @@
 }
 
 :root {
-  --background: 222 47% 8%;
-  --foreground: 210 40% 98%;
-  --border: 217 32% 17%;
-  --input: 217 32% 17%;
-  --ring: 43 96% 56%;
+  /* ── LIGHT (default) ─────────────────────────────────────────────────────
+     2026-09 design pass. White working surface, ink text, and one colour of
+     identity: the teal #18848e, used as the sidebar — the spine of the
+     ledger. Everything else is quiet on purpose so figures carry the page.
+     `.dark` below is the same structure, deeper. */
+  --background: 0 0% 100%;
+  --foreground: 174 19% 11%;
+  --border: 170 12% 89%;
+  --input: 172 10% 82%;
+  --ring: 185 74% 28%;
 
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 32% 17%;
+  --card: 0 0% 100%;
+  --card-foreground: 174 19% 11%;
+  --card-border: 170 12% 89%;
 
-  --popover: 222 47% 11%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 32% 17%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 174 19% 11%;
+  --popover-border: 170 12% 86%;
 
-  --primary: 43 96% 56%;
-  --primary-foreground: 222 47% 11%;
-  --primary-border: 43 96% 46%;
+  /* #13747d — the sidebar teal one step deeper, so white text on a button
+     clears AA (5.5:1) where #18848e alone gives 4.4:1. */
+  --primary: 185 74% 28%;
+  --primary-foreground: 0 0% 100%;
+  --primary-border: 185 74% 22%;
 
-  --secondary: 217 32% 17%;
-  --secondary-foreground: 210 40% 98%;
-  --secondary-border: 217 32% 27%;
+  --secondary: 180 14% 95%;
+  --secondary-foreground: 174 19% 11%;
+  --secondary-border: 172 10% 85%;
 
-  --muted: 217 32% 17%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --muted-border: 217 32% 27%;
+  --muted: 180 14% 96%;
+  --muted-foreground: 176 8% 38%;
+  --muted-border: 172 10% 87%;
 
-  --accent: 217 32% 17%;
-  --accent-foreground: 210 40% 98%;
-  --accent-border: 217 32% 27%;
+  --accent: 184 32% 94%;
+  --accent-foreground: 185 74% 22%;
+  --accent-border: 184 30% 84%;
 
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --destructive-border: 0 62.8% 20.6%;
+  --destructive: 4 76% 40%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-border: 4 76% 32%;
 
-  --chart-1: 43 96% 56%;
-  --chart-2: 215 20.2% 65.1%;
-  --chart-3: 142 71% 45%;
-  --chart-4: 0 72% 51%;
-  --chart-5: 221 83% 53%;
+  --chart-1: 185 71% 33%;
+  --chart-2: 212 25% 45%;
+  --chart-3: 152 60% 32%;
+  --chart-4: 4 70% 46%;
+  --chart-5: 36 85% 45%;
 
-  --sidebar: 222 47% 6%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 32% 17%;
-  --sidebar-primary: 43 96% 56%;
-  --sidebar-primary-foreground: 222 47% 11%;
-  --sidebar-primary-border: 43 96% 46%;
-  --sidebar-accent: 217 32% 17%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-accent-border: 217 32% 27%;
-  --sidebar-ring: 43 96% 56%;
+  /* The sidebar — #18848e, from the owner's brief. */
+  --sidebar: 185 71% 33%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-border: 185 60% 27%;
+  /* The ACTIVE entry is drawn in the page's own colour, so the selected tab
+     reads as a piece of the page reaching into the spine. */
+  --sidebar-primary: var(--background);
+  --sidebar-primary-foreground: 185 74% 24%;
+  --sidebar-primary-border: var(--background);
+  --sidebar-accent: 185 68% 28%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-accent-border: 185 60% 24%;
+  --sidebar-ring: 0 0% 100%;
 
-  --color-income: 142 71% 45%;
-  --color-expense: 0 72% 51%;
-  --color-asset: 221 83% 53%;
-  --color-liability: 24 95% 53%;
-  --color-equity: 271 91% 65%;
+  --acct-income: 160 84% 26%;
+  --acct-expense: 0 70% 42%;
+  --acct-asset: 221 70% 42%;
+  --acct-liability: 21 90% 38%;
+  --acct-equity: 272 55% 45%;
 
-  --app-font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --app-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-  --radius: 0.25rem;
+  --state-positive: #047857;
+  --state-positive-surface: #059669;
+  --state-negative: #b91c1c;
+  --state-negative-surface: #dc2626;
+  --state-attention: #a4550a;
+  --state-attention-surface: #f59e0b;
+  --state-info: #1d4ed8;
+  --state-info-surface: #2563eb;
+  --state-severe: #c2410c;
+  --state-critical: #991b1b;
+
+  --app-font-sans: 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --app-font-display: 'Readex Pro', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
+  /* 🔴 `font-mono` is used ~580 times, almost all of them on AMOUNTS. A
+     monospace face made every figure look like terminal output; what a figure
+     needs is TABULAR digits, which Plex Sans Arabic's are by default (every
+     digit is 600 units wide). So the mono slot points at the working face and
+     columns still align. Real code/hash display, if it ever needs a true
+     monospace, should use `font-[ui-monospace]` explicitly. */
+  --app-font-mono: 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
+  --radius: 0.375rem;
+
+  color-scheme: light;
 }
 
+/* ── DARK ───────────────────────────────────────────────────────────────────
+   Applied by ThemeContext (and the pre-paint script in index.html) as a class
+   on <html>. Not black: a deep ink with the same teal cast, so the sidebar
+   and the page read as one material at night. The spine keeps its hue but
+   drops to #0f4f55 — a full-strength #18848e slab beside a dark page glares. */
 .dark {
-  /* Already dark by default */
+  --background: 172 18% 7%;
+  --foreground: 165 17% 91%;
+  --border: 174 12% 17%;
+  --input: 174 12% 22%;
+  --ring: 185 47% 52%;
+
+  --card: 173 18% 9.5%;
+  --card-foreground: 165 17% 91%;
+  --card-border: 174 12% 17%;
+
+  --popover: 173 18% 10.5%;
+  --popover-foreground: 165 17% 91%;
+  --popover-border: 174 12% 20%;
+
+  --primary: 185 47% 52%;
+  --primary-foreground: 185 75% 9%;
+  --primary-border: 185 47% 44%;
+
+  --secondary: 174 14% 14%;
+  --secondary-foreground: 165 17% 91%;
+  --secondary-border: 174 12% 22%;
+
+  --muted: 174 14% 12.5%;
+  --muted-foreground: 172 8% 62%;
+  --muted-border: 174 12% 20%;
+
+  --accent: 185 30% 15%;
+  --accent-foreground: 184 55% 78%;
+  --accent-border: 185 30% 22%;
+
+  --destructive: 3 68% 48%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-border: 3 68% 40%;
+
+  --chart-1: 185 47% 52%;
+  --chart-2: 212 25% 65%;
+  --chart-3: 152 50% 50%;
+  --chart-4: 4 75% 62%;
+  --chart-5: 38 85% 58%;
+
+  --sidebar: 185 70% 19%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-border: 185 55% 15%;
+  --sidebar-primary: var(--background);
+  --sidebar-primary-foreground: 184 55% 72%;
+  --sidebar-primary-border: var(--background);
+  --sidebar-accent: 185 60% 24%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-accent-border: 185 55% 28%;
+  --sidebar-ring: 184 55% 72%;
+
+  --acct-income: 158 64% 52%;
+  --acct-expense: 0 91% 71%;
+  --acct-asset: 213 94% 68%;
+  --acct-liability: 27 96% 61%;
+  --acct-equity: 270 95% 75%;
+
+  --state-positive: #34d399;
+  --state-positive-surface: #10b981;
+  --state-negative: #f87171;
+  --state-negative-surface: #ef4444;
+  --state-attention: #fbbf24;
+  --state-attention-surface: #f59e0b;
+  --state-info: #60a5fa;
+  --state-info-surface: #3b82f6;
+  --state-severe: #fb923c;
+  --state-critical: #fca5a5;
+
+  color-scheme: dark;
 }
 
 @layer base {
@@ -173,5 +282,81 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    font-feature-settings: "kern";
+  }
+  /* Headings carry the product's voice: Readex Pro, a Kufi-rooted face that
+     reads as Saudi in both scripts, against Plex's engineered body text. */
+  h1, h2 {
+    font-family: var(--app-font-display);
+    letter-spacing: -0.01em;
+  }
+  /* Figures line up in columns. An accountant reads a table down, not across. */
+  table, .tabular, .font-mono {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  /* Defaults for the many hand-built tables: a tinted header band and quiet
+     header text. Utilities on a page still win; these only fill the gaps. */
+  thead {
+    background: hsl(var(--muted) / 0.5);
+  }
+  thead th {
+    font-weight: 500;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    white-space: nowrap;
+    height: 2.5rem;
+  }
+  tbody td {
+    vertical-align: middle;
+  }
+  /* A total is double-ruled, the way a ledger marks one. Applied only where a
+     table declares a <tfoot> — i.e. where the markup already says "this row is
+     the total". */
+  tfoot {
+    border-top: 3px double hsl(var(--foreground) / 0.55);
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
+  }
+}
+
+/* ── The sidebar tab ─────────────────────────────────────────────────────────
+   The active entry is filled with the page colour and runs to the spine's
+   inner edge. These two pseudo-elements draw the concave corners above and
+   below it, so the tab and the page read as ONE shape — the index tab of a
+   ledger. Positioned with logical insets and mirrored for RTL. */
+.nav-tab-active::before,
+.nav-tab-active::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 0;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+.nav-tab-active::before {
+  top: -10px;
+  background: radial-gradient(circle at 0 0, transparent 10px, hsl(var(--sidebar-primary)) 10.5px);
+}
+.nav-tab-active::after {
+  bottom: -10px;
+  background: radial-gradient(circle at 0 100%, transparent 10px, hsl(var(--sidebar-primary)) 10.5px);
+}
+[dir="rtl"] .nav-tab-active::before {
+  background: radial-gradient(circle at 100% 0, transparent 10px, hsl(var(--sidebar-primary)) 10.5px);
+}
+[dir="rtl"] .nav-tab-active::after {
+  background: radial-gradient(circle at 100% 100%, transparent 10px, hsl(var(--sidebar-primary)) 10.5px);
+}
+
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(0 0% 100% / 0.25) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

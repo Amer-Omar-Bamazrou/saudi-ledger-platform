@@ -21,7 +21,7 @@ import { apiFetch } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel } from "@/components/kit";
 import { ArrowRight, ListChecks, ShieldCheck } from "lucide-react";
 import { sectionForCheck, summariseChecks } from "@/lib/migrationImport";
 import { Money, VerdictBadge, invalidateMigration, storedReconciliation, storedValidation, useAdvances, useCanRunMigration, useChart, useOpenItems, useOpeningPosition, useParties, useWorkspaceNav, SECTION_LABELS } from "./shared";
@@ -33,7 +33,7 @@ function CheckRow({ c, onGo }: { c: MigrationControlCheck; onGo?: () => void }) 
   // AMOUNT; forcing "SAR" on every number read "SAR 1.00" for one blocked item. Numbers render as numbers.
   const fmtVal = (v: number | string | null) => (v == null ? "—" : typeof v === "number" ? <span dir="ltr" className="font-mono">{v.toLocaleString("en-SA", { maximumFractionDigits: 2 })}</span> : <span dir="ltr">{v}</span>);
   return (
-    <div className="rounded-md border border-border p-3 flex flex-col sm:flex-row sm:items-start gap-2" data-testid={`check-${c.id}`} data-status={c.status}>
+    <div className="rounded-md border border-border bg-card p-3 flex flex-col sm:flex-row sm:items-start gap-2" data-testid={`check-${c.id}`} data-status={c.status}>
       <div className="sm:w-36 shrink-0 flex sm:flex-col gap-2 sm:gap-1 items-center sm:items-start"><VerdictBadge check={c} /><span className="font-mono text-xs text-muted-foreground">{c.id}</span></div>
       <div className="min-w-0 flex-1 text-sm">
         <p className="font-medium">{c.title}</p>
@@ -86,14 +86,14 @@ export function ValidationSection({ batch }: { batch: MigrationBatchDetail }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{t("Validation", "التحقق")}</h2>
-          <p className="text-sm text-muted-foreground">{t("Server-authoritative, zero-ledger-write. A BLOCKED control stops the commit; a WARNING does not. Fix the staging record it points at and validate again.", "بمرجعية الخادم، دون أي كتابة في الدفاتر. الضابط المحظور يوقف الاعتماد؛ والتحذير لا يوقفه. صحّح سجل التجهيز الذي يشير إليه ثم أعد التحقق.")}</p>
+          <h2 className="text-base font-semibold text-foreground">{t("Validation", "التحقق")}</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground max-w-[80ch]">{t("Server-authoritative, zero-ledger-write. A BLOCKED control stops the commit; a WARNING does not. Fix the staging record it points at and validate again.", "بمرجعية الخادم، دون أي كتابة في الدفاتر. الضابط المحظور يوقف الاعتماد؛ والتحذير لا يوقفه. صحّح سجل التجهيز الذي يشير إليه ثم أعد التحقق.")}</p>
         </div>
         {editable && canRun && <Button size="sm" disabled={run.isPending} onClick={() => run.mutate()} data-testid="run-validation"><ShieldCheck className="w-3.5 h-3.5 me-1" />{run.isPending ? t("Validating…", "جارٍ التحقق…") : validation ? t("Validate again", "إعادة التحقق") : t("Run validation", "تشغيل التحقق")}</Button>}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden rounded-lg border border-border bg-border">
         {[[t("Blocking", "محظور"), s.blocking, s.blocking > 0 ? "text-negative" : "text-positive"], [t("Warnings", "تحذيرات"), s.warnings, s.warnings > 0 ? "text-attention" : ""], [t("Passed", "ناجح"), s.passed, "text-positive"], [t("Last run", "آخر تشغيل"), validation?.at ? new Date(validation.at).toLocaleString(lang === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-SA") : t("never", "لم يُشغَّل")]].map(([l, v, c], i) => (
-          <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-base font-semibold ${c ?? ""}`} data-testid={`validation-kpi-${i}`}>{v}</div></CardContent></Card>
+          <div key={i} className="bg-card px-4 py-3.5 min-w-0"><div className="text-[13px] text-muted-foreground">{l}</div><div className={`mt-1.5 text-[15px] font-semibold ${c ?? ""}`} data-testid={`validation-kpi-${i}`}>{v}</div></div>
         ))}
       </div>
       {stale && <p className="text-xs text-muted-foreground" data-testid="validation-preview-note">{t("Showing the controls as they stand on the staged position now (a preview). Run validation to record a result on the batch.", "تُعرض الضوابط كما هي على المركز المجهّز الآن (معاينة). شغّل التحقق لتسجيل نتيجة على الدفعة.")}</p>}
@@ -105,15 +105,13 @@ export function ValidationSection({ batch }: { batch: MigrationBatchDetail }) {
           : checks.map((c) => <CheckRow key={c.id} c={c} onGo={() => go(sectionForCheck(c.id), { blocked: true })} />)}
       </div>
 
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><ListChecks className="w-4 h-4" />{t(`Staged records with problems (${problemRows.length})`, `سجلات مجهّزة بها مشاكل (${problemRows.length})`)}</CardTitle></CardHeader>
-        <CardContent>
+      <Panel title={<span className="inline-flex items-center gap-2"><ListChecks className="w-4 h-4" />{t(`Staged records with problems (${problemRows.length})`, `سجلات مجهّزة بها مشاكل (${problemRows.length})`)}</span>}>
           {problemRows.length === 0 ? <p className="text-sm text-positive">{t("No staged record carries a problem.", "لا يحمل أي سجل مجهّز مشكلة.")}</p> : (
             <ul className="divide-y divide-border/50" data-testid="problem-rows">
               {problemRows.map((r) => (
                 <li key={`${r.section}-${r.id}`} className="py-2 flex flex-col sm:flex-row sm:items-start gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium break-words"><span className="text-xs text-muted-foreground uppercase me-2">{SECTION_LABELS[r.section][lang === "ar" ? 1 : 0]}</span>{r.label}</p>
+                    <p className="text-sm font-medium break-words"><span className="text-xs text-muted-foreground me-2">{SECTION_LABELS[r.section][lang === "ar" ? 1 : 0]}</span>{r.label}</p>
                     <ul className="text-xs text-negative">{r.problems.map((p, i) => <li key={i}>{p}</li>)}</ul>
                   </div>
                   <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={() => go(r.section, { focus: r.id })} data-testid={`open-problem-${r.id}`}>{t("Open record", "فتح السجل")}<ArrowRight className="w-3 h-3 ms-1 rtl:rotate-180" /></Button>
@@ -121,8 +119,7 @@ export function ValidationSection({ batch }: { batch: MigrationBatchDetail }) {
               ))}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </Panel>
     </div>
   );
 }
@@ -137,17 +134,17 @@ export function ReconciliationSection({ batch }: { batch: MigrationBatchDetail }
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">{t("Reconciliation — R1 to R10", "المطابقة — R1 إلى R10")}</h2>
-        <p className="text-sm text-muted-foreground">{t("The ten gates are computed by the server AT COMMIT, against the ledger it has just posted, inside the same transaction: a failing gate rolls the whole commit back. Every gate is blocking. Before commit, the staged position's own controls preview the ones that can be checked without posting (R2, R3, R4, R9, R10).", "تُحتسب البوابات العشر على الخادم عند الاعتماد، مقابل الدفاتر التي رحّلها للتو، داخل المعاملة نفسها: أي بوابة فاشلة تلغي الاعتماد كله. كل بوابة حاجبة. قبل الاعتماد، تعاين ضوابط المركز المجهّز ما يمكن فحصه دون ترحيل (R2، R3، R4، R9، R10).")}</p>
+        <h2 className="text-base font-semibold text-foreground">{t("Reconciliation — R1 to R10", "المطابقة — R1 إلى R10")}</h2>
+        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground max-w-[80ch]">{t("The ten gates are computed by the server AT COMMIT, against the ledger it has just posted, inside the same transaction: a failing gate rolls the whole commit back. Every gate is blocking. Before commit, the staged position's own controls preview the ones that can be checked without posting (R2, R3, R4, R9, R10).", "تُحتسب البوابات العشر على الخادم عند الاعتماد، مقابل الدفاتر التي رحّلها للتو، داخل المعاملة نفسها: أي بوابة فاشلة تلغي الاعتماد كله. كل بوابة حاجبة. قبل الاعتماد، تعاين ضوابط المركز المجهّز ما يمكن فحصه دون ترحيل (R2، R3، R4، R9، R10).")}</p>
       </div>
       {rec ? (
         <>
           <p className="text-sm text-positive" data-testid="reconciliation-committed">{t("Computed at commit on the posted ledger.", "احتُسبت عند الاعتماد على الدفاتر المرحَّلة.")}</p>
           <div className="space-y-2" data-testid="reconciliation-checks">{rec.checks.map((c) => <CheckRow key={c.id} c={c} />)}</div>
           {figures && (
-            <Card><CardHeader className="pb-2"><CardTitle className="text-sm">{t("Committed figures", "الأرقام المعتمدة")}</CardTitle></CardHeader><CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-sm">{Object.entries(figures).map(([k, v]) => <div key={k} className="rounded border border-border/60 p-2"><p className="text-[11px] text-muted-foreground font-mono">{k}</p><Money v={v} /></div>)}</div>
-            </CardContent></Card>
+            <Panel title={t("Committed figures", "الأرقام المعتمدة")}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-sm">{Object.entries(figures).map(([k, v]) => <div key={k} className="rounded border border-border/60 p-2"><p className="text-[12px] text-muted-foreground font-mono">{k}</p><Money v={v} /></div>)}</div>
+            </Panel>
           )}
         </>
       ) : (

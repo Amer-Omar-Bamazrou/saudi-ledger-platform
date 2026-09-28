@@ -5,7 +5,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Languages, Info } from "lucide-react";
 import { useDeployment } from "@/hooks/useDeployment";
@@ -40,10 +40,34 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      {/* The spine. The same teal as the app's sidebar, so the first screen
+          and every screen after it read as one product. */}
+      <aside className="hidden lg:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-12">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-md bg-sidebar-foreground flex items-center justify-center">
+            <span className="font-display text-lg font-bold leading-none text-sidebar -mt-0.5">ك</span>
+          </div>
+          <span className="font-display font-semibold text-lg">{t("KSA Ledger", "دفتر المملكة")}</span>
+        </div>
+        <div className="max-w-md">
+          <h2 className="text-[34px] leading-[1.2] font-semibold">
+            {t("Accounting and compliance for Saudi businesses.", "المحاسبة والامتثال للمنشآت السعودية.")}
+          </h2>
+          <p className="mt-4 text-[15px] leading-relaxed text-sidebar-foreground/80">
+            {t(
+              "Invoices, bills, VAT and the general ledger — in Arabic and English, on the Saudi calendar.",
+              "الفواتير والمشتريات وضريبة القيمة المضافة ودفتر الأستاذ العام — بالعربية والإنجليزية، وعلى التقويم السعودي.",
+            )}
+          </p>
+        </div>
+        <p className="text-[12px] text-sidebar-foreground/60">© {new Date().getFullYear()} ORGINOO</p>
+      </aside>
+
+      <div className="flex items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-md space-y-4">
         {/* Brand */}
-        <div className="text-center mb-6 relative">
+        <div className="mb-6 relative">
           <button
             onClick={() => setLang(lang === "en" ? "ar" : "en")}
             className="absolute top-0 end-0 flex items-center gap-1 text-xs font-bold px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
@@ -52,21 +76,26 @@ export default function Login() {
             <Languages className="w-3 h-3" />
             {lang === "en" ? "ع" : "EN"}
           </button>
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 mb-3">
-            <span className="text-2xl font-bold text-primary">ك</span>
+          <div className="flex items-center gap-2.5 lg:hidden mb-8">
+            <div className="w-9 h-9 rounded-md bg-sidebar flex items-center justify-center">
+              <span className="font-display text-lg font-bold leading-none text-sidebar-foreground -mt-0.5">ك</span>
+            </div>
+            <span className="font-display font-semibold text-lg text-foreground">{t("KSA Ledger", "دفتر المملكة")}</span>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">KSA Ledger</h1>
-          <p className="text-sm text-muted-foreground">{t("ERP · Accounting", "نظام ERP · محاسبة")}</p>
+          <h1 className="text-[28px] font-semibold text-foreground">
+            {tab === "login" ? t("Sign in", "تسجيل الدخول") : t("Forgot your password?", "نسيت كلمة المرور؟")}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {tab === "login"
+              ? t("Enter your credentials to access the system", "أدخل بيانات الاعتماد للوصول إلى النظام")
+              : t("How to recover access to your account", "كيفية استعادة الوصول إلى حسابك")}
+          </p>
         </div>
 
         {/* ── Sign In ── */}
         {tab === "login" && (
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle>{t("Sign in", "تسجيل الدخول")}</CardTitle>
-              <CardDescription>{t("Enter your credentials to access the system", "أدخل بيانات الاعتماد للوصول إلى النظام")}</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <Card className="border-0 bg-transparent">
+            <CardContent className="p-0 sm:p-0">
               <form onSubmit={handleLogin} className="space-y-4">
                 {error && (
                   <Alert variant="destructive">
@@ -122,12 +151,8 @@ export default function Login() {
 
         {/* ── Forgot Password ── */}
         {tab === "forgot" && (
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle>{t("Forgot your password?", "نسيت كلمة المرور؟")}</CardTitle>
-              <CardDescription>{t("How to recover access to your account", "كيفية استعادة الوصول إلى حسابك")}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <Card className="border-0 bg-transparent">
+            <CardContent className="space-y-4 p-0 sm:p-0">
               <div className="flex gap-3 rounded-lg border border-border bg-muted/30 p-4">
                 <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div className="text-sm text-muted-foreground space-y-2">
@@ -155,6 +180,7 @@ export default function Login() {
             </CardContent>
           </Card>
         )}
+      </div>
       </div>
     </div>
   );
