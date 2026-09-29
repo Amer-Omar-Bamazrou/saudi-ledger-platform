@@ -80,6 +80,12 @@ export interface VatEvidenceInput {
   capitalisesVat: boolean;
   /** The expense account, when it is marked Art. 50 blocked (`categories.input_vat_blocked`). */
   blockedExpenseAccount: { name: string } | null;
+  /**
+   * D-4a (owner, 2026-09-29): a DEBIT note's original, when that original's
+   * input VAT was blocked under Art. 50. Optional — only the stored-document
+   * path knows the original; the unsaved-form preview does not.
+   */
+  art50BlockedOriginal?: { billNumber: string } | null;
   /** The evidence document linked to the bill, if any. */
   capture: { qrPayload: string | null; signatureStatus: string | null } | null;
 }
@@ -156,6 +162,23 @@ export function evaluateVatEvidence(input: VatEvidenceInput): VatEvidenceVerdict
     };
   }
   if (!(input.vatToClaim > 0)) return { status: "not_required", basis: null, flags: [] };
+
+  // ── D-4a: a DEBIT note on an Art. 50-blocked supply is blocked too ─────────
+  // IR Art. 50(1) blocks the input tax «المتعلقة بتلك النفقات» — it attaches to
+  // the EXPENDITURE, not to a document (AUTH); IR 54(4) ties a debit note to the
+  // invoice it adjusts, i.e. to the same expenditure (AUTH); IR 40(6) fixes the
+  // period and grants no deduction (AUTH). That the debit note's extra VAT is
+  // therefore blocked is one short inference from those rules — no text states
+  // the debit-note case explicitly (design §19.9). Decided from the ORIGINAL,
+  // never from the note's own expense account.
+  if (input.documentType === "debit_note" && input.art50BlockedOriginal) {
+    return {
+      status: "not_deductible", basis: null,
+      flags: [info("art50_blocked_original",
+        `This debit note adjusts bill ${input.art50BlockedOriginal.billNumber}, whose input VAT is blocked under VAT IR Art. 50. ` +
+        "The additional VAT on the same expense is blocked too: it is recorded as part of the cost and no input VAT is claimed.")],
+    };
+  }
 
   // ── Art. 50: blocked whatever the evidence; the VAT is part of the cost (X5) ─
   if (input.blockedExpenseAccount) {
