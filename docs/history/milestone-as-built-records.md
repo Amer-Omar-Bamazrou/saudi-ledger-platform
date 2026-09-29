@@ -509,3 +509,12 @@ Built on branch `feat/phase13b1-vat-event-ledger` (implementation commit `f4dd09
 - **Still open, unchanged:** B-1 (credit-note events / GL reconciliation) and B-2 (Art. 40(10) where a credit note exists) block 13B-3 and 13B-6; G1 (fixed assets), G2 (closed-period lapse), G3 (credit-note interactions); 13D (return integration, box mapping, correction withdrawal) and Phase 14 (inventory).
 
 Decision record and as-built departures: [`phase-13b-vat-claim-ledger-architecture.md`](../product/phase-13b-vat-claim-ledger-architecture.md) §24–§25.20.
+
+## PHASE 13B-1a — SUPPLIER ADVANCE VAT ENTRIES UNDER THE REVERSAL GUARD (2026-09-29)
+
+A narrow correction to merged Phase 13B-1 (branch `fix/phase13b1a-advance-vat-reversal-guard`, migration 0108).
+
+- **Defect D-2, found after the 13B-1 merge** (during the Phase 13B-2 B-1 design review, recorded as D-2 in its triage — that design document lands separately): `input_vat_journal_owner()` (0107) recognised bill-owned entries only by `LIKE 'BILL-%'` / `LIKE 'BILLCN-%'`, so a supplier advance invoice's `BILLADV-<n>` (its input-VAT claim) and an advance credit note's `BILLADVCN-<n>` escaped BOTH layers of the generic-reversal guard. A 13B-1 scope defect: A-5 covered bill and supplier-note entries, and these are exactly that.
+- **Fix:** 0108 redefines the ONE owner function to include the two prefixes, each matched against the posted document of the right type (`advance_invoice` / `advance_credit_note`). The service refusal and both database guards (status and lines) read that function, so no trigger changed; the service gains two refusal messages.
+- **Not changed:** no VAT event writer; no accounting policy; no journal, VAT return, or advance / credit-note behaviour. O-2 stays pending; B-1 stays open.
+- **Verified:** 8 new tests on the product's own Z-AP1 entries (both layers alone, over HTTP, lines, tenancy, look-alike numbers, planted positives), and a mutation run: with 0107's definition put back, 6 of the 8 fail.

@@ -15,7 +15,10 @@ export interface JournalEntryListFilter {
  * Who owns a journal entry, when a document does. The Phase 13B-1 values are
  * the ones `input_vat_journal_owner()` (migration 0107) returns.
  */
-export type JournalEntryOwner = "bank_transfer" | "statement_line" | "bill" | "supplier_note" | "bill_vat_claim" | "input_vat_event";
+export type JournalEntryOwner =
+  | "bank_transfer" | "statement_line" | "bill" | "supplier_note" | "bill_vat_claim" | "input_vat_event"
+  // Phase 13B-1a (migration 0108): a supplier advance invoice's BILLADV- entry and an advance credit note's BILLADVCN-.
+  | "advance_invoice" | "advance_credit_note";
 
 /** One predicate for the rows AND the count — so they cannot describe different sets. */
 const jeConditions = (f: JournalEntryListFilter) =>
@@ -40,6 +43,9 @@ export const journalEntriesRepository = {
    * gives, which the database guards also use (never restated here). It runs
    * as the caller, under RLS. (Invoices and payments are still not covered —
    * the rest of CLAUDE.md §5 rank 2.)
+   * Phase 13B-1a (migration 0108): also a supplier advance invoice's
+   * `BILLADV-` entry and an advance credit note's `BILLADVCN-` entry — the
+   * prefixes 0107's definition missed.
    */
   async documentOwner(entryId: number): Promise<JournalEntryOwner | null> {
     const { rows } = await db.execute<{ owner: JournalEntryOwner | null }>(sql`
