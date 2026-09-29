@@ -54,6 +54,23 @@ export async function blockedAccount(expenseAccountId: number | null | undefined
   return cat?.inputVatBlocked ? { name: cat.name } : null;
 }
 
+/**
+ * D-4a (owner, 2026-09-29): the original a DEBIT note adjusts, when its input
+ * VAT was blocked under Art. 50 — posted as `not_deductible` on an expense
+ * (not capitalised). A 0 %-recovery CAPITALISED original is also
+ * `not_deductible`, but that is D-4b, deferred to G1 — deliberately NOT
+ * matched here. An unposted original has no recorded treatment yet, so it is
+ * not matched either.
+ */
+async function art50BlockedOriginal(bill: Bill): Promise<{ billNumber: string } | null> {
+  if (bill.documentType !== "debit_note" || bill.creditNoteAgainstBillId == null) return null;
+  const [original] = await billsRepository.findById(bill.creditNoteAgainstBillId);
+  if (!original || UNPOSTED.has(original.status)) return null;
+  return original.inputVatState === "not_deductible" && original.capitalisesAssetId == null
+    ? { billNumber: original.billNumber }
+    : null;
+}
+
 /** The EXISTING fixed-asset treatment: a 0 % recovery asset capitalises its VAT (claims none). */
 async function capitalisesVat(assetId: number | null | undefined, vatAmount: number): Promise<boolean> {
   if (assetId == null || !(vatAmount > 0)) return false;
@@ -116,6 +133,7 @@ export const vatEvidenceService = {
       blockedExpenseAccount: bill.capitalisesAssetId != null
         ? null
         : await blockedAccount(o.expenseAccountId !== undefined ? o.expenseAccountId : bill.expenseAccountId),
+      art50BlockedOriginal: await art50BlockedOriginal(bill),
       capture: capture && capture.status !== "discarded" ? { qrPayload: capture.qrPayload, signatureStatus: capture.signatureStatus } : null,
     });
     return { verdict, capture: capture && capture.status !== "discarded" ? capture : null };

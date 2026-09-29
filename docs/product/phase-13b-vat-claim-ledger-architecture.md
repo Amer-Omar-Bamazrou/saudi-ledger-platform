@@ -827,7 +827,7 @@ build order below (AD-14).
 
 | # | Blocker | Blocks | Why it is genuine |
 |---|---|---|---|
-| **B-1** | Whether the note transitions may be admitted **for the settled cases only** (live behaviour recorded as events), or all notes stay out (§13) | 13B-3, 13B-4 and everything after | With no note events, a document with a posted note cannot reconcile events ⇄ GL, so the ledger cannot be authoritative for it and the backfill gate refuses |
+| **B-1** | Whether the note transitions may be admitted **for the settled cases only** (live behaviour recorded as events), or all notes stay out (§13). **Designed 2026-09-29** in [`phase-13b2-credit-note-event-design.md`](phase-13b2-credit-note-event-design.md): O-1, O-3, O-4, O-5 (13B-1a merged), O-6 APPROVED 2026-09-29; O-2 **APPROVED** 2026-09-29 (that document §19.8); D-4a APPROVED and D-4b deferred to G1 (§19.11); **B-1 CLOSED 2026-09-29**; 13B-3 unblocked after the D-4a corrective patch; CN-1…CN-8 unsettled by any source and refused by name; 13B-3 unblocked (owner, 2026-09-29) | 13B-3, 13B-4 and everything after | With no note events, a document with a posted note cannot reconcile events ⇄ GL, so the ledger cannot be authoritative for it and the backfill gate refuses |
 | **B-2** | 40(10) on a document that has a credit note (CN-1) — the reversal base is unresolved (G3) | the 40(10) proposal for such documents in 13B-6 | 40(10) is **mandatory**; the architecture cannot silently skip those documents, nor compute a base the accountant has not settled |
 
 ## 25. 13B-1 Implementation Specification
