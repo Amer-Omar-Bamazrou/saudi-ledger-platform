@@ -47,6 +47,11 @@ function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): strin
       return `This entry claims bill ${documentRef}'s input VAT. It cannot be reversed from here; a change to a VAT claim is recorded as a new VAT movement on the bill.`;
     case "input_vat_event":
       return `This entry records an input VAT movement on ${documentRef}. It cannot be reversed from here; a VAT movement changes only through a new VAT movement.`;
+    // Phase 13B-1a: the supplier advance documents (Z-AP1) own their entries too.
+    case "advance_invoice":
+      return `This entry is supplier advance invoice ${documentRef}'s own posting. It cannot be reversed from here; an advance invoice is corrected with the supplier's advance credit note.`;
+    case "advance_credit_note":
+      return `This entry is supplier advance credit note ${documentRef}'s own posting. A supplier's note is the supplier's document; its entry cannot be reversed from here.`;
   }
 }
 
@@ -338,7 +343,8 @@ export const journalEntriesService = {
     // 🔴 Phase 13B-1 (A-5): a bill's or supplier note's own entry, a bill's
     // evidence-claim entry and any input-VAT event's entry are owned too — and
     // no path passes those owners in, so they are ALWAYS refused here. The
-    // trigger on journal_entries (migration 0107) is the boundary.
+    // trigger on journal_entries (migration 0107) is the boundary. Phase 13B-1a
+    // (0108) adds the supplier advance invoice and advance credit note entries.
     const documentOwner = await journalEntriesRepository.documentOwner(id);
     if (documentOwner && owner.document !== documentOwner) {
       throw new ConflictError(ownedEntryRefusal(documentOwner, original.reference ?? original.entryNumber));
