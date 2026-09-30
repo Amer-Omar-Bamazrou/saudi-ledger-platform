@@ -26,6 +26,7 @@ import payments from "./payments.js";
 import supplierPayments from "./supplierPayments.js";
 import supplierStatements from "./supplierStatements.js";
 import supplierCreditNotes from "./supplierCreditNotes.js";
+import openingVatDeclarations from "./openingVatDeclarations.js";
 import bankStatements from "./bankStatements.js";
 import bankReconciliation from "./bankReconciliation.js";
 import bankTransfers from "./bankTransfers.js";
@@ -133,6 +134,8 @@ router.use("/supplier-statements", requirePermission("bills"), supplierStatement
 // B7: a purchase-side note IS a bill row, so it carries the bills authority.
 router.use("/supplier-credit-notes", requirePermission("bills"), supplierCreditNotes);
 router.use("/migration", requirePermission("migration"), migration);
+// Phase 13B S1: an opening payable's historical input VAT — admin AND accountant (D4), a dedicated grant, not `migration` write.
+router.use("/opening-vat-declarations", requirePermission("opening_vat_declaration"), openingVatDeclarations);
 router.use("/quotations", requirePermission("quotations"), quotations);
 router.use("/purchase-orders", requirePermission("purchase_orders"), purchaseOrders);
 router.use("/bills", requirePermission("bills"), bills);

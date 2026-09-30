@@ -35,17 +35,33 @@
  * trigger reads (`input_vat_note_refusal`) — one definition, two readers.
  */
 import { sql } from "drizzle-orm";
-import { db, inputVatEventsTable, type billsTable } from "@workspace/db";
+import { db, inputVatEventsTable, type billsTable, type OpeningPayableVatDeclaration } from "@workspace/db";
 import { BusinessRuleError } from "../../lib/errors";
 import { money2, round2 } from "../../lib/money";
 import { billsRepository } from "../../repositories/bills.repository";
+import { billOutstandingSql } from "../../repositories/billPosition";
 import type { VatEvidenceVerdict } from "../purchaseEvidence/vatEvidence";
 
 type Bill = typeof billsTable.$inferSelect;
 export type InputVatTreatment = "claimed" | "awaiting_evidence" | "not_deductible";
-type Bucket = "HELD" | "CLAIMED" | "BLOCKED";
+/** Where a document's input VAT can sit when a credit note meets it (S1 adds the declared positions). */
+export type NoteBucket = "HELD" | "CLAIMED" | "BLOCKED" | "REVERSED_UNPAID" | "NOT_DEDUCTED";
 
-const BUCKET: Record<InputVatTreatment, Bucket> = { claimed: "CLAIMED", awaiting_evidence: "HELD", not_deductible: "BLOCKED" };
+const BUCKET: Record<InputVatTreatment, NoteBucket> = { claimed: "CLAIMED", awaiting_evidence: "HELD", not_deductible: "BLOCKED" };
+
+/**
+ * 🔴 S1 — A CREDIT NOTE'S TREATMENT COMES FROM THE LEDGER, never from the
+ * original's cache column (for an opening payable that column is empty or
+ * reads `claimed` by 0106's convention — it says nothing about the history).
+ * The ONE non-zero bucket the note meets decides it: VAT that was DEDUCTED
+ * (CLAIMED) is reduced in full; VAT held for evidence follows the original (X3);
+ * VAT with no input-VAT effect — Art. 50 BLOCKED, never deducted, fully
+ * reversed with nothing restored — is cost, so the note reduces the cost and
+ * input VAT by 0 (AQ-2; R1 Case 2).
+ */
+export function treatmentForBucket(bucket: NoteBucket): InputVatTreatment {
+  return bucket === "CLAIMED" ? "claimed" : bucket === "HELD" ? "awaiting_evidence" : "not_deductible";
+}
 const RECOGNITION: Record<InputVatTreatment, string> = {
   claimed: "recognised_claimed", awaiting_evidence: "recognised_held", not_deductible: "recognised_blocked",
 };
@@ -80,9 +96,9 @@ type EventValues = typeof inputVatEventsTable.$inferInsert;
  * migration 0109) and surfaces here as a 409 — never swallowed.
  * Returns true when this call recorded the event, false when it was a retry.
  */
-async function record(values: Omit<EventValues, "provenance">): Promise<boolean> {
+async function record(values: Omit<EventValues, "provenance">, provenance: "recorded" | "declared" = "recorded"): Promise<boolean> {
   try {
-    const rows = await db.insert(inputVatEventsTable).values({ ...values, provenance: "recorded" })
+    const rows = await db.insert(inputVatEventsTable).values({ ...values, provenance })
       .onConflictDoNothing({ target: [inputVatEventsTable.organizationId, inputVatEventsTable.idempotencyKey] })
       .returning({ id: inputVatEventsTable.id });
     return rows.length === 1;
@@ -98,20 +114,85 @@ async function record(values: Omit<EventValues, "provenance">): Promise<boolean>
   }
 }
 
-/** The refusals O-2 names (design §19.4, §19.8), and the opening-original precondition (0109 §3). */
+/**
+ * The refusals O-2 names (design §19.4, §19.8), and S1's (contract §13, §15):
+ * an opening payable's note needs the supplier's document, a declared history
+ * and a non-transitional supply; a document holding VAT in two positions, and
+ * a note settling a payable whose reversed VAT would stay restorable, wait for
+ * S2 / the accountant. Every one names its next step; nothing is posted.
+ */
 const NOTE_REFUSALS = new Set([
-  "input_vat_note_opening_original", "credit_note_exceeds_invoice_vat",
-  "input_vat_note_interaction_undecided", "input_vat_note_allocation_undecided",
+  "credit_note_exceeds_invoice_vat", "input_vat_note_interaction_undecided", "input_vat_note_allocation_undecided",
+  "supplier_note_evidence_missing", "input_vat_note_opening_undeclared", "input_vat_note_transitional_supply",
+  "input_vat_note_multistate", "input_vat_note_overpaid_reversed", "input_vat_note_opening_reversed",
 ]);
+
+function noteRefusalWords(code: string, original: Bill, vat: number, left: string, ceiling: string, bucketAmount: string): string {
+  const words: Record<string, string> = {
+    supplier_note_evidence_missing:
+      `${original.billNumber} is an opening balance migrated at cut-over. A supplier credit note against it must carry the supplier's own credit note as evidence — attach the supplier's document to this draft, then post it again. This applies even when the note shows no VAT: the VAT is what the supplier's document says. Nothing was posted.`,
+    input_vat_note_opening_reversed:
+      `${original.billNumber} is an opening balance its migration has since reversed (the batch was withdrawn, or the amount was corrected onto a replacement). It is history, not a live debt, so no credit note corrects it — record the note against the live payable, if there is one. Nothing was posted.`,
+    input_vat_note_opening_undeclared:
+      `${original.billNumber} is an opening balance migrated at cut-over, and how its input VAT was treated in the previous system has not been declared — so what this credit note does to input VAT is unknown. An admin or accountant declares it once, with its evidence, under Migration → open items; then post the note again. Nothing was posted.`,
+    input_vat_note_transitional_supply:
+      `${original.billNumber} is a transitional supply (made before 1 January 2018, or taxed at 5 %). A supplier credit note against it is not supported here yet. Nothing was posted.`,
+    input_vat_note_multistate:
+      `${original.billNumber}'s input VAT sits in more than one position (for example part deducted and part reversed). A credit note against it needs the proportional split, which is not available yet. Nothing was posted.`,
+    input_vat_note_overpaid_reversed:
+      `This credit note would settle what is still owed on ${original.billNumber} while part of its input VAT reversed under Art. 40(10) would remain restorable. How that remainder is treated awaits the accountant's decision, so the note cannot be recorded yet. Nothing was posted.`,
+    credit_note_exceeds_invoice_vat:
+      `This credit note reduces VAT by ${vat.toFixed(2)}, but only ${left} of the ${ceiling} VAT charged on ${original.billNumber} is left after its other credit notes. A credit note cannot credit more VAT than the invoice charged (VAT IR Art. 54(1)) — check the note's VAT amount.`,
+    input_vat_note_interaction_undecided:
+      `${original.billNumber}'s input VAT has been reversed, restored, corrected or written off since it was recorded. How a supplier credit note applies after that is not yet decided, so it cannot be recorded; nothing was posted.`,
+    input_vat_note_allocation_undecided:
+      `This credit note's VAT (${vat.toFixed(2)}) is within the VAT charged on ${original.billNumber}, but more than the VAT that bill itself still holds (${bucketAmount}) — part of it would reach VAT recorded on another document (a supplier advance or a debit note). How that is allocated is not yet decided, so it cannot be recorded; nothing was posted.`,
+  };
+  return words[code] ?? `This credit note cannot be recorded against ${original.billNumber} (${code}).`;
+}
+
+/**
+ * 🔴 S1 / reconciliation B8 — refused, NOT decided. A note that would settle
+ * what an opening payable still owes, while its fully reversed VAT keeps a
+ * restorable remainder after this note, leaves that remainder's treatment open
+ * (accountant). Asked of EVERY such note, VAT 0 included.
+ *
+ * What is still owed = what the bill owes (`billOutstandingSql` — the ONE
+ * definition; it already nets every LIVE application to this bill, credit-note
+ * applications included) less the UNAPPLIED balance of the other posted notes
+ * against it. Conservative on purpose: an unapplied note is counted as settling
+ * this bill; a note applied elsewhere settled that other bill and is not.
+ */
+async function assertNotSettlingReversed(note: Bill, original: Bill, vat: number, reversedInBucket: number): Promise<void> {
+  if (!(reversedInBucket - vat > 0.005)) return; // nothing restorable would remain
+  const { rows: pos } = await db.execute<{ outstanding: string; unapplied: string }>(sql`
+    SELECT ${billOutstandingSql("b")}::text AS outstanding,
+           coalesce((SELECT sum(n.total::numeric - coalesce((SELECT sum(a.amount::numeric) FROM supplier_payment_allocations a
+                                                              WHERE a.supplier_credit_note_id = n.id
+                                                                AND NOT EXISTS (SELECT 1 FROM supplier_payment_allocation_reversals r WHERE r.allocation_id = a.id)), 0))
+                      FROM bills n
+                     WHERE n.credit_note_against_bill_id = b.id AND n.document_type = 'credit_note'
+                       AND n.status NOT IN ('draft', 'submitted') AND n.id <> ${note.id}), 0)::text AS unapplied
+      FROM bills b WHERE b.id = ${original.id}`);
+  const stillOwed = round2(Number(pos[0]?.outstanding ?? 0) - Number(pos[0]?.unapplied ?? 0));
+  if (round2(Number(note.total)) >= stillOwed - 0.005) {
+    throw new BusinessRuleError(422, {
+      code: "input_vat_note_overpaid_reversed",
+      error: noteRefusalWords("input_vat_note_overpaid_reversed", original, vat, "0.00", "0.00", "0.00"),
+      field: "total",
+    });
+  }
+}
 
 export const inputVatLedgerService = {
   /**
-   * 🔴 O-2 and D-6, asked BEFORE a supplier credit note posts — so a refusal
-   * reaches the user in words, never as a raw database error. The same SQL
-   * function (`input_vat_note_refusal`) is what the admission trigger reads.
-   * Returns the bucket the note reduces (null when it carries no VAT).
+   * 🔴 O-2, D-6 and S1, asked BEFORE a supplier credit note posts — so a
+   * refusal reaches the user in words, never as a raw database error. The same
+   * SQL functions (`input_vat_opening_note_precheck`, `input_vat_note_refusal`)
+   * are what the admission trigger and the commit check read.
+   * Returns the ledger bucket the note reduces (null when it carries no VAT).
    */
-  async assertNoteAdmissible(note: Bill, original: Bill): Promise<Bucket | null> {
+  async assertNoteAdmissible(note: Bill, original: Bill): Promise<NoteBucket | null> {
     // D-6 (O-4): a note corrects an invoice already issued (IR Art. 54(4)).
     if (note.date < original.date) {
       throw new BusinessRuleError(422, {
@@ -121,26 +202,60 @@ export const inputVatLedgerService = {
       });
     }
     const vat = round2(Number(note.vatAmount));
-    if (!(vat > 0)) return null;
-    const { rows } = await db.execute<{ refusal: string | null; from_bucket: Bucket | null; remaining: string; bucket_amount: string }>(
-      sql`SELECT refusal, from_bucket, remaining::text, bucket_amount::text FROM input_vat_note_refusal(${original.id}, ${note.id}, ${money2(vat)}::numeric)`);
-    const r = rows[0]!;
-    if (r.refusal && NOTE_REFUSALS.has(r.refusal)) {
-      const left = Number(r.remaining).toFixed(2);
-      const words: Record<string, string> = {
-        input_vat_note_opening_original:
-          `${original.billNumber} is an opening balance migrated at cut-over; its VAT was accounted for before this system, so a supplier credit note against it cannot be recorded here yet. This case is awaiting a decision — record the note outside the system for now and keep it for the accountant.`,
-        credit_note_exceeds_invoice_vat:
-          `This credit note reduces VAT by ${vat.toFixed(2)}, but only ${left} of the ${Number(original.vatAmount).toFixed(2)} VAT charged on ${original.billNumber} is left after its other credit notes. A credit note cannot credit more VAT than the invoice charged (VAT IR Art. 54(1)) — check the note's VAT amount.`,
-        input_vat_note_interaction_undecided:
-          `${original.billNumber}'s input VAT has been reversed, restored, corrected or written off since it was recorded. How a supplier credit note applies after that is not yet decided, so it cannot be recorded; nothing was posted.`,
-        input_vat_note_allocation_undecided:
-          `This credit note's VAT (${vat.toFixed(2)}) is within the VAT charged on ${original.billNumber}, but more than the VAT that bill itself still holds (${Number(r.bucket_amount).toFixed(2)}) — part of it would reach VAT recorded on another document (a supplier advance or a debit note). How that is allocated is not yet decided, so it cannot be recorded; nothing was posted.`,
-      };
-      throw new BusinessRuleError(422, { code: r.refusal, error: words[r.refusal], field: "vatAmount" });
+    // 🔴 S1 (paper §G Rule 3): against an OPENING payable, VAT 0 is not a bypass —
+    // the supplier's document, a declared history and a non-transitional supply
+    // are required for EVERY note, whatever VAT it states.
+    if (original.isOpening) {
+      const { rows } = await db.execute<{ pre: string | null }>(sql`SELECT input_vat_opening_note_precheck(${original.id}, ${note.id}) AS pre`);
+      const pre = rows[0]?.pre ?? null;
+      if (pre) throw new BusinessRuleError(422, { code: pre, error: noteRefusalWords(pre, original, vat, "0.00", "0.00", "0.00"), field: pre === "supplier_note_evidence_missing" ? "captureId" : "creditNoteAgainstBillId" });
     }
-    if (r.refusal) throw new BusinessRuleError(422, { code: r.refusal, error: `This credit note cannot be recorded against ${original.billNumber} (${r.refusal}).`, field: "creditNoteAgainstBillId" });
+    if (!(vat > 0)) {
+      // A VAT-free note moves no VAT — but settling a fully reversed payable strands its restorable
+      // remainder exactly as a VAT-bearing one would, so B8 asks the same question of it.
+      if (original.isOpening) {
+        const { rows: bal } = await db.execute<{ reversed: string | null }>(sql`SELECT reversed_unpaid::text AS reversed FROM input_vat_balances WHERE document_id = ${original.id}`);
+        await assertNotSettlingReversed(note, original, 0, Number(bal[0]?.reversed ?? 0));
+      }
+      return null;
+    }
+    const { rows } = await db.execute<{ refusal: string | null; from_bucket: NoteBucket | null; remaining: string; bucket_amount: string; ceiling: string }>(
+      sql`SELECT refusal, from_bucket, remaining::text, bucket_amount::text, input_vat_document_ceiling(${original.id})::text AS ceiling
+            FROM input_vat_note_refusal(${original.id}, ${note.id}, ${money2(vat)}::numeric)`);
+    const r = rows[0]!;
+    if (r.refusal) {
+      const field = r.refusal === "supplier_note_evidence_missing" ? "captureId" : NOTE_REFUSALS.has(r.refusal) ? "vatAmount" : "creditNoteAgainstBillId";
+      throw new BusinessRuleError(422, {
+        code: r.refusal,
+        error: noteRefusalWords(r.refusal, original, vat, Number(r.remaining).toFixed(2), Number(r.ceiling).toFixed(2), Number(r.bucket_amount).toFixed(2)),
+        field,
+      });
+    }
+    if (r.from_bucket === "REVERSED_UNPAID") await assertNotSettlingReversed(note, original, vat, Number(r.bucket_amount));
     return r.from_bucket;
+  },
+
+  /**
+   * 🔴 S1 — AN OPENING PAYABLE'S DECLARED HISTORY, into the ledger. ONE
+   * `declared_opening` event per declaration, in the declaration's own
+   * transaction: the whole historical VAT H(D), into the bucket its state
+   * names, dated the declaration's date, provenance `declared`, no journal
+   * entry (the historical GL is the cut-over aggregate). From here the ledger's
+   * buckets — not the declaration, not the bill's columns — decide what a credit
+   * note does. The database restates the declaration against the event (0110).
+   */
+  async recordDeclaredOpening(input: { declaration: OpeningPayableVatDeclaration; bill: Bill; userId: number }): Promise<boolean> {
+    const { declaration: dc, bill, userId } = input;
+    const toBucket = ({ DEDUCTED: "CLAIMED", NOT_DEDUCTED: "NOT_DEDUCTED", BLOCKED_ART50: "BLOCKED", REVERSED_ART40_10: "REVERSED_UNPAID" } as const)[
+      dc.state as "DEDUCTED" | "NOT_DEDUCTED" | "BLOCKED_ART50" | "REVERSED_ART40_10"];
+    return record({
+      organizationId: bill.organizationId, companyId: bill.companyId, documentId: bill.id,
+      eventType: "declared_opening", fromBucket: "NONE", toBucket, amount: dc.historicalVat,
+      occurredOn: dc.declaredOn, postingDate: dc.declaredOn,
+      declarationId: dc.id,
+      ...actor(userId, `Historical input VAT of opening payable ${bill.billNumber} declared (${dc.state})`),
+      idempotencyKey: `declared_opening:${dc.id}`,
+    }, "declared");
   },
 
   /**
@@ -162,6 +277,8 @@ export const inputVatLedgerService = {
     vatToClaim: number;
     entryId: number | null;
     original?: Bill | null;
+    /** S1: a credit note's bucket, AS THE LEDGER GAVE IT (`assertNoteAdmissible`) — never inferred from a cache. */
+    noteBucket?: NoteBucket | null;
     prepayments?: ReadonlyArray<{ advanceBillId: number; taxAmount: number }>;
     verdict: Pick<VatEvidenceVerdict, "status" | "basis" | "flags">;
     capture?: { id: string; sha256: string } | null;
@@ -205,7 +322,7 @@ export const inputVatLedgerService = {
       const recorded = await record({
         organizationId: bill.organizationId, companyId: bill.companyId,
         documentId: original.id, relatedDocumentId: bill.id,
-        eventType: "reduced_by_note", fromBucket: BUCKET[treatment], toBucket: "NONE", amount: money2(vat),
+        eventType: "reduced_by_note", fromBucket: input.noteBucket ?? BUCKET[treatment], toBucket: "NONE", amount: money2(vat),
         occurredOn: bill.date, postingDate: bill.date,
         causeType: "credit_note", causeId: bill.id,
         evidenceSnapshot: snapshot(bill, verdict, null),

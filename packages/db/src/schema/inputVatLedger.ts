@@ -41,6 +41,7 @@ import { companiesTable } from "./companies";
 import { billsTable } from "./bills";
 import { journalEntriesTable } from "./journalEntries";
 import { capturedDocumentsTable } from "./capturedDocuments";
+import { openingPayableVatDeclarationsTable } from "./openingPayableVatDeclarations";
 
 const tenantColumns = {
   organizationId: uuid("organization_id")
@@ -53,8 +54,15 @@ const tenantColumns = {
     .references(() => companiesTable.id),
 };
 
-/** The buckets, plus NONE (out of / into existence). One definition, used by the CHECKs. */
-export const INPUT_VAT_BUCKETS = ["NONE", "HELD", "CLAIMED", "REVERSED_UNPAID", "BLOCKED", "CORRECTED_BLOCKED", "LAPSED"] as const;
+/**
+ * The buckets, plus NONE (out of / into existence). One definition, used by the CHECKs.
+ *
+ * NOT_DEDUCTED (Phase 13B S1, 2026-09-30): historical input VAT an OPENING
+ * payable's previous system never deducted and carried in cost (accountant
+ * AQ-2). Entered only by a declared recognition; left only by a credit note.
+ * Semantically distinct from BLOCKED (Art. 50) and REVERSED_UNPAID (Art. 40(10)).
+ */
+export const INPUT_VAT_BUCKETS = ["NONE", "HELD", "CLAIMED", "REVERSED_UNPAID", "BLOCKED", "CORRECTED_BLOCKED", "LAPSED", "NOT_DEDUCTED"] as const;
 export type InputVatBucket = (typeof INPUT_VAT_BUCKETS)[number];
 const BUCKETS_SQL = sql.raw(INPUT_VAT_BUCKETS.map((b) => `'${b}'`).join(", "));
 
@@ -127,8 +135,14 @@ export const inputVatEventsTable = pgTable(
     /** Exactly one of the two — a person, or a named system identity (e.g. `migration:0107`). */
     actorUserId: integer("actor_user_id"),
     actorSystem: text("actor_system"),
-    /** `recorded` = written when it happened; `reconstructed` = rebuilt later by a named migration (R3). */
+    /**
+     * `recorded` = written when it happened; `reconstructed` = rebuilt later by a
+     * named migration (R3); `declared` (S1) = an opening payable's historical VAT
+     * position, stated in an attributed, evidenced declaration (`declaration_id`).
+     */
     provenance: text("provenance").notNull(),
+    /** S1: the historical VAT declaration a `declared` event states — required for it, forbidden otherwise. */
+    declarationId: integer("declaration_id").references(() => openingPayableVatDeclarationsTable.id, { onDelete: "restrict" }),
     backfillMigration: text("backfill_migration"),
     backfillSource: text("backfill_source"),
     sourceRecordRef: text("source_record_ref"),
@@ -160,6 +174,8 @@ export const inputVatEventsTable = pgTable(
     // Phase 13B-3: a final bill deducts each supplier advance ONCE (Z-AP1 — one prepayment row per advance).
     uniqueIndex("input_vat_events_one_advance_deduction_unq").on(t.documentId, t.relatedDocumentId).where(sql`event_type = 'advance_deducted'`),
     uniqueIndex("input_vat_events_one_claim_unq").on(t.documentId).where(sql`event_type = 'claimed'`),
+    // S1: an opening payable's historical position is declared ONCE.
+    uniqueIndex("input_vat_events_one_declared_opening_unq").on(t.documentId).where(sql`event_type = 'declared_opening'`),
     uniqueIndex("input_vat_events_one_reversal_unq").on(t.documentId, t.triggerMonth).where(sql`event_type = 'reversed_unpaid'`),
     uniqueIndex("input_vat_events_one_restoration_unq").on(t.documentId, t.causeId).where(sql`event_type = 'restored_on_payment'`),
     // (No one-lapse-per-document index: whether a PARTIAL write-off exists is not decided, so HELD bounds a lapse and nothing more.)
@@ -170,9 +186,11 @@ export const inputVatEventsTable = pgTable(
     check("input_vat_events_actor_chk", sql`(actor_user_id IS NULL) <> (actor_system IS NULL) AND (actor_user_id IS NULL OR length(btrim(coalesce(reason, ''))) > 0)`),
     check(
       "input_vat_events_provenance_chk",
-      sql`(provenance = 'recorded' AND backfill_migration IS NULL AND backfill_source IS NULL AND source_record_ref IS NULL)
+      sql`(provenance = 'recorded' AND backfill_migration IS NULL AND backfill_source IS NULL AND source_record_ref IS NULL AND declaration_id IS NULL)
        OR (provenance = 'reconstructed' AND backfill_migration IS NOT NULL AND backfill_source IS NOT NULL AND source_record_ref IS NOT NULL
-           AND actor_user_id IS NULL AND actor_system LIKE 'migration:%')`,
+           AND actor_user_id IS NULL AND actor_system LIKE 'migration:%' AND declaration_id IS NULL)
+       OR (provenance = 'declared' AND declaration_id IS NOT NULL AND backfill_migration IS NULL AND backfill_source IS NULL
+           AND source_record_ref IS NULL AND event_type = 'declared_opening')`,
     ),
     check("input_vat_events_journal_chk", sql`(journal_role IS NULL) = (journal_entry_id IS NULL) AND (journal_role IS NULL OR journal_role IN (${ROLES_SQL}))`),
     check("input_vat_events_idempotency_chk", sql`length(btrim(idempotency_key)) > 0`),
@@ -195,12 +213,14 @@ export const inputVatBalancesTable = pgTable(
     blocked: numeric("blocked", { precision: 15, scale: 2 }).notNull().default("0"),
     correctedBlocked: numeric("corrected_blocked", { precision: 15, scale: 2 }).notNull().default("0"),
     lapsed: numeric("lapsed", { precision: 15, scale: 2 }).notNull().default("0"),
+    /** S1: historical VAT never deducted (AQ-2) — see INPUT_VAT_BUCKETS. */
+    notDeducted: numeric("not_deducted", { precision: 15, scale: 2 }).notNull().default("0"),
     lastEventId: integer("last_event_id"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("input_vat_balances_company_idx").on(t.companyId),
-    check("input_vat_balances_nonnegative_chk", sql`held >= 0 AND claimed >= 0 AND reversed_unpaid >= 0 AND blocked >= 0 AND corrected_blocked >= 0 AND lapsed >= 0`),
+    check("input_vat_balances_nonnegative_chk", sql`held >= 0 AND claimed >= 0 AND reversed_unpaid >= 0 AND blocked >= 0 AND corrected_blocked >= 0 AND lapsed >= 0 AND not_deducted >= 0`),
   ],
 );
 

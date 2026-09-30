@@ -8665,6 +8665,160 @@ export interface MigratedOpenItemIdentity {
   sourceUuid: string | null;
 }
 
+export type OpeningVatEvidenceInputKind = typeof OpeningVatEvidenceInputKind[keyof typeof OpeningVatEvidenceInputKind];
+
+
+export const OpeningVatEvidenceInputKind = {
+  ORIGINAL_TAX_INVOICE: 'ORIGINAL_TAX_INVOICE',
+  DEDUCTION_RETURN: 'DEDUCTION_RETURN',
+  REVERSAL_RETURN: 'REVERSAL_RETURN',
+  PAYMENT_RECORDS: 'PAYMENT_RECORDS',
+  CLASSIFICATION: 'CLASSIFICATION',
+} as const;
+
+export interface OpeningVatEvidenceInput {
+  kind: OpeningVatEvidenceInputKind;
+  /**
+     * A document uploaded through POST /capture; it becomes evidence of the opening payable.
+     * @minLength 1
+     * @maxLength 64
+     */
+  captureId: string;
+}
+
+/**
+ * The last four exist but S1 does not act on them — refused by name, never approximated.
+ */
+export type DeclareOpeningVatInputState = typeof DeclareOpeningVatInputState[keyof typeof DeclareOpeningVatInputState];
+
+
+export const DeclareOpeningVatInputState = {
+  DEDUCTED: 'DEDUCTED',
+  NOT_DEDUCTED: 'NOT_DEDUCTED',
+  BLOCKED_ART50: 'BLOCKED_ART50',
+  REVERSED_ART40_10: 'REVERSED_ART40_10',
+  PARTIALLY_DEDUCTED: 'PARTIALLY_DEDUCTED',
+  PARTIALLY_RESTORED: 'PARTIALLY_RESTORED',
+  ART51_APPORTIONED: 'ART51_APPORTIONED',
+  LINE_SPLIT: 'LINE_SPLIT',
+} as const;
+
+/**
+ * REVERSED_ART40_10 (D7): where the previous system carried the reversed VAT. Required; never assumed. S1 acts on cost only.
+ * @nullable
+ */
+export type DeclareOpeningVatInputReversedVatLocation = typeof DeclareOpeningVatInputReversedVatLocation[keyof typeof DeclareOpeningVatInputReversedVatLocation] | null;
+
+
+export const DeclareOpeningVatInputReversedVatLocation = {
+  cost: 'cost',
+  adjustment_account: 'adjustment_account',
+} as const;
+
+export interface DeclareOpeningVatInput {
+  /** The committed migrated open item (a payable). */
+  itemId: number;
+  /** The last four exist but S1 does not act on them — refused by name, never approximated. */
+  state: DeclareOpeningVatInputState;
+  /**
+     * The historical invoice's VAT. Defaults to the staged amount; may not contradict it.
+     * @exclusiveMinimum 0
+     * @nullable
+     */
+  historicalVat?: number | null;
+  /**
+     * The historical rate, %. Defaults to the staged rate; may not contradict it.
+     * @maximum 100
+     * @exclusiveMinimum 0
+     * @nullable
+     */
+  vatRate?: number | null;
+  /**
+     * YYYY-MM — DEDUCTED and REVERSED_ART40_10.
+     * @maxLength 7
+     * @nullable
+     */
+  deductedPeriod?: string | null;
+  /**
+     * NOT_DEDUCTED.
+     * @maxLength 500
+     * @nullable
+     */
+  notDeductedReason?: string | null;
+  /**
+     * NOT_DEDUCTED: affirms AQ-2's premise — the undeducted VAT was carried in cost or the asset.
+     * @nullable
+     */
+  carriedInCost?: boolean | null;
+  /**
+     * BLOCKED_ART50.
+     * @maxLength 500
+     * @nullable
+     */
+  art50Ground?: string | null;
+  /**
+     * YYYY-MM — REVERSED_ART40_10.
+     * @maxLength 7
+     * @nullable
+     */
+  reversedPeriod?: string | null;
+  /**
+     * REVERSED_ART40_10 (D7): where the previous system carried the reversed VAT. Required; never assumed. S1 acts on cost only.
+     * @nullable
+     */
+  reversedVatLocation?: DeclareOpeningVatInputReversedVatLocation;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  recordReference?: string | null;
+  /** @maxItems 20 */
+  evidence: OpeningVatEvidenceInput[];
+}
+
+export interface OpeningVatEvidence {
+  kind: string;
+  captureId: string;
+  captureSha256: string;
+}
+
+export type OpeningVatDeclarationState = typeof OpeningVatDeclarationState[keyof typeof OpeningVatDeclarationState];
+
+
+export const OpeningVatDeclarationState = {
+  DEDUCTED: 'DEDUCTED',
+  NOT_DEDUCTED: 'NOT_DEDUCTED',
+  BLOCKED_ART50: 'BLOCKED_ART50',
+  REVERSED_ART40_10: 'REVERSED_ART40_10',
+} as const;
+
+export interface OpeningVatDeclaration {
+  id: number;
+  itemId: number;
+  billId: number;
+  state: OpeningVatDeclarationState;
+  historicalVat: number;
+  vatRate: number;
+  /** @nullable */
+  deductedPeriod: string | null;
+  /** @nullable */
+  notDeductedReason: string | null;
+  /** @nullable */
+  carriedInCost: boolean | null;
+  /** @nullable */
+  art50Ground: string | null;
+  /** @nullable */
+  reversedPeriod: string | null;
+  /** @nullable */
+  reversedVatLocation: string | null;
+  /** @nullable */
+  recordReference: string | null;
+  statement: string;
+  declaredBy: number;
+  declaredOn: string;
+  evidence: OpeningVatEvidence[];
+}
+
 export interface ReverseMigrationBatchInput {
   /**
      * Why the opening position is withdrawn — the audit record of the reversal.

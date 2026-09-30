@@ -357,13 +357,21 @@ describeMaybe("Phase 13B-3 — the input-VAT event writer", () => {
     await nothingPosted(note.id, "P13B3-CN-NI4", c.id, before);
   });
 
-  it("🔴 the OPENING original: a credit note against a migrated opening payable is refused by name (input_vat_note_opening_original) — not as an over-credit; its VAT is not in this ledger", async () => {
+  // Phase 13B S1 (0110) retired input_vat_note_opening_original: an opening payable's VAT
+  // enters this ledger only through a DECLARATION (phase13b-s1-opening-payable-vat.test.ts).
+  // Without one the note is still refused by name — never as an over-credit.
+  it("🔴 the OPENING original, UNDECLARED: a credit note is refused by name — first for the supplier's document, then (with it attached) because the payable's VAT history is undeclared — never as an over-credit", async () => {
     const open = (await pool.query(
       `INSERT INTO bills (organization_id, company_id, vendor_id, bill_number, date, subtotal, vat_amount, total, status, is_opening)
        VALUES ($1, $2, $3, 'P13B3-OPEN-1', '2026-01-01', 1150, 0, 1150, 'approved', true) RETURNING id`, [orgA, coA, vendorA])).rows[0].id as number;
     expect(await reconcile(open)).toEqual({ doc: null, gl: null });
     const note = await creditNoteDraft(open, "P13B3-CN-OPEN", "2026-02-01", 15);
-    const words = await expectRefusal(approve(note.id), 422, "input_vat_note_opening_original");
+    await expectRefusal(approve(note.id), 422, "supplier_note_evidence_missing");
+    await nothingPosted(note.id, "P13B3-CN-OPEN", open, []);
+    await pool.query(
+      `INSERT INTO captured_documents (organization_id, company_id, status, content_type, byte_size, sha256, source, bill_id)
+       VALUES ($1, $2, 'staged', 'application/pdf', 10, repeat('b', 64), 'manual', $3)`, [orgA, coA, note.id]);
+    const words = await expectRefusal(approve(note.id), 422, "input_vat_note_opening_undeclared");
     expect(words).toMatch(/opening balance migrated at cut-over/);
     await nothingPosted(note.id, "P13B3-CN-OPEN", open, []);
   });

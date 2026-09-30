@@ -32,7 +32,7 @@ import { describeHold, inputVatTreatment, type VatEvidenceVerdict } from "./purc
 import { payBill } from "./bills.payment";
 import { buildBillOut, toNum, type BillOut } from "./bills.presenter";
 import { supplierAdvanceInvoicesService } from "./accounting/supplierAdvanceInvoices.service";
-import { inputVatLedgerService } from "./accounting/inputVatLedger.service";
+import { inputVatLedgerService, treatmentForBucket } from "./accounting/inputVatLedger.service";
 import { SUPPLIER_ON_ACCOUNT_ASSET_NAME } from "./accounting/supplierCreditPolicy";
 import type { Approvable, ApprovalActor, ApprovalState } from "./approval";
 import type { billsTable, vendorsTable } from "@workspace/db";
@@ -352,7 +352,7 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   const original = isNote && bill.creditNoteAgainstBillId != null
     ? await billsRepository.lockForUpdate(bill.creditNoteAgainstBillId)
     : null;
-  const treatment = inputVatTreatment(evidence, original ? { state: original.inputVatState } : null);
+  let treatment = inputVatTreatment(evidence, original ? { state: original.inputVatState } : null);
   /**
    * 🔴 PHASE 13B-3 — O-2 AND D-6, BEFORE ANYTHING POSTS. A supplier credit note
    * is an event of its ORIGINAL (B-1); the ledger decides whether it can be
@@ -360,15 +360,29 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
    * original charged less its other notes (CI-1, IR Art. 54(1) — this replaces
    * the held-only cap, which it contains), and only from the original's single
    * VAT position — every undecided case refused by name (CN-1…CN-8).
+   *
+   * 🔴 PHASE 13B S1 — AND THE LEDGER DECIDES THE TREATMENT. The note's input-VAT
+   * effect is read from the bucket the ledger returns, never from the
+   * original's cache column. For an OPENING payable that column says nothing
+   * about the history (empty, or `claimed` by 0106's convention), so it is not
+   * even consulted: a declared DEDUCTED history reduces input VAT in full; never
+   * deducted, Art. 50 blocked or fully reversed reduces it by 0 (the note's VAT
+   * reduces the cost). For an in-system original the ledger and the cache must
+   * agree — a disagreement is refused, never resolved in favour of either.
    */
+  let noteBucket: Awaited<ReturnType<typeof inputVatLedgerService.assertNoteAdmissible>> = null;
   if (original) {
-    const bucket = await inputVatLedgerService.assertNoteAdmissible(bill, original);
-    const expected = { claimed: "CLAIMED", awaiting_evidence: "HELD", not_deductible: "BLOCKED" }[treatment];
-    if (bucket && bucket !== expected) {
-      throw new BusinessRuleError(409, {
-        code: "input_vat_ledger_divergence",
-        error: `${original.billNumber}'s input VAT reads ${original.inputVatState ?? "unstated"} on the bill but ${bucket} in the VAT ledger. Nothing was posted; this needs investigating before the note can be recorded.`,
-      });
+    noteBucket = await inputVatLedgerService.assertNoteAdmissible(bill, original);
+    if (original.isOpening) {
+      treatment = noteBucket ? treatmentForBucket(noteBucket) : "not_deductible";
+    } else {
+      const expected = { claimed: "CLAIMED", awaiting_evidence: "HELD", not_deductible: "BLOCKED" }[treatment];
+      if (noteBucket && noteBucket !== expected) {
+        throw new BusinessRuleError(409, {
+          code: "input_vat_ledger_divergence",
+          error: `${original.billNumber}'s input VAT reads ${original.inputVatState ?? "unstated"} on the bill but ${noteBucket} in the VAT ledger. Nothing was posted; this needs investigating before the note can be recorded.`,
+        });
+      }
     }
   }
   /**
@@ -450,7 +464,7 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   // the original's held amount — X3, its later claim is the net). At commit
   // `bills_input_vat_cache_consistency` refuses any disagreement.
   await inputVatLedgerService.recordPosting({
-    bill, treatment, vatToClaim, entryId: je.id, original,
+    bill, treatment, vatToClaim, entryId: je.id, original, noteBucket,
     prepayments: prepaid?.prepared.map((p) => ({ advanceBillId: p.advanceBillId, taxAmount: p.taxAmount })) ?? [],
     verdict: evidence,
     capture: evidenceCapture ? { id: evidenceCapture.id, sha256: evidenceCapture.sha256 } : null,

@@ -3,6 +3,7 @@ import { tOutside } from "@/contexts/LanguageContext";
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { ApiError } from '@/lib/api';
+import { openingVatRefusalTitle, refusalOf } from '@/lib/openingVatRefusals';
 import { toast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -139,6 +140,14 @@ const queryClient = new QueryClient({
       // the structured code (the Approvals page lands here).
       if (error instanceof ApiError && (error.code === "input_vat_evidence_insufficient" || error.code === "input_vat_not_deductible")) {
         toast({ title: tOutside("Not posted — the evidence does not support the claim", "لم يُرحّل — الإثبات لا يدعم الخصم"), description: error.message });
+        return;
+      }
+      // Phase 13B S1: a note against an opening payable (or its declaration) — the title says the next step,
+      // keyed on the code from either client; the server's WHOLE sentence beneath.
+      const s1 = refusalOf(error);
+      const s1Title = openingVatRefusalTitle(s1.code, tOutside);
+      if (s1Title) {
+        toast({ variant: "destructive", title: s1Title, description: s1.words });
         return;
       }
       toast({
