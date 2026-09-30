@@ -18,7 +18,8 @@ const TITLES: Record<string, [string, string]> = {
   input_vat_note_multistate: ["Not supported yet — the bill's VAT is split", "غير مدعوم بعد — ضريبة الفاتورة مجزّأة"],
   input_vat_note_overpaid_reversed: ["Not supported yet — this note would settle a reversed payable", "غير مدعوم بعد — هذا الإشعار يسوّي ذمة معكوسة ضريبتها"],
   input_vat_note_opening_reversed: ["This opening bill was reversed — record the note against the live bill", "هذه الفاتورة الافتتاحية معكوسة — سجّل الإشعار على الفاتورة القائمة"],
-  credit_note_exceeds_invoice_vat: ["More VAT than the bill has left", "ضريبة أكثر مما تبقّى على الفاتورة"],
+  // NOT credit_note_exceeds_invoice_vat: that is 13B-3's code for EVERY bill, ordinary ones included, and
+  // keeps the generic "Refused" title (its server sentence names the ceiling). This map titles S1's codes only.
   // the declaration
   opening_vat_declaration_evidence_missing: ["Attach the evidence this history needs", "أرفق الأدلة التي يتطلبها هذا التاريخ"],
   opening_vat_declaration_evidence_reused: ["Each kind of evidence needs its own document", "كل نوع من الأدلة يحتاج مستندًا خاصًا به"],
@@ -50,6 +51,16 @@ export function openingVatRefusalTitle(code: string | undefined | null, t: T): s
  * `.data`) — whose `.message` is "HTTP 422 …: " plus the sentence cut at 300
  * characters, so the body is read instead of the message.
  */
+/**
+ * The toast for a refused supplier-note act (Supplier credit notes): an S1 code's own
+ * title, and for every other code — ordinary 13B-3 refusals included — the generic
+ * "Refused"; the server's whole sentence is the description either way.
+ */
+export function noteRefusalToast(e: unknown, t: T) {
+  const { code, words } = refusalOf(e);
+  return { title: openingVatRefusalTitle(code, t) ?? t("Refused", "مرفوض"), description: words, variant: "destructive" as const };
+}
+
 export function refusalOf(e: unknown): { code: string | undefined; words: string } {
   const err = e as { code?: string; body?: { code?: string; error?: string }; data?: { code?: string; error?: string }; message?: string };
   const code = err?.code ?? err?.body?.code ?? err?.data?.code;

@@ -26,7 +26,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { openingVatRefusalTitle, refusalOf } from "@/lib/openingVatRefusals";
+import { noteRefusalToast } from "@/lib/openingVatRefusals";
 import { statusLabel } from "@/lib/statusLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,8 +45,6 @@ import {
   type SupplierCreditNote, type Bill, type BillHeaderInputDocumentType, type AttachEvidenceInput,
 } from "@workspace/api-client-react";
 
-type T = (en: string, ar: string) => string;
-
 /** Stage a file through the capture pipeline; the caller links the returned capture to a bill. */
 async function stageDocument(file: File): Promise<string> {
   const fd = new FormData();
@@ -54,12 +52,6 @@ async function stageDocument(file: File): Promise<string> {
   fd.append("source", "manual");
   const cap: { captureId: string } = await apiFetch("/capture", { method: "POST", body: fd });
   return cap.captureId;
-}
-
-/** A refusal toast: the bilingual title keyed on the CODE (S1 codes), the server's whole sentence beneath. */
-function refusalToast(e: unknown, t: T) {
-  const { code, words } = refusalOf(e);
-  return { title: openingVatRefusalTitle(code, t) ?? t("Refused", "مرفوض"), description: words, variant: "destructive" as const };
 }
 
 /** What a bill still owes, from the SERVER (billPosition) — never total − paid here. */
@@ -94,7 +86,7 @@ export default function SupplierCreditNotes() {
   const approve = useMutation({
     mutationFn: (id: number) => approveBill(id, {}),
     onSuccess: () => { toast({ title: t("Note posted", "تم ترحيل الإشعار") }); invalidate(); },
-    onError: (e: Error) => toast(refusalToast(e, t)),
+    onError: (e: Error) => toast(noteRefusalToast(e, t)),
   });
 
   /** Attach the supplier's document to a DRAFT note — the evidence path every draft bill uses. */
@@ -107,7 +99,7 @@ export default function SupplierCreditNotes() {
       toast({ title: t("Supplier's document attached", "أُرفق مستند المورّد") });
       invalidate();
     } catch (e) {
-      toast(refusalToast(e, t));
+      toast(noteRefusalToast(e, t));
     } finally {
       setAttachingId(null);
     }
@@ -219,7 +211,7 @@ function NewNoteDialog({ bills, t, onDone }: {
       captureId: supplierDocument ? await stageDocument(supplierDocument) : undefined,
     }),
     onSuccess: () => { toast({ title: t("Note recorded as a draft", "سُجِّل الإشعار كمسودة") }); onDone(); },
-    onError: (e: Error) => toast(refusalToast(e, t)),
+    onError: (e: Error) => toast(noteRefusalToast(e, t)),
   });
 
   return (
