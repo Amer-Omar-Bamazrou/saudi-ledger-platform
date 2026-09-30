@@ -313,7 +313,7 @@ export const supplierAdvanceInvoicesService = {
    * (a non-financial prepayment, IAS 32 AG11); the recoverable VAT leaves it
    * (IAS 2.11 / IAS 16.16(a) — recoverable taxes are not part of a cost).
    */
-  async approveAdvanceInvoice(bill: typeof billsTable.$inferSelect): Promise<void> {
+  async approveAdvanceInvoice(bill: typeof billsTable.$inferSelect): Promise<number | null> {
     const { supplierPaymentsService } = await import("./supplierPayments.service.js");
     const payment = await lockPayment(bill.advanceSupplierPaymentId!);
     if (payment.classification !== "advance") refuse("advance_invoice_requires_advance", "The payment this invoice is against is no longer classified as an advance.", "classification", 409);
@@ -325,7 +325,7 @@ export const supplierAdvanceInvoicesService = {
     const vat = Number(bill.vatAmount);
     if (vat > 0) {
       const [vendor] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, payment.vendorId)).limit(1);
-      await postJournalEntry({
+      const je = await postJournalEntry({
         entryNumber: `BILLADV-${bill.billNumber}`,
         date: bill.date,
         description: `Supplier advance tax invoice ${bill.vendorReference ?? bill.billNumber}${vendor ? ` – ${vendor.name}` : ""}`,
@@ -335,11 +335,14 @@ export const supplierAdvanceInvoicesService = {
           { systemCode: "SUPPLIER_ADVANCES", accountName: SUPPLIER_ON_ACCOUNT_ASSET_NAME.SUPPLIER_ADVANCES!, description: `VAT invoiced on advance ${bill.billNumber}`, debitAmount: 0, creditAmount: vat, party: { type: "vendor" as const, vendorId: payment.vendorId } },
         ],
       });
+      // Phase 13B-3: its recognition event references this entry.
+      return je.id;
     }
+    return null;
   },
 
   /** Approve a credit note against an advance invoice: Dr Supplier advances / Cr Input VAT, in the note's period. */
-  async approveAdvanceCreditNote(bill: typeof billsTable.$inferSelect): Promise<void> {
+  async approveAdvanceCreditNote(bill: typeof billsTable.$inferSelect): Promise<number | null> {
     const [inv] = await advanceInvoicesOpen({ ids: [bill.creditNoteAgainstBillId!] });
     if (!inv) refuse("advance_invoice_unknown", "The advance invoice this note credits is not approved.", "creditNoteAgainstBillId", 409);
     await lockPayment(inv!.supplierPaymentId);
@@ -350,7 +353,7 @@ export const supplierAdvanceInvoicesService = {
     await checkPeriodOpen(bill.date);
     const vat = Number(bill.vatAmount);
     if (vat > 0) {
-      await postJournalEntry({
+      const je = await postJournalEntry({
         entryNumber: `BILLADVCN-${bill.billNumber}`,
         date: bill.date,
         description: `Supplier credit note ${bill.vendorReference ?? bill.billNumber} against advance invoice ${again!.billNumber}`,
@@ -360,7 +363,10 @@ export const supplierAdvanceInvoicesService = {
           { systemCode: "VAT_INPUT", accountName: "Input VAT Receivable", description: `Input VAT reversed — ${bill.billNumber}`, debitAmount: 0, creditAmount: vat },
         ],
       });
+      // Phase 13B-3: the advance invoice's reduced_by_note event references this entry.
+      return je.id;
     }
+    return null;
   },
 
   /**

@@ -15,6 +15,7 @@ import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
 import { transactionsService } from "../services/transactions.service";
 import { createApproved } from "./helpers/createApproved";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -45,6 +46,7 @@ describeMaybe("B4 — every payment keeps its date", () => {
   }
 
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     for (const t of [

@@ -111,6 +111,48 @@ async function assertDemoOnlyDatabase(): Promise<void> {
   }
 }
 
+/** The owner connection the reset holds, structurally (the API package does not depend on `pg`'s types). */
+type DemoClient = { query: (text: string, params?: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> };
+
+/**
+ * 🔴 THE ONE PLACE THE DEMO WIPE PASSES THE APPEND-ONLY LEDGER — and only on a
+ * demo-only database. Call it inside the reset's open transaction.
+ *
+ * `input_vat_events` is append-only for every role, the owner included
+ * (migration 0107: UPDATE, DELETE and TRUNCATE refused by trigger). That
+ * protection is NOT changed and has no exception: a production database — and
+ * the app role anywhere — can never truncate the ledger. What makes a demo
+ * wipe possible is the REPLICA session setting (`session_replication_role`),
+ * which only the database OWNER may take (the app role is refused it), set with SET LOCAL so
+ * it ends with this transaction, and reached only after the demo's two gates
+ * are re-checked HERE, inside the wipe's own transaction:
+ *   · the environment: `DEMO_MODE` is on;
+ *   · the structure: with `organizations` locked (no tenant can be created
+ *     until this commits), the database holds no organisation but the demo.
+ * Re-checked rather than trusted from the caller, so the bypass can never be
+ * reached on a path that skipped them, and so a tenant created between the
+ * first check and the wipe is seen. `tests/demo-reset-ledger-bypass.test.ts` pins that
+ * the production path cannot reach it, and that nothing else sets replica mode.
+ */
+export async function truncateDemoTenant(client: DemoClient, tables: string[]): Promise<void> {
+  if (!loadEnv().DEMO_MODE) {
+    throw new DemoResetRefused("DEMO_MODE is off — the demo wipe does not run here.");
+  }
+  await client.query("LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE");
+  const { rows } = await client.query("SELECT slug FROM organizations");
+  const foreign = rows.map((r) => String(r.slug)).filter((s) => s !== DEMO_ORG_SLUG);
+  if (foreign.length > 0) {
+    throw new DemoResetRefused(
+      `Refusing to wipe: the database holds ${rows.length} organization(s), including ${foreign.length} that are not the demo tenant ` +
+        `(${foreign.slice(0, 5).join(", ")}). The append-only ledger is never bypassed on a database with real tenants.`,
+    );
+  }
+  await client.query("SET LOCAL session_replication_role = replica");
+  // RESTART IDENTITY so the re-seeded demo has the same ids every week —
+  // a reviewer's bookmarked URL keeps pointing at the same invoice.
+  await client.query(`TRUNCATE TABLE ${tables.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE`);
+}
+
 export interface DemoResetOutcome {
   status: "succeeded" | "failed";
   detail: string;
@@ -154,12 +196,9 @@ export async function runDemoReset(): Promise<DemoResetOutcome> {
     await assertDemoOnlyDatabase();
 
     const tables = [...(await tenantTables()), ...IDENTITY_TABLES];
-    const quoted = tables.map((t) => `"${t}"`).join(", ");
 
     await client.query("BEGIN");
-    // RESTART IDENTITY so the re-seeded demo has the same ids every week —
-    // a reviewer's bookmarked URL keeps pointing at the same invoice.
-    await client.query(`TRUNCATE TABLE ${quoted} RESTART IDENTITY CASCADE`);
+    await truncateDemoTenant(client, tables);
     await client.query("COMMIT");
 
     // Re-seed OUTSIDE the truncate transaction: the seed drives the product's

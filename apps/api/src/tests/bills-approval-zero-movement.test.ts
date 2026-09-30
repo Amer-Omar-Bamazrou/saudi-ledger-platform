@@ -18,6 +18,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { billsService } from "../services/bills.service";
 import { reportsService } from "../services/reports.service";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -54,6 +55,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
   }
 
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('bill-appr')`); // Phase 13B-3: events first (append-only, RESTRICT)
     if (orgId) {
       // bill_payments.journal_entry_id (Phase 12B) references the entry: payments go first.
       await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id = $1)`, [orgId]);

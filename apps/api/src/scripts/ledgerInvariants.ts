@@ -305,11 +305,19 @@ async function main() {
       FROM gl FULL JOIN doc ON doc.org = gl.org AND doc.vendor_id IS NOT DISTINCT FROM gl.vendor_id
      WHERE coalesce(gl.v,0) <> coalesce(doc.v,0)`));
 
-  // ── Phase 13B-1: the input-VAT event ledger's own integrity ──────────
-  // Foundation only: no production writer exists yet, so these hold
-  // vacuously on live data until 13B-3 — they are here so the first writer
-  // is checked from its first row. Each re-checks AFTER the fact what the
-  // migration-0107 triggers check at write time.
+  // ── Phase 13B: the input-VAT event ledger ─────────────────────────────
+  // 🔴 13B-3 (migration 0109): every posted purchase document has its events
+  // (recorded live, or RECONSTRUCTED by 0109's backfill). This is the SAME
+  // definition the migration's gate and the cache-consistency triggers read
+  // (`input_vat_reconciliation()` → `input_vat_document_mismatch` /
+  // `input_vat_gl_mismatch`): each document's cache and completeness against
+  // its events, and its events against its own GL entries — re-checked AFTER
+  // the fact, so a write that went around the triggers (a replica-mode
+  // session, a restore) is still seen.
+  fail("input_vat_document_reconciliation — a purchase document whose columns, events or GL entries disagree (the events win; investigate before any rebuild)", await q(`
+    SELECT organization_id::text AS org, document_id, problem FROM input_vat_reconciliation(NULL)`));
+  // The 13B-1 checks below re-check AFTER the fact what the migration-0107
+  // triggers check at write time.
   fail("input_vat_balances_vs_events — a document's balance row differs from the sum of its events' transfers", await q(`
     WITH ev AS (
       SELECT document_id,

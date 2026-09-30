@@ -54,14 +54,15 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-09-22.** Full as-built narrative for everything below:
+**Last updated: 2026-09-29.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED**; A4/A5 as invariants (§4); follow-ups built ([`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17). Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
 **2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-H BUILT**; its four invariants are in the [`pack`](docs/product/fixed-assets-decision-pack.md) §20–§27. 🔴 THREE CLOCKS (fiscal year · tax period · accounting life) — none stands in for another.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
-**2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13B/13D wait on P13-N1.
-**2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. Z-AP1 answered (A), built (§8); the bank lock is a product control (§9).
+**2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
+**2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
+**2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
@@ -78,7 +79,7 @@ When in doubt, favor evolving the existing system over replacing it.
 | **M21** — quotations & purchase orders (M21.1–M21.3) | ✅ Complete | [`design-quotations-purchase-orders`](docs/product/design-quotations-purchase-orders.md) |
 | **M22** — closed months + the global 423 explanation | ✅ Complete | as-built records |
 | **M23** — audit-trail reader UI | ✅ Complete | as-built records |
-| **AI track** — AI-1 (Groq seam + metering), AI-2 (corpus at measuring size), AI-3a (findings engine), AI-3b (explanations), AI-5 (scheduled findings), AI-6a (grounded answers) | ✅ Built, **dark by construction** (the boot boundary refuses tenant data until Groq Enterprise is signed) | [`design-ai-layer`](docs/product/design-ai-layer.md), [`ai-6-proposal`](docs/product/ai-6-proposal.md) |
+| **AI track** — AI-1, AI-2, AI-3a, AI-3b, AI-5, AI-6a | ✅ Built, **dark by construction** (the boot boundary refuses tenant data until Groq Enterprise is signed) | [`design-ai-layer`](docs/product/design-ai-layer.md), [`ai-6-proposal`](docs/product/ai-6-proposal.md) |
 | **Automation** | A1 capture ✅, A3 recurring (drafts only) ✅, **A2 bank feeds not started** | [`feature-spec-automation`](docs/product/feature-spec-automation.md) |
 | **Demo deployment** | ✅ Codebase demo-ready; **nothing is deployed** | [`demo-deployment-decisions`](docs/product/demo-deployment-decisions.md) |
 | **Billing** | 🔴 **Does not exist** (queue R1) | §5 |

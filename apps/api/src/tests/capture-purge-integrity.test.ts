@@ -287,9 +287,11 @@ describeMaybe("B3 — the row never outlives the bytes", () => {
   describe("promotion", () => {
     async function billWithCapture(): Promise<{ captureId: string; billId: number }> {
       const c = await capture();
+      // Phase 13B-3: a bill inserted POSTED, outside the approval, can carry no input VAT — its VAT would
+      // need events only the approval writes (bills_input_vat_cache_consistency). VAT is incidental here: totals kept.
       const { rows } = await pool.query(
         `INSERT INTO bills (organization_id, company_id, bill_number, date, vendor_id, subtotal, vat_amount, total, status)
-         VALUES ($1,$2,$3,current_date,$4,'100.00','15.00','115.00','approved') RETURNING id`,
+         VALUES ($1,$2,$3,current_date,$4,'115.00','0.00','115.00','approved') RETURNING id`,
         [orgId, companyId, `B3-${c.captureId.slice(0, 8)}`, vendorId],
       );
       const billId = Number(rows[0].id);

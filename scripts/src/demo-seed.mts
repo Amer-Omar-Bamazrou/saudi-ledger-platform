@@ -146,15 +146,22 @@ async function main() {
   }
 
   // ── bills (one submitted → it appears in the queue) ────────────────────────
+  // 🔴 NEVER INSERTED POSTED (Phase 13B-3, migration 0109): a posted bill's
+  // input VAT is recorded as events by the APPROVAL, in the same transaction
+  // as its GL entry, and the database refuses at commit a posted bill whose
+  // VAT has neither (`bills_input_vat_cache_consistency`). This script writes
+  // raw rows and cannot post; approve these through the product (the
+  // Approvals queue, or `billsService.approve` — `services/demo/demoSeed`
+  // does exactly that) to get posted bills with their entries and events.
   for (const [num, sub, vat, total, date, status] of [
-    [`${P}BILL-501`, 3000, 450, 3450, d(4, 3), "paid"],
-    [`${P}BILL-502`, 1800, 270, 2070, d(6, 21), "received"],
+    [`${P}BILL-501`, 3000, 450, 3450, d(4, 3), "draft"],
+    [`${P}BILL-502`, 1800, 270, 2070, d(6, 21), "draft"],
     [`${P}BILL-503`, 950, 142.5, 1092.5, d(8, 8), "submitted"],
   ] as const) {
     const r = await q(
       `INSERT INTO bills (organization_id, company_id, vendor_id, bill_number, date, due_date, subtotal, vat_amount, total, paid_amount, status)
-       VALUES ($1,$2,$3,$4,$5,$5,$6,$7,$8,$9,$10) RETURNING id`,
-      [orgId, companyId, vendors[0], num, date, sub, vat, total, status === "paid" ? total : 0, status],
+       VALUES ($1,$2,$3,$4,$5,$5,$6,$7,$8,0,$9) RETURNING id`,
+      [orgId, companyId, vendors[0], num, date, sub, vat, total, status],
     );
     await q(
       `INSERT INTO bill_items (organization_id, company_id, bill_id, description, quantity, unit_price, vat_rate, vat_amount, total)

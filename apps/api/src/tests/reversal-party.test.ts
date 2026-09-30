@@ -18,6 +18,7 @@ import { billsService } from "../services/bills.service";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { createApproved } from "./helpers/createApproved";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -49,6 +50,7 @@ describeMaybe("Phase B — a journal reversal preserves the party on control-acc
   };
 
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
     for (const t of [

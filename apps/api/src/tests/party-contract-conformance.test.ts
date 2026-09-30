@@ -127,10 +127,12 @@ describeMaybe("party contract conformance — customers, vendors, bills list on 
               ($1,$2,$3,'PC-INV-3','invoice','2026-06-01','2026-06-30',300,45,345,0,'draft')`,
       [orgId, companyId, customerId],
     );
+    // Phase 13B-3: a bill inserted POSTED, outside the approval, can carry no input VAT — its VAT would
+    // need events only the approval writes (bills_input_vat_cache_consistency). VAT is incidental here: totals kept.
     await pool.query(
       `INSERT INTO bills (organization_id, company_id, vendor_id, bill_number, date, due_date, subtotal, vat_amount, total, paid_amount, status)
-       VALUES ($1,$2,$3,'PC-BILL-1','2026-05-05','2026-06-05',400,60,460,0,'received'),
-              ($1,$2,$3,'PC-BILL-2','2026-06-05',NULL,100,15,115,115,'paid')`,
+       VALUES ($1,$2,$3,'PC-BILL-1','2026-05-05','2026-06-05',460,0,460,0,'received'),
+              ($1,$2,$3,'PC-BILL-2','2026-06-05',NULL,115,0,115,115,'paid')`,
       [orgId, companyId, vendorId],
     );
     // The detail pages list a customer's quotations and a vendor's purchase

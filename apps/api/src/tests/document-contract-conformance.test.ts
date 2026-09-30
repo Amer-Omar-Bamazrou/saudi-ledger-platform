@@ -50,6 +50,7 @@ import {
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -87,6 +88,7 @@ describeMaybe("document contract conformance — invoices & bills, detail and wr
   }
 
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${O})`);

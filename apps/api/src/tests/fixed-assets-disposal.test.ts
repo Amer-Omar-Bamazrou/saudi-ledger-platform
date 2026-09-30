@@ -28,6 +28,7 @@ import { assetDisposalService, nominalSupplyValue } from "../services/assets/dis
 import { billsService } from "../services/bills.service";
 import { invoicesService } from "../services/invoices.service";
 import { reportsService } from "../services/reports.service";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -61,6 +62,7 @@ describeMaybe("FA-C — disposal (real rows)", () => {
     } catch (err) { await conn.rollback(); throw err; }
   };
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

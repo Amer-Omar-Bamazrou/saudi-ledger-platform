@@ -34,6 +34,7 @@ import { categoriesService } from "../services/categories.service";
 import { cashService } from "../services/cash.service";
 import { postJournalEntry, NonPostingAccountError, BankAccountUnresolvedError } from "../services/accounting/glPosting";
 import { BankAccountRequiredError } from "../lib/errors";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -76,6 +77,7 @@ describeMaybe("D-3 — per-bank cash GL", () => {
   const inTenant = <T,>(fn: () => Promise<T>) => tenant(orgId, companyId)(fn);
 
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}', '${SLUG_OTHER}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);

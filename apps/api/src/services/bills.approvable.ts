@@ -20,7 +20,7 @@
  * (`debitAccount`, `force`); submit/send-back/reject need no options.
  */
 import { BusinessRuleError } from "../lib/errors";
-import { money2, round2 } from "../lib/money";
+import { round2 } from "../lib/money";
 import { postJournalEntry } from "./accounting/glPosting";
 import { documentSign } from "../repositories/reports.repository";
 import { billsRepository } from "../repositories/bills.repository";
@@ -32,6 +32,7 @@ import { describeHold, inputVatTreatment, type VatEvidenceVerdict } from "./purc
 import { payBill } from "./bills.payment";
 import { buildBillOut, toNum, type BillOut } from "./bills.presenter";
 import { supplierAdvanceInvoicesService } from "./accounting/supplierAdvanceInvoices.service";
+import { inputVatLedgerService } from "./accounting/inputVatLedger.service";
 import { SUPPLIER_ON_ACCOUNT_ASSET_NAME } from "./accounting/supplierCreditPolicy";
 import type { Approvable, ApprovalActor, ApprovalState } from "./approval";
 import type { billsTable, vendorsTable } from "@workspace/db";
@@ -188,13 +189,22 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   if (bill.documentType === "advance_invoice" || bill.documentType === "advance_credit_note") {
     // Phase 13A: the supplier's advance TAX invoice claims input VAT, so its
     // evidence is decided like any other claim (a credit note: not required).
-    const { verdict } = await vatEvidenceService.evaluate(bill, row.vendor);
+    const { verdict, capture } = await vatEvidenceService.evaluate(bill, row.vendor);
     if (verdict.status !== "evidenced" && verdict.status !== "not_required") refuseUnevidenced(verdict);
-    if (bill.documentType === "advance_invoice") await supplierAdvanceInvoicesService.approveAdvanceInvoice(bill);
-    else await supplierAdvanceInvoicesService.approveAdvanceCreditNote(bill);
-    await billsRepository.update(bill.id, {
-      status: "received", reviewNote: null, ...vatEvidenceService.columns(verdict),
-      inputVatState: "claimed", inputVatClaimedOn: bill.date,
+    // Phase 13B-3: the advance credit note is an event of the ADVANCE INVOICE it
+    // corrects — locked, then asked O-2 / D-6 before anything posts.
+    const advance = bill.documentType === "advance_credit_note" && bill.creditNoteAgainstBillId != null
+      ? await billsRepository.lockForUpdate(bill.creditNoteAgainstBillId)
+      : null;
+    if (advance) await inputVatLedgerService.assertNoteAdmissible(bill, advance);
+    const entryId = bill.documentType === "advance_invoice"
+      ? await supplierAdvanceInvoicesService.approveAdvanceInvoice(bill)
+      : await supplierAdvanceInvoicesService.approveAdvanceCreditNote(bill);
+    await inputVatLedgerService.recordPosting({
+      bill, treatment: "claimed", vatToClaim: toNum(bill.vatAmount), entryId, original: advance, verdict,
+      capture: capture ? { id: capture.id, sha256: capture.sha256 } : null,
+      columns: { status: "received", reviewNote: null, ...vatEvidenceService.columns(verdict) },
+      userId: actor.userId ?? null,
     });
     return fullOut(bill.id);
   }
@@ -343,12 +353,23 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
     ? await billsRepository.lockForUpdate(bill.creditNoteAgainstBillId)
     : null;
   const treatment = inputVatTreatment(evidence, original ? { state: original.inputVatState } : null);
-  if (original && treatment === "awaiting_evidence" && vatToClaim > round2(Number(original.inputVatPending)) + 0.005) {
-    throw new BusinessRuleError(422, {
-      code: "credit_note_exceeds_held_vat",
-      error: `This credit note reduces VAT by ${vatToClaim.toFixed(2)}, but bill ${original.billNumber} holds only ${Number(original.inputVatPending).toFixed(2)} of input VAT awaiting evidence.`,
-      field: "vatAmount",
-    });
+  /**
+   * 🔴 PHASE 13B-3 — O-2 AND D-6, BEFORE ANYTHING POSTS. A supplier credit note
+   * is an event of its ORIGINAL (B-1); the ledger decides whether it can be
+   * recorded: never dated before the original, never more VAT than the
+   * original charged less its other notes (CI-1, IR Art. 54(1) — this replaces
+   * the held-only cap, which it contains), and only from the original's single
+   * VAT position — every undecided case refused by name (CN-1…CN-8).
+   */
+  if (original) {
+    const bucket = await inputVatLedgerService.assertNoteAdmissible(bill, original);
+    const expected = { claimed: "CLAIMED", awaiting_evidence: "HELD", not_deductible: "BLOCKED" }[treatment];
+    if (bucket && bucket !== expected) {
+      throw new BusinessRuleError(409, {
+        code: "input_vat_ledger_divergence",
+        error: `${original.billNumber}'s input VAT reads ${original.inputVatState ?? "unstated"} on the bill but ${bucket} in the VAT ledger. Nothing was posted; this needs investigating before the note can be recorded.`,
+      });
+    }
   }
   /**
    * Art. 50 VAT that a supplier's advance tax invoice already CLAIMED (Z-AP1)
@@ -421,19 +442,20 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   const evidenceId = captureId ?? evidenceCapture?.id ?? null;
   if (evidenceId) await captureService.attachToBill(evidenceId, bill.id);
 
-  // X3: a credit note on held VAT reduces what the original holds — its later claim is the net.
-  if (original && treatment === "awaiting_evidence" && vatToClaim > 0) {
-    await billsRepository.update(original.id, { inputVatPending: money2(Number(original.inputVatPending) - vatToClaim) });
-  }
-
-  // Approved & posted; clear any prior review note; record the verdict it posted
-  // on and WHERE ITS VAT SITS — in the same UPDATE, which the trigger
-  // `bills_vat_evidence_gate` checks against the verdict.
-  await billsRepository.update(bill.id, {
-    status: "received", reviewNote: null, ...vatEvidenceService.columns(evidence),
-    inputVatState: treatment,
-    inputVatPending: treatment === "awaiting_evidence" && !isNote && vatToClaim > 0 ? money2(vatToClaim) : "0",
-    inputVatClaimedOn: treatment === "claimed" ? bill.date : null,
+  // 🔴 PHASE 13B-3 — WHERE ITS VAT SITS, through the ONE writer: approved &
+  // posted, any prior review note cleared, the verdict it posted on — and in
+  // the SAME update the cache the trigger `bills_vat_evidence_gate` checks
+  // against that verdict; then the events (recognition + one advance_deducted
+  // per advance; a credit note's reduction on its original, which also lowers
+  // the original's held amount — X3, its later claim is the net). At commit
+  // `bills_input_vat_cache_consistency` refuses any disagreement.
+  await inputVatLedgerService.recordPosting({
+    bill, treatment, vatToClaim, entryId: je.id, original,
+    prepayments: prepaid?.prepared.map((p) => ({ advanceBillId: p.advanceBillId, taxAmount: p.taxAmount })) ?? [],
+    verdict: evidence,
+    capture: evidenceCapture ? { id: evidenceCapture.id, sha256: evidenceCapture.sha256 } : null,
+    columns: { status: "received", reviewNote: null, ...vatEvidenceService.columns(evidence) },
+    userId: actor.userId ?? null,
   });
 
   /**

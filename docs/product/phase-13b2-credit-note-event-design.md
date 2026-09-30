@@ -848,3 +848,63 @@ It exists today, independent of 13B.
   is booked into cost, gross, rests on STD (IAS 2.11, IAS 16.16(a)) and the
   settled X5 product treatment — a product/accounting decision, not a
   regulatory text. D-4b stays deferred to G1.
+
+### 19.13 13B-3 built on this design (2026-09-29; uncommitted, awaiting the owner's review)
+
+The settled cases are recorded as `reduced_by_note` events of the ORIGINAL,
+referencing the note's own entry (A-B1-1…7); O-2 is ONE SQL function read by
+the admission trigger and by the writer before a note posts; D-6 is refused in
+both; debit notes are their own documents (O-3); O-6 writes no `claimed`
+event. As-built record, including the decisions taken conservatively while
+building (a credit note against an OPENING payable refused by name; the
+held-only cap replaced by CI-1, which contains it):
+[`phase-13b-vat-claim-ledger-architecture.md`](phase-13b-vat-claim-ledger-architecture.md) §26.
+CN-1…CN-8 remain unresolved and refused by name.
+
+### 19.14 Credit notes against OPENING (Batch 1C) payables — research gate (2026-09-29)
+
+Owner instruction (2026-09-29): the 13B-3 refusal of a VAT-bearing credit
+note against an opening payable must not be decided from the absence of a
+ledger event. Research, in the mandatory order, with every finding classified:
+[`opening-payable-credit-note-research-2026-09-29.md`](../history/opening-payable-credit-note-research-2026-09-29.md).
+
+| Point | Finding | Class |
+|---|---|---|
+| Can a supplier note reference a pre-cut-over invoice? | Yes — the obligation, trigger and reference attach to the SUPPLIER's tax invoice, with no condition about the customer's bookkeeping system | AUTH (IR 54(1), 54(4), 40(2)) |
+| Must the tenant reduce input VAT whatever system recorded the original? | 40(6) binds the customer in the note's issue period, with no system condition | AUTH (IR 40(6)) |
+| Original deducted in full (in the previous system) | reduce input VAT by the note's VAT in the note's period — a return Saudi Ledger prepares | AUTH + GUID (ITD v3 §10.1 Ex. 28; INV v3 §7.1.1) |
+| Original never deducted | no return adjustment (a later claim is the net — INT) | GUID + AUTH (GCC 47(1) «التي خصمها») |
+| Original blocked (Art. 50) | no return adjustment; the note's VAT reduces cost | INT consistent with AUTH/GUID; STD |
+| Original reversed under 40(10) in the old system; partly deducted | not addressed | SILENT (= CN-2 / level vs delta) |
+| Pre-2018 supply | the note carries no VAT | GUID (transitional-provisions guideline §4.2, Ex. 4) |
+| 5 % supply before 1 July 2020 | note at 5 % | SEC only — primary 2020 text not found |
+| Cap | the invoice's HISTORICAL VAT, not the opening row's 0 | AUTH trigger + INT |
+| The opening nature itself | changes nothing (IAS 8: a current-period event; IAS 2.11 / 16.16(a)) | STD / INT |
+| Odoo; ERPNext | a standalone refund with its own tax / a return inheriting the opening invoice's no-tax default; neither knows the original's deduction | ODOO / ERPNEXT (precedent only) |
+| Saudi Ledger before 13B-3 | silently treated the original as CLAIMED (Cr VAT_INPUT), no VAT cap | SL |
+
+**Conclusion.** Authority SETTLES that neither permanent refusal (wrong for a
+deducted original — the tenant's return would overstate recoverable VAT) nor
+the old silent "claimed" default (wrong for a never-deducted or blocked
+original) is correct: the treatment follows the ORIGINAL's historical VAT
+position. Authority does NOT settle how the product learns that position or
+what evidence suffices — the ledger does not hold it (staging's
+`historicalVat` records rate, amount and period, not whether it was
+deducted). **Nothing is implemented; the refusal stays as the interim
+behaviour.**
+
+**For the accountant** (research file §3, each yes/no or a choice): Q-OP-1
+deducted → reduce in the note's period; Q-OP-2 never deducted → no
+adjustment, later claim net; Q-OP-3 blocked → no adjustment, cost reduced;
+Q-OP-4 reversed under 40(10) in the old system → which treatment; Q-OP-5
+**is the user's recorded statement of the original's treatment sufficient
+evidence, or what must support it**; Q-OP-6 5 % / pre-2018 rates; Q-OP-7
+partial deduction; Q-OP-8 pre-registration purchases.
+
+**For the owner** (research file §4): keep the refusal vs a controlled
+treatment once Q-OP-1 and Q-OP-5 are answered (or now for the settled cases
+only); capture the historical VAT position at migration, per note, or both;
+refuse when unstated; cap at the historical VAT; the adjacent risk that a
+user enters the supplier's note with VAT 0 to get past the refusal (it posts,
+silently omitting a required reduction for a deducted original); the refusal
+wording (it currently says to record the note outside the system).

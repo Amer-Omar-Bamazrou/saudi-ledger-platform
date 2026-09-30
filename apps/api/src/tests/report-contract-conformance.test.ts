@@ -180,10 +180,12 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
        FROM invoices i WHERE i.organization_id = $1 AND i.invoice_number = 'RC-INV-2'`,
       [orgId, companyId, customerId],
     );
+    // Phase 13B-3: a bill inserted POSTED, outside the approval, can carry no input VAT — its VAT would
+    // need events only the approval writes (bills_input_vat_cache_consistency). VAT is incidental here: totals kept.
     await pool.query(
       `INSERT INTO bills (organization_id, company_id, vendor_id, bill_number, date, due_date, subtotal, vat_amount, total, paid_amount, status)
-       VALUES ($1,$2,$3,'RC-BILL-1','2026-05-05','2026-06-05',400,60,460,0,'received'),
-              ($1,$2,$3,'RC-BILL-2','2026-06-05',NULL,100,15,115,0,'received')`,
+       VALUES ($1,$2,$3,'RC-BILL-1','2026-05-05','2026-06-05',460,0,460,0,'received'),
+              ($1,$2,$3,'RC-BILL-2','2026-06-05',NULL,115,0,115,0,'received')`,
       [orgId, companyId, vendorId],
     );
 

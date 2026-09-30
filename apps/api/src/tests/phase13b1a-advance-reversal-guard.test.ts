@@ -227,7 +227,21 @@ describeMaybe("Phase 13B-1a — supplier advance VAT entries are owned (D-2)", (
     for (const entry of [id.adv, id.advCn]) {
       const guarded = await refusal(probe((c) => c.query(`UPDATE journal_entries SET status = 'reversed' WHERE id = $1`, [entry])));
       expect(guarded.constraint, "the database guard binds the owner role too").toBe("journal_entries_vat_reversal_guard");
+      // 🔴 Since 13B-3 the advance's own events reference this entry too — and 0107's definition
+      // already honoured an event reference. To isolate what THIS proof is about (0108's prefix arm),
+      // the events are taken out of the way first, inside the same rolled-back transaction.
+      const withoutEvents = async (c: PoolClient) => {
+        await c.query("SET LOCAL session_replication_role = replica");
+        await c.query(`DELETE FROM input_vat_events WHERE journal_entry_id = $1`, [entry]);
+        await c.query("SET LOCAL session_replication_role = origin");
+      };
+      const stillGuarded = await refusal(probe(async (c) => {
+        await withoutEvents(c);
+        return c.query(`UPDATE journal_entries SET status = 'reversed' WHERE id = $1`, [entry]);
+      }));
+      expect(stillGuarded.constraint, "with no event naming it, the CURRENT definition still owns it by its prefix").toBe("journal_entries_vat_reversal_guard");
       const escaped = await probe(async (c) => {
+        await withoutEvents(c);
         await c.query(def0107);
         return (await c.query(`UPDATE journal_entries SET status = 'reversed' WHERE id = $1`, [entry])).rowCount;
       });

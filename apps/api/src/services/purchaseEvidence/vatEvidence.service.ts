@@ -26,6 +26,7 @@ import { assetsRepository } from "../../repositories/assets.repository";
 import { vendorsRepository } from "../../repositories/vendors.repository";
 import { capturedDocumentsRepository } from "../../repositories/capturedDocuments.repository";
 import { supplierAdvanceInvoicesService } from "../accounting/supplierAdvanceInvoices.service";
+import { inputVatLedgerService } from "../accounting/inputVatLedger.service";
 import { SUPPLIER_DOCUMENT_KINDS, evaluateVatEvidence, withinClaimWindow, type VatEvidenceVerdict } from "./vatEvidence";
 
 type Bill = typeof billsTable.$inferSelect;
@@ -246,8 +247,14 @@ export const vatEvidenceService = {
       });
       entryId = je.id;
     }
-    await billsRepository.update(billId, { inputVatState: "claimed", inputVatPending: "0", inputVatClaimedOn: claimedOn, inputVatClaimEntryId: entryId });
-    const notes = await billsRepository.claimNotesFollowing(billId, claimedOn, entryId);
+    // 🔴 Phase 13B-3: the cache, the held notes following it, and the `claimed`
+    // event (none when credit notes consumed the held VAT — O-6), through the ONE writer.
+    const capture = await capturedDocumentsRepository.activeForBill(billId);
+    const notes = await inputVatLedgerService.recordClaim({
+      bill, amount, claimedOn, entryId, verdict,
+      capture: capture && capture.status !== "discarded" ? { id: capture.id, sha256: capture.sha256 } : null,
+      userId: opts.userId,
+    });
     await auditService.record({
       action: "input_vat_claimed", entityType: "bill", entityId: billId,
       before: { inputVatState: "awaiting_evidence", inputVatPending: amount },

@@ -23,6 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { billsService } from "../services/bills.service";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const connectionString = process.env.DATABASE_URL;
 const describeMaybe = connectionString ? describe : describe.skip;
@@ -53,6 +54,7 @@ describeMaybe("bill posting — the expense account is resolved by id, refused w
   }
 
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}', '${SLUG_OTHER}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     for (const slug of [SLUG, SLUG_OTHER]) {
       const O = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
       for (const t of ["journal_entry_lines", "journal_entries", "bill_items", "bills", "document_numbers", "vendors", "audit_logs", "categories", "companies"]) {
