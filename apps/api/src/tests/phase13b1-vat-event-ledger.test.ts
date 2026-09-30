@@ -2,10 +2,18 @@
  * PHASE 13B-1 — THE INPUT-VAT EVENT LEDGER, FOUNDATION (2026-09-28).
  * Contract: docs/product/phase-13b-vat-claim-ledger-architecture.md §25.
  *
- * What is under test is the DATABASE (migration 0107): 13B-1 ships no
- * production writer, so every event here is written by the test, directly —
- * as the OWNER when the property is an invariant (the triggers bind the owner
- * too), and as the APP ROLE when the property is a grant or tenancy.
+ * What is under test is the DATABASE (migration 0107): the events written
+ * here are written by the test, directly — as the OWNER when the property is
+ * an invariant (the triggers bind the owner too), and as the APP ROLE when the
+ * property is a grant or tenancy.
+ *
+ * 🔴 Since 13B-3 (migration 0109) the approval and the evidence claim RECORD
+ * the recognition and claim events themselves, so this suite no longer
+ * inserts them — it reads the ones the product recorded and builds the
+ * later-batch events (reversal, restoration, correction, lapse) on top. Where
+ * a planted later-batch event moves the HELD bucket, the test moves
+ * `input_vat_pending` with it: that column is the HELD bucket's cache, and the
+ * database refuses at commit a cache that disagrees with the events.
  *
  * The documents and their journal entries are the PRODUCT's own rows: bills
  * created and approved through `billsService`, an evidence claim made through
@@ -20,9 +28,6 @@
  * guard is removed.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { billsService } from "../services/bills.service";
@@ -215,21 +220,24 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
     expect(posted).toBe(0);
   });
 
-  it("🔴 the transitions: every triple is stated; the database ADMITS exactly the foundation set — never a credit-note transition, supply_date_changed or correction_withdrawn", async () => {
+  it("🔴 the transitions: every triple is stated; the database ADMITS the foundation set plus 13B-3's credit-note reduction — never increased_by_note (retired, O-3), supply_date_changed or correction_withdrawn", async () => {
     const rows = (await pool.query(`SELECT event_type, from_bucket, to_bucket, admitted FROM input_vat_event_transitions ORDER BY 1, 2, 3`)).rows;
     expect(rows).toHaveLength(20);
     const admitted = rows.filter((r) => r.admitted).map((r) => r.event_type).sort();
     expect(admitted).toEqual([
       "advance_deducted", "claimed", "corrected_blocked", "exception_recorded", "exception_withdrawn", "lapsed_expired",
-      "lapsed_written_off", "recognised_blocked", "recognised_claimed", "recognised_held", "restored_on_payment", "reversed_unpaid",
+      "lapsed_written_off", "recognised_blocked", "recognised_claimed", "recognised_held",
+      "reduced_by_note", "reduced_by_note", "reduced_by_note", // 13B-3 (A-B1-1): from HELD, CLAIMED, BLOCKED
+      "restored_on_payment", "reversed_unpaid",
     ]);
     const refused = [...new Set(rows.filter((r) => !r.admitted).map((r) => r.event_type))].sort();
-    expect(refused).toEqual(["correction_withdrawn", "increased_by_note", "reduced_by_note", "supply_date_changed"]);
+    expect(refused).toEqual(["correction_withdrawn", "increased_by_note", "supply_date_changed"]);
   });
 
   it("🔴 a transition that is NOT admitted is refused by name; one that does not exist is refused by the FK — claiming BLOCKED VAT cannot be said", async () => {
-    await tx((c) => ev(c, { document_id: doc.C, event_type: "recognised_claimed", from_bucket: "NONE", to_bucket: "CLAIMED", amount: 150, occurred_on: "2026-05-10", journal_entry_id: entry.C, journal_role: "own_entry" }));
-    const note = await refusal(probe((c) => ev(c, { document_id: doc.C, event_type: "reduced_by_note", from_bucket: "CLAIMED", to_bucket: "NONE", amount: 10, occurred_on: "2026-06-01", journal_entry_id: entry.C, journal_role: "own_entry" })));
+    // 13B-3: the approval recorded C's recognition itself.
+    expect((await pool.query(`SELECT event_type, amount::text FROM input_vat_events WHERE document_id = $1`, [doc.C])).rows).toEqual([{ event_type: "recognised_claimed", amount: "150.00" }]);
+    const note = await refusal(probe((c) => ev(c, { document_id: doc.C, event_type: "increased_by_note", from_bucket: "NONE", to_bucket: "CLAIMED", amount: 10, occurred_on: "2026-06-01", journal_entry_id: entry.C, journal_role: "own_entry" })));
     expect(note.constraint).toBe("input_vat_event_not_admitted");
     const withdraw = await refusal(probe((c) => ev(c, { document_id: doc.C, event_type: "correction_withdrawn", from_bucket: "CORRECTED_BLOCKED", to_bucket: "CLAIMED", amount: 10, occurred_on: "2026-06-01", journal_entry_id: entry.C, journal_role: "event_entry" })));
     expect(withdraw.constraint).toBe("input_vat_event_not_admitted");
@@ -279,12 +287,14 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
   });
 
   it("🔴 no partial claim, no double claim; the claim references the product's own evidence entry (VATEV-) and releases the holding account", async () => {
-    await tx((c) => ev(c, { document_id: doc.H2, event_type: "recognised_held", from_bucket: "NONE", to_bucket: "HELD", amount: 150, occurred_on: "2026-05-10", journal_entry_id: entry.H2, journal_role: "own_entry" }));
-    const partial = await refusal(probe((c) => ev(c, { document_id: doc.H2, event_type: "claimed", from_bucket: "HELD", to_bucket: "CLAIMED", amount: 100, occurred_on: "2026-07-15", journal_entry_id: entry.H2claim, journal_role: "claim_entry" })));
+    // A partial claim, against H — still holding its whole 150 (the approval recorded recognised_held).
+    const partial = await refusal(probe((c) => ev(c, { document_id: doc.H, event_type: "claimed", from_bucket: "HELD", to_bucket: "CLAIMED", amount: 100, occurred_on: "2026-07-15", journal_entry_id: entry.H2claim, journal_role: "claim_entry" })));
     expect(partial.constraint).toBe("input_vat_event_partial_claim");
-    const claimKey = `t13b1-claim-h2-${Date.now()}`;
-    const claim = { document_id: doc.H2, event_type: "claimed", from_bucket: "HELD", to_bucket: "CLAIMED", amount: 150, occurred_on: "2026-07-15", journal_entry_id: entry.H2claim, journal_role: "claim_entry", idempotency_key: claimKey };
-    await tx((c) => ev(c, claim));
+    // 13B-3: the evidence claim (attachEvidence, in beforeAll) recorded H2's whole-held claim itself, under its key.
+    const claimKey = `claimed:${doc.H2}`;
+    expect((await pool.query(`SELECT event_type, amount::text, journal_entry_id FROM input_vat_events WHERE document_id = $1 ORDER BY id`, [doc.H2])).rows)
+      .toEqual([{ event_type: "recognised_held", amount: "150.00", journal_entry_id: entry.H2 }, { event_type: "claimed", amount: "150.00", journal_entry_id: entry.H2claim }]);
+    const claim = { document_id: doc.H2, event_type: "claimed", from_bucket: "HELD", to_bucket: "CLAIMED", amount: 150, occurred_on: "2026-07-15", journal_entry_id: entry.H2claim, journal_role: "claim_entry", idempotency_key: claimKey, actor_system: null, actor_user_id: userId, reason: "Evidence held" };
     expect(await balances(doc.H2)).toMatchObject({ held: "0.00", claimed: "150.00" });
     // 🔴 An idempotent RETRY of the whole-held claim — judged against the balance the first attempt
     // already moved, it would read as a partial claim. It is recognised as a retry instead:
@@ -299,7 +309,7 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
   });
 
   it("🔴 dates: no event before its document; the claim window (mirrored against withinClaimWindow); a lapse posts ONLY on its real date (A-7 / G2)", async () => {
-    await tx((c) => ev(c, { document_id: doc.H, event_type: "recognised_held", from_bucket: "NONE", to_bucket: "HELD", amount: 150, occurred_on: "2026-05-10", journal_entry_id: entry.H, journal_role: "own_entry" }));
+    // H's recognised_held was recorded by its approval (13B-3).
     const before = await refusal(probe((c) => ev(c, { document_id: doc.H, event_type: "exception_recorded", from_bucket: "NONE", to_bucket: "NONE", occurred_on: "2026-05-09" })));
     expect(before.constraint).toBe("input_vat_event_dates");
 
@@ -342,15 +352,19 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
   });
 
   it("🔴 idempotency: a retried key is refused; ON CONFLICT DO NOTHING moves no balance; a RACE of two claims on one document leaves exactly one", async () => {
-    const key = `t13b1-idem-${Date.now()}`;
-    await tx((c) => ev(c, { document_id: doc.H3, event_type: "recognised_held", from_bucket: "NONE", to_bucket: "HELD", amount: 150, occurred_on: "2026-05-10", journal_entry_id: entry.H3, journal_role: "own_entry", idempotency_key: key }));
+    // 13B-3: H3's recognition was recorded by its approval, under the writer's key.
+    const key = `recognised_held:${doc.H3}`;
     const dup = await refusal(probe((c) => ev(c, { document_id: doc.H3, event_type: "exception_recorded", from_bucket: "NONE", to_bucket: "NONE", occurred_on: "2026-06-01", idempotency_key: key })));
-    expect(dup.constraint).toBe("input_vat_events_idempotency_unq");
+    // 13B-3: a key reused for a DIFFERENT act is refused by name (it was a bare duplicate-key error before).
+    expect(dup.constraint).toBe("input_vat_event_idempotency_conflict");
+    /** A lapse moves the HELD bucket; its cache (input_vat_pending) moves with it, or the commit is refused (0109). */
+    const heldCache = (c: PoolClient, amount: number) => c.query(`UPDATE bills SET input_vat_pending = input_vat_pending - $2 WHERE id = $1`, [doc.H3, amount]);
 
     // A skipped duplicate (the 13B-3 writer's retry shape) must not move a bucket.
     const lapseKey = `t13b1-lapse-${Date.now()}`;
     await tx(async (c) => {
       const je = await ledgerEntry(c, "VATLAP-T-WO1", "2026-12-31", [["PURCHASES", 40, 0], ["VAT_AWAITING_EVIDENCE", 0, 40]]);
+      await heldCache(c, 40);
       return ev(c, { document_id: doc.H3, event_type: "lapsed_written_off", from_bucket: "HELD", to_bucket: "LAPSED", amount: 40, occurred_on: "2026-12-31", journal_entry_id: je, journal_role: "event_entry", reason: "supplier dissolved", idempotency_key: lapseKey });
     });
     const skipped = await tx(async (c) => {
@@ -364,6 +378,7 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
     // The balance-row lock serialises them; the second then finds HELD empty.
     const raceOk = (n: number) => tx(async (c) => {
       const je = await ledgerEntry(c, `VATLAP-T-RACEOK${n}`, "2031-12-31", [["PURCHASES", 110, 0], ["VAT_AWAITING_EVIDENCE", 0, 110]]);
+      await heldCache(c, 110);
       return ev(c, { document_id: doc.H3, event_type: "lapsed_expired", from_bucket: "HELD", to_bucket: "LAPSED", amount: 110, occurred_on: "2031-12-31", journal_entry_id: je, journal_role: "event_entry" });
     }).then(() => "ok", (e: PgError) => e.constraint ?? e.message);
     const both = await Promise.all([raceOk(1), raceOk(2)]);
@@ -376,7 +391,9 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
     const wrongEntry = await refusal(tx((c) => ev(c, { document_id: doc.H, event_type: "exception_recorded", from_bucket: "NONE", to_bucket: "NONE", occurred_on: "2026-06-01", journal_entry_id: entry.C, journal_role: "own_entry" })));
     expect(wrongEntry.constraint, "an annotation carries no journal role").toBe("input_vat_event_journal_role");
     const otherDocsEntry = await refusal(tx((c) => ev(c, { document_id: doc.C, event_type: "advance_deducted", from_bucket: "NONE", to_bucket: "NONE", amount: 10, related_document_id: doc.H, occurred_on: "2026-05-10", journal_entry_id: entry.H, journal_role: "own_entry" })));
-    expect(otherDocsEntry.constraint, "own_entry must be THIS document's BILL-").toBe("input_vat_event_journal_link");
+    // 13B-3 refuses this one EARLIER: advance_deducted must state a real prepayment row of the document
+    // (there is none), at admission. The own_entry link itself is proven in phase13b3-backfill.test.ts.
+    expect(otherDocsEntry.constraint, "advance_deducted names no prepayment of C").toBe("input_vat_event_amount");
     const wrongAmount = await refusal(tx(async (c) => {
       const je = await ledgerEntry(c, "VATCOR-T-AMT", "2027-09-01", [["PURCHASES", 20, 0], ["VAT_ADJ_BLOCKED", 0, 20]]);
       return ev(c, { document_id: doc.C, event_type: "corrected_blocked", from_bucket: "CLAIMED", to_bucket: "CORRECTED_BLOCKED", amount: 25, occurred_on: "2027-09-01", journal_entry_id: je, journal_role: "event_entry", reason: "Art. 50", actor_system: "test:13b1" });
@@ -454,7 +471,8 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
   });
 
   it("🔴 tenancy (presence, absence, movement): an event on ANOTHER tenant's or ANOTHER company's document is refused; each tenant reads only its own", async () => {
-    await tx((c) => ev(c, { document_id: doc.CB, organization_id: orgB, company_id: coB, event_type: "recognised_claimed", from_bucket: "NONE", to_bucket: "CLAIMED", amount: 150, occurred_on: "2026-05-10", journal_entry_id: entry.CB, journal_role: "own_entry" }));
+    // 13B-3: CB's recognition was recorded by its approval, in org B.
+    expect((await pool.query(`SELECT organization_id::text AS org, company_id::text AS co FROM input_vat_events WHERE document_id = $1`, [doc.CB])).rows).toEqual([{ org: orgB, co: coB }]);
 
     // As the APP ROLE in org B, naming org A's document: RLS admits the row (it is org B's), the trigger refuses it.
     const cross = await refusal(asApp(orgB, coB, (c) => c.query(
@@ -483,25 +501,5 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
     expect(seenA2, "company scope: A's other company reads none of company A1's").toEqual([]);
     const balB = await asApp(orgB, coB, async (c) => (await c.query(`SELECT document_id FROM input_vat_balances`)).rows.map((r) => r.document_id));
     expect(balB).toEqual([doc.CB]);
-  });
-
-  it("🔴 13B-1 ships NO production writer: nothing outside tests inserts into input_vat_events (this assertion EXPIRES in 13B-3 — delete it there)", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const src = resolve(here, "..");
-    const hits: string[] = [];
-    const walk = (dir: string) => {
-      for (const name of readdirSync(dir)) {
-        const p = join(dir, name);
-        if (statSync(p).isDirectory()) { if (name !== "tests") walk(p); continue; }
-        if (!/\.tsx?$/.test(name)) continue;
-        const text = readFileSync(p, "utf8");
-        if (/insert\(\s*inputVatEventsTable\b/.test(text) || /INSERT\s+INTO\s+"?input_vat_events"?/i.test(text)) hits.push(p);
-      }
-    };
-    walk(src);
-    // Planted positive: the detector sees a writer when one is written.
-    expect(/insert\(\s*inputVatEventsTable\b/.test("db.insert(inputVatEventsTable).values(x)")).toBe(true);
-    expect(/INSERT\s+INTO\s+"?input_vat_events"?/i.test(`INSERT INTO input_vat_events (a) VALUES (1)`)).toBe(true);
-    expect(hits, "a production writer exists — 13B-1 must have none").toEqual([]);
   });
 });

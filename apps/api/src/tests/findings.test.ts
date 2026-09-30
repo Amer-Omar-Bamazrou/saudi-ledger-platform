@@ -105,9 +105,11 @@ describeMaybe("AI-3a — findings", () => {
   it("detects each built condition — one finding per kind, facts carried", async () => {
     // duplicate_bill: same vendor, date, total — twice.
     for (const n of ["FN-DUP-1", "FN-DUP-2"]) {
+      // Phase 13B-3: a bill inserted POSTED, outside the approval, can carry no input VAT — its VAT would
+      // need events only the approval writes (bills_input_vat_cache_consistency). VAT is incidental here: totals kept.
       await pool.query(
         `INSERT INTO bills (organization_id, company_id, bill_number, vendor_id, date, due_date, status, subtotal, vat_amount, total)
-         VALUES ($1,$2,$3,$4,'2026-08-01','2026-08-15','approved',100,15,115)`,
+         VALUES ($1,$2,$3,$4,'2026-08-01','2026-08-15','approved',115,0,115)`,
         [orgId, companyId, n, vendorId],
       );
     }

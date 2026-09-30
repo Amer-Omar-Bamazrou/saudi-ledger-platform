@@ -23,6 +23,7 @@ import { assetsService } from "../services/assets.service";
 import { assetDisposalService } from "../services/assets/disposal.service";
 import { billsService } from "../services/bills.service";
 import { incomeTaxPoolService } from "../services/assets/incomeTaxPool.service";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -43,6 +44,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
     } catch (err) { await conn.rollback(); throw err; }
   };
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -297,6 +299,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
       // nor does their anchor reach us: our chain still starts at the corrected 100,000
       expect(ours.years.find((y) => y.taxYear === 2025)!.groups.find((g) => g.group === 3)!.openingBalance).toBe(100_000);
     } finally {
+      await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug = '${otherSlug}'`);
       const client = await pool.connect();
       try {
         await client.query("BEGIN");

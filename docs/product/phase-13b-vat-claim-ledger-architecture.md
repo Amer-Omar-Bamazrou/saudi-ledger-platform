@@ -1,10 +1,9 @@
 # Phase 13B — VAT claim ledger: architecture
 
-**Status (2026-09-28): ARCHITECTURE APPROVED IN PRINCIPLE (A-0) AND LOCKED;
-13B-1 SPECIFIED (§25) — NOT STARTED. Nothing here is built. No code, schema,
-migration, API, UI, test or accounting behaviour was changed. 13B-1 begins
-only on the owner's explicit approval of §25. Current state authority:
-[CLAUDE.md §2](../../CLAUDE.md).**
+**Status (2026-09-29): ARCHITECTURE APPROVED (A-0) AND LOCKED. 13B-1 (§25)
+and 13B-1a MERGED; B-1 CLOSED; 13B-3 with the 13B-4 backfill and gate BUILT
+(§26) — uncommitted, awaiting the owner's review. 13B-5 onward not started.
+Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
 
 - **Decision record (accounting):** [`phase-13b-vat-claim-ledger-discovery.md`](phase-13b-vat-claim-ledger-discovery.md)
   — its §32 matrix D13B-01…D13B-18 and the M1b resolution in §33. This
@@ -793,8 +792,8 @@ build order below (AD-14).
 |---|---|---|
 | **13B-1** | Foundation: accounts, event schema, transitions, bucket invariants, provenance, linkage, tenancy, generic-reversal guard (§25) | **READY — awaiting explicit approval to start** |
 | 13B-2 | *(merged into 13B-1 — the schema and its invariants ship together)* | — |
-| 13B-3 | Event writer + projections: live paths write `recognised_*` / `claimed` / `advance_deducted`; cache funnelled through the writer; cache-consistency trigger | READY after 13B-1, **blocked by B-1** |
-| 13B-4 | Backfill with provenance + reconciliation gate | after 13B-3, **blocked by B-1** |
+| 13B-3 | Event writer + projections: live paths write `recognised_*` / `claimed` / `advance_deducted` / `reduced_by_note` (settled cases); cache funnelled through the writer; cache-consistency trigger | **BUILT 2026-09-29, with 13B-4 (owner, Option A)** — §26; not merged (awaits owner review) |
+| 13B-4 | Backfill with provenance + reconciliation gate | **BUILT in 13B-3’s migration 0109** (owner, Option A: every pre-existing document gets its events before the cache trigger enforces) — §26 |
 | 13B-5 | Evidence/claim lifecycle on events; supply date + source (AD-5); window moved to the supply date; history API + UI | after 13B-4 |
 | 13B-6 | Article 40(10): proposals, alarm job, exception, approve-level posting (expense cost side) | after 13B-5; **B-2** |
 | 13B-7 | Article 40(11) restoration | after 13B-6 |
@@ -1182,4 +1181,234 @@ the two template rows and two category rows change); the ledger-invariant
 sweep passes there and fails on a planted divergence.
 
 **Still open, unchanged by 13B-1:** B-1 and B-2 (§24); G1, G2, G3; the 13D
-and Phase 14 deferrals. 13B-1 has **no production writer of events**.
+and Phase 14 deferrals. 13B-1 has **no production writer of events** (13B-3 is the first — §26).
+
+
+## 26. 13B-3, with 13B-4 pulled forward — as built (2026-09-29)
+
+Status (2026-09-29): built on `feat/phase13b3-vat-event-writer`, **uncommitted, awaiting the owner's review**. Current state authority: CLAUDE.md §2.
+
+**Owner decision (Option A, 2026-09-29):** the 13B-4 backfill and its
+reconciliation gate ship in the SAME release as the writer, so every
+pre-existing document has its events before the cache-consistency trigger
+enforces. One migration, **0109** (0107 and 0108 untouched).
+
+### 26.1 Scope — what is in
+
+| In | Where |
+|---|---|
+| The live event writer — the ONE writer of events and of the `bills.input_vat_*` cache | `services/accounting/inputVatLedger.service.ts` |
+| Recognition (`recognised_claimed` / `_held` / `_blocked`), `advance_deducted`, `claimed` | §26.2 |
+| `reduced_by_note` for the SETTLED cases only (O-1): a credit note or advance credit note, as an event of its ORIGINAL | §26.2, §26.3 |
+| Debit notes as their OWN documents (O-3); `increased_by_note` retired (stated, never admitted) | §26.3 |
+| O-2: CI-1 `N(D) ≤ T(D)` in the database; the history guard (NI-4); single-bucket admission; the named allocation-undecided refusal | §26.3 |
+| D-6: a credit note dated before its original refused (writer + database) | §26.3 |
+| A-B1-1…7 | §26.3 |
+| The cache-consistency triggers (bill side and event side) | §26.4 |
+| The 13B-4 backfill (RECONSTRUCTED events) and its fail-closed reconciliation gate | §26.5, §26.6 |
+
+**Not in (unchanged):** CN-1…CN-8 (refused by name, never resolved); D-4b /
+G1; 13B-5 (supply date) onward; 13D (the return is unchanged — it still reads
+the cache); Phase 14; any AI/OCR change; any new accounting treatment.
+
+### 26.2 The writer's paths (all in the posting's own transaction)
+
+| Act (caller) | Cache written | Events recorded | Entry referenced |
+|---|---|---|---|
+| Bill / debit note approval (`bills.approvable` → `recordPosting`) | state from the verdict (X1/X5), pending = held VAT, claimed-on = its date when claimed — in the SAME update as the status, so `bills_vat_evidence_gate` still checks it | `recognised_*` of the VAT net of advance VAT already claimed (0 → no event); one `advance_deducted` per prepayment carrying tax | `BILL-<n>` (own_entry) |
+| Supplier credit note approval (same) | the note's row copies its original's state (the live return mechanics); a HELD note lowers the original's pending (X3) | `reduced_by_note` on the ORIGINAL, from the bucket its VAT is in, amount = the note's VAT | `BILLCN-<note>` (note_entry) |
+| Supplier advance invoice approval (advance branch) | claimed, on its date | `recognised_claimed` (0 % → none) | `BILLADV-<n>` (own_entry, A-B1-7) |
+| Advance credit note approval (advance branch) | claimed, on its date | `reduced_by_note` on the ADVANCE INVOICE, from CLAIMED | `BILLADVCN-<note>` (note_entry) |
+| Evidence claim (`claimHeldVat` → `recordClaim`) | claimed, pending 0, the evidence date, the VATEV- entry; held notes follow (`claimNotesFollowing`) | `claimed` of the WHOLE held VAT; **none when notes consumed it (O-6)** | `VATEV-<n>` (claim_entry) |
+
+Before a credit note posts, the writer asks the SAME SQL function the
+admission trigger reads (`input_vat_note_refusal`) and refuses in words
+(422, by code) — D-6 first, then the O-2 rules. Actor: the approver (with the
+act as the reason) or `approval:bills`; provenance `recorded`; keys
+`<type>:<document>`, `reduced_by_note:<note>`, `advance_deducted:<doc>:<advance>`.
+
+### 26.3 The database (0109)
+
+- **Transitions:** `reduced_by_note` admitted from HELD / CLAIMED / BLOCKED
+  with role `note_entry` (A-B1-1, A-B1-3); `increased_by_note` retired.
+- **`input_vat_note_refusal(document, note, amount)` — O-2, one definition**, in
+  the approved order, with one precondition: **0.** the original is an
+  OPENING payable → `input_vat_note_opening_original` (its VAT was accounted
+  for before the cut-over; T(D) = 0 by representation, not by fact — see
+  §26.7); **1.** `amount > T(D) − N(D)` → `credit_note_exceeds_invoice_vat`
+  (T = the original's own `vat_amount`, N = every OTHER posted note); **2.** any
+  reversal / restoration / correction / lapse in the original's HISTORY →
+  `input_vat_note_interaction_undecided`; **3.** exactly one of HELD / CLAIMED
+  / BLOCKED non-zero and the amount fits → admitted from it; **4.** otherwise
+  `input_vat_note_allocation_undecided` — never called an over-credit.
+- **Admission (`input_vat_events_admit`, replaced):** everything 0107 checked,
+  plus — no event on an opening payable or on a credit note itself; a
+  recognition states EXACTLY the VAT net of advances on the document's date;
+  `advance_deducted` states exactly one prepayment row's tax; a
+  `reduced_by_note` names a POSTED note against THIS document, caused by it
+  (`cause_type = credit_note`), on its date, for exactly its VAT, never dated
+  before the original (`input_vat_note_before_original`), and passes O-2 under
+  the balance lock, from the bucket O-2 names (`input_vat_note_bucket`).
+- **Journal link (replaced, still at COMMIT):** `own_entry` = `BILL-<n>` or,
+  for an advance invoice, `BILLADV-<n>` (A-B1-7); `note_entry` = the note's
+  `BILLCN-` / `BILLADVCN-` entry with its CREDIT on the bucket's account
+  (A-B1-4); a blocked recognition or blocked note's entry carries NO VAT line.
+- **Indexes:** one note event per note and per note entry (NI-5); ONE
+  recognition per document, whatever its type (0107's allowed one of each);
+  one `advance_deducted` per (document, advance).
+- **Owner function:** `input_vat_journal_owner()` asks the DOCUMENT first,
+  then the claim, then the event — the same three owners, most specific first,
+  so a bill's own posting still reads "bill" now that an event references it.
+
+### 26.4 The cache and its triggers (R5)
+
+`input_vat_document_mismatch(bill)` — ONE definition, read by the gate, both
+triggers and the sweep — returns NULL or a sentence naming the document, what
+its events require and what its columns read:
+
+| Events | Cache must read |
+|---|---|
+| `recognised_claimed` | claimed, pending 0, claimed on its date, no claim entry |
+| `recognised_blocked` | not_deductible, pending 0, no claim |
+| `recognised_held` + `claimed` | claimed, pending 0, the claim's date, its VATEV- entry |
+| `recognised_held`, no claim | awaiting_evidence, pending = HELD; **when HELD is 0 (O-6)** also claimed, pending 0, a date ≥ the document's, no claim entry (A-B1-6) |
+| no recognition (nothing to recognise) | claimed on its date, or all empty (a row inserted posted — the 0106 limit) |
+| a credit note from CLAIMED / BLOCKED | claimed on its own date / not_deductible |
+| **a credit note from HELD** | **not mapped** (approved): its row copies the original's for the live return queries |
+| an opening payable | no VAT, no event; empty or claimed on its date (0106 labelled every bill posted before it) |
+
+It also checks COMPLETENESS (a posted document with VAT to recognise has its
+recognition; a posted note with VAT its reduction; each taxed prepayment its
+`advance_deducted`) and CI-1 per original. The cache has no representation
+for REVERSED_UNPAID / CORRECTED_BLOCKED / LAPSED — pending is always the HELD
+bucket and the state follows recognition and claim; 13B-6 / 13B-8 revisit this
+with their writers. Triggers: `bills_input_vat_cache_consistency` (deferred;
+INSERT, and UPDATE of the VAT facts or the cache) and
+`input_vat_events_cache_consistency` (deferred; every event — the document and,
+for a note, the note).
+
+### 26.5 The backfill — mapping (R3)
+
+`input_vat_backfill(migration, organisation?)`, for every POSTED bill, debit
+note and advance invoice with NO event yet, in company, id order:
+
+| Live data | Reconstructed event(s) | Read from |
+|---|---|---|
+| own entry debits `VAT_INPUT`, state claimed | `recognised_claimed` | `bills` + `BILL-`/`BILLADV-` lines |
+| own entry debits `VAT_AWAITING_EVIDENCE`, state awaiting / claimed | `recognised_held` | same |
+| own entry has no VAT line, state not_deductible (Art. 50, 0 % asset) | `recognised_blocked` | same |
+| posted credit note whose entry credits `VAT_AWAITING_EVIDENCE` | `reduced_by_note` HELD → NONE (before the claim) | `credit_note_against_bill_id` + `BILLCN-` lines |
+| `input_vat_claim_entry_id` (VATEV-) | `claimed` of the whole remaining held, on the entry's date = `input_vat_claimed_on` | the claim entry |
+| posted note crediting `VAT_INPUT` / carrying no VAT line | `reduced_by_note` from CLAIMED / BLOCKED (after the claim) | as above |
+| `bill_prepayments` row with tax | `advance_deducted` | the row |
+| zero VAT net of advances; opening payables | nothing | — |
+
+Every reconstructed row: provenance `reconstructed`, `backfill_migration`
+(`0109`), `backfill_source` (the columns and entries read), `source_record_ref`
+(`bills:<id>; journal_entries:<id>`…), actor `migration:0109`, reason
+`reconstructed at Phase 13B introduction`, `recorded_at` = the backfill's own
+time, the evidence verdict as it is NOW (`snapshot_source:
+current_at_backfill`), key `backfill:<type>:<document>` (notes:
+`backfill:reduced_by_note:<note>`). 🔴 **It never guesses:** every
+disagreement between the columns and the entries — an entry reading two
+buckets, a state the entry contradicts, a claim entry that does not release
+the whole held VAT or is not dated `input_vat_claimed_on`, a note dated before
+its original (D-6), a note O-2 refuses (D-1) — RAISES naming the document and
+both readings, and the migration stops.
+
+### 26.6 The reconciliation gate
+
+`input_vat_backfill_gate(migration, organisation?)` — what 0109 runs
+(`SELECT input_vat_backfill_gate('0109')`), and what the tests run: the journal
+linkage checked per row (not at commit), the backfill, then
+`input_vat_reconciliation()` over EVERY document — the cache mapping and
+completeness (§26.4), **events ⇄ GL per document** (`input_vat_gl_mismatch`:
+HELD = the awaiting-evidence lines, CLAIMED = Input VAT net of the adjustment
+accounts, over the document's own, claim, notes' and ledger entries — every one
+still POSTED), and balance rows ⇄ events. Any row raises with the total and the
+first twenty documents named with both readings; the transaction rolls back.
+
+🔶 **Departure from §15 (recorded):** §15 asked the gate to compare "per
+period, the reconstructed claims" with the current return's input-VAT figure.
+The return is computed in TypeScript, so a migration cannot call it; the gate
+reconciles per document (columns ⇄ events ⇄ GL), and the per-period identity —
+**the VAT return's recoverable input VAT = the events' net movement into
+CLAIMED, per month** — is proven in `phase13b3-backfill.test.ts` on a
+population of every shape. The sweep (`input_vat_document_reconciliation`)
+re-checks the per-document identities after the fact.
+
+### 26.7 Decided while building — conservatively; each for the owner's review
+
+| # | Decision | Why |
+|---|---|---|
+| 1 | A credit note against an OPENING (Batch 1C) payable carrying VAT is **refused** (`input_vat_note_opening_original`) — live code would have credited `VAT_INPUT` | **Interim only.** Researched 2026-09-29 (13B-2 design §19.14): authority settles that neither permanent refusal nor the old silent "claimed" default is right — the treatment follows the original's historical VAT position, which the ledger does not hold. Awaiting the owner (§19.14) and the accountant (Q-OP-1…8); nothing implemented |
+| 2 | The held-only cap `credit_note_exceeds_held_vat` is **replaced** by CI-1 (`credit_note_exceeds_invoice_vat`) | CI-1 contains it (for a held original, HELD = T − N); one definition instead of two. The refusal is unchanged; its code and words changed |
+| 3 | A posted bill inserted RAW with VAT (no entry, no event) is now refused at commit | The rows the product cannot write: 5 test fixtures made VAT-free (totals kept), `scripts/src/demo-seed.mts` inserts its bills unposted. The in-API demo (`services/demo`) already posts through the product |
+| 4 | D-6 covers credit notes and advance credit notes; a DEBIT note dated before its original is not refused | O-4 approved the credit-note rule; a debit note is its own document (O-3) |
+| 5 | `advance_deducted` is not recorded for a 0 %-rate prepayment | an event with no VAT amount carries no VAT fact |
+| 6 | Cache mapping for 13B-6+ event types (§26.4) | no writer produces them yet; defined so 13B-1's foundation tests still commit; to be revisited with their writers |
+
+### 26.8 Proven (2026-09-29)
+
+- **Tests:** `phase13b3-vat-event-writer.test.ts` (21) and
+  `phase13b3-backfill.test.ts` (13) — the backfill proof is an EQUALITY:
+  every shape the product posts is written live, its events captured, deleted
+  (the pre-0109 state), and reconstructed by the gate function; for every
+  document the reconstructed events equal the recorded ones field by field.
+  Adapted: the 13B-1, 13B-1a, D-4a and Phase 13 suites (the "no production
+  writer" assertion expired and was deleted); 16 suites' cleanups purge the
+  ledger first (`tests/helpers/purgeInputVatLedger.ts`).
+- **Mutation proofs:** in-test — CI-1's name, NI-4, both cache triggers, the
+  one-writer detector; database (each guard removed in turn, red, restored,
+  green) — the gate's raise, the backfill's column/entry cross-check, D-6 at
+  admission, the exact recognition, the cache's held figure, the note's bucket;
+  application — the writer's O-2/D-6 pre-check (the database still refuses,
+  in raw words), the recognition, the held note's cache, the claim event.
+- **Browser:** `e2e/phase13b3-credit-note-refusals.spec.ts` — the refusal
+  reaches the user from the Post button in EN / AR (RTL), desktop / phone.
+- **Migration:** a fresh database (110 migrations); populated copies — the
+  acceptance database (14 events reconstructed), an older acceptance copy (3),
+  the Batch 1C database (opening payables: none needed), the local database
+  (14) — each reconciled clean, the sweep clean.
+
+### 26.9 Still open
+
+CN-1…CN-8 (refused by name); D-4b / D-3 / G1; G2; G3; B-2; 13B-5 onward;
+13D (incl. P13-N1); the §26.7 decisions awaiting review; the credit-note
+refusal sentences are English in Arabic mode, like every server refusal on
+that page (the Arabic-coverage item, CLAUDE.md §5).
+
+### 26.10 Review round (owner, 2026-09-29): idempotency, the demo reset, load
+
+- **Idempotent writer.** A key names ONE act (`input_vat_event_restates`, 0109
+  §3b — one definition). Admission asks it FIRST (so a shape rule never
+  mis-names a reused key) and again under the balance lock (a concurrent first
+  attempt): the SAME act restated records nothing and moves nothing; a
+  DIFFERENT act under the key is refused, `input_vat_event_idempotency_conflict`
+  — never swallowed by ON CONFLICT. The writer inserts with ON CONFLICT DO
+  NOTHING and maps the conflict to a 409; a posting or claim that has already
+  happened is restated (events verified) and writes no status or cache — a
+  late retry cannot turn `paid` back into `received` or lower a held amount
+  twice. Not compared (not the act): actor, reason, the snapshot's wording, the
+  backfill's source text, `recorded_at`, `buckets_after`.
+- **Demo reset.** Found pre-existing since 0107: the weekly demo wipe's
+  TRUNCATE met the append-only trigger and failed. The trigger is UNCHANGED.
+  The wipe now runs in `truncateDemoTenant` — the only place in the
+  application that takes the owner-only replica setting (SET LOCAL, that
+  transaction only), after re-checking `DEMO_MODE` and, with `organizations`
+  locked, that no organisation but the demo exists. The app role can take
+  neither the setting nor a TRUNCATE; a production database (any real tenant)
+  is refused before the setting is taken (`tests/demo-reset-ledger-bypass.test.ts`).
+  Proven end to end on a throwaway demo-only database: two resets wiped and
+  re-seeded the demo's ledger (reconciliation clean), a third with a real
+  tenant present refused with everything intact; without the replica line the
+  wipe fails on the ledger. 🔴 Pre-existing, not changed: migration 0001
+  creates a `default` organisation in EVERY database, so the reset refuses on a
+  freshly migrated demo database until that organisation is removed — the demo
+  deployment must provision without it. Also check, when the hosted project
+  exists, that its owner role may take the replica setting.
+- 🔴 **Production-readiness requirement — LOAD TEST.** The cache-consistency
+  trigger runs `input_vat_document_mismatch()` per changed bill row at commit
+  (UPDATE of any of ten VAT-fact / cache columns). Load-test the first bulk
+  operation on `bills` (a bulk status transition, a large import) on a
+  realistic volume before a real tenant meets it; not a correctness defect.

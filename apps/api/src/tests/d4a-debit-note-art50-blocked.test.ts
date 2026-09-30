@@ -102,9 +102,9 @@ describeMaybe("D-4a — a debit note on an Art. 50-blocked supply, on real rows"
        JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
       WHERE e.organization_id = $1 AND c.system_code = $2 AND e.status IN ('posted','reversed')`, [orgId, code])).rows[0].v);
   const inputVat = async (month: string) => {
-    const [y, m] = month.split("-").map(Number);
-    const last = new Date(Date.UTC(y!, m!, 0)).getUTCDate();
-    return Number((await inTenant(() => reportsService.vatReturn(`${month}-01`, `${month}-${String(last).padStart(2, "0")}`))).purchasesSection.box13_recoverableInputVat);
+    // vatReturn takes MONTHS (YYYY-MM) and appends -01 / -31 itself — full dates would give "YYYY-MM-01-01",
+    // which silently drops a document dated on the 1st (found by the 13B-3 return reconciliation).
+    return Number((await inTenant(() => reportsService.vatReturn(month, month))).purchasesSection.box13_recoverableInputVat);
   };
   const entryLines = async (entryNumber: string) =>
     (await pool.query(
@@ -179,22 +179,26 @@ describeMaybe("D-4a — a debit note on an Art. 50-blocked supply, on real rows"
     expect(await inputVat("2026-05") - before.may).toBeCloseTo(15, 2);
   });
 
-  it("🔴 the event ledger accepts the future recognised_blocked event on the debit note, and refuses recognised_claimed (checked at commit, then rolled back)", async () => {
+  it("🔴 the approval RECORDED recognised_blocked on the debit note itself (13B-3, O-3) — and the ledger refuses recognised_claimed from that entry (checked at commit, then rolled back)", async () => {
     const entryId = (await pool.query(`SELECT id FROM journal_entries WHERE organization_id = $1 AND entry_number = $2`, [orgId, `BILL-${blockedDn.billNumber}`])).rows[0].id as number;
-    const insert = (c: PoolClient, type: "recognised_blocked" | "recognised_claimed", to: "BLOCKED" | "CLAIMED") => c.query(
-      `INSERT INTO input_vat_events (organization_id, company_id, document_id, event_type, from_bucket, to_bucket, amount, occurred_on, posting_date,
-                                     journal_entry_id, journal_role, provenance, actor_system, idempotency_key)
-       VALUES ($1, $2, $3, $4, 'NONE', $5, 15, '2026-05-20', '2026-05-20', $6, 'own_entry', 'recorded', 'test:d4a', $7)`,
-      [orgId, companyId, blockedDn.id, type, to, entryId, `d4a-${type}`]);
-    const blocked = await probe(async (c) => {
-      await insert(c, "recognised_blocked", "BLOCKED");
-      await c.query("SET CONSTRAINTS ALL IMMEDIATE"); // run the commit-time journal-linkage checks now
-      return "admitted";
-    });
-    expect(blocked).toBe("admitted");
+    expect((await pool.query(
+      `SELECT event_type, from_bucket, to_bucket, amount::text, journal_entry_id, provenance FROM input_vat_events WHERE document_id = $1`, [blockedDn.id])).rows)
+      .toEqual([{ event_type: "recognised_blocked", from_bucket: "NONE", to_bucket: "BLOCKED", amount: "15.00", journal_entry_id: entryId, provenance: "recorded" }]);
     let claimedErr: PgError | undefined;
     await probe(async (c) => {
-      try { await insert(c, "recognised_claimed", "CLAIMED"); await c.query("SET CONSTRAINTS ALL IMMEDIATE"); } catch (e) { claimedErr = e as PgError; }
+      // Take the recorded recognition out of the way (triggers off, rolled back) so a CLAIMED one can be tried in its place.
+      await c.query("SET LOCAL session_replication_role = replica");
+      await c.query(`DELETE FROM input_vat_events WHERE document_id = $1`, [blockedDn.id]);
+      await c.query(`DELETE FROM input_vat_balances WHERE document_id = $1`, [blockedDn.id]);
+      await c.query("SET LOCAL session_replication_role = origin");
+      try {
+        await c.query(
+          `INSERT INTO input_vat_events (organization_id, company_id, document_id, event_type, from_bucket, to_bucket, amount, occurred_on, posting_date,
+                                         journal_entry_id, journal_role, provenance, actor_system, idempotency_key)
+           VALUES ($1, $2, $3, 'recognised_claimed', 'NONE', 'CLAIMED', 15, '2026-05-20', '2026-05-20', $4, 'own_entry', 'recorded', 'test:d4a', 'd4a-claimed')`,
+          [orgId, companyId, blockedDn.id, entryId]);
+        await c.query("SET CONSTRAINTS input_vat_events_journal_link IMMEDIATE");
+      } catch (e) { claimedErr = e as PgError; }
     });
     expect(claimedErr?.constraint, "the entry has no VAT_INPUT line to claim").toBe("input_vat_event_journal_amount");
   });

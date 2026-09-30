@@ -73,3 +73,25 @@ Two things worth fixing when someone is in the area, recorded so the diagnosis
 is not re-derived: a script imported for one exported function should not run
 its `main()` on import (guard it), and `verify` should CHECK its preconditions
 and name a missing one rather than reporting the first step that trips over it.
+
+## 🔴 A suite that deletes its bills must purge the input-VAT ledger FIRST (Phase 13B-3, 2026-09-29)
+
+Since migration 0109 every approved purchase document has input-VAT events,
+written by its approval. Events are append-only for every role (the owner
+too), hold their bills and journal entries by `ON DELETE RESTRICT`, and an
+entry an event references cannot lose its lines. A cleanup that deletes bills
+or journal entries without triggers off therefore fails with
+`input_vat_balances_document_id_bills_id_fk` or `journal_entry_lines_vat_guard`
+— in the hook, so the FILE fails while every test reads as passed.
+
+- **Fix:** call `purgeInputVatLedger(<org ids SQL>)` (`src/tests/helpers/purgeInputVatLedger.ts`)
+  first — it deletes the suite's events and balance rows in replica mode, in a
+  transaction of its own — or delete them yourself inside a
+  `session_replication_role = replica` cleanup (the pattern most suites use).
+- **Also refused since 0109:** a fixture that INSERTs a bill already posted
+  with VAT (no entry, no event) is refused at commit by
+  `bills_input_vat_cache_consistency`. Post it through `billsService.approve`,
+  or — when the VAT is incidental — insert it VAT-free.
+- **Do NOT** backfill a suite's documents with `input_vat_backfill_gate()`
+  unscoped: in a shared database it would reconstruct other suites' documents
+  mid-cleanup. Pass the suite's organisation (`phase13b3-backfill.test.ts`).

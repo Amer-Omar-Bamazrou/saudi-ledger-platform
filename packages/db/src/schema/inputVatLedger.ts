@@ -8,10 +8,13 @@
  *   HELD · CLAIMED · REVERSED_UNPAID · BLOCKED · CORRECTED_BLOCKED · LAPSED
  *   (NONE = out of / into existence; both NONE = an annotation)
  *
- * 🔴 13B-1 HAS NO PRODUCTION WRITER. These tables are the foundation the
- * later batches write through (13B-3 first). Nothing in the application
- * inserts an event yet, and nothing here may be read as a delivered VAT
- * capability until a writer exists.
+ * 13B-1 built the foundation. 🔴 13B-3 (migration 0109) is the first
+ * PRODUCTION WRITER — `services/accounting/inputVatLedger.service.ts`, called
+ * from the bill approval, the supplier advance documents and the evidence
+ * claim — and it reconstructs every pre-existing document's events (the 13B-4
+ * backfill, pulled forward; provenance `reconstructed`). From 0109 the
+ * `bills.input_vat_*` columns are a CACHE of these events, checked at commit
+ * by `bills_input_vat_cache_consistency`.
  *
  * What the DATABASE refuses (migration 0107, hand-written — drizzle tracks
  * neither triggers nor grants): a transition that is not ADMITTED in
@@ -26,8 +29,10 @@
  *
  * EVENT TYPE ≠ BUCKET ≠ TRANSITION ≠ FEATURE: a transition is ADMITTED when
  * the database accepts it; it is ENABLED only when a production writer
- * produces it — none is, in 13B-1. Credit-note transitions and
- * `correction_withdrawn` are NOT admitted (A-3 / G3; AD-11).
+ * produces it. 13B-3 enables recognition, `claimed`, `advance_deducted` and
+ * `reduced_by_note` (the settled credit-note cases only, O-1/O-2; A-B1-1);
+ * `increased_by_note` is RETIRED (debit notes are their own documents, O-3)
+ * and `correction_withdrawn` stays NOT admitted (AD-11).
  */
 import { pgTable, serial, integer, text, numeric, uuid, timestamp, jsonb, boolean, index, uniqueIndex, check, foreignKey, primaryKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -53,8 +58,12 @@ export const INPUT_VAT_BUCKETS = ["NONE", "HELD", "CLAIMED", "REVERSED_UNPAID", 
 export type InputVatBucket = (typeof INPUT_VAT_BUCKETS)[number];
 const BUCKETS_SQL = sql.raw(INPUT_VAT_BUCKETS.map((b) => `'${b}'`).join(", "));
 
-/** How an event's journal entry relates to its document (§8.1). */
-export const INPUT_VAT_JOURNAL_ROLES = ["own_entry", "claim_entry", "event_entry"] as const;
+/**
+ * How an event's journal entry relates to its document (§8.1).
+ * `note_entry` (Phase 13B-3, A-B1-3): a `reduced_by_note` event on the ORIGINAL
+ * references the NOTE's own posted entry (`BILLCN-` / `BILLADVCN-`).
+ */
+export const INPUT_VAT_JOURNAL_ROLES = ["own_entry", "claim_entry", "event_entry", "note_entry"] as const;
 const ROLES_SQL = sql.raw(INPUT_VAT_JOURNAL_ROLES.map((r) => `'${r}'`).join(", "));
 
 /**
@@ -141,8 +150,15 @@ export const inputVatEventsTable = pgTable(
     index("input_vat_events_entry_idx").on(t.journalEntryId),
     // An entry the ledger posted itself, or an evidence-claim entry, belongs to ONE event.
     uniqueIndex("input_vat_events_own_journal_unq").on(t.journalEntryId).where(sql`journal_role IN ('claim_entry', 'event_entry')`),
+    // Phase 13B-3 (NI-5): a note's entry, and a note, belong to ONE reduction event.
+    uniqueIndex("input_vat_events_note_journal_unq").on(t.journalEntryId).where(sql`journal_role = 'note_entry'`),
+    uniqueIndex("input_vat_events_one_per_note_unq").on(t.relatedDocumentId).where(sql`event_type = 'reduced_by_note'`),
     // 🔴 Double acts made UNWRITABLE, not merely checked.
     uniqueIndex("input_vat_events_one_recognition_unq").on(t.documentId, t.eventType).where(sql`event_type LIKE 'recognised\\_%'`),
+    // Phase 13B-3: ONE recognition per document, whatever its type (the index above allows one of EACH type).
+    uniqueIndex("input_vat_events_one_recognition_per_document_unq").on(t.documentId).where(sql`event_type LIKE 'recognised\\_%'`),
+    // Phase 13B-3: a final bill deducts each supplier advance ONCE (Z-AP1 — one prepayment row per advance).
+    uniqueIndex("input_vat_events_one_advance_deduction_unq").on(t.documentId, t.relatedDocumentId).where(sql`event_type = 'advance_deducted'`),
     uniqueIndex("input_vat_events_one_claim_unq").on(t.documentId).where(sql`event_type = 'claimed'`),
     uniqueIndex("input_vat_events_one_reversal_unq").on(t.documentId, t.triggerMonth).where(sql`event_type = 'reversed_unpaid'`),
     uniqueIndex("input_vat_events_one_restoration_unq").on(t.documentId, t.causeId).where(sql`event_type = 'restored_on_payment'`),

@@ -33,6 +33,7 @@ import { assetCapitalisationService } from "../services/assets/capitalisation.se
 import { billsService } from "../services/bills.service";
 import { reportsService } from "../services/reports.service";
 import { periodLocksService } from "../services/periodLocks.service";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -52,6 +53,7 @@ describeMaybe("FA-B — capitalisation, the monthly run, the estimate change (re
     } catch (err) { await conn.rollback(); throw err; }
   };
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

@@ -33,6 +33,7 @@ import { billsService } from "../services/bills.service";
 import { reconciliationService, referencesDocumentNumber } from "../services/reconciliation.service";
 import { summaryService } from "../services/summary.service";
 import { reportsService } from "../services/reports.service";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -65,6 +66,7 @@ describeMaybe("M16.3 — bank reconciliation", () => {
   }
 
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     // Phase 12B: a Review settlement links the line to the payment's cash line

@@ -389,9 +389,10 @@ describeMaybe("Phase 13A — evidence integrity on real rows", () => {
     expect(await gl("VAT_AWAITING_EVIDENCE") - before.hold).toBeCloseTo(-15, 2);
     expect(await inputVat("2026-06", "2026-06"), "no VAT-return entry for the note").toBe(before.june);
     expect((await stateOf(orig.id)).pending, "the original now holds the net").toBe("135.00");
-    // a second note beyond what is held is refused, naming both figures
+    // a second note beyond what is held is refused, naming both figures — since 13B-3 by O-2's
+    // CI-1 (the VAT charged less the other notes: 150 − 15 = 135), which contains the old held-only cap
     const tooMuch = await inTenant(() => billsService.create({ documentType: "credit_note", creditNoteAgainstBillId: orig.id, date: "2026-06-21", subtotal: 10, vatAmount: 140, total: 150, items: [] }, userId));
-    await expectRefusal(inTenant(() => billsService.approve(tooMuch.id, {}, userId)), 422, "credit_note_exceeds_held_vat");
+    await expectRefusal(inTenant(() => billsService.approve(tooMuch.id, {}, userId)), 422, "credit_note_exceeds_invoice_vat");
     // the evidence cannot be dated before the note that already reduced what is held
     await expectRefusal(inTenant(() => billsService.attachEvidence(orig.id, { supplierDocumentKind: "tax_invoice", vendorReference: "INV-X3", evidenceDate: "2026-06-19" }, userId)), 422, "evidence_date_before_credit_note");
     expect((await stateOf(orig.id)).input_vat_state, "still held").toBe("awaiting_evidence");
@@ -421,11 +422,25 @@ describeMaybe("Phase 13A — evidence integrity on real rows", () => {
     expect(run("clean"), "every held, noted and claimed document above reconciles").toEqual([]);
     const held = await bill({ vendorId: vendorA, vendorReference: "", date: "2026-05-18" });
     await inTenant(() => billsService.approve(held.id, {}, userId));
-    await pool.query(`UPDATE bills SET input_vat_pending = input_vat_pending + 1 WHERE id = $1`, [held.id]);
+    // 🔴 Since 13B-3 the DATABASE refuses the divergence itself: a held amount the events do not
+    // state cannot be committed (bills_input_vat_cache_consistency)…
+    let refused: { constraint?: string } | undefined;
+    try { await pool.query(`UPDATE bills SET input_vat_pending = input_vat_pending + 1 WHERE id = $1`, [held.id]); } catch (e) { refused = e as typeof refused; }
+    expect(refused?.constraint, "a direct write of the held cache is refused at commit").toBe("bills_input_vat_cache_consistency");
+    // …so the sweep — the second, after-the-fact check — is proven on a divergence planted with triggers OFF.
+    const plant = async (delta: number) => {
+      const c = await pool.connect();
+      try {
+        await c.query("BEGIN"); await c.query("SET LOCAL session_replication_role = replica");
+        await c.query(`UPDATE bills SET input_vat_pending = input_vat_pending + $2 WHERE id = $1`, [held.id, delta]);
+        await c.query("COMMIT");
+      } catch (err) { await c.query("ROLLBACK"); throw err; } finally { c.release(); }
+    };
+    await plant(1);
     try {
       expect(run("planted").map((r) => [r.gl, r.documents]), "a held amount no entry carries is SEEN").toHaveLength(1);
     } finally {
-      await pool.query(`UPDATE bills SET input_vat_pending = input_vat_pending - 1 WHERE id = $1`, [held.id]);
+      await plant(-1);
     }
     expect(run("restored")).toEqual([]);
   }, 120_000);

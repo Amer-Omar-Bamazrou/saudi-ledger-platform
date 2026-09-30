@@ -22,6 +22,7 @@ import { billsService } from "../services/bills.service";
 import { reportsService } from "../services/reports.service";
 import { billingState } from "../services/purchaseOrders.presenter";
 import { PERMISSION_MATRIX } from "@workspace/db";
+import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -56,6 +57,7 @@ describeMaybe("Purchase orders (M21.3)", () => {
   }
 
   const cleanup = async () => {
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('po-test')`); // Phase 13B-3: events first (append-only, RESTRICT)
     if (orgId) {
       await pool.query(`DELETE FROM purchase_order_conversion_items WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM purchase_order_conversions WHERE organization_id = $1`, [orgId]);
