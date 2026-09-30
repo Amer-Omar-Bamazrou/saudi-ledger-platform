@@ -229,6 +229,7 @@ describeMaybe("Phase 13B S1 — opening-payable historical VAT and single-state 
       ap("EVI", "2026-05-08", 1150, 1150, { rate: 15, amount: 150 }),
       ap("MIX", "2026-05-09", 11500, 11500, { rate: 15, amount: 500 }), // a mixed supply: only part of it standard-rated
       ap("BIG", "2026-05-10", 1150, 1150, null),
+      ap("RACE", "2026-05-11", 1150, 1150, { rate: 15, amount: 150 }),
     ]);
     batchB = await commitMigration(coB, "S1 B Main", [ap("B1", "2026-05-02", 1150, 1150, { rate: 15, amount: 150 })]);
 
@@ -546,15 +547,58 @@ describeMaybe("Phase 13B S1 — opening-payable historical VAT and single-state 
     expect(err.constraint).toBe("input_vat_event_idempotency_conflict");
   });
 
+  it("🔴 CONCURRENT declarations of one payable: exactly one succeeds, the other gets the named 409 — one declaration, one recognition, one movement, nothing stranded", async () => {
+    // Deterministic, not lucky: A declares inside a transaction held OPEN; B starts while A is uncommitted, so B's
+    // pre-check (findByItem) sees nothing and only the DATABASE can stop it — B blocks on the unique index; A commits;
+    // B must come back as the named conflict, never a raw 23505 / 500.
+    const capA = await capture(), capB = await capture();
+    const body = (cap: string) => ({ itemId: item.RACE!, state: "NOT_DEDUCTED", notDeductedReason: "race", carriedInCost: true, evidence: [{ kind: "ORIGINAL_TAX_INVOICE", captureId: cap }] });
+    const connA = await beginTenantConnection({ organizationId: orgId, companyId: coA, role: "authenticated" });
+    let aCommitted = false;
+    try {
+      const a = await connA.run(() => auditContext.run({ userId: adminId, organizationId: orgId, ipAddress: null },
+        () => openingVatDeclarationsService.declare(body(capA) as never, adminId)));
+      const b = inTenant(() => openingVatDeclarationsService.declare(body(capB) as never, accountantId), coA, accountantId)
+        .then((v) => ({ ok: true as const, v }), (e: { statusCode?: number; payload?: { code?: string } }) => ({ ok: false as const, e }));
+      // B is really WAITING on A (a lock), not already refused by the pre-check
+      let waiting = 0;
+      for (let i = 0; i < 100 && waiting === 0; i++) {
+        waiting = (await pool.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query ILIKE '%insert into "opening_payable_vat_declarations"%'`)).rows[0].n;
+        if (waiting === 0) await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(waiting, "B is blocked on A's uncommitted declaration").toBe(1);
+      await connA.commit();
+      aCommitted = true;
+      const outB = await b;
+      expect(a).toMatchObject({ state: "NOT_DEDUCTED", historicalVat: 150 });
+      expect(outB.ok, "the second declaration did not succeed").toBe(false);
+      if (!outB.ok) expect([outB.e.statusCode, outB.e.payload?.code]).toEqual([409, "opening_vat_declaration_exists"]);
+    } finally {
+      if (!aCommitted) await connA.rollback();
+    }
+    expect((await pool.query(`SELECT count(*)::int AS n FROM opening_payable_vat_declarations WHERE migration_open_item_id = $1`, [item.RACE])).rows[0].n).toBe(1);
+    expect((await pool.query(`SELECT count(*)::int AS n FROM opening_payable_vat_declaration_evidence e JOIN opening_payable_vat_declarations d ON d.id = e.declaration_id WHERE d.migration_open_item_id = $1`, [item.RACE])).rows[0].n).toBe(1);
+    expect(await events(bill.RACE!)).toEqual([["declared_opening", "NONE", "NOT_DEDUCTED", "150.00", null]]);
+    expect(await balances(bill.RACE!)).toMatchObject({ not_deducted: "150.00", claimed: "0.00" }); // not 300
+    // the loser left nothing behind: its document is still an unbound staged capture, no audit row names it
+    expect(await captureRow(capB)).toMatchObject({ status: "staged", bill_id: null });
+    expect(await captureRow(capA)).toMatchObject({ status: "promotion_pending", bill_id: bill.RACE });
+    expect((await pool.query(`SELECT count(*)::int AS n FROM audit_logs WHERE organization_id = $1 AND action = 'opening_vat_declaration_record' AND entity_id = $2`, [orgId, String(bill.RACE)])).rows[0].n).toBe(1);
+    expect(await reconcile(bill.RACE!)).toEqual({ doc: null, gl: null });
+  });
+
   it("🔴 admission: an opening payable carries only its declared recognition and notes; a declared recognition exists only on an opening payable and restates its declaration exactly", async () => {
     const decl = (await pool.query(`SELECT * FROM opening_payable_vat_declarations WHERE migration_open_item_id = $1`, [item.ND])).rows[0];
-    const ins = (c: PoolClient, doc: number, type: string, to: string, amount: number, prov: string, decId: number | null, key: string) => c.query(
+    // Dated as the probe needs: a declared recognition must restate its declaration's date (declared_on is
+    // businessToday() when the suite ran), so the duplicate probe uses THAT date — otherwise the date rule, not
+    // the one-per-document index, is what refuses it (and the test would depend on the day it runs).
+    const ins = (c: PoolClient, doc: number, type: string, to: string, amount: number, prov: string, decId: number | null, key: string, on = "2026-09-30") => c.query(
       `INSERT INTO input_vat_events (organization_id, company_id, document_id, event_type, from_bucket, to_bucket, amount, occurred_on, posting_date, actor_user_id, reason, provenance, declaration_id, idempotency_key)
-       VALUES ($1, $2, $3, $4, 'NONE', $5, $6, '2026-09-30', '2026-09-30', $7, 't', $8, $9, $10)`, [orgId, coA, doc, type, to, amount, adminId, prov, decId, key]);
+       VALUES ($1, $2, $3, $4, 'NONE', $5, $6, $11, $11, $7, 't', $8, $9, $10)`, [orgId, coA, doc, type, to, amount, adminId, prov, decId, key, on]);
     // any other event on an opening payable
     expect((await dbRefusal(probe((c) => ins(c, bill.UND!, "exception_recorded", "NONE", 0, "recorded", null, "x1")))).constraint).toBe("input_vat_event_shape");
     // a second declared recognition on a declared payable (one per document)
-    expect((await dbRefusal(probe((c) => ins(c, bill.ND!, "declared_opening", "NOT_DEDUCTED", 1500, "declared", decl.id, "x2")))).code).toBe("23505");
+    expect((await dbRefusal(probe((c) => ins(c, bill.ND!, "declared_opening", "NOT_DEDUCTED", 1500, "declared", decl.id, "x2", String(decl.declared_on))))).code).toBe("23505");
     // the wrong bucket or amount for the declaration (on the still-undeclared EVI, borrowing ND's declaration — refused as not THIS payable's)
     expect((await dbRefusal(probe((c) => ins(c, bill.EVI!, "declared_opening", "NOT_DEDUCTED", 1500, "declared", decl.id, "x3")))).constraint).toBe("input_vat_event_shape");
     // provenance: a declared recognition cannot be 'recorded' — on a declaration of its OWN (made inside the probe),
