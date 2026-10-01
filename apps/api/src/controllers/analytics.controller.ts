@@ -16,7 +16,8 @@ export const analyticsController = {
   async pnlTrend(req: Request, res: Response) {
     const from = String(req.query.from ?? "");
     const to = String(req.query.to ?? "");
-    if (!MONTH.test(from) || !MONTH.test(to)) throw new BadRequestError("from and to must be YYYY-MM");
+    const realMonth = (m: string) => MONTH.test(m) && Number(m.slice(5)) >= 1 && Number(m.slice(5)) <= 12;
+    if (!realMonth(from) || !realMonth(to)) throw new BadRequestError("from and to must be YYYY-MM, with a month from 01 to 12");
     if (from > to) throw new BadRequestError("from must not be after to");
     res.json(await analyticsService.pnlTrend(from, to));
   },

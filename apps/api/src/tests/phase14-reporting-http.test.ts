@@ -88,6 +88,13 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
         `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,$7,0), ($1,$2,$3,$6,$8,0,$7)`,
         [orgId, companyId, je, ar.id, ar.name, sales.id, sale, sales.name],
       );
+      // a user-named account that a spreadsheet would read as a FORMULA (CSV injection probe)
+      const evil = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type) VALUES ($1,'=SUM(1+1)*cmd','=SUM(1+1)*cmd','expense') RETURNING id, name`, [orgId])).rows[0];
+      const je2 = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'P14H-2','2026-03-16','+cmd|calc','posted') RETURNING id`, [orgId, companyId])).rows[0].id;
+      await pool.query(
+        `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,10,0), ($1,$2,$3,$6,$7,0,10)`,
+        [orgId, companyId, je2, evil.id, evil.name, ar.id, ar.name],
+      );
     }
   }
 
@@ -159,6 +166,19 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
     }
   }, 120_000);
 
+  it("🔴 CSV formula injection: a user-named account or entry that a spreadsheet would EVALUATE is exported neutralised; a negative amount the export wrote is not touched", async () => {
+    const tb = await asX("GET", TB_CSV);
+    expect(tb.text).toContain("'=SUM(1+1)*cmd");
+    expect(tb.text).not.toMatch(/(^|,)=SUM/m);
+    const gl = await asX("GET", "/reports/export/general-ledger?format=csv&date_from=2026-01-01&date_to=2026-12-31");
+    expect(gl.text).toContain("'+cmd|calc");
+    expect(gl.text).not.toMatch(/(^|,)\+cmd/m);
+    // a negative number the export itself wrote keeps its sign, unprefixed: Sales closes at
+    // −1,234.56 (debit-positive), and the cell is the plain number
+    expect(tb.text).toContain(",-1234.56");
+    expect(tb.text).not.toContain("'-1234.56");
+  });
+
   it("🔴 refusals by name, never 'all time' or a guess: unknown report, unknown format/lang, a malformed or reversed date", async () => {
     const cases: [string, number][] = [
       ["/reports/export/journal-dump?format=csv", 400],
@@ -170,6 +190,8 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
       ["/analytics/pnl-trend?from=2026-06&to=2026-01", 400],
       ["/analytics/pnl-trend?from=2026-01-01&to=2026-12-31", 400],
       ["/analytics/pnl-trend?from=2020-01&to=2026-12", 400],
+      ["/analytics/pnl-trend?from=2026-00&to=2026-12", 400],
+      ["/analytics/pnl-trend?from=2026-01&to=2026-13", 400],
     ];
     const got = await Promise.all(cases.map(async ([p]) => [p, (await asX("GET", p)).status] as [string, number]));
     expect(got).toEqual(cases);

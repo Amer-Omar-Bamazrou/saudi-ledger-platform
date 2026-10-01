@@ -14,5 +14,6 @@ export type { GetInvoiceDocumentParams } from './generated/types';
 export type { GetCustomerStatementParams } from './generated/types';
 // Same collision for the supplier statement (path vendorId + query window; Phase 11 Part 2 B5).
 export type { GetSupplierStatementParams } from './generated/types';
-// Same collision for the report export (path report + query params; Phase 14 D14-10).
-export type { ExportReportParams } from './generated/types';
+// Same collision for the report export (path report + query params; Phase 14 D14-10) and the
+// Phase 15 budget reads (path id + query version_id / through_period).
+export type { ExportReportParams, GetBudgetParams, GetBudgetVsActualParams } from './generated/types';

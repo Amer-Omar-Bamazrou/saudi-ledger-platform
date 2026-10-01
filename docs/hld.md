@@ -306,8 +306,10 @@ graph TD
     BILL -.->|posts| JE
     TX -.->|reconciles against| INV
     TX -.->|reconciles against| BILL
-    CO --> SUB["subledgers:<br/>payroll · fixed assets · budgets"]
+    CO --> SUB["subledgers:<br/>payroll · fixed assets"]
     SUB -.->|post| JE
+    CO --> BUD["budgets<br/><i>versions · lines</i>"]
+    BUD -.->|compared with, never posts to| JEL
 ```
 
 **Two levels of tenancy.** An `organization` is the tenant and the unit of RLS.
@@ -341,6 +343,13 @@ own fiscal calendar, its own period locks. Most business tables carry both.
   defined in exactly one place, in the repository, because a stored copy of a
   fact the dates already hold will drift from it.
 - **Single currency (SAR) is enforced at the write boundary**, not assumed.
+- **Every statement reads ONE ledger seam** (2026-10-01, Phase 14): the trial balance, P&L,
+  balance sheet, cash flow, general ledger and budget actuals are one SQL aggregation over
+  in-books journal lines, summed in integer halalas — never a second source. Migration opening
+  entries are opening balances, never period movement or a cash flow.
+- **A budget never touches the books** (2026-10-01, Phase 15): it is compared with the ledger,
+  never posted; an approved version is immutable AT THE DATABASE, and an annual amount is never
+  divided across periods. Record: `docs/product/phase-14-15-reporting-budgeting-decision-pack.md`.
 
 🔴 **The chart of accounts is seeded by a database trigger** that copies a
 template table column by column. A migration touching either side must redefine

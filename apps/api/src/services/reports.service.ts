@@ -76,7 +76,8 @@ export function dayBefore(iso: string): string {
 
 /** The scoped company's fiscal settings — null when the fiscal year is NOT declared (M20 F8). */
 async function fiscalSettings(): Promise<FiscalYearSettings | null> {
-  const company = await companiesRepository.findActive();
+  // the company IN SCOPE (the request's company GUC), never "the org's first company" (F-19)
+  const company = await companiesRepository.findCurrent();
   if (!company || company.fiscalYearStart == null) return null;
   return { fiscalYearStart: company.fiscalYearStart, calendar: isFiscalCalendar(company.fiscalCalendar) ? company.fiscalCalendar : "gregorian" };
 }
@@ -190,12 +191,34 @@ export const reportsService = {
       });
     }
 
+    /**
+     * D14-03, refined (accounting review M1, 2026-10-01): a migration opening entry dated in the
+     * window is SPLIT — its balance-sheet lines are opening, its income and expense lines (the
+     * previous system's year-to-date P&L) are period movement, as the income statement counts them.
+     * One balanced entry across two columns leaves each column off by the migrated result X, so a
+     * computed row carries X in the opening column and −X in the period: Σ opening = Σ closing = 0
+     * and debits = credits again, and the row itself closes at zero — it moves the result from the
+     * opening position into the period, it adds nothing.
+     */
+    const plIdsAll = cats.filter((c) => isPlType(c.type)).map((c) => c.id);
+    const migRows = await reportsRepository.openingSourceMovements(from ?? "0001-01-01", to ?? "9999-12-31", { accountIds: plIdsAll });
+    const migratedResultH = migRows.reduce((t, r) => t + toHalalas(r.debit) - toHalalas(r.credit), 0); // debit-positive
+    const migDebitH = migratedResultH < 0 ? -migratedResultH : 0;
+    const migCreditH = migratedResultH > 0 ? migratedResultH : 0;
+    if (migratedResultH !== 0) {
+      rows.push({
+        key: "migrated_ytd_result", name: "Year-to-date result brought in by migration (opening → period)", nameAr: "نتيجة ما سبق من السنة المُدخلة بالترحيل (من الافتتاحي إلى الفترة)",
+        accountId: null, type: "equity", computed: true,
+        openingBalance: fromHalalas(migratedResultH), debit: fromHalalas(migDebitH), credit: fromHalalas(migCreditH),
+        balance: fromHalalas(migDebitH - migCreditH), closingBalance: 0,
+      });
+    }
+
     const sumH = (f: (a: LedgerAccount) => number) => accounts.reduce((s, a) => s + f(a), 0);
-    const totalDebitH = sumH((a) => a.debitH);
-    const totalCreditH = sumH((a) => a.creditH);
-    const totalOpeningH = sumH((a) => a.openingH) + priorPlH;
+    const totalDebitH = sumH((a) => a.debitH) + migDebitH;
+    const totalCreditH = sumH((a) => a.creditH) + migCreditH;
+    const totalOpeningH = sumH((a) => a.openingH) + priorPlH + migratedResultH;
     const totalClosingH = sumH((a) => a.openingH + a.debitH - a.creditH) + priorPlH;
-    const tol = Math.round(GL_BALANCE_TOLERANCE * 100);
     return {
       window: { from: from ?? null, to: to ?? null },
       fiscalYearDeclared: settings != null,
@@ -205,7 +228,8 @@ export const reportsService = {
       totalCredit: fromHalalas(totalCreditH),
       totalOpening: fromHalalas(totalOpeningH),
       totalClosing: fromHalalas(totalClosingH),
-      balanced: Math.abs(totalDebitH - totalCreditH) <= tol && Math.abs(totalOpeningH) <= tol && Math.abs(totalClosingH) <= tol,
+      // EXACT (accounting review M4): the sums are integer halalas, so a halala off is unbalanced
+      balanced: totalDebitH === totalCreditH && totalOpeningH === 0 && totalClosingH === 0,
     };
   },
 
@@ -274,8 +298,8 @@ export const reportsService = {
    * The computed lines never carry the label "Retained earnings" — that is the
    * account's name (the two-lines-one-label defect, F-04).
    *
-   * Every figure is exact (integer halalas from the ledger seam); `balanced`
-   * compares with the shared GL_BALANCE_TOLERANCE, never a local literal.
+   * Every figure is exact (integer halalas from the ledger seam), so `balanced`
+   * is EXACT — a halala off is unbalanced (accounting review M4, 2026-10-01).
    */
   async balanceSheet(as_of?: string) {
     const asOf = reportDate(as_of, "as_of") ?? businessToday();
@@ -355,7 +379,7 @@ export const reportsService = {
     const totalLiabH = sumH(liabilities);
     const totalEquityH = sumH(equityAccounts) + retainedEarningsH;
     const totalLiabAndEquityH = totalLiabH + totalEquityH;
-    const balanced = Math.abs(totalAssetsH - totalLiabAndEquityH) <= Math.round(GL_BALANCE_TOLERANCE * 100) && unmapped.length === 0;
+    const balanced = totalAssetsH === totalLiabAndEquityH && unmapped.length === 0;
 
     /**
      * ── M18.2: the current / non-current breakout ──────────────────────────
@@ -452,12 +476,14 @@ export const reportsService = {
     const catMap = new Map(cats.map((c) => [c.id, c]));
     const cashIds = cats.filter((c) => c.liquidityClass === "cash").map((c) => c.id);
 
-    const [contribs, migration, openingRows, closingRows] = await Promise.all([
+    const [contribs, migration, openingRows, closingRows, faAccounts] = await Promise.all([
       reportsRepository.cashFlowContributions(from, to, cashIds),
       reportsRepository.cashFromOpeningSources(from, to, cashIds),
       from ? ledgerAccounts({ to: dayBefore(from), accountIds: cashIds }, cats) : Promise.resolve([] as LedgerAccount[]),
       ledgerAccounts({ to, accountIds: cashIds }, cats),
+      reportsRepository.fixedAssetAccounts(),
     ]);
+    const fixedAssetIds = new Set(faAccounts.flatMap((r) => [r.cost, r.accumulated]));
     const cashBalanceH = (rows: LedgerAccount[]) => rows.reduce((s, r) => s + r.openingH + r.debitH - r.creditH, 0);
     const openingCashH = cashBalanceH(openingRows);
     const closingCashH = cashBalanceH(closingRows);
@@ -467,7 +493,7 @@ export const reportsService = {
     const lines = new Map<CashFlowLine, Detail[]>();
     for (const c of contribs) {
       const cat = c.accountId != null ? catMap.get(c.accountId) : undefined;
-      const line = classifyCashFlowAccount({ type: cat?.type, liquidityClass: cat?.liquidityClass, systemCode: cat?.systemCode });
+      const line = classifyCashFlowAccount({ type: cat?.type, liquidityClass: cat?.liquidityClass, systemCode: cat?.systemCode, fixedAsset: c.accountId != null && fixedAssetIds.has(c.accountId) });
       const amountH = toHalalas(c.amount);
       if (amountH === 0) continue;
       if (!lines.has(line)) lines.set(line, []);
@@ -516,7 +542,7 @@ export const reportsService = {
       /** Closing − opening cash, from the GL. */
       netChange: fromHalalas(closingCashH - openingCashH),
       closingCash: fromHalalas(closingCashH),
-      reconciles: Math.abs(explainedH - closingCashH) <= Math.round(GL_BALANCE_TOLERANCE * 100),
+      reconciles: explainedH === closingCashH,
       limitations: ["L-CF1", "L-CF2"],
     };
   },
@@ -636,23 +662,22 @@ export const reportsService = {
   },
 
   async accountSummary(date_from?: string, date_to?: string) {
-    const { from, to } = reportWindow(date_from, date_to);
-    const accounts = await ledgerAccounts({ from, to, openingSourcesAsOpening: true });
-    const rows = accounts
-      .filter((a) => a.openingH !== 0 || a.debitH !== 0 || a.creditH !== 0)
-      .map((a) => ({
-        key: a.key,
-        accountId: a.accountId,
-        name: a.name,
-        nameAr: a.nameAr,
-        type: a.type,
-        openingBalance: fromHalalas(a.openingH),
-        periodDebit: fromHalalas(a.debitH),
-        periodCredit: fromHalalas(a.creditH),
-        closingBalance: fromHalalas(a.openingH + a.debitH - a.creditH),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return { window: { from: from ?? null, to: to ?? null }, accounts: rows, count: rows.length };
+    // ONE definition (accounting review M3, 2026-10-01): the summary is the trial balance's rows —
+    // the same P&L reset at the fiscal-year start, the same prior-years row — in the summary's shape.
+    // It used to sum its own way and disagreed with the TB for the same dates.
+    const tb = await reportsService.trialBalance(date_from, date_to);
+    const rows = tb.accounts.map((a) => ({
+      key: a.key,
+      accountId: a.accountId,
+      name: a.name,
+      nameAr: a.nameAr,
+      type: a.type,
+      openingBalance: a.openingBalance,
+      periodDebit: a.debit,
+      periodCredit: a.credit,
+      closingBalance: a.closingBalance,
+    }));
+    return { window: tb.window, accounts: rows, count: rows.length };
   },
 
   async customerLedger(customer_id?: string, date_from?: string, date_to?: string) {

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PnlTrendExpenseAnalysis } from './pnlTrendExpenseAnalysis';
+import type { PnlTrendMigrated } from './pnlTrendMigrated';
 import type { PnlTrendPoint } from './pnlTrendPoint';
 import type { PnlTrendTotals } from './pnlTrendTotals';
 
@@ -13,6 +14,8 @@ export interface PnlTrend {
   from: string;
   to: string;
   expenseAnalysis: PnlTrendExpenseAnalysis;
+  /** A migration opening entry's year-to-date P&L (the previous system's), shown as ONE amount on its date and kept out of the months — it would read as that month's. Included in the totals, so the totals still equal the income statement for the window. null when no migration falls in it. */
+  migrated: PnlTrendMigrated;
   points: PnlTrendPoint[];
   totals: PnlTrendTotals;
 }

@@ -74,14 +74,11 @@ export const journalEntriesTable = pgTable(
     // money-unique-indexes.test.ts, which asserts BOTH the database and this
     // declaration.
     uniqueIndex("journal_entries_company_number_unq").on(t.companyId, t.entryNumber),
-    // Phase 14 D14-15 (measured, 2026-10-01): the report seam filters on the
-    // company EXACTLY as companyScoped() and the RLS company arm write it —
-    // `company_id::text = current_setting(...)` — which a plain index on the
-    // uuid column cannot serve. This expression index is that predicate, plus
-    // the accounting date every report bounds. At 300k lines a one-month P&L
-    // went from a seq scan of every tenant's lines (125k buffers, 104 ms) to
-    // 3.3k buffers / 12 ms. Record: phase-14-15 decision pack D14-15.
-    index("journal_entries_company_text_date_idx").on(sql`(${t.companyId}::text)`, t.date),
+    // Phase 14 D14-15 (re-measured 2026-10-01, AS THE TENANT ROLE): the report seam scopes
+    // the company with the TYPED predicate (companyScope.ts) — an Index Cond on this index;
+    // the earlier `company_id::text` form could not use one under RLS. Plus the date every
+    // report bounds. Record: phase-14-15 decision pack D14-15.
+    index("journal_entries_company_date_idx").on(t.companyId, t.date),
   ],
 );
 

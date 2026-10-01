@@ -626,29 +626,6 @@ export interface FiscalYears {
   periods: FiscalPeriod[];
 }
 
-export interface BudgetLine {
-  id: number;
-  /** @nullable */
-  name?: string | null;
-  /** @nullable */
-  nameAr?: string | null;
-  /** YYYY — annual only. */
-  period: string;
-  /** @nullable */
-  categoryId?: number | null;
-  /** @nullable */
-  categoryName?: string | null;
-  /** @nullable */
-  categoryNameAr?: string | null;
-  /** @nullable */
-  categoryType?: string | null;
-  budgetedAmount: number;
-  /** Signed by account type (M19.0). May be NEGATIVE when refunds exceed spend — a real state, reported rather than clamped to zero. */
-  actualAmount: number;
-  variance: number;
-  variancePct: number;
-}
-
 export interface PnlTrendPoint {
   month: string;
   revenue: number;
@@ -663,6 +640,16 @@ export const PnlTrendExpenseAnalysis = {
   nature: 'nature',
 } as const;
 
+/**
+ * A migration opening entry's year-to-date P&L (the previous system's), shown as ONE amount on its date and kept out of the months — it would read as that month's. Included in the totals, so the totals still equal the income statement for the window. null when no migration falls in it.
+ */
+export type PnlTrendMigrated = {
+  date: string;
+  revenue: number;
+  expenses: number;
+  net: number;
+} | null;
+
 export type PnlTrendTotals = {
   revenue: number;
   expenses: number;
@@ -673,6 +660,8 @@ export interface PnlTrend {
   from: string;
   to: string;
   expenseAnalysis: PnlTrendExpenseAnalysis;
+  /** A migration opening entry's year-to-date P&L (the previous system's), shown as ONE amount on its date and kept out of the months — it would read as that month's. Included in the totals, so the totals still equal the income statement for the window. null when no migration falls in it. */
+  migrated: PnlTrendMigrated;
   points: PnlTrendPoint[];
   totals: PnlTrendTotals;
 }
@@ -7522,33 +7511,398 @@ export interface ApprovalPendingRow {
   amount: number;
 }
 
-export interface Budget {
+export type BudgetFiscalYearCalendar = typeof BudgetFiscalYearCalendar[keyof typeof BudgetFiscalYearCalendar];
+
+
+export const BudgetFiscalYearCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+/**
+ * The fiscal year FROZEN on the budget when it was created (D15-01).
+ */
+export interface BudgetFiscalYear {
+  calendar: BudgetFiscalYearCalendar;
+  startMonth: number;
+  /** The year the fiscal year starts in, in its own calendar (an AH year for Hijri). */
+  label: number;
+  startDate: string;
+  endDate: string;
+}
+
+export interface BudgetPeriod {
+  /** 1–12, from the fiscal year's first month. */
+  no: number;
+  calendarMonth: number;
+  calendarYear: number;
+  startDate: string;
+  endDate: string;
+}
+
+export type BudgetVersionSummaryStatus = typeof BudgetVersionSummaryStatus[keyof typeof BudgetVersionSummaryStatus];
+
+
+export const BudgetVersionSummaryStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  approved: 'approved',
+  superseded: 'superseded',
+} as const;
+
+export interface BudgetVersionSummary {
+  id: number;
+  versionNo: number;
+  status: BudgetVersionSummaryStatus;
+  /** @nullable */
+  basedOnVersionId: number | null;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  sendBackNote: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+  /** @nullable */
+  submittedBy: number | null;
+  /** @nullable */
+  submittedAt: string | null;
+  /** @nullable */
+  approvedBy: number | null;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  supersededAt: string | null;
+}
+
+export type BudgetSummaryScenario = typeof BudgetSummaryScenario[keyof typeof BudgetSummaryScenario];
+
+
+export const BudgetSummaryScenario = {
+  base: 'base',
+  best_case: 'best_case',
+  worst_case: 'worst_case',
+} as const;
+
+export interface BudgetSummary {
   id: number;
   name: string;
   /** @nullable */
-  nameAr?: string | null;
-  /** YYYY — annual only. */
-  period: string;
-  /** @nullable */
-  categoryId: number | null;
-  budgetedAmount: number;
+  nameAr: string | null;
+  scenario: BudgetSummaryScenario;
+  fiscalYear: BudgetFiscalYear;
   /** @nullable */
   notes: string | null;
-  createdAt?: string;
+  createdAt: string;
+  versions: BudgetVersionSummary[];
+  /** @nullable */
+  approvedVersionId: number | null;
+  /**
+     * The draft or submitted version, if one is open.
+     * @nullable
+     */
+  openVersionId: number | null;
 }
 
-export interface BudgetInput {
-  /** @minLength 1 */
+export type BudgetAccountType = typeof BudgetAccountType[keyof typeof BudgetAccountType];
+
+
+export const BudgetAccountType = {
+  income: 'income',
+  expense: 'expense',
+} as const;
+
+export interface BudgetAccount {
+  id: number;
   name: string;
   /** @nullable */
+  nameAr: string | null;
+  type: BudgetAccountType;
+}
+
+export type BudgetAccountLineAccountType = typeof BudgetAccountLineAccountType[keyof typeof BudgetAccountLineAccountType];
+
+
+export const BudgetAccountLineAccountType = {
+  income: 'income',
+  expense: 'expense',
+} as const;
+
+export type BudgetAccountLineMode = typeof BudgetAccountLineMode[keyof typeof BudgetAccountLineMode];
+
+
+export const BudgetAccountLineMode = {
+  periods: 'periods',
+  annual: 'annual',
+} as const;
+
+export interface BudgetAccountLine {
+  accountId: number;
+  accountName: string;
+  /** @nullable */
+  accountNameAr: string | null;
+  accountType: BudgetAccountLineAccountType;
+  mode: BudgetAccountLineMode;
+  /**
+     * Twelve period amounts when mode = periods; null for an annual-only line (never divided).
+     * @nullable
+     */
+  periods: number[] | null;
+  /** @nullable */
+  annualAmount: number | null;
+  total: number;
+}
+
+export type BudgetDetailTotals = {
+  income: number;
+  expense: number;
+};
+
+export type BudgetDetail = BudgetSummary & ({
+  periods: BudgetPeriod[];
+  version: BudgetVersionSummary | null;
+  lines: BudgetAccountLine[];
+  totals: BudgetDetailTotals;
+});
+
+export type CreateBudgetInputScenario = typeof CreateBudgetInputScenario[keyof typeof CreateBudgetInputScenario];
+
+
+export const CreateBudgetInputScenario = {
+  base: 'base',
+  best_case: 'best_case',
+  worst_case: 'worst_case',
+} as const;
+
+export interface CreateBudgetInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
   nameAr?: string | null;
-  period: string;
-  /** @nullable */
-  categoryId?: number | null;
-  /** @minimum 0 */
-  budgetedAmount: number;
-  /** @nullable */
+  /** The fiscal year, named by the year it starts in, in the company's calendar. */
+  fiscalYearLabel: number;
+  scenario?: CreateBudgetInputScenario;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
   notes?: string | null;
+}
+
+/**
+ * Name and notes only — the company, scenario and fiscal year are fixed.
+ */
+export interface UpdateBudgetInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name?: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  nameAr?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+/**
+ * Exactly one of `periods` (twelve amounts) or `annualAmount`.
+ */
+export type ReplaceBudgetLinesInputLinesItem = {
+  accountId: number;
+  /**
+     * @minItems 12
+     * @maxItems 12
+     * @items.minimum 0
+     */
+  periods?: number[];
+  /** @minimum 0 */
+  annualAmount?: number;
+};
+
+export interface ReplaceBudgetLinesInput {
+  /** @maxItems 2000 */
+  lines: ReplaceBudgetLinesInputLinesItem[];
+}
+
+export interface BudgetSendBackInput {
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  note?: string | null;
+}
+
+export interface BudgetVsActualFigure {
+  /**
+     * null when the line is annual-only — nothing is apportioned.
+     * @nullable
+     */
+  budget: number | null;
+  actual: number;
+  /**
+     * actual − budget, in the account's natural direction.
+     * @nullable
+     */
+  variance: number | null;
+  /**
+     * variance ÷ budget × 100; null when the budget is zero or absent.
+     * @nullable
+     */
+  variancePct: number | null;
+  /**
+     * income: variance ≥ 0; expense: variance ≤ 0. A judgment, shown in words.
+     * @nullable
+     */
+  favourable: boolean | null;
+}
+
+export interface BudgetVsActualPeriodFigure {
+  no: number;
+  /** @nullable */
+  budget: number | null;
+  actual: number;
+  /** @nullable */
+  variance: number | null;
+  /** @nullable */
+  variancePct: number | null;
+}
+
+export interface BudgetVsActualFullYear {
+  /** @nullable */
+  budget: number | null;
+  actualToDate: number;
+  /**
+     * budget − actual to date. No variance is judged before the year ends.
+     * @nullable
+     */
+  remaining: number | null;
+}
+
+/**
+ * @nullable
+ */
+export type BudgetVsActualForecastReason = typeof BudgetVsActualForecastReason[keyof typeof BudgetVsActualForecastReason] | null;
+
+
+export const BudgetVsActualForecastReason = {
+  annual_only: 'annual_only',
+  unbudgeted: 'unbudgeted',
+} as const;
+
+export interface BudgetVsActualForecast {
+  /**
+     * Actuals through the period + the budget of the remaining periods. Deterministic; never stored.
+     * @nullable
+     */
+  amount: number | null;
+  /** @nullable */
+  variance: number | null;
+  /** @nullable */
+  favourable: boolean | null;
+  /** @nullable */
+  reason: BudgetVsActualForecastReason;
+}
+
+/**
+ * The account's year-to-date P&L brought in by a migration opening entry: ONE amount on its date, never spread across the periods it covers. In the year to date once the through-period reaches its date; always in the actual to date.
+ */
+export type BudgetVsActualLineMigrated = {
+  amount: number;
+  date: string;
+} | null;
+
+export type BudgetVsActualLineAccountType = typeof BudgetVsActualLineAccountType[keyof typeof BudgetVsActualLineAccountType];
+
+
+export const BudgetVsActualLineAccountType = {
+  income: 'income',
+  expense: 'expense',
+} as const;
+
+export type BudgetVsActualLineMode = typeof BudgetVsActualLineMode[keyof typeof BudgetVsActualLineMode];
+
+
+export const BudgetVsActualLineMode = {
+  periods: 'periods',
+  annual: 'annual',
+  unbudgeted: 'unbudgeted',
+} as const;
+
+export interface BudgetVsActualLine {
+  /** The account's year-to-date P&L brought in by a migration opening entry: ONE amount on its date, never spread across the periods it covers. In the year to date once the through-period reaches its date; always in the actual to date. */
+  migrated: BudgetVsActualLineMigrated;
+  accountId: number;
+  accountName: string;
+  /** @nullable */
+  accountNameAr: string | null;
+  accountType: BudgetVsActualLineAccountType;
+  mode: BudgetVsActualLineMode;
+  periods: BudgetVsActualPeriodFigure[];
+  ytd: BudgetVsActualFigure;
+  fullYear: BudgetVsActualFullYear;
+  forecast: BudgetVsActualForecast;
+}
+
+export interface BudgetVsActualTotals {
+  ytd: BudgetVsActualFigure;
+  fullYear: BudgetVsActualFullYear;
+  forecast: BudgetVsActualForecast;
+  /** Lines with an annual amount only — when > 0 the YTD budget and forecast totals are null rather than partial. */
+  annualOnlyLines: number;
+}
+
+export type BudgetVsActualScenario = typeof BudgetVsActualScenario[keyof typeof BudgetVsActualScenario];
+
+
+export const BudgetVsActualScenario = {
+  base: 'base',
+  best_case: 'best_case',
+  worst_case: 'worst_case',
+} as const;
+
+export type BudgetVsActualBasis = typeof BudgetVsActualBasis[keyof typeof BudgetVsActualBasis];
+
+
+export const BudgetVsActualBasis = {
+  accrual_gl: 'accrual_gl',
+} as const;
+
+export type BudgetVsActualTotalsProperty = {
+  income: BudgetVsActualTotals;
+  expense: BudgetVsActualTotals;
+  net: BudgetVsActualTotals;
+};
+
+export interface BudgetVsActual {
+  budgetId: number;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  scenario: BudgetVsActualScenario;
+  version: BudgetVersionSummary;
+  fiscalYear: BudgetFiscalYear;
+  periods: BudgetPeriod[];
+  /** Year to date runs through this COMPLETED fiscal period (0 = none yet). */
+  throughPeriod: number;
+  /** @nullable */
+  throughDate: string | null;
+  basis: BudgetVsActualBasis;
+  lines: BudgetVsActualLine[];
+  /** Income and expense accounts that moved in the fiscal year with no line — so Σ actual = the income statement (D15-09). */
+  unbudgeted: BudgetVsActualLine[];
+  totals: BudgetVsActualTotalsProperty;
 }
 
 /**
@@ -7567,23 +7921,6 @@ export type RecurringRuleWithHealth = RecurringRule & ({
   /** @nullable */
   lastSuccessOn: string | null;
 });
-
-/**
- * A PARTIAL update — every field optional; the CREATE input requires name, period and amount.
- */
-export interface UpdateBudgetInput {
-  /** @minLength 1 */
-  name?: string;
-  /** @nullable */
-  nameAr?: string | null;
-  period?: string;
-  /** @nullable */
-  categoryId?: number | null;
-  /** @minimum 0 */
-  budgetedAmount?: number;
-  /** @nullable */
-  notes?: string | null;
-}
 
 export interface CreateMigrationBatchInput {
   /**
@@ -9374,7 +9711,30 @@ export type ListBankStatements200 = {
 };
 
 export type ListBudgetsParams = {
-period?: string;
+as_of?: string;
+scenario?: ListBudgetsScenario;
+};
+
+export type ListBudgetsScenario = typeof ListBudgetsScenario[keyof typeof ListBudgetsScenario];
+
+
+export const ListBudgetsScenario = {
+  base: 'base',
+  best_case: 'best_case',
+  worst_case: 'worst_case',
+} as const;
+
+export type GetBudgetParams = {
+version_id?: number;
+};
+
+export type GetBudgetVsActualParams = {
+version_id?: number;
+/**
+ * @minimum 0
+ * @maximum 12
+ */
+through_period?: number;
 };
 
 export type GetTrendParams = {
@@ -9569,6 +9929,18 @@ account_id?: string;
 party_type?: ExportReportPartyType;
 customer_id?: string;
 vendor_id?: string;
+/**
+ * budget-vs-actual only
+ */
+budget_id?: string;
+/**
+ * budget-vs-actual only
+ */
+version_id?: string;
+/**
+ * budget-vs-actual only
+ */
+through_period?: string;
 };
 
 export type ExportReportFormat = typeof ExportReportFormat[keyof typeof ExportReportFormat];

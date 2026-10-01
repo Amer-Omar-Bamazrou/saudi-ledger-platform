@@ -43,7 +43,7 @@ import { billIsPayableSql, billLivePaidBySubledgerSql, billOutstandingSql, billS
 /** Drafts and submitted documents are not in the books; a reversed opening item is history (Policy C). */
 const IN_BOOKS = sql`b.status NOT IN ('draft','submitted') AND ${billNotReversedSql("b")}`;
 /** N1 — the scoped company's rows only, as raw SQL for the CTEs below. */
-const scopedCo = (alias: string) => sql.raw(`${alias}.company_id::text = current_setting('app.current_company_id', true)`);
+const scopedCo = (alias: string) => sql.raw(`${alias}.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid`);
 /** An allocation that has not been superseded by a correction. */
 const ALLOC_LIVE = sql`NOT EXISTS (SELECT 1 FROM supplier_payment_allocation_reversals r WHERE r.allocation_id = a.id)`;
 
@@ -261,7 +261,7 @@ export const supplierStatementRepository = {
         UNION ALL
         -- an allocation: the payable falls. From a PAYMENT it also consumes on-account money.
         SELECT CASE WHEN a.supplier_credit_note_id IS NOT NULL THEN 'credit_application' ELSE 'allocation' END,
-               coalesce(e.date::date::text, a.created_at::date::text), a.created_at, 2, a.id,
+               coalesce(e.date::date::text, (a.created_at AT TIME ZONE 'Asia/Riyadh')::date::text), a.created_at, 2, a.id,
                tb.bill_number, NULL,
                CASE WHEN a.supplier_credit_note_id IS NOT NULL
                     THEN 'Credit note applied to ' || tb.bill_number
@@ -278,7 +278,7 @@ export const supplierStatementRepository = {
          WHERE ${vendorIs("tb.vendor_id", vendorId)} AND ${ALLOC_LIVE} AND ${scopedCo("a")}
         UNION ALL
         -- a correction: the original allocation row stays; this is the record that answers it
-        SELECT 'unallocation', coalesce(e.date::date::text, rv.created_at::date::text), rv.created_at, 3, rv.id,
+        SELECT 'unallocation', coalesce(e.date::date::text, (rv.created_at AT TIME ZONE 'Asia/Riyadh')::date::text), rv.created_at, 3, rv.id,
                tb.bill_number, NULL, 'Allocation reversed: ' || rv.reason,
                a.amount::numeric, a.amount::numeric,
                CASE WHEN a.supplier_credit_note_id IS NOT NULL THEN a.amount::numeric ELSE 0 END,
@@ -299,7 +299,7 @@ export const supplierStatementRepository = {
          WHERE ${vendorIs("f.vendor_id", vendorId)} AND ${scopedCo("f")}
         UNION ALL
         -- saying what money on account IS: nothing moves between the components, but the chronology has to show the act
-        SELECT 'reclassification', coalesce(c.effective_date::date::text, c.created_at::date::text), c.created_at, 5, c.id,
+        SELECT 'reclassification', coalesce(c.effective_date::date::text, (c.created_at AT TIME ZONE 'Asia/Riyadh')::date::text), c.created_at, 5, c.id,
                coalesce(p.reference, 'SPAY-' || p.id::text), NULL,
                'Reclassified as ' || c.classification || coalesce(' — ' || c.note, ''),
                0::numeric, 0, 0, 0,

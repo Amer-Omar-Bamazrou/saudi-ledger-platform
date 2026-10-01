@@ -16,7 +16,7 @@
  *                   account picker on the journal-entry screen, which is the
  *                   posting path. A page of 50 there would silently remove
  *                   accounts a tenant cannot then post to.
- *   /budgets        one per category per period
+ *   /budgets        one per fiscal year and scenario (Phase 15)
  *   /payroll        one run per month
  *   /recurring      a handful of rules a tenant set up by hand
  *
@@ -132,18 +132,16 @@ describeMaybe("lists that are unbounded by decision stay unbounded", () => {
       [orgId, companyId],
     );
 
-    // Budgets need a category; one is enough, the period makes each row distinct.
-    const catId = (
-      await pool.query(`SELECT id FROM categories WHERE organization_id = $1 LIMIT 1`, [orgId])
-    ).rows[0].id;
+    // Phase 15 budget HEADERS — one per fiscal year; the year makes each row distinct.
     const budgetValues: string[] = [];
     for (let i = 0; i < ROWS; i++) {
-      budgetValues.push(`($1, $2, 'Unbounded Budget ${i}', '${1960 + i}', $3, 1000)`);
+      const y = 1960 + i;
+      budgetValues.push(`($1, $2, 'Unbounded Budget ${i}', 'base', 'gregorian', 1, ${y}, '${y}-01-01', '${y}-12-31')`);
     }
     await pool.query(
-      `INSERT INTO budgets (organization_id, company_id, name, period, category_id, budgeted_amount)
+      `INSERT INTO budgets (organization_id, company_id, name, scenario, fiscal_calendar, fiscal_start_month, fiscal_label, fiscal_year_start, fiscal_year_end)
        VALUES ${budgetValues.join(",")}`,
-      [orgId, companyId, catId],
+      [orgId, companyId],
     );
   }, 60_000);
 
@@ -164,7 +162,7 @@ describeMaybe("lists that are unbounded by decision stay unbounded", () => {
   const cases: Array<[string, string, () => Promise<{ length: number }>]> = [
     ["/categories", "categories", async () => (await import("../services/categories.service")).categoriesService.list()],
     ["/bank-accounts", "bank_accounts", async () => (await import("../services/bankAccounts.service")).bankAccountsService.list()],
-    ["/budgets", "budgets", async () => (await import("../services/budgets.service")).budgetsService.list()],
+    ["/budgets", "budgets", async () => (await import("../services/budgets.service")).budgetsService.list({})],
     ["/payroll", "payroll_runs", async () => (await import("../services/payroll.service")).payrollService.list()],
     ["/recurring", "recurring_rules", async () => (await import("../services/recurring/recurring.service")).recurringService.list()],
   ];
@@ -184,7 +182,7 @@ describeMaybe("lists that are unbounded by decision stay unbounded", () => {
         rows.length,
         `${endpoint} returned ${rows.length} of ${expected} rows.\n\n` +
           `This list is unbounded BY DECISION: it is bounded by a real-world fact (a handful of\n` +
-          `bank accounts, one budget per category, one payroll run per month, one chart of\n` +
+          `bank accounts, one budget per fiscal year, one payroll run per month, one chart of\n` +
           `accounts), and its page computes headline figures by reducing over the fetched array.\n` +
           `A cap here does not truncate a table — it silently turns every one of those figures\n` +
           `into "the total of the first ${DEFAULT_PAGE}", and for /categories and /bank-accounts it also\n` +

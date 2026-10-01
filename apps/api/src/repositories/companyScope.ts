@@ -34,7 +34,17 @@ import type { PgColumn } from "drizzle-orm/pg-core";
  * One seam, not a per-file idiom: the GL-tolerance lesson (`glPosting.ts`) is
  * that one invariant expressed as two constants drifts. Every repository that
  * scopes reads by company imports THIS function.
+ *
+ * 🔴 Phase 14 (D14-15, re-measured 2026-10-01): the column is compared AS A
+ * UUID — `company_id = nullif(GUC, '')::uuid` — never as `company_id::text`.
+ * Under RLS the planner may not turn a predicate whose functions touch the ROW
+ * and are not leakproof (`uuid_out` behind `::text`) into an index condition,
+ * so the text form scanned every tenant's rows and filtered afterwards; the
+ * typed form applies the leakproof `uuid = uuid` to the column and a value
+ * computed ONCE, and becomes an index condition on `(company_id, …)`. The
+ * semantics are unchanged: an empty or unset GUC is NULL, and `= NULL` matches
+ * nothing — the empty answer above.
  */
 export function companyScoped(companyIdColumn: PgColumn): SQL {
-  return sql`${companyIdColumn}::text = current_setting('app.current_company_id', true)`;
+  return sql`${companyIdColumn} = nullif(current_setting('app.current_company_id', true), '')::uuid`;
 }

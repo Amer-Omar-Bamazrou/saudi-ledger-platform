@@ -7,18 +7,22 @@
  */
 
 /**
- * A PARTIAL update — every field optional; the CREATE input requires name, period and amount.
+ * Name and notes only — the company, scenario and fiscal year are fixed.
  */
 export interface UpdateBudgetInput {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
   name?: string;
-  /** @nullable */
+  /**
+     * @maxLength 120
+     * @nullable
+     */
   nameAr?: string | null;
-  period?: string;
-  /** @nullable */
-  categoryId?: number | null;
-  /** @minimum 0 */
-  budgetedAmount?: number;
-  /** @nullable */
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
   notes?: string | null;
 }

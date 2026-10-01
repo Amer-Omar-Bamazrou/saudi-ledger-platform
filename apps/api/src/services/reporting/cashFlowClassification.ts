@@ -84,6 +84,12 @@ export interface ClassifiableAccount {
   type: string | null | undefined;
   liquidityClass: string | null | undefined;
   systemCode: string | null | undefined;
+  /**
+   * The account is the cost or accumulated-depreciation account of an asset
+   * category: buying or disposing of a fixed asset is INVESTING (IAS 7.16) even
+   * when the tenant left its liquidity class unset (accounting review L1).
+   */
+  fixedAsset?: boolean;
 }
 
 /**
@@ -101,6 +107,7 @@ export function classifyCashFlowAccount(a: ClassifiableAccount): CashFlowLine {
   // guess — the Audit Tier 3 finding-8 rule, carried into the ledger model.
   if (code === "TRANSFER_SUSPENSE") return "transfers_awaiting_declaration";
   if (code && INVESTING_CODES.has(code)) return "non_current_assets";
+  if (a.fixedAsset) return "non_current_assets";
   if (code && CUSTOMER_CODES.has(code)) return "receipts_customers";
   if (code && SUPPLIER_CODES.has(code)) return "payments_suppliers";
   if (code && EMPLOYEE_CODES.has(code)) return "payments_employees";

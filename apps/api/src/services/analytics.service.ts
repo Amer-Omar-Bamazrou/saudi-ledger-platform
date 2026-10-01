@@ -276,7 +276,21 @@ export const analyticsService = {
     const cats = await reportsRepository.allCategories();
     const typeById = new Map(cats.map((c) => [c.id, c.type]));
     const plIds = cats.filter((c) => c.type === "income" || c.type === "revenue" || c.type === "expense").map((c) => c.id);
-    const rows = await reportsRepository.ledgerMovementsByPeriod(periods, { accountIds: plIds });
+    // Migration opening entries carry the previous system's year-to-date P&L on ONE day: kept out of
+    // the months (it would read as that month's), shown apart, and counted in the totals — which
+    // therefore still equal the income statement for the window (accounting review M2, 2026-10-01).
+    const [rows, migratedRows] = await Promise.all([
+      reportsRepository.ledgerMovementsByPeriod(periods, { accountIds: plIds, excludeOpeningSources: true }),
+      reportsRepository.openingSourceMovements(periods[0]!.start, periods[periods.length - 1]!.end, { accountIds: plIds }),
+    ]);
+    let migRevenueH = 0, migExpensesH = 0, migDate: string | null = null;
+    for (const r of migratedRows) {
+      const t = r.accountId != null ? typeById.get(r.accountId) : undefined;
+      if (t === "income" || t === "revenue") migRevenueH += toHalalas(r.credit) - toHalalas(r.debit);
+      else if (t === "expense") migExpensesH += toHalalas(r.debit) - toHalalas(r.credit);
+      else continue;
+      if (!migDate || r.date > migDate) migDate = r.date;
+    }
     const acc = new Map(months.map((m) => [m, { revenueH: 0, expensesH: 0 }]));
     for (const r of rows) {
       const t = r.accountId != null ? typeById.get(r.accountId) : undefined;
@@ -289,11 +303,15 @@ export const analyticsService = {
       const p = acc.get(m)!;
       return { month: m, revenue: fromHalalas(p.revenueH), expenses: fromHalalas(p.expensesH), net: fromHalalas(p.revenueH - p.expensesH) };
     });
-    const totalRevenueH = [...acc.values()].reduce((s2, p) => s2 + p.revenueH, 0);
-    const totalExpensesH = [...acc.values()].reduce((s2, p) => s2 + p.expensesH, 0);
+    const totalRevenueH = [...acc.values()].reduce((s2, p) => s2 + p.revenueH, 0) + migRevenueH;
+    const totalExpensesH = [...acc.values()].reduce((s2, p) => s2 + p.expensesH, 0) + migExpensesH;
+    const migrated = migRevenueH !== 0 || migExpensesH !== 0
+      ? { date: migDate!, revenue: fromHalalas(migRevenueH), expenses: fromHalalas(migExpensesH), net: fromHalalas(migRevenueH - migExpensesH) }
+      : null;
     return {
       from, to, expenseAnalysis: "nature" as const,
       points,
+      migrated,
       totals: { revenue: fromHalalas(totalRevenueH), expenses: fromHalalas(totalExpensesH), net: fromHalalas(totalRevenueH - totalExpensesH) },
     };
   },

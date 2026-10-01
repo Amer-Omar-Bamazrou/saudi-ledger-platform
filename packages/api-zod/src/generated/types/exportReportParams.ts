@@ -22,4 +22,16 @@ account_id?: string;
 party_type?: ExportReportPartyType;
 customer_id?: string;
 vendor_id?: string;
+/**
+ * budget-vs-actual only
+ */
+budget_id?: string;
+/**
+ * budget-vs-actual only
+ */
+version_id?: string;
+/**
+ * budget-vs-actual only
+ */
+through_period?: string;
 };

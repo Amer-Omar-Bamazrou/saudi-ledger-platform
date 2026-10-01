@@ -66,6 +66,7 @@ import SupplierCreditNotes from '@/pages/SupplierCreditNotes';
 import Products from '@/pages/Products';
 import BankAccounts from '@/pages/BankAccounts';
 import Budgets from '@/pages/Budgets';
+import BudgetDetail from '@/pages/BudgetDetail';
 import UserManagement from '@/pages/UserManagement';
 import CompanySettings from '@/pages/CompanySettings';
 import ClosedMonths from '@/pages/ClosedMonths';
@@ -296,6 +297,7 @@ function Router() {
               <Route path="/cash-position" component={CashPosition} />
               {/* Planning */}
               <Route path="/budgets" component={Budgets} />
+              <Route path="/budgets/:id" component={BudgetDetail} />
               {/* Settings */}
               <Route path="/categories" component={Categories} />
               <Route path="/approvals" component={Approvals} />

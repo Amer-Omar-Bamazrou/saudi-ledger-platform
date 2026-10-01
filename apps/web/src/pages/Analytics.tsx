@@ -5,8 +5,9 @@ import {
 } from "recharts";
 import {
   useGetTrend, useGetDecomposition, useGetSummary, useListBudgets,
-  useGetReceivablesBridge, useGetCashReconciliation, useGetPnlTrend,
+  useGetReceivablesBridge, useGetCashReconciliation, useGetPnlTrend, useGetBudgetVsActual, getGetBudgetVsActualQueryKey,
 } from "@workspace/api-client-react";
+import { Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { AskYourBooks } from "@/components/AskYourBooks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,7 +75,7 @@ function currentMonthRange(): { from: string; to: string } {
 }
 
 export default function Analytics() {
-  const { t } = useLanguage();
+  const { t, n } = useLanguage();
   /**
    * 6 months by default, not 12 or 24. A long window on a young or quiet tenant
    * is mostly empty months, and an empty month is not informative — it is just
@@ -214,19 +215,25 @@ export default function Analytics() {
   });
 
   /**
-   * M19.5 — budget vs actual, ANNUAL ONLY (owner decision, design §7).
-   *
-   * 🔴 It compares the whole YEAR, not the window above, and the card says so.
-   * `budgets.period` is a `YYYY` string — one row per category per year — and
-   * apportioning it across months was ruled out: a business with a Ramadan peak
-   * does not spend a twelfth each month, so ÷12 would render a guess about
-   * seasonality as a variance in performance. Stating the limitation is honest;
-   * inventing the missing precision is not.
+   * Phase 15 (D15-14) — budget vs actual from the APPROVED BASE budget of the
+   * fiscal year containing the window's end, through the same endpoint as the
+   * budget page. Year to date runs through a COMPLETED fiscal period, and an
+   * annual-only line is never divided (no YTD budget) — the M19.5 "do not
+   * apportion" rule, kept. It answers for the fiscal year, NOT the window
+   * above, and the card says so.
    */
-  const budgetYear = window_.to.slice(0, 4);
-  const { data: budgets } = useListBudgets({ period: budgetYear });
-  const budgetRows = [...(budgets ?? [])].sort(
-    (a, b) => Math.abs(b.variance) - Math.abs(a.variance),
+  const windowEnd = (() => {
+    const [y, m] = window_.to.split("-").map(Number);
+    return new Date(Date.UTC(y!, m!, 0)).toISOString().slice(0, 10);
+  })();
+  const { data: yearBudgets } = useListBudgets({ as_of: windowEnd, scenario: "base" });
+  const baseBudget = yearBudgets?.find((b) => b.approvedVersionId != null);
+  const bvaParams = { version_id: baseBudget?.approvedVersionId ?? undefined };
+  const { data: bva } = useGetBudgetVsActual(baseBudget?.id ?? 0, bvaParams, {
+    query: { enabled: !!baseBudget, queryKey: getGetBudgetVsActualQueryKey(baseBudget?.id ?? 0, bvaParams) },
+  });
+  const budgetRows = [...(bva?.lines ?? []), ...(bva?.unbudgeted ?? [])].sort(
+    (a, b) => Math.abs(b.ytd.variance ?? 0) - Math.abs(a.ytd.variance ?? 0),
   );
 
   /**
@@ -483,6 +490,16 @@ export default function Analytics() {
             </ResponsiveContainer>
           )}
         </CardContent>
+        {pnl?.migrated && (
+          <div className="px-6 pb-2 text-xs text-muted-foreground" data-testid="analytics-pnl-migrated">
+            {t(
+              `Brought in by migration on ${pnl.migrated.date} — the previous system's year to date, not split by month: `,
+              `أُدخل بالترحيل في ${pnl.migrated.date} — ما سبق من السنة في النظام السابق، غير مقسَّم على الأشهر: `,
+            )}
+            {t("revenue", "الإيرادات")} <span className="font-mono" dir="ltr">{formatCurrency(pnl.migrated.revenue)}</span> · {t("expenses", "المصروفات")} <span className="font-mono" dir="ltr">{formatCurrency(pnl.migrated.expenses)}</span>
+            {t(" — included in the window total below.", " — وهو مُدرج في إجمالي النافذة أدناه.")}
+          </div>
+        )}
         {pnl && (
           <div className="px-6 pb-4 text-xs text-muted-foreground" data-testid="analytics-pnl-totals">
             {t("Window total", "إجمالي النافذة")}: {t("revenue", "الإيرادات")} <span className="font-mono" dir="ltr">{formatCurrency(pnl.totals.revenue)}</span> · {t("expenses", "المصروفات")} <span className="font-mono" dir="ltr">{formatCurrency(pnl.totals.expenses)}</span> · {t("net", "الصافي")} <span className="font-mono" dir="ltr">{formatCurrency(pnl.totals.net)}</span>
@@ -881,64 +898,65 @@ export default function Analytics() {
         </CardContent>
       </Card>
 
-      {/* ── Budget vs actual — ANNUAL, and it says so (M19.5) ─────────────── */}
-      <Card>
+      {/* ── Budget vs actual — the approved base budget, its fiscal year, and it says so (D15-14) ── */}
+      <Card data-testid="analytics-budget-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">{t("Against budget", "مقارنةً بالميزانية")}</CardTitle>
           <CardDescription>
-            {/*
-              🔴 The limitation is stated, not implied by an empty axis.
-              Budgets are annual; a monthly budget line would have to be
-              invented, and an invented figure presented as a variance is worse
-              than no figure at all.
-            */}
-            {t(
-              `Budgets are set per year, so this compares the whole of ${budgetYear} — not the range selected above.`,
-              `تُحدَّد الميزانيات سنوياً، لذا تقارن هذه البطاقة عام ${budgetYear} بأكمله — وليس النطاق المحدد أعلاه.`,
-            )}
+            {bva
+              ? t(
+                  `The approved base budget for the fiscal year ${bva.fiscalYear.startDate} – ${bva.fiscalYear.endDate}, year to date through period ${bva.throughPeriod}${bva.throughDate ? ` (${bva.throughDate})` : ""} — not the range selected above.`,
+                  `الميزانية الأساسية المعتمدة للسنة المالية ${bva.fiscalYear.startDate} – ${bva.fiscalYear.endDate}، منذ بداية السنة حتى الفترة ${bva.throughPeriod}${bva.throughDate ? ` (${bva.throughDate})` : ""} — وليس النطاق المحدد أعلاه.`,
+                )
+              : t("Budgets are set per fiscal year and approved; this card reads the approved base budget.", "تُحدَّد الميزانيات لكل سنة مالية وتُعتمد؛ وتقرأ هذه البطاقة الميزانية الأساسية المعتمدة.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {budgetRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {t(
-                `No budgets are set for ${budgetYear}. Set them in Planning → Budgets and this fills in.`,
-                `لم تُحدَّد ميزانيات لعام ${budgetYear}. حدِّدها من التخطيط ← الميزانيات وسيظهر المحتوى.`,
-              )}
+          {!baseBudget ? (
+            <p className="text-sm text-muted-foreground" data-testid="analytics-budget-empty">
+              {t("No approved base budget covers this period. Create one in Planning → Budgets, submit it, and once it is approved this fills in.", "لا توجد ميزانية أساسية معتمدة تغطي هذه الفترة. أنشئها من التخطيط ← الميزانيات وقدّمها، وبعد اعتمادها يظهر المحتوى.")}
             </p>
+          ) : !bva ? (
+            <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground uppercase border-b">
                   <tr>
-                    <th className="px-2 py-2 text-left">{t("Category", "الفئة")}</th>
-                    <th className="px-2 py-2 text-right">{t("Budgeted", "المُدرج")}</th>
-                    <th className="px-2 py-2 text-right">{t("Actual", "الفعلي")}</th>
-                    <th className="px-2 py-2 text-right">{t("Difference", "الفرق")}</th>
+                    <th className="px-2 py-2 text-start">{t("Account", "الحساب")}</th>
+                    <th className="px-2 py-2 text-end">{t("Budget to date", "الميزانية حتى تاريخه")}</th>
+                    <th className="px-2 py-2 text-end">{t("Actual to date", "الفعلي حتى تاريخه")}</th>
+                    <th className="px-2 py-2 text-end">{t("Difference", "الفرق")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {budgetRows.map((b) => (
-                    <tr key={b.id}>
-                      <td className="px-2 py-2">{b.categoryName ?? b.name ?? "—"}</td>
-                      <td className="px-2 py-2 text-right font-mono text-xs">{formatCurrency(b.budgetedAmount)}</td>
-                      <td className="px-2 py-2 text-right font-mono text-xs">{formatCurrency(b.actualAmount)}</td>
+                  {budgetRows.map((l) => (
+                    <tr key={l.accountId}>
+                      <td className="px-2 py-2">{n(l.accountName, l.accountNameAr)}{l.mode !== "periods" && <span className="text-muted-foreground text-xs ms-1">({l.mode === "annual" ? t("annual only", "سنوي فقط") : t("not budgeted", "غير مُدرج")})</span>}</td>
+                      <td className="px-2 py-2 text-end font-mono text-xs" dir="ltr">{l.ytd.budget == null ? "—" : formatCurrency(l.ytd.budget)}</td>
+                      <td className="px-2 py-2 text-end font-mono text-xs" dir="ltr">{formatCurrency(l.ytd.actual)}</td>
                       {/*
-                        Neutral ink, never the status palette: over budget is a
-                        judgment about a plan, not a system state, and a plan
+                        Neutral ink, never the status palette: over or under budget
+                        is a judgment about a plan, not a system state, and a plan
                         may have been wrong.
                       */}
-                      <td className="px-2 py-2 text-right font-mono text-xs">
-                        {b.variance < 0 ? "+" : ""}
-                        {formatCurrency(Math.abs(b.variance))}
-                        <span className="text-muted-foreground ml-1">
-                          {b.variance < 0 ? t("over", "تجاوز") : t("left", "متبقٍ")}
-                        </span>
+                      <td className="px-2 py-2 text-end font-mono text-xs">
+                        {l.ytd.variance == null ? "—" : <span dir="ltr">{formatCurrency(l.ytd.variance)}</span>}
+                        {l.ytd.favourable != null && <span className="text-muted-foreground ms-1">{l.ytd.favourable ? t("favourable", "ملائم") : t("unfavourable", "غير ملائم")}</span>}
                       </td>
                     </tr>
                   ))}
+                  <tr className="font-semibold" data-testid="analytics-budget-net">
+                    <td className="px-2 py-2">{t("Net", "الصافي")}</td>
+                    <td className="px-2 py-2 text-end font-mono text-xs" dir="ltr">{bva.totals.net.ytd.budget == null ? "—" : formatCurrency(bva.totals.net.ytd.budget)}</td>
+                    <td className="px-2 py-2 text-end font-mono text-xs" dir="ltr">{formatCurrency(bva.totals.net.ytd.actual)}</td>
+                    <td className="px-2 py-2 text-end font-mono text-xs" dir="ltr">{bva.totals.net.ytd.variance == null ? "—" : formatCurrency(bva.totals.net.ytd.variance)}</td>
+                  </tr>
                 </tbody>
               </table>
+              <p className="text-xs text-muted-foreground mt-2">
+                <Link href={`/budgets/${bva.budgetId}`} className="underline">{t("Open the budget", "فتح الميزانية")}</Link>
+              </p>
             </div>
           )}
         </CardContent>

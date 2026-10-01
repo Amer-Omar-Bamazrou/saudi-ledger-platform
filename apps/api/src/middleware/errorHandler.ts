@@ -11,6 +11,33 @@
  */
 import type { Request, Response, NextFunction } from "express";
 
+/** Phase 15 — the 0112 trigger refusals, by the constraint name each raises (422: the request names something it may not; 409: a lifecycle state). */
+const BUDGET_TRIGGER_STATUS: Record<string, 409 | 422> = {
+  budget_header_frozen: 409,
+  budget_header_tenant: 422,
+  budget_version_superseded_alone: 409,
+  budget_version_tenant: 422,
+  budget_version_born_draft: 409,
+  budget_version_sequence: 409,
+  budget_version_revision_base: 409,
+  budget_version_immutable: 409,
+  budget_version_identity: 409,
+  budget_version_transition: 409,
+  budget_line_tenant: 422,
+  budget_line_locked: 409,
+  budget_line_identity: 409,
+  budget_line_account: 422,
+  budget_line_mode: 422,
+  budget_no_truncate: 409,
+};
+/** The 0112 unique indexes a concurrent request can collide on. */
+const BUDGET_UNIQUE_MESSAGE: Record<string, string> = {
+  budgets_company_year_scenario_name_unq: "A budget with this name and scenario already exists for that fiscal year.",
+  budget_versions_one_open_unq: "Another version of this budget is already open — finish or reject it first.",
+  budget_versions_one_approved_unq: "This budget already has an approved version.",
+  budget_versions_no_unq: "Another version of this budget was created at the same moment — reload and try again.",
+};
+
 export function errorHandler(
   err: unknown,
   req: Request,
@@ -61,6 +88,27 @@ export function errorHandler(
   }
   if (pgCode === "23514" && /is reconciled to a bank statement line/.test(pgMessage)) {
     res.status(409).json({ code: "entry_reconciled", error: pgMessage });
+    return;
+  }
+
+  // Phase 15: the budget triggers (0112) lock the lifecycle and the tenancy of
+  // every row at the database, so they refuse from EVERY path — translated here
+  // once. The constraint name is the stable code; the database's sentence is
+  // the message. A wrong account / mixed mode / foreign row is a 422 (the
+  // request names something it may not); a lifecycle step is a 409 (state).
+  // An EXACT allow-list — a plain CHECK or a primary-key fault on these tables
+  // is a bug, not a refusal, and stays a logged 500.
+  const pgConstraint = (err as { constraint?: string })?.constraint ?? (pg?.cause as { constraint?: string } | undefined)?.constraint;
+  const budgetRefusal = pgCode === "23514" && pgConstraint ? BUDGET_TRIGGER_STATUS[pgConstraint] : undefined;
+  if (budgetRefusal) {
+    req.log.warn({ code: pgConstraint }, "budget refusal from the database");
+    res.status(budgetRefusal).json({ code: pgConstraint, error: pgMessage });
+    return;
+  }
+  const budgetConflict = pgCode === "23505" && pgConstraint ? BUDGET_UNIQUE_MESSAGE[pgConstraint] : undefined;
+  if (budgetConflict) {
+    req.log.warn({ constraint: pgConstraint }, "budget conflict from the database");
+    res.status(409).json({ code: "budget_conflict", constraint: pgConstraint, error: budgetConflict });
     return;
   }
 

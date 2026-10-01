@@ -106,12 +106,14 @@ export interface SeededIds {
   migrationBatchId: number;
   /** Batch 1C: the migration tenant's bank account (the spec maps the old bank row to it). */
   migrationBankId: number;
+  /** Phase 15: the smoke tenant's APPROVED 2026 base budget, so `/budgets/:id` is crawlable. */
+  budgetId: number;
 }
 
 export const SEEDED_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), ".auth", "ids.json");
 
 /** One API call; any non-2xx is a seed failure that names the call and the server's answer. */
-async function api<T = any>(ctx: APIRequestContext, method: "GET" | "POST" | "PATCH", path: string, data?: unknown): Promise<T> {
+async function api<T = any>(ctx: APIRequestContext, method: "GET" | "POST" | "PATCH" | "PUT", path: string, data?: unknown): Promise<T> {
   const res = await ctx.fetch(`/api${path}`, { method, data, headers: { "content-type": "application/json" } });
   if (!res.ok()) throw new Error(`e2e seed: ${method} ${path} → ${res.status()} ${(await res.text()).slice(0, 400)}`);
   const text = await res.text();
@@ -443,7 +445,23 @@ export default async function globalSetup(): Promise<void> {
     vatInputTaxAmount: 1800,
   });
 
-  await api(ctx, "POST", "/budgets", { name: "E2E Marketing Budget", period: "2026", budgetedAmount: 50000 });
+  // Phase 15: an APPROVED 2026 base budget — so /budgets lists a row, /budgets/:id is crawlable and the
+  // Analytics card has figures. A budget needs a DECLARED fiscal year (D15-15): declare one, create the
+  // budget (it FREEZES its year, D15-01), then put the company back undeclared, as every other spec found it.
+  await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: 1, fiscalCalendar: "gregorian" });
+  const budget = await api<{ id: number; version: { id: number } }>(ctx, "POST", "/budgets", { name: "E2E Operating Budget", nameAr: "ميزانية التشغيل", fiscalYearLabel: 2026 });
+  await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: null });
+  const budgetAccounts = await api<Array<{ id: number; name: string }>>(ctx, "GET", "/budgets/accounts");
+  const salesAccount = budgetAccounts.find((a) => a.name === "Sales Revenue");
+  const purchasesAccount = budgetAccounts.find((a) => a.name === "Purchases");
+  if (!salesAccount || !purchasesAccount) throw new Error("e2e seed: the Sales Revenue / Purchases system accounts are missing from /budgets/accounts");
+  await api(ctx, "PUT", `/budgets/${budget.id}/versions/${budget.version.id}/lines`, {
+    lines: [
+      { accountId: salesAccount.id, periods: [1000, 1000, 1000, 1000, 1000, 2000, 3000, 3000, 1000, 1000, 1000, 1000] },
+      { accountId: purchasesAccount.id, annualAmount: 6000 },
+    ],
+  });
+  await api(ctx, "POST", `/budgets/${budget.id}/versions/${budget.version.id}/approve`);
 
   const quotation = await api(ctx, "POST", "/quotations", {
     date: "2026-08-01",
@@ -503,5 +521,5 @@ export default async function globalSetup(): Promise<void> {
     await s1.dispose();
   }
 
-  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id } satisfies SeededIds, null, 2));
+  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id, budgetId: budget.id } satisfies SeededIds, null, 2));
 }

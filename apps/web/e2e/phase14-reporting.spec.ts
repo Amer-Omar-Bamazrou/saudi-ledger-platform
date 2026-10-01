@@ -173,19 +173,25 @@ test.describe.serial("Phase 14 — the statements, end to end", () => {
     await expect(page.getByTestId("analytics-pnl-totals")).toContainText(sar(trend.totals.net));
   });
 
-  test("🔴 every Phase 14 page in Arabic (dir=rtl, the Arabic heading ASSERTED) and English, on a desktop and a 390 px phone — no sideways scroll", async ({ page }) => {
-    const ar = (await (await api.get("/api/reports/balance-sheet?as_of=" + TO)).json()).assets.accountsReceivableKey as string;
-    const PAGES: [string, string, RegExp][] = [
-      ["/trial-balance", "tb-total-debit", /ميزان المراجعة/],
-      ["/income-statement", "is-nature-note", /قائمة الدخل/],
-      ["/balance-sheet", "bs-balanced", /الميزانية العمومية/],
-      ["/cash-flow", "cf-statement", /قائمة التدفق النقدي/],
-      [`/reports/general-ledger?account_id=${ar}&date_from=${FROM}&date_to=${TO}`, "gl-closing", /دفتر الأستاذ العام/],
-      ["/ar-aging", "aging-total", /تقرير أعمار الذمم المدينة/],
-      ["/ap-aging", "ap-recon-total", /أعمار الذمم الدائنة/],
-      ["/analytics", "analytics-pnl-trend", /التحليلات/],
-    ];
-    for (const [path, testId, arabicHeading] of PAGES) {
+  // 🔴 One test PER PAGE: 30 s is a budget for one page's four modes, not for a sweep of eight
+  // (the phase11 spec's lesson, met here on the fresh-database run, 2026-10-01). Same assertions.
+  const SWEEP: [string, string, RegExp][] = [
+    ["/trial-balance", "tb-total-debit", /ميزان المراجعة/],
+    ["/income-statement", "is-nature-note", /قائمة الدخل/],
+    ["/balance-sheet", "bs-balanced", /الميزانية العمومية/],
+    ["/cash-flow", "cf-statement", /قائمة التدفق النقدي/],
+    ["GENERAL_LEDGER", "gl-closing", /دفتر الأستاذ العام/],
+    ["/ar-aging", "aging-total", /تقرير أعمار الذمم المدينة/],
+    ["/ap-aging", "ap-recon-total", /أعمار الذمم الدائنة/],
+    ["/analytics", "analytics-pnl-trend", /التحليلات/],
+  ];
+  for (const [pathOrKey, testId, arabicHeading] of SWEEP) {
+    test(`🔴 ${pathOrKey === "GENERAL_LEDGER" ? "/reports/general-ledger" : pathOrKey} in Arabic (dir=rtl, the Arabic heading ASSERTED) and English, on a desktop and a 390 px phone — no sideways scroll`, async ({ page }) => {
+      let path = pathOrKey;
+      if (pathOrKey === "GENERAL_LEDGER") {
+        const ar = (await (await api.get("/api/reports/balance-sheet?as_of=" + TO)).json()).assets.accountsReceivableKey as string;
+        path = `/reports/general-ledger?account_id=${ar}&date_from=${FROM}&date_to=${TO}`;
+      }
       for (const [lang, viewport, label] of [
         ["en", null, "EN desktop"], ["en", PHONE, "EN phone"], ["ar", null, "AR desktop"], ["ar", PHONE, "AR phone"],
       ] as [string, typeof PHONE | null, string][]) {
@@ -198,8 +204,8 @@ test.describe.serial("Phase 14 — the statements, end to end", () => {
         if (lang === "ar") await expect(page.getByRole("heading", { name: arabicHeading }).first(), `${path} ${label} heading`).toBeVisible();
         await noSidewaysScroll(page, viewport?.width ?? DESKTOP, `${path} ${label}`);
       }
-    }
-    await page.evaluate(() => localStorage.setItem("ksa_lang", "en"));
-    await page.setViewportSize({ width: DESKTOP, height: 900 });
-  });
+      await page.evaluate(() => localStorage.setItem("ksa_lang", "en"));
+      await page.setViewportSize({ width: DESKTOP, height: 900 });
+    });
+  }
 });

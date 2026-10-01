@@ -1,6 +1,9 @@
 # Phase 14 + Phase 15 — Financial Reporting & Analytics; Budgeting & Planning
 
-**Status (2026-10-01): decision pack for implementation, written before code.**
+**Status (2026-10-01): both phases implemented, reviewed (§6.1) and tested on
+the branch below; the PR is open and NOT merged. Written before the code, and
+corrected where the build or the reviews proved a decision wrong (D14-03,
+D14-15 — marked in place).**
 Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
 Branch: `feat/phase14-15-reporting-budgeting` (from `main` @ `0b0175da`).
 
@@ -225,8 +228,25 @@ position, dated cut-over − 1, and its whole-batch reversal):
 - **are** in every as-of balance (BS, TB closing, GL running balance);
 - **are** in a P&L range that contains them. They carry the previous system's
   YTD income and expense, which belongs to the fiscal year (Batch 1C R5);
-- are shown in the **TB opening** column even when dated inside the range
-  (ERPNext's `is_opening` treatment, PRECEDENT);
+- their **balance-sheet lines** are shown in the **TB opening** column even when
+  dated inside the range (ERPNext's `is_opening` treatment, PRECEDENT);
+- 🔴 **refined 2026-10-01 (accounting review M1):** their **income and expense
+  lines** are period MOVEMENT in every report — the P&L, the TB's debit/credit
+  columns, the GL, the statement of changes in equity — because they are the
+  previous system's year-to-date P&L, which belongs to the fiscal year (Batch 1C
+  R5). The first version put them in the TB opening while the P&L counted them,
+  so the TB, the equity statement and the P&L disagreed for the same dates.
+  ERPNext forbids P&L accounts in an opening entry, so its precedent never
+  covered these lines. One balanced entry split across two TB columns leaves
+  each column off by the migrated result X; a computed row, "year-to-date result
+  brought in by migration (opening → period)", carries X in the opening column
+  and −X in the period, and closes at zero — Σ opening = Σ closing = 0 and
+  debits = credits hold;
+- in the **P&L trend and budget vs actual** the migrated year-to-date is ONE
+  amount on its date, never placed in the month it was booked (it would read as
+  that month's) and never spread across the months it covers — the "do not
+  apportion" rule applied to actuals (accounting review M2). It is in the
+  totals, so they still equal the income statement;
 - are **never** a cash flow. They appear as a separate reconciling line,
   "opening balances brought in by migration", between opening and closing
   cash.
@@ -516,35 +536,45 @@ e2e test follows the link and reads the figure.
 
 ### D14-15 — Performance
 
-**Measured, not assumed.** The local database holds 397 journal lines — any
-plan there is a sequential scan and proves nothing about scale (§3 "small
-fixtures test differently"). The seam was therefore measured on **synthetic
-volume inside one transaction that was rolled back** (nothing persisted; the
-line count was 397 before and after): a target company with 60k lines and a
-neighbouring tenant with 240k.
+**Measured, not assumed — and re-measured when the first measurement was
+wrong.** The local database holds 397 journal lines, so any plan there is a
+sequential scan (§3 "small fixtures test differently"). The seam is measured on
+**synthetic volume inside one transaction that is rolled back** (397 lines
+before and after): a target company with 60k lines and a neighbouring tenant
+with 240k, **run as the tenant role `authenticated` with RLS on and both GUCs
+set**, reading each scan's Index Cond off the plan.
 
-| Query | Existing indexes | With migration 0111 |
+🔴 **Correction (database review, 2026-10-01).** The first version of this
+section claimed an expression index `((company_id::text), date)` took a
+one-month P&L from 104 ms to 12 ms. The plan said otherwise: the Index Cond was
+on the DATE alone — 4,218 rows, both tenants' entries for the month — because
+under RLS a predicate whose functions touch the row and are not leakproof
+(`uuid_out` behind `::text`) cannot be an index condition. The speed-up came
+from the date column; the company part of the index did nothing. Reading the
+timing instead of the plan is the §3 unvalidated-probe failure, aimed at our own
+instrument.
+
+**The fix.** `companyScoped()` compares the column AS A UUID —
+`company_id = nullif(current_setting('app.current_company_id', true), '')::uuid`
+— the same semantics (an empty or unset GUC matches nothing), with the leakproof
+`uuid = uuid` applied to the column and a value computed once. Migration 0111
+creates a plain `(company_id, date)` index (and `journal_entry_lines
+(journal_entry_id)` for the join probe).
+
+| Query (as `authenticated`) | Old `::text` predicate | Typed predicate + 0111 |
 |---|---|---|
-| P&L, one month (`movementOnly`) | Parallel seq scan of **every tenant's** lines; 125k buffers; 104 ms | Bitmap index scan, then a line probe; 3.3k buffers; 12 ms |
-| TB / BS, all history to year end | Seq scan of all lines; 196 ms | Seq scan of entries (it reads ~all of the company's rows, correctly) + line probe; 174 ms |
+| P&L, one month | Index Cond on date only: 4,218 entries (both tenants), filtered after; 7.4 ms | **Index Cond: company_id AND date** — 790 entries, this tenant only; 3.9 ms |
+| TB / BS, all history | Parallel seq scan of every tenant's entries; 136 ms | Index Cond: company_id AND date — 30,000 entries (this tenant's); 122 ms (it reads all of them, correctly) |
 
-**Why the obvious index would not have worked.** Every tenant predicate —
-`companyScoped()` and the RLS company arm — compares `company_id::text =
-current_setting(...)`. A plain index on the uuid column `(company_id, date)`
-cannot serve a predicate on `company_id::text`. The index that works is the
-EXPRESSION the predicate already uses: `((company_id::text), date)`. Plus
-`journal_entry_lines (journal_entry_id)` for the join probe (the existing
-`(organization_id, journal_entry_id)` cannot serve a probe on the entry id
-alone).
+**Guarded, not just measured.** `phase14-reporting-invariants` EXPLAINs the real
+seam query as the tenant role and asserts `Index Cond: ((company_id = …` on
+`journal_entries_company_date_idx`; reverting `companyScoped` to the text form
+FAILS it (mutation R14 — the only mutation no correctness test could see).
 
-**Migration 0111** adds exactly those two indexes (no row, grant or policy
-change). Declared in the Drizzle schema so drizzle-kit cannot read them as
-drift.
-
-**OPEN (platform-wide, not Phase 14's to change):** the `::text` cast is in
-every RLS policy. Each table's hot query needs either an expression index
-like this one or a sargable predicate (`company_id = nullif(current_setting(…),
-'')::uuid`). Recorded as F-18.
+**OPEN (platform-wide):** every RLS policy, and fifteen hand-written predicates
+outside this branch's files (bank reconciliation, bills, payments, captured
+documents, analytics' own queries…), still compare `company_id::text`. Same
+answer, no index. Recorded as F-18.
 
 ---
 
@@ -602,10 +632,254 @@ now pins the asset, liability and equity totals themselves.
 
 ---
 
-## 5. Phase 15
+## 5. Phase 15 — Budgeting & Planning
 
-Written at Step 7, after Phase 14 is implemented (§6 of the brief's
-execution order).
+### 5.0 Baseline (inventory 2026-10-01) and the authority position
+
+**What existed (M19).** One table, `budgets`: one row per account per calendar
+year (`period` = `"YYYY"`), an amount, no lifecycle, no approval, no versions.
+Actuals were read from `transactions` (accepted, operating) — not the GL (F-10).
+The repository was company-blind (listed in `NO_COMPANY_FILTER`). The owner
+decided on 2026-08-15 (design-analytics §7): **annual only, and do not
+apportion** ("annual ÷ 12 is wrong for a business with a Ramadan peak"), with
+"a real user asking for monthly budgets" as the revisit trigger.
+
+**Authority.** None governs a private company's budget: no Saudi statute or
+ZATCA rule, no SOCPA/IFRS standard (IPSAS 24 is public-sector only), and the
+CMA governance requirement binds Main Market boards only (§1.1). **Every Phase
+15 decision is therefore PRODUCT, informed by PRECEDENT** (ERPNext v15
+`budget.py` / `budget_variance_report.py`; Odoo 11 `crossovered.budget`, Odoo
+18 `budget.analytic`; §1.2). No authoritative source conflicts — there is none
+to conflict.
+
+### D15-01 — The model: budget → versions → lines (normalised)
+
+| Table | Holds | Key rules |
+|---|---|---|
+| `budgets` | One budget: company, name, scenario, and its **frozen fiscal year** (calendar, start month, label, start and end dates) | fiscal fields immutable; one budget per (company, fiscal-year start, scenario, name) |
+| `budget_versions` | Its revisions: `version_no` 1, 2, …, status, who/when for each transition, the send-back note, the version it was revised from | one APPROVED and one OPEN (draft or submitted) per budget — partial unique indexes |
+| `budget_lines` | Version × account × period: `period_no` 1–12, or NULL for an **annual-only** amount | an account is periodised OR annual in a version, never both; amount ≥ 0 in the account's natural direction |
+
+The fiscal year is **frozen on the budget** because `companies.fiscal_year_start`
+and `fiscal_calendar` are editable (M17.2): a budget keeps the periods it was
+set against, and its period boundaries are recomputed deterministically from
+the frozen fields (`fiscalMonths`, pure, beside `resolveFiscalYear`).
+
+**Precedent.** ERPNext: one fiscal year per budget, amend = a new revision;
+Odoo 18: "Revise" creates a new budget and marks the original revised.
+
+### D15-02 — Which accounts: income and expense posting accounts only
+
+ERPNext refuses a budget on a non-P&L account; we do the same, at the WRITE
+BOUNDARY (an admit trigger), not in one path. A capital-expenditure budget on
+balance-sheet accounts is **OPEN** (not in the brief; it needs its own actual
+definition — additions, not balances).
+
+### D15-03 — Periods: the 12 fiscal months; annual-only lines are kept; NOTHING is apportioned
+
+- Periods are the twelve months of the frozen fiscal year — Gregorian months,
+  or Umm al-Qura Hijri months for a Hijri company (the platform's one Hijri
+  source, `hijriCalendar.ts`).
+- A line may hold twelve period amounts **or** one annual amount.
+- 🔴 **An annual-only amount is never divided.** Its period budgets and its
+  year-to-date budget are `null` — not a twelfth — and the response says why
+  (`mode: "annual"`). This is the owner's 2026-08-15 rule, kept verbatim; it
+  also rejects ERPNext's monthly-distribution percentages and Odoo's linear
+  "theoretical amount", both of which are apportioning.
+- 🔴 **OWNER REVIEW — the 2026-08-15 decision is extended, not reversed.** It
+  chose "annual only" because a periodised UI was speculative ("nobody has asked
+  for it"). The owner's Phase 15 brief now asks for budget vs actual by period;
+  periodised entry is therefore built **beside** annual entry, and the "do not
+  apportion" rule binds both. If the owner wants annual-only kept as the only
+  mode, removing the period editor is a UI change with no data migration.
+
+### D15-04 — Lifecycle: the existing approval engine, locked at the database
+
+```
+draft ──submit──▶ submitted ──approve──▶ approved ──(a revision is approved)──▶ superseded
+  ▲                   │  │
+  └────send-back──────┘  └──reject──▶ (the version is deleted — no archive, the engine's rule)
+```
+
+- Transitions go through `approvalService` with a `budget_version` adapter —
+  the same state machine and audit trail as journal entries, bills, invoices
+  and payroll (one writer per effect).
+- Approve may run from `draft` (the engine's self-approve rule, as for journal
+  entries).
+- **A revision** is a new `draft` version copying the approved version's lines.
+  Approving it supersedes the previous approved version **in the same
+  transaction**; the partial unique index makes two approved versions
+  inexpressible.
+- 🔴 **Locked at the database, not in the service:** a trigger refuses any line
+  INSERT/UPDATE/DELETE unless its version is `draft`; another refuses every
+  version UPDATE except the five transitions above, and any DELETE of an
+  approved or superseded version (so a budget that was ever approved cannot be
+  deleted, even by cascade).
+- A rejected version 1 with no other version takes its budget header with it
+  (a budget with no version is a shape with no content).
+
+**Precedent.** ERPNext: submitted documents are immutable; amend = revision.
+Odoo 18: Draft → Open → Revise. Neither ships an approval group.
+
+### D15-05 — Segregation of duties: none (the existing model has none)
+
+`approve` is held by admin and accountant, as for invoices, bills and journal
+entries, and nothing in the platform forbids the submitter from approving.
+The brief adds SoD "only if the existing model requires it" — it does not.
+
+### D15-06 — Actuals: the GL, accrual, through the Phase 14 seam
+
+- Actual = in-books (posted + reversed) GL lines on the account, company-scoped,
+  dated inside the period — `reportsRepository.ledgerMovementsByPeriod`, the
+  seam the P&L trend already uses. Signed in the account's natural direction
+  (income: credit − debit; expense: debit − credit).
+- This replaces the `transactions`-based actuals (F-10) and answers
+  design-analytics §7's open question — "cash or accrual?" — with **accrual**,
+  because the P&L and the P&L trend that share the screen are accrual.
+
+### D15-07 — Variance: signed, judged by account type, never coloured
+
+- `variance = actual − budget` (natural direction).
+- `favourable`: income → variance ≥ 0; expense → variance ≤ 0. Words, not the
+  status palette (§4: a variance is a judgment, not a state).
+- `variancePct = variance ÷ budget × 100`; **`null` when the budget is zero**
+  (the M19 service returned 0 — a number that would mean nothing).
+- **Year to date runs through a COMPLETED period** (`through_period`, default
+  the last fiscal month that ended before today). A whole month's budget is
+  never set against half a month's actual.
+- **Full year**: the year's budget against the actual of the year so far.
+
+### D15-08 — Forecast: separate, deterministic, never stored
+
+`forecast = actual for periods 1…k + approved budget for periods k+1…12`
+(k = `through_period`). No AI, no run-rate (a run-rate is apportioning by
+another name), never written to any table. An annual-only line has **no**
+forecast (`null`, with the reason). Labelled on screen as an outturn
+projection, not a budget.
+
+### D15-09 — Unbudgeted actuals are listed
+
+Income and expense accounts that moved but have no line are returned beside
+the lines, so Σ actual (budgeted + unbudgeted) = the income statement for the
+same dates — an invariant, not a hope.
+
+### D15-10 — Dimensions: the company only
+
+Cost centres, projects, branches and departments do not exist (D14-11); a
+budget is per company. Not invented.
+
+### D15-11 — The M19 table: kept as an archive, its rows copied, nothing deleted
+
+- `budgets` is renamed `budgets_legacy` (rows untouched — the standing
+  instruction not to modify local residue; and a migration has no business
+  deleting a tenant's records). Write grants are revoked: it is an archive.
+- Each legacy row WITH an income/expense account is copied into the new model:
+  one budget per (company, year), named after the year, holding ONE **draft**
+  version of annual-only lines. 🔴 Draft, not approved: the M19 rows were never
+  approved, and a migration that marked them approved would assert an approval
+  that never happened.
+- A legacy row with no account (or a non-P&L account) cannot be expressed (a
+  line needs an income or expense account); it stays in the archive and is
+  counted in the migration's notice.
+- Dropping the archive is an owner decision (OPEN).
+
+### D15-12 — Permissions
+
+`budgets` gains `approve` (admin + accountant) — the invoices/bills split:
+a bookkeeper drafts and submits, an approver approves, sends back or rejects.
+`delete` stays admin-only, and only for a budget never approved (D15-04).
+
+### D15-13 — Audit
+
+The engine records `submit`, `approve`, `send_back`, `reject` on
+`budget_version`; creation, line replacement (before → after), revision and
+deletion are recorded through `auditService` in the same transaction.
+
+### D15-14 — Integration with Phase 14
+
+- `GET /budgets/:id/vs-actual` reads the Phase 14 seam (D15-06).
+- The Analytics "Against budget" card reads the approved **base** budget of the
+  fiscal year containing the window's end, through the same endpoint.
+- `budget-vs-actual` is exportable (CSV/PDF) through `/reports/export`, the
+  same service output as the screen.
+
+### D15-15 — An undeclared fiscal year is refused, not defaulted
+
+Creating a budget for a company with no declared fiscal year is a 422
+`fiscal_year_undeclared` naming Company Settings — M20's F8 rule ("NULL means
+NOT DECLARED … never a January year that looks like an answer").
+
+### D15-16 — Tenancy
+
+All three tables carry `organization_id` + `company_id`, RLS `tenant_isolation`
+with the company arm, explicit grants and REVOKE of TRUNCATE/REFERENCES/TRIGGER.
+Admit triggers check that the budget, version and account a row names are in
+the SAME organisation and company — closing the cross-tenant FK edge (§3
+"FK checks run OUTSIDE RLS"), and answering a foreign id exactly as a
+non-existent one (no existence oracle). The repository filters by company
+(`companyScoped`), so it leaves `NO_COMPANY_FILTER`.
+
+### 5.1 Invariant matrix (Phase 15)
+
+| Id | Invariant |
+|---|---|
+| P1 | A budget never touches the books: every lifecycle step leaves the GL line count and the trial balance unchanged |
+| P2 | An approved version is immutable at the DATABASE (line and version writes refused there, not only in the service) |
+| P3 | At most one approved and one open version per budget; approving a revision supersedes the previous one atomically |
+| P4 | Σ actual (budgeted + unbudgeted) = the income statement for FY start → the end of the through-period |
+| P5 | Each period's actual = that period's movement in the ledger (the P&L trend months) |
+| P6 | Variance signed and judged by type; `variancePct` null at a zero budget |
+| P7 | No apportioning: an annual-only line has null period budgets, null YTD budget and null forecast |
+| P8 | Forecast = actual through k + budget k+1…12 |
+| P9 | Isolation: presence, absence, movement; an org-wide connection reads nothing |
+| P10 | A line's account is an income/expense account of the same tenant; a foreign id is refused exactly like a missing one |
+| P11 | A Hijri budget's periods are Umm al-Qura months, contiguous, covering the fiscal year exactly |
+
+### 5.2 As built (2026-10-01) — where each rule lives, and what tests it
+
+| Piece | Where |
+|---|---|
+| Tables, triggers, RLS, grants, the archive, the import | migration `0112_phase15_budgets.sql`; Drizzle `packages/db/src/schema/budgets.ts` |
+| Periods (Gregorian / Umm al-Qura) | `fiscalMonths()` beside `resolveFiscalYear()` in `apps/api/src/lib/fiscalYear.ts` |
+| Lifecycle, lines, revisions, budget vs actual | `apps/api/src/services/budgets.service.ts` (the `budget_version` approval adapter is in the same file) |
+| Company-scoped reads | `apps/api/src/repositories/budgets.repository.ts` (left `NO_COMPANY_FILTER`) |
+| Routes and the approver split | `routes/budgets.ts` behind `requirePermission("budgets")`; `budgets.approve` in `packages/db/src/permissions.ts` |
+| Database refusals → HTTP | `middleware/errorHandler.ts`: a `budget_*` trigger → 409 (state) or 422 (account / mode / tenant), the constraint as the code |
+| Export | `budget-vs-actual` in `reporting/reportExport.service.ts` |
+| UI | `pages/Budgets.tsx`, `pages/BudgetDetail.tsx`, the Analytics "Against budget" card; words in `lib/budgetLabels.ts` |
+
+**Tests.** `phase15-budgets.test.ts` (P1–P11 on product-written rows; the
+database locks attacked directly with owner SQL; isolation; Hijri; the
+import), `budget-actuals.test.ts` (the M19.0 sign rules re-pinned on the
+ledger), `phase15-budgets-http.test.ts` (each role, the gate, the tenant,
+refusals by name, the export, the error-handler translation),
+`workflow-contract-conformance.test.ts` (every budget response on its
+generated schema), `demo-seed.test.ts` (the demo's approved budget), and the
+browser walk `e2e/phase15-budgets.spec.ts`.
+
+**Mutation proofs (2026-10-01) — 13 mutations, all KILLED** (copy-aside,
+restored and checked by sha256):
+
+| # | Mutation | Killed by |
+|---|---|---|
+| B1 | income actual signed debit − credit | budget-actuals, P4…P8, YTD |
+| B2 | an annual amount apportioned into YTD (k/12) | P4…P8 (P7) |
+| B3 | the default YTD includes the open period | YTD default |
+| B4 | variance % = 0 at a zero budget | P4…P8 (P6) |
+| B5 | expense judgement inverted | budget-actuals, P4…P8 |
+| B6 | the list's company predicate dropped | P9 (org-wide reads nothing) |
+| B7 | approve without superseding first | P3, P2, P4…P8 |
+| B8 | no account pre-check (the trigger alone) | P10 |
+| B9 | forecast from all actuals, not through k | P4…P8 (P8) |
+| B10 | unbudgeted actuals left out of the totals | P4…P8 (P4) |
+| B11 | budget company = the org's FIRST company | D15-15 |
+| B12 | report fiscal year = the org's FIRST company | Phase 14 F-19 |
+| B13 | lines editable after submission | P1, P3, P2, P4…P8 |
+
+**Test cleanup.** An approved version is immutable at the database, so a suite
+that approves one deletes it with triggers off
+(`session_replication_role = replica`, children first) — the pattern the 1C
+suites already use for committed migrations.
 
 ---
 
@@ -632,3 +906,124 @@ execution order).
 | F-16 | INFO | Report exports are not written to `audit_logs` | DECISION: consistent with the platform rule — `audit_logs` records MUTATIONS, and a tenant's read of its own data is not audited (`documentsService.download` likewise); cross-tenant (operator) reads ARE audited. Owner may ask for export logging |
 | F-17 | INFO | TB `balance` no longer includes migration opening entries dated inside the window (D14-04) | documented; consumers checked |
 | F-18 | MEDIUM | Every RLS policy and `companyScoped()` compare `company_id::text`, which no plain index can serve — every tenant query at scale seq-scans all tenants unless an expression index matches | Phase 14 adds the expression index for the ledger seam (0111); the platform-wide pattern is OPEN |
+| F-19 | MEDIUM | `companiesRepository.findActive()` returns the org's FIRST company, not the company in scope — the Phase 14 fiscal-year reads (TB P&L reset, BS current year, export header) used it, so a second company with a different fiscal year would have been reported on the first one's year. Invisible today only because `resolveTenant` always scopes the first company | fixed for reports, export and budgets (`findCurrent()`), each pinned by a test that FAILS on the old call (mutations B11, B12). 🔴 OPEN: three pre-existing callers outside this brief — `assetReports`, `incomeTaxPool`, `vatCapitalAsset` |
+| F-20 | MEDIUM | The GL / account statement opened from a TB row answered a DIFFERENT question: a P&L account's opening included prior fiscal years, and a migration opening entry inside the window was listed as a movement | fixed (D14-09): one aggregate `glOpening` with the TB's rules; the account statement delegates to the GL; pinned by mutations G1–G3 |
+| F-21 | LOW | The web's `ExportableReport` was a hand-kept copy of the server's list | derived from the contract (`Parameters<typeof getExportReportUrl>[0]`) |
+| F-22 | INFO | An approved budget cannot be deleted, so it blocks deleting its organisation — like every other append-only record (committed migrations, VAT events) | by design (D15-04); tenant erasure is an owner procedure (C8 / PDPL) |
+| F-23 | LOW | The M19 Budgets page coloured variance with the status palette (§4: a variance is a judgment) | replaced: neutral ink and words (`judgementLabel`) |
+| F-24 | LOW | The demo seed's second budget named a system code that does not exist (`RENT_UTILITIES`), so it was silently never created | the demo budget uses `PURCHASES`, and `demo-seed.test.ts` now asserts the budget exists |
+| F-25 | MEDIUM | AR/AP ageing "today" (the subledger cache) includes documents dated AFTER today; a balance sheet as of today (D14-02) does not — so the two disagree whenever a future-dated invoice or bill exists. The UI balance sheet has always been as of a date, so the disagreement pre-dates Phase 14 at the page level | OPEN — the fix (the cache path filtered to `date ≤ as_of`) changes pre-existing ageing behaviour and many fixtures' dates; recommended for the owner's next ruling. Found on the FRESH database (see F-26) |
+| F-26 | INFO | A residue FK failure in a suite's cleanup hook SKIPS its tests — `purchase-orders` hid a real Phase 14 regression (a no-date balance sheet on documents dated after today) behind "failed in cleanup", locally; only the fresh database ran it | fixed (the suite reads the balance sheet as of its own window end); the lesson: a residue-failing suite is NOT a passing suite with noise — its assertions never ran |
+| F-27 | LOW | Report exports and the PDF renderer are unbounded before the row cap: the GL is loaded in full, then refused; no PDF concurrency cap; no export rate limit (security review 7) | OPEN — bounded by the 50k / 3k caps' refusal, not by memory; a limiter is a platform decision (C1's store exists) |
+| F-28 | LOW | The all-accounts general ledger (no account or party filter) lists period movement only: the cut-over position's balance-sheet lines are each account's OPENING, visible in that account's ledger and in the journal report, not in the all-accounts list (accounting review L5) | DECISION, documented — an all-accounts "opening" would sum to zero |
+| F-29 | INFO | A rejected highest revision frees its `version_no` for the next revision (database review 9) | accepted — versions are identified by id; the audit log keeps the rejected one |
+
+### 6.1 The three reviews (2026-10-01) — every finding, and what happened to it
+
+Independent read-only reviews ran on the full branch: **security**, **database**
+(migrations 0111/0112) and **accounting** (the report and budget logic). None
+found a CRITICAL or HIGH issue.
+
+| Review finding | Severity | Disposition |
+|---|---|---|
+| CSV formula injection (security 1, accounting L4) | MEDIUM | FIXED — a text cell beginning `= + - @ TAB CR` gets a leading apostrophe; numbers the export wrote are untouched; test + mutation R9 |
+| `budgets_import_legacy` revoked from PUBLIC only (security 2, database 5) | MEDIUM (latent: hosted defaults) | FIXED — revoked by name from authenticated/anon/service_role; `has_function_privilege` test. Measured locally first: no role could execute it |
+| Line guard reads the version unlocked (security 3, database 4) | LOW/MEDIUM | FIXED — `FOR UPDATE` on the version row |
+| Transitions pin only their own field (security 4, database 2) | MEDIUM | FIXED — every transition pins every column outside its own set; a deferred constraint trigger refuses a supersede left alone at COMMIT; tests |
+| A negative legacy amount aborts the migration (security 5, database 3) | MEDIUM | FIXED — kept in the archive; test |
+| Error mapping by prefix (security 6) | LOW | FIXED — exact allow-list; refusals logged; tests that a plain CHECK and a pkey fault stay 500 |
+| Unbounded export work (security 7, accounting L7) | LOW | OPEN — F-27 |
+| Out-of-range amount/id → 500 (security 8) | LOW | FIXED — 400 naming the bound; ids above int4 refused |
+| P&L trend accepts month 13 (security 9, accounting L7) | INFO | FIXED — 400 |
+| The company arm of 0111's index unusable under RLS (database 1) | MEDIUM | FIXED — typed predicate + `(company_id, date)`; re-measured; plan test (R14) |
+| PG17 MAINTAIN not revoked (database 6) | LOW | FIXED for these tables (version-guarded REVOKE); platform-wide gap noted |
+| Header: company ∈ organisation; id frozen; date format (database 8) | LOW | FIXED — `budgets_admit` trigger, frozen id, format CHECK; tests |
+| Migration YTD P&L: equity statement ≠ P&L (accounting M1) | MEDIUM | FIXED — D14-03 refined; computed TB row; test + mutations R1, R2 |
+| Migration YTD lumped into one month (accounting M2) | MEDIUM | FIXED — one amount on its date in the trend and budgets; tests + R3, R4 |
+| Account summary had no fiscal-year reset (accounting M3) | MEDIUM | FIXED — it IS the trial balance's rows; test + R13 |
+| "Exact" balance tolerated a halala (accounting M4) | MEDIUM | FIXED — integer halalas compared with zero; test + R6 |
+| A fixed asset on an unclassified account was operating (accounting L1) | LOW | FIXED — the asset categories' accounts are investing; test + R5 |
+| Variance % sign at a negative budget (accounting L2) | LOW | FIXED — divided by \|budget\|; test + R7 |
+| Sub-halala numbers rounded silently (accounting L3) | LOW | FIXED — refused; test + R8 |
+| All-accounts GL omits the cut-over (accounting L5) | LOW | DECISION — F-28 |
+| Event replay's UTC date fallback (accounting L6) | LOW | FIXED — the Riyadh business date of `created_at` (all five columns verified `timestamptz`) |
+| Test gaps: date_from boundary, AP party, cash-flow shapes, P4 at k = 12, P5 expense, forecast totals, Hijri | — | CLOSED — tests added; mutations R11, R12 |
+| Reject by an approver deletes a never-approved budget although DELETE is admin-only (security 9) | INFO | DECISION — rejecting the only version of a never-approved budget is the approval engine's rule (reject = delete); no record is lost |
+| `budget-vs-actual` export authorised under `reports` (security 9) | INFO | accepted — identical role sets today; noted |
+| 0111 builds its indexes non-concurrently (security 9) | INFO | accepted — drizzle runs a migration in one transaction; before the first tenant the lock is moments |
+
+**Mutation proofs of the fixes — 14, all KILLED** (R1–R14, same driver,
+restored by sha256): R1 opening-entry P&L back to opening · R2 the TB without
+the migrated-result row · R3 the trend keeping a migration in its month · R4
+migrated YTD counted before its date · R5 the fixed-asset flag ignored · R6 a
+halala's tolerance · R7 variance % by a signed budget · R8 sub-halala rounding ·
+R9 CSV neutralisation removed · R10 error mapping by prefix · R11 `date_from`
+exclusive · R12 the opening including the `from` day · R13 the summary without
+the reset · R14 the text-cast company predicate (killed only once the plan test
+existed).
+
+---
+
+## 7. Verification on a FRESH database, and the final joint audit (2026-10-01)
+
+**Authoritative evidence only.** Every database-backed stage ran against
+`saudi_ledger_p1415_fresh`, a database created for this purpose, migrated from
+zero (all 113 migrations) and seeded the way CI seeds. Nothing here is taken
+from the local development database, whose leftover rows make four suites fail
+in cleanup (F-26). Stages ran one at a time, because a single `pnpm run verify`
+was killed twice by the machine's memory limit — not a code failure.
+
+| Stage | Result |
+|---|---|
+| 1. Typecheck (all workspaces) | exit 0 — 0 errors |
+| 2. API suite | exit 0 — **208 files passed, 1 skipped; 2,031 tests passed, 18 skipped**. The skips are the object-storage tests (`documents` 13, `company-logo` 5): they need Supabase storage credentials, which CI provides. |
+| 3. Database suite + migrations | exit 0 — **10 files, 58 tests**; `drizzle-kit generate`: "No schema changes" (schema ⇄ snapshots agree); 113 migrations; tables, triggers, ACLs and function privileges checked on the fresh database |
+| 4. Browser suite | **497 / 497 passed on the final code** (490 + the 8-way split of one test), across three valid runs — see below |
+| 5. Secrets | gitleaks (CI's exact container invocation), full history: **no leaks**; the security guard suites ran inside stages 2–3 |
+| 6. Build | exit 0 |
+| Web unit · ZATCA TLV | 11 files / 109 tests · 1 file / 10 tests — passed |
+| Mutation proofs | **43 / 43 killed on the fresh database**; every mutated file restored and checked by sha256 |
+
+**The browser runs, honestly.** (a) A first attempt was INVALID — Git Bash
+rewrote `BASE_PATH=/` into its own install path, so every page failed to load
+(an environment fault of my invocation; class C). (b) Re-run from PowerShell,
+killed by the memory limit after 296 of 490 tests: **295 passed, 1 failed** —
+`nav-tree` "every crawlable route is reachable": `/budgets/:id` was not
+registered as a record page (class A, a Phase 15 omission; fixed in the spec's
+own exemption list, with its reason, beside `/assets/:id` and
+`/migration/:id`). (c) The 14 remaining files (249 tests, `nav-tree` re-run
+whole): **248 passed, 1 failed** — the Phase 14 language/viewport sweep hit the
+30 s per-test budget on its fifth page (class A, my test's design: eight pages
+in one test; every assertion before the timeout had passed). Split into one test
+per page, same assertions: **`phase14-reporting` 15 / 15**. No product
+assertion failed in any valid run.
+
+**Two failures the fresh database exposed** (both before stage 4): the local
+`purchase-orders` suite had been SKIPPING its tests behind a residue cleanup
+failure; on the fresh database it ran and caught a real Phase 14 regression in
+the test's reading of a no-date balance sheet (F-26 — fixed by naming the
+fixture's window end). And three of the four "residue" suites pass on a clean
+database — proof that they were residue.
+
+### 7.1 The final joint audit — each defect found and fixed, re-verified
+
+| # | Area | Evidence (all on the fresh database) | Verdict |
+|---|---|---|---|
+| 1 | 0111 company filter ⇄ index | the plan test (EXPLAIN as the tenant role: `Index Cond: ((company_id = …` on `journal_entries_company_date_idx`); the rolled-back volume measurement as `authenticated` (790 entries, this tenant, vs 4,218 both tenants before); R14 killed | VERIFIED |
+| 2 | Migrated YTD: P&L = TB = equity statement = BS current year = trend total = budget actuals | invariants test "review M1/M2" (350 in every report; the computed TB row closes at 0; June shows nothing of the half-year; `migrated` stands apart); budgets "review M2" (YTD 0 → 900 → 1,050 at k = 3, 6, 8, each = the income statement); R1–R4 killed | VERIFIED |
+| 3 | Account summary's fiscal-year reset | "review M3" (Sales opens at 0 in both; row sets equal); R13 killed | VERIFIED |
+| 4 | Exact zero difference | "review M4" (a ledger one halala off reads unbalanced — TB and BS); the cash flow's `reconciles` is `===`; R6 killed | VERIFIED |
+| 5 | Fixed-asset cash-flow classification | "review L1" (an unclassified vehicle account bound to an asset category → investing −8,000; reconciles) + the unit test; R5 killed | VERIFIED |
+| 6 | CSV formula injection | HTTP test (`'=SUM(1+1)*cmd`, `'+cmd\|calc`; a negative number left plain); R9 killed | VERIFIED |
+| 7 | Immutable approval history | DB tests: rewriting `approved_by` during a legal supersede → `budget_version_transition`; a supersede left alone → refused at COMMIT (`budget_version_superseded_alone`); P2 (lines, status, deletion, cascade, header, TRUNCATE) | VERIFIED |
+| 8 | Legacy import owner-only | `has_function_privilege` false for authenticated / anon / service_role — test, and read directly on the fresh database | VERIFIED |
+| 9 | Negative legacy amount | test: a −50 row is not imported and nothing appears; the migration cannot abort on it | VERIFIED |
+| 10 | Cross-company / cross-tenant isolation | invariant L + "L (query layer)" (an org-wide connection reads nothing), P9, the HTTP session-tenant tests (presence, absence, movement), `cross-company-isolation` (budgets left `NO_COMPANY_FILTER`), the DB RLS suite, the admit triggers (foreign = missing); M2, B6 killed | VERIFIED |
+| 11 | Date / as-of semantics | D-boundary (`to` inclusive), "review — date_from" (inclusive; the opening ends the day before), as-of ageing (F, G), a no-date balance sheet is as of today (F-26), YTD through a COMPLETED period; M1, M10, M11, R11, R12, B3 killed | VERIFIED |
+| 12 | Budget vs actual reconciliation | P4 at k = 3 and 12 and through a migration; P5 income AND expense, all twelve periods; the browser walk reads the same equality off the page; B1, B9, B10 killed | VERIFIED |
+| 13 | Budget lifecycle and database locking | P1 (the books never move), P2, P3, P10, the review DB tests, the role-by-role HTTP suite, the browser walk (create → fill → submit → approve → revise → send back → reject); B7, B13 killed | VERIFIED |
+| 14 | Reporting reconciles to the GL | invariants A–H on product-written rows; the browser's drills read the destination's figures; `statement-figures` (BS AR = AR ageing, non-zero); every report response on its generated schema | VERIFIED |
+
+**Blockers:** none CRITICAL or HIGH. The open items are §6's OPEN rows (F-18,
+F-19 partial, F-25, F-27, F-28, L-CF1, L-CF2) and the owner-review decisions
+(D15-03, F-00, F-16).

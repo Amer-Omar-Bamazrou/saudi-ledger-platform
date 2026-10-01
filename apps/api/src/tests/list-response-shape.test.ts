@@ -315,13 +315,11 @@ describeMaybe("a page's declared list type matches the real response", () => {
 
     // One row per list. Values are irrelevant; PRESENCE is the whole point,
     // because an empty list has no keys and would pass every assertion.
-    const catId = (
-      await pool.query(
-        `INSERT INTO categories (organization_id, name, name_ar, type)
-         VALUES ($1,'Shape Cat','فئة','expense') RETURNING id`,
-        [o],
-      )
-    ).rows[0].id;
+    await pool.query(
+      `INSERT INTO categories (organization_id, name, name_ar, type)
+       VALUES ($1,'Shape Cat','فئة','expense')`,
+      [o],
+    );
     await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'Shape Customer')`, [o]);
     await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Shape Vendor')`, [o]);
     // FA-A (2026-09-22): an asset belongs to a category that binds its accounts (the M15 FIXED_ASSETS cost account + the two FA-A system accounts)
@@ -351,11 +349,13 @@ describeMaybe("a page's declared list type matches the real response", () => {
       [o, c],
     );
     await pool.query(`INSERT INTO products (organization_id, name) VALUES ($1,'Shape Product')`, [o]);
-    await pool.query(
-      `INSERT INTO budgets (organization_id, company_id, name, period, category_id, budgeted_amount)
-       VALUES ($1,$2,'Shape Budget','2026',$3,1200)`,
-      [o, c, catId],
-    );
+    // Phase 15: a budget header (its frozen fiscal year) and its draft version 1
+    const shapeBudget = (await pool.query(
+      `INSERT INTO budgets (organization_id, company_id, name, scenario, fiscal_calendar, fiscal_start_month, fiscal_label, fiscal_year_start, fiscal_year_end)
+       VALUES ($1,$2,'Shape Budget','base','gregorian',1,2026,'2026-01-01','2026-12-31') RETURNING id`,
+      [o, c],
+    )).rows[0].id;
+    await pool.query(`INSERT INTO budget_versions (organization_id, company_id, budget_id, version_no) VALUES ($1,$2,$3,1)`, [o, c, shapeBudget]);
     await pool.query(`INSERT INTO payroll_runs (organization_id, company_id, period) VALUES ($1,$2,'2026-07')`, [
       o,
       c,

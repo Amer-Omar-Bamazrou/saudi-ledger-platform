@@ -16,8 +16,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiDownload } from "@/lib/api";
+import type { getExportReportUrl } from "@workspace/api-client-react";
 
-export type ExportableReport = "trial-balance" | "income-statement" | "balance-sheet" | "cash-flow" | "general-ledger" | "ar-aging" | "ap-aging";
+/**
+ * The exportable reports, taken from the CONTRACT (the generated export URL builder's own
+ * parameter) — never a hand-kept copy of the server's list (§3: two definitions drift).
+ */
+export type ExportableReport = Parameters<typeof getExportReportUrl>[0];
 
 export function ReportExportButtons({ report, params }: { report: ExportableReport; params: Record<string, string | number | null | undefined> }) {
   const { t, lang } = useLanguage();

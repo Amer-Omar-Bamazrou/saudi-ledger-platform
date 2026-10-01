@@ -4247,13 +4247,13 @@
           "method": "btree",
           "with": {}
         },
-        "journal_entries_company_text_date_idx": {
-          "name": "journal_entries_company_text_date_idx",
+        "journal_entries_company_date_idx": {
+          "name": "journal_entries_company_date_idx",
           "columns": [
             {
-              "expression": "(\"company_id\"::text)",
+              "expression": "company_id",
+              "isExpression": false,
               "asc": true,
-              "isExpression": true,
               "nulls": "last"
             },
             {

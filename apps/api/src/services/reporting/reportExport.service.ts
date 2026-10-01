@@ -27,8 +27,9 @@ import { companiesRepository } from "../../repositories/companies.repository";
 import { reportsService, reportAccountId, reportDate, reportParty, reportWindow } from "../reports.service";
 import { htmlToPdf } from "../document/htmlToPdf";
 import { CASH_FLOW_LINE_LABEL, type CashFlowLine } from "./cashFlowClassification";
+import { budgetsService } from "../budgets.service";
 
-export const EXPORTABLE_REPORTS = ["trial-balance", "income-statement", "balance-sheet", "cash-flow", "general-ledger", "ar-aging", "ap-aging"] as const;
+export const EXPORTABLE_REPORTS = ["trial-balance", "income-statement", "balance-sheet", "cash-flow", "general-ledger", "ar-aging", "ap-aging", "budget-vs-actual"] as const;
 export type ExportableReport = (typeof EXPORTABLE_REPORTS)[number];
 export type ExportFormat = "csv" | "pdf";
 export type ExportLang = "en" | "ar";
@@ -261,6 +262,62 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
           : L("Supplier credits and money held on account are assets, shown beside the buckets, never inside them.", "أرصدة الموردين الدائنة والمبالغ لديهم أصول، تُعرض بجانب الفئات لا ضمنها.")],
       };
     }
+    case "budget-vs-actual": {
+      // Phase 15 (D15-14): the screen's own call — budgetsService.vsActual — laid out as a table.
+      const int = (v: string | undefined, name: string) => {
+        if (v == null || v === "") return undefined;
+        if (!/^\d+$/.test(v)) throw new BadRequestError(`${name} must be a positive whole number.`);
+        return Number(v);
+      };
+      const budgetId = int(q.budget_id, "budget_id");
+      if (budgetId == null) throw new BadRequestError("budget_id is required to export a budget.");
+      const vs = await budgetsService.vsActual(budgetId, { version_id: int(q.version_id, "version_id"), through_period: int(q.through_period, "through_period") });
+      const pct = (x: number | null) => (x == null ? "—" : `${x.toFixed(2)}%`);
+      const judged = (fav: boolean | null) => (fav == null ? "—" : fav ? pick(L("Favourable", "ملائم"), lang) : pick(L("Unfavourable", "غير ملائم"), lang));
+      const mode = (m: string) => pick(m === "periods" ? L("By period", "حسب الفترة") : m === "annual" ? L("Annual only", "سنوي فقط") : L("Not budgeted", "غير مُدرج"), lang);
+      type VsLine = (typeof vs.lines)[number];
+      const lineRow = (l: VsLine): Row => ({ kind: "row", cells: [
+        nameIn({ name: l.accountName, nameAr: l.accountNameAr }, lang), mode(l.mode), l.ytd.budget, l.ytd.actual, l.ytd.variance, pct(l.ytd.variancePct), judged(l.ytd.favourable),
+        l.fullYear.budget, l.fullYear.actualToDate, l.forecast.amount,
+      ] });
+      type VsTotals = typeof vs.totals.income;
+      const totalRow = (label: Bi, t: VsTotals, kind: "subtotal" | "total"): Row => ({ kind, cells: [
+        pick(label, lang), "", t.ytd.budget, t.ytd.actual, t.ytd.variance, pct(t.ytd.variancePct), judged(t.ytd.favourable), t.fullYear.budget, t.fullYear.actualToDate, t.forecast.amount,
+      ] });
+      const all = [...vs.lines, ...vs.unbudgeted];
+      const group = (type: "income" | "expense") => all.filter((l) => l.accountType === type).map(lineRow);
+      const through = vs.throughDate ?? "—";
+      return {
+        report: "budget-vs-actual",
+        title: L("Budget vs actual", "الميزانية مقابل الفعلي"),
+        scope: L(
+          `${vs.name} · v${vs.version.versionNo} (${vs.version.status}) · fiscal year ${vs.fiscalYear.startDate} – ${vs.fiscalYear.endDate} · year to date through period ${vs.throughPeriod} (${through})`,
+          `${vs.nameAr || vs.name} · الإصدار ${vs.version.versionNo} · السنة المالية ${vs.fiscalYear.startDate} – ${vs.fiscalYear.endDate} · منذ بداية السنة حتى الفترة ${vs.throughPeriod} (${through})`,
+        ),
+        filenameStem: `budget-vs-actual_${vs.budgetId}_v${vs.version.versionNo}_p${vs.throughPeriod}`,
+        tables: [{
+          columns: [
+            col("Account", "الحساب", "text"), col("Budgeted", "أساس الميزانية", "text"),
+            col("YTD budget", "ميزانية حتى تاريخه", "money"), col("YTD actual", "الفعلي حتى تاريخه", "money"), col("Variance", "الانحراف", "money"), col("Variance %", "نسبة الانحراف", "text"), col("Judgement", "التقييم", "text"),
+            col("Full-year budget", "ميزانية السنة", "money"), col("Actual to date", "الفعلي حتى الآن", "money"), col("Forecast", "التوقع", "money"),
+          ],
+          rows: [
+            { kind: "section", cells: [pick(L("Income", "الإيرادات"), lang)] },
+            ...group("income"),
+            totalRow(L("Total income", "إجمالي الإيرادات"), vs.totals.income, "subtotal"),
+            { kind: "section", cells: [pick(L("Expenses", "المصروفات"), lang)] },
+            ...group("expense"),
+            totalRow(L("Total expenses", "إجمالي المصروفات"), vs.totals.expense, "subtotal"),
+            totalRow(L("Net", "الصافي"), vs.totals.net, "total"),
+          ],
+        }],
+        notes: [
+          L("Actuals are the posted ledger (accrual), in each account's natural direction; variance = actual − budget, judged by account type.", "الفعلي من الدفتر المرحَّل (أساس الاستحقاق) باتجاه كل حساب؛ الانحراف = الفعلي − الميزانية، ويُقيَّم حسب نوع الحساب."),
+          L("An annual-only amount is never divided across periods: it has no year-to-date budget and no forecast.", "المبلغ السنوي لا يُقسَّم على الفترات: لا ميزانية له حتى تاريخه ولا توقع."),
+          L("Forecast = actuals through the period above + the budget of the remaining periods. It is a projection, not a budget.", "التوقع = الفعلي حتى الفترة المذكورة + ميزانية الفترات المتبقية. وهو إسقاط وليس ميزانية."),
+        ],
+      };
+    }
     default:
       throw new BadRequestError(`"${report}" cannot be exported. Exportable reports: ${EXPORTABLE_REPORTS.join(", ")}.`);
   }
@@ -276,7 +333,7 @@ export async function exportReport(report: string, q: Q, format: ExportFormat, l
       error: `This ${format.toUpperCase()} would hold ${rowCount} rows; the limit is ${MAX_ROWS[format]}. Narrow the window (or export CSV) — an export is never cut short.`,
     });
   }
-  const company = await companiesRepository.findActive();
+  const company = await companiesRepository.findCurrent(); // the company in scope (F-19)
   const companyName = company ? (lang === "ar" && company.nameAr ? company.nameAr : company.name) : "";
   const stamp = businessToday();
   if (format === "csv") {
@@ -305,7 +362,12 @@ function mergeKeys(a: { key: string }[], b?: { key: string }[]) {
 /** CSV money: two decimals, no grouping, a plain minus — a spreadsheet must parse it. */
 function csvCell(v: Cell, kind: ColumnKind): string {
   if (v == null) return "";
-  const s = kind === "money" && typeof v === "number" ? v.toFixed(2) : String(v);
+  let s = kind === "money" && typeof v === "number" ? v.toFixed(2) : String(v);
+  // 🔴 CSV formula injection (OWASP): a TEXT cell a spreadsheet would read as a
+  // formula — an account, customer or entry description beginning = + - @ TAB CR,
+  // all user-entered — is neutralised with a leading apostrophe. A number the
+  // export itself wrote ("-37.50%", a negative amount) is left exactly as it is.
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?%?$/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 function toCsv(doc: ReportDocument, lang: ExportLang, companyName: string, stamp: string): string {

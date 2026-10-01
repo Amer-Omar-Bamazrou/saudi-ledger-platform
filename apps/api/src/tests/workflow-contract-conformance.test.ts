@@ -36,6 +36,15 @@ import {
   CreateBudgetResponse,
   UpdateBudgetBody,
   UpdateBudgetResponse,
+  ReplaceBudgetLinesBody,
+  ReplaceBudgetLinesResponse,
+  SubmitBudgetVersionResponse,
+  ApproveBudgetVersionResponse,
+  ReviseBudgetResponse,
+  SendBackBudgetVersionResponse,
+  GetBudgetResponse,
+  GetBudgetVsActualResponse,
+  ListBudgetAccountsResponse,
   ListRecurringRulesResponse,
   GetRecurringRuleRunsResponse,
   PauseRecurringRuleResponse,
@@ -94,10 +103,24 @@ describeMaybe("workflow contract conformance — quotations, POs, budgets, recur
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    // Phase 15: an APPROVED budget version is immutable at the database (0112), so the budget rows go
+    // with triggers off — the 1C suites' pattern; replica mode also skips the FK cascade, hence child-first.
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL session_replication_role = replica");
+      for (const t of ["budget_lines", "budget_versions", "budgets"]) await client.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`);
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
     for (const t of [
       "quotation_conversion_items", "quotation_conversions", "quotation_items", "quotations",
       "purchase_order_conversion_items", "purchase_order_conversions", "purchase_order_items", "purchase_orders",
-      "recurring_runs", "recurring_rules", "budgets",
+      "recurring_runs", "recurring_rules",
       "journal_entry_lines", "journal_entries", "invoice_items", "invoices", "bill_items", "bills",
       "transactions", "bank_accounts", "customers", "vendors", "document_numbers",
     ]) {
@@ -254,21 +277,53 @@ describeMaybe("workflow contract conformance — quotations, POs, budgets, recur
   // ── budgets ──────────────────────────────────────────────────────────────
   let budgetId = 0;
 
-  it("POST /budgets, GET /budgets (with derived actuals), PATCH, DELETE", async () => {
-    expect(CreateBudgetBody.safeParse({ period: "2026" }).success).toBe(false); // budgetedAmount required
-    const b = await inTenant(() => budgetsService.create(CreateBudgetBody.parse({ name: "Cash budget", period: "2026", categoryId: cash.id, budgetedAmount: 120000 })));
+  it("Phase 15 budgets — create, accounts, lines, submit, approve, vs-actual, revise, send back, reject, list, rename — every response on its generated schema", async () => {
+    // a budget is set per DECLARED fiscal year (D15-15): the fixture company declares one
+    await pool.query(`UPDATE companies SET fiscal_year_start = 1, fiscal_calendar = 'gregorian' WHERE id = $1`, [companyId]);
+    const sales = Number((await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'SALES'`, [orgId])).rows[0].id);
+    expect(CreateBudgetBody.safeParse({ name: "x" }).success).toBe(false); // fiscalYearLabel required
+    expect(ReplaceBudgetLinesBody.safeParse({ lines: [{ accountId: 1, periods: [1, 2] }] }).success).toBe(false); // twelve periods
+
+    const accounts = await inTenant(() => budgetsService.accounts());
+    expect(accounts.some((x) => x.id === sales)).toBe(true);
+    conforms(ListBudgetAccountsResponse, accounts, "listBudgetAccounts");
+
+    const b = await inTenant(() => budgetsService.create(CreateBudgetBody.parse({ name: "Workflow budget", fiscalYearLabel: 2026 }), userId));
     budgetId = b.id;
-    expect(b.budgetedAmount).toBe(120000);
+    expect([b.version?.status, b.fiscalYear.startDate, b.periods.length]).toEqual(["draft", "2026-01-01", 12]);
     conforms(CreateBudgetResponse, b, "createBudget");
-    const list = await inTenant(() => budgetsService.list("2026"));
+    const v1 = b.version!.id;
+
+    const withLines = await inTenant(() => budgetsService.replaceLines(budgetId, v1, ReplaceBudgetLinesBody.parse({ lines: [{ accountId: sales, periods: Array(12).fill(1000) }] })));
+    expect(withLines.lines).toEqual([expect.objectContaining({ accountId: sales, mode: "periods", total: 12000 })]);
+    conforms(ReplaceBudgetLinesResponse, withLines, "replaceBudgetLines");
+
+    conforms(SubmitBudgetVersionResponse, await inTenant(() => budgetsService.submit(budgetId, v1, userId)), "submitBudgetVersion");
+    const approved = await inTenant(() => budgetsService.approve(budgetId, v1, userId));
+    expect(approved.approvedVersionId).toBe(v1);
+    conforms(ApproveBudgetVersionResponse, approved, "approveBudgetVersion");
+
+    const vs = await inTenant(() => budgetsService.vsActual(budgetId, { through_period: 6 }));
+    expect([vs.throughPeriod, vs.lines.length, vs.lines[0]!.ytd.budget]).toEqual([6, 1, 6000]);
+    conforms(GetBudgetVsActualResponse, vs, "getBudgetVsActual");
+
+    const rev = await inTenant(() => budgetsService.revise(budgetId, userId));
+    expect([rev.version?.versionNo, rev.version?.status, rev.lines[0]?.total]).toEqual([2, "draft", 12000]);
+    conforms(ReviseBudgetResponse, rev, "reviseBudget");
+    const v2 = rev.version!.id;
+    await inTenant(() => budgetsService.submit(budgetId, v2, userId));
+    conforms(SendBackBudgetVersionResponse, await inTenant(() => budgetsService.sendBack(budgetId, v2, "Lower the target", userId)), "sendBackBudgetVersion");
+    await inTenant(() => budgetsService.reject(budgetId, v2, userId));
+
+    const one = await inTenant(() => budgetsService.detail(budgetId));
+    expect(one.versions.map((v) => v.status)).toEqual(["approved"]);
+    conforms(GetBudgetResponse, one, "getBudget");
+    const list = await inTenant(() => budgetsService.list({}));
     expect(list.length).toBe(1);
-    expect(typeof list[0].actualAmount).toBe("number");
     conforms(ListBudgetsResponse, list, "listBudgets");
-    const upd = await inTenant(() => budgetsService.update(budgetId, UpdateBudgetBody.parse({ budgetedAmount: 90000 })));
-    expect(upd.budgetedAmount).toBe(90000);
-    conforms(UpdateBudgetResponse, upd, "updateBudget");
-    await inTenant(() => budgetsService.remove(budgetId));
-    expect((await inTenant(() => budgetsService.list("2026"))).length).toBe(0);
+    conforms(UpdateBudgetResponse, await inTenant(() => budgetsService.update(budgetId, UpdateBudgetBody.parse({ name: "Workflow budget (renamed)" }))), "updateBudget");
+    // an approved budget is a record: never deleted
+    await expect(inTenant(() => budgetsService.remove(budgetId))).rejects.toMatchObject({ statusCode: 409 });
   });
 
   // ── recurring rules ──────────────────────────────────────────────────────

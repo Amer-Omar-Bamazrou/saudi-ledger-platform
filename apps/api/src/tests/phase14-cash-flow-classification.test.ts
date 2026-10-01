@@ -86,6 +86,8 @@ describe("Phase 14 — the cash-flow classification of every system account is d
     expect([c("asset", "non_current"), c("asset", "current"), c("asset", null)]).toEqual(["non_current_assets", "other_operating", "other_operating"]);
     expect([c("liability", "non_current"), c("liability", "current")]).toEqual(["borrowings", "other_operating"]);
     expect([c(null), c("mystery")]).toEqual(["other_operating", "other_operating"]);
+    // a fixed asset's cost or accumulated-depreciation account is investing even with NO liquidity class (review L1)
+    expect(classifyCashFlowAccount({ type: "asset", liquidityClass: null, systemCode: null, fixedAsset: true })).toBe("non_current_assets");
   });
 
   it("every line has an English AND an Arabic label", () => {

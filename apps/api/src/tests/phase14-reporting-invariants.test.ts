@@ -29,7 +29,9 @@
  * Phase 13A / 13B suites.)
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { beginTenantConnection, pool } from "@workspace/db";
+import { beginTenantConnection, pool, db } from "@workspace/db";
+import { sql } from "drizzle-orm";
+import { reportsRepository } from "../repositories/reports.repository";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
@@ -367,6 +369,17 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
     expect([fy.financing.total, fy.netChange, fy.internal.items.filter((i) => i.amount !== 0)]).toEqual([5000, 5000, []]);
   });
 
+  it("🔴 F-19 — each company's statements use ITS OWN fiscal year: a second company with an April year resets its P&L in April, not at company A's January", async () => {
+    const coF = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_year_start, fiscal_calendar) VALUES ($1,'P14 Co F',4,'gregorian') RETURNING id`, [orgId])).rows[0].id as string;
+    const inF = <T,>(fn: () => Promise<T>) => inCo(orgId, coF, fn);
+    const tbF = await inF(() => reportsService.trialBalance("2026-06-01", "2026-06-30"));
+    const bsF = await inF(() => reportsService.balanceSheet("2026-06-30"));
+    expect([tbF.plResetFrom, bsF.equity.fiscalYear?.startDate]).toEqual(["2026-04-01", "2026-04-01"]);
+    // movement: company A, same dates, answers with ITS January year
+    const tbA = await inA(() => reportsService.trialBalance("2026-06-01", "2026-06-30"));
+    expect(tbA.plResetFrom).toBe("2026-01-01");
+  });
+
   it("🔴 the P&L trend: each month is that month's P&L, and the months sum to the window's income statement", async () => {
     const trend = await inA(() => analyticsService.pnlTrend("2026-01", "2026-09"));
     const is = await inA(() => reportsService.incomeStatement(FY.from, FY.to));
@@ -409,4 +422,125 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
       expect(err).toBeInstanceOf(RendererUnavailableError);
     }
   });
+
+  // ═══ the accounting review (2026-10-01): each test FAILS on the code it was written against ═══
+
+  it("🔴 review M1/M2 — a migration's YEAR-TO-DATE P&L (income and expense lines in the opening entry) is period movement in EVERY statement: P&L = TB = equity statement = BS current year; the trend keeps it out of the months and in the total", async () => {
+    const coG = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_year_start, fiscal_calendar) VALUES ($1,'P14 Co G',1,'gregorian') RETURNING id`, [orgId])).rows[0].id as string;
+    const inG = <T,>(fn: () => Promise<T>) => inCo(orgId, coG, fn);
+    const bankG = await newBank(orgId, coG, "G Main");
+    const expenseG = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, is_posting) VALUES ($1,'P14 G operating costs','تكاليف','expense',true) RETURNING id`, [orgId])).rows[0].id as number;
+    const { postJournalEntry } = await import("../services/accounting/glPosting");
+    // cut-over 2026-07-01: the previous system's Jan–Jun — sales 900, costs 700, the 200 profit sitting in the bank — plus capital 1,000
+    await inG(() => postJournalEntry({ entryNumber: "P14-G-OPEN", date: "2026-06-30", description: "Opening position", source: "opening", lines: [
+      { bankAccountId: bankG, debitAmount: 1200, creditAmount: 0 },
+      { accountId: expenseG, accountName: "P14 G operating costs", debitAmount: 700, creditAmount: 0 },
+      { accountId: ids.sales!, accountName: "Sales", debitAmount: 0, creditAmount: 900 },
+      { accountId: ids.capital!, accountName: "Owner capital", debitAmount: 0, creditAmount: 1000 },
+    ] }));
+    await manual(inG, "P14-G-SALE", "2026-08-10", [[await bankLeaf(bankG), 150, 0], [ids.sales!, 0, 150]]);
+
+    const is = await inG(() => reportsService.incomeStatement(FY.from, FY.to));
+    expect(is.netIncome).toBe(350); // 900 − 700 + 150
+    const tb = await inG(() => reportsService.trialBalance(FY.from, FY.to));
+    const plMoved = tb.accounts.filter((r) => r.type === "income" || r.type === "expense").reduce((t, r) => t + r.credit - r.debit, 0);
+    expect(Math.round(plMoved * 100) / 100, "the TB's P&L movement IS the income statement (invariant C)").toBe(350);
+    expect(tb.accounts.find((r) => r.accountId === ids.sales)!.openingBalance, "Sales opens at 0: the migrated 900 is THIS year's movement").toBe(0);
+    expect([tb.balanced, tb.accounts.find((r) => r.accountId === ids.capital)!.openingBalance]).toEqual([true, -1000]); // capital IS opening
+    // the split entry's result moves from the opening position into the period through ONE computed row, closing at 0
+    expect(tb.accounts.find((r) => r.key === "migrated_ytd_result")).toMatchObject({ computed: true, openingBalance: -200, debit: 200, credit: 0, closingBalance: 0 });
+    expect([tb.totalOpening, tb.totalClosing, tb.totalDebit === tb.totalCredit]).toEqual([0, 0, true]);
+    const oe = await inG(() => reportsService.ownerEquity(FY.from, FY.to));
+    expect([oe.openingEquity, oe.netIncome, oe.closingEquity]).toEqual([1000, 350, 1350]);
+    const bs = await inG(() => reportsService.balanceSheet(FY.to));
+    expect([bs.equity.currentYearProfit, bs.equity.total, bs.balanced]).toEqual([350, 1350, true]);
+    // the GL of Sales lists the migrated 900 as a movement (it is in no opening), and closes on the TB row
+    const gl = await inG(() => reportsService.generalLedger(String(ids.sales), undefined, FY.from, FY.to));
+    expect([gl.openingBalance, gl.totalCredit, gl.closingBalance]).toEqual([0, 1050, -1050]);
+    // the cash flow: the 1,200 is migration, never a flow
+    const cf = await inG(() => reportsService.cashFlow(FY.from, FY.to));
+    expect([cf.migrationOpeningCash, cf.operating.total, cf.closingCash, cf.reconciles]).toEqual([1200, 150, 1350, true]);
+    // the trend: June shows nothing of the migrated half-year; the migrated figure stands apart, and the total is the P&L
+    const trend = await inG(() => analyticsService.pnlTrend("2026-01", "2026-12"));
+    expect(trend.points.find((p) => p.month === "2026-06")!.revenue).toBe(0);
+    expect(trend.migrated).toEqual({ date: "2026-06-30", revenue: 900, expenses: 700, net: 200 });
+    expect([trend.totals.revenue, trend.totals.net]).toEqual([is.totalRevenue, is.netIncome]);
+  });
+
+  it("🔴 review — date_from is INCLUSIVE, and the opening ends the day before it (the boundary the earlier mutation did not reach)", async () => {
+    const on = await inA(() => reportsService.incomeStatement("2026-03-10", "2026-03-31"));
+    const after = await inA(() => reportsService.incomeStatement("2026-03-11", "2026-03-31"));
+    expect([on.totalRevenue, after.totalRevenue]).toEqual([1000, 0]);
+    const tbOn = (await inA(() => reportsService.trialBalance("2026-03-10", FY.to))).accounts.find((r) => r.accountId === ids.sales)!;
+    const tbAfter = (await inA(() => reportsService.trialBalance("2026-03-11", FY.to))).accounts.find((r) => r.accountId === ids.sales)!;
+    expect([tbOn.openingBalance, tbOn.credit]).toEqual([0, 3000]);
+    expect([tbAfter.openingBalance, tbAfter.credit]).toEqual([-1000, 2000]);
+  });
+
+  it("🔴 review K — the party dimension on the PAYABLE side too: the AP ledger filtered to the vendor closes on the balance sheet's payable", async () => {
+    const gl = await inA(() => reportsService.generalLedger(String(ids.ap), undefined, FY.from, FY.to, { type: "vendor", id: ids.vendor! }));
+    const bs = await inA(() => reportsService.balanceSheet(FY.to));
+    expect(gl.closingBalance).toBe(-bs.liabilities.accountsPayable);
+    expect(gl.movements.length).toBeGreaterThan(0);
+    expect(gl.movements.every((m) => m.partyType === "vendor" && m.vendorId === ids.vendor)).toBe(true);
+  });
+
+  it("🔴 review M3 — the account summary IS the trial balance for the same dates (it used to skip the fiscal-year reset)", async () => {
+    const [sum, tb] = await Promise.all([inA(() => reportsService.accountSummary("2026-03-01", FY.to)), inA(() => reportsService.trialBalance("2026-03-01", FY.to))]);
+    const sales = sum.accounts.find((r) => r.accountId === ids.sales)!;
+    const tbSales = tb.accounts.find((r) => r.accountId === ids.sales)!;
+    expect([sales.openingBalance, sales.closingBalance]).toEqual([tbSales.openingBalance, tbSales.closingBalance]);
+    expect(sales.openingBalance, "2025's sale is the prior-years row, not Sales' opening").toBe(0);
+    expect(sum.accounts.length).toBe(tb.accounts.length);
+  });
+
+  it("🔴 review M4 — a ledger ONE HALALA out of balance is reported unbalanced (the tolerance used to admit it)", async () => {
+    const coI = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_year_start, fiscal_calendar) VALUES ($1,'P14 Co I',1,'gregorian') RETURNING id`, [orgId])).rows[0].id as string;
+    // raw rows: the posting path refuses an unbalanced entry, so the defect is planted beneath it, as a legacy row would be
+    const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'P14-I-1','2026-02-02','one halala off','posted') RETURNING id`, [orgId, coI])).rows[0].id;
+    await pool.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'Equipment',100.00,0), ($1,$2,$3,$5,'Owner capital',0,99.99)`, [orgId, coI, je, ids.equipment, ids.capital]);
+    const inI = <T,>(fn: () => Promise<T>) => inCo(orgId, coI, fn);
+    const [tb, bs] = await Promise.all([inI(() => reportsService.trialBalance(FY.from, FY.to)), inI(() => reportsService.balanceSheet(FY.to))]);
+    expect([tb.totalDebit, tb.totalCredit, tb.balanced]).toEqual([100, 99.99, false]);
+    expect(bs.balanced).toBe(false);
+  });
+
+  it("🔴 review L1 + cash-flow shapes — a 3-line entry with a bank fee, a two-bank entry with a fee, and a fixed asset on an account with NO liquidity class: the asset is investing, and the statement reconciles", async () => {
+    const coH = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_year_start, fiscal_calendar) VALUES ($1,'P14 Co H',1,'gregorian') RETURNING id`, [orgId])).rows[0].id as string;
+    const inH = <T,>(fn: () => Promise<T>) => inCo(orgId, coH, fn);
+    const h1 = await bankLeaf(await newBank(orgId, coH, "H One")), h2 = await bankLeaf(await newBank(orgId, coH, "H Two"));
+    const rent = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, is_posting) VALUES ($1,'P14 H rent','إيجار','expense',true) RETURNING id`, [orgId])).rows[0].id as number;
+    const fees = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, is_posting) VALUES ($1,'P14 bank charges','رسوم بنكية','expense',true) RETURNING id`, [orgId])).rows[0].id as number;
+    const vehicles = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, liquidity_class, is_posting) VALUES ($1,'P14 Vehicles','مركبات','asset',NULL,true) RETURNING id`, [orgId])).rows[0].id as number;
+    await pool.query(
+      `INSERT INTO asset_categories (organization_id, company_id, name, cost_account_id, accumulated_depreciation_account_id, depreciation_expense_account_id, default_useful_life_months, income_tax_group, vat_capital_asset_class)
+       VALUES ($1,$2,'Vehicles',$3,$4,$5,60,3,'movable')`,
+      [orgId, coH, vehicles, await catId(orgId, "ACCUMULATED_DEPRECIATION"), await catId(orgId, "DEPRECIATION_EXPENSE")],
+    );
+    await manual(inH, "P14-H-CAP", "2026-01-05", [[h1, 20000, 0], [ids.capital!, 0, 20000]]);
+    await manual(inH, "P14-H-FEE", "2026-02-05", [[rent, 1000, 0], [fees, 10, 0], [h1, 0, 1010]]);           // pay the rent, a fee on top
+    await manual(inH, "P14-H-TWO", "2026-03-05", [[h2, 400, 0], [fees, 100, 0], [h1, 0, 500]]);             // move 400, the bank keeps 100
+    await manual(inH, "P14-H-CAR", "2026-04-05", [[vehicles, 8000, 0], [h1, 0, 8000]]);                    // buy a vehicle
+    const cf = await inH(() => reportsService.cashFlow(FY.from, FY.to));
+    const line = (sec: typeof cf.operating, key: string) => sec.items.find((i) => i.key === key)?.amount ?? 0;
+    expect([line(cf.investing, "non_current_assets"), line(cf.operating, "payments_suppliers"), cf.financing.total]).toEqual([-8000, -1110, 20000]);
+    expect([cf.closingCash, cf.netChange, cf.reconciles]).toEqual([10890, 10890, true]);
+    expect(cf.internal.items.filter((i) => i.amount !== 0), "two banks are both cash: the 400 moved is no flow").toEqual([]);
+  });
+
+
+  it("🔴 D14-15 — the seam's company predicate is an INDEX CONDITION as the tenant role (the plan, read, not inferred from a timing)", async () => {
+    // seq scans off: at fixture volume any plan is a scan; this asks which index the planner CAN use.
+    // The old `company_id::text = …` form could not put the company into an Index Cond under RLS
+    // (its functions are not leakproof) — the database review's finding, and why companyScoped is typed.
+    const plan = await inA(async () => {
+      await db.execute(sql`set local enable_seqscan = off`);
+      const q = reportsRepository.ledgerBalances({ from: "2026-03-01", to: "2026-03-31", movementOnly: true });
+      const res = await db.execute(sql`explain ${q.getSQL()}`);
+      return (res.rows as Array<Record<string, string>>).map((r) => r["QUERY PLAN"]).join("\n");
+    });
+    expect(plan).toContain("journal_entries_company_date_idx");
+    expect(plan).toMatch(/Index Cond: \(\(company_id = /);
+  });
+
 });

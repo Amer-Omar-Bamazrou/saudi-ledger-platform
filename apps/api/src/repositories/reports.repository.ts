@@ -15,7 +15,7 @@ import {
   journalEntriesTable,
   journalEntryLinesTable,
   customersTable,
-  vendorsTable, billPrepaymentsTable } from "@workspace/db";
+  vendorsTable, billPrepaymentsTable, assetCategoriesTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 import { invoiceNotReversed, billNotReversed } from "./openingReversal";
@@ -45,8 +45,18 @@ export const JE_IN_BOOKS = ["posted", "reversed"];
  * `companyScope.ts` and `docs/history/erpnext-comparison-2026-09-03.md` §1).
  */
 const inBooks = () => and(inArray(journalEntriesTable.status, JE_IN_BOOKS), companyScoped(journalEntriesTable.companyId))!;
-/** D14-03 — a Batch 1C migration opening entry (or its whole-batch reversal): an opening balance, never period movement. */
+/** D14-03 — a Batch 1C migration opening entry (or its whole-batch reversal): never a cash flow. */
 const isOpeningSourceEntry = () => sql`coalesce(${journalEntriesTable.source}, '') in ('opening', 'opening_reversal')`;
+/**
+ * D14-03, refined (accounting review, 2026-10-01): of a migration opening entry, only the
+ * BALANCE-SHEET lines are an opening balance. Its INCOME and EXPENSE lines are the previous
+ * system's year-to-date P&L, which belongs to the fiscal year (Batch 1C R5) — period movement,
+ * exactly as the income statement already counts it — so the trial balance, the general ledger
+ * and the statement of changes in equity agree with the P&L. (ERPNext forbids P&L accounts in an
+ * opening entry, so its `is_opening` precedent only ever covered balance-sheet lines.)
+ */
+const plAccountLine = () => sql`${journalEntryLinesTable.accountId} in (select c.id from categories c where c.type in ('income', 'revenue', 'expense'))`;
+const openingBalanceLine = () => sql`(${isOpeningSourceEntry()} and not coalesce(${plAccountLine()}, false))`;
 
 /** In-books JE conditions used by most reports (status + optional date range). */
 function jeConditions(date_from?: string, date_to?: string, statusFilter = true) {
@@ -120,6 +130,13 @@ export const reportsRepository = {
   allCategories() {
     return db.select().from(categoriesTable);
   },
+  /** The COST and accumulated-depreciation accounts this company's asset categories bind to — investing in the cash flow whatever their liquidity class (accounting review L1). */
+  fixedAssetAccounts() {
+    return db
+      .select({ cost: assetCategoriesTable.costAccountId, accumulated: assetCategoriesTable.accumulatedDepreciationAccountId })
+      .from(assetCategoriesTable)
+      .where(companyScoped(assetCategoriesTable.companyId));
+  },
   categoryById(id: number) {
     return db.select().from(categoriesTable).where(eq(categoriesTable.id, id)).limit(1);
   },
@@ -148,7 +165,7 @@ export const reportsRepository = {
    *   stored name (`legacyName`), as every report here always keyed it.
    */
   ledgerBalances(opts: { from?: string; to?: string; openingSourcesAsOpening?: boolean; accountIds?: number[]; movementOnly?: boolean } = {}) {
-    const isOpeningSource = isOpeningSourceEntry();
+    const isOpeningSource = openingBalanceLine();
     // `movementOnly` (P&L, cash-flow-style readers): the window's movement and
     // nothing before it — the scan is BOUNDED at `from`, not the whole history
     // summed into an opening the caller would discard.
@@ -187,7 +204,7 @@ export const reportsRepository = {
    * query never invents a period boundary. Lines outside every period are not
    * read at all (the WHERE bounds the scan to [min start, max end]).
    */
-  ledgerMovementsByPeriod(periods: { key: string; start: string; end: string }[], opts: { accountIds?: number[] } = {}) {
+  ledgerMovementsByPeriod(periods: { key: string; start: string; end: string }[], opts: { accountIds?: number[]; excludeOpeningSources?: boolean } = {}) {
     if (periods.length === 0) return Promise.resolve([] as { period: string; accountId: number | null; legacyName: string | null; debit: string; credit: string }[]);
     const starts = periods.map((p) => p.start).sort();
     const ends = periods.map((p) => p.end).sort();
@@ -195,6 +212,7 @@ export const reportsRepository = {
     const legacyName = sql<string | null>`case when ${journalEntryLinesTable.accountId} is null then ${journalEntryLinesTable.accountName} end`;
     const conds: any[] = [inBooks(), gte(journalEntriesTable.date, starts[0]!), lte(journalEntriesTable.date, ends[ends.length - 1]!)];
     if (opts.accountIds) conds.push(opts.accountIds.length > 0 ? inArray(journalEntryLinesTable.accountId, opts.accountIds) : sql`false`);
+    if (opts.excludeOpeningSources) conds.push(sql`not ${isOpeningSourceEntry()}`);
     return db
       .select({
         period: periodKey,
@@ -210,6 +228,28 @@ export const reportsRepository = {
       // GROUP BY copy of it would be numbered differently ($n) — Postgres would
       // then see two different expressions and refuse.
       .groupBy(sql`1`, sql`2`, sql`3`);
+  },
+
+  /**
+   * Migration opening entries' lines per account in [from, to], with their date: the previous
+   * system's year-to-date figures. The P&L trend and budget vs actual keep them OUT of the monthly
+   * buckets — a year's movement booked on one day would read as that month's — and show them as
+   * one amount on its date, never apportioned (accounting review M2, 2026-10-01).
+   */
+  openingSourceMovements(from: string, to: string, opts: { accountIds?: number[] } = {}) {
+    const conds: any[] = [inBooks(), isOpeningSourceEntry(), gte(journalEntriesTable.date, from), lte(journalEntriesTable.date, to)];
+    if (opts.accountIds) conds.push(opts.accountIds.length > 0 ? inArray(journalEntryLinesTable.accountId, opts.accountIds) : sql`false`);
+    return db
+      .select({
+        accountId: journalEntryLinesTable.accountId,
+        date: sql<string>`max(${journalEntriesTable.date})`,
+        debit: sql<string>`coalesce(sum(${journalEntryLinesTable.debitAmount}), 0)::text`,
+        credit: sql<string>`coalesce(sum(${journalEntryLinesTable.creditAmount}), 0)::text`,
+      })
+      .from(journalEntryLinesTable)
+      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
+      .where(and(...conds))
+      .groupBy(journalEntryLinesTable.accountId);
   },
 
   /**
@@ -297,7 +337,7 @@ export const reportsRepository = {
    *   it are not this account's opening: they are the prior-years row.
    */
   glOpening(opts: { from?: string; to?: string; notBefore?: string; accountId?: number; accountName?: string; party?: GlParty }) {
-    const conds: any[] = [inBooks(), opts.from ? sql`(${journalEntriesTable.date} < ${opts.from} or ${isOpeningSourceEntry()})` : isOpeningSourceEntry()];
+    const conds: any[] = [inBooks(), opts.from ? sql`(${journalEntriesTable.date} < ${opts.from} or ${openingBalanceLine()})` : openingBalanceLine()];
     if (opts.to) conds.push(lte(journalEntriesTable.date, opts.to));
     if (opts.notBefore) conds.push(gte(journalEntriesTable.date, opts.notBefore));
     if (opts.accountId != null) conds.push(eq(journalEntryLinesTable.accountId, opts.accountId));
@@ -312,7 +352,7 @@ export const reportsRepository = {
   /** The movements of the window — migration opening entries are the OPENING (above), never a movement. */
   glRows(date_from?: string, date_to?: string, account_id?: string, account_name?: string, party?: GlParty) {
     const conds = jeConditions(date_from, date_to);
-    conds.push(sql`not ${isOpeningSourceEntry()}`);
+    conds.push(sql`not ${openingBalanceLine()}`);
     if (account_id) conds.push(eq(journalEntryLinesTable.accountId, Number(account_id)));
     if (account_name && !account_id) conds.push(eq(journalEntryLinesTable.accountName, account_name));
     if (party) conds.push(partyCondition(party));

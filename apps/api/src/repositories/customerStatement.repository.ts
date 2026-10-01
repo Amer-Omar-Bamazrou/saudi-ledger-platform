@@ -41,7 +41,7 @@ const RECEIVABLE_DOC = sql`i.document_type NOT IN ('advance_invoice', 'advance_c
 /** A receipt that is not a reversed opening deposit (Policy C). */
 const RECEIPT_LIVE = sql`${paymentNotReversedSql("p")}`;
 /** N1 — the scoped company's rows only, as raw SQL for the CTEs below (same predicate as `companyScoped`). */
-const scopedCo = (alias: string) => sql.raw(`${alias}.company_id::text = current_setting('app.current_company_id', true)`);
+const scopedCo = (alias: string) => sql.raw(`${alias}.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid`);
 
 export type CustomerPositionRow = {
   customerId: number;
@@ -264,7 +264,7 @@ export const customerStatementRepository = {
         -- a credit note applied to an invoice: receivable and credit balance both fall.
         -- Applied AT issue (the note's own GL entry) it carries the note's
         -- timestamp, so it follows the note's issue line exactly.
-        SELECT 'credit_application', coalesce(je.date::date, a.created_at::date)::text,
+        SELECT 'credit_application', coalesce(je.date::date, (a.created_at AT TIME ZONE 'Asia/Riyadh')::date)::text,
                CASE WHEN je.entry_number = 'GL-' || n.invoice_number THEN coalesce(n.issued_at, n.created_at) ELSE a.created_at END, 3, a.id,
                i.invoice_number, n.invoice_number,
                'Credit note ' || n.invoice_number || ' applied to ' || i.invoice_number,
@@ -277,7 +277,7 @@ export const customerStatementRepository = {
          WHERE ${customerIs("n.customer_id", customerId)} AND ${scopedCo("n")}
         UNION ALL
         -- an unallocation supersedes an allocation: its deltas come back
-        SELECT 'unallocation', coalesce(je.date::date, r.created_at::date)::text, r.created_at, 5, r.id,
+        SELECT 'unallocation', coalesce(je.date::date, (r.created_at AT TIME ZONE 'Asia/Riyadh')::date)::text, r.created_at, 5, r.id,
                i.invoice_number, coalesce('RCPT-' || a.payment_id::text, n.invoice_number),
                'Unallocated from ' || i.invoice_number || ': ' || r.reason,
                r.amount::numeric, r.amount::numeric,
