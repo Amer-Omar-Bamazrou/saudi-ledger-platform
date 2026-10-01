@@ -63,6 +63,24 @@ export const E2E_MIGRATION = {
   accountantState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "migration-accountant.json"),
 };
 
+/**
+ * Phase 13B S1 (2026-09-30): an opening payable's VAT history is declared on a
+ * COMMITTED migration, and the migration tenant above is committed by its own
+ * spec through the UI — so a THIRD tenant, committed by the S1 spec through the
+ * API, with the three roles the declaration's permission separates: an admin
+ * and an accountant (may declare) and a bookkeeper (may not).
+ */
+export const E2E_S1 = {
+  slug: "e2e-s1-opening-vat",
+  adminEmail: "e2e-s1-admin@smoke.local",
+  accountantEmail: "e2e-s1-acct@smoke.local",
+  bookkeeperEmail: "e2e-s1-bk@smoke.local",
+  password: process.env.E2E_PASSWORD ?? "e2e-smoke-password-2026",
+  adminState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "s1-admin.json"),
+  accountantState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "s1-accountant.json"),
+  bookkeeperState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "s1-bookkeeper.json"),
+};
+
 export const E2E = {
   slug: "e2e-smoke",
   email: "e2e@smoke.local",
@@ -130,7 +148,7 @@ export default async function globalSetup(): Promise<void> {
    */
   const { rows: orgRows } = await db.query<{ id: string }>(
     `SELECT id FROM organizations WHERE slug = ANY($1::text[])`,
-    [[E2E.slug, E2E_MIGRATION.slug]],
+    [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug]],
   );
 
   if (orgRows.length > 0) {
@@ -160,13 +178,13 @@ export default async function globalSetup(): Promise<void> {
         // information_schema, not from input, and are quoted.
         await db.query(`DELETE FROM "${table_name}" WHERE organization_id = ANY($1::uuid[])`, [ids]);
       }
-      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail]]);
-      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug]]);
+      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail]]);
+      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug]]);
     } finally {
       await db.query(`SET session_replication_role = DEFAULT`);
     }
   } else {
-    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail]]);
+    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail]]);
   }
 
   // ── The identity layer: the only rows written directly ─────────────────────
@@ -204,6 +222,13 @@ export default async function globalSetup(): Promise<void> {
   for (const [email, role, name] of [[E2E_MIGRATION.adminEmail, "admin", "E2E Migration Admin"], [E2E_MIGRATION.accountantEmail, "accountant", "E2E Migration Accountant"]] as const) {
     const uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,$2,'${hash}','viewer', true) RETURNING id`, [email, name])).rows[0].id as number;
     await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,$3,'active')`, [migOrgId, uid, role]);
+  }
+  // ── The S1 tenant (Phase 13B S1): identity only; the spec commits its migration through the API ──
+  const s1OrgId = (await db.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('E2E S1 Opening VAT Org', $1, 'approved') RETURNING id`, [E2E_S1.slug])).rows[0].id as string;
+  await db.query(`INSERT INTO companies (organization_id, name, name_ar, cr_number, vat_number, fiscal_year_start, fiscal_calendar) VALUES ($1,'E2E S1 Co','شركة الضريبة الافتتاحية','1010303030','300000000000033',1,'gregorian')`, [s1OrgId]);
+  for (const [email, role, name] of [[E2E_S1.adminEmail, "admin", "E2E S1 Admin"], [E2E_S1.accountantEmail, "accountant", "E2E S1 Accountant"], [E2E_S1.bookkeeperEmail, "bookkeeper", "E2E S1 Bookkeeper"]] as const) {
+    const uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,$2,'${hash}','viewer', true) RETURNING id`, [email, name])).rows[0].id as number;
+    await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,$3,'active')`, [s1OrgId, uid, role]);
   }
   // The suite now logs three users in per run (Batch 1C added a second tenant);
   // the login limiter is 10 per 15 minutes per IP, so a few local re-runs would
@@ -467,6 +492,16 @@ export default async function globalSetup(): Promise<void> {
   if (!acctLogin.ok()) throw new Error(`e2e migration accountant login failed: ${acctLogin.status()}`);
   await migAcct.storageState({ path: E2E_MIGRATION.accountantState });
   await migAcct.dispose();
+
+  // The S1 tenant: three sessions, and one bank account (the old bank row maps to it).
+  for (const [email, state, withBank] of [[E2E_S1.adminEmail, E2E_S1.adminState, true], [E2E_S1.accountantEmail, E2E_S1.accountantState, false], [E2E_S1.bookkeeperEmail, E2E_S1.bookkeeperState, false]] as const) {
+    const s1 = await request.newContext({ baseURL: API });
+    const login = await s1.post("/api/auth/login", { data: { email, password: E2E_S1.password } });
+    if (!login.ok()) throw new Error(`e2e S1 login failed for ${email}: ${login.status()}`);
+    if (withBank) await api(s1, "POST", "/bank-accounts", { name: "S1 Main", bankName: "Riyad Bank", currency: "SAR" });
+    await s1.storageState({ path: state });
+    await s1.dispose();
+  }
 
   writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id } satisfies SeededIds, null, 2));
 }

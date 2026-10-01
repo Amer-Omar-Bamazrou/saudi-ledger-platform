@@ -86,6 +86,12 @@ export function useCanRunMigration(): boolean {
   return user?.organizationRole === "admin";
 }
 
+/** Phase 13B S1 (D4): an opening payable's VAT history is declared by an admin OR an accountant (`opening_vat_declaration`). */
+export function useCanDeclareOpeningVat(): boolean {
+  const { user } = useAuth();
+  return user?.organizationRole === "admin" || user?.organizationRole === "accountant";
+}
+
 export function MigrationPermissionHint() {
   const { t } = useLanguage();
   const can = useCanRunMigration();

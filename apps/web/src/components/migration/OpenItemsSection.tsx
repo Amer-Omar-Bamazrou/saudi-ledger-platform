@@ -24,10 +24,11 @@ import { Link } from "wouter";
 import { FileText, FileInput, Upload, Pencil, Plus, ExternalLink } from "lucide-react";
 import { DualDate } from "@/components/DualDate";
 import { ageingBucket, reliefLabel } from "@/lib/migrationImport";
-import { EmptyState, Money, Problems, focusClass, useCanRunMigration, useFocusRow, useOpenItems, useWorkspaceNav } from "./shared";
+import { EmptyState, Money, Problems, focusClass, useCanDeclareOpeningVat, useCanRunMigration, useFocusRow, useOpenItems, useWorkspaceNav } from "./shared";
 import { ImportDialog, RowEditorDialog } from "./StagingEditors";
 import { CorrectOpenItemDialog, RecordIdentityDialog } from "./OpenItemActions";
-import type { MigrationOpenItem } from "@workspace/api-client-react";
+import { OpeningVatDeclarationDialog } from "./OpeningVatDeclarationDialog";
+import { useListOpeningVatDeclarations, type MigrationOpenItem, type OpeningVatDeclaration } from "@workspace/api-client-react";
 
 export function OpenItemsSection({ batchId, editable, side, openingDate, committed }: { batchId: number; editable: boolean; side: "ar" | "ap"; openingDate: string; committed: boolean }) {
   const { t, lang } = useLanguage();
@@ -38,6 +39,11 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [correcting, setCorrecting] = useState<MigrationOpenItem | null>(null);
   const [identifying, setIdentifying] = useState<MigrationOpenItem | null>(null);
+  const [declaring, setDeclaring] = useState<MigrationOpenItem | null>(null);
+  // Phase 13B S1: a committed PAYABLE's input-VAT history — declared once, with evidence, by an admin or accountant.
+  const canDeclare = useCanDeclareOpeningVat();
+  const { data: declarations } = useListOpeningVatDeclarations({ query: { enabled: committed && side === "ap" && canDeclare } as never });
+  const declarationOf = useMemo(() => new Map<number, OpeningVatDeclaration>((declarations ?? []).map((d) => [d.itemId, d])), [declarations]);
   const [onlyBlocked, setOnlyBlocked] = useState(blockedOnly);
   useFocusRow(focus, !!data);
   const can = editable && canRun;
@@ -53,6 +59,10 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
   if (error || !data) return <p className="text-sm text-destructive p-4">{t("The open items could not be loaded.", "تعذر تحميل البنود المفتوحة.")} {(error as Error)?.message}</p>;
   const s = isAr ? data.summary.ar : data.summary.ap;
   const blocked = all.filter((r) => r.itemType === side && r.problems.length > 0).length;
+  const vatStateLabel = (s: OpeningVatDeclaration["state"]) => ({
+    DEDUCTED: t("deducted", "مخصومة"), NOT_DEDUCTED: t("never deducted — in cost", "لم تُخصم — في التكلفة"),
+    BLOCKED_ART50: t("blocked (Art. 50)", "محظورة (المادة 50)"), REVERSED_ART40_10: t("reversed (Art. 40(10))", "معكوسة (المادة 40(10))"),
+  } as Record<string, string>)[s] ?? s;
   const bucketLabel = (b: ReturnType<typeof ageingBucket>["bucket"]) => ({ current: t("current", "جارٍ"), "1-30": t("1–30 days", "١–٣٠ يوم"), "31-60": t("31–60 days", "٣١–٦٠ يوم"), "61-90": t("61–90 days", "٦١–٩٠ يوم"), "90+": t("90+ days", "أكثر من ٩٠ يوم") })[b];
 
   return (
@@ -121,6 +131,16 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
                           {r.historicalVat ? (
                             <span>{r.historicalVat.category ?? "—"}{r.historicalVat.rate != null ? ` ${r.historicalVat.rate}%` : ""}{r.historicalVat.amount != null ? <> · <Money v={r.historicalVat.amount} /></> : ""}{r.historicalVat.reportedPeriod && <span className="block text-muted-foreground">{t("reported", "مبلَّغ")}: {r.historicalVat.reportedPeriod}</span>}</span>
                           ) : <span className="text-muted-foreground">{t("none recorded", "لا شيء مسجَّل")}</span>}
+                          {!isAr && committed && canDeclare && r.liveDocumentId != null && (() => {
+                            const d = declarationOf.get(r.id);
+                            return (
+                              <span className="block mt-1" data-testid={`vat-history-${r.documentNumber}`}>
+                                <span className="text-muted-foreground">{t("VAT history", "تاريخ الضريبة")}:</span>{" "}
+                                {d ? <Badge variant="outline" className="text-[10px]" data-testid={`vat-history-state-${r.documentNumber}`}>{vatStateLabel(d.state)} · {t("declared", "مُعلن")} {d.declaredOn}</Badge>
+                                   : <Badge variant="outline" className="text-[10px]" data-testid={`vat-history-undeclared-${r.documentNumber}`}>{t("not declared — credit notes refused", "غير مُعلن — الإشعارات الدائنة مرفوضة")}</Badge>}
+                              </span>
+                            );
+                          })()}
                           {isAr && (
                             <span className="block mt-1" data-testid={`relief-${r.documentNumber}`}>
                               <span className="text-muted-foreground">{t("Bad-debt relief claimed", "المطالبة بإعفاء الديون المعدومة")}:</span> <Badge variant="outline" className="text-[10px]">{reliefLabel(r.historicalVat?.badDebtReliefClaimed, lang)}</Badge>
@@ -134,6 +154,9 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
                             <Link href={isAr ? `/invoices` : `/bills`} className="inline-flex items-center gap-1 text-xs text-primary h-7 px-2" data-testid={`open-record-${r.documentNumber}`}>
                               <ExternalLink className="w-3 h-3" />{isAr ? t("Opening receivable", "الذمة الافتتاحية") : t("Opening bill", "الفاتورة الافتتاحية")} #{r.liveDocumentId ?? r.resolvedId}
                             </Link>
+                          )}
+                          {!isAr && committed && canDeclare && r.liveDocumentId != null && declarations && !declarationOf.has(r.id) && (
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDeclaring(r)} data-testid={`declare-vat-${r.documentNumber}`}>{t("Declare VAT history", "إعلان تاريخ الضريبة")}</Button>
                           )}
                           {committed && canRun && r.liveDocumentId != null && (
                             <span className="flex flex-wrap gap-1 mt-1">
@@ -162,6 +185,7 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
       )}
       {importing && <ImportDialog batchId={batchId} kind="openItems" hasRows={all.length > 0} onClose={() => setImporting(false)} />}
       {correcting && <CorrectOpenItemDialog batchId={batchId} item={correcting} open onClose={() => setCorrecting(null)} />}
+      {declaring && <OpeningVatDeclarationDialog item={declaring} open onClose={() => setDeclaring(null)} />}
       {identifying && <RecordIdentityDialog batchId={batchId} item={identifying} open onClose={() => setIdentifying(null)} />}
       {editingRow != null && <RowEditorDialog batchId={batchId} kind="openItems" rows={all as unknown as Record<string, unknown>[]} index={editingRow} onClose={() => setEditingRow(null)} />}
     </div>

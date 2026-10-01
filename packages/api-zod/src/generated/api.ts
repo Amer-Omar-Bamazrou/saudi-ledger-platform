@@ -10139,6 +10139,103 @@ export const RecordMigratedOpenItemIdentityResponse = zod.object({
 
 
 /**
+ * @summary Phase 13B S1: the declared historical input-VAT positions of this company's opening payables
+ */
+export const ListOpeningVatDeclarationsResponseItem = zod.object({
+  "id": zod.number(),
+  "itemId": zod.number(),
+  "billId": zod.number(),
+  "state": zod.enum(['DEDUCTED', 'NOT_DEDUCTED', 'BLOCKED_ART50', 'REVERSED_ART40_10']),
+  "historicalVat": zod.number(),
+  "vatRate": zod.number(),
+  "deductedPeriod": zod.string().nullable(),
+  "notDeductedReason": zod.string().nullable(),
+  "carriedInCost": zod.boolean().nullable(),
+  "art50Ground": zod.string().nullable(),
+  "reversedPeriod": zod.string().nullable(),
+  "reversedVatLocation": zod.string().nullable(),
+  "recordReference": zod.string().nullable(),
+  "statement": zod.string(),
+  "declaredBy": zod.number(),
+  "declaredOn": zod.string(),
+  "evidence": zod.array(zod.object({
+  "kind": zod.string(),
+  "captureId": zod.string(),
+  "captureSha256": zod.string()
+}))
+})
+export const ListOpeningVatDeclarationsResponse = zod.array(ListOpeningVatDeclarationsResponseItem)
+
+
+/**
+ * Admin and accountant only (owner decision D4 — a dedicated grant, `opening_vat_declaration`). S1 acts on four histories: DEDUCTED, NOT_DEDUCTED (carried in cost or the asset — AQ-2), BLOCKED_ART50, and REVERSED_ART40_10 (fully reversed, nothing restored, the reversed VAT carried in COST — D7). Each needs the evidence the accountant set (AQ-1; the product evidence policy — NOT a ZATCA-prescribed format); without it nothing is declared and the item stays UNKNOWN. A partial, Art. 51, line-split or adjustment-account history is refused by name (`opening_vat_declaration_state_not_enabled`). The declaration feeds the input-VAT ledger through one declared recognition; it is never changed. The migration's staged row is never written, and no key of its `historicalVat` but `amount` and `rate` is read.
+ * @summary Phase 13B S1: declare, ONCE and with its evidence, how an opening payable's input VAT was treated in the previous system
+ */
+export const declareOpeningVatBodyHistoricalVatExclusiveMin = 0;
+
+export const declareOpeningVatBodyVatRateExclusiveMin = 0;
+export const declareOpeningVatBodyVatRateMax = 100;
+
+export const declareOpeningVatBodyDeductedPeriodMax = 7;
+
+export const declareOpeningVatBodyNotDeductedReasonMax = 500;
+
+export const declareOpeningVatBodyArt50GroundMax = 500;
+
+export const declareOpeningVatBodyReversedPeriodMax = 7;
+
+export const declareOpeningVatBodyRecordReferenceMax = 200;
+
+export const declareOpeningVatBodyEvidenceItemCaptureIdMax = 64;
+
+export const declareOpeningVatBodyEvidenceMax = 20;
+
+
+
+export const DeclareOpeningVatBody = zod.object({
+  "itemId": zod.number().describe('The committed migrated open item (a payable).'),
+  "state": zod.enum(['DEDUCTED', 'NOT_DEDUCTED', 'BLOCKED_ART50', 'REVERSED_ART40_10', 'PARTIALLY_DEDUCTED', 'PARTIALLY_RESTORED', 'ART51_APPORTIONED', 'LINE_SPLIT']).describe('The last four exist but S1 does not act on them — refused by name, never approximated.'),
+  "historicalVat": zod.number().gt(declareOpeningVatBodyHistoricalVatExclusiveMin).nullish().describe('The historical invoice\'s VAT. Defaults to the staged amount; may not contradict it.'),
+  "vatRate": zod.number().gt(declareOpeningVatBodyVatRateExclusiveMin).max(declareOpeningVatBodyVatRateMax).nullish().describe('The historical rate, %. Defaults to the staged rate; may not contradict it.'),
+  "deductedPeriod": zod.string().max(declareOpeningVatBodyDeductedPeriodMax).nullish().describe('YYYY-MM — DEDUCTED and REVERSED_ART40_10.'),
+  "notDeductedReason": zod.string().max(declareOpeningVatBodyNotDeductedReasonMax).nullish().describe('NOT_DEDUCTED.'),
+  "carriedInCost": zod.boolean().nullish().describe('NOT_DEDUCTED: affirms AQ-2\'s premise — the undeducted VAT was carried in cost or the asset.'),
+  "art50Ground": zod.string().max(declareOpeningVatBodyArt50GroundMax).nullish().describe('BLOCKED_ART50.'),
+  "reversedPeriod": zod.string().max(declareOpeningVatBodyReversedPeriodMax).nullish().describe('YYYY-MM — REVERSED_ART40_10.'),
+  "reversedVatLocation": zod.union([zod.literal('cost'),zod.literal('adjustment_account'),zod.literal(null)]).nullish().describe('REVERSED_ART40_10 (D7): where the previous system carried the reversed VAT. Required; never assumed. S1 acts on cost only.'),
+  "recordReference": zod.string().max(declareOpeningVatBodyRecordReferenceMax).nullish(),
+  "evidence": zod.array(zod.object({
+  "kind": zod.enum(['ORIGINAL_TAX_INVOICE', 'DEDUCTION_RETURN', 'REVERSAL_RETURN', 'PAYMENT_RECORDS', 'CLASSIFICATION']),
+  "captureId": zod.string().min(1).max(declareOpeningVatBodyEvidenceItemCaptureIdMax).describe('A document uploaded through POST \/capture; it becomes evidence of the opening payable.')
+})).max(declareOpeningVatBodyEvidenceMax)
+})
+
+export const DeclareOpeningVatResponse = zod.object({
+  "id": zod.number(),
+  "itemId": zod.number(),
+  "billId": zod.number(),
+  "state": zod.enum(['DEDUCTED', 'NOT_DEDUCTED', 'BLOCKED_ART50', 'REVERSED_ART40_10']),
+  "historicalVat": zod.number(),
+  "vatRate": zod.number(),
+  "deductedPeriod": zod.string().nullable(),
+  "notDeductedReason": zod.string().nullable(),
+  "carriedInCost": zod.boolean().nullable(),
+  "art50Ground": zod.string().nullable(),
+  "reversedPeriod": zod.string().nullable(),
+  "reversedVatLocation": zod.string().nullable(),
+  "recordReference": zod.string().nullable(),
+  "statement": zod.string(),
+  "declaredBy": zod.number(),
+  "declaredOn": zod.string(),
+  "evidence": zod.array(zod.object({
+  "kind": zod.string(),
+  "captureId": zod.string(),
+  "captureSha256": zod.string()
+}))
+})
+
+
+/**
  * Each asset posts its own entry (Dr the category's depreciation expense / Cr its accumulated depreciation) dated the last day of the period, and its schedule row is marked posted. A period is depreciated ONCE. An asset that cannot run is REPORTED by name (never skipped silently); a CLOSED period stops the whole run with 423 — the catch-up passes an explicit postingDate in an open month and the entry says which period it depreciates (CLAUDE.md §4).
  * @summary FA-B: run one PERIOD for the company — every asset in service whose schedule plans it, one entry each
  */

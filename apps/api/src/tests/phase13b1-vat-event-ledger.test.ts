@@ -220,15 +220,24 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
     expect(posted).toBe(0);
   });
 
-  it("🔴 the transitions: every triple is stated; the database ADMITS the foundation set plus 13B-3's credit-note reduction — never increased_by_note (retired, O-3), supply_date_changed or correction_withdrawn", async () => {
+  it("🔴 the transitions: every triple is stated; the database ADMITS the foundation set plus 13B-3's credit-note reduction and S1's declared opening history — never increased_by_note (retired, O-3), supply_date_changed or correction_withdrawn", async () => {
     const rows = (await pool.query(`SELECT event_type, from_bucket, to_bucket, admitted FROM input_vat_event_transitions ORDER BY 1, 2, 3`)).rows;
-    expect(rows).toHaveLength(20);
+    expect(rows).toHaveLength(26); // Phase 13B S1 (0110): +4 declared_opening, +2 reduced_by_note
     const admitted = rows.filter((r) => r.admitted).map((r) => r.event_type).sort();
     expect(admitted).toEqual([
-      "advance_deducted", "claimed", "corrected_blocked", "exception_recorded", "exception_withdrawn", "lapsed_expired",
+      "advance_deducted", "claimed", "corrected_blocked",
+      "declared_opening", "declared_opening", "declared_opening", "declared_opening", // S1: NONE → CLAIMED / NOT_DEDUCTED / BLOCKED / REVERSED_UNPAID
+      "exception_recorded", "exception_withdrawn", "lapsed_expired",
       "lapsed_written_off", "recognised_blocked", "recognised_claimed", "recognised_held",
       "reduced_by_note", "reduced_by_note", "reduced_by_note", // 13B-3 (A-B1-1): from HELD, CLAIMED, BLOCKED
+      "reduced_by_note", "reduced_by_note", // S1: from NOT_DEDUCTED and REVERSED_UNPAID (an opening payable's declared history)
       "restored_on_payment", "reversed_unpaid",
+    ]);
+    const s1 = rows.filter((r) => r.event_type === "declared_opening" || (r.event_type === "reduced_by_note" && ["NOT_DEDUCTED", "REVERSED_UNPAID"].includes(r.from_bucket)))
+      .map((r) => `${r.event_type}:${r.from_bucket}->${r.to_bucket}`).sort();
+    expect(s1).toEqual([
+      "declared_opening:NONE->BLOCKED", "declared_opening:NONE->CLAIMED", "declared_opening:NONE->NOT_DEDUCTED", "declared_opening:NONE->REVERSED_UNPAID",
+      "reduced_by_note:NOT_DEDUCTED->NONE", "reduced_by_note:REVERSED_UNPAID->NONE",
     ]);
     const refused = [...new Set(rows.filter((r) => !r.admitted).map((r) => r.event_type))].sort();
     expect(refused).toEqual(["correction_withdrawn", "increased_by_note", "supply_date_changed"]);

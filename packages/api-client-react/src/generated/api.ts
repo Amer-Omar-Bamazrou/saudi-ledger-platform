@@ -114,6 +114,7 @@ import type {
   CustomerPayment,
   CustomerRefund,
   CustomerStatement,
+  DeclareOpeningVatInput,
   Decomposition,
   DeleteAssetVatUseRecord200,
   DeleteIncomeTaxPoolDeclaration200,
@@ -252,6 +253,7 @@ import type {
   MigrationReversed,
   MigrationValidation,
   OpenAdvanceInvoice,
+  OpeningVatDeclaration,
   OwnerEquityReport,
   Payment,
   PaymentAllocationDetail,
@@ -16914,6 +16916,155 @@ export const useRecordMigratedOpenItemIdentity = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRecordMigratedOpenItemIdentityMutationOptions(options));
+    }
+
+export const getListOpeningVatDeclarationsUrl = () => {
+
+
+
+
+  return `/api/opening-vat-declarations`
+}
+
+/**
+ * @summary Phase 13B S1: the declared historical input-VAT positions of this company's opening payables
+ */
+export const listOpeningVatDeclarations = async ( options?: RequestInit): Promise<OpeningVatDeclaration[]> => {
+
+  return customFetch<OpeningVatDeclaration[]>(getListOpeningVatDeclarationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOpeningVatDeclarationsQueryKey = () => {
+    return [
+    `/api/opening-vat-declarations`
+    ] as const;
+    }
+
+
+export const getListOpeningVatDeclarationsQueryOptions = <TData = Awaited<ReturnType<typeof listOpeningVatDeclarations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpeningVatDeclarations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOpeningVatDeclarationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOpeningVatDeclarations>>> = ({ signal }) => listOpeningVatDeclarations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOpeningVatDeclarations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOpeningVatDeclarationsQueryResult = NonNullable<Awaited<ReturnType<typeof listOpeningVatDeclarations>>>
+export type ListOpeningVatDeclarationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 13B S1: the declared historical input-VAT positions of this company's opening payables
+ */
+
+export function useListOpeningVatDeclarations<TData = Awaited<ReturnType<typeof listOpeningVatDeclarations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpeningVatDeclarations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOpeningVatDeclarationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeclareOpeningVatUrl = () => {
+
+
+
+
+  return `/api/opening-vat-declarations`
+}
+
+/**
+ * Admin and accountant only (owner decision D4 — a dedicated grant, `opening_vat_declaration`). S1 acts on four histories: DEDUCTED, NOT_DEDUCTED (carried in cost or the asset — AQ-2), BLOCKED_ART50, and REVERSED_ART40_10 (fully reversed, nothing restored, the reversed VAT carried in COST — D7). Each needs the evidence the accountant set (AQ-1; the product evidence policy — NOT a ZATCA-prescribed format); without it nothing is declared and the item stays UNKNOWN. A partial, Art. 51, line-split or adjustment-account history is refused by name (`opening_vat_declaration_state_not_enabled`). The declaration feeds the input-VAT ledger through one declared recognition; it is never changed. The migration's staged row is never written, and no key of its `historicalVat` but `amount` and `rate` is read.
+ * @summary Phase 13B S1: declare, ONCE and with its evidence, how an opening payable's input VAT was treated in the previous system
+ */
+export const declareOpeningVat = async (declareOpeningVatInput: DeclareOpeningVatInput, options?: RequestInit): Promise<OpeningVatDeclaration> => {
+
+  return customFetch<OpeningVatDeclaration>(getDeclareOpeningVatUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(declareOpeningVatInput)
+  }
+);}
+
+
+
+
+
+export const getDeclareOpeningVatMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declareOpeningVat>>, TError,{data: BodyType<DeclareOpeningVatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof declareOpeningVat>>, TError,{data: BodyType<DeclareOpeningVatInput>}, TContext> => {
+
+const mutationKey = ['declareOpeningVat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declareOpeningVat>>, {data: BodyType<DeclareOpeningVatInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  declareOpeningVat(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeclareOpeningVatMutationResult = NonNullable<Awaited<ReturnType<typeof declareOpeningVat>>>
+    export type DeclareOpeningVatMutationBody = BodyType<DeclareOpeningVatInput>
+    export type DeclareOpeningVatMutationError = ErrorType<void>
+
+    /**
+ * @summary Phase 13B S1: declare, ONCE and with its evidence, how an opening payable's input VAT was treated in the previous system
+ */
+export const useDeclareOpeningVat = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declareOpeningVat>>, TError,{data: BodyType<DeclareOpeningVatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof declareOpeningVat>>,
+        TError,
+        {data: BodyType<DeclareOpeningVatInput>},
+        TContext
+      > => {
+      return useMutation(getDeclareOpeningVatMutationOptions(options));
     }
 
 export const getRunAssetDepreciationUrl = () => {

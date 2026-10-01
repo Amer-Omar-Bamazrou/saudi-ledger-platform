@@ -166,6 +166,10 @@ describe("the permission matrix's GRANTS, not its enforcement", () => {
     // Its staging holds the old system's full chart and every open item —
     // not ordinary reading for a bookkeeper or viewer.
     migration: "admin runs it, accountant reviews it — bookkeeper/viewer do not read the staging",
+    // Phase 13B S1 (owner decision D4): declaring what the previous system did
+    // with a payable's input VAT is an admin/accountant act; the declarations
+    // and their evidence are part of the migration record, read the same way.
+    opening_vat_declaration: "admin/accountant declare an opening payable's VAT history — read with the migration record",
   };
 
   it("🔴 every guarded resource is readable by every role, or is a NAMED exception", () => {

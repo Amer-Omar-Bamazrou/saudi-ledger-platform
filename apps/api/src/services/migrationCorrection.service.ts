@@ -35,6 +35,7 @@ import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors
 import { money2, round2 } from "../lib/money";
 import { assertDateString } from "../lib/writeGuards";
 import { migrationRepository } from "../repositories/migration.repository";
+import { openingVatDeclarationsRepository } from "../repositories/openingVatDeclarations.repository";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { postJournalEntry } from "./accounting/glPosting";
 import { auditService } from "./audit.service";
@@ -103,6 +104,21 @@ export const migrationCorrectionService = {
     const touches = await migrationRepository.touchesSinceCommit(isAr ? [live.id] : [], isAr ? [] : [live.id], []);
     if (touches.length > 0) {
       throw new BusinessRuleError(409, { code: "opening_item_partly_settled", error: `Migrated item ${item.documentNumber} has been acted on since the migration (${touches.join("; ")}). How a partly-settled opening item is corrected is an open question with the accountant (Batch 1C pack §16.12.5); until it is answered the item is corrected by dated journals, not here.`, field: "itemId" });
+    }
+    /**
+     * 🔴 Phase 13B S1 (owner D2) — a declared historical VAT position is a TOUCH for
+     * THIS act only. Its ledger events belong to the live bill; a replacement
+     * would carry none, and the declared history would silently vanish (UNKNOWN
+     * by accident). Declared events are never copied onto a replacement. The
+     * whole-batch reversal is NOT affected (`touchesSinceCommit` is unchanged):
+     * reversing a migration moves no money a declaration made.
+     */
+    if (!isAr && (await openingVatDeclarationsRepository.findByItem(item.id))) {
+      throw new BusinessRuleError(409, {
+        code: "opening_item_vat_declared",
+        error: `The historical VAT of ${item.documentNumber} has been declared, so its outstanding amount cannot be corrected here any more — a correction would replace the bill that carries the declaration. Correct an item's outstanding before declaring its VAT history; after that, correct it with a dated journal.`,
+        field: "itemId",
+      });
     }
 
     const number = isAr ? (live as Invoice).invoiceNumber : (live as Bill).billNumber;

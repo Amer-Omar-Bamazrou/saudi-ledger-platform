@@ -15,10 +15,18 @@
  * 🔴 The DATE is the supplier's issue date, and it is the whole tax point:
  * Art. 40(6) corrects our input tax in the period the note was ISSUED, so the
  * field is asked for rather than defaulted from the original bill.
+ *
+ * 🔴 Phase 13B S1 (2026-09-30): against an OPENING bill (migrated at cut-over)
+ * a note needs the supplier's own document attached — even at VAT 0 — and the
+ * bill's VAT history declared (Migration → AP open items). What the note does
+ * to input VAT then comes from that declared history, never from the opening
+ * bill (which carries no VAT of its own). The document is attached when the
+ * note is recorded, or later to the draft; refusals are titled by their CODE.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { fmtNum } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
+import { noteRefusalToast } from "@/lib/openingVatRefusals";
 import { statusLabel } from "@/lib/statusLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,8 +42,17 @@ import { businessToday } from "@workspace/shared";
 import {
   useListSupplierCreditNotes, useListBills,
   createBill, approveBill, applySupplierCreditNote, reverseSupplierAllocation,
-  type SupplierCreditNote, type Bill, type BillHeaderInputDocumentType,
+  type SupplierCreditNote, type Bill, type BillHeaderInputDocumentType, type AttachEvidenceInput,
 } from "@workspace/api-client-react";
+
+/** Stage a file through the capture pipeline; the caller links the returned capture to a bill. */
+async function stageDocument(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("document", file, file.name);
+  fd.append("source", "manual");
+  const cap: { captureId: string } = await apiFetch("/capture", { method: "POST", body: fd });
+  return cap.captureId;
+}
 
 /** What a bill still owes, from the SERVER (billPosition) — never total − paid here. */
 const owes = (b: Bill) => Number(b.outstanding ?? 0);
@@ -48,6 +65,9 @@ export default function SupplierCreditNotes() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [applyFor, setApplyFor] = useState<SupplierCreditNote | null>(null);
+  const attachFor = useRef<number | null>(null);
+  const attachInput = useRef<HTMLInputElement>(null);
+  const [attachingId, setAttachingId] = useState<number | null>(null);
 
   const { data, isLoading } = useListSupplierCreditNotes();
   const { data: billsPage } = useListBills({ limit: 200 });
@@ -66,11 +86,29 @@ export default function SupplierCreditNotes() {
   const approve = useMutation({
     mutationFn: (id: number) => approveBill(id, {}),
     onSuccess: () => { toast({ title: t("Note posted", "تم ترحيل الإشعار") }); invalidate(); },
-    onError: (e: Error) => toast({ title: t("Refused", "مرفوض"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(noteRefusalToast(e, t)),
   });
+
+  /** Attach the supplier's document to a DRAFT note — the evidence path every draft bill uses. */
+  const attachToDraft = async (noteId: number, file: File) => {
+    setAttachingId(noteId);
+    try {
+      const captureId = await stageDocument(file);
+      // A literal path (typed by the GENERATED input): the state-machine reachability guard reads apps/web for it.
+      await apiFetch(`/bills/${noteId}/evidence`, { method: "POST", body: JSON.stringify({ captureId } satisfies AttachEvidenceInput) });
+      toast({ title: t("Supplier's document attached", "أُرفق مستند المورّد") });
+      invalidate();
+    } catch (e) {
+      toast(noteRefusalToast(e, t));
+    } finally {
+      setAttachingId(null);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-full" data-testid="page-supplier-credit-notes">
+      <input ref={attachInput} type="file" accept="application/pdf,image/*" className="hidden" data-testid="note-attach-input"
+        onChange={(e) => { const f = e.target.files?.[0]; const id = attachFor.current; if (f && id != null) void attachToDraft(id, f); e.target.value = ""; }} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2"><FileMinus className="w-6 h-6" />{t("Supplier credit notes", "إشعارات الدائن من الموردين")}</h1>
@@ -113,7 +151,10 @@ export default function SupplierCreditNotes() {
                     <td className="py-2 pe-3 text-xs" data-testid={`note-status-${n.id}`}>{statusLabel(n.status, lang)}</td>
                     <td className="py-2 whitespace-nowrap">
                       {["draft", "submitted"].includes(n.status) ? (
-                        <Button size="sm" variant="secondary" onClick={() => approve.mutate(n.id)} data-testid={`approve-note-${n.id}`}>{t("Post", "ترحيل")}</Button>
+                        <span className="inline-flex gap-1">
+                          <Button size="sm" variant="ghost" disabled={attachingId === n.id} onClick={() => { attachFor.current = n.id; attachInput.current?.click(); }} data-testid={`attach-note-${n.id}`}>{t("Attach document", "إرفاق المستند")}</Button>
+                          <Button size="sm" variant="secondary" onClick={() => approve.mutate(n.id)} data-testid={`approve-note-${n.id}`}>{t("Post", "ترحيل")}</Button>
+                        </span>
                       ) : n.documentType === "credit_note" ? (
                         <Button size="sm" variant="ghost" onClick={() => setApplyFor(n)} data-testid={`apply-note-${n.id}`}>{t("Apply", "تطبيق")}</Button>
                       ) : null}
@@ -150,13 +191,15 @@ function NewNoteDialog({ bills, t, onDone }: {
   const [date, setDate] = useState(businessToday());
   const [subtotal, setSubtotal] = useState("");
   const [vatAmount, setVatAmount] = useState("");
+  const [supplierDocument, setSupplierDocument] = useState<File | null>(null);
 
   const total = (Number(subtotal) || 0) + (Number(vatAmount) || 0);
+  const original = bills.find((b) => String(b.id) === againstBillId);
 
   const create = useMutation({
     // 🔴 `POST /bills` — the one write boundary for a bills row. There is no
     // "create a credit note" endpoint, on purpose.
-    mutationFn: () => createBill({
+    mutationFn: async () => createBill({
       documentType: documentType as BillHeaderInputDocumentType,
       creditNoteAgainstBillId: Number(againstBillId),
       billNumber: billNumber || undefined,
@@ -164,9 +207,11 @@ function NewNoteDialog({ bills, t, onDone }: {
       subtotal: Number(subtotal) || 0,
       vatAmount: Number(vatAmount) || 0,
       total,
+      // the supplier's own document, staged, then linked to the draft as it is created
+      captureId: supplierDocument ? await stageDocument(supplierDocument) : undefined,
     }),
     onSuccess: () => { toast({ title: t("Note recorded as a draft", "سُجِّل الإشعار كمسودة") }); onDone(); },
-    onError: (e: Error) => toast({ title: t("Refused", "مرفوض"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(noteRefusalToast(e, t)),
   });
 
   return (
@@ -219,7 +264,17 @@ function NewNoteDialog({ bills, t, onDone }: {
           <Label>{t("Total", "الإجمالي")}</Label>
           <p className="font-mono text-lg" dir="ltr" data-testid="note-total">{fmtNum(total)}</p>
         </div>
+        <div className="space-y-1 sm:col-span-2">
+          <Label>{t("The supplier's document", "مستند المورّد")}</Label>
+          <Input type="file" accept="application/pdf,image/*" onChange={(e) => setSupplierDocument(e.target.files?.[0] ?? null)} data-testid="note-document" />
+        </div>
       </div>
+      {original?.isOpening && (
+        <p className="text-xs text-muted-foreground rounded-md border border-border p-2" data-testid="note-opening-hint">
+          {t("This bill is an opening balance migrated at cut-over. The note needs the supplier's document attached — even with no VAT — and the bill's VAT history declared (Migration → AP open items); its effect on input VAT comes from that declared history.",
+             "هذه الفاتورة رصيد افتتاحي مرحَّل عند التحويل. يحتاج الإشعار إلى إرفاق مستند المورّد — حتى دون ضريبة — وإلى إعلان تاريخ ضريبة الفاتورة (الترحيل ← الذمم الدائنة المفتوحة)؛ وأثره على ضريبة المدخلات يأتي من ذلك التاريخ المُعلن.")}
+        </p>
+      )}
 
       <DialogFooter>
         <Button onClick={() => create.mutate()} disabled={create.isPending} data-testid="note-submit">

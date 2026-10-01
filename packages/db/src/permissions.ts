@@ -110,6 +110,11 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // Batch 1C (2026-09-18): a migration is run by an ADMIN only (pack §D-1 §11);
   // an accountant may read its record and reconciliation.
   migration: { read: APPROVE, create: ADMIN_ONLY, update: ADMIN_ONLY, approve: ADMIN_ONLY, delete: ADMIN_ONLY },
+  // Phase 13B S1 (2026-09-30, owner decision D4): an opening payable's
+  // historical input-VAT position is declared by an ADMIN or an ACCOUNTANT —
+  // a dedicated resource, so the accountant gains this act without gaining
+  // migration write. Append-only: no update or delete exists (0110).
+  opening_vat_declaration: { read: APPROVE, create: APPROVE },
 
   // Read + create only (no update/delete routes today).
   categories: { read: READ_ALL, create: WRITE },

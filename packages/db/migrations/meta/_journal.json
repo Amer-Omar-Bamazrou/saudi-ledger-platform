@@ -771,6 +771,13 @@
       "when": 1790703238670,
       "tag": "0109_phase13b3_vat_event_writer",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1790798202421,
+      "tag": "0110_phase13b_s1_opening_payable_vat",
+      "breakpoints": true
     }
   ]
 }

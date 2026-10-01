@@ -24,6 +24,10 @@ export async function purgeInputVatLedger(orgIds: string, params: unknown[] = []
     await c.query("SET LOCAL session_replication_role = replica");
     await c.query(`DELETE FROM input_vat_events WHERE organization_id IN (${orgIds})`, params);
     await c.query(`DELETE FROM input_vat_balances WHERE organization_id IN (${orgIds})`, params);
+    // Phase 13B S1 (0110): the historical VAT declarations are append-only too, and
+    // hold their bills, items and captures by RESTRICT — evidence first.
+    await c.query(`DELETE FROM opening_payable_vat_declaration_evidence WHERE organization_id IN (${orgIds})`, params);
+    await c.query(`DELETE FROM opening_payable_vat_declarations WHERE organization_id IN (${orgIds})`, params);
     await c.query("COMMIT");
   } catch (err) {
     await c.query("ROLLBACK").catch(() => undefined);

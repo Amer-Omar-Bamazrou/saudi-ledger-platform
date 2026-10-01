@@ -4582,6 +4582,53 @@ paths:
               schema: { $ref: "#/components/schemas/MigratedOpenItemIdentity" }
         "404":
           description: Not found
+  /opening-vat-declarations:
+    get:
+      operationId: listOpeningVatDeclarations
+      tags: [migration]
+      summary: "Phase 13B S1: the declared historical input-VAT positions of this company's opening payables"
+      responses:
+        "200":
+          description: Every declaration, with its evidence
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OpeningVatDeclaration" }
+    post:
+      operationId: declareOpeningVat
+      tags: [migration]
+      summary: "Phase 13B S1: declare, ONCE and with its evidence, how an opening payable's input VAT was treated in the previous system"
+      description: >
+        Admin and accountant only (owner decision D4 — a dedicated grant,
+        `opening_vat_declaration`). S1 acts on four histories: DEDUCTED,
+        NOT_DEDUCTED (carried in cost or the asset — AQ-2), BLOCKED_ART50, and
+        REVERSED_ART40_10 (fully reversed, nothing restored, the reversed VAT
+        carried in COST — D7). Each needs the evidence the accountant set
+        (AQ-1; the product evidence policy — NOT a ZATCA-prescribed format);
+        without it nothing is declared and the item stays UNKNOWN. A partial,
+        Art. 51, line-split or adjustment-account history is refused by name
+        (`opening_vat_declaration_state_not_enabled`). The declaration feeds the
+        input-VAT ledger through one declared recognition; it is never changed.
+        The migration's staged row is never written, and no key of its
+        `historicalVat` but `amount` and `rate` is read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeclareOpeningVatInput" }
+      responses:
+        "201":
+          description: The declaration as recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpeningVatDeclaration" }
+        "404":
+          description: Not found
+        "409":
+          description: "opening_vat_declaration_exists · opening_item_not_live"
+        "422":
+          description: "A named refusal: a missing fact, missing evidence, a contradiction of the staged figures, a history not established (Art. 40(10)), or a history S1 does not act on"
   /assets/depreciation-runs:
     post:
       operationId: runAssetDepreciation
@@ -12877,6 +12924,69 @@ components:
         invoiceNumber: { type: string }
         einvoicingStatus: { type: string, enum: [cleared, reported, pre_einvoicing] }
         sourceUuid: { type: ["string", "null"] }
+
+    OpeningVatEvidenceInput:
+      type: object
+      required: [kind, captureId]
+      properties:
+        kind: { type: string, enum: [ORIGINAL_TAX_INVOICE, DEDUCTION_RETURN, REVERSAL_RETURN, PAYMENT_RECORDS, CLASSIFICATION] }
+        captureId: { type: string, minLength: 1, maxLength: 64, description: "A document uploaded through POST /capture; it becomes evidence of the opening payable." }
+
+    DeclareOpeningVatInput:
+      type: object
+      required: [itemId, state, evidence]
+      properties:
+        itemId: { type: integer, description: "The committed migrated open item (a payable)." }
+        state:
+          type: string
+          enum: [DEDUCTED, NOT_DEDUCTED, BLOCKED_ART50, REVERSED_ART40_10, PARTIALLY_DEDUCTED, PARTIALLY_RESTORED, ART51_APPORTIONED, LINE_SPLIT]
+          description: "The last four exist but S1 does not act on them — refused by name, never approximated."
+        historicalVat: { type: ["number", "null"], exclusiveMinimum: 0, description: "The historical invoice's VAT. Defaults to the staged amount; may not contradict it." }
+        vatRate: { type: ["number", "null"], exclusiveMinimum: 0, maximum: 100, description: "The historical rate, %. Defaults to the staged rate; may not contradict it." }
+        deductedPeriod: { type: ["string", "null"], maxLength: 7, description: "YYYY-MM — DEDUCTED and REVERSED_ART40_10." }
+        notDeductedReason: { type: ["string", "null"], maxLength: 500, description: "NOT_DEDUCTED." }
+        carriedInCost: { type: ["boolean", "null"], description: "NOT_DEDUCTED: affirms AQ-2's premise — the undeducted VAT was carried in cost or the asset." }
+        art50Ground: { type: ["string", "null"], maxLength: 500, description: "BLOCKED_ART50." }
+        reversedPeriod: { type: ["string", "null"], maxLength: 7, description: "YYYY-MM — REVERSED_ART40_10." }
+        reversedVatLocation: { type: ["string", "null"], enum: [cost, adjustment_account, null], description: "REVERSED_ART40_10 (D7): where the previous system carried the reversed VAT. Required; never assumed. S1 acts on cost only." }
+        recordReference: { type: ["string", "null"], maxLength: 200 }
+        evidence:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/OpeningVatEvidenceInput" }
+
+    OpeningVatEvidence:
+      type: object
+      required: [kind, captureId, captureSha256]
+      properties:
+        kind: { type: string }
+        captureId: { type: string }
+        captureSha256: { type: string }
+
+    OpeningVatDeclaration:
+      type: object
+      required: [id, itemId, billId, state, historicalVat, vatRate, deductedPeriod, notDeductedReason, carriedInCost, art50Ground, reversedPeriod,
+                 reversedVatLocation, recordReference, statement, declaredBy, declaredOn, evidence]
+      properties:
+        id: { type: integer }
+        itemId: { type: integer }
+        billId: { type: integer }
+        state: { type: string, enum: [DEDUCTED, NOT_DEDUCTED, BLOCKED_ART50, REVERSED_ART40_10] }
+        historicalVat: { type: number }
+        vatRate: { type: number }
+        deductedPeriod: { type: ["string", "null"] }
+        notDeductedReason: { type: ["string", "null"] }
+        carriedInCost: { type: ["boolean", "null"] }
+        art50Ground: { type: ["string", "null"] }
+        reversedPeriod: { type: ["string", "null"] }
+        reversedVatLocation: { type: ["string", "null"] }
+        recordReference: { type: ["string", "null"] }
+        statement: { type: string }
+        declaredBy: { type: integer }
+        declaredOn: { type: string }
+        evidence:
+          type: array
+          items: { $ref: "#/components/schemas/OpeningVatEvidence" }
 
     ReverseMigrationBatchInput:
       type: object
