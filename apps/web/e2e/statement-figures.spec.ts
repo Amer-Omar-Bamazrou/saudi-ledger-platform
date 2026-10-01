@@ -53,7 +53,7 @@ test("the trial balance is balanced AND non-trivial", async ({ page }) => {
 });
 
 test("the balance-sheet PAGE shows the ledger's AR figure", async ({ page }) => {
-  const bs = await (await page.request.get(`/api/reports/balance-sheet?asOf=${AS_OF}`)).json();
+  const bs = await (await page.request.get(`/api/reports/balance-sheet?as_of=${AS_OF}`)).json();
   const ar = bs.assets.accountsReceivable as number;
   expect(ar).toBeGreaterThan(0);
 
