@@ -31,7 +31,7 @@
  * is pure — which is what makes it trivially movable outside the transaction
  * (or into a worker) if renders ever get slow enough to matter.
  */
-import { chromium, type Browser } from "playwright-core";
+import { htmlToPdf } from "../document/htmlToPdf";
 import QRCode from "qrcode";
 import { invoicesRepository } from "../../repositories/invoices.repository";
 import { customersRepository } from "../../repositories/customers.repository";
@@ -48,37 +48,9 @@ import { renderInvoiceHtml, type InvoiceDocModel, type DocLine } from "./renderI
 import { documentTitle, type DocLang } from "./labels";
 import { toPdfA3 } from "./pdfa3";
 
-export class RendererUnavailableError extends Error {
-  readonly statusCode = 503;
-  readonly code = "pdf_renderer_unavailable";
-  constructor(cause: string) {
-    super(
-      `The PDF renderer is unavailable: ${cause}. ` +
-        `The document service needs a Chromium executable — install one with \`npx playwright install chromium\` ` +
-        `(deployment: the ~150 MB Chromium image layer is a C6 hosting line).`,
-    );
-    this.name = "RendererUnavailableError";
-  }
-}
-
-let browserPromise: Promise<Browser> | null = null;
-
-async function getBrowser(): Promise<Browser> {
-  if (!browserPromise) {
-    browserPromise = chromium.launch().catch((err) => {
-      browserPromise = null; // a failed launch must not poison every later request
-      throw new RendererUnavailableError(err instanceof Error ? err.message.split("\n")[0] : String(err));
-    });
-  }
-  return browserPromise;
-}
-
-/** Test seam + graceful shutdown. */
-export async function closeDocumentRenderer(): Promise<void> {
-  const b = await browserPromise?.catch(() => null);
-  browserPromise = null;
-  await b?.close().catch(() => {});
-}
+// The browser lives in ONE shared module now (Phase 14, D14-10) — re-exported
+// so every existing importer keeps working unchanged.
+export { RendererUnavailableError, closeDocumentRenderer } from "../document/htmlToPdf";
 
 function partyAddress(p: {
   street?: string | null;
@@ -239,15 +211,7 @@ export async function renderInvoicePdf(
   attachXml?: { fileName: string; content: Buffer; description: string },
 ): Promise<Uint8Array> {
   const html = renderInvoiceHtml(model);
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  let pdf: Buffer;
-  try {
-    await page.setContent(html, { waitUntil: "load" });
-    pdf = await page.pdf({ format: "A4", printBackground: true });
-  } finally {
-    await page.close().catch(() => {});
-  }
+  const pdf = await htmlToPdf(html);
   const title = `${documentTitle(model.lang, model.documentType, !!model.buyer?.vatNumber)} ${model.invoiceNumber}`;
   return toPdfA3(pdf, { title, attachXml });
 }

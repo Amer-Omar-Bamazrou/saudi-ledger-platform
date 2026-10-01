@@ -7,7 +7,11 @@
  */
 
 export interface AccountSummaryRow {
+  key: string;
+  /** @nullable */
+  accountId: number | null;
   name: string;
+  nameAr: string;
   type: string;
   openingBalance: number;
   periodDebit: number;

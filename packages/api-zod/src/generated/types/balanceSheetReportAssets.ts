@@ -11,6 +11,11 @@ import type { BalanceSheetItem } from './balanceSheetItem';
 export type BalanceSheetReportAssets = {
   items: BalanceSheetItem[];
   accountsReceivable: number;
+  /**
+     * The item key of the AR account (resolved by system code)
+     * @nullable
+     */
+  accountsReceivableKey: string | null;
   total: number;
   current: BalanceSheetBucket;
   nonCurrent: BalanceSheetBucket;

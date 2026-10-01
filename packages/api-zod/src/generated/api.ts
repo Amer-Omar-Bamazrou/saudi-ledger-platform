@@ -3199,6 +3199,33 @@ export const GetTrendResponse = zod.array(GetTrendResponseItem)
 
 
 /**
+ * @summary Monthly profit-or-loss trend from the ledger (Phase 14 D14-12): revenue, expenses and net per calendar month; the months sum to the income statement of the same window.
+
+ */
+export const GetPnlTrendQueryParams = zod.object({
+  "from": zod.coerce.string(),
+  "to": zod.coerce.string()
+})
+
+export const GetPnlTrendResponse = zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "expenseAnalysis": zod.enum(['nature']),
+  "points": zod.array(zod.object({
+  "month": zod.string(),
+  "revenue": zod.number(),
+  "expenses": zod.number(),
+  "net": zod.number()
+})),
+  "totals": zod.object({
+  "revenue": zod.number(),
+  "expenses": zod.number(),
+  "net": zod.number()
+})
+})
+
+
+/**
  * Answers what the "receivables outstanding" stock cannot: a rising AR balance does not say whether you invoiced more or collected less, and those call for opposite responses.
  * Every term is a debit or a credit on the SAME GL account, so the identity holds by construction rather than by agreement — and `closing` is the balance-sheet AR figure for the same date, for the same reason.
  * @summary The receivables bridge per month (M19.6): opening + invoiced − collected − credited − other = closing.
@@ -3715,38 +3742,56 @@ export const GetVatReturnResponse = zod.object({
 
 
 /**
- * @summary Trial balance — every account's debit/credit totals over a window
+ * @summary Trial balance — opening, period debit, period credit and closing per account (Phase 14 D14-04). Migration opening entries are opening even inside the window; with a declared fiscal year, income and expense accounts open at the fiscal-year start and earlier P&L is one computed equity row.
+
  */
 export const GetTrialBalanceQueryParams = zod.object({
-  "date_from": zod.coerce.string().optional(),
-  "date_to": zod.coerce.string().optional()
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional()
 })
 
 export const GetTrialBalanceResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
+  "fiscalYearDeclared": zod.boolean(),
+  "plResetFrom": zod.string().nullable().describe('The fiscal-year start income and expense accounts open at'),
   "accounts": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string(),
   "accountId": zod.number().nullable(),
   "type": zod.string(),
+  "computed": zod.boolean(),
+  "openingBalance": zod.number(),
   "debit": zod.number(),
   "credit": zod.number(),
-  "balance": zod.number()
-})),
+  "balance": zod.number(),
+  "closingBalance": zod.number()
+}).describe('debit \/ credit \/ balance are the PERIOD movement (balance = debit − credit). openingBalance and closingBalance are debit-positive; closing = opening + debit − credit. A `computed` row is the unallocated P&L of prior fiscal years (no account).\n')),
   "totalDebit": zod.number(),
   "totalCredit": zod.number(),
+  "totalOpening": zod.number().describe('Σ opening — zero when the ledger balances'),
+  "totalClosing": zod.number().describe('Σ closing — zero when the ledger balances'),
   "balanced": zod.boolean()
 })
 
 
 /**
- * @summary Income statement (P&L) over a window
+ * @summary Income statement (P&L) over a window — from the ledger only; expenses by nature (Phase 14 D14-06)
  */
 export const GetIncomeStatementQueryParams = zod.object({
-  "date_from": zod.coerce.string().optional(),
-  "date_to": zod.coerce.string().optional()
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional()
 })
 
 export const GetIncomeStatementResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
+  "expenseAnalysis": zod.enum(['nature']),
   "revenue": zod.array(zod.object({
   "key": zod.string(),
   "name": zod.string(),
@@ -3761,18 +3806,18 @@ export const GetIncomeStatementResponse = zod.object({
 }).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.')),
   "totalRevenue": zod.number(),
   "totalExpenses": zod.number(),
-  "grossProfit": zod.number(),
+  "grossProfit": zod.number().nullable(),
   "netIncome": zod.number(),
   "netIncomeMargin": zod.number(),
-  "source": zod.enum(['journal_entries', 'transactions'])
-})
+  "source": zod.enum(['journal_entries'])
+}).describe('From the ledger only (Phase 14 D14-06 — the former transactions fallback is gone). Expenses are presented BY NATURE (IAS 1.102), so there is no gross-profit line: `grossProfit` is null.\n')
 
 
 /**
- * @summary Balance sheet as of a date, with the current/non-current split
+ * @summary Balance sheet as of a date, with the current/non-current split and profit split by fiscal year (Phase 14 D14-05)
  */
 export const GetBalanceSheetQueryParams = zod.object({
-  "as_of": zod.coerce.string().optional()
+  "as_of": zod.date().optional()
 })
 
 export const GetBalanceSheetResponse = zod.object({
@@ -3786,6 +3831,7 @@ export const GetBalanceSheetResponse = zod.object({
   "liquidityClass": zod.string().nullable()
 })),
   "accountsReceivable": zod.number(),
+  "accountsReceivableKey": zod.string().nullable().describe('The item key of the AR account (resolved by system code)'),
   "total": zod.number(),
   "current": zod.object({
   "items": zod.array(zod.object({
@@ -3830,6 +3876,7 @@ export const GetBalanceSheetResponse = zod.object({
   "liquidityClass": zod.string().nullable()
 })),
   "accountsPayable": zod.number(),
+  "accountsPayableKey": zod.string().nullable().describe('The item key of the AP account (resolved by system code)'),
   "total": zod.number(),
   "current": zod.object({
   "items": zod.array(zod.object({
@@ -3870,8 +3917,23 @@ export const GetBalanceSheetResponse = zod.object({
   "amount": zod.number()
 }).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.')),
   "retainedEarnings": zod.number(),
+  "priorYearsProfit": zod.number(),
+  "currentYearProfit": zod.number(),
+  "fiscalYear": zod.object({
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "calendar": zod.enum(['gregorian', 'hijri'])
+}).nullable(),
   "total": zod.number()
-}),
+}).describe('Equity accounts plus the profit or loss not yet allocated by any entry, split by the fiscal year containing as_of (D14-05). retainedEarnings = priorYearsProfit + currentYearProfit (it is NOT the RETAINED_EARNINGS account, which is among the items). Without a declared fiscal year the whole amount is in priorYearsProfit and fiscalYear is null.\n'),
+  "unmapped": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})).describe('Ledger accounts with a balance but no balance-sheet or P&L type — listed, never folded; they make the sheet unbalanced.'),
   "totalLiabilitiesAndEquity": zod.number(),
   "balanced": zod.boolean(),
   "warning": zod.string().nullable()
@@ -3879,44 +3941,88 @@ export const GetBalanceSheetResponse = zod.object({
 
 
 /**
- * @summary Cash flow statement (DIRECT method) over a window
+ * @summary Cash flow statement (DIRECT method) from the ledger over a window — reconciles to the cash accounts (Phase 14 D14-07)
  */
 export const GetCashFlowQueryParams = zod.object({
-  "date_from": zod.coerce.string().optional(),
-  "date_to": zod.coerce.string().optional()
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional()
 })
 
 export const GetCashFlowResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
+  "method": zod.enum(['direct']),
+  "vatBasis": zod.enum(['inclusive']),
+  "openingCash": zod.number(),
   "operating": zod.object({
   "total": zod.number(),
   "items": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
   "amount": zod.number()
-}))
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.'))
+}).describe('One direct-method line (a class of receipts or payments) with the accounts that make it up.'))
 }),
   "investing": zod.object({
   "total": zod.number(),
   "items": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
   "amount": zod.number()
-}))
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.'))
+}).describe('One direct-method line (a class of receipts or payments) with the accounts that make it up.'))
 }),
   "financing": zod.object({
   "total": zod.number(),
   "items": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
   "amount": zod.number()
-}))
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.'))
+}).describe('One direct-method line (a class of receipts or payments) with the accounts that make it up.'))
 }),
   "internal": zod.object({
   "total": zod.number(),
   "items": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
   "amount": zod.number()
-}))
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.'))
+}).describe('One direct-method line (a class of receipts or payments) with the accounts that make it up.'))
 }),
-  "netChange": zod.number()
-}).describe('DIRECT method — actual cash movements classified by kind and account class. The indirect method is not built.')
+  "migrationOpeningCash": zod.number(),
+  "netCashFromActivities": zod.number(),
+  "netChange": zod.number(),
+  "closingCash": zod.number(),
+  "reconciles": zod.boolean(),
+  "limitations": zod.array(zod.string())
+}).describe('DIRECT method from THE LEDGER (Phase 14 D14-07): every in-books entry touching a cash account, each non-cash line contributing to the activity of its account. openingCash + operating + investing + financing + internal + migrationOpeningCash = closingCash (`reconciles`). Flows are inclusive of VAT. The indirect method is not built.\n')
 
 
 /**
@@ -3955,16 +4061,28 @@ export const GetJournalReportResponse = zod.object({
 
 
 /**
- * @summary General ledger movements with a running balance
+ * @summary General ledger movements with a running balance; optionally filtered to one party (Phase 14 D14-11)
  */
 export const GetGeneralLedgerQueryParams = zod.object({
   "account_id": zod.coerce.string().optional(),
   "account_name": zod.coerce.string().optional(),
-  "date_from": zod.coerce.string().optional(),
-  "date_to": zod.coerce.string().optional()
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "party_type": zod.enum(['customer', 'vendor']).optional(),
+  "customer_id": zod.coerce.string().optional(),
+  "vendor_id": zod.coerce.string().optional()
 })
 
 export const GetGeneralLedgerResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
+  "plResetFrom": zod.string().nullable().describe('The fiscal-year start an income or expense account opens at; null when no reset applied'),
+  "party": zod.union([zod.object({
+  "type": zod.enum(['customer', 'vendor']),
+  "id": zod.number()
+}),zod.null()]),
   "accountId": zod.number().nullable(),
   "accountName": zod.string(),
   "accountNameAr": zod.string(),
@@ -3980,12 +4098,15 @@ export const GetGeneralLedgerResponse = zod.object({
   "debit": zod.number(),
   "credit": zod.number(),
   "balance": zod.number(),
-  "accountNameAr": zod.string()
+  "accountNameAr": zod.string(),
+  "partyType": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "vendorId": zod.number().nullable()
 })),
   "closingBalance": zod.number(),
   "totalDebit": zod.number(),
   "totalCredit": zod.number()
-})
+}).describe('The ledger of one account (or party) for a window. It opens on EXACTLY the trial-balance row it is drilled from (D14-09): lines before the window, plus migration opening entries up to the window end (D14-03) — which are therefore never listed as movements — and, for an income or expense account with a declared fiscal year, only from the start of the fiscal year containing date_from (plResetFrom).\n')
 
 
 /**
@@ -4030,8 +4151,15 @@ export const GetAccountSummaryQueryParams = zod.object({
 })
 
 export const GetAccountSummaryResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
   "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "accountId": zod.number().nullable(),
   "name": zod.string(),
+  "nameAr": zod.string(),
   "type": zod.string(),
   "openingBalance": zod.number(),
   "periodDebit": zod.number(),
@@ -4127,8 +4255,12 @@ export const GetOwnerEquityResponse = zod.object({
 
 
 /**
- * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it; as of a date (Phase 14 D14-08)
  */
+export const GetArAgingReportQueryParams = zod.object({
+  "as_of": zod.date().optional()
+})
+
 export const getArAgingReportResponseTotalMin = 0;
 
 export const getArAgingReportResponseLiabilitiesCustomerCreditsMin = 0;
@@ -4138,6 +4270,8 @@ export const getArAgingReportResponseLiabilitiesCustomerDepositsMin = 0;
 
 
 export const GetArAgingReportResponse = zod.object({
+  "asOf": zod.string().describe('The as-of date applied (default the business day)'),
+  "basis": zod.enum(['subledger', 'events']).describe('subledger = today\'s caches; events = the customer-statement events replayed up to asOf (D14-08)'),
   "buckets": zod.object({
   "current": zod.number(),
   "days_1_30": zod.number(),
@@ -4164,9 +4298,15 @@ export const GetArAgingReportResponse = zod.object({
 
 
 /**
- * @summary Accounts payable aging
+ * @summary Accounts payable aging, as of a date (Phase 14 D14-08)
  */
+export const GetApAgingReportQueryParams = zod.object({
+  "as_of": zod.date().optional()
+})
+
 export const GetApAgingReportResponse = zod.object({
+  "asOf": zod.string().describe('The as-of date applied (default the business day)'),
+  "basis": zod.enum(['subledger', 'events']).describe('subledger = today\'s positions; events = the supplier-statement events replayed up to asOf (D14-08)'),
   "buckets": zod.object({
   "current": zod.number(),
   "days_1_30": zod.number(),
@@ -4177,10 +4317,11 @@ export const GetApAgingReportResponse = zod.object({
   "total": zod.number(),
   "assets": zod.object({
   "supplierCredits": zod.number().describe('Unapplied purchase credit notes'),
-  "supplierAdvances": zod.number(),
-  "supplierDeposits": zod.number().describe('Refundable security deposits paid'),
-  "unidentifiedPayments": zod.number().describe('Paid')
-}).describe('What the supplier holds or owes us — each one an ASSET, never a bucket.'),
+  "supplierAdvances": zod.number().nullable(),
+  "supplierDeposits": zod.number().nullable().describe('Refundable security deposits paid'),
+  "unidentifiedPayments": zod.number().nullable().describe('Paid'),
+  "onAccountTotal": zod.number().describe('Advances + deposits + unidentified payments')
+}).describe('What the supplier holds or owes us — each one an ASSET, never a bucket. At a past as-of date the money held on account is one figure (onAccountTotal) and its split is null.\n'),
   "netSupplierPosition": zod.number().describe('total less every asset above — DERIVED'),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -4192,6 +4333,32 @@ export const GetApAgingReportResponse = zod.object({
   "daysPastDue": zod.number()
 }))
 }).describe('B6: the buckets carry only real payable exposure — every item is what a bill still owes after its live allocations, credit notes are not aged as rows (they are applied to bills), and a debit note ages like a bill. What the SUPPLIER holds is shown BESIDE the buckets and never folded into them: an advance is an asset, not a negative payable.\n')
+
+
+/**
+ * @summary Export a report as CSV or PDF (Phase 14 D14-10). Runs the report's own service call with the report's own parameters, behind the same permission and in the same tenant/company scope as the screen. CSV is UTF-8 with a BOM; PDF is RTL with Arabic labels for lang=ar. An export that would exceed the row limit is refused (422 export_too_large), never truncated.
+
+ */
+export const ExportReportParams = zod.object({
+  "report": zod.enum(['trial-balance', 'income-statement', 'balance-sheet', 'cash-flow', 'general-ledger', 'ar-aging', 'ap-aging'])
+})
+
+export const ExportReportQueryParams = zod.object({
+  "format": zod.enum(['csv', 'pdf']).optional(),
+  "lang": zod.enum(['en', 'ar']).optional(),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "as_of": zod.date().optional(),
+  "compare_from": zod.date().optional(),
+  "compare_to": zod.date().optional(),
+  "compare_as_of": zod.date().optional(),
+  "account_id": zod.coerce.string().optional(),
+  "party_type": zod.enum(['customer', 'vendor']).optional(),
+  "customer_id": zod.coerce.string().optional(),
+  "vendor_id": zod.coerce.string().optional()
+})
+
+export const ExportReportResponse = zod.unknown()
 
 
 /**

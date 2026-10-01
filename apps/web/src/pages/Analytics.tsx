@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import {
   useGetTrend, useGetDecomposition, useGetSummary, useListBudgets,
-  useGetReceivablesBridge, useGetCashReconciliation,
+  useGetReceivablesBridge, useGetCashReconciliation, useGetPnlTrend,
 } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { AskYourBooks } from "@/components/AskYourBooks";
@@ -100,6 +100,18 @@ export default function Analytics() {
    * Same window as everything else on the page, so the charts describe one span.
    */
   const { data: bridge } = useGetReceivablesBridge({ from: window_.from, to: window_.to });
+
+  /**
+   * Phase 14 (D14-12) — profit or loss per month, from the LEDGER seam: each
+   * month is that month's income statement, and the months add up to the
+   * income statement of the window (a server test pins it). Revenue, expenses
+   * and net are one unit (SAR), so they share one axis — never a second one.
+   */
+  const { data: pnl } = useGetPnlTrend({ from: window_.from, to: window_.to });
+  const pnlState = classifyChartState(
+    pnl?.points.map(() => ({ claimable: true })),
+    (pnl?.points ?? []).flatMap((p) => [p.revenue, p.expenses]),
+  );
 
   /**
    * M19.7 — the two cash figures (design §6.1, option C).
@@ -440,6 +452,42 @@ export default function Analytics() {
             </ResponsiveContainer>
           )}
         </CardContent>
+      </Card>
+
+      {/* ── P&L by month: revenue, expenses, net — one unit, one axis (D14-12) ── */}
+      <Card data-testid="analytics-pnl-trend">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{t("Profit or loss by month", "الربح أو الخسارة شهرياً")}</CardTitle>
+          <CardDescription>
+            {t("From the posted ledger. Each month is that month's income statement; expenses are by their nature.", "من الدفتر المرحَّل. كل شهر هو قائمة دخل ذلك الشهر؛ والمصروفات حسب طبيعتها.")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[260px]">
+          {pnlState ? (
+            <div className="h-full flex items-center justify-center text-center px-6">
+              <p className="text-sm text-muted-foreground max-w-md">{emptyMessage(pnlState)}</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={pnl?.points ?? []} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} width={64} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <ReferenceLine y={0} stroke="currentColor" opacity={0.35} />
+                <Bar dataKey="revenue" name={t("Revenue", "الإيرادات")} fill={SERIES_1} />
+                <Bar dataKey="expenses" name={t("Expenses", "المصروفات")} fill={SERIES_2} />
+                <Bar dataKey="net" name={t("Net", "الصافي")} fill="#7c8aa0" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+        {pnl && (
+          <div className="px-6 pb-4 text-xs text-muted-foreground" data-testid="analytics-pnl-totals">
+            {t("Window total", "إجمالي النافذة")}: {t("revenue", "الإيرادات")} <span className="font-mono" dir="ltr">{formatCurrency(pnl.totals.revenue)}</span> · {t("expenses", "المصروفات")} <span className="font-mono" dir="ltr">{formatCurrency(pnl.totals.expenses)}</span> · {t("net", "الصافي")} <span className="font-mono" dir="ltr">{formatCurrency(pnl.totals.net)}</span>
+          </div>
+        )}
       </Card>
 
       {/* ── Cash: the ledger is cash; the statement is the reconciliation ───

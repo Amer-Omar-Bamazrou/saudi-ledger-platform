@@ -48,6 +48,56 @@ export const round2 = (n: number): number => Math.round(n * 100) / 100;
 export const money2 = (n: number): string => round2(n).toFixed(2);
 
 /**
+ * ── Exact sums: integer halalas (Phase 14, 2026-10-01) ────────────────────
+ *
+ * A report that adds many money values as JS doubles drifts by representation
+ * error before anything rounds it (0.1 + 0.2 ≠ 0.3), and rounding the total at
+ * the end only hides the drift until the day it crosses a halala. The ledger
+ * seam (`reports.repository` `ledgerBalances`) sums in PostgreSQL `numeric`
+ * and returns DECIMAL STRINGS; these helpers carry those strings into exact
+ * integer halalas, add integers, and convert back once.
+ *
+ * `toHalalas` parses a decimal string WITHOUT going through a float, so
+ * "1234567.89" is 123456789 exactly. A value with more than two decimals is
+ * refused rather than truncated (partial data is not lenient data): money in
+ * this platform is numeric(15,2), and a third decimal means the input is not
+ * a stored amount.
+ */
+export const toHalalas = (v: string | number | null | undefined): number => {
+  if (v == null || v === "") return 0;
+  if (typeof v === "number") {
+    if (!Number.isFinite(v)) throw new RangeError(`Not a money amount: ${v}`);
+    return Math.round(v * 100);
+  }
+  const m = /^(-)?(\d+)(?:\.(\d{1,2})?)?$/.exec(v.trim());
+  if (!m) {
+    // numeric aggregates may come back with trailing zeros beyond 2 places ("12.3400")
+    const t = /^(-)?(\d+)\.(\d{2})(0+)$/.exec(v.trim());
+    if (!t) throw new RangeError(`Not a 2-decimal money amount: "${v}"`);
+    const h = Number(t[2]) * 100 + Number(t[3]);
+    return t[1] ? -h : h;
+  }
+  const units = Number(m[2]);
+  const cents = m[3] ? Number(m[3].padEnd(2, "0")) : 0;
+  const h = units * 100 + cents;
+  if (!Number.isSafeInteger(h)) throw new RangeError(`Money amount out of range: "${v}"`);
+  return m[1] ? -h : h;
+};
+
+/** Integer halalas back to the 2-decimal number the API returns. */
+export const fromHalalas = (h: number): number => {
+  if (!Number.isSafeInteger(h)) throw new RangeError(`Not an integer halala amount: ${h}`);
+  return h / 100;
+};
+
+/** Σ of money values, exact (integer halalas), returned as a 2-decimal number. */
+export const sumMoney = (values: Iterable<string | number | null | undefined>): number => {
+  let h = 0;
+  for (const v of values) h += toHalalas(v);
+  return fromHalalas(h);
+};
+
+/**
  * Split a total into `parts` rounded addends that sum EXACTLY to the total.
  *
  * 🔴 ONE DEFINITION OF THE CONVENTION (Phase 11, 2026-09-22). Every equal

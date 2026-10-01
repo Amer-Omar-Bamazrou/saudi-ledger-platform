@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AccountSummaryRow } from './accountSummaryRow';
+import type { ReportWindow } from './reportWindow';
 
 export interface AccountSummaryReport {
+  window: ReportWindow;
   accounts: AccountSummaryRow[];
   count: number;
 }

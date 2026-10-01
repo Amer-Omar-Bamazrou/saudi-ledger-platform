@@ -24,7 +24,9 @@
  *    numbers and its trustworthiness cannot come apart.
  */
 import { analyticsRepository } from "../repositories/analytics.repository";
-import { round2 } from "../lib/money";
+import { fromHalalas, round2, toHalalas } from "../lib/money";
+import { reportsRepository } from "../repositories/reports.repository";
+import { BadRequestError } from "../lib/errors";
 
 
 /** Everything but `non_current` is current; `cash` + `quick` are quick. */
@@ -258,6 +260,44 @@ export const analyticsService = {
    * a balance persists whether or not anything happened, and a gap in the x
    * axis would misread as "no data" when it means "nothing changed".
    */
+  /**
+   * D14-12 — the monthly P&L trend: revenue, expenses and net per calendar
+   * month, from THE LEDGER SEAM (`reportsRepository.ledgerMovementsByPeriod`,
+   * in-books, company-scoped, exact). Each month is the income statement of
+   * that month: Σ months = `reportsService.incomeStatement(first day, last
+   * day)` to the halala (a test pins it). Expenses are BY NATURE (D14-06), so
+   * there is no gross-profit series. Revenue and expenses are the same unit;
+   * the page draws them on one axis, never a second one (CLAUDE.md §4).
+   */
+  async pnlTrend(from: string, to: string) {
+    const months = monthsBetween(from, to);
+    if (months.length > 60) throw new BadRequestError("The P&L trend covers at most 60 months; narrow the range.");
+    const periods = months.map((m) => ({ key: m, start: `${m}-01`, end: endOfMonth(m) }));
+    const cats = await reportsRepository.allCategories();
+    const typeById = new Map(cats.map((c) => [c.id, c.type]));
+    const plIds = cats.filter((c) => c.type === "income" || c.type === "revenue" || c.type === "expense").map((c) => c.id);
+    const rows = await reportsRepository.ledgerMovementsByPeriod(periods, { accountIds: plIds });
+    const acc = new Map(months.map((m) => [m, { revenueH: 0, expensesH: 0 }]));
+    for (const r of rows) {
+      const t = r.accountId != null ? typeById.get(r.accountId) : undefined;
+      const p = acc.get(r.period);
+      if (!p) continue;
+      if (t === "income" || t === "revenue") p.revenueH += toHalalas(r.credit) - toHalalas(r.debit);
+      else if (t === "expense") p.expensesH += toHalalas(r.debit) - toHalalas(r.credit);
+    }
+    const points = months.map((m) => {
+      const p = acc.get(m)!;
+      return { month: m, revenue: fromHalalas(p.revenueH), expenses: fromHalalas(p.expensesH), net: fromHalalas(p.revenueH - p.expensesH) };
+    });
+    const totalRevenueH = [...acc.values()].reduce((s2, p) => s2 + p.revenueH, 0);
+    const totalExpensesH = [...acc.values()].reduce((s2, p) => s2 + p.expensesH, 0);
+    return {
+      from, to, expenseAnalysis: "nature" as const,
+      points,
+      totals: { revenue: fromHalalas(totalRevenueH), expenses: fromHalalas(totalExpensesH), net: fromHalalas(totalRevenueH - totalExpensesH) },
+    };
+  },
+
   async trend(from: string, to: string): Promise<TrendPoint[]> {
     const periods = monthsBetween(from, to);
     if (periods.length === 0) return [];

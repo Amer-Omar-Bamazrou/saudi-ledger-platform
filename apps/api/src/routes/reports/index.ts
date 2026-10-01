@@ -19,6 +19,7 @@ import apAging from "./apAging.js";
 import taxJournalEntries from "./taxJournalEntries.js";
 import activity from "./activity.js";
 import vatReturn from "./vatReturn.js";
+import exportReport from "./export.js";
 
 const router = Router();
 
@@ -37,5 +38,6 @@ router.use("/ap-aging", apAging);
 router.use("/tax-journal-entries", taxJournalEntries);
 router.use("/activity", activity);
 router.use("/vat-return", vatReturn);
+router.use("/export", exportReport);
 
 export default router;

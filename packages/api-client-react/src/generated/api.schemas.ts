@@ -649,6 +649,34 @@ export interface BudgetLine {
   variancePct: number;
 }
 
+export interface PnlTrendPoint {
+  month: string;
+  revenue: number;
+  expenses: number;
+  net: number;
+}
+
+export type PnlTrendExpenseAnalysis = typeof PnlTrendExpenseAnalysis[keyof typeof PnlTrendExpenseAnalysis];
+
+
+export const PnlTrendExpenseAnalysis = {
+  nature: 'nature',
+} as const;
+
+export type PnlTrendTotals = {
+  revenue: number;
+  expenses: number;
+  net: number;
+};
+
+export interface PnlTrend {
+  from: string;
+  to: string;
+  expenseAnalysis: PnlTrendExpenseAnalysis;
+  points: PnlTrendPoint[];
+  totals: PnlTrendTotals;
+}
+
 export type TrendPointBlockersItemCode = typeof TrendPointBlockersItemCode[keyof typeof TrendPointBlockersItemCode];
 
 
@@ -3917,21 +3945,49 @@ export interface PayrollRun {
   createdAt: string;
 }
 
+/**
+ * The window a report covers, as the server applied it (null = open-ended).
+ */
+export interface ReportWindow {
+  /** @nullable */
+  from: string | null;
+  /** @nullable */
+  to: string | null;
+}
+
+/**
+ * debit / credit / balance are the PERIOD movement (balance = debit − credit). openingBalance and closingBalance are debit-positive; closing = opening + debit − credit. A `computed` row is the unallocated P&L of prior fiscal years (no account).
+ */
 export interface TrialBalanceRow {
+  key: string;
   name: string;
   nameAr: string;
   /** @nullable */
   accountId: number | null;
   type: string;
+  computed: boolean;
+  openingBalance: number;
   debit: number;
   credit: number;
   balance: number;
+  closingBalance: number;
 }
 
 export interface TrialBalanceReport {
+  window: ReportWindow;
+  fiscalYearDeclared: boolean;
+  /**
+     * The fiscal-year start income and expense accounts open at
+     * @nullable
+     */
+  plResetFrom: string | null;
   accounts: TrialBalanceRow[];
   totalDebit: number;
   totalCredit: number;
+  /** Σ opening — zero when the ledger balances */
+  totalOpening: number;
+  /** Σ closing — zero when the ledger balances */
+  totalClosing: number;
   balanced: boolean;
 }
 
@@ -3945,20 +4001,32 @@ export interface ReportKeyedAmount {
   amount: number;
 }
 
+export type IncomeStatementReportExpenseAnalysis = typeof IncomeStatementReportExpenseAnalysis[keyof typeof IncomeStatementReportExpenseAnalysis];
+
+
+export const IncomeStatementReportExpenseAnalysis = {
+  nature: 'nature',
+} as const;
+
 export type IncomeStatementReportSource = typeof IncomeStatementReportSource[keyof typeof IncomeStatementReportSource];
 
 
 export const IncomeStatementReportSource = {
   journal_entries: 'journal_entries',
-  transactions: 'transactions',
 } as const;
 
+/**
+ * From the ledger only (Phase 14 D14-06 — the former transactions fallback is gone). Expenses are presented BY NATURE (IAS 1.102), so there is no gross-profit line: `grossProfit` is null.
+ */
 export interface IncomeStatementReport {
+  window: ReportWindow;
+  expenseAnalysis: IncomeStatementReportExpenseAnalysis;
   revenue: ReportKeyedAmount[];
   expenses: ReportKeyedAmount[];
   totalRevenue: number;
   totalExpenses: number;
-  grossProfit: number;
+  /** @nullable */
+  grossProfit: number | null;
   netIncome: number;
   netIncomeMargin: number;
   source: IncomeStatementReportSource;
@@ -3981,6 +4049,11 @@ export interface BalanceSheetBucket {
 export type BalanceSheetReportAssets = {
   items: BalanceSheetItem[];
   accountsReceivable: number;
+  /**
+     * The item key of the AR account (resolved by system code)
+     * @nullable
+     */
+  accountsReceivableKey: string | null;
   total: number;
   current: BalanceSheetBucket;
   nonCurrent: BalanceSheetBucket;
@@ -3993,15 +4066,45 @@ export type BalanceSheetReportAssets = {
 export type BalanceSheetReportLiabilities = {
   items: BalanceSheetItem[];
   accountsPayable: number;
+  /**
+     * The item key of the AP account (resolved by system code)
+     * @nullable
+     */
+  accountsPayableKey: string | null;
   total: number;
   current: BalanceSheetBucket;
   nonCurrent: BalanceSheetBucket;
   unclassified: BalanceSheetBucket;
 };
 
+export type BalanceSheetReportEquityFiscalYearCalendar = typeof BalanceSheetReportEquityFiscalYearCalendar[keyof typeof BalanceSheetReportEquityFiscalYearCalendar];
+
+
+export const BalanceSheetReportEquityFiscalYearCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+/**
+ * @nullable
+ */
+export type BalanceSheetReportEquityFiscalYear = {
+  label: number;
+  startDate: string;
+  endDate: string;
+  calendar: BalanceSheetReportEquityFiscalYearCalendar;
+} | null;
+
+/**
+ * Equity accounts plus the profit or loss not yet allocated by any entry, split by the fiscal year containing as_of (D14-05). retainedEarnings = priorYearsProfit + currentYearProfit (it is NOT the RETAINED_EARNINGS account, which is among the items). Without a declared fiscal year the whole amount is in priorYearsProfit and fiscalYear is null.
+ */
 export type BalanceSheetReportEquity = {
   items: ReportKeyedAmount[];
   retainedEarnings: number;
+  priorYearsProfit: number;
+  currentYearProfit: number;
+  /** @nullable */
+  fiscalYear: BalanceSheetReportEquityFiscalYear;
   total: number;
 };
 
@@ -4009,16 +4112,25 @@ export interface BalanceSheetReport {
   asOf: string;
   assets: BalanceSheetReportAssets;
   liabilities: BalanceSheetReportLiabilities;
+  /** Equity accounts plus the profit or loss not yet allocated by any entry, split by the fiscal year containing as_of (D14-05). retainedEarnings = priorYearsProfit + currentYearProfit (it is NOT the RETAINED_EARNINGS account, which is among the items). Without a declared fiscal year the whole amount is in priorYearsProfit and fiscalYear is null. */
   equity: BalanceSheetReportEquity;
+  /** Ledger accounts with a balance but no balance-sheet or P&L type — listed, never folded; they make the sheet unbalanced. */
+  unmapped: BalanceSheetItem[];
   totalLiabilitiesAndEquity: number;
   balanced: boolean;
   /** @nullable */
   warning: string | null;
 }
 
+/**
+ * One direct-method line (a class of receipts or payments) with the accounts that make it up.
+ */
 export type CashFlowSectionItemsItem = {
+  key: string;
   name: string;
+  nameAr: string;
   amount: number;
+  accounts: ReportKeyedAmount[];
 };
 
 export interface CashFlowSection {
@@ -4026,15 +4138,38 @@ export interface CashFlowSection {
   items: CashFlowSectionItemsItem[];
 }
 
+export type CashFlowReportMethod = typeof CashFlowReportMethod[keyof typeof CashFlowReportMethod];
+
+
+export const CashFlowReportMethod = {
+  direct: 'direct',
+} as const;
+
+export type CashFlowReportVatBasis = typeof CashFlowReportVatBasis[keyof typeof CashFlowReportVatBasis];
+
+
+export const CashFlowReportVatBasis = {
+  inclusive: 'inclusive',
+} as const;
+
 /**
- * DIRECT method — actual cash movements classified by kind and account class. The indirect method is not built.
+ * DIRECT method from THE LEDGER (Phase 14 D14-07): every in-books entry touching a cash account, each non-cash line contributing to the activity of its account. openingCash + operating + investing + financing + internal + migrationOpeningCash = closingCash (`reconciles`). Flows are inclusive of VAT. The indirect method is not built.
  */
 export interface CashFlowReport {
+  window: ReportWindow;
+  method: CashFlowReportMethod;
+  vatBasis: CashFlowReportVatBasis;
+  openingCash: number;
   operating: CashFlowSection;
   investing: CashFlowSection;
   financing: CashFlowSection;
   internal: CashFlowSection;
+  migrationOpeningCash: number;
+  netCashFromActivities: number;
   netChange: number;
+  closingCash: number;
+  reconciles: boolean;
+  limitations: string[];
 }
 
 export interface JournalReportLine {
@@ -4085,9 +4220,38 @@ export interface GeneralLedgerMovement {
   credit: number;
   balance: number;
   accountNameAr: string;
+  /** @nullable */
+  partyType: string | null;
+  /** @nullable */
+  customerId: number | null;
+  /** @nullable */
+  vendorId: number | null;
 }
 
+export type GeneralLedgerPartyType = typeof GeneralLedgerPartyType[keyof typeof GeneralLedgerPartyType];
+
+
+export const GeneralLedgerPartyType = {
+  customer: 'customer',
+  vendor: 'vendor',
+} as const;
+
+export interface GeneralLedgerParty {
+  type: GeneralLedgerPartyType;
+  id: number;
+}
+
+/**
+ * The ledger of one account (or party) for a window. It opens on EXACTLY the trial-balance row it is drilled from (D14-09): lines before the window, plus migration opening entries up to the window end (D14-03) — which are therefore never listed as movements — and, for an income or expense account with a declared fiscal year, only from the start of the fiscal year containing date_from (plResetFrom).
+ */
 export interface GeneralLedgerReport {
+  window: ReportWindow;
+  /**
+     * The fiscal-year start an income or expense account opens at; null when no reset applied
+     * @nullable
+     */
+  plResetFrom: string | null;
+  party: GeneralLedgerParty | null;
   /** @nullable */
   accountId: number | null;
   accountName: string;
@@ -4134,7 +4298,11 @@ export interface AccountStatementReport {
 }
 
 export interface AccountSummaryRow {
+  key: string;
+  /** @nullable */
+  accountId: number | null;
   name: string;
+  nameAr: string;
   type: string;
   openingBalance: number;
   periodDebit: number;
@@ -4143,6 +4311,7 @@ export interface AccountSummaryRow {
 }
 
 export interface AccountSummaryReport {
+  window: ReportWindow;
   accounts: AccountSummaryRow[];
   count: number;
 }
@@ -4264,6 +4433,17 @@ export interface ArAgingItem {
   daysPastDue: number;
 }
 
+/**
+ * subledger = today's caches; events = the customer-statement events replayed up to asOf (D14-08)
+ */
+export type ArAgingReportBasis = typeof ArAgingReportBasis[keyof typeof ArAgingReportBasis];
+
+
+export const ArAgingReportBasis = {
+  subledger: 'subledger',
+  events: 'events',
+} as const;
+
 export type ArAgingReportLiabilities = {
   /**
      * Σ unapplied credit-note balances (GL Customer credit balances).
@@ -4281,6 +4461,10 @@ export type ArAgingReportLiabilities = {
  * Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is shown beside them, never folded into a bucket, and the net is derived.
  */
 export interface ArAgingReport {
+  /** The as-of date applied (default the business day) */
+  asOf: string;
+  /** subledger = today's caches; events = the customer-statement events replayed up to asOf (D14-08) */
+  basis: ArAgingReportBasis;
   buckets: AgingBuckets;
   /** @minimum 0 */
   total: number;
@@ -4302,25 +4486,49 @@ export interface ApAgingItem {
 }
 
 /**
- * What the supplier holds or owes us — each one an ASSET, never a bucket.
+ * subledger = today's positions; events = the supplier-statement events replayed up to asOf (D14-08)
+ */
+export type ApAgingReportBasis = typeof ApAgingReportBasis[keyof typeof ApAgingReportBasis];
+
+
+export const ApAgingReportBasis = {
+  subledger: 'subledger',
+  events: 'events',
+} as const;
+
+/**
+ * What the supplier holds or owes us — each one an ASSET, never a bucket. At a past as-of date the money held on account is one figure (onAccountTotal) and its split is null.
  */
 export type ApAgingReportAssets = {
   /** Unapplied purchase credit notes */
   supplierCredits: number;
-  supplierAdvances: number;
-  /** Refundable security deposits paid */
-  supplierDeposits: number;
-  /** Paid */
-  unidentifiedPayments: number;
+  /** @nullable */
+  supplierAdvances: number | null;
+  /**
+     * Refundable security deposits paid
+     * @nullable
+     */
+  supplierDeposits: number | null;
+  /**
+     * Paid
+     * @nullable
+     */
+  unidentifiedPayments: number | null;
+  /** Advances + deposits + unidentified payments */
+  onAccountTotal: number;
 };
 
 /**
  * B6: the buckets carry only real payable exposure — every item is what a bill still owes after its live allocations, credit notes are not aged as rows (they are applied to bills), and a debit note ages like a bill. What the SUPPLIER holds is shown BESIDE the buckets and never folded into them: an advance is an asset, not a negative payable.
  */
 export interface ApAgingReport {
+  /** The as-of date applied (default the business day) */
+  asOf: string;
+  /** subledger = today's positions; events = the supplier-statement events replayed up to asOf (D14-08) */
+  basis: ApAgingReportBasis;
   buckets: AgingBuckets;
   total: number;
-  /** What the supplier holds or owes us — each one an ASSET, never a bucket. */
+  /** What the supplier holds or owes us — each one an ASSET, never a bucket. At a past as-of date the money held on account is one figure (onAccountTotal) and its split is null. */
   assets: ApAgingReportAssets;
   /** total less every asset above — DERIVED */
   netSupplierPosition: number;
@@ -9174,6 +9382,11 @@ from: string;
 to: string;
 };
 
+export type GetPnlTrendParams = {
+from: string;
+to: string;
+};
+
 export type GetReceivablesBridgeParams = {
 /**
  * YYYY-MM
@@ -9299,7 +9512,18 @@ account_id?: string;
 account_name?: string;
 date_from?: string;
 date_to?: string;
+party_type?: GetGeneralLedgerPartyType;
+customer_id?: string;
+vendor_id?: string;
 };
+
+export type GetGeneralLedgerPartyType = typeof GetGeneralLedgerPartyType[keyof typeof GetGeneralLedgerPartyType];
+
+
+export const GetGeneralLedgerPartyType = {
+  customer: 'customer',
+  vendor: 'vendor',
+} as const;
 
 export type GetAccountStatementParams = {
 account_id?: string;
@@ -9323,6 +9547,53 @@ export type GetOwnerEquityParams = {
 date_from?: string;
 date_to?: string;
 };
+
+export type GetArAgingReportParams = {
+as_of?: string;
+};
+
+export type GetApAgingReportParams = {
+as_of?: string;
+};
+
+export type ExportReportParams = {
+format?: ExportReportFormat;
+lang?: ExportReportLang;
+date_from?: string;
+date_to?: string;
+as_of?: string;
+compare_from?: string;
+compare_to?: string;
+compare_as_of?: string;
+account_id?: string;
+party_type?: ExportReportPartyType;
+customer_id?: string;
+vendor_id?: string;
+};
+
+export type ExportReportFormat = typeof ExportReportFormat[keyof typeof ExportReportFormat];
+
+
+export const ExportReportFormat = {
+  csv: 'csv',
+  pdf: 'pdf',
+} as const;
+
+export type ExportReportLang = typeof ExportReportLang[keyof typeof ExportReportLang];
+
+
+export const ExportReportLang = {
+  en: 'en',
+  ar: 'ar',
+} as const;
+
+export type ExportReportPartyType = typeof ExportReportPartyType[keyof typeof ExportReportPartyType];
+
+
+export const ExportReportPartyType = {
+  customer: 'customer',
+  vendor: 'vendor',
+} as const;
 
 export type GetTaxJournalEntriesParams = {
 date_from?: string;

@@ -127,6 +127,7 @@ import type {
   EmployeeInputFields,
   ErrorResponse,
   ExpensesPage,
+  ExportReportParams,
   FinancialSummary,
   Finding,
   FindingsPage,
@@ -139,6 +140,8 @@ import type {
   GetAccountStatementParams,
   GetAccountSummaryParams,
   GetActivityReportParams,
+  GetApAgingReportParams,
+  GetArAgingReportParams,
   GetAskStatus200,
   GetBalanceSheetParams,
   GetBankReconciliationPositionParams,
@@ -156,6 +159,7 @@ import type {
   GetJournalReportParams,
   GetLiquidityParams,
   GetOwnerEquityParams,
+  GetPnlTrendParams,
   GetReceivablesBridgeParams,
   GetSummaryByCategoryParams,
   GetSummaryParams,
@@ -266,6 +270,7 @@ import type {
   PendingReviewTransaction,
   PeriodLock,
   PeriodLockInput,
+  PnlTrend,
   PurchaseOrder,
   PurchaseOrderConversion,
   PurchaseOrderConversionResult,
@@ -6805,6 +6810,92 @@ export function useGetTrend<TData = Awaited<ReturnType<typeof getTrend>>, TError
 
 
 
+export const getGetPnlTrendUrl = (params: GetPnlTrendParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/pnl-trend?${stringifiedParams}` : `/api/analytics/pnl-trend`
+}
+
+/**
+ * @summary Monthly profit-or-loss trend from the ledger (Phase 14 D14-12): revenue, expenses and net per calendar month; the months sum to the income statement of the same window.
+
+ */
+export const getPnlTrend = async (params: GetPnlTrendParams, options?: RequestInit): Promise<PnlTrend> => {
+
+  return customFetch<PnlTrend>(getGetPnlTrendUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPnlTrendQueryKey = (params?: GetPnlTrendParams,) => {
+    return [
+    `/api/analytics/pnl-trend`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPnlTrendQueryOptions = <TData = Awaited<ReturnType<typeof getPnlTrend>>, TError = ErrorType<unknown>>(params: GetPnlTrendParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPnlTrend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPnlTrendQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPnlTrend>>> = ({ signal }) => getPnlTrend(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPnlTrend>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPnlTrendQueryResult = NonNullable<Awaited<ReturnType<typeof getPnlTrend>>>
+export type GetPnlTrendQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Monthly profit-or-loss trend from the ledger (Phase 14 D14-12): revenue, expenses and net per calendar month; the months sum to the income statement of the same window.
+
+ */
+
+export function useGetPnlTrend<TData = Awaited<ReturnType<typeof getPnlTrend>>, TError = ErrorType<unknown>>(
+ params: GetPnlTrendParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPnlTrend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPnlTrendQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetReceivablesBridgeUrl = (params: GetReceivablesBridgeParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -8493,7 +8584,8 @@ export const getGetTrialBalanceUrl = (params?: GetTrialBalanceParams,) => {
 }
 
 /**
- * @summary Trial balance — every account's debit/credit totals over a window
+ * @summary Trial balance — opening, period debit, period credit and closing per account (Phase 14 D14-04). Migration opening entries are opening even inside the window; with a declared fiscal year, income and expense accounts open at the fiscal-year start and earlier P&L is one computed equity row.
+
  */
 export const getTrialBalance = async (params?: GetTrialBalanceParams, options?: RequestInit): Promise<TrialBalanceReport> => {
 
@@ -8540,7 +8632,8 @@ export type GetTrialBalanceQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Trial balance — every account's debit/credit totals over a window
+ * @summary Trial balance — opening, period debit, period credit and closing per account (Phase 14 D14-04). Migration opening entries are opening even inside the window; with a declared fiscal year, income and expense accounts open at the fiscal-year start and earlier P&L is one computed equity row.
+
  */
 
 export function useGetTrialBalance<TData = Awaited<ReturnType<typeof getTrialBalance>>, TError = ErrorType<unknown>>(
@@ -8577,7 +8670,7 @@ export const getGetIncomeStatementUrl = (params?: GetIncomeStatementParams,) => 
 }
 
 /**
- * @summary Income statement (P&L) over a window
+ * @summary Income statement (P&L) over a window — from the ledger only; expenses by nature (Phase 14 D14-06)
  */
 export const getIncomeStatement = async (params?: GetIncomeStatementParams, options?: RequestInit): Promise<IncomeStatementReport> => {
 
@@ -8624,7 +8717,7 @@ export type GetIncomeStatementQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Income statement (P&L) over a window
+ * @summary Income statement (P&L) over a window — from the ledger only; expenses by nature (Phase 14 D14-06)
  */
 
 export function useGetIncomeStatement<TData = Awaited<ReturnType<typeof getIncomeStatement>>, TError = ErrorType<unknown>>(
@@ -8661,7 +8754,7 @@ export const getGetBalanceSheetUrl = (params?: GetBalanceSheetParams,) => {
 }
 
 /**
- * @summary Balance sheet as of a date, with the current/non-current split
+ * @summary Balance sheet as of a date, with the current/non-current split and profit split by fiscal year (Phase 14 D14-05)
  */
 export const getBalanceSheet = async (params?: GetBalanceSheetParams, options?: RequestInit): Promise<BalanceSheetReport> => {
 
@@ -8708,7 +8801,7 @@ export type GetBalanceSheetQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Balance sheet as of a date, with the current/non-current split
+ * @summary Balance sheet as of a date, with the current/non-current split and profit split by fiscal year (Phase 14 D14-05)
  */
 
 export function useGetBalanceSheet<TData = Awaited<ReturnType<typeof getBalanceSheet>>, TError = ErrorType<unknown>>(
@@ -8745,7 +8838,7 @@ export const getGetCashFlowUrl = (params?: GetCashFlowParams,) => {
 }
 
 /**
- * @summary Cash flow statement (DIRECT method) over a window
+ * @summary Cash flow statement (DIRECT method) from the ledger over a window — reconciles to the cash accounts (Phase 14 D14-07)
  */
 export const getCashFlow = async (params?: GetCashFlowParams, options?: RequestInit): Promise<CashFlowReport> => {
 
@@ -8792,7 +8885,7 @@ export type GetCashFlowQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Cash flow statement (DIRECT method) over a window
+ * @summary Cash flow statement (DIRECT method) from the ledger over a window — reconciles to the cash accounts (Phase 14 D14-07)
  */
 
 export function useGetCashFlow<TData = Awaited<ReturnType<typeof getCashFlow>>, TError = ErrorType<unknown>>(
@@ -8913,7 +9006,7 @@ export const getGetGeneralLedgerUrl = (params?: GetGeneralLedgerParams,) => {
 }
 
 /**
- * @summary General ledger movements with a running balance
+ * @summary General ledger movements with a running balance; optionally filtered to one party (Phase 14 D14-11)
  */
 export const getGeneralLedger = async (params?: GetGeneralLedgerParams, options?: RequestInit): Promise<GeneralLedgerReport> => {
 
@@ -8960,7 +9053,7 @@ export type GetGeneralLedgerQueryError = ErrorType<unknown>
 
 
 /**
- * @summary General ledger movements with a running balance
+ * @summary General ledger movements with a running balance; optionally filtered to one party (Phase 14 D14-11)
  */
 
 export function useGetGeneralLedger<TData = Awaited<ReturnType<typeof getGeneralLedger>>, TError = ErrorType<unknown>>(
@@ -9317,20 +9410,27 @@ export function useGetOwnerEquity<TData = Awaited<ReturnType<typeof getOwnerEqui
 
 
 
-export const getGetArAgingReportUrl = () => {
+export const getGetArAgingReportUrl = (params?: GetArAgingReportParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/ar-aging`
+  return stringifiedParams.length > 0 ? `/api/reports/ar-aging?${stringifiedParams}` : `/api/reports/ar-aging`
 }
 
 /**
- * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it; as of a date (Phase 14 D14-08)
  */
-export const getArAgingReport = async ( options?: RequestInit): Promise<ArAgingReport> => {
+export const getArAgingReport = async (params?: GetArAgingReportParams, options?: RequestInit): Promise<ArAgingReport> => {
 
-  return customFetch<ArAgingReport>(getGetArAgingReportUrl(),
+  return customFetch<ArAgingReport>(getGetArAgingReportUrl(params),
   {
     ...options,
     method: 'GET'
@@ -9343,23 +9443,23 @@ export const getArAgingReport = async ( options?: RequestInit): Promise<ArAgingR
 
 
 
-export const getGetArAgingReportQueryKey = () => {
+export const getGetArAgingReportQueryKey = (params?: GetArAgingReportParams,) => {
     return [
-    `/api/reports/ar-aging`
+    `/api/reports/ar-aging`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetArAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetArAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>(params?: GetArAgingReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetArAgingReportQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetArAgingReportQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArAgingReport>>> = ({ signal }) => getArAgingReport({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArAgingReport>>> = ({ signal }) => getArAgingReport(params, { signal, ...requestOptions });
 
 
 
@@ -9373,15 +9473,15 @@ export type GetArAgingReportQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it; as of a date (Phase 14 D14-08)
  */
 
 export function useGetArAgingReport<TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetArAgingReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetArAgingReportQueryOptions(options)
+  const queryOptions = getGetArAgingReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -9394,20 +9494,27 @@ export function useGetArAgingReport<TData = Awaited<ReturnType<typeof getArAging
 
 
 
-export const getGetApAgingReportUrl = () => {
+export const getGetApAgingReportUrl = (params?: GetApAgingReportParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/ap-aging`
+  return stringifiedParams.length > 0 ? `/api/reports/ap-aging?${stringifiedParams}` : `/api/reports/ap-aging`
 }
 
 /**
- * @summary Accounts payable aging
+ * @summary Accounts payable aging, as of a date (Phase 14 D14-08)
  */
-export const getApAgingReport = async ( options?: RequestInit): Promise<ApAgingReport> => {
+export const getApAgingReport = async (params?: GetApAgingReportParams, options?: RequestInit): Promise<ApAgingReport> => {
 
-  return customFetch<ApAgingReport>(getGetApAgingReportUrl(),
+  return customFetch<ApAgingReport>(getGetApAgingReportUrl(params),
   {
     ...options,
     method: 'GET'
@@ -9420,23 +9527,23 @@ export const getApAgingReport = async ( options?: RequestInit): Promise<ApAgingR
 
 
 
-export const getGetApAgingReportQueryKey = () => {
+export const getGetApAgingReportQueryKey = (params?: GetApAgingReportParams,) => {
     return [
-    `/api/reports/ap-aging`
+    `/api/reports/ap-aging`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetApAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getApAgingReport>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetApAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getApAgingReport>>, TError = ErrorType<unknown>>(params?: GetApAgingReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApAgingReportQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetApAgingReportQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApAgingReport>>> = ({ signal }) => getApAgingReport({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApAgingReport>>> = ({ signal }) => getApAgingReport(params, { signal, ...requestOptions });
 
 
 
@@ -9450,15 +9557,106 @@ export type GetApAgingReportQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Accounts payable aging
+ * @summary Accounts payable aging, as of a date (Phase 14 D14-08)
  */
 
 export function useGetApAgingReport<TData = Awaited<ReturnType<typeof getApAgingReport>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetApAgingReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetApAgingReportQueryOptions(options)
+  const queryOptions = getGetApAgingReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportReportUrl = (report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging',
+    params?: ExportReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/export/${report}?${stringifiedParams}` : `/api/reports/export/${report}`
+}
+
+/**
+ * @summary Export a report as CSV or PDF (Phase 14 D14-10). Runs the report's own service call with the report's own parameters, behind the same permission and in the same tenant/company scope as the screen. CSV is UTF-8 with a BOM; PDF is RTL with Arabic labels for lang=ar. An export that would exceed the row limit is refused (422 export_too_large), never truncated.
+
+ */
+export const exportReport = async (report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging',
+    params?: ExportReportParams, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportReportUrl(report,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportReportQueryKey = (report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging',
+    params?: ExportReportParams,) => {
+    return [
+    `/api/reports/export/${report}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportReportQueryOptions = <TData = Awaited<ReturnType<typeof exportReport>>, TError = ErrorType<void>>(report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging',
+    params?: ExportReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportReportQueryKey(report,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportReport>>> = ({ signal }) => exportReport(report,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: report !== null && report !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportReportQueryResult = NonNullable<Awaited<ReturnType<typeof exportReport>>>
+export type ExportReportQueryError = ErrorType<void>
+
+
+/**
+ * @summary Export a report as CSV or PDF (Phase 14 D14-10). Runs the report's own service call with the report's own parameters, behind the same permission and in the same tenant/company scope as the screen. CSV is UTF-8 with a BOM; PDF is RTL with Arabic labels for lang=ar. An export that would exceed the row limit is refused (422 export_too_large), never truncated.
+
+ */
+
+export function useExportReport<TData = Awaited<ReturnType<typeof exportReport>>, TError = ErrorType<void>>(
+ report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging',
+    params?: ExportReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportReportQueryOptions(report,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -13,6 +13,13 @@ const DIMENSIONS: Dimension[] = ["category", "customer", "vendor"];
  * surface as an empty chart rather than an error, which is the worse failure.
  */
 export const analyticsController = {
+  async pnlTrend(req: Request, res: Response) {
+    const from = String(req.query.from ?? "");
+    const to = String(req.query.to ?? "");
+    if (!MONTH.test(from) || !MONTH.test(to)) throw new BadRequestError("from and to must be YYYY-MM");
+    if (from > to) throw new BadRequestError("from must not be after to");
+    res.json(await analyticsService.pnlTrend(from, to));
+  },
   async trend(req: Request, res: Response) {
     const from = String(req.query.from ?? "");
     const to = String(req.query.to ?? "");

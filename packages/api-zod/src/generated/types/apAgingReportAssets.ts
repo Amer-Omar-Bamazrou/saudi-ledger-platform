@@ -7,14 +7,23 @@
  */
 
 /**
- * What the supplier holds or owes us — each one an ASSET, never a bucket.
+ * What the supplier holds or owes us — each one an ASSET, never a bucket. At a past as-of date the money held on account is one figure (onAccountTotal) and its split is null.
  */
 export type ApAgingReportAssets = {
   /** Unapplied purchase credit notes */
   supplierCredits: number;
-  supplierAdvances: number;
-  /** Refundable security deposits paid */
-  supplierDeposits: number;
-  /** Paid */
-  unidentifiedPayments: number;
+  /** @nullable */
+  supplierAdvances: number | null;
+  /**
+     * Refundable security deposits paid
+     * @nullable
+     */
+  supplierDeposits: number | null;
+  /**
+     * Paid
+     * @nullable
+     */
+  unidentifiedPayments: number | null;
+  /** Advances + deposits + unidentified payments */
+  onAccountTotal: number;
 };
