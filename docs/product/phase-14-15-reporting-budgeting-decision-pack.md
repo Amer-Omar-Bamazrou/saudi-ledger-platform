@@ -1155,3 +1155,4 @@ Playwright specs' (EN/AR × desktop/390 px, no sideways scroll), run below.
 | Build | exit 0 |
 | Browser — the affected specs (phase15-budgets, phase14-reporting, statement-figures, phase11-ap-subledger, batch-1b-payment-flows, rtl-direction) | **50 / 50**. The full browser suite (497) was NOT re-run locally — this machine's memory limit killed it before (§7); CI runs it |
 | Mutation proofs | 43 + 3 = **46 killed** |
+| Secrets | gitleaks, CI's exact container invocation, full history including the audit commit: **446 commits, no leaks** |
