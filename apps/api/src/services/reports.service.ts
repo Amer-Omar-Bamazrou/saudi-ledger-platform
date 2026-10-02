@@ -48,10 +48,19 @@ export function reportWindow(from: unknown, to: unknown): { from?: string; to?: 
   return { from: f, to: t };
 }
 
+/**
+ * The largest id a Postgres `integer` holds. A larger number is no id this API
+ * issued: it is a 400 here, never a database error that the reports
+ * controller would answer as a 500 carrying the failed query's text (pre-merge
+ * audit, 2026-10-02 — security review 8's bound, which reached only the
+ * budgets controller).
+ */
+export const MAX_ID = 2_147_483_647;
+
 /** A report's account id: a positive integer, or a 400 — never read as "all accounts". */
 export function reportAccountId(value: unknown): number {
   const n = Number(value);
-  if (!Number.isSafeInteger(n) || n <= 0) throw new BadRequestError(`account_id must be a positive integer; "${String(value)}" is not one.`);
+  if (!Number.isSafeInteger(n) || n <= 0 || n > MAX_ID) throw new BadRequestError(`account_id must be a positive integer; "${String(value)}" is not one.`);
   return n;
 }
 
@@ -64,7 +73,7 @@ export function reportParty(type: unknown, customerId: unknown, vendorId: unknow
 }
 function reportAccountIdNamed(value: unknown, name: string): number {
   const n = Number(value);
-  if (!Number.isSafeInteger(n) || n <= 0) throw new BadRequestError(`${name} must be a positive integer; "${String(value ?? "")}" is not one.`);
+  if (!Number.isSafeInteger(n) || n <= 0 || n > MAX_ID) throw new BadRequestError(`${name} must be a positive integer; "${String(value ?? "")}" is not one.`);
   return n;
 }
 
@@ -804,7 +813,8 @@ export const reportsService = {
    *
    * - No date, or the business day: TODAY's ageing from the subledger caches
    *   (paid / credited / written-off amounts and the current customer
-   *   positions) — unchanged from before Phase 14.
+   *   positions) — unless an event dated after today moved a figure they hold
+   *   (F-25: a post-dated payment or note), when it is the replay below.
    * - A past date: the SAME documents, with what each still owed ON THAT DATE,
    *   rebuilt by replaying the customer-statement events up to it
    *   (`customerStatementRepository.events(null, { upTo })` — the one
@@ -832,14 +842,30 @@ export const reportsService = {
 
     let outstandingById: Map<number, number>; // halalas
     let creditsH: number, depositsH: number;
-    if (asOf >= today) {
+    /**
+     * 🔴 F-25 (pre-merge audit, 2026-10-02): the subledger caches hold EVERY settlement whatever
+     * its accounting date, so a payment or credit note dated AFTER the as-of date (a post-dated
+     * cheque) took its invoice out of TODAY's ageing while the GL — and the balance sheet as of
+     * today — still carried it. D14-02: a settlement counts from its effective date, and the
+     * replay is the one definition of that. The cache is read only while no event dated after
+     * as_of touches a figure it shows (a later document's own issue does not: it is skipped below).
+     */
+    let events: Awaited<ReturnType<typeof customerStatementRepository.events>> | null = null;
+    if (asOf < today) events = await customerStatementRepository.events(null, { upTo: asOf });
+    else {
+      const all = await customerStatementRepository.events(null);
+      const docDate = new Map(docs.map(({ inv }) => [inv.id, inv.date]));
+      const cacheAhead = all.some((e) => e.date > asOf && (e.creditDelta !== 0 || e.depositDelta !== 0
+        || (e.receivableDelta !== 0 && e.invoiceId != null && (docDate.get(e.invoiceId) ?? "") <= asOf)));
+      if (cacheAhead) events = all.filter((e) => e.date <= asOf);
+    }
+    if (events == null) {
       outstandingById = new Map(docs.map(({ inv }) => [inv.id,
         toHalalas(inv.total) - toHalalas(inv.paidAmount) - toHalalas(inv.creditedAmount) - toHalalas(inv.writtenOffAmount)]));
       const positions = await customersRepository.customerBalances();
       creditsH = positions.reduce((s, p) => s + toHalalas(p.creditBalance), 0);
       depositsH = positions.reduce((s, p) => s + toHalalas(p.depositBalance), 0);
     } else {
-      const events = await customerStatementRepository.events(null, { upTo: asOf });
       outstandingById = new Map();
       creditsH = 0; depositsH = 0;
       for (const e of events) {
@@ -864,10 +890,10 @@ export const reportsService = {
     const totalH = Object.values(buckets).reduce((s, v) => s + v, 0);
     return {
       asOf,
-      basis: asOf >= today ? ("subledger" as const) : ("events" as const),
+      basis: events == null ? ("subledger" as const) : ("events" as const),
       buckets: halalaBuckets(buckets),
       total: fromHalalas(totalH),
-      liabilities: { customerCredits: fromHalalas(creditsH), customerDeposits: fromHalalas(depositsH) },
+      liabilities:{ customerCredits: fromHalalas(creditsH), customerDeposits: fromHalalas(depositsH) },
       netCustomerPosition: fromHalalas(totalH - creditsH - depositsH),
       items: items.sort((a, b) => b.daysPastDue - a.daysPastDue),
     };
@@ -876,10 +902,11 @@ export const reportsService = {
   /**
    * AP ageing AS OF a date (D14-08) — the same two paths as AR. Today: what
    * each bill OWES by `billPosition`'s one definition, and the supplier
-   * positions. A past date: the supplier-statement events replayed up to it.
+   * positions. A past date — or today when an event dated after it moved a
+   * cached figure (F-25) — the supplier-statement events replayed up to it.
    * Supplier money held on account (advances, deposits, unidentified) is one
-   * figure at a past date — the events carry it as one component — and is
-   * itemised only for today, where the classified positions exist.
+   * figure on the replay — the events carry it as one component — and is
+   * itemised only from the cache, where the classified positions exist.
    */
   async apAging(as_of?: string) {
     const today = businessToday();
@@ -894,7 +921,17 @@ export const reportsService = {
     let owedById: Map<number, number>;
     let creditsH: number;
     let onAccount: { supplierAdvances: number | null; supplierDeposits: number | null; unidentifiedPayments: number | null; totalH: number };
-    if (asOf >= today) {
+    // 🔴 F-25 — the same rule as the AR ageing: a settlement dated after as_of is not yet in it.
+    let events: Awaited<ReturnType<typeof supplierStatementRepository.events>> | null = null;
+    if (asOf < today) events = await supplierStatementRepository.events(null, { upTo: asOf });
+    else {
+      const all = await supplierStatementRepository.events(null);
+      const docDate = new Map(docs.map(({ bill }) => [bill.id, bill.date]));
+      const cacheAhead = all.some((e) => e.date > asOf && (e.creditDelta !== 0 || e.onAccountDelta !== 0
+        || (e.payableDelta !== 0 && e.billId != null && (docDate.get(e.billId) ?? "") <= asOf)));
+      if (cacheAhead) events = all.filter((e) => e.date <= asOf);
+    }
+    if (events == null) {
       owedById = new Map(docs.map(({ bill, outstanding }) => [bill.id, toHalalas(outstanding)]));
       const positions = await supplierStatementService.positions();
       creditsH = positions.items.reduce((s, p) => s + toHalalas(p.creditBalance), 0);
@@ -903,7 +940,6 @@ export const reportsService = {
       const uni = positions.items.reduce((s, p) => s + toHalalas(p.unidentifiedBalance), 0);
       onAccount = { supplierAdvances: fromHalalas(adv), supplierDeposits: fromHalalas(dep), unidentifiedPayments: fromHalalas(uni), totalH: adv + dep + uni };
     } else {
-      const events = await supplierStatementRepository.events(null, { upTo: asOf });
       owedById = new Map();
       creditsH = 0;
       let onAccountH = 0;
@@ -929,7 +965,7 @@ export const reportsService = {
     const totalH = Object.values(buckets).reduce((s, v) => s + v, 0);
     return {
       asOf,
-      basis: asOf >= today ? ("subledger" as const) : ("events" as const),
+      basis: events == null ? ("subledger" as const) : ("events" as const),
       buckets: halalaBuckets(buckets),
       total: fromHalalas(totalH),
       assets: {

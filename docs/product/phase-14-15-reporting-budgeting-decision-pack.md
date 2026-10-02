@@ -4,6 +4,9 @@
 the branch below; the PR is open and NOT merged. Written before the code, and
 corrected where the build or the reviews proved a decision wrong (D14-03,
 D14-15 — marked in place).**
+**Status (2026-10-02): the pre-merge human audit gate ran (§8) — three defects
+fixed with tests, three findings corrected, D15-03 restated as a supersession
+for the owner.**
 Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
 Branch: `feat/phase14-15-reporting-budgeting` (from `main` @ `0b0175da`).
 
@@ -692,6 +695,29 @@ definition — additions, not balances).
   periodised entry is therefore built **beside** annual entry, and the "do not
   apportion" rule binds both. If the owner wants annual-only kept as the only
   mode, removing the period editor is a UI change with no data migration.
+- 🔴 **Corrected by the pre-merge audit (2026-10-02): this is a SUPERSESSION, not
+  an extension.** The 2026-08-15 record (`design-analytics.md` §7) made two
+  rulings. "Do not apportion" is a principle, and it is KEPT. "(b) annual only"
+  was a CHOICE made *against* "(a) periodise budgets properly — a schema change
+  plus a UI for entering twelve numbers per category", with the revisit trigger
+  "a real user asking for monthly budgets. Not before." Phase 15 builds exactly
+  (a), and no real user exists (§2 of CLAUDE.md: no customers). The trigger was
+  not met; the owner's Phase 15 brief is a new owner instruction, which may
+  supersede the old one — but only the owner can say that it does. **The rule
+  in force if the owner confirms:**
+  1. a budget line is EITHER twelve fiscal-period amounts the user entered OR one
+     annual amount;
+  2. no amount is ever derived by dividing another — no ÷ 12, no distribution
+     percentages, no linear proration, no run-rate;
+  3. an annual-only line has a full-year budget only: its period, year-to-date
+     and forecast budgets are `null`, and a total that contains one withholds its
+     year-to-date budget and forecast;
+  4. year to date runs through a COMPLETED fiscal period.
+  **Why it satisfies the original objection:** the Ramadan-peak argument was
+  against the SYSTEM guessing seasonality; a period amount here is the user's own
+  number, so seasonality is stated, never guessed. **If the owner declines:**
+  remove the period editor (UI only — no data migration; period lines already
+  entered stay readable).
 
 ### D15-04 — Lifecycle: the existing approval engine, locked at the database
 
@@ -887,7 +913,7 @@ suites already use for committed migrations.
 
 | Id | Severity | Finding | Status |
 |---|---|---|---|
-| F-00 | INFO | "Phase 14" in the 13B documents means inventory; the owner's roadmap says reporting | owner to re-home the inventory deferral |
+| F-00 | INFO | "Phase 14" in the 13B documents means inventory; the owner's roadmap says reporting | owner to re-home the inventory deferral. **Audit 2026-10-02:** documentation only — no code, refusal text or test says "Phase 14" for inventory. The one real ambiguity is the DEFERRAL REGISTER: D13B-09 (inventory cost / COGS for non-recoverable VAT) and R4 point at a phase CLAUDE.md §2 now reports as BUILT, so the deferral reads as delivered. Re-home D13B-09 to a named inventory phase in the queue; do not edit the historical documents (two of them are the owner's uncommitted working files) |
 | F-01 | MEDIUM | Cash flow reads `transactions`, misses document payments | fixed by D14-07 |
 | F-02 | MEDIUM | P&L transactions fallback (second truth, gross of VAT) | fixed by D14-06 |
 | F-03 | LOW | `grossProfit = totalRevenue` | fixed by D14-06 |
@@ -903,20 +929,26 @@ suites already use for committed migrations.
 | F-13 | LOW | The route-reachability inverse guard parsed `apiFetch(` only, so a new `apiDownload(` URL was invisible to it | fixed: the guard parses both, and asserts it SEES `/reports/export` (a known-present case) |
 | F-14 | INFO | `report-contract-conformance`'s cash-flow case asserted the OLD transactions-based sections | fixture now posts a ledger receipt and an in-transit transfer; asserts one line per section + `reconciles` |
 | F-15 | LOW | `analytics.repository` computes balance-sheet ratio inputs with its own query — a second definition of BS semantics beside the seam | held by `analytics-trend.test.ts` (ties the two); OPEN: move it onto the seam |
-| F-16 | INFO | Report exports are not written to `audit_logs` | DECISION: consistent with the platform rule — `audit_logs` records MUTATIONS, and a tenant's read of its own data is not audited (`documentsService.download` likewise); cross-tenant (operator) reads ARE audited. Owner may ask for export logging |
+| F-16 | INFO | Report exports are not written to `audit_logs` | DECISION: consistent with the platform rule — `audit_logs` records MUTATIONS, and a tenant's read of its own data is not audited (`documentsService.download` likewise); cross-tenant (operator) reads ARE audited. Owner may ask for export logging. **Audit 2026-10-02 — no current legal requirement found:** NCA ECC-2:2024 binds government agencies and private entities owning, operating or hosting critical national infrastructure ("Scope of Work and Applicability"); PDPL asks for records of processing ACTIVITIES, not per-read logs. It BECOMES a requirement if a government or CNI tenant onboards (ECC 2-12 event logs flow down by contract) — decide before that sale, not after |
 | F-17 | INFO | TB `balance` no longer includes migration opening entries dated inside the window (D14-04) | documented; consumers checked |
-| F-18 | MEDIUM | Every RLS policy and `companyScoped()` compare `company_id::text`, which no plain index can serve — every tenant query at scale seq-scans all tenants unless an expression index matches | Phase 14 adds the expression index for the ledger seam (0111); the platform-wide pattern is OPEN |
-| F-19 | MEDIUM | `companiesRepository.findActive()` returns the org's FIRST company, not the company in scope — the Phase 14 fiscal-year reads (TB P&L reset, BS current year, export header) used it, so a second company with a different fiscal year would have been reported on the first one's year. Invisible today only because `resolveTenant` always scopes the first company | fixed for reports, export and budgets (`findCurrent()`), each pinned by a test that FAILS on the old call (mutations B11, B12). 🔴 OPEN: three pre-existing callers outside this brief — `assetReports`, `incomeTaxPool`, `vatCapitalAsset` |
+| F-18 | MEDIUM | Every RLS policy and `companyScoped()` compare `company_id::text`, which no plain index can serve — every tenant query at scale seq-scans all tenants unless an expression index matches | Phase 14 adds the expression index for the ledger seam (0111); the platform-wide pattern is OPEN. **Measured 2026-10-02** (2,000 synthetic tenants, rolled back, as `authenticated`): `reportsRepository.allCategories()` — read by EVERY report and by budget vs actual — has no WHERE of its own, so under the text policy alone it is a parallel seq scan of every tenant's chart (200k rows removed, 34 ms); with a typed predicate it is an index scan (0.06 ms). Isolation is exact either way (a uuid's text is canonical; a mismatch reads NOTHING — fail-closed). A scaling cost, not a hole: fix platform-wide (typed policies, one migration, a plan test) before tenant volume, not in this PR |
+| F-19 | MEDIUM | `companiesRepository.findActive()` returns the org's FIRST company, not the company in scope — the Phase 14 fiscal-year reads (TB P&L reset, BS current year, export header) used it, so a second company with a different fiscal year would have been reported on the first one's year. Invisible today only because `resolveTenant` always scopes the first company | fixed for reports, export and budgets (`findCurrent()`), each pinned by a test that FAILS on the old call (mutations B11, B12). 🔴 OPEN: three pre-existing callers outside this brief — `assetReports`, `incomeTaxPool`, `vatCapitalAsset`. **Corrected 2026-10-02: NINE call sites in FOUR files** — those three plus `companies.service` ×6 (`getCurrent`, `fiscalYears`, `updateCurrent` — the Company Settings writer of the fiscal year the reports and budgets read — and the three logo methods). None can produce a wrong figure TODAY: `resolveTenant` scopes the org's first company by the same `created_at` order `findActive()` uses, so both return the same row. Each becomes a cross-company defect the day a company switcher exists; sweep them in that change |
 | F-20 | MEDIUM | The GL / account statement opened from a TB row answered a DIFFERENT question: a P&L account's opening included prior fiscal years, and a migration opening entry inside the window was listed as a movement | fixed (D14-09): one aggregate `glOpening` with the TB's rules; the account statement delegates to the GL; pinned by mutations G1–G3 |
 | F-21 | LOW | The web's `ExportableReport` was a hand-kept copy of the server's list | derived from the contract (`Parameters<typeof getExportReportUrl>[0]`) |
 | F-22 | INFO | An approved budget cannot be deleted, so it blocks deleting its organisation — like every other append-only record (committed migrations, VAT events) | by design (D15-04); tenant erasure is an owner procedure (C8 / PDPL) |
 | F-23 | LOW | The M19 Budgets page coloured variance with the status palette (§4: a variance is a judgment) | replaced: neutral ink and words (`judgementLabel`) |
 | F-24 | LOW | The demo seed's second budget named a system code that does not exist (`RENT_UTILITIES`), so it was silently never created | the demo budget uses `PURCHASES`, and `demo-seed.test.ts` now asserts the budget exists |
-| F-25 | MEDIUM | AR/AP ageing "today" (the subledger cache) includes documents dated AFTER today; a balance sheet as of today (D14-02) does not — so the two disagree whenever a future-dated invoice or bill exists. The UI balance sheet has always been as of a date, so the disagreement pre-dates Phase 14 at the page level | OPEN — the fix (the cache path filtered to `date ≤ as_of`) changes pre-existing ageing behaviour and many fixtures' dates; recommended for the owner's next ruling. Found on the FRESH database (see F-26) |
+| F-25 | MEDIUM | AR/AP ageing "today" (the subledger cache) includes documents dated AFTER today; a balance sheet as of today (D14-02) does not — so the two disagree whenever a future-dated invoice or bill exists. The UI balance sheet has always been as of a date, so the disagreement pre-dates Phase 14 at the page level | OPEN — the fix (the cache path filtered to `date ≤ as_of`) changes pre-existing ageing behaviour and many fixtures' dates; recommended for the owner's next ruling. Found on the FRESH database (see F-26). **Corrected and FIXED 2026-10-02 (§8):** the row above describes the wrong half. Documents dated after today were ALREADY excluded (Phase 14 added `inv.date > asOf` / `bill.date > asOf`; `main` lacked it). What leaked was SETTLEMENTS dated after today: the caches hold every payment, credit note and deposit whatever its accounting date, so a post-dated cheque took its invoice out of today's ageing — reproduced: AR ageing 230 vs balance-sheet AR 1,610, AP ageing 0 vs AP 690, and yesterday's ageing (the replay) 1,610, i.e. the ageing FELL overnight with nothing happening. D14-02 already defines "as of" (settlements effective ≤ as_of), so this applies a made decision rather than a new one. Fix: today's ageing reads the event replay whenever an event dated after as_of moves a figure the cache shows; otherwise the cache, unchanged. Historical ageing is untouched (it was already the replay). Test `phase14-ageing-post-dated-settlements` (presence, absence, movement; = the GL control) + mutation A1; the 31 suites that read the ageing pass unchanged |
 | F-26 | INFO | A residue FK failure in a suite's cleanup hook SKIPS its tests — `purchase-orders` hid a real Phase 14 regression (a no-date balance sheet on documents dated after today) behind "failed in cleanup", locally; only the fresh database ran it | fixed (the suite reads the balance sheet as of its own window end); the lesson: a residue-failing suite is NOT a passing suite with noise — its assertions never ran |
-| F-27 | LOW | Report exports and the PDF renderer are unbounded before the row cap: the GL is loaded in full, then refused; no PDF concurrency cap; no export rate limit (security review 7) | OPEN — bounded by the 50k / 3k caps' refusal, not by memory; a limiter is a platform decision (C1's store exists) |
-| F-28 | LOW | The all-accounts general ledger (no account or party filter) lists period movement only: the cut-over position's balance-sheet lines are each account's OPENING, visible in that account's ledger and in the journal report, not in the all-accounts list (accounting review L5) | DECISION, documented — an all-accounts "opening" would sum to zero |
+| F-27 | LOW | Report exports and the PDF renderer are unbounded before the row cap: the GL is loaded in full, then refused; no PDF concurrency cap; no export rate limit (security review 7) | OPEN — bounded by the 50k / 3k caps' refusal, not by memory; a limiter is a platform decision (C1's store exists). **Audit 2026-10-02:** not a production blocker at the current architecture — the invoice PDF has had the same unthrottled shared Chromium since L1; every export needs an approved tenant session with `reports`; one PDF is ≤ 3,000 rows on its own page. It becomes a risk with many concurrent tenants on one process: add a PDF semaphore and an export rate limit (C1's Postgres store) before that |
+| F-28 | LOW | The all-accounts general ledger (no account or party filter) lists period movement only: the cut-over position's balance-sheet lines are each account's OPENING, visible in that account's ledger and in the journal report, not in the all-accounts list (accounting review L5) | DECISION, documented — an all-accounts "opening" would sum to zero. **Audit 2026-10-02:** correct intended semantics, not missing functionality — every figure on that list is right and every per-account drill opens on its opening (probe: every TB row = its GL over four windows, a July fiscal year, a reversal); a balance per account is the trial balance's job. Documentation only |
 | F-29 | INFO | A rejected highest revision frees its `version_no` for the next revision (database review 9) | accepted — versions are identified by id; the audit log keeps the rejected one |
+| F-30 | LOW | An id above Postgres `integer` (`account_id`, `customer_id`/`vendor_id` party filter, the export's `budget_id`/`version_id`) reached the database; the reports controller answered the 500 with `String(err)` — the failed query's SQL and its parameters. Security review 8's bound had reached only the budgets controller | **FIXED 2026-10-02** — `MAX_ID` in `reportAccountId`/`reportAccountIdNamed` and the export's `int()`; HTTP test (seven paths → 400, no SQL in the body; the boundary itself still a lookup) + mutation A2. Platform, pre-existing, NOT changed here: `withReportError` returns `String(err)` for ANY unexpected report error (recommend a generic body — the error is already logged); `requireIdParam` has no bound (the central handler answers a generic 500, no leak) |
+| F-31 | LOW | The budget page's Radix `Tabs` wrote its own `dir="ltr"`, so in Arabic both budget tables (lines, budget vs actual) read left to right inside an RTL page — Account leftmost, Forecast rightmost. The e2e asserted `html[dir=rtl]`, which held | **FIXED 2026-10-02** — `dir` passed from the language; the e2e now asserts the TABLE's computed direction and that the account column is rightmost + mutation A3. Same shape, pre-existing, NOT changed: `Payments.tsx` Tabs (a root `DirectionProvider` is the class fix) |
+| F-32 | LOW | Budget vs actual `fullYear.actualToDate` is everything booked in the fiscal year — including entries dated AFTER today — under the label "Actual to date" / «الفعلي حتى الآن» (probe: 900 against an income statement to today of 600). YTD, variance and forecast are unaffected (through a completed period) | OPEN — relabel ("booked for the year") or bound it by the business date; a product choice. `phase15-budgets` pins the current meaning |
+| F-33 | INFO | A general ledger for an account id that does not exist (or belongs to another tenant) answers 200, "All Accounts", zero rows | no leak (foreign = missing, byte-identical); recommend echoing the id or a 404 |
+| F-34 | INFO | Budgets are not in the pending-approvals queue (`/approvals/pending` lists invoices, bills, journals and payroll) — a submitted budget is found only on the Budgets page | OPEN — "who finds out?"; add `budget_version` to the queue |
+| F-35 | INFO | Cosmetic: a negative variance wraps its minus sign onto its own line in the budget table (EN and AR); "(annual only)" sits tight against the account name; TB's Arabic sub-name puts `ms-2` on a `dir="rtl"` span, so the gap lands on the far side (pre-existing on `main`) | OPEN — `whitespace-nowrap` on money cells; a gap that does not depend on the span's direction |
 
 ### 6.1 The three reviews (2026-10-01) — every finding, and what happened to it
 
@@ -933,7 +965,7 @@ found a CRITICAL or HIGH issue.
 | A negative legacy amount aborts the migration (security 5, database 3) | MEDIUM | FIXED — kept in the archive; test |
 | Error mapping by prefix (security 6) | LOW | FIXED — exact allow-list; refusals logged; tests that a plain CHECK and a pkey fault stay 500 |
 | Unbounded export work (security 7, accounting L7) | LOW | OPEN — F-27 |
-| Out-of-range amount/id → 500 (security 8) | LOW | FIXED — 400 naming the bound; ids above int4 refused |
+| Out-of-range amount/id → 500 (security 8) | LOW | FIXED — 400 naming the bound; ids above int4 refused. 🔴 **In the budgets controller only** — the report validators and the export kept no bound, and their 500 carried the SQL (F-30, completed 2026-10-02) |
 | P&L trend accepts month 13 (security 9, accounting L7) | INFO | FIXED — 400 |
 | The company arm of 0111's index unusable under RLS (database 1) | MEDIUM | FIXED — typed predicate + `(company_id, date)`; re-measured; plan test (R14) |
 | PG17 MAINTAIN not revoked (database 6) | LOW | FIXED for these tables (version-guarded REVOKE); platform-wide gap noted |
@@ -1027,3 +1059,99 @@ database — proof that they were residue.
 **Blockers:** none CRITICAL or HIGH. The open items are §6's OPEN rows (F-18,
 F-19 partial, F-25, F-27, F-28, L-CF1, L-CF2) and the owner-review decisions
 (D15-03, F-00, F-16).
+
+---
+
+## 8. The pre-merge human audit gate (2026-10-02)
+
+An adversarial audit of the branch at `4877841e`, on `saudi_ledger_p1415_fresh`
+(not dropped). It did not re-read the tests to agree with them: it wrote probes
+that report what the system DOES, attacked the API directly, read query plans
+at volume, and walked the pages in a browser. The probes were temporary; what
+they found that was wrong is now a permanent test (below).
+
+### 8.1 What was attacked, and what held
+
+| # | Attack | Result |
+|---|---|---|
+| A–D, W | Org Y names X's budget, version, account, customer — GET, vs-actual, export, approve, lines, PATCH, DELETE | every one 404, **byte-identical to a missing id** (no oracle); the GL and party filter return nothing |
+| E, Z | A bookkeeper approves by 15 spellings (`APPROVE`, `approve/`, `./approve`, `%61pprove`, `send-back`, `sendback`, `REJECT/`…) | 403 or 404 every time; the version stays `submitted`. `/approvals` is read-only — no second path |
+| F–H | Edit lines / delete / reject / send back an APPROVED budget | 409 each; the 13 lines unchanged. Renaming the header is allowed and audited (the trigger's own rule) |
+| I | Two approvals of one version at the same instant | 200 + 409; one approved version; ONE audit row |
+| J, K | Two revisions at once; two creates with one name | 201 + 409 (`budget_conflict`, the constraint named) — never two open versions, never two budgets |
+| L | A future-dated expense and invoice | BS as of today and P&L to today exclude them; ageing of a future date refused. **Found:** F-32 (budget "actual to date") |
+| M | A past as-of date | every BS account row = its GL from inception to that date |
+| N | A JULY fiscal year: the last day of the prior year vs the first of this one | current-year profit resets exactly (311 → 419); the TB opens Sales at 0 with ONE prior-years row |
+| O | Equity statement with future-dated rows present | closes on the balance sheet's equity exactly |
+| P | VAT accounts' types | every VAT system account is an asset or liability — none can reach the P&L |
+| Q | **Post-dated settlements** | **F-25 reproduced in its true form — FIXED** |
+| R | Cash flow over four windows (bounded, open, straddling a future entry) | reconciles in every one |
+| S | Rounding | every comparison above is an exact equality in halalas |
+| T | CSV formula injection (`=HYPERLINK(…)` as an account name, `@SUM…` as a budget name) | neutralised (`'=`) |
+| U | Export edge cases | unknown report / format / repeated date param → 400; anonymous → 401. **Found:** F-30 — an id above int4 → 500 carrying SQL — FIXED |
+| V | Drill-down: EVERY TB row against the GL it opens, four windows incl. a reversal and a future entry | 0 mismatches (opening, debit, credit, closing) |
+| X | A journal reversed 27 days later | in the books on both dates; the window between shows the original |
+| Y | Period locks | nothing in Phase 14/15 writes the ledger (P1); there is no lock to bypass |
+
+### 8.2 Performance — read off the plans, at volume
+
+Target company 20k entries / 40k lines / 4k invoices; a neighbouring tenant
+four times larger; as `authenticated`, RLS on, rolled back. SQL captured from
+the real repository functions.
+
+| Query | Time | Plan |
+|---|---|---|
+| Cash flow, one month | 4 ms | Index Cond: company AND date |
+| Cash flow, all history | 126 ms | Index Cond: company — reads this company's 20k entries, correctly |
+| Budget actuals, 12 periods | 37 ms | Index Cond: company AND date |
+| AR event replay (today's ageing when F-25's rule fires) | 16 ms | company index |
+| AR cache documents | 14 ms | company index |
+
+No query touched the neighbour's rows; no sequential scan on a ledger or
+invoice table. The one scaling cost found is F-18's (`allCategories`).
+
+### 8.3 The browser walk
+
+EN and AR, desktop: trial balance → drill → general ledger (same figures),
+balance sheet (AR 4,750 = AR ageing 4,750), AR ageing, budget lines and budget
+vs actual, cash flow (closing cash 7,490 = the bank on the balance sheet; L-CF1
+and L-CF2 disclosed in Arabic on the page), analytics' "Against budget" card.
+**Found:** F-31 (budget tables LTR in Arabic) — FIXED. 390 px: the browser
+window here cannot narrow below desktop, so the phone checks are the
+Playwright specs' (EN/AR × desktop/390 px, no sideways scroll), run below.
+
+### 8.4 Fixed, each with a test that FAILS without the fix
+
+| # | Finding | Test | Mutation (copy-aside, restored, sha256-checked) |
+|---|---|---|---|
+| A1 | F-25 — post-dated settlements left today's ageing | `phase14-ageing-post-dated-settlements.test.ts` | the replay switch disabled → FAILS |
+| A2 | F-30 — ids above int4 → 500 with SQL | `phase14-reporting-http.test.ts` (new case) | the three bounds removed → FAILS |
+| A3 | F-31 — budget tables LTR in Arabic | `e2e/phase15-budgets.spec.ts` (new assertions) | the `dir` prop removed → FAILS ("Expected rtl, received ltr") |
+
+### 8.5 Decisions
+
+- **L-CF1 / L-CF2:** classification risk, not a misstatement — the total change
+  in cash, the reconciliation and every figure are right; only the split
+  between operating and investing (L-CF1: a fixed asset bought on credit, then
+  paid) or operating and financing (L-CF2: a loan the tenant booked as a
+  current liability) can be wrong. Both are disclosed by name on the page and
+  in the export. Odoo's direct method, which tags counterpart accounts, has the
+  same L-CF1 shape. Not a compliance blocker: the platform files no cash flow
+  statement with any authority. Fix L-CF1 before the statement is presented as
+  an IFRS statement for a company that buys assets on credit.
+- **D15-03:** a supersession of the 2026-08-15 "annual only" choice, not an
+  extension — the exact rule and the owner's two options are in D15-03.
+- **F-00, F-16, F-18, F-19, F-27, F-28:** determinations in their §6 rows.
+
+### 8.6 Verification after the fixes (fresh database)
+
+| Stage | Result |
+|---|---|
+| Typecheck | exit 0 |
+| API suite | exit 0 — **209 files passed, 1 skipped; 2,034 passed, 18 skipped** (2,031 + the 3 new; the skips are the object-storage tests, as before) |
+| The 31 suites that read the ageing or Phase 14/15 (run first) | exit 0 — 340 / 340 |
+| DB suite | exit 0 — 10 files, 58 / 58 |
+| ZATCA TLV · web unit | 10 / 10 · 109 / 109 |
+| Build | exit 0 |
+| Browser — the affected specs (phase15-budgets, phase14-reporting, statement-figures, phase11-ap-subledger, batch-1b-payment-flows, rtl-direction) | **50 / 50**. The full browser suite (497) was NOT re-run locally — this machine's memory limit killed it before (§7); CI runs it |
+| Mutation proofs | 43 + 3 = **46 killed** |

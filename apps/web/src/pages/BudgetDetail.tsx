@@ -159,7 +159,9 @@ export default function BudgetDetail() {
         </Card>
       )}
 
-      <Tabs value={tab} onValueChange={setTab}>
+      {/* Radix Tabs writes its own dir="ltr" unless told otherwise — without this the whole
+          tab body (both tables) read left-to-right inside an Arabic page (pre-merge audit, 2026-10-02) */}
+      <Tabs value={tab} onValueChange={setTab} dir={lang === "ar" ? "rtl" : "ltr"}>
         <TabsList>
           <TabsTrigger value="lines" data-testid="budget-tab-lines">{t("Lines", "البنود")}</TabsTrigger>
           <TabsTrigger value="vs" data-testid="budget-tab-vs">{t("Budget vs actual", "الميزانية مقابل الفعلي")}</TabsTrigger>

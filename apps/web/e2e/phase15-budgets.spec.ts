@@ -184,6 +184,15 @@ test.describe.serial("Phase 15 — a budget, end to end", () => {
     await page.getByTestId("budget-tab-vs").click();
     await expect(page.getByTestId("bva-table")).toBeVisible();
     await noSidewaysScroll(page, PHONE.width, "budget vs actual, AR phone");
+    // 🔴 the TABLE reads right to left, not only the document: `html[dir=rtl]` held while a
+    // wrapper's own dir="ltr" laid the columns out left to right (pre-merge audit, 2026-10-02)
+    await page.setViewportSize({ width: DESKTOP, height: 900 });
+    const layout = await page.getByTestId("bva-table").evaluate((t) => {
+      const th = [...t.querySelectorAll("th")];
+      return { dir: getComputedStyle(t).direction, firstX: th[0]!.getBoundingClientRect().x, lastX: th[th.length - 1]!.getBoundingClientRect().x };
+    });
+    expect(layout.dir).toBe("rtl");
+    expect(layout.firstX, "the account column is the RIGHTMOST in Arabic").toBeGreaterThan(layout.lastX);
     await page.evaluate(() => localStorage.setItem("ksa_lang", "en"));
     await page.setViewportSize({ width: DESKTOP, height: 900 });
   });

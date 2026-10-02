@@ -24,7 +24,7 @@
 import { BusinessRuleError, BadRequestError } from "../../lib/errors";
 import { businessToday } from "@workspace/shared";
 import { companiesRepository } from "../../repositories/companies.repository";
-import { reportsService, reportAccountId, reportDate, reportParty, reportWindow } from "../reports.service";
+import { reportsService, reportAccountId, reportDate, reportParty, reportWindow, MAX_ID } from "../reports.service";
 import { htmlToPdf } from "../document/htmlToPdf";
 import { CASH_FLOW_LINE_LABEL, type CashFlowLine } from "./cashFlowClassification";
 import { budgetsService } from "../budgets.service";
@@ -266,7 +266,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
       // Phase 15 (D15-14): the screen's own call — budgetsService.vsActual — laid out as a table.
       const int = (v: string | undefined, name: string) => {
         if (v == null || v === "") return undefined;
-        if (!/^\d+$/.test(v)) throw new BadRequestError(`${name} must be a positive whole number.`);
+        if (!/^\d+$/.test(v) || Number(v) > MAX_ID) throw new BadRequestError(`${name} must be a positive whole number.`);
         return Number(v);
       };
       const budgetId = int(q.budget_id, "budget_id");

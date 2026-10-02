@@ -196,4 +196,24 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
     const got = await Promise.all(cases.map(async ([p]) => [p, (await asX("GET", p)).status] as [string, number]));
     expect(got).toEqual(cases);
   });
+
+  it("🔴 an id above Postgres `integer` is a 400 naming the parameter — never a 500 carrying the failed query's SQL (pre-merge audit 2026-10-02); the largest real id is still a plain lookup", async () => {
+    const tooBig = [
+      "/reports/general-ledger?account_id=2147483648",
+      "/reports/account-statement?account_id=99999999999",
+      "/reports/general-ledger?party_type=customer&customer_id=2147483648",
+      "/reports/general-ledger?party_type=vendor&vendor_id=99999999999",
+      "/reports/export/general-ledger?format=csv&account_id=2147483648",
+      "/reports/export/budget-vs-actual?format=csv&budget_id=99999999999",
+      "/reports/export/budget-vs-actual?format=csv&budget_id=1&version_id=2147483648",
+    ];
+    for (const p of tooBig) {
+      const r = await asX("GET", p);
+      expect([p, r.status], r.text).toEqual([p, 400]);
+      expect(r.text, p).not.toMatch(/Failed query|select |params:/i);
+    }
+    // the boundary itself is an id like any other: an account nobody has is an empty ledger, a budget nobody has is a 404
+    expect((await asX("GET", "/reports/general-ledger?account_id=2147483647")).status).toBe(200);
+    expect((await asX("GET", "/reports/export/budget-vs-actual?format=csv&budget_id=2147483647")).status).toBe(404);
+  });
 });
