@@ -13,6 +13,9 @@ import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { CompareSelect, ComparisonUnavailable, priorRangeLabel, type CompareSetting } from "@/components/Comparison";
 import { derivePriorRange, fmtPctChange } from "@/lib/priorPeriod";
 import { fmtDate } from "@/lib/api";
+import { Link } from "wouter";
+import { ReportExportButtons } from "@/components/reports/ReportExport";
+import { glDrillHref } from "@/lib/reportDrill";
 
 import type { IncomeStatementReport, ReportKeyedAmount } from "@workspace/api-client-react";
 
@@ -62,13 +65,10 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
   });
 
   const priorEmpty = !!priorData && priorData.revenue.length === 0 && priorData.expenses.length === 0;
-  // 🔴 The finding-#9 rule, applied before it can grow a fourth costume: the
-  // income statement falls back to transaction-derived figures when a window
-  // has no journal lines, so the two windows can answer from DIFFERENT
-  // sources — gross-incl-VAT beside net-of-VAT in one table, invisibly. If
-  // the sources differ, the comparison refuses and says so.
-  const sourceMismatch = !!data && !!priorData && !priorEmpty && data.source !== priorData.source;
-  const comparing = !!prior && !!priorData && !priorEmpty && !sourceMismatch;
+  // Phase 14 (D14-06): both windows now answer from THE LEDGER — the server's
+  // transactions fallback is gone — so the old source-mismatch refusal
+  // (finding #9: gross-incl-VAT beside net-of-VAT) has nothing left to catch.
+  const comparing = !!prior && !!priorData && !priorEmpty;
 
   const section = (
     title: string,
@@ -106,7 +106,12 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
             <tbody>
               {merged.map(({ row, priorAmount }) => (
                 <tr key={row.key} className="border-b border-border/30 hover:bg-secondary/10">
-                  <td className="py-2.5 text-foreground">{n(row.name, row.nameAr)}</td>
+                  <td className="py-2.5 text-foreground">
+                    {/* D14-09: a P&L account opens its ledger for this window */}
+                    {/^\d+$/.test(row.key)
+                      ? <Link href={glDrillHref(Number(row.key), applied.from, applied.to)} className="hover:text-primary hover:underline" data-testid={`is-drill-${row.key}`}>{n(row.name, row.nameAr)}</Link>
+                      : n(row.name, row.nameAr)}
+                  </td>
                   <td className={`py-2.5 text-end font-mono ${color}`}>{fmtNum(row.amount)}</td>
                   {comparing && <td className="py-2.5 text-end font-mono text-muted-foreground">{fmtNum(priorAmount ?? 0)}</td>}
                   {comparing && (
@@ -143,17 +148,19 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("Income Statement", "قائمة الدخل")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Profit & Loss — Revenue, Expenses, Net Income", "الربح والخسارة — الإيرادات والمصروفات وصافي الدخل")}</p>
+          <p className="text-muted-foreground text-xs mt-1" data-testid="is-nature-note">{t("From the posted ledger; expenses are presented by their nature, so there is no gross-profit line.", "من الدفتر المرحَّل؛ تُعرض المصروفات حسب طبيعتها، لذا لا يوجد سطر لمجمل الربح.")}</p>
         </div>
+        <ReportExportButtons report="income-statement" params={{ date_from: applied.from, date_to: applied.to, ...(comparing && prior ? { compare_from: prior.from, compare_to: prior.to } : {}) }} />
       </div>
 
       <FiscalRangeNotice source={range.source} />
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">
-          <div className="flex items-end gap-4">
-            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-            <Button size="sm" className="h-8" onClick={()=>setApplied({from:dateFrom,to:dateTo})}>{t("Generate", "إنشاء")}</Button>
+          <div className="flex flex-wrap items-end gap-4">
+            <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" data-testid="is-from" /></div>
+            <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" data-testid="is-to" /></div>
+            <Button size="sm" className="h-8" onClick={()=>setApplied({from:dateFrom,to:dateTo})} data-testid="is-generate">{t("Generate", "إنشاء")}</Button>
             <CompareSelect value={compare} onChange={setCompare} />
           </div>
           <div className="mt-3">
@@ -174,12 +181,6 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
       {prior && priorEmpty && (
         <ComparisonUnavailable reason={`${t("No recorded activity between", "لا يوجد نشاط مسجل بين")} ${fmtDate(prior.from)} ${t("and", "و")} ${fmtDate(prior.to)} — ${t("nothing to compare against.", "لا يوجد ما يُقارن به.")}`} />
       )}
-      {sourceMismatch && (
-        <ComparisonUnavailable reason={t(
-          "The two periods answered from different sources (posted journal entries vs bank transactions), so their figures are not comparable in one table.",
-          "الفترتان مستمدتان من مصدرين مختلفين (قيود اليومية المرحّلة مقابل الحركات البنكية)، لذا لا يمكن مقارنة أرقامهما في جدول واحد.",
-        )} />
-      )}
 
       {data && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -198,20 +199,20 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
       )}
 
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : !data ? null : (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {section("Revenue", "الإيرادات", data.revenue, priorData?.revenue, data.totalRevenue, priorData?.totalRevenue, "text-positive", "border-positive-surface/30", <TrendingUp className="w-4 h-4 text-positive" />, "Total Revenue", "إجمالي الإيرادات")}
           {section("Expenses", "المصروفات", data.expenses, priorData?.expenses, data.totalExpenses, priorData?.totalExpenses, "text-negative", "border-negative-surface/30", <TrendingDown className="w-4 h-4 text-negative" />, "Total Expenses", "إجمالي المصروفات")}
 
           {/* Net Income summary */}
-          <Card className="col-span-2 border-border bg-card">
+          <Card className="md:col-span-2 border-border bg-card">
             <CardContent className="pt-4">
               <div className="flex items-center justify-between py-3 border-b border-border">
                 <span className="text-muted-foreground text-sm">{t("Total Revenue", "إجمالي الإيرادات")}</span>
-                <span className="font-mono font-semibold text-positive">{fmtNum(data.totalRevenue)}</span>
+                <span className="font-mono font-semibold text-positive" data-testid="is-total-revenue">{fmtNum(data.totalRevenue)}</span>
               </div>
               <div className="flex items-center justify-between py-3 border-b border-border">
                 <span className="text-muted-foreground text-sm">{t("Total Expenses", "إجمالي المصروفات")}</span>
-                <span className="font-mono font-semibold text-negative">({fmtNum(data.totalExpenses)})</span>
+                <span className="font-mono font-semibold text-negative" data-testid="is-total-expenses">({fmtNum(data.totalExpenses)})</span>
               </div>
               <div className={`flex items-center justify-between py-4 rounded-lg px-3 mt-2 ${data.netIncome >= 0 ? "bg-positive-surface/10 border border-positive-surface/20" : "bg-negative-surface/10 border border-negative-surface/20"}`}>
                 <span className={`font-bold uppercase tracking-wide ${data.netIncome >= 0 ? "text-positive" : "text-negative"}`}>{data.netIncome >= 0 ? t("Net Income", "صافي الدخل") : t("Net Loss", "صافي الخسارة")}</span>

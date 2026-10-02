@@ -6,13 +6,20 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * debit / credit / balance are the PERIOD movement (balance = debit − credit). openingBalance and closingBalance are debit-positive; closing = opening + debit − credit. A `computed` row is the unallocated P&L of prior fiscal years (no account).
+ */
 export interface TrialBalanceRow {
+  key: string;
   name: string;
   nameAr: string;
   /** @nullable */
   accountId: number | null;
   type: string;
+  computed: boolean;
+  openingBalance: number;
   debit: number;
   credit: number;
   balance: number;
+  closingBalance: number;
 }

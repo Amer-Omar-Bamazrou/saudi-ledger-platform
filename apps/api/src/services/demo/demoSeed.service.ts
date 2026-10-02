@@ -144,6 +144,10 @@ async function ensureIdentity(
         organizationId: org!.id,
         name: DEMO_COMPANY_NAME,
         vatNumber: DEMO_VAT_NUMBER,
+        // Phase 15: a budget is set per DECLARED fiscal year (D15-15), so the
+        // demo company declares one — a January, Gregorian year.
+        fiscalYearStart: 1,
+        fiscalCalendar: "gregorian",
       })
       .returning();
   }
@@ -349,37 +353,29 @@ export async function seedDemoTenant(opts: {
       }
     }
 
-    // An annual budget so the Analytics budget table (M19.5) has rows rather
-    // than an explanation of why it is empty.
-    const [salesCategory] = await db
-      .select({ id: categoriesTable.id })
-      .from(categoriesTable)
-      .where(eq(categoriesTable.systemCode, "SALES"))
-      .limit(1);
-    const [rentCategory] = await db
-      .select({ id: categoriesTable.id })
-      .from(categoriesTable)
-      .where(eq(categoriesTable.systemCode, "RENT_UTILITIES"))
-      .limit(1);
-
-    const year = String(now.getUTCFullYear());
-    if (salesCategory) {
-      await budgetsService.create({
-        name: "Sales target",
-        nameAr: "هدف المبيعات",
-        period: year,
-        categoryId: salesCategory.id,
-        budgetedAmount: 480_000,
-      });
-    }
-    if (rentCategory) {
-      await budgetsService.create({
-        name: "Rent & utilities",
-        nameAr: "الإيجار والمرافق",
-        period: year,
-        categoryId: rentCategory.id,
-        budgetedAmount: 120_000,
-      });
+    // Phase 15: an APPROVED base budget for the current fiscal year, so the
+    // Budgets page and the Analytics "Against budget" card have rows rather than
+    // an explanation of why they are empty. Sales are budgeted by month; the
+    // purchases line is ANNUAL-only, so the demo shows both modes — and that an
+    // annual amount is never divided across months (D15-03).
+    const [company] = await db.select({ fiscalYearStart: companiesTable.fiscalYearStart }).from(companiesTable).where(eq(companiesTable.id, companyId)).limit(1);
+    const [salesCategory] = await db.select({ id: categoriesTable.id }).from(categoriesTable).where(eq(categoriesTable.systemCode, "SALES")).limit(1);
+    const [purchasesCategory] = await db.select({ id: categoriesTable.id }).from(categoriesTable).where(eq(categoriesTable.systemCode, "PURCHASES")).limit(1);
+    // A demo company created before Phase 15 has no declared fiscal year: it gets no budget (the refusal is the rule, not an error to swallow).
+    if (company?.fiscalYearStart != null && salesCategory && purchasesCategory) {
+      const label = now.getUTCFullYear();
+      const existing = await budgetsService.list({ as_of: `${label}-06-30` });
+      if (!existing.some((b) => b.name === "Operating budget")) {
+        const created = await budgetsService.create({ name: "Operating budget", nameAr: "الميزانية التشغيلية", fiscalYearLabel: label }, userId);
+        const versionId = created.version!.id;
+        await budgetsService.replaceLines(created.id, versionId, {
+          lines: [
+            { accountId: salesCategory.id, periods: Array(12).fill(40_000) },
+            { accountId: purchasesCategory.id, annualAmount: 120_000 },
+          ],
+        });
+        await budgetsService.approve(created.id, versionId, userId);
+      }
     }
 
     return {

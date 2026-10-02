@@ -5,7 +5,6 @@
  */
 import {
   db,
-  transactionsTable,
   categoriesTable,
   TAX_ACCOUNT_SYSTEM_CODES,
   invoicesTable,
@@ -16,7 +15,7 @@ import {
   journalEntriesTable,
   journalEntryLinesTable,
   customersTable,
-  vendorsTable, billPrepaymentsTable } from "@workspace/db";
+  vendorsTable, billPrepaymentsTable, assetCategoriesTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 import { invoiceNotReversed, billNotReversed } from "./openingReversal";
@@ -46,6 +45,18 @@ export const JE_IN_BOOKS = ["posted", "reversed"];
  * `companyScope.ts` and `docs/history/erpnext-comparison-2026-09-03.md` §1).
  */
 const inBooks = () => and(inArray(journalEntriesTable.status, JE_IN_BOOKS), companyScoped(journalEntriesTable.companyId))!;
+/** D14-03 — a Batch 1C migration opening entry (or its whole-batch reversal): never a cash flow. */
+const isOpeningSourceEntry = () => sql`coalesce(${journalEntriesTable.source}, '') in ('opening', 'opening_reversal')`;
+/**
+ * D14-03, refined (accounting review, 2026-10-01): of a migration opening entry, only the
+ * BALANCE-SHEET lines are an opening balance. Its INCOME and EXPENSE lines are the previous
+ * system's year-to-date P&L, which belongs to the fiscal year (Batch 1C R5) — period movement,
+ * exactly as the income statement already counts it — so the trial balance, the general ledger
+ * and the statement of changes in equity agree with the P&L. (ERPNext forbids P&L accounts in an
+ * opening entry, so its `is_opening` precedent only ever covered balance-sheet lines.)
+ */
+const plAccountLine = () => sql`${journalEntryLinesTable.accountId} in (select c.id from categories c where c.type in ('income', 'revenue', 'expense'))`;
+const openingBalanceLine = () => sql`(${isOpeningSourceEntry()} and not coalesce(${plAccountLine()}, false))`;
 
 /** In-books JE conditions used by most reports (status + optional date range). */
 function jeConditions(date_from?: string, date_to?: string, statusFilter = true) {
@@ -109,64 +120,188 @@ export function documentSign(documentType: string | null | undefined): 1 | -1 {
   return documentType === "credit_note" || documentType === "advance_credit_note" ? -1 : 1;
 }
 
-const lineJoin = () =>
-  db
-    .select({
-      accountName: journalEntryLinesTable.accountName,
-      accountId: journalEntryLinesTable.accountId,
-      debit: journalEntryLinesTable.debitAmount,
-      credit: journalEntryLinesTable.creditAmount,
-    })
-    .from(journalEntryLinesTable)
-    .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id));
+export type GlParty = { type: "customer" | "vendor"; id: number };
+const partyCondition = (p: GlParty) =>
+  p.type === "customer"
+    ? and(eq(journalEntryLinesTable.partyType, "customer"), eq(journalEntryLinesTable.customerId, p.id))!
+    : and(eq(journalEntryLinesTable.partyType, "vendor"), eq(journalEntryLinesTable.vendorId, p.id))!;
 
 export const reportsRepository = {
   allCategories() {
     return db.select().from(categoriesTable);
   },
-  categoriesByType(type: string) {
-    return db.select().from(categoriesTable).where(eq(categoriesTable.type, type));
+  /** The COST and accumulated-depreciation accounts this company's asset categories bind to — investing in the cash flow whatever their liquidity class (accounting review L1). */
+  fixedAssetAccounts() {
+    return db
+      .select({ cost: assetCategoriesTable.costAccountId, accumulated: assetCategoriesTable.accumulatedDepreciationAccountId })
+      .from(assetCategoriesTable)
+      .where(companyScoped(assetCategoriesTable.companyId));
   },
   categoryById(id: number) {
     return db.select().from(categoriesTable).where(eq(categoriesTable.id, id)).limit(1);
   },
 
-  // trial-balance + income-statement: posted lines {accountName, accountId, debit, credit}
-  jeLines(date_from?: string, date_to?: string) {
-    return lineJoin().where(and(...jeConditions(date_from, date_to)));
-  },
-
-  // income-statement fallback + cash-flow: transactions joined to categories in a date range
-  txWithCategory(date_from?: string, date_to?: string, opts?: { includeNonOperating?: boolean }) {
-    // M15 holding area: pending rows move nothing in cash flow or the
-    // income-statement transaction fallback.
-    const conds: any[] = [eq(transactionsTable.reviewStatus, "accepted"), companyScoped(transactionsTable.companyId)];
-    // M16.2 — transfers/settlements are excluded from P&L-type readers by
-    // DEFAULT; only cash flow opts in, because the bank balance genuinely
-    // moved. A new consumer that wants transfers must say so explicitly.
-    if (!opts?.includeNonOperating) conds.push(eq(transactionsTable.kind, "operating"));
-    if (date_from) conds.push(gte(transactionsTable.date, date_from));
-    if (date_to) conds.push(lte(transactionsTable.date, date_to));
-    return db
-      .select({ tx: transactionsTable, cat: categoriesTable })
-      .from(transactionsTable)
-      .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
-      .where(conds.length > 0 ? and(...conds) : undefined);
-  },
-
-  // balance-sheet: posted lines as-of a date
-  bsLines(as_of?: string) {
+  /**
+   * 🔴 PHASE 14 — THE LEDGER AGGREGATION SEAM (D14-01, 2026-10-01).
+   *
+   * Every GL-derived statement figure (trial balance, P&L, balance sheet,
+   * owner equity, account summary, budget actuals) is ONE grouped SQL query
+   * here — never the whole ledger loaded into the process and summed as
+   * floats (the pre-Phase-14 shape, which both held every line of the books in
+   * memory and accumulated IEEE-754 error before rounding).
+   *
+   * - The books: `inBooks()` — posted + reversed (the reversal's mirror is in
+   *   the books too) AND the scoped company (N1). RLS is the second layer.
+   * - The date: the ACCOUNTING date, `journal_entries.date`. Never posted_at
+   *   or created_at.
+   * - `opening` = Σ(debit − credit) of lines dated before `from`, plus — when
+   *   `openingSourcesAsOpening` — migration opening entries anywhere in the
+   *   window (D14-03: `journal_entries.source`'s contract — "readers that must
+   *   exclude the opening from period MOVEMENT key on this, never on the date").
+   * - `debit` / `credit` = the period movement (everything else up to `to`).
+   * - Amounts come back as DECIMAL STRINGS from `numeric` sums; callers carry
+   *   them through `lib/money.ts` `toHalalas` — exact to the halala.
+   * - Grouped by account id; a legacy line with no account id is grouped by its
+   *   stored name (`legacyName`), as every report here always keyed it.
+   */
+  ledgerBalances(opts: { from?: string; to?: string; openingSourcesAsOpening?: boolean; accountIds?: number[]; movementOnly?: boolean } = {}) {
+    const isOpeningSource = openingBalanceLine();
+    // `movementOnly` (P&L, cash-flow-style readers): the window's movement and
+    // nothing before it — the scan is BOUNDED at `from`, not the whole history
+    // summed into an opening the caller would discard.
+    const openingCond = opts.movementOnly
+      ? sql`false`
+      : opts.from
+      ? opts.openingSourcesAsOpening
+        ? sql`(${journalEntriesTable.date} < ${opts.from} or ${isOpeningSource})`
+        : sql`(${journalEntriesTable.date} < ${opts.from})`
+      : opts.openingSourcesAsOpening
+        ? sql`(${isOpeningSource})`
+        : sql`false`;
+    const legacyName = sql<string | null>`case when ${journalEntryLinesTable.accountId} is null then ${journalEntryLinesTable.accountName} end`;
     const conds: any[] = [inBooks()];
-    if (as_of) conds.push(lte(journalEntriesTable.date, as_of));
-    return lineJoin().where(and(...conds));
+    if (opts.to) conds.push(lte(journalEntriesTable.date, opts.to));
+    if (opts.movementOnly && opts.from) conds.push(gte(journalEntriesTable.date, opts.from));
+    if (opts.accountIds) conds.push(opts.accountIds.length > 0 ? inArray(journalEntryLinesTable.accountId, opts.accountIds) : sql`false`);
+    return db
+      .select({
+        accountId: journalEntryLinesTable.accountId,
+        legacyName,
+        opening: sql<string>`coalesce(sum(case when ${openingCond} then ${journalEntryLinesTable.debitAmount} - ${journalEntryLinesTable.creditAmount} end), 0)::text`,
+        debit: sql<string>`coalesce(sum(case when not ${openingCond} then ${journalEntryLinesTable.debitAmount} end), 0)::text`,
+        credit: sql<string>`coalesce(sum(case when not ${openingCond} then ${journalEntryLinesTable.creditAmount} end), 0)::text`,
+      })
+      .from(journalEntryLinesTable)
+      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
+      .where(and(...conds))
+      .groupBy(journalEntryLinesTable.accountId, legacyName);
   },
-  // balance-sheet AR — approved invoices only (drafts/submitted are not in the books).
-  allInvoices() {
-    return db.select().from(invoicesTable).where(approvedInvoicesOnly());
+
+  /**
+   * The same seam, bucketed by explicit periods (D14-12 P&L trend, D15 budget
+   * actuals). `periods` are inclusive [start, end] accounting-date ranges the
+   * CALLER resolved (calendar months, or fiscal months in a Hijri year) — this
+   * query never invents a period boundary. Lines outside every period are not
+   * read at all (the WHERE bounds the scan to [min start, max end]).
+   */
+  ledgerMovementsByPeriod(periods: { key: string; start: string; end: string }[], opts: { accountIds?: number[]; excludeOpeningSources?: boolean } = {}) {
+    if (periods.length === 0) return Promise.resolve([] as { period: string; accountId: number | null; legacyName: string | null; debit: string; credit: string }[]);
+    const starts = periods.map((p) => p.start).sort();
+    const ends = periods.map((p) => p.end).sort();
+    const periodKey = sql<string>`case ${sql.join(periods.map((p) => sql`when ${journalEntriesTable.date} between ${p.start} and ${p.end} then ${p.key}::text`), sql` `)} end`;
+    const legacyName = sql<string | null>`case when ${journalEntryLinesTable.accountId} is null then ${journalEntryLinesTable.accountName} end`;
+    const conds: any[] = [inBooks(), gte(journalEntriesTable.date, starts[0]!), lte(journalEntriesTable.date, ends[ends.length - 1]!)];
+    if (opts.accountIds) conds.push(opts.accountIds.length > 0 ? inArray(journalEntryLinesTable.accountId, opts.accountIds) : sql`false`);
+    if (opts.excludeOpeningSources) conds.push(sql`not ${isOpeningSourceEntry()}`);
+    return db
+      .select({
+        period: periodKey,
+        accountId: journalEntryLinesTable.accountId,
+        legacyName,
+        debit: sql<string>`coalesce(sum(${journalEntryLinesTable.debitAmount}), 0)::text`,
+        credit: sql<string>`coalesce(sum(${journalEntryLinesTable.creditAmount}), 0)::text`,
+      })
+      .from(journalEntryLinesTable)
+      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
+      .where(and(...conds))
+      // By select-list POSITION: the period CASE carries bind parameters, and a
+      // GROUP BY copy of it would be numbered differently ($n) — Postgres would
+      // then see two different expressions and refuse.
+      .groupBy(sql`1`, sql`2`, sql`3`);
   },
-  // balance-sheet AP — approved bills only (drafts/submitted are not in the books).
-  allBills() {
-    return db.select().from(billsTable).where(approvedBillsOnly());
+
+  /**
+   * Migration opening entries' lines per account in [from, to], with their date: the previous
+   * system's year-to-date figures. The P&L trend and budget vs actual keep them OUT of the monthly
+   * buckets — a year's movement booked on one day would read as that month's — and show them as
+   * one amount on its date, never apportioned (accounting review M2, 2026-10-01).
+   */
+  openingSourceMovements(from: string, to: string, opts: { accountIds?: number[] } = {}) {
+    const conds: any[] = [inBooks(), isOpeningSourceEntry(), gte(journalEntriesTable.date, from), lte(journalEntriesTable.date, to)];
+    if (opts.accountIds) conds.push(opts.accountIds.length > 0 ? inArray(journalEntryLinesTable.accountId, opts.accountIds) : sql`false`);
+    return db
+      .select({
+        accountId: journalEntryLinesTable.accountId,
+        date: sql<string>`max(${journalEntriesTable.date})`,
+        debit: sql<string>`coalesce(sum(${journalEntryLinesTable.debitAmount}), 0)::text`,
+        credit: sql<string>`coalesce(sum(${journalEntryLinesTable.creditAmount}), 0)::text`,
+      })
+      .from(journalEntryLinesTable)
+      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
+      .where(and(...conds))
+      .groupBy(journalEntryLinesTable.accountId);
+  },
+
+  /**
+   * D14-07 — the cash flow's two ledger reads, both over the entries of the
+   * window that touch a CASH account (`cashIds`, liquidity class 'cash'):
+   *
+   * `cashFlowContributions` — per NON-cash account, Σ(credit − debit) of its
+   * lines in those entries. An entry balances, so Σ contributions of an entry =
+   * its net cash movement EXACTLY: the cash an entry moved is attributed to the
+   * accounts on the other side of it, with no pro-rata estimate anywhere.
+   * Migration opening entries are excluded (D14-03 — the cut-over position is
+   * an opening balance, never a cash flow); they are read separately below.
+   *
+   * `cashFromOpeningSources` — Σ(debit − credit) of cash lines in migration
+   * opening entries dated in the window: the reconciling line "opening
+   * balances brought in by migration".
+   */
+  cashFlowContributions(from: string | undefined, to: string | undefined, cashIds: number[]) {
+    if (cashIds.length === 0) return Promise.resolve([] as { accountId: number | null; legacyName: string | null; amount: string }[]);
+    const entryConds: any[] = [inBooks(), inArray(journalEntryLinesTable.accountId, cashIds), sql`not ${isOpeningSourceEntry()}`];
+    if (from) entryConds.push(gte(journalEntriesTable.date, from));
+    if (to) entryConds.push(lte(journalEntriesTable.date, to));
+    const cashEntries = db
+      .selectDistinct({ id: journalEntryLinesTable.journalEntryId })
+      .from(journalEntryLinesTable)
+      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
+      .where(and(...entryConds));
+    const legacyName = sql<string | null>`case when ${journalEntryLinesTable.accountId} is null then ${journalEntryLinesTable.accountName} end`;
+    return db
+      .select({
+        accountId: journalEntryLinesTable.accountId,
+        legacyName,
+        amount: sql<string>`coalesce(sum(${journalEntryLinesTable.creditAmount} - ${journalEntryLinesTable.debitAmount}), 0)::text`,
+      })
+      .from(journalEntryLinesTable)
+      .where(and(
+        inArray(journalEntryLinesTable.journalEntryId, cashEntries),
+        companyScoped(journalEntryLinesTable.companyId),
+        sql`(${journalEntryLinesTable.accountId} is null or ${journalEntryLinesTable.accountId} not in (${sql.join(cashIds.map((id) => sql`${id}`), sql`, `)}))`,
+      ))
+      .groupBy(journalEntryLinesTable.accountId, legacyName);
+  },
+  cashFromOpeningSources(from: string | undefined, to: string | undefined, cashIds: number[]) {
+    if (cashIds.length === 0) return Promise.resolve([{ amount: "0" }]);
+    const conds: any[] = [inBooks(), inArray(journalEntryLinesTable.accountId, cashIds), isOpeningSourceEntry()];
+    if (from) conds.push(gte(journalEntriesTable.date, from));
+    if (to) conds.push(lte(journalEntriesTable.date, to));
+    return db
+      .select({ amount: sql<string>`coalesce(sum(${journalEntryLinesTable.debitAmount} - ${journalEntryLinesTable.creditAmount}), 0)::text` })
+      .from(journalEntryLinesTable)
+      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
+      .where(and(...conds));
   },
 
   // journal-report + activity
@@ -185,20 +320,42 @@ export const reportsRepository = {
   },
 
   // general-ledger
-  glPreLines(date_from: string, account_id?: string, account_name?: string) {
-    const preConds: any[] = [inBooks(), sql`${journalEntriesTable.date} < ${date_from}`];
-    if (account_id) preConds.push(eq(journalEntryLinesTable.accountId, Number(account_id)));
-    else if (account_name) preConds.push(eq(journalEntryLinesTable.accountName, account_name));
+  /**
+   * D14-11 — the PARTY dimension (N3): a GL filtered to one customer or one
+   * vendor reads only lines that name that party. The same predicate feeds the
+   * opening, so a party-filtered ledger opens on that party's balance.
+   */
+  /**
+   * D14-09 — the opening of a GL / account statement, computed EXACTLY as the
+   * trial-balance row it is drilled from (one aggregate, in SQL):
+   * - lines dated before `from`;
+   * - plus migration opening entries (D14-03 — ERPNext's `is_opening` rule,
+   *   which its own general ledger applies too) dated up to `to`, wherever
+   *   they fall;
+   * - with `notBefore` (the fiscal-year start, for an income or expense
+   *   account — Odoo's general ledger opens P&L accounts there), lines before
+   *   it are not this account's opening: they are the prior-years row.
+   */
+  glOpening(opts: { from?: string; to?: string; notBefore?: string; accountId?: number; accountName?: string; party?: GlParty }) {
+    const conds: any[] = [inBooks(), opts.from ? sql`(${journalEntriesTable.date} < ${opts.from} or ${openingBalanceLine()})` : openingBalanceLine()];
+    if (opts.to) conds.push(lte(journalEntriesTable.date, opts.to));
+    if (opts.notBefore) conds.push(gte(journalEntriesTable.date, opts.notBefore));
+    if (opts.accountId != null) conds.push(eq(journalEntryLinesTable.accountId, opts.accountId));
+    else if (opts.accountName) conds.push(eq(journalEntryLinesTable.accountName, opts.accountName));
+    if (opts.party) conds.push(partyCondition(opts.party));
     return db
-      .select({ debit: journalEntryLinesTable.debitAmount, credit: journalEntryLinesTable.creditAmount })
+      .select({ amount: sql<string>`coalesce(sum(${journalEntryLinesTable.debitAmount} - ${journalEntryLinesTable.creditAmount}), 0)::text` })
       .from(journalEntryLinesTable)
       .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
-      .where(and(...preConds));
+      .where(and(...conds));
   },
-  glRows(date_from?: string, date_to?: string, account_id?: string, account_name?: string) {
+  /** The movements of the window — migration opening entries are the OPENING (above), never a movement. */
+  glRows(date_from?: string, date_to?: string, account_id?: string, account_name?: string, party?: GlParty) {
     const conds = jeConditions(date_from, date_to);
+    conds.push(sql`not ${openingBalanceLine()}`);
     if (account_id) conds.push(eq(journalEntryLinesTable.accountId, Number(account_id)));
     if (account_name && !account_id) conds.push(eq(journalEntryLinesTable.accountName, account_name));
+    if (party) conds.push(partyCondition(party));
     return db
       .select({
         lineId: journalEntryLinesTable.id,
@@ -210,53 +367,21 @@ export const reportsRepository = {
         lineDesc: journalEntryLinesTable.description,
         accountName: journalEntryLinesTable.accountName,
         accountId: journalEntryLinesTable.accountId,
+        partyType: journalEntryLinesTable.partyType,
+        customerId: journalEntryLinesTable.customerId,
+        vendorId: journalEntryLinesTable.vendorId,
         debit: journalEntryLinesTable.debitAmount,
         credit: journalEntryLinesTable.creditAmount,
       })
       .from(journalEntryLinesTable)
       .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
       .where(and(...conds))
-      .orderBy(asc(journalEntriesTable.date), asc(journalEntriesTable.id));
+      .orderBy(asc(journalEntriesTable.date), asc(journalEntriesTable.id), asc(journalEntryLinesTable.id));
   },
 
-  // account-statement
-  acctStmtPre(date_from: string, account_id?: string, account_name?: string) {
-    const preConds: any[] = [inBooks(), sql`${journalEntriesTable.date} < ${date_from}`];
-    if (account_id) preConds.push(eq(journalEntryLinesTable.accountId, Number(account_id)));
-    else preConds.push(eq(journalEntryLinesTable.accountName, account_name as string));
-    return db
-      .select({ d: journalEntryLinesTable.debitAmount, c: journalEntryLinesTable.creditAmount })
-      .from(journalEntryLinesTable)
-      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
-      .where(and(...preConds));
-  },
-  acctStmtRows(date_from?: string, date_to?: string, account_id?: string, account_name?: string) {
-    const conds = jeConditions(date_from, date_to);
-    if (account_id) conds.push(eq(journalEntryLinesTable.accountId, Number(account_id)));
-    else if (account_name) conds.push(eq(journalEntryLinesTable.accountName, account_name));
-    return db
-      .select({
-        date: journalEntriesTable.date,
-        entryNumber: journalEntriesTable.entryNumber,
-        reference: journalEntriesTable.reference,
-        description: journalEntriesTable.description,
-        lineDesc: journalEntryLinesTable.description,
-        debit: journalEntryLinesTable.debitAmount,
-        credit: journalEntryLinesTable.creditAmount,
-      })
-      .from(journalEntryLinesTable)
-      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
-      .where(and(...conds))
-      .orderBy(asc(journalEntriesTable.date));
-  },
-
-  // account-summary
-  acctSummaryPre(date_from: string) {
-    return lineJoin().where(and(inBooks(), sql`${journalEntriesTable.date} < ${date_from}`));
-  },
-  acctSummaryPeriod(date_from?: string, date_to?: string) {
-    return lineJoin().where(and(...jeConditions(date_from, date_to)));
-  },
+// account-statement: served by the general-ledger reads above (D14-09 — one
+  // definition of an account's opening and movements; the statement used to
+  // carry its own copy, which knew nothing of opening entries).
 
   // customer-ledger — approved invoices only (a draft is not a receivable yet).
   customerInvoices(customer_id?: string, date_from?: string, date_to?: string) {
@@ -270,31 +395,6 @@ export const reportsRepository = {
       .leftJoin(customersTable, eq(invoicesTable.customerId, customersTable.id))
       .where(conds.length > 0 ? and(...conds) : undefined)
       .orderBy(asc(customersTable.name), asc(invoicesTable.date));
-  },
-
-  // owner-equity
-  ownerEquityPre(date_from: string) {
-    const preConds: any[] = [inBooks(), sql`${journalEntriesTable.date} < ${date_from}`];
-    return db
-      .select({
-        d: journalEntryLinesTable.debitAmount,
-        c: journalEntryLinesTable.creditAmount,
-        accountId: journalEntryLinesTable.accountId,
-      })
-      .from(journalEntryLinesTable)
-      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
-      .where(and(...preConds));
-  },
-  ownerEquityIncomeLines(date_from?: string, date_to?: string) {
-    return db
-      .select({
-        accountId: journalEntryLinesTable.accountId,
-        debit: journalEntryLinesTable.debitAmount,
-        credit: journalEntryLinesTable.creditAmount,
-      })
-      .from(journalEntryLinesTable)
-      .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.journalEntryId, journalEntriesTable.id))
-      .where(and(...jeConditions(date_from, date_to)));
   },
 
   // ar-aging — approved invoices only (drafts/submitted are not receivables yet).
@@ -431,7 +531,11 @@ export const reportsRepository = {
     return db
       .select({ id: invoicesTable.id, invoiceNumber: invoicesTable.invoiceNumber, claimedOn: invoicesTable.badDebtReliefClaimedOn, reliefVat: invoicesTable.badDebtReliefVatAmount, writtenOff: invoicesTable.writtenOffAmount })
       .from(invoicesTable)
-      .where(and(eq(invoicesTable.badDebtReliefSource, "recorded"), gte(invoicesTable.badDebtReliefClaimedOn, dateFrom), lte(invoicesTable.badDebtReliefClaimedOn, dateTo)));
+      // F-05 (Phase 14): the in-books + company predicate every sibling query
+      // carries (`approvedInvoicesOnly` — N1, Policy C). RLS already held the
+      // company; the query layer refuses too, so a misconfigured caller gets
+      // an empty answer, never another company's relief.
+      .where(and(approvedInvoicesOnly(), eq(invoicesTable.badDebtReliefSource, "recorded"), gte(invoicesTable.badDebtReliefClaimedOn, dateFrom), lte(invoicesTable.badDebtReliefClaimedOn, dateTo)));
   },
   /**
    * Z-AP1 — the PREPAYMENT ADJUSTMENT rows of the in-books FINAL bills dated in

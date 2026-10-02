@@ -43,7 +43,7 @@ import { billIsPayableSql, billLivePaidBySubledgerSql, billOutstandingSql, billS
 /** Drafts and submitted documents are not in the books; a reversed opening item is history (Policy C). */
 const IN_BOOKS = sql`b.status NOT IN ('draft','submitted') AND ${billNotReversedSql("b")}`;
 /** N1 — the scoped company's rows only, as raw SQL for the CTEs below. */
-const scopedCo = (alias: string) => sql.raw(`${alias}.company_id::text = current_setting('app.current_company_id', true)`);
+const scopedCo = (alias: string) => sql.raw(`${alias}.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid`);
 /** An allocation that has not been superseded by a correction. */
 const ALLOC_LIVE = sql`NOT EXISTS (SELECT 1 FROM supplier_payment_allocation_reversals r WHERE r.allocation_id = a.id)`;
 
@@ -83,6 +83,13 @@ export type SupplierStatementEventRow = {
   refundId: number | null;
   journalEntryId: number | null;
 };
+
+/**
+ * Phase 14 (D14-08): one vendor (the statement) or EVERY vendor (as-of AP
+ * ageing replays the same events up to a date). `null` = every vendor; the
+ * SQL for a given id is unchanged.
+ */
+const vendorIs = (col: string, vendorId: number | null) => (vendorId == null ? sql`true` : sql`${sql.raw(col)} = ${vendorId}`);
 
 export const supplierStatementRepository = {
   /**
@@ -191,7 +198,7 @@ export const supplierStatementRepository = {
    * exact ties, then id. A back-dated event sorts by its BUSINESS date — the
    * statement shows the books as dated, not as typed.
    */
-  async events(vendorId: number): Promise<SupplierStatementEventRow[]> {
+  async events(vendorId: number | null, opts: { upTo?: string } = {}): Promise<SupplierStatementEventRow[]> {
     const rows = await db.execute<{
       kind: SupplierStatementEventKind; date: string; ts: string; rank: number; id: number;
       document_number: string; reference: string | null; description: string; amount: string;
@@ -208,7 +215,7 @@ export const supplierStatementRepository = {
                b.total::numeric AS amount, b.total::numeric AS payable_delta, 0::numeric AS credit_delta, 0::numeric AS on_account_delta,
                b.id AS bill_id, NULL::int AS payment_id, NULL::int AS credit_note_id, NULL::int AS allocation_id, NULL::int AS refund_id, NULL::int AS journal_entry_id
           FROM bills b
-         WHERE b.vendor_id = ${vendorId} AND b.document_type IN ('bill', 'debit_note') AND ${IN_BOOKS} AND ${scopedCo("b")}
+         WHERE ${vendorIs("b.vendor_id", vendorId)} AND b.document_type IN ('bill', 'debit_note') AND ${IN_BOOKS} AND ${scopedCo("b")}
         UNION ALL
         -- a credit note the supplier issued to us: their balance in our favour rises
         SELECT 'credit_note', b.date::date::text, b.created_at, 0, b.id,
@@ -218,7 +225,7 @@ export const supplierStatementRepository = {
                b.id, NULL, b.id, NULL, NULL, NULL
           FROM bills b
           LEFT JOIN bills o ON o.id = b.credit_note_against_bill_id
-         WHERE b.vendor_id = ${vendorId} AND b.document_type = 'credit_note' AND ${IN_BOOKS} AND ${scopedCo("b")}
+         WHERE ${vendorIs("b.vendor_id", vendorId)} AND b.document_type = 'credit_note' AND ${IN_BOOKS} AND ${scopedCo("b")}
         UNION ALL
         -- money we paid: what was not allocated at the time went on account
         SELECT 'payment', p.paid_at::date::text, p.created_at, 1, p.id,
@@ -229,7 +236,7 @@ export const supplierStatementRepository = {
                                               WHERE a.supplier_payment_id = p.id AND a.journal_entry_id = p.journal_entry_id AND ${ALLOC_LIVE}), 0),
                NULL, p.id, NULL, NULL, NULL, p.journal_entry_id
           FROM supplier_payments p
-         WHERE p.vendor_id = ${vendorId} AND ${scopedCo("p")}
+         WHERE ${vendorIs("p.vendor_id", vendorId)} AND ${scopedCo("p")}
         UNION ALL
         /*
          * 🔴 THE LEGACY PER-BILL PAY PATH. billsService.pay writes
@@ -250,11 +257,11 @@ export const supplierStatementRepository = {
                bp.bill_id, NULL, NULL, NULL, NULL, NULL
           FROM bill_payments bp
           JOIN bills tb ON tb.id = bp.bill_id
-         WHERE tb.vendor_id = ${vendorId} AND ${scopedCo("bp")}
+         WHERE ${vendorIs("tb.vendor_id", vendorId)} AND ${scopedCo("bp")}
         UNION ALL
         -- an allocation: the payable falls. From a PAYMENT it also consumes on-account money.
         SELECT CASE WHEN a.supplier_credit_note_id IS NOT NULL THEN 'credit_application' ELSE 'allocation' END,
-               coalesce(e.date::date::text, a.created_at::date::text), a.created_at, 2, a.id,
+               coalesce(e.date::date::text, (a.created_at AT TIME ZONE 'Asia/Riyadh')::date::text), a.created_at, 2, a.id,
                tb.bill_number, NULL,
                CASE WHEN a.supplier_credit_note_id IS NOT NULL
                     THEN 'Credit note applied to ' || tb.bill_number
@@ -268,10 +275,10 @@ export const supplierStatementRepository = {
           JOIN bills tb ON tb.id = a.bill_id
           LEFT JOIN supplier_payments p ON p.id = a.supplier_payment_id
           LEFT JOIN journal_entries e ON e.id = a.journal_entry_id
-         WHERE tb.vendor_id = ${vendorId} AND ${ALLOC_LIVE} AND ${scopedCo("a")}
+         WHERE ${vendorIs("tb.vendor_id", vendorId)} AND ${ALLOC_LIVE} AND ${scopedCo("a")}
         UNION ALL
         -- a correction: the original allocation row stays; this is the record that answers it
-        SELECT 'unallocation', coalesce(e.date::date::text, rv.created_at::date::text), rv.created_at, 3, rv.id,
+        SELECT 'unallocation', coalesce(e.date::date::text, (rv.created_at AT TIME ZONE 'Asia/Riyadh')::date::text), rv.created_at, 3, rv.id,
                tb.bill_number, NULL, 'Allocation reversed: ' || rv.reason,
                a.amount::numeric, a.amount::numeric,
                CASE WHEN a.supplier_credit_note_id IS NOT NULL THEN a.amount::numeric ELSE 0 END,
@@ -281,7 +288,7 @@ export const supplierStatementRepository = {
           JOIN supplier_payment_allocations a ON a.id = rv.allocation_id
           JOIN bills tb ON tb.id = a.bill_id
           LEFT JOIN journal_entries e ON e.id = rv.journal_entry_id
-         WHERE tb.vendor_id = ${vendorId} AND ${scopedCo("rv")}
+         WHERE ${vendorIs("tb.vendor_id", vendorId)} AND ${scopedCo("rv")}
         UNION ALL
         -- the supplier returns money: what they held falls
         SELECT 'refund', f.refunded_at::date::text, f.created_at, 4, f.id,
@@ -289,18 +296,19 @@ export const supplierStatementRepository = {
                f.amount::numeric, 0, 0, -f.amount::numeric,
                NULL, f.supplier_payment_id, NULL, NULL, f.id, f.journal_entry_id
           FROM supplier_refunds f
-         WHERE f.vendor_id = ${vendorId} AND ${scopedCo("f")}
+         WHERE ${vendorIs("f.vendor_id", vendorId)} AND ${scopedCo("f")}
         UNION ALL
         -- saying what money on account IS: nothing moves between the components, but the chronology has to show the act
-        SELECT 'reclassification', coalesce(c.effective_date::date::text, c.created_at::date::text), c.created_at, 5, c.id,
+        SELECT 'reclassification', coalesce(c.effective_date::date::text, (c.created_at AT TIME ZONE 'Asia/Riyadh')::date::text), c.created_at, 5, c.id,
                coalesce(p.reference, 'SPAY-' || p.id::text), NULL,
                'Reclassified as ' || c.classification || coalesce(' — ' || c.note, ''),
                0::numeric, 0, 0, 0,
                NULL, p.id, NULL, NULL, NULL, c.journal_entry_id
           FROM supplier_payment_classifications c
           JOIN supplier_payments p ON p.id = c.supplier_payment_id
-         WHERE p.vendor_id = ${vendorId} AND ${scopedCo("c")}
+         WHERE ${vendorIs("p.vendor_id", vendorId)} AND ${scopedCo("c")}
       ) ev
+      ${opts.upTo ? sql`WHERE ev.date::date <= ${opts.upTo}::date` : sql``}
       ORDER BY ev.date, ev.ts, ev.rank, ev.id`);
     return rows.rows.map((r) => ({
       kind: r.kind, date: r.date, ts: new Date(r.ts).toISOString(), rank: Number(r.rank), id: r.id,

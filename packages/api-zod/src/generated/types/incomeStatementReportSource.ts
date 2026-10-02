@@ -11,5 +11,4 @@ export type IncomeStatementReportSource = typeof IncomeStatementReportSource[key
 
 export const IncomeStatementReportSource = {
   journal_entries: 'journal_entries',
-  transactions: 'transactions',
 } as const;

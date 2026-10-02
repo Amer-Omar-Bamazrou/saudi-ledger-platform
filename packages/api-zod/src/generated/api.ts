@@ -3079,94 +3079,962 @@ export const RunCategorizationResponse = zod.object({
 
 
 /**
- * @summary Budget vs actual for one ANNUAL period (M19.5). `period` is a YYYY string — budgets are annual by decision, not by omission: see design-analytics.md §7. Actuals are signed by account type (M19.0), so a refund reduces spend rather than adding to it.
+ * @summary Phase 15 — the company's budgets, newest fiscal year first, each with its versions. A budget FREEZES its fiscal year when created (D15-01). `as_of` keeps the budgets whose fiscal year contains that date; `scenario` filters.
 
  */
 export const ListBudgetsQueryParams = zod.object({
-  "period": zod.coerce.string().optional()
+  "as_of": zod.coerce.string().optional(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']).optional()
 })
 
 export const ListBudgetsResponseItem = zod.object({
   "id": zod.number(),
-  "name": zod.string().nullish(),
-  "nameAr": zod.string().nullish(),
-  "period": zod.string().describe('YYYY — annual only.'),
-  "categoryId": zod.number().nullish(),
-  "categoryName": zod.string().nullish(),
-  "categoryNameAr": zod.string().nullish(),
-  "categoryType": zod.string().nullish(),
-  "budgetedAmount": zod.number(),
-  "actualAmount": zod.number().describe('Signed by account type (M19.0). May be NEGATIVE when refunds exceed spend — a real state, reported rather than clamped to zero.\n'),
-  "variance": zod.number(),
-  "variancePct": zod.number()
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable().describe('The draft or submitted version, if one is open.')
 })
 export const ListBudgetsResponse = zod.array(ListBudgetsResponseItem)
 
 
 /**
- * @summary Create an annual budget line for a category
- */
+ * @summary Create a budget for one fiscal year of the company, with an empty DRAFT version 1. Refused with 422 `fiscal_year_undeclared` when the company has not declared its fiscal year (D15-15).
 
-export const createBudgetBodyBudgetedAmountMin = 0;
+ */
+export const createBudgetBodyNameMax = 120;
+
+export const createBudgetBodyNameArMax = 120;
+
+export const createBudgetBodyNotesMax = 2000;
 
 
 
 export const CreateBudgetBody = zod.object({
-  "name": zod.string().min(1),
-  "nameAr": zod.string().nullish(),
-  "period": zod.string(),
-  "categoryId": zod.number().nullish(),
-  "budgetedAmount": zod.number().min(createBudgetBodyBudgetedAmountMin),
-  "notes": zod.string().nullish()
+  "name": zod.string().min(1).max(createBudgetBodyNameMax),
+  "nameAr": zod.string().max(createBudgetBodyNameArMax).nullish(),
+  "fiscalYearLabel": zod.number().describe('The fiscal year, named by the year it starts in, in the company\'s calendar.'),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']).optional(),
+  "notes": zod.string().max(createBudgetBodyNotesMax).nullish()
 })
 
 export const CreateBudgetResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "nameAr": zod.string().nullish(),
-  "period": zod.string().describe('YYYY — annual only.'),
-  "categoryId": zod.number().nullable(),
-  "budgetedAmount": zod.number(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string().optional()
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable().describe('The draft or submitted version, if one is open.')
+}).and(zod.object({
+  "periods": zod.array(zod.object({
+  "no": zod.number().describe('1–12, from the fiscal year\'s first month.'),
+  "calendarMonth": zod.number(),
+  "calendarYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+}),zod.null()]),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual']),
+  "periods": zod.array(zod.number()).nullable().describe('Twelve period amounts when mode = periods; null for an annual-only line (never divided).'),
+  "annualAmount": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "totals": zod.object({
+  "income": zod.number(),
+  "expense": zod.number()
+})
+}))
+
+
+/**
+ * @summary The income and expense posting accounts a budget line may name (D15-02).
+ */
+export const ListBudgetAccountsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "type": zod.enum(['income', 'expense'])
+})
+export const ListBudgetAccountsResponse = zod.array(ListBudgetAccountsResponseItem)
+
+
+/**
+ * @summary One budget with its versions and the lines of one version (default — the open draft or submitted version, else the approved one, else the latest).
+ */
+export const GetBudgetParams = zod.object({
+  "id": zod.coerce.number()
 })
 
+export const GetBudgetQueryParams = zod.object({
+  "version_id": zod.coerce.number().optional()
+})
 
+export const GetBudgetResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable().describe('The draft or submitted version, if one is open.')
+}).and(zod.object({
+  "periods": zod.array(zod.object({
+  "no": zod.number().describe('1–12, from the fiscal year\'s first month.'),
+  "calendarMonth": zod.number(),
+  "calendarYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+}),zod.null()]),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual']),
+  "periods": zod.array(zod.number()).nullable().describe('Twelve period amounts when mode = periods; null for an annual-only line (never divided).'),
+  "annualAmount": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "totals": zod.object({
+  "income": zod.number(),
+  "expense": zod.number()
+})
+}))
+
+
+/**
+ * @summary Rename, or edit the notes. The company, scenario and fiscal year are fixed (refused at the database).
+ */
 export const UpdateBudgetParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateBudgetBodyNameMax = 120;
 
-export const updateBudgetBodyBudgetedAmountMin = 0;
+export const updateBudgetBodyNameArMax = 120;
+
+export const updateBudgetBodyNotesMax = 2000;
 
 
 
 export const UpdateBudgetBody = zod.object({
-  "name": zod.string().min(1).optional(),
-  "nameAr": zod.string().nullish(),
-  "period": zod.string().optional(),
-  "categoryId": zod.number().nullish(),
-  "budgetedAmount": zod.number().min(updateBudgetBodyBudgetedAmountMin).optional(),
-  "notes": zod.string().nullish()
-}).describe('A PARTIAL update — every field optional; the CREATE input requires name, period and amount.')
+  "name": zod.string().min(1).max(updateBudgetBodyNameMax).optional(),
+  "nameAr": zod.string().max(updateBudgetBodyNameArMax).nullish(),
+  "notes": zod.string().max(updateBudgetBodyNotesMax).nullish()
+}).describe('Name and notes only — the company, scenario and fiscal year are fixed.')
 
 export const UpdateBudgetResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "nameAr": zod.string().nullish(),
-  "period": zod.string().describe('YYYY — annual only.'),
-  "categoryId": zod.number().nullable(),
-  "budgetedAmount": zod.number(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string().optional()
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable().describe('The draft or submitted version, if one is open.')
+}).and(zod.object({
+  "periods": zod.array(zod.object({
+  "no": zod.number().describe('1–12, from the fiscal year\'s first month.'),
+  "calendarMonth": zod.number(),
+  "calendarYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+}),zod.null()]),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual']),
+  "periods": zod.array(zod.number()).nullable().describe('Twelve period amounts when mode = periods; null for an annual-only line (never divided).'),
+  "annualAmount": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "totals": zod.object({
+  "income": zod.number(),
+  "expense": zod.number()
 })
+}))
 
 
+/**
+ * @summary Delete a budget that was NEVER approved. An approved budget is a record — revise it instead (409 `budget_ever_approved`).
+ */
 export const DeleteBudgetParams = zod.object({
   "id": zod.coerce.number()
 })
 
 export const DeleteBudgetResponse = zod.void()
+
+
+/**
+ * @summary Start a revision — a new DRAFT version copying the approved version's lines (D15-04).
+ */
+export const ReviseBudgetParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReviseBudgetResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable().describe('The draft or submitted version, if one is open.')
+}).and(zod.object({
+  "periods": zod.array(zod.object({
+  "no": zod.number().describe('1–12, from the fiscal year\'s first month.'),
+  "calendarMonth": zod.number(),
+  "calendarYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+}),zod.null()]),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual']),
+  "periods": zod.array(zod.number()).nullable().describe('Twelve period amounts when mode = periods; null for an annual-only line (never divided).'),
+  "annualAmount": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "totals": zod.object({
+  "income": zod.number(),
+  "expense": zod.number()
+})
+}))
+
+
+/**
+ * @summary Replace a DRAFT version's lines. Each account is budgeted EITHER by its twelve fiscal periods OR as one annual amount — an annual amount is never divided (D15-03).
+
+ */
+export const ReplaceBudgetLinesParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const replaceBudgetLinesBodyLinesItemPeriodsItemMin = 0;
+
+export const replaceBudgetLinesBodyLinesItemPeriodsMin = 12;
+export const replaceBudgetLinesBodyLinesItemPeriodsMax = 12;
+
+export const replaceBudgetLinesBodyLinesItemAnnualAmountMin = 0;
+
+export const replaceBudgetLinesBodyLinesMax = 2000;
+
+
+
+export const ReplaceBudgetLinesBody = zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number(),
+  "periods": zod.array(zod.number().min(replaceBudgetLinesBodyLinesItemPeriodsItemMin)).min(replaceBudgetLinesBodyLinesItemPeriodsMin).max(replaceBudgetLinesBodyLinesItemPeriodsMax).optional(),
+  "annualAmount": zod.number().min(replaceBudgetLinesBodyLinesItemAnnualAmountMin).optional()
+}).describe('Exactly one of `periods` (twelve amounts) or `annualAmount`.')).max(replaceBudgetLinesBodyLinesMax)
+})
+
+export const ReplaceBudgetLinesResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable().describe('The draft or submitted version, if one is open.')
+}).and(zod.object({
+  "periods": zod.array(zod.object({
+  "no": zod.number().describe('1–12, from the fiscal year\'s first month.'),
+  "calendarMonth": zod.number(),
+  "calendarYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+}),zod.null()]),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual']),
+  "periods": zod.array(zod.number()).nullable().describe('Twelve period amounts when mode = periods; null for an annual-only line (never divided).'),
+  "annualAmount": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "totals": zod.object({
+  "income": zod.number(),
+  "expense": zod.number()
+})
+}))
+
+
+/**
+ * @summary Submit a draft version for approval (draft → submitted).
+ */
+export const SubmitBudgetVersionParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const SubmitBudgetVersionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable().describe('The draft or submitted version, if one is open.')
+}).and(zod.object({
+  "periods": zod.array(zod.object({
+  "no": zod.number().describe('1–12, from the fiscal year\'s first month.'),
+  "calendarMonth": zod.number(),
+  "calendarYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+}),zod.null()]),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual']),
+  "periods": zod.array(zod.number()).nullable().describe('Twelve period amounts when mode = periods; null for an annual-only line (never divided).'),
+  "annualAmount": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "totals": zod.object({
+  "income": zod.number(),
+  "expense": zod.number()
+})
+}))
+
+
+/**
+ * @summary Approve a version (approver). A revision supersedes the previously approved version in the same transaction.
+ */
+export const ApproveBudgetVersionParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const ApproveBudgetVersionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable().describe('The draft or submitted version, if one is open.')
+}).and(zod.object({
+  "periods": zod.array(zod.object({
+  "no": zod.number().describe('1–12, from the fiscal year\'s first month.'),
+  "calendarMonth": zod.number(),
+  "calendarYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+}),zod.null()]),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual']),
+  "periods": zod.array(zod.number()).nullable().describe('Twelve period amounts when mode = periods; null for an annual-only line (never divided).'),
+  "annualAmount": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "totals": zod.object({
+  "income": zod.number(),
+  "expense": zod.number()
+})
+}))
+
+
+/**
+ * @summary Send a submitted version back to its author for correction (submitted → draft), with a note.
+ */
+export const SendBackBudgetVersionParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const sendBackBudgetVersionBodyNoteMax = 1000;
+
+
+
+export const SendBackBudgetVersionBody = zod.object({
+  "note": zod.string().max(sendBackBudgetVersionBodyNoteMax).nullish()
+})
+
+export const SendBackBudgetVersionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable().describe('The draft or submitted version, if one is open.')
+}).and(zod.object({
+  "periods": zod.array(zod.object({
+  "no": zod.number().describe('1–12, from the fiscal year\'s first month.'),
+  "calendarMonth": zod.number(),
+  "calendarYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+}),zod.null()]),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual']),
+  "periods": zod.array(zod.number()).nullable().describe('Twelve period amounts when mode = periods; null for an annual-only line (never divided).'),
+  "annualAmount": zod.number().nullable(),
+  "total": zod.number()
+})),
+  "totals": zod.object({
+  "income": zod.number(),
+  "expense": zod.number()
+})
+}))
+
+
+/**
+ * @summary Reject a draft or submitted version — it is deleted (the approval engine's rule); a budget left with no version goes with it.
+ */
+export const RejectBudgetVersionParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const RejectBudgetVersionResponse = zod.void()
+
+
+/**
+ * @summary Budget vs actual (D15-06…D15-09). Actuals are the posted ledger (accrual), signed in each account's natural direction; variance = actual − budget, judged by account type; year to date runs through a COMPLETED fiscal period; the forecast is actuals through that period plus the budget of the rest. An annual-only line has no period, YTD or forecast budget — nothing is apportioned.
+
+ */
+export const GetBudgetVsActualParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const getBudgetVsActualQueryThroughPeriodMin = 0;
+export const getBudgetVsActualQueryThroughPeriodMax = 12;
+
+
+
+export const GetBudgetVsActualQueryParams = zod.object({
+  "version_id": zod.coerce.number().optional(),
+  "through_period": zod.coerce.number().min(getBudgetVsActualQueryThroughPeriodMin).max(getBudgetVsActualQueryThroughPeriodMax).optional()
+})
+
+export const GetBudgetVsActualResponse = zod.object({
+  "budgetId": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "scenario": zod.enum(['base', 'best_case', 'worst_case']),
+  "version": zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable()
+}),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number().describe('The year the fiscal year starts in, in its own calendar (an AH year for Hijri).'),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}).describe('The fiscal year FROZEN on the budget when it was created (D15-01).'),
+  "periods": zod.array(zod.object({
+  "no": zod.number().describe('1–12, from the fiscal year\'s first month.'),
+  "calendarMonth": zod.number(),
+  "calendarYear": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})),
+  "throughPeriod": zod.number().describe('Year to date runs through this COMPLETED fiscal period (0 = none yet).'),
+  "throughDate": zod.string().nullable(),
+  "basis": zod.enum(['accrual_gl']),
+  "lines": zod.array(zod.object({
+  "migrated": zod.union([zod.object({
+  "amount": zod.number(),
+  "date": zod.string()
+}),zod.null()]).describe('The account\'s year-to-date P&L brought in by a migration opening entry: ONE amount on its date, never spread across the periods it covers. In the year to date once the through-period reaches its date; always in the actual to date.\n'),
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual', 'unbudgeted']),
+  "periods": zod.array(zod.object({
+  "no": zod.number(),
+  "budget": zod.number().nullable(),
+  "actual": zod.number(),
+  "variance": zod.number().nullable(),
+  "variancePct": zod.number().nullable()
+})),
+  "ytd": zod.object({
+  "budget": zod.number().nullable().describe('null when the line is annual-only — nothing is apportioned.'),
+  "actual": zod.number(),
+  "variance": zod.number().nullable().describe('actual − budget, in the account\'s natural direction.'),
+  "variancePct": zod.number().nullable().describe('variance ÷ budget × 100; null when the budget is zero or absent.'),
+  "favourable": zod.boolean().nullable().describe('income: variance ≥ 0; expense: variance ≤ 0. A judgment, shown in words.')
+}),
+  "fullYear": zod.object({
+  "budget": zod.number().nullable(),
+  "actualToDate": zod.number(),
+  "remaining": zod.number().nullable().describe('budget − actual to date. No variance is judged before the year ends.')
+}),
+  "forecast": zod.object({
+  "amount": zod.number().nullable().describe('Actuals through the period + the budget of the remaining periods. Deterministic; never stored.'),
+  "variance": zod.number().nullable(),
+  "favourable": zod.boolean().nullable(),
+  "reason": zod.union([zod.literal('annual_only'),zod.literal('unbudgeted'),zod.literal(null)]).nullable()
+})
+})),
+  "unbudgeted": zod.array(zod.object({
+  "migrated": zod.union([zod.object({
+  "amount": zod.number(),
+  "date": zod.string()
+}),zod.null()]).describe('The account\'s year-to-date P&L brought in by a migration opening entry: ONE amount on its date, never spread across the periods it covers. In the year to date once the through-period reaches its date; always in the actual to date.\n'),
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNameAr": zod.string().nullable(),
+  "accountType": zod.enum(['income', 'expense']),
+  "mode": zod.enum(['periods', 'annual', 'unbudgeted']),
+  "periods": zod.array(zod.object({
+  "no": zod.number(),
+  "budget": zod.number().nullable(),
+  "actual": zod.number(),
+  "variance": zod.number().nullable(),
+  "variancePct": zod.number().nullable()
+})),
+  "ytd": zod.object({
+  "budget": zod.number().nullable().describe('null when the line is annual-only — nothing is apportioned.'),
+  "actual": zod.number(),
+  "variance": zod.number().nullable().describe('actual − budget, in the account\'s natural direction.'),
+  "variancePct": zod.number().nullable().describe('variance ÷ budget × 100; null when the budget is zero or absent.'),
+  "favourable": zod.boolean().nullable().describe('income: variance ≥ 0; expense: variance ≤ 0. A judgment, shown in words.')
+}),
+  "fullYear": zod.object({
+  "budget": zod.number().nullable(),
+  "actualToDate": zod.number(),
+  "remaining": zod.number().nullable().describe('budget − actual to date. No variance is judged before the year ends.')
+}),
+  "forecast": zod.object({
+  "amount": zod.number().nullable().describe('Actuals through the period + the budget of the remaining periods. Deterministic; never stored.'),
+  "variance": zod.number().nullable(),
+  "favourable": zod.boolean().nullable(),
+  "reason": zod.union([zod.literal('annual_only'),zod.literal('unbudgeted'),zod.literal(null)]).nullable()
+})
+})).describe('Income and expense accounts that moved in the fiscal year with no line — so Σ actual = the income statement (D15-09).'),
+  "totals": zod.object({
+  "income": zod.object({
+  "ytd": zod.object({
+  "budget": zod.number().nullable().describe('null when the line is annual-only — nothing is apportioned.'),
+  "actual": zod.number(),
+  "variance": zod.number().nullable().describe('actual − budget, in the account\'s natural direction.'),
+  "variancePct": zod.number().nullable().describe('variance ÷ budget × 100; null when the budget is zero or absent.'),
+  "favourable": zod.boolean().nullable().describe('income: variance ≥ 0; expense: variance ≤ 0. A judgment, shown in words.')
+}),
+  "fullYear": zod.object({
+  "budget": zod.number().nullable(),
+  "actualToDate": zod.number(),
+  "remaining": zod.number().nullable().describe('budget − actual to date. No variance is judged before the year ends.')
+}),
+  "forecast": zod.object({
+  "amount": zod.number().nullable().describe('Actuals through the period + the budget of the remaining periods. Deterministic; never stored.'),
+  "variance": zod.number().nullable(),
+  "favourable": zod.boolean().nullable(),
+  "reason": zod.union([zod.literal('annual_only'),zod.literal('unbudgeted'),zod.literal(null)]).nullable()
+}),
+  "annualOnlyLines": zod.number().describe('Lines with an annual amount only — when > 0 the YTD budget and forecast totals are null rather than partial.')
+}),
+  "expense": zod.object({
+  "ytd": zod.object({
+  "budget": zod.number().nullable().describe('null when the line is annual-only — nothing is apportioned.'),
+  "actual": zod.number(),
+  "variance": zod.number().nullable().describe('actual − budget, in the account\'s natural direction.'),
+  "variancePct": zod.number().nullable().describe('variance ÷ budget × 100; null when the budget is zero or absent.'),
+  "favourable": zod.boolean().nullable().describe('income: variance ≥ 0; expense: variance ≤ 0. A judgment, shown in words.')
+}),
+  "fullYear": zod.object({
+  "budget": zod.number().nullable(),
+  "actualToDate": zod.number(),
+  "remaining": zod.number().nullable().describe('budget − actual to date. No variance is judged before the year ends.')
+}),
+  "forecast": zod.object({
+  "amount": zod.number().nullable().describe('Actuals through the period + the budget of the remaining periods. Deterministic; never stored.'),
+  "variance": zod.number().nullable(),
+  "favourable": zod.boolean().nullable(),
+  "reason": zod.union([zod.literal('annual_only'),zod.literal('unbudgeted'),zod.literal(null)]).nullable()
+}),
+  "annualOnlyLines": zod.number().describe('Lines with an annual amount only — when > 0 the YTD budget and forecast totals are null rather than partial.')
+}),
+  "net": zod.object({
+  "ytd": zod.object({
+  "budget": zod.number().nullable().describe('null when the line is annual-only — nothing is apportioned.'),
+  "actual": zod.number(),
+  "variance": zod.number().nullable().describe('actual − budget, in the account\'s natural direction.'),
+  "variancePct": zod.number().nullable().describe('variance ÷ budget × 100; null when the budget is zero or absent.'),
+  "favourable": zod.boolean().nullable().describe('income: variance ≥ 0; expense: variance ≤ 0. A judgment, shown in words.')
+}),
+  "fullYear": zod.object({
+  "budget": zod.number().nullable(),
+  "actualToDate": zod.number(),
+  "remaining": zod.number().nullable().describe('budget − actual to date. No variance is judged before the year ends.')
+}),
+  "forecast": zod.object({
+  "amount": zod.number().nullable().describe('Actuals through the period + the budget of the remaining periods. Deterministic; never stored.'),
+  "variance": zod.number().nullable(),
+  "favourable": zod.boolean().nullable(),
+  "reason": zod.union([zod.literal('annual_only'),zod.literal('unbudgeted'),zod.literal(null)]).nullable()
+}),
+  "annualOnlyLines": zod.number().describe('Lines with an annual amount only — when > 0 the YTD budget and forecast totals are null rather than partial.')
+})
+})
+})
 
 
 /**
@@ -3196,6 +4064,39 @@ export const GetTrendResponseItem = zod.object({
 }))
 })
 export const GetTrendResponse = zod.array(GetTrendResponseItem)
+
+
+/**
+ * @summary Monthly profit-or-loss trend from the ledger (Phase 14 D14-12): revenue, expenses and net per calendar month; the months sum to the income statement of the same window.
+
+ */
+export const GetPnlTrendQueryParams = zod.object({
+  "from": zod.coerce.string(),
+  "to": zod.coerce.string()
+})
+
+export const GetPnlTrendResponse = zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "expenseAnalysis": zod.enum(['nature']),
+  "migrated": zod.union([zod.object({
+  "date": zod.string(),
+  "revenue": zod.number(),
+  "expenses": zod.number(),
+  "net": zod.number()
+}),zod.null()]).describe('A migration opening entry\'s year-to-date P&L (the previous system\'s), shown as ONE amount on its date and kept out of the months — it would read as that month\'s. Included in the totals, so the totals still equal the income statement for the window. null when no migration falls in it.\n'),
+  "points": zod.array(zod.object({
+  "month": zod.string(),
+  "revenue": zod.number(),
+  "expenses": zod.number(),
+  "net": zod.number()
+})),
+  "totals": zod.object({
+  "revenue": zod.number(),
+  "expenses": zod.number(),
+  "net": zod.number()
+})
+})
 
 
 /**
@@ -3715,38 +4616,56 @@ export const GetVatReturnResponse = zod.object({
 
 
 /**
- * @summary Trial balance — every account's debit/credit totals over a window
+ * @summary Trial balance — opening, period debit, period credit and closing per account (Phase 14 D14-04). Migration opening entries are opening even inside the window; with a declared fiscal year, income and expense accounts open at the fiscal-year start and earlier P&L is one computed equity row.
+
  */
 export const GetTrialBalanceQueryParams = zod.object({
-  "date_from": zod.coerce.string().optional(),
-  "date_to": zod.coerce.string().optional()
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional()
 })
 
 export const GetTrialBalanceResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
+  "fiscalYearDeclared": zod.boolean(),
+  "plResetFrom": zod.string().nullable().describe('The fiscal-year start income and expense accounts open at'),
   "accounts": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string(),
   "accountId": zod.number().nullable(),
   "type": zod.string(),
+  "computed": zod.boolean(),
+  "openingBalance": zod.number(),
   "debit": zod.number(),
   "credit": zod.number(),
-  "balance": zod.number()
-})),
+  "balance": zod.number(),
+  "closingBalance": zod.number()
+}).describe('debit \/ credit \/ balance are the PERIOD movement (balance = debit − credit). openingBalance and closingBalance are debit-positive; closing = opening + debit − credit. A `computed` row is the unallocated P&L of prior fiscal years (no account).\n')),
   "totalDebit": zod.number(),
   "totalCredit": zod.number(),
+  "totalOpening": zod.number().describe('Σ opening — zero when the ledger balances'),
+  "totalClosing": zod.number().describe('Σ closing — zero when the ledger balances'),
   "balanced": zod.boolean()
 })
 
 
 /**
- * @summary Income statement (P&L) over a window
+ * @summary Income statement (P&L) over a window — from the ledger only; expenses by nature (Phase 14 D14-06)
  */
 export const GetIncomeStatementQueryParams = zod.object({
-  "date_from": zod.coerce.string().optional(),
-  "date_to": zod.coerce.string().optional()
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional()
 })
 
 export const GetIncomeStatementResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
+  "expenseAnalysis": zod.enum(['nature']),
   "revenue": zod.array(zod.object({
   "key": zod.string(),
   "name": zod.string(),
@@ -3761,18 +4680,18 @@ export const GetIncomeStatementResponse = zod.object({
 }).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.')),
   "totalRevenue": zod.number(),
   "totalExpenses": zod.number(),
-  "grossProfit": zod.number(),
+  "grossProfit": zod.number().nullable(),
   "netIncome": zod.number(),
   "netIncomeMargin": zod.number(),
-  "source": zod.enum(['journal_entries', 'transactions'])
-})
+  "source": zod.enum(['journal_entries'])
+}).describe('From the ledger only (Phase 14 D14-06 — the former transactions fallback is gone). Expenses are presented BY NATURE (IAS 1.102), so there is no gross-profit line: `grossProfit` is null.\n')
 
 
 /**
- * @summary Balance sheet as of a date, with the current/non-current split
+ * @summary Balance sheet as of a date, with the current/non-current split and profit split by fiscal year (Phase 14 D14-05)
  */
 export const GetBalanceSheetQueryParams = zod.object({
-  "as_of": zod.coerce.string().optional()
+  "as_of": zod.date().optional()
 })
 
 export const GetBalanceSheetResponse = zod.object({
@@ -3786,6 +4705,7 @@ export const GetBalanceSheetResponse = zod.object({
   "liquidityClass": zod.string().nullable()
 })),
   "accountsReceivable": zod.number(),
+  "accountsReceivableKey": zod.string().nullable().describe('The item key of the AR account (resolved by system code)'),
   "total": zod.number(),
   "current": zod.object({
   "items": zod.array(zod.object({
@@ -3830,6 +4750,7 @@ export const GetBalanceSheetResponse = zod.object({
   "liquidityClass": zod.string().nullable()
 })),
   "accountsPayable": zod.number(),
+  "accountsPayableKey": zod.string().nullable().describe('The item key of the AP account (resolved by system code)'),
   "total": zod.number(),
   "current": zod.object({
   "items": zod.array(zod.object({
@@ -3870,8 +4791,23 @@ export const GetBalanceSheetResponse = zod.object({
   "amount": zod.number()
 }).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.')),
   "retainedEarnings": zod.number(),
+  "priorYearsProfit": zod.number(),
+  "currentYearProfit": zod.number(),
+  "fiscalYear": zod.object({
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "calendar": zod.enum(['gregorian', 'hijri'])
+}).nullable(),
   "total": zod.number()
-}),
+}).describe('Equity accounts plus the profit or loss not yet allocated by any entry, split by the fiscal year containing as_of (D14-05). retainedEarnings = priorYearsProfit + currentYearProfit (it is NOT the RETAINED_EARNINGS account, which is among the items). Without a declared fiscal year the whole amount is in priorYearsProfit and fiscalYear is null.\n'),
+  "unmapped": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "liquidityClass": zod.string().nullable()
+})).describe('Ledger accounts with a balance but no balance-sheet or P&L type — listed, never folded; they make the sheet unbalanced.'),
   "totalLiabilitiesAndEquity": zod.number(),
   "balanced": zod.boolean(),
   "warning": zod.string().nullable()
@@ -3879,44 +4815,88 @@ export const GetBalanceSheetResponse = zod.object({
 
 
 /**
- * @summary Cash flow statement (DIRECT method) over a window
+ * @summary Cash flow statement (DIRECT method) from the ledger over a window — reconciles to the cash accounts (Phase 14 D14-07)
  */
 export const GetCashFlowQueryParams = zod.object({
-  "date_from": zod.coerce.string().optional(),
-  "date_to": zod.coerce.string().optional()
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional()
 })
 
 export const GetCashFlowResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
+  "method": zod.enum(['direct']),
+  "vatBasis": zod.enum(['inclusive']),
+  "openingCash": zod.number(),
   "operating": zod.object({
   "total": zod.number(),
   "items": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
   "amount": zod.number()
-}))
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.'))
+}).describe('One direct-method line (a class of receipts or payments) with the accounts that make it up.'))
 }),
   "investing": zod.object({
   "total": zod.number(),
   "items": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
   "amount": zod.number()
-}))
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.'))
+}).describe('One direct-method line (a class of receipts or payments) with the accounts that make it up.'))
 }),
   "financing": zod.object({
   "total": zod.number(),
   "items": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
   "amount": zod.number()
-}))
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.'))
+}).describe('One direct-method line (a class of receipts or payments) with the accounts that make it up.'))
 }),
   "internal": zod.object({
   "total": zod.number(),
   "items": zod.array(zod.object({
+  "key": zod.string(),
   "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
   "amount": zod.number()
-}))
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.'))
+}).describe('One direct-method line (a class of receipts or payments) with the accounts that make it up.'))
 }),
-  "netChange": zod.number()
-}).describe('DIRECT method — actual cash movements classified by kind and account class. The indirect method is not built.')
+  "migrationOpeningCash": zod.number(),
+  "netCashFromActivities": zod.number(),
+  "netChange": zod.number(),
+  "closingCash": zod.number(),
+  "reconciles": zod.boolean(),
+  "limitations": zod.array(zod.string())
+}).describe('DIRECT method from THE LEDGER (Phase 14 D14-07): every in-books entry touching a cash account, each non-cash line contributing to the activity of its account. openingCash + operating + investing + financing + internal + migrationOpeningCash = closingCash (`reconciles`). Flows are inclusive of VAT. The indirect method is not built.\n')
 
 
 /**
@@ -3955,16 +4935,28 @@ export const GetJournalReportResponse = zod.object({
 
 
 /**
- * @summary General ledger movements with a running balance
+ * @summary General ledger movements with a running balance; optionally filtered to one party (Phase 14 D14-11)
  */
 export const GetGeneralLedgerQueryParams = zod.object({
   "account_id": zod.coerce.string().optional(),
   "account_name": zod.coerce.string().optional(),
-  "date_from": zod.coerce.string().optional(),
-  "date_to": zod.coerce.string().optional()
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "party_type": zod.enum(['customer', 'vendor']).optional(),
+  "customer_id": zod.coerce.string().optional(),
+  "vendor_id": zod.coerce.string().optional()
 })
 
 export const GetGeneralLedgerResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
+  "plResetFrom": zod.string().nullable().describe('The fiscal-year start an income or expense account opens at; null when no reset applied'),
+  "party": zod.union([zod.object({
+  "type": zod.enum(['customer', 'vendor']),
+  "id": zod.number()
+}),zod.null()]),
   "accountId": zod.number().nullable(),
   "accountName": zod.string(),
   "accountNameAr": zod.string(),
@@ -3980,12 +4972,15 @@ export const GetGeneralLedgerResponse = zod.object({
   "debit": zod.number(),
   "credit": zod.number(),
   "balance": zod.number(),
-  "accountNameAr": zod.string()
+  "accountNameAr": zod.string(),
+  "partyType": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "vendorId": zod.number().nullable()
 })),
   "closingBalance": zod.number(),
   "totalDebit": zod.number(),
   "totalCredit": zod.number()
-})
+}).describe('The ledger of one account (or party) for a window. It opens on EXACTLY the trial-balance row it is drilled from (D14-09): lines before the window, plus migration opening entries up to the window end (D14-03) — which are therefore never listed as movements — and, for an income or expense account with a declared fiscal year, only from the start of the fiscal year containing date_from (plResetFrom).\n')
 
 
 /**
@@ -4030,8 +5025,15 @@ export const GetAccountSummaryQueryParams = zod.object({
 })
 
 export const GetAccountSummaryResponse = zod.object({
+  "window": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+}).describe('The window a report covers, as the server applied it (null = open-ended).'),
   "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "accountId": zod.number().nullable(),
   "name": zod.string(),
+  "nameAr": zod.string(),
   "type": zod.string(),
   "openingBalance": zod.number(),
   "periodDebit": zod.number(),
@@ -4127,8 +5129,12 @@ export const GetOwnerEquityResponse = zod.object({
 
 
 /**
- * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it; as of a date (Phase 14 D14-08)
  */
+export const GetArAgingReportQueryParams = zod.object({
+  "as_of": zod.date().optional()
+})
+
 export const getArAgingReportResponseTotalMin = 0;
 
 export const getArAgingReportResponseLiabilitiesCustomerCreditsMin = 0;
@@ -4138,6 +5144,8 @@ export const getArAgingReportResponseLiabilitiesCustomerDepositsMin = 0;
 
 
 export const GetArAgingReportResponse = zod.object({
+  "asOf": zod.string().describe('The as-of date applied (default the business day)'),
+  "basis": zod.enum(['subledger', 'events']).describe('subledger = today\'s caches; events = the customer-statement events replayed up to asOf (D14-08)'),
   "buckets": zod.object({
   "current": zod.number(),
   "days_1_30": zod.number(),
@@ -4164,9 +5172,15 @@ export const GetArAgingReportResponse = zod.object({
 
 
 /**
- * @summary Accounts payable aging
+ * @summary Accounts payable aging, as of a date (Phase 14 D14-08)
  */
+export const GetApAgingReportQueryParams = zod.object({
+  "as_of": zod.date().optional()
+})
+
 export const GetApAgingReportResponse = zod.object({
+  "asOf": zod.string().describe('The as-of date applied (default the business day)'),
+  "basis": zod.enum(['subledger', 'events']).describe('subledger = today\'s positions; events = the supplier-statement events replayed up to asOf (D14-08)'),
   "buckets": zod.object({
   "current": zod.number(),
   "days_1_30": zod.number(),
@@ -4177,10 +5191,11 @@ export const GetApAgingReportResponse = zod.object({
   "total": zod.number(),
   "assets": zod.object({
   "supplierCredits": zod.number().describe('Unapplied purchase credit notes'),
-  "supplierAdvances": zod.number(),
-  "supplierDeposits": zod.number().describe('Refundable security deposits paid'),
-  "unidentifiedPayments": zod.number().describe('Paid')
-}).describe('What the supplier holds or owes us — each one an ASSET, never a bucket.'),
+  "supplierAdvances": zod.number().nullable(),
+  "supplierDeposits": zod.number().nullable().describe('Refundable security deposits paid'),
+  "unidentifiedPayments": zod.number().nullable().describe('Paid'),
+  "onAccountTotal": zod.number().describe('Advances + deposits + unidentified payments')
+}).describe('What the supplier holds or owes us — each one an ASSET, never a bucket. At a past as-of date the money held on account is one figure (onAccountTotal) and its split is null.\n'),
   "netSupplierPosition": zod.number().describe('total less every asset above — DERIVED'),
   "items": zod.array(zod.object({
   "id": zod.number(),
@@ -4192,6 +5207,35 @@ export const GetApAgingReportResponse = zod.object({
   "daysPastDue": zod.number()
 }))
 }).describe('B6: the buckets carry only real payable exposure — every item is what a bill still owes after its live allocations, credit notes are not aged as rows (they are applied to bills), and a debit note ages like a bill. What the SUPPLIER holds is shown BESIDE the buckets and never folded into them: an advance is an asset, not a negative payable.\n')
+
+
+/**
+ * @summary Export a report as CSV or PDF (Phase 14 D14-10). Runs the report's own service call with the report's own parameters, behind the same permission and in the same tenant/company scope as the screen. CSV is UTF-8 with a BOM; PDF is RTL with Arabic labels for lang=ar. An export that would exceed the row limit is refused (422 export_too_large), never truncated.
+
+ */
+export const ExportReportParams = zod.object({
+  "report": zod.enum(['trial-balance', 'income-statement', 'balance-sheet', 'cash-flow', 'general-ledger', 'ar-aging', 'ap-aging', 'budget-vs-actual'])
+})
+
+export const ExportReportQueryParams = zod.object({
+  "format": zod.enum(['csv', 'pdf']).optional(),
+  "lang": zod.enum(['en', 'ar']).optional(),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "as_of": zod.date().optional(),
+  "compare_from": zod.date().optional(),
+  "compare_to": zod.date().optional(),
+  "compare_as_of": zod.date().optional(),
+  "account_id": zod.coerce.string().optional(),
+  "party_type": zod.enum(['customer', 'vendor']).optional(),
+  "customer_id": zod.coerce.string().optional(),
+  "vendor_id": zod.coerce.string().optional(),
+  "budget_id": zod.coerce.string().optional().describe('budget-vs-actual only'),
+  "version_id": zod.coerce.string().optional().describe('budget-vs-actual only'),
+  "through_period": zod.coerce.string().optional().describe('budget-vs-actual only')
+})
+
+export const ExportReportResponse = zod.unknown()
 
 
 /**

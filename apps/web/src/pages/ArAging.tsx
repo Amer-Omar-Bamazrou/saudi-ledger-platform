@@ -1,4 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { businessToday } from "@workspace/shared";
+import { Input } from "@/components/ui/input";
+import { ReportExportButtons } from "@/components/reports/ReportExport";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,17 +38,33 @@ function agingBucket(days: number): string {
 
 export default function ArAging() {
   const { t, n } = useLanguage();
+  // Phase 14 (D14-08): the ageing AS OF a date — today by default; a past date
+  // replays the customer-statement events up to it (the server says which).
+  const [asOf, setAsOf] = useState(businessToday());
+  const isToday = asOf === businessToday();
   const { data, isLoading } = useQuery<ArAgingReport>({
-    queryKey: ["ar-aging"],
-    queryFn: () => apiFetch("/reports/ar-aging"),
-    refetchInterval: 60_000,
+    queryKey: ["ar-aging", asOf],
+    queryFn: () => apiFetch(`/reports/ar-aging?as_of=${encodeURIComponent(asOf)}`),
+    // a past date does not change; only today's ageing moves on its own
+    refetchInterval: isToday ? 60_000 : false,
   });
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("AR Aging Report", "تقرير أعمار الذمم المدينة")}</h1>
-        <p className="text-muted-foreground text-sm mt-1">{t("Outstanding customer balances by age · Auto-refreshes every minute", "أرصدة العملاء المستحقة حسب العمر · تحديث تلقائي كل دقيقة")}</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{t("AR Aging Report", "تقرير أعمار الذمم المدينة")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{isToday
+            ? t("Outstanding customer balances by age · Auto-refreshes every minute", "أرصدة العملاء المستحقة حسب العمر · تحديث تلقائي كل دقيقة")
+            : t(`What each invoice still owed on ${asOf}, rebuilt from the dated customer events`, `ما كانت تستحقه كل فاتورة في ${asOf}، مُعاد بناؤه من أحداث العملاء المؤرخة`)}</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-xs text-muted-foreground">
+            {t("As of", "كما في")}
+            <Input type="date" value={asOf} max={businessToday()} onChange={(e) => e.target.value && setAsOf(e.target.value)} className="mt-1 h-8 text-sm w-40" data-testid="ar-aging-as-of" />
+          </label>
+          <ReportExportButtons report="ar-aging" params={{ as_of: asOf }} />
+        </div>
       </div>
 
       {data && (

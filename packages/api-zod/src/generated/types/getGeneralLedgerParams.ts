@@ -5,10 +5,14 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { GetGeneralLedgerPartyType } from './getGeneralLedgerPartyType';
 
 export type GetGeneralLedgerParams = {
 account_id?: string;
 account_name?: string;
-date_from?: string;
-date_to?: string;
+date_from?: Date;
+date_to?: Date;
+party_type?: GetGeneralLedgerPartyType;
+customer_id?: string;
+vendor_id?: string;
 };

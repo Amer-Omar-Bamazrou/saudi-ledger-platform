@@ -5,15 +5,27 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { CashFlowReportMethod } from './cashFlowReportMethod';
+import type { CashFlowReportVatBasis } from './cashFlowReportVatBasis';
 import type { CashFlowSection } from './cashFlowSection';
+import type { ReportWindow } from './reportWindow';
 
 /**
- * DIRECT method — actual cash movements classified by kind and account class. The indirect method is not built.
+ * DIRECT method from THE LEDGER (Phase 14 D14-07): every in-books entry touching a cash account, each non-cash line contributing to the activity of its account. openingCash + operating + investing + financing + internal + migrationOpeningCash = closingCash (`reconciles`). Flows are inclusive of VAT. The indirect method is not built.
  */
 export interface CashFlowReport {
+  window: ReportWindow;
+  method: CashFlowReportMethod;
+  vatBasis: CashFlowReportVatBasis;
+  openingCash: number;
   operating: CashFlowSection;
   investing: CashFlowSection;
   financing: CashFlowSection;
   internal: CashFlowSection;
+  migrationOpeningCash: number;
+  netCashFromActivities: number;
   netChange: number;
+  closingCash: number;
+  reconciles: boolean;
+  limitations: string[];
 }

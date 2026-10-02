@@ -5,11 +5,23 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { ReportWindow } from './reportWindow';
 import type { TrialBalanceRow } from './trialBalanceRow';
 
 export interface TrialBalanceReport {
+  window: ReportWindow;
+  fiscalYearDeclared: boolean;
+  /**
+     * The fiscal-year start income and expense accounts open at
+     * @nullable
+     */
+  plResetFrom: string | null;
   accounts: TrialBalanceRow[];
   totalDebit: number;
   totalCredit: number;
+  /** Σ opening — zero when the ledger balances */
+  totalOpening: number;
+  /** Σ closing — zero when the ledger balances */
+  totalClosing: number;
   balanced: boolean;
 }

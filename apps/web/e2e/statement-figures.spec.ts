@@ -62,9 +62,12 @@ test("the balance-sheet PAGE shows the ledger's AR figure", async ({ page }) => 
   await page.getByRole("button", { name: /generate|إنشاء/i }).click();
   await page.waitForLoadState("networkidle");
 
-  // The AR row, by its label, must carry the API's figure — not a zero, not a
-  // different number, not a placeholder.
-  const arRow = page.locator("div", { hasText: /Accounts Receivable \(AR\)|ذمم مدينة \(AR\)/ }).filter({ hasText: sar(ar) }).first();
-  await expect(arRow, `the page must show ${sar(ar)} on the AR line`).toBeVisible();
+  // The AR row must carry the API's figure — not a zero, not a different
+  // number, not a placeholder. Phase 14 (F-12): the AR line IS the receivable
+  // account's own row, marked by the server's `accountsReceivableKey` (the old
+  // page printed a second, label-matched AR line beside the account — the same
+  // receivable twice), so the row is found by that marker, not by its label.
+  const arRow = page.getByTestId("bs-ar");
+  await expect(arRow, `the page must show ${sar(ar)} on the AR line`).toContainText(sar(ar));
   await expect(page.getByText(sar(bs.assets.total)).first(), "total assets on the page").toBeVisible();
 });

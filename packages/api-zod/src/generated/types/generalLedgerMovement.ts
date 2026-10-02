@@ -21,4 +21,10 @@ export interface GeneralLedgerMovement {
   credit: number;
   balance: number;
   accountNameAr: string;
+  /** @nullable */
+  partyType: string | null;
+  /** @nullable */
+  customerId: number | null;
+  /** @nullable */
+  vendorId: number | null;
 }

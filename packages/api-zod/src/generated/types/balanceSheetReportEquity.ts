@@ -5,10 +5,18 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { BalanceSheetReportEquityFiscalYear } from './balanceSheetReportEquityFiscalYear';
 import type { ReportKeyedAmount } from './reportKeyedAmount';
 
+/**
+ * Equity accounts plus the profit or loss not yet allocated by any entry, split by the fiscal year containing as_of (D14-05). retainedEarnings = priorYearsProfit + currentYearProfit (it is NOT the RETAINED_EARNINGS account, which is among the items). Without a declared fiscal year the whole amount is in priorYearsProfit and fiscalYear is null.
+ */
 export type BalanceSheetReportEquity = {
   items: ReportKeyedAmount[];
   retainedEarnings: number;
+  priorYearsProfit: number;
+  currentYearProfit: number;
+  /** @nullable */
+  fiscalYear: BalanceSheetReportEquityFiscalYear;
   total: number;
 };

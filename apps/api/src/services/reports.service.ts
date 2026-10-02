@@ -4,7 +4,7 @@
  * pre-M6 route handlers; only the DB access now goes through reportsRepository.
  */
 import { BadRequestError } from "../lib/errors";
-import { reportsRepository, documentSign } from "../repositories/reports.repository";
+import { reportsRepository, documentSign, type GlParty } from "../repositories/reports.repository";
 import { supplierStatementService } from "./accounting/supplierStatement.service";
 import { customersRepository } from "../repositories/customers.repository";
 // N2: ONE tolerance, imported from the write side — a read-side literal 2x the
@@ -13,324 +13,546 @@ import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { businessToday } from "@workspace/shared";
 import { depositReviewService, endOfMonth } from "./depositReview.service";
 import { isVatOnlyDocumentType } from "@workspace/shared";
+import { fromHalalas, round2, toHalalas } from "../lib/money";
+import { fiscalYearContaining, isFiscalCalendar, type FiscalYearSettings } from "../lib/fiscalYear";
+import { companiesRepository } from "../repositories/companies.repository";
+import { customerStatementRepository } from "../repositories/customerStatement.repository";
+import { supplierStatementRepository } from "../repositories/supplierStatement.repository";
+import { CASH_FLOW_LINE_ACTIVITY, CASH_FLOW_LINE_LABEL, classifyCashFlowAccount, type CashFlowActivity, type CashFlowLine } from "./reporting/cashFlowClassification";
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 const fmt2 = (n: number) => parseFloat(n.toFixed(2));
 
-export const reportsService = {
-  async trialBalance(date_from?: string, date_to?: string) {
-    const lines = await reportsRepository.jeLines(date_from, date_to);
-    const cats = await reportsRepository.allCategories();
-    const catMap = new Map(cats.map((c) => [c.id, c]));
+/**
+ * D14-02 — a report date is `YYYY-MM-DD` and a real calendar day, or it is
+ * absent. A malformed date is a 400 — never silently "all time", which is what
+ * an unparsed `asOf=` used to produce (F-07: the server ignored it and answered
+ * a different question that looked like an answer).
+ */
+export function reportDate(value: unknown, name: string): string | undefined {
+  if (value == null || value === "") return undefined;
+  const s = String(value);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  const d = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : null;
+  if (!m || !d || d.getUTCFullYear() !== Number(m[1]) || d.getUTCMonth() !== Number(m[2]) - 1 || d.getUTCDate() !== Number(m[3])) {
+    throw new BadRequestError(`${name} must be a calendar date in the form YYYY-MM-DD; "${s}" is not one.`);
+  }
+  return s;
+}
 
-    const accounts = new Map<string, { name: string; nameAr: string; accountId: number | null; type: string; debit: number; credit: number }>();
-    for (const l of lines) {
-      const key = l.accountId != null ? String(l.accountId) : l.accountName;
-      if (!accounts.has(key)) {
-        const cat = l.accountId ? catMap.get(l.accountId) : undefined;
-        accounts.set(key, { name: l.accountName, nameAr: cat?.nameAr ?? "", accountId: l.accountId, type: cat?.type ?? "other", debit: 0, credit: 0 });
-      }
-      const acc = accounts.get(key)!;
-      acc.debit += toNum(l.debit);
-      acc.credit += toNum(l.credit);
-    }
+/** A report window: both ends optional, validated, and in order. */
+export function reportWindow(from: unknown, to: unknown): { from?: string; to?: string } {
+  const f = reportDate(from, "date_from");
+  const t = reportDate(to, "date_to");
+  if (f && t && f > t) throw new BadRequestError(`date_from (${f}) is after date_to (${t}).`);
+  return { from: f, to: t };
+}
 
-    const rows = Array.from(accounts.values())
-      .map((a) => ({ name: a.name, nameAr: a.nameAr, accountId: a.accountId, type: a.type, debit: fmt2(a.debit), credit: fmt2(a.credit), balance: fmt2(a.debit - a.credit) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+/**
+ * The largest id a Postgres `integer` holds. A larger number is no id this API
+ * issued: it is a 400 here, never a database error that the reports
+ * controller would answer as a 500 carrying the failed query's text (pre-merge
+ * audit, 2026-10-02 — security review 8's bound, which reached only the
+ * budgets controller).
+ */
+export const MAX_ID = 2_147_483_647;
 
-    const totalDebit = fmt2(rows.reduce((s, r) => s + r.debit, 0));
-    const totalCredit = fmt2(rows.reduce((s, r) => s + r.credit, 0));
-    return { accounts: rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) <= GL_BALANCE_TOLERANCE };
-  },
+/** A report's account id: a positive integer, or a 400 — never read as "all accounts". */
+export function reportAccountId(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n <= 0 || n > MAX_ID) throw new BadRequestError(`account_id must be a positive integer; "${String(value)}" is not one.`);
+  return n;
+}
 
-  async incomeStatement(date_from?: string, date_to?: string) {
-    const lines = await reportsRepository.jeLines(date_from, date_to);
-    const cats = await reportsRepository.allCategories();
-    const catMap = new Map(cats.map((c) => [c.id, c]));
+/** D14-11 — the party filter: both halves or neither, never a half-read one. */
+export function reportParty(type: unknown, customerId: unknown, vendorId: unknown): GlParty | undefined {
+  if ((type == null || type === "") && (customerId == null || customerId === "") && (vendorId == null || vendorId === "")) return undefined;
+  if (type === "customer") return { type: "customer", id: reportAccountIdNamed(customerId, "customer_id") };
+  if (type === "vendor") return { type: "vendor", id: reportAccountIdNamed(vendorId, "vendor_id") };
+  throw new BadRequestError(`party_type must be "customer" or "vendor" (with customer_id or vendor_id).`);
+}
+function reportAccountIdNamed(value: unknown, name: string): number {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n <= 0 || n > MAX_ID) throw new BadRequestError(`${name} must be a positive integer; "${String(value ?? "")}" is not one.`);
+  return n;
+}
 
-    // `key` travels to the RESPONSE (F7-cmp): the prior-period comparison
-    // merges lines across two windows, and joining on the display name breaks
-    // silently the day someone renames an account — the kind of defect nobody
-    // would trace back. The key is the account id where one exists.
-    const revenue: Record<string, { key: string; name: string; nameAr: string; amount: number }> = {};
-    const expenses: Record<string, { key: string; name: string; nameAr: string; amount: number }> = {};
+/** The calendar day before an ISO date (accounting dates are plain days, no zone). */
+export function dayBefore(iso: string): string {
+  const [y, mo, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y!, mo! - 1, d! - 1)).toISOString().slice(0, 10);
+}
 
-    for (const l of lines) {
-      const cat = l.accountId ? catMap.get(l.accountId) : undefined;
-      const type = cat?.type ?? "expense";
-      const name = l.accountName;
-      const nameAr = cat?.nameAr ?? "";
-      const key = l.accountId != null ? String(l.accountId) : name;
-      if (type === "income" || type === "revenue") {
-        if (!revenue[key]) revenue[key] = { key, name, nameAr, amount: 0 };
-        revenue[key].amount += toNum(l.credit) - toNum(l.debit);
-      } else if (type === "expense") {
-        if (!expenses[key]) expenses[key] = { key, name, nameAr, amount: 0 };
-        expenses[key].amount += toNum(l.debit) - toNum(l.credit);
-      }
-    }
+/** The scoped company's fiscal settings — null when the fiscal year is NOT declared (M20 F8). */
+async function fiscalSettings(): Promise<FiscalYearSettings | null> {
+  // the company IN SCOPE (the request's company GUC), never "the org's first company" (F-19)
+  const company = await companiesRepository.findCurrent();
+  if (!company || company.fiscalYearStart == null) return null;
+  return { fiscalYearStart: company.fiscalYearStart, calendar: isFiscalCalendar(company.fiscalCalendar) ? company.fiscalCalendar : "gregorian" };
+}
 
-    if (lines.length === 0) {
-      const txs = await reportsRepository.txWithCategory(date_from, date_to);
-      for (const { tx, cat } of txs) {
-        const amount = toNum(tx.amount);
-        const catType = cat?.type ?? "expense";
-        const key = String(tx.categoryId ?? "uncategorized");
-        const name = cat?.name ?? "Uncategorized";
-        const nameAr = cat?.nameAr ?? "غير مصنف";
-        if (tx.type === "credit" || catType === "income") {
-          if (!revenue[key]) revenue[key] = { key, name, nameAr, amount: 0 };
-          revenue[key].amount += amount;
-        } else {
-          if (!expenses[key]) expenses[key] = { key, name, nameAr, amount: 0 };
-          expenses[key].amount += amount;
-        }
-      }
-    }
+/** Ageing buckets (days past due at the as-of date); amounts in integer halalas. */
+type AgingBuckets = { current: number; days_1_30: number; days_31_60: number; days_61_90: number; over_90: number };
+function bucketInto(b: AgingBuckets, agedDays: number, amountH: number) {
+  if (agedDays <= 0) b.current += amountH;
+  else if (agedDays <= 30) b.days_1_30 += amountH;
+  else if (agedDays <= 60) b.days_31_60 += amountH;
+  else if (agedDays <= 90) b.days_61_90 += amountH;
+  else b.over_90 += amountH;
+}
+const halalaBuckets = (b: AgingBuckets) => ({ current: fromHalalas(b.current), days_1_30: fromHalalas(b.days_1_30), days_31_60: fromHalalas(b.days_31_60), days_61_90: fromHalalas(b.days_61_90), over_90: fromHalalas(b.over_90) });
 
-    const revenueItems = Object.values(revenue).map((r) => ({ ...r, amount: fmt2(r.amount) })).sort((a, b) => b.amount - a.amount);
-    const expenseItems = Object.values(expenses).map((e) => ({ ...e, amount: fmt2(e.amount) })).sort((a, b) => b.amount - a.amount);
-    const totalRevenue = fmt2(revenueItems.reduce((s, r) => s + r.amount, 0));
-    const totalExpenses = fmt2(expenseItems.reduce((s, e) => s + e.amount, 0));
-    const netIncome = fmt2(totalRevenue - totalExpenses);
+type CategoryRow = Awaited<ReturnType<typeof reportsRepository.allCategories>>[number];
+const isIncomeType = (t: string | null | undefined) => t === "income" || t === "revenue";
+const isPlType = (t: string | null | undefined) => isIncomeType(t) || t === "expense";
 
+/**
+ * The seam's rows joined to the chart: one entry per account with exact
+ * halala figures. The display name is the account's CURRENT name (a rename is
+ * a rename, not a second account); a legacy line with no account id keeps its
+ * stored name and type "other".
+ */
+type LedgerAccount = { key: string; accountId: number | null; name: string; nameAr: string; type: string; liquidityClass: string | null; systemCode: string | null; openingH: number; debitH: number; creditH: number };
+async function ledgerAccounts(opts: Parameters<typeof reportsRepository.ledgerBalances>[0], cats?: CategoryRow[]): Promise<LedgerAccount[]> {
+  const [rows, chart] = await Promise.all([reportsRepository.ledgerBalances(opts), cats ? Promise.resolve(cats) : reportsRepository.allCategories()]);
+  const catMap = new Map(chart.map((c) => [c.id, c]));
+  return rows.map((r) => {
+    const cat = r.accountId != null ? catMap.get(r.accountId) : undefined;
     return {
-      revenue: revenueItems,
-      expenses: expenseItems,
-      totalRevenue,
-      totalExpenses,
-      grossProfit: totalRevenue,
-      netIncome,
-      netIncomeMargin: totalRevenue > 0 ? fmt2((netIncome / totalRevenue) * 100) : 0,
-      source: lines.length > 0 ? "journal_entries" : "transactions",
+      key: r.accountId != null ? String(r.accountId) : (r.legacyName ?? "(no account)"),
+      accountId: r.accountId,
+      name: cat?.name ?? r.legacyName ?? "(no account)",
+      nameAr: cat?.nameAr ?? "",
+      type: cat?.type ?? "other",
+      liquidityClass: cat?.liquidityClass ?? null,
+      systemCode: cat?.systemCode ?? null,
+      openingH: toHalalas(r.opening),
+      debitH: toHalalas(r.debit),
+      creditH: toHalalas(r.credit),
+    };
+  });
+}
+
+export const reportsService = {
+  /**
+   * D14-04 — the trial balance: opening / period debit / period credit /
+   * closing per account, from the ledger seam, exact.
+   *
+   * - `debit`, `credit`, `balance` keep their pre-Phase-14 meaning: the PERIOD
+   *   movement (`balance` = debit − credit of the window).
+   * - `openingBalance` / `closingBalance` are debit-positive.
+   * - Migration opening entries are OPENING even inside the window (D14-03).
+   * - With `date_from` and a declared fiscal year, income and expense accounts
+   *   open at the start of the fiscal year containing `date_from` (PRECEDENT:
+   *   ERPNext trial_balance.py; Odoo include_initial_balance); everything they
+   *   accumulated before it is ONE computed equity row — so Σ opening = Σ
+   *   closing = 0 still holds (IAS 1.106: no closing journal is required; this
+   *   is a presentation of the same ledger).
+   */
+  async trialBalance(date_from?: string, date_to?: string) {
+    const { from, to } = reportWindow(date_from, date_to);
+    const cats = await reportsRepository.allCategories();
+    const accounts = await ledgerAccounts({ from, to, openingSourcesAsOpening: true }, cats);
+
+    const settings = await fiscalSettings();
+    let plResetFrom: string | null = null;
+    let priorPlH = 0;
+    if (from && settings) {
+      plResetFrom = fiscalYearContaining(settings, from).startDate;
+      if (plResetFrom > from) plResetFrom = null; // cannot happen; defensive — never reset forward
+    }
+    if (plResetFrom) {
+      const plIds = cats.filter((c) => isPlType(c.type)).map((c) => c.id);
+      const prior = await ledgerAccounts({ to: dayBefore(plResetFrom), accountIds: plIds }, cats);
+      const priorByKey = new Map(prior.map((p) => [p.key, p.debitH - p.creditH]));
+      for (const a of accounts) {
+        if (!isPlType(a.type)) continue;
+        const p = priorByKey.get(a.key) ?? 0;
+        a.openingH -= p;
+        priorPlH += p;
+      }
+    }
+
+    const rows = accounts
+      .filter((a) => a.openingH !== 0 || a.debitH !== 0 || a.creditH !== 0)
+      .map((a) => ({
+        key: a.key,
+        name: a.name,
+        nameAr: a.nameAr,
+        accountId: a.accountId,
+        type: a.type,
+        computed: false,
+        openingBalance: fromHalalas(a.openingH),
+        debit: fromHalalas(a.debitH),
+        credit: fromHalalas(a.creditH),
+        balance: fromHalalas(a.debitH - a.creditH),
+        closingBalance: fromHalalas(a.openingH + a.debitH - a.creditH),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (priorPlH !== 0) {
+      // The P&L of earlier fiscal years, not yet allocated by any entry — on
+      // the equity side, debit-positive like every row (a prior PROFIT is a
+      // credit, so it shows negative here and positive on the balance sheet).
+      rows.push({
+        key: "pl_prior_years", name: "Profit / loss of prior fiscal years — not yet allocated", nameAr: "أرباح / خسائر سنوات مالية سابقة — غير موزعة",
+        accountId: null, type: "equity", computed: true,
+        openingBalance: fromHalalas(priorPlH), debit: 0, credit: 0, balance: 0, closingBalance: fromHalalas(priorPlH),
+      });
+    }
+
+    /**
+     * D14-03, refined (accounting review M1, 2026-10-01): a migration opening entry dated in the
+     * window is SPLIT — its balance-sheet lines are opening, its income and expense lines (the
+     * previous system's year-to-date P&L) are period movement, as the income statement counts them.
+     * One balanced entry across two columns leaves each column off by the migrated result X, so a
+     * computed row carries X in the opening column and −X in the period: Σ opening = Σ closing = 0
+     * and debits = credits again, and the row itself closes at zero — it moves the result from the
+     * opening position into the period, it adds nothing.
+     */
+    const plIdsAll = cats.filter((c) => isPlType(c.type)).map((c) => c.id);
+    const migRows = await reportsRepository.openingSourceMovements(from ?? "0001-01-01", to ?? "9999-12-31", { accountIds: plIdsAll });
+    const migratedResultH = migRows.reduce((t, r) => t + toHalalas(r.debit) - toHalalas(r.credit), 0); // debit-positive
+    const migDebitH = migratedResultH < 0 ? -migratedResultH : 0;
+    const migCreditH = migratedResultH > 0 ? migratedResultH : 0;
+    if (migratedResultH !== 0) {
+      rows.push({
+        key: "migrated_ytd_result", name: "Year-to-date result brought in by migration (opening → period)", nameAr: "نتيجة ما سبق من السنة المُدخلة بالترحيل (من الافتتاحي إلى الفترة)",
+        accountId: null, type: "equity", computed: true,
+        openingBalance: fromHalalas(migratedResultH), debit: fromHalalas(migDebitH), credit: fromHalalas(migCreditH),
+        balance: fromHalalas(migDebitH - migCreditH), closingBalance: 0,
+      });
+    }
+
+    const sumH = (f: (a: LedgerAccount) => number) => accounts.reduce((s, a) => s + f(a), 0);
+    const totalDebitH = sumH((a) => a.debitH) + migDebitH;
+    const totalCreditH = sumH((a) => a.creditH) + migCreditH;
+    const totalOpeningH = sumH((a) => a.openingH) + priorPlH + migratedResultH;
+    const totalClosingH = sumH((a) => a.openingH + a.debitH - a.creditH) + priorPlH;
+    return {
+      window: { from: from ?? null, to: to ?? null },
+      fiscalYearDeclared: settings != null,
+      plResetFrom,
+      accounts: rows,
+      totalDebit: fromHalalas(totalDebitH),
+      totalCredit: fromHalalas(totalCreditH),
+      totalOpening: fromHalalas(totalOpeningH),
+      totalClosing: fromHalalas(totalClosingH),
+      // EXACT (accounting review M4): the sums are integer halalas, so a halala off is unbalanced
+      balanced: totalDebitH === totalCreditH && totalOpeningH === 0 && totalClosingH === 0,
     };
   },
 
-  async balanceSheet(as_of?: string) {
-    const lines = await reportsRepository.bsLines(as_of);
+  /**
+   * D14-06 — profit or loss from THE LEDGER ONLY. The pre-Phase-14
+   * transactions fallback (a second truth, gross of VAT — known issue) is
+   * gone: a window with no GL lines reports zero. Expenses are presented BY
+   * NATURE (IAS 1.102 — each expense account is a nature), so there is no
+   * gross-profit line: IAS 1.103 asks for cost of sales only under the
+   * function method, and there is no cost-of-sales account here (no
+   * inventory). `grossProfit` is therefore null — the old value was simply
+   * revenue under another name.
+   */
+  async incomeStatement(date_from?: string, date_to?: string) {
+    const { from, to } = reportWindow(date_from, date_to);
     const cats = await reportsRepository.allCategories();
-    const catMap = new Map(cats.map((c) => [c.id, c]));
+    const plIds = cats.filter((c) => isPlType(c.type)).map((c) => c.id);
+    const accounts = await ledgerAccounts({ from, to, accountIds: plIds, movementOnly: true }, cats);
+
+    // `key` travels to the RESPONSE (F7-cmp): the prior-period comparison
+    // merges lines across two windows by account id, never by display name.
+    const revenue: { key: string; name: string; nameAr: string; amountH: number }[] = [];
+    const expenses: { key: string; name: string; nameAr: string; amountH: number }[] = [];
+    for (const a of accounts) {
+      // an account appears when it MOVED in the window (as before), even if it nets to zero;
+      // the seam also returns accounts whose only lines are before `from` — those did not move.
+      if (a.debitH === 0 && a.creditH === 0) continue;
+      if (isIncomeType(a.type)) revenue.push({ key: a.key, name: a.name, nameAr: a.nameAr, amountH: a.creditH - a.debitH });
+      else if (a.type === "expense") expenses.push({ key: a.key, name: a.name, nameAr: a.nameAr, amountH: a.debitH - a.creditH });
+    }
+    const out = (xs: typeof revenue) => xs.map((x) => ({ key: x.key, name: x.name, nameAr: x.nameAr, amount: fromHalalas(x.amountH) })).sort((a, b) => b.amount - a.amount);
+    const totalRevenueH = revenue.reduce((s, r) => s + r.amountH, 0);
+    const totalExpensesH = expenses.reduce((s, e) => s + e.amountH, 0);
+    const netIncomeH = totalRevenueH - totalExpensesH;
+
+    return {
+      window: { from: from ?? null, to: to ?? null },
+      revenue: out(revenue),
+      expenses: out(expenses),
+      totalRevenue: fromHalalas(totalRevenueH),
+      totalExpenses: fromHalalas(totalExpensesH),
+      grossProfit: null as number | null,
+      expenseAnalysis: "nature" as const,
+      netIncome: fromHalalas(netIncomeH),
+      // a ratio, rounded once for display — never fed back into money arithmetic
+      netIncomeMargin: totalRevenueH > 0 ? round2((netIncomeH / totalRevenueH) * 100) : 0,
+      source: "journal_entries" as const,
+    };
+  },
+
+  /**
+   * The balance sheet AS OF a date (D14-02: lines dated ≤ as_of; default the
+   * business day, echoed in `asOf`).
+   *
+   * D14-05 — equity shows the equity ACCOUNTS (the migrated
+   * `RETAINED_EARNINGS` account among them) plus the profit or loss not yet
+   * allocated by any entry, SPLIT by the fiscal year containing `as_of`:
+   *   - prior fiscal years = Σ income − expense dated before that year's start;
+   *   - current fiscal year to date = Σ income − expense from its start to as_of.
+   * AUTHORITY: IAS 1.106(d)/108 and IFRS for SMEs 6.5 — retained earnings is
+   * opening + profit for the period; no closing journal is required.
+   * PRECEDENT: Odoo computes current-year earnings in real time; ERPNext shows
+   * a provisional P&L — but NOT ERPNext's plug (assets − liabilities − equity),
+   * which balances by construction and so could never reveal an error: these
+   * lines are computed from income and expense, and the balance is then CHECKED.
+   * The computed lines never carry the label "Retained earnings" — that is the
+   * account's name (the two-lines-one-label defect, F-04).
+   *
+   * Every figure is exact (integer halalas from the ledger seam), so `balanced`
+   * is EXACT — a halala off is unbalanced (accounting review M4, 2026-10-01).
+   */
+  async balanceSheet(as_of?: string) {
+    const asOf = reportDate(as_of, "as_of") ?? businessToday();
+    const cats = await reportsRepository.allCategories();
+    const settings = await fiscalSettings();
+    const fy = settings ? fiscalYearContaining(settings, asOf) : null;
+    // One seam read. With a declared fiscal year, `from` = its start splits the
+    // income/expense lines into before (opening) and within (movement); balance-
+    // sheet accounts use opening + movement, so the split does not touch them.
+    const accounts = await ledgerAccounts({ to: asOf, from: fy?.startDate }, cats);
 
     /**
-     * M18.2 — every balance-sheet item now carries its liquidity class, so the
+     * M18.2 — every balance-sheet item carries its liquidity class, so the
      * current / non-current breakout is a GROUPING of the same numbers rather
-     * than a second computation of them. That is what makes the reconciling
-     * assertion below meaningful: the sections cannot drift from the total,
-     * because they are partitions of it.
+     * than a second computation of them: the sections cannot drift from the
+     * total, because they are partitions of it.
      */
     // `key` travels to the response for the same reason as the income
     // statement's (F7-cmp): the comparison merges lines across two as-of
     // dates, and a name join breaks silently on a rename.
-    type BsItem = { key: string; name: string; nameAr: string; amount: number; liquidityClass: string | null };
-    const assets: Record<string, BsItem> = {};
-    const liabilities: Record<string, BsItem> = {};
-    const equityAccounts: Record<string, { key: string; name: string; nameAr: string; amount: number }> = {};
-    let retainedEarnings = 0;
+    type BsItemH = { key: string; accountId: number | null; name: string; nameAr: string; amountH: number; liquidityClass: string | null };
+    const assets: BsItemH[] = [];
+    const liabilities: BsItemH[] = [];
+    const equityAccounts: BsItemH[] = [];
+    const unmapped: BsItemH[] = [];
+    let priorPlH = 0;   // credit-positive: a profit is positive
+    let currentPlH = 0;
 
-    for (const l of lines) {
-      const cat = l.accountId ? catMap.get(l.accountId) : undefined;
-      const type = cat?.type ?? "";
-      const key = l.accountId != null ? String(l.accountId) : l.accountName;
-      const name = l.accountName;
-      const nameAr = cat?.nameAr ?? "";
-      // NULL here is UNCLASSIFIED and stays null all the way to the response —
-      // never coerced to "current", which would hide it inside a figure the
-      // Finance Hub presents as a plain-language claim.
-      const liquidityClass = cat?.liquidityClass ?? null;
-      const net = toNum(l.debit) - toNum(l.credit);
-      if (type === "asset") {
-        if (!assets[key]) assets[key] = { key, name, nameAr, amount: 0, liquidityClass };
-        assets[key].amount += net;
-      } else if (type === "liability") {
-        if (!liabilities[key]) liabilities[key] = { key, name, nameAr, amount: 0, liquidityClass };
-        liabilities[key].amount += -net;
-      } else if (type === "equity") {
-        if (!equityAccounts[key]) equityAccounts[key] = { key, name, nameAr, amount: 0 };
-        equityAccounts[key].amount += -net;
-      } else if (type === "income" || type === "revenue") {
-        retainedEarnings += toNum(l.credit) - toNum(l.debit);
-      } else if (type === "expense") {
-        retainedEarnings -= toNum(l.debit) - toNum(l.credit);
-      }
+    for (const a of accounts) {
+      const netH = a.openingH + a.debitH - a.creditH; // debit-positive closing
+      if (netH === 0 && !isPlType(a.type)) continue;
+      // NULL liquidity class is UNCLASSIFIED and stays null all the way to the
+      // response — never coerced to "current", which would hide it inside a
+      // figure the Finance Hub presents as a plain-language claim.
+      const item = { key: a.key, accountId: a.accountId, name: a.name, nameAr: a.nameAr, amountH: 0, liquidityClass: a.liquidityClass };
+      if (a.type === "asset") assets.push({ ...item, amountH: netH });
+      else if (a.type === "liability") liabilities.push({ ...item, amountH: -netH });
+      else if (a.type === "equity") equityAccounts.push({ ...item, amountH: -netH });
+      else if (isPlType(a.type)) {
+        priorPlH += -a.openingH;
+        currentPlH += -(a.debitH - a.creditH);
+      } else unmapped.push({ ...item, amountH: netH });
     }
+    // Without a declared fiscal year there is no "current year": everything is
+    // one line, and the response says why.
+    if (!fy) { priorPlH += currentPlH; currentPlH = 0; }
+    const retainedEarningsH = priorPlH + currentPlH;
 
-    // ── M13: AR and AP now come from the GENERAL LEDGER ─────────────────────
-    //
-    // 🔴 This is not a preference, it is forced. Before M13 every GL line had
-    // `account_id = NULL`, so its type was "" and it matched NO branch above —
-    // invoice lines contributed NOTHING to the balance sheet. AR was then bolted
-    // on from the `invoices` table and added straight into total assets, and the
-    // sheet balanced only because of that accident.
-    //
-    // The moment an AR line resolves to an `asset` it lands in `assets` above.
-    // Adding the bolt-on as well would DOUBLE-COUNT the entire receivable and
-    // break `balanced`. So the bolt-on is gone and the totals come from the one
-    // place that is now correct.
-    //
-    // Deliberately NOT moved to the GL: AR/AP **aging**, customer statements and
-    // customer balances. Those need a per-customer dimension that journal entry
-    // lines do not carry. They remain invoice/bill-derived. Only the
-    // balance-sheet TOTAL moves — and a permanent test asserts the two
-    // computations agree, because a divergence means something posted to AR that
-    // no invoice explains, or an invoice that never posted.
+    // ── M13: AR and AP come from the GENERAL LEDGER (by system code) ─────────
+    // AR/AP are ordinary GL accounts inside assets/liabilities; adding the
+    // document-derived totals again would DOUBLE-COUNT. AR/AP **aging** stays
+    // document-derived (it needs the per-document dimension), and a permanent
+    // test asserts the two computations agree.
     const systemIdByCode = new Map<string, number>();
     for (const c of cats) if (c.systemCode) systemIdByCode.set(c.systemCode, c.id);
-    const arKey = systemIdByCode.has("AR") ? String(systemIdByCode.get("AR")) : null;
-    const apKey = systemIdByCode.has("AP") ? String(systemIdByCode.get("AP")) : null;
-    const arBalance = fmt2(arKey && assets[arKey] ? assets[arKey].amount : 0);
-    const apBalance = fmt2(apKey && liabilities[apKey] ? liabilities[apKey].amount : 0);
+    const balanceOf = (items: BsItemH[], code: string) => {
+      const id = systemIdByCode.get(code);
+      return fromHalalas(id != null ? (items.find((i) => i.accountId === id)?.amountH ?? 0) : 0);
+    };
+    const arBalance = balanceOf(assets, "AR");
+    const apBalance = balanceOf(liabilities, "AP");
+    // the ROW keys of the AR / AP accounts, resolved by system CODE — a page
+    // marks those rows by key, never by sniffing a tenant-owned name (M18.1)
+    const keyOf = (items: BsItemH[], code: string) => { const id = systemIdByCode.get(code); return id != null && items.some((i) => i.accountId === id) ? String(id) : null; };
     /**
-     * M18.3 — the SUSPENSE balance, by system code like AR/AP above.
-     *
-     * Since flaw #1, an accepted-but-uncategorised bank line posts here. The
-     * Finance Hub needs the figure not as an asset but as a DATA-QUALITY
-     * signal: money the platform could not identify is not money you can pay
-     * with, and a non-zero balance blocks the hub's plain-language liquidity
-     * claim entirely (design §5.1, owner decision).
+     * M18.3 — SUSPENSE (an accepted-but-uncategorised bank line) and A's
+     * TRANSFER_SUSPENSE (an undeclared transfer): not liquidity, a DATA-QUALITY
+     * signal. A non-zero balance blocks the Finance Hub's plain-language
+     * liquidity claim (design §5.1, owner decision).
      */
-    const suspenseKey = systemIdByCode.has("SUSPENSE") ? String(systemIdByCode.get("SUSPENSE")) : null;
-    const suspenseBalance = fmt2(suspenseKey && assets[suspenseKey] ? assets[suspenseKey].amount : 0);
-    /**
-     * A — GL owns cash: undeclared transfers post here. Same rationale as
-     * SUSPENSE, same consequence: cash the platform cannot classify blocks
-     * the Finance Hub's liquidity claim (owner decision, 2026-08-17).
-     */
-    const transferSuspenseKey = systemIdByCode.has("TRANSFER_SUSPENSE") ? String(systemIdByCode.get("TRANSFER_SUSPENSE")) : null;
-    const transferSuspenseBalance = fmt2(transferSuspenseKey && assets[transferSuspenseKey] ? assets[transferSuspenseKey].amount : 0);
+    const suspenseBalance = balanceOf(assets, "SUSPENSE");
+    const transferSuspenseBalance = balanceOf(assets, "TRANSFER_SUSPENSE");
 
-    const assetItems = Object.values(assets).map((a) => ({ ...a, amount: fmt2(a.amount) }));
-    const liabItems = Object.values(liabilities).map((l) => ({ ...l, amount: fmt2(l.amount) }));
-    const eqItems = Object.values(equityAccounts).map((e) => ({ ...e, amount: fmt2(e.amount) }));
-
-    // AR/AP are ALREADY inside assetItems/liabItems — they are ordinary GL
-    // accounts now. Adding them again is the double count described above.
-    const totalAssets = fmt2(assetItems.reduce((s, a) => s + a.amount, 0));
-    const totalLiab = fmt2(liabItems.reduce((s, l) => s + l.amount, 0));
-    const totalEquity = fmt2(eqItems.reduce((s, e) => s + e.amount, 0) + retainedEarnings);
-    const totalLiabAndEquity = fmt2(totalLiab + totalEquity);
-    const balanced = Math.abs(totalAssets - totalLiabAndEquity) < 0.05;
+    const toItem = (i: BsItemH) => ({ key: i.key, name: i.name, nameAr: i.nameAr, amount: fromHalalas(i.amountH), liquidityClass: i.liquidityClass });
+    const sumH = (xs: BsItemH[]) => xs.reduce((s, x) => s + x.amountH, 0);
+    const totalAssetsH = sumH(assets);
+    const totalLiabH = sumH(liabilities);
+    const totalEquityH = sumH(equityAccounts) + retainedEarningsH;
+    const totalLiabAndEquityH = totalLiabH + totalEquityH;
+    const balanced = totalAssetsH === totalLiabAndEquityH && unmapped.length === 0;
 
     /**
      * ── M18.2: the current / non-current breakout ──────────────────────────
-     *
-     * 🔴 THREE buckets, not two. `unclassified` holds every balance-sheet
-     * account whose `liquidity_class` is NULL, and it is returned even when
-     * empty. An account that fits no bucket is exactly what a control surface
-     * exists to report, and the alternative — quietly folding it into
-     * `current` — would inflate the liquidity ratios by an amount nothing
-     * discloses.
-     *
-     * 🔴 The partition is the guarantee. `current + nonCurrent + unclassified`
-     * is arithmetically the same set as `items`, so
-     *
-     *     current.total + nonCurrent.total + unclassified.total === total
-     *
-     * holds by construction, and `balanced` keeps reconciling against the same
-     * totals it always did. A test asserts both — the M13 AR-agreement pattern:
-     * when one figure can be derived two ways, pin that they agree.
+     * 🔴 THREE buckets, not two (IAS 1.60 classified presentation; IAS 1.66–76).
+     * `unclassified` holds every balance-sheet account whose `liquidity_class`
+     * is NULL, returned even when empty — an account that fits no bucket is
+     * exactly what a control surface exists to report. The partition is the
+     * guarantee: current + nonCurrent + unclassified = total by construction.
      */
-    const bucket = (items: (typeof assetItems)[number][], pred: (c: string | null) => boolean) => {
-      const picked = items.filter((i) => pred(i.liquidityClass));
-      return { items: picked, total: fmt2(picked.reduce((s, i) => s + i.amount, 0)) };
-    };
     const isCurrent = (c: string | null) => c === "cash" || c === "quick" || c === "current";
     const isNonCurrent = (c: string | null) => c === "non_current";
     const isUnclassified = (c: string | null) => c == null;
-
+    const bucket = (items: BsItemH[], pred: (c: string | null) => boolean) => {
+      const picked = items.filter((i) => pred(i.liquidityClass));
+      return { items: picked.map(toItem), total: fromHalalas(sumH(picked)) };
+    };
     /** Cash + quick — the acid-test numerator the Finance Hub needs (M18.3). */
-    const quickTotal = fmt2(
-      assetItems
-        .filter((i) => i.liquidityClass === "cash" || i.liquidityClass === "quick")
-        .reduce((s, i) => s + i.amount, 0),
-    );
+    const quickTotal = fromHalalas(sumH(assets.filter((i) => i.liquidityClass === "cash" || i.liquidityClass === "quick")));
 
     return {
-      asOf: as_of ?? businessToday(),
+      asOf,
       assets: {
-        items: assetItems.sort((a, b) => b.amount - a.amount),
+        items: assets.map(toItem).sort((a, b) => b.amount - a.amount),
         accountsReceivable: arBalance,
-        total: totalAssets,
-        current: bucket(assetItems, isCurrent),
-        nonCurrent: bucket(assetItems, isNonCurrent),
-        unclassified: bucket(assetItems, isUnclassified),
+        accountsReceivableKey: keyOf(assets, "AR"),
+        total: fromHalalas(totalAssetsH),
+        current: bucket(assets, isCurrent),
+        nonCurrent: bucket(assets, isNonCurrent),
+        unclassified: bucket(assets, isUnclassified),
         quickTotal,
         suspenseBalance,
         transferSuspenseBalance,
       },
       liabilities: {
-        items: liabItems,
+        items: liabilities.map(toItem),
         accountsPayable: apBalance,
-        total: totalLiab,
-        current: bucket(liabItems, isCurrent),
-        nonCurrent: bucket(liabItems, isNonCurrent),
-        unclassified: bucket(liabItems, isUnclassified),
+        accountsPayableKey: keyOf(liabilities, "AP"),
+        total: fromHalalas(totalLiabH),
+        current: bucket(liabilities, isCurrent),
+        nonCurrent: bucket(liabilities, isNonCurrent),
+        unclassified: bucket(liabilities, isUnclassified),
       },
-      equity: { items: eqItems, retainedEarnings: fmt2(retainedEarnings), total: totalEquity },
-      totalLiabilitiesAndEquity: totalLiabAndEquity,
+      equity: {
+        items: equityAccounts.map((e) => ({ key: e.key, name: e.name, nameAr: e.nameAr, amount: fromHalalas(e.amountH) })),
+        // Σ of the two computed lines below — kept for compatibility (Finance
+        // Hub, comparisons). It is NOT the RETAINED_EARNINGS account.
+        retainedEarnings: fromHalalas(retainedEarningsH),
+        priorYearsProfit: fromHalalas(priorPlH),
+        currentYearProfit: fromHalalas(currentPlH),
+        fiscalYear: fy ? { label: fy.label, startDate: fy.startDate, endDate: fy.endDate, calendar: fy.calendar } : null,
+        total: fromHalalas(totalEquityH),
+      },
+      /** Ledger lines on no balance-sheet or P&L account type — never folded in; listed so they are seen. */
+      unmapped: unmapped.map(toItem),
+      totalLiabilitiesAndEquity: fromHalalas(totalLiabAndEquityH),
       balanced,
-      warning: balanced ? null : `Assets (${totalAssets}) ≠ Liabilities + Equity (${totalLiabAndEquity}). Check for unposted entries.`,
+      warning: balanced
+        ? null
+        : unmapped.length > 0
+          ? `${unmapped.length} ledger account(s) carry a balance but no balance-sheet or P&L type; they are listed under "unmapped".`
+          : `Assets (${fromHalalas(totalAssetsH)}) ≠ Liabilities + Equity (${fromHalalas(totalLiabAndEquityH)}).`,
     };
   },
 
+  /**
+   * D14-07 — the statement of cash flows, DIRECT method, from THE LEDGER.
+   *
+   * The pre-Phase-14 report read the bank-feed `transactions` table, which
+   * never sees a payment made through the document flows (customer receipts
+   * and supplier payments post no transaction row — `analytics.repository.ts`
+   * says so) and so could not reconcile to the cash accounts (F-01).
+   *
+   * Cash = every account with liquidity class 'cash' (the per-bank D-3 leaves,
+   * and the `CASH` header that still carries pre-D-3 history). For each
+   * in-books entry of the window that touches cash, every NON-cash line
+   * contributes −(debit − credit) to the line of its account
+   * (`classifyCashFlowAccount`); the entry balances, so the contributions sum
+   * to the cash it moved, exactly. Migration opening entries are not cash
+   * flows (D14-03): they are one reconciling line.
+   *
+   * 🔴 THE STATEMENT MUST RECONCILE (invariant H): opening cash + operating +
+   * investing + financing + transfers in transit + migration openings =
+   * closing cash, all from the GL. `reconciles` says whether it does; it is a
+   * check, never a plug.
+   *
+   * Disclosed: flows are INCLUSIVE of VAT (IFRIC 2005); VAT settled with ZATCA
+   * is its own line; interest is classified by the account it hits (IAS 7.33,
+   * the IAS 1-era policy choice). The indirect method is a roadmap item (owner,
+   * 2026-08-31).
+   */
   async cashFlow(date_from?: string, date_to?: string) {
-    // M16.2 — cash flow is the one reader that keeps transfers: an ATM
-    // withdrawal or own-account move genuinely changed the bank balance, even
-    // though no P&L or tax figure may see it.
-    const txs = await reportsRepository.txWithCategory(date_from, date_to, { includeNonOperating: true });
-    let operating = 0, investing = 0, financing = 0, internal = 0;
-    const operatingItems: any[] = [], investingItems: any[] = [], financingItems: any[] = [], internalItems: any[] = [];
-    for (const { tx, cat } of txs) {
-      const amount = tx.type === "credit" ? toNum(tx.amount) : -toNum(tx.amount);
-      // ── Audit Tier 3 (finding 8): bucket by KIND before category. A transfer
-      // carries no category BY DESIGN (the kind is the classification), so the
-      // category-type default used to file every ATM withdrawal under
-      // OPERATING as "Uncategorized" — and an internal move between two
-      // tracked accounts inflated operating inflows and outflows
-      // symmetrically. netChange was right; the sections were not. Transfers
-      // and settlements get their own section; settlements are the cash side
-      // of documents already in operating via their invoices/bills.
-      if (tx.kind !== "operating") {
-        internal += amount;
-        internalItems.push({ name: tx.kind === "transfer" ? "Transfer between own accounts" : tx.kind === "matched" ? "Reconciled to a recorded payment" : "Invoice/bill settlement", amount });
-        continue;
-      }
-      const catName = cat?.name ?? "Uncategorized";
-      const catType = cat?.type ?? "expense";
-      // 🔴 M18.1 — INVESTING is decided by the account's liquidity class, not by
-      // sniffing its NAME.
-      //
-      // This branch used to read:
-      //     catType === "asset" && cat.name.toLowerCase().includes("fixed")
-      // which is the bug class M13 removed from the posting path: resolve by
-      // CODE, never by a label the tenant owns. A tenant who renamed "Fixed
-      // Assets" to "Equipment" — or who runs the product in Arabic, where the
-      // English literal never appears — silently moved every fixed-asset
-      // purchase into OPERATING cash flow, and nothing reported it.
-      //
-      // `non_current` is the honest test: investing activity is the acquisition
-      // and disposal of non-current assets. An UNCLASSIFIED asset account
-      // (liquidity_class NULL) deliberately does NOT land here — it falls
-      // through to operating exactly as before, and the Finance Hub reports it
-      // as an unclassified account rather than this report guessing.
-      if (catType === "asset" && cat?.liquidityClass === "non_current") {
-        investing += amount;
-        investingItems.push({ name: catName, amount });
-      } else if (catType === "liability") {
-        financing += amount;
-        financingItems.push({ name: catName, amount });
-      } else {
-        operating += amount;
-        operatingItems.push({ name: catName, amount });
-      }
+    const { from, to } = reportWindow(date_from, date_to);
+    const cats = await reportsRepository.allCategories();
+    const catMap = new Map(cats.map((c) => [c.id, c]));
+    const cashIds = cats.filter((c) => c.liquidityClass === "cash").map((c) => c.id);
+
+    const [contribs, migration, openingRows, closingRows, faAccounts] = await Promise.all([
+      reportsRepository.cashFlowContributions(from, to, cashIds),
+      reportsRepository.cashFromOpeningSources(from, to, cashIds),
+      from ? ledgerAccounts({ to: dayBefore(from), accountIds: cashIds }, cats) : Promise.resolve([] as LedgerAccount[]),
+      ledgerAccounts({ to, accountIds: cashIds }, cats),
+      reportsRepository.fixedAssetAccounts(),
+    ]);
+    const fixedAssetIds = new Set(faAccounts.flatMap((r) => [r.cost, r.accumulated]));
+    const cashBalanceH = (rows: LedgerAccount[]) => rows.reduce((s, r) => s + r.openingH + r.debitH - r.creditH, 0);
+    const openingCashH = cashBalanceH(openingRows);
+    const closingCashH = cashBalanceH(closingRows);
+    const migrationH = toHalalas(migration[0]?.amount ?? "0");
+
+    type Detail = { key: string; name: string; nameAr: string; amountH: number };
+    const lines = new Map<CashFlowLine, Detail[]>();
+    for (const c of contribs) {
+      const cat = c.accountId != null ? catMap.get(c.accountId) : undefined;
+      const line = classifyCashFlowAccount({ type: cat?.type, liquidityClass: cat?.liquidityClass, systemCode: cat?.systemCode, fixedAsset: c.accountId != null && fixedAssetIds.has(c.accountId) });
+      const amountH = toHalalas(c.amount);
+      if (amountH === 0) continue;
+      if (!lines.has(line)) lines.set(line, []);
+      lines.get(line)!.push({
+        key: c.accountId != null ? String(c.accountId) : (c.legacyName ?? "(no account)"),
+        name: cat?.name ?? c.legacyName ?? "(no account)",
+        nameAr: cat?.nameAr ?? "",
+        amountH,
+      });
     }
+    const section = (activity: CashFlowActivity) => {
+      const items = (Object.keys(CASH_FLOW_LINE_ACTIVITY) as CashFlowLine[])
+        .filter((l) => CASH_FLOW_LINE_ACTIVITY[l] === activity && lines.has(l))
+        .map((l) => {
+          const accounts = lines.get(l)!.sort((a, b) => Math.abs(b.amountH) - Math.abs(a.amountH));
+          const amountH = accounts.reduce((s, a) => s + a.amountH, 0);
+          return {
+            key: l, name: CASH_FLOW_LINE_LABEL[l].en, nameAr: CASH_FLOW_LINE_LABEL[l].ar, amount: fromHalalas(amountH), amountH,
+            accounts: accounts.map((a) => ({ key: a.key, name: a.name, nameAr: a.nameAr, amount: fromHalalas(a.amountH) })),
+          };
+        });
+      const totalH = items.reduce((s, i) => s + i.amountH, 0);
+      return { total: fromHalalas(totalH), totalH, items: items.map(({ amountH: _h, ...rest }) => rest) };
+    };
+    const operating = section("operating");
+    const investing = section("investing");
+    const financing = section("financing");
+    const internal = section("internal");
+    const netActivitiesH = operating.totalH + investing.totalH + financing.totalH;
+    const explainedH = openingCashH + netActivitiesH + internal.totalH + migrationH;
+    const strip = (s: typeof operating) => ({ total: s.total, items: s.items });
     return {
-      operating: { total: fmt2(operating), items: operatingItems },
-      investing: { total: fmt2(investing), items: investingItems },
-      financing: { total: fmt2(financing), items: financingItems },
-      /** Transfers + settlements — the bank moved; no P&L activity occurred. */
-      internal: { total: fmt2(internal), items: internalItems },
-      netChange: fmt2(operating + investing + financing + internal),
+      window: { from: from ?? null, to: to ?? null },
+      method: "direct" as const,
+      vatBasis: "inclusive" as const,
+      openingCash: fromHalalas(openingCashH),
+      operating: strip(operating),
+      investing: strip(investing),
+      financing: strip(financing),
+      /** Own-account transfers still in transit at the window's end (TRANSFER_CLEARING) — not a cash flow (IAS 7.9). */
+      internal: strip(internal),
+      /** Cash brought in by a migration's opening journal inside the window — an opening balance, not a flow. */
+      migrationOpeningCash: fromHalalas(migrationH),
+      /** Net cash from operating + investing + financing. */
+      netCashFromActivities: fromHalalas(netActivitiesH),
+      /** Closing − opening cash, from the GL. */
+      netChange: fromHalalas(closingCashH - openingCashH),
+      closingCash: fromHalalas(closingCashH),
+      reconciles: explainedH === closingCashH,
+      limitations: ["L-CF1", "L-CF2"],
     };
   },
 
@@ -367,106 +589,104 @@ export const reportsService = {
     return { entries: result, count: result.length, grandDebit, grandCredit, balanced: Math.abs(grandDebit - grandCredit) <= GL_BALANCE_TOLERANCE };
   },
 
-  async generalLedger(account_id?: string, account_name?: string, date_from?: string, date_to?: string) {
-    let openingBalance = 0;
-    if (date_from && (account_id || account_name)) {
-      const preLines = await reportsRepository.glPreLines(date_from, account_id, account_name);
-      openingBalance = fmt2(preLines.reduce((s, l) => s + toNum(l.debit) - toNum(l.credit), 0));
-    }
-
-    const rows = await reportsRepository.glRows(date_from, date_to, account_id, account_name);
-
-    let running = openingBalance;
-    const movements = rows.map((r) => {
-      const d = toNum(r.debit), c = toNum(r.credit);
-      running = fmt2(running + d - c);
-      return { date: r.date, entryNumber: r.entryNumber, jeId: r.jeId, description: r.lineDesc ?? r.description, reference: r.reference, accountName: r.accountName, accountId: r.accountId, debit: fmt2(d), credit: fmt2(c), balance: running };
-    });
-
+  /**
+   * The general ledger: an opening, the lines of the window in date order with
+   * a running balance, and a closing — exact (integer halalas).
+   *
+   * - The opening is computed when the ledger is scoped (an account, or a
+   *   party): an unscoped all-accounts ledger has no meaningful running
+   *   balance, so it opens at 0 (as before).
+   * - D14-11: `party` filters to the lines that NAME one customer or vendor
+   *   (the N3 dimension); the opening applies the same filter.
+   * - D14-09: every row carries `jeId`, the drill-down target.
+   */
+  async generalLedger(account_id?: string, account_name?: string, date_from?: string, date_to?: string, party?: GlParty) {
+    const { from, to } = reportWindow(date_from, date_to);
+    const accountId = account_id != null && account_id !== "" ? reportAccountId(account_id) : undefined;
     const cats = await reportsRepository.allCategories();
     const catMap = new Map(cats.map((c) => [c.id, c]));
-    const enrichedMovements = movements.map((m) => ({ ...m, accountNameAr: (m.accountId ? catMap.get(m.accountId)?.nameAr : undefined) ?? "" }));
+    const cat = accountId != null ? catMap.get(accountId) : undefined;
 
-    const firstCat = rows[0]?.accountId ? catMap.get(rows[0].accountId) : undefined;
+    // D14-09 — the ledger a trial-balance row drills into OPENS ON THAT ROW'S
+    // OPENING: an income or expense account starts at the fiscal year
+    // containing `from` (the TB's P&L reset), and migration opening entries
+    // are opening, not movement (D14-03). Otherwise the link would land on a
+    // different question than the row the reader clicked (§3).
+    let plResetFrom: string | null = null;
+    if (from && cat && isPlType(cat.type)) {
+      const settings = await fiscalSettings();
+      if (settings) plResetFrom = fiscalYearContaining(settings, from).startDate;
+    }
+    let openingH = 0;
+    if (accountId != null || account_name || party) {
+      const [o] = await reportsRepository.glOpening({ from, to, notBefore: plResetFrom ?? undefined, accountId, accountName: account_name, party });
+      openingH = toHalalas(o?.amount);
+    }
+
+    const rows = await reportsRepository.glRows(from, to, accountId != null ? String(accountId) : undefined, account_name, party);
+
+    let runningH = openingH, debitH = 0, creditH = 0;
+    const movements = rows.map((r) => {
+      const d = toHalalas(r.debit), c = toHalalas(r.credit);
+      runningH += d - c; debitH += d; creditH += c;
+      return {
+        date: r.date, entryNumber: r.entryNumber, jeId: r.jeId,
+        description: r.lineDesc ?? r.description, reference: r.reference,
+        accountName: r.accountName, accountId: r.accountId,
+        accountNameAr: (r.accountId ? catMap.get(r.accountId)?.nameAr : undefined) ?? "",
+        partyType: r.partyType, customerId: r.customerId, vendorId: r.vendorId,
+        debit: fromHalalas(d), credit: fromHalalas(c), balance: fromHalalas(runningH),
+      };
+    });
+
     return {
-      accountId: account_id ? Number(account_id) : null,
-      accountName: account_name ?? rows[0]?.accountName ?? "All Accounts",
-      accountNameAr: firstCat?.nameAr ?? "",
-      openingBalance,
-      movements: enrichedMovements,
-      closingBalance: fmt2(running),
-      totalDebit: fmt2(enrichedMovements.reduce((s, m) => s + m.debit, 0)),
-      totalCredit: fmt2(enrichedMovements.reduce((s, m) => s + m.credit, 0)),
+      window: { from: from ?? null, to: to ?? null },
+      plResetFrom,
+      accountId: accountId ?? null,
+      accountName: cat?.name ?? account_name ?? rows[0]?.accountName ?? "All Accounts",
+      accountNameAr: cat?.nameAr ?? "",
+      party: party ?? null,
+      openingBalance: fromHalalas(openingH),
+      movements,
+      closingBalance: fromHalalas(runningH),
+      totalDebit: fromHalalas(debitH),
+      totalCredit: fromHalalas(creditH),
     };
   },
 
   async accountStatement(account_id?: string, account_name?: string, date_from?: string, date_to?: string) {
     if (!account_id && !account_name) throw new BadRequestError("account_id or account_name is required");
-
-    let openingBalance = 0;
-    if (date_from) {
-      const pre = await reportsRepository.acctStmtPre(date_from, account_id, account_name);
-      openingBalance = fmt2(pre.reduce((s, l) => s + toNum(l.d) - toNum(l.c), 0));
-    }
-
-    const rows = await reportsRepository.acctStmtRows(date_from, date_to, account_id, account_name);
-    let running = openingBalance;
-    const movements = rows.map((r) => {
-      const d = toNum(r.debit), c = toNum(r.credit);
-      running = fmt2(running + d - c);
-      return { date: r.date, entryNumber: r.entryNumber, reference: r.reference, description: r.lineDesc ?? r.description, debit: fmt2(d), credit: fmt2(c), balance: running };
-    });
-
-    const cat = account_id ? await reportsRepository.categoryById(Number(account_id)) : [];
+    // D14-09 — ONE definition of an account's opening and movements: the
+    // statement is the general ledger for one account, in its own shape.
+    const gl = await reportsService.generalLedger(account_id, account_name, date_from, date_to);
+    const cat = gl.accountId != null ? await reportsRepository.categoryById(gl.accountId) : [];
     return {
       account: cat[0] ?? { name: account_name ?? "Unknown", type: "other" },
-      openingBalance,
-      movements,
-      closingBalance: running,
-      totalDebit: fmt2(movements.reduce((s, m) => s + m.debit, 0)),
-      totalCredit: fmt2(movements.reduce((s, m) => s + m.credit, 0)),
+      openingBalance: gl.openingBalance,
+      movements: gl.movements.map((m) => ({ date: m.date, entryNumber: m.entryNumber, reference: m.reference, description: m.description, debit: m.debit, credit: m.credit, balance: m.balance })),
+      closingBalance: gl.closingBalance,
+      totalDebit: gl.totalDebit,
+      totalCredit: gl.totalCredit,
     };
   },
 
   async accountSummary(date_from?: string, date_to?: string) {
-    const openMap = new Map<string, number>();
-    if (date_from) {
-      const pre = await reportsRepository.acctSummaryPre(date_from);
-      for (const l of pre) {
-        const k = l.accountId != null ? String(l.accountId) : l.accountName;
-        openMap.set(k, (openMap.get(k) ?? 0) + toNum(l.debit) - toNum(l.credit));
-      }
-    }
-
-    const period = await reportsRepository.acctSummaryPeriod(date_from, date_to);
-    const cats = await reportsRepository.allCategories();
-    const catMap = new Map(cats.map((c) => [c.id, c]));
-
-    const accs = new Map<string, { name: string; type: string; opening: number; debit: number; credit: number }>();
-    const allKeys = new Set([...openMap.keys(), ...period.map((l) => (l.accountId != null ? String(l.accountId) : l.accountName))]);
-    for (const k of allKeys) {
-      const sampleLine = period.find((l) => (l.accountId != null ? String(l.accountId) : l.accountName) === k);
-      const cat = sampleLine?.accountId ? catMap.get(sampleLine.accountId) : undefined;
-      accs.set(k, { name: sampleLine?.accountName ?? k, type: cat?.type ?? "other", opening: openMap.get(k) ?? 0, debit: 0, credit: 0 });
-    }
-    for (const l of period) {
-      const k = l.accountId != null ? String(l.accountId) : l.accountName;
-      if (!accs.has(k)) accs.set(k, { name: l.accountName, type: "other", opening: 0, debit: 0, credit: 0 });
-      const a = accs.get(k)!;
-      a.debit += toNum(l.debit);
-      a.credit += toNum(l.credit);
-    }
-
-    const rows = Array.from(accs.entries()).map(([, a]) => ({
+    // ONE definition (accounting review M3, 2026-10-01): the summary is the trial balance's rows —
+    // the same P&L reset at the fiscal-year start, the same prior-years row — in the summary's shape.
+    // It used to sum its own way and disagreed with the TB for the same dates.
+    const tb = await reportsService.trialBalance(date_from, date_to);
+    const rows = tb.accounts.map((a) => ({
+      key: a.key,
+      accountId: a.accountId,
       name: a.name,
+      nameAr: a.nameAr,
       type: a.type,
-      openingBalance: fmt2(a.opening),
-      periodDebit: fmt2(a.debit),
-      periodCredit: fmt2(a.credit),
-      closingBalance: fmt2(a.opening + a.debit - a.credit),
-    })).sort((a, b) => a.name.localeCompare(b.name));
-
-    return { accounts: rows, count: rows.length };
+      openingBalance: a.openingBalance,
+      periodDebit: a.debit,
+      periodCredit: a.credit,
+      closingBalance: a.closingBalance,
+    }));
+    return { window: tb.window, accounts: rows, count: rows.length };
   },
 
   async customerLedger(customer_id?: string, date_from?: string, date_to?: string) {
@@ -533,193 +753,229 @@ export const reportsService = {
     };
   },
 
+  /**
+   * Changes in equity over a window (IAS 1.106: for each component, a
+   * reconciliation from opening to closing showing profit or loss separately).
+   *
+   * 🔴 F-11 (fixed 2026-10-01): opening equity used to count only the equity
+   * ACCOUNTS before `date_from`, leaving out every profit earned before the
+   * window — so "closing equity" never equalled the balance sheet's total
+   * equity, the figure this statement exists to reconcile to. Opening equity
+   * is now equity accounts + all profit or loss before the window, and the
+   * closing figure equals `balanceSheet(date_to).equity.total` exactly (a
+   * test asserts it).
+   *
+   * Migration opening entries are OPENING (D14-03): the cut-over equity is the
+   * position brought in, not a capital contribution of the window.
+   * Contributions / withdrawals are the gross credits / debits on equity
+   * accounts in the window (each ledger line is one-sided).
+   */
   async ownerEquity(date_from?: string, date_to?: string) {
-    let openingEquity = 0;
-    if (date_from) {
-      const cats = await reportsRepository.categoriesByType("equity");
-      if (cats.length > 0) {
-        const catIds = cats.map((c) => c.id);
-        const pre = await reportsRepository.ownerEquityPre(date_from);
-        openingEquity = fmt2(pre.filter((l) => l.accountId && catIds.includes(l.accountId)).reduce((s, l) => s + toNum(l.c) - toNum(l.d), 0));
+    const { from, to } = reportWindow(date_from, date_to);
+    const accounts = await ledgerAccounts({ from, to, openingSourcesAsOpening: true });
+    let openingH = 0, revenueH = 0, expensesH = 0, contributionsH = 0, withdrawalsH = 0;
+    for (const a of accounts) {
+      if (a.type === "equity") {
+        openingH += -a.openingH;
+        contributionsH += a.creditH;
+        withdrawalsH += a.debitH;
+      } else if (isIncomeType(a.type)) {
+        openingH += -a.openingH;
+        revenueH += a.creditH - a.debitH;
+      } else if (a.type === "expense") {
+        openingH += -a.openingH;
+        expensesH += a.debitH - a.creditH;
       }
     }
-
-    const lines = await reportsRepository.ownerEquityIncomeLines(date_from, date_to);
-    const allCats = await reportsRepository.allCategories();
-    const catMap = new Map(allCats.map((c) => [c.id, c]));
-
-    let revenue = 0, expenses = 0, contributions = 0, withdrawals = 0;
-    for (const l of lines) {
-      const cat = l.accountId ? catMap.get(l.accountId) : undefined;
-      if (!cat) continue;
-      if (cat.type === "income" || cat.type === "revenue") revenue += toNum(l.credit) - toNum(l.debit);
-      if (cat.type === "expense") expenses += toNum(l.debit) - toNum(l.credit);
-      if (cat.type === "equity") {
-        const net = toNum(l.credit) - toNum(l.debit);
-        if (net > 0) contributions += net;
-        else withdrawals += -net;
-      }
-    }
-
-    const netIncome = fmt2(revenue - expenses);
-    const closingEquity = fmt2(openingEquity + netIncome + contributions - withdrawals);
+    const netIncomeH = revenueH - expensesH;
+    const closingH = openingH + netIncomeH + contributionsH - withdrawalsH;
+    const openingEquity = fromHalalas(openingH);
+    const netIncome = fromHalalas(netIncomeH);
+    const closingEquity = fromHalalas(closingH);
     return {
-      period: { from: date_from ?? "all", to: date_to ?? "all" },
-      openingEquity, netIncome, contributions: fmt2(contributions), withdrawals: fmt2(withdrawals), closingEquity,
+      period: { from: from ?? "all", to: to ?? "all" },
+      openingEquity, netIncome, contributions: fromHalalas(contributionsH), withdrawals: fromHalalas(withdrawalsH), closingEquity,
       // `key` is the contract; `label` is the English fallback. The page
       // translates by key — it used to match SUBSTRINGS of the English label
       // (D's English-coupling count, instance 6; closed 2026-09-15).
       breakdown: [
         { key: "openingEquity", label: "Opening Equity", amount: openingEquity },
         { key: "netIncome", label: "Net Income / (Loss)", amount: netIncome },
-        { key: "contributions", label: "Capital Contributions", amount: contributions },
-        { key: "withdrawals", label: "Withdrawals / Drawings", amount: -withdrawals },
+        { key: "contributions", label: "Capital Contributions", amount: fromHalalas(contributionsH) },
+        { key: "withdrawals", label: "Withdrawals / Drawings", amount: fromHalalas(-withdrawalsH) },
         { key: "closingEquity", label: "Closing Equity", amount: closingEquity },
       ],
     };
   },
 
-  async arAging() {
-    // 🔴 Phase 11 B6 (2026-09-22): the business day, not the server's.
-    // `new Date()` buckets on the machine's midnight, so between 00:00 and
-    // 03:00 Riyadh a document was one day younger than it is here — the
-    // night-window class this platform already fixed on its write paths
-    // (`businessToday()`, Asia/Riyadh, the one definition in
-    // @workspace/shared). Both due dates and today are read as calendar days,
-    // so the difference is whole days with no zone left in it.
-    const today = new Date(`${businessToday()}T00:00:00Z`);
+  /**
+   * AR ageing AS OF a date (D14-08).
+   *
+   * - No date, or the business day: TODAY's ageing from the subledger caches
+   *   (paid / credited / written-off amounts and the current customer
+   *   positions) — unless an event dated after today moved a figure they hold
+   *   (F-25: a post-dated payment or note), when it is the replay below.
+   * - A past date: the SAME documents, with what each still owed ON THAT DATE,
+   *   rebuilt by replaying the customer-statement events up to it
+   *   (`customerStatementRepository.events(null, { upTo })` — the one
+   *   definition of "what moved the receivable"; an allocation is effective on
+   *   the date of the journal it posted). Customer credits and deposits beside
+   *   the buckets are replayed the same way.
+   * PRECEDENT: Odoo 13 aged partner balance rebuilds the residual from
+   * reconciliations dated on or before the as-of date and ages on
+   * COALESCE(date_maturity, date); ERPNext `accounts_receivable.py`
+   * `report_date` excludes later payments and ages on due date.
+   * Invariants (F): at today both paths agree; at any date the buckets net of
+   * the credits and deposits tie to the GL (a test pins both).
+   */
+  async arAging(as_of?: string) {
+    const today = businessToday();
+    const asOf = reportDate(as_of, "as_of") ?? today;
+    // An ageing is a fact about a day that has happened: a future as-of date
+    // would age TODAY's balances at a date nobody has seen. Refused, not guessed.
+    if (asOf > today) throw new BadRequestError(`as_of (${asOf}) is in the future; an ageing can be taken up to today (${today}).`);
+    // 🔴 Phase 11 B6: the business day, never the server's — due dates and
+    // the as-of date are calendar days, so the difference is whole days.
+    const asOfDay = new Date(`${asOf}T00:00:00Z`);
     const rows = await reportsRepository.invoicesWithCustomer();
-    const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
-    const items: any[] = [];
+    const docs = rows.filter(({ inv }) => inv.documentType !== "credit_note" && !isVatOnlyDocumentType(inv.documentType));
 
+    let outstandingById: Map<number, number>; // halalas
+    let creditsH: number, depositsH: number;
     /**
-     * ── Audit Tier 3 (finding 6): credit notes are NETTED into their original,
-     * not listed as separate aged rows. ──────────────────────────────────────
-     *
-     * Pre-fix, aging showed the original at `total − paid` and the credit note
-     * as its own negative row. The bucket TOTALS netted correctly (the M12.1b
-     * sign discipline), but per-document outstanding disagreed with what the
-     * customer actually owes — and once `pay` became credit-aware, the two
-     * views had to be unified or a paid-off credited invoice would leave its
-     * offsetting +X/−X pair in the items list forever.
-     *
-     * Each document now ages at its TRUE outstanding:
-     *   invoice / debit note:  total − paid − Σ(approved credit notes vs it)
-     * A negative outstanding is SHOWN (a fully-paid invoice later credited is
-     * a refund owed to the customer — hiding it would desync aging from
-     * GL-based balance-sheet AR, the exact drift M12.1b warns about). The
-     * `status === 'paid'` skip is gone for the same reason: paid-then-credited
-     * must surface; an ordinarily-paid invoice nets to 0 and drops out on the
-     * magnitude test alone.
+     * 🔴 F-25 (pre-merge audit, 2026-10-02): the subledger caches hold EVERY settlement whatever
+     * its accounting date, so a payment or credit note dated AFTER the as-of date (a post-dated
+     * cheque) took its invoice out of TODAY's ageing while the GL — and the balance sheet as of
+     * today — still carried it. D14-02: a settlement counts from its effective date, and the
+     * replay is the one definition of that. The cache is read only while no event dated after
+     * as_of touches a figure it shows (a later document's own issue does not: it is skipped below).
      */
-    /**
-     * D-4 (2026-09-17): `credited` is the invoice's `credited_amount` — the
-     * cache of credit-note ALLOCATIONS to it (its original's note at issue,
-     * or any note applied to it later). A note's unapplied remainder is no
-     * longer a negative receivable: it is a liability (Customer credit
-     * balances) and never appears here, so every aged amount is ≥ 0 and the
-     * total still equals GL AR. The "paid-then-credited shows −X" behaviour
-     * this replaced was the AR-credit model the accountant excluded.
-     */
-    for (const { inv, cust } of rows) {
-      if (inv.documentType === "credit_note") continue; // a note is applied to invoices; it is not itself receivable
-      if (isVatOnlyDocumentType(inv.documentType)) continue; // AP-2/AP-3/Art. 40(9): a VAT-only document declares VAT on cash already received; nothing is owed on it
-      const credited = toNum(inv.creditedAmount);
-      const outstanding = Math.round((toNum(inv.total) - toNum(inv.paidAmount) - credited - toNum(inv.writtenOffAmount)) * 100) / 100;
-      if (Math.abs(outstanding) < 0.01) continue;
-      const due = new Date(`${inv.dueDate ?? inv.date}T00:00:00Z`);
-      const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
-      // 🔴 A NEGATIVE balance is a credit OWED TO the customer (2026-09-15, walk
-      // item 7). It is shown — hiding it would desync aging from GL AR — but it
-      // is not "past due": nobody owes us, so it carries no days and sits in
-      // "current". The old code aged it by the original's due date, and a
-      // refunded invoice read as "77 days overdue" with a minus sign.
-      const agedDays = outstanding > 0 ? daysPast : 0;
-      items.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, customerName: cust?.name ?? "Unknown", customerNameAr: cust?.nameAr ?? "", dueDate: inv.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, agedDays) });
-      if (agedDays <= 0) buckets.current += outstanding;
-      else if (agedDays <= 30) buckets.days_1_30 += outstanding;
-      else if (agedDays <= 60) buckets.days_31_60 += outstanding;
-      else if (agedDays <= 90) buckets.days_61_90 += outstanding;
-      else buckets.over_90 += outstanding;
+    let events: Awaited<ReturnType<typeof customerStatementRepository.events>> | null = null;
+    if (asOf < today) events = await customerStatementRepository.events(null, { upTo: asOf });
+    else {
+      const all = await customerStatementRepository.events(null);
+      const docDate = new Map(docs.map(({ inv }) => [inv.id, inv.date]));
+      const cacheAhead = all.some((e) => e.date > asOf && (e.creditDelta !== 0 || e.depositDelta !== 0
+        || (e.receivableDelta !== 0 && e.invoiceId != null && (docDate.get(e.invoiceId) ?? "") <= asOf)));
+      if (cacheAhead) events = all.filter((e) => e.date <= asOf);
     }
-    const fmtBuckets = Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, fmt2(v)]));
-    const total = fmt2(Object.values(buckets).reduce((s, v) => s + v, 0));
-    // Phase E (2026-09-17): the ageing carries ONLY real receivable exposure
-    // (every item ≥ 0). What we owe customers is shown BESIDE it — two
-    // liability totals from the same position definition the customer row
-    // uses — and the net is derived, never folded into a bucket.
-    const positions = await customersRepository.customerBalances();
-    const customerCredits = fmt2(positions.reduce((s, p) => s + p.creditBalance, 0));
-    const customerDeposits = fmt2(positions.reduce((s, p) => s + p.depositBalance, 0));
+    if (events == null) {
+      outstandingById = new Map(docs.map(({ inv }) => [inv.id,
+        toHalalas(inv.total) - toHalalas(inv.paidAmount) - toHalalas(inv.creditedAmount) - toHalalas(inv.writtenOffAmount)]));
+      const positions = await customersRepository.customerBalances();
+      creditsH = positions.reduce((s, p) => s + toHalalas(p.creditBalance), 0);
+      depositsH = positions.reduce((s, p) => s + toHalalas(p.depositBalance), 0);
+    } else {
+      outstandingById = new Map();
+      creditsH = 0; depositsH = 0;
+      for (const e of events) {
+        if (e.invoiceId != null && e.receivableDelta !== 0) outstandingById.set(e.invoiceId, (outstandingById.get(e.invoiceId) ?? 0) + toHalalas(e.receivableDelta));
+        creditsH += toHalalas(e.creditDelta);
+        depositsH += toHalalas(e.depositDelta);
+      }
+    }
+
+    const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
+    const items: { id: number; invoiceNumber: string; customerName: string; customerNameAr: string; dueDate: string | null; outstanding: number; daysPastDue: number }[] = [];
+    for (const { inv, cust } of docs) {
+      if (inv.date > asOf) continue; // not yet issued on the as-of date
+      const outH = outstandingById.get(inv.id) ?? 0;
+      if (Math.abs(outH) < 1) continue;
+      const due = new Date(`${inv.dueDate ?? inv.date}T00:00:00Z`);
+      const daysPast = Math.floor((asOfDay.getTime() - due.getTime()) / 86400000);
+      const agedDays = outH > 0 ? daysPast : 0;
+      items.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, customerName: cust?.name ?? "Unknown", customerNameAr: cust?.nameAr ?? "", dueDate: inv.dueDate, outstanding: fromHalalas(outH), daysPastDue: Math.max(0, agedDays) });
+      bucketInto(buckets, agedDays, outH);
+    }
+    const totalH = Object.values(buckets).reduce((s, v) => s + v, 0);
     return {
-      buckets: fmtBuckets,
-      total,
-      liabilities: { customerCredits, customerDeposits },
-      netCustomerPosition: fmt2(total - customerCredits - customerDeposits),
+      asOf,
+      basis: events == null ? ("subledger" as const) : ("events" as const),
+      buckets: halalaBuckets(buckets),
+      total: fromHalalas(totalH),
+      liabilities:{ customerCredits: fromHalalas(creditsH), customerDeposits: fromHalalas(depositsH) },
+      netCustomerPosition: fromHalalas(totalH - creditsH - depositsH),
       items: items.sort((a, b) => b.daysPastDue - a.daysPastDue),
     };
   },
 
-  async apAging() {
-    // 🔴 Phase 11 B6 (2026-09-22): the business day, not the server's.
-    // `new Date()` buckets on the machine's midnight, so between 00:00 and
-    // 03:00 Riyadh a document was one day younger than it is here — the
-    // night-window class this platform already fixed on its write paths
-    // (`businessToday()`, Asia/Riyadh, the one definition in
-    // @workspace/shared). Both due dates and today are read as calendar days,
-    // so the difference is whole days with no zone left in it.
-    const today = new Date(`${businessToday()}T00:00:00Z`);
+  /**
+   * AP ageing AS OF a date (D14-08) — the same two paths as AR. Today: what
+   * each bill OWES by `billPosition`'s one definition, and the supplier
+   * positions. A past date — or today when an event dated after it moved a
+   * cached figure (F-25) — the supplier-statement events replayed up to it.
+   * Supplier money held on account (advances, deposits, unidentified) is one
+   * figure on the replay — the events carry it as one component — and is
+   * itemised only from the cache, where the classified positions exist.
+   */
+  async apAging(as_of?: string) {
+    const today = businessToday();
+    const asOf = reportDate(as_of, "as_of") ?? today;
+    // An ageing is a fact about a day that has happened: a future as-of date
+    // would age TODAY's balances at a date nobody has seen. Refused, not guessed.
+    if (asOf > today) throw new BadRequestError(`as_of (${asOf}) is in the future; an ageing can be taken up to today (${today}).`);
+    const asOfDay = new Date(`${asOf}T00:00:00Z`);
     const rows = await reportsRepository.billsWithVendor();
-    /**
-     * 🔴 B6 (2026-09-22) — THE AGEING NOW AGES WHAT IS ACTUALLY OWED. It
-     * read `total − paid_amount`, which is the LEGACY per-bill counter alone:
-     * an advance applied to a bill, a payment recorded through the AP
-     * subledger and a supplier credit note all left the bill looking fully
-     * unpaid. It is the AR ageing's twin now, and each correction is a
-     * separate fact:
-     *
-     *   · allocations — payments and applied credit notes, LIVE ones only, so
-     *     a reversed allocation puts the exposure back where it belongs;
-     *   · a CREDIT NOTE is skipped as a row: it is applied to bills, it is not
-     *     itself payable, and ageing it would double-count the reduction it
-     *     already made;
-     *   · a DEBIT note ages like a bill — an additional charge, with its own
-     *     date and its own due date.
-     *
-     * 🔴 And what the SUPPLIER holds is shown BESIDE the buckets, never
-     * folded into them: an advance is an asset, not a negative payable, and
-     * netting it into a bucket would make an overdue bill read as less overdue
-     * because unrelated money is sitting with the same supplier.
-     */
-    const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
-    const items: any[] = [];
-    for (const { bill, vendor, outstanding: owed } of rows) {
-      if (bill.documentType === "credit_note") continue;
-      // What the bill still owes, from the one definition (repositories/billPosition).
-      const outstanding = Math.round(toNum(owed) * 100) / 100;
-      if (outstanding < 0.01) continue;
-      const due = new Date(`${bill.dueDate ?? bill.date}T00:00:00Z`);
-      const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000);
-      items.push({ id: bill.id, billNumber: bill.billNumber, documentType: bill.documentType, vendorName: vendor?.name ?? "Unknown", vendorNameAr: vendor?.nameAr ?? "", dueDate: bill.dueDate, outstanding: fmt2(outstanding), daysPastDue: Math.max(0, daysPast) });
-      if (daysPast <= 0) buckets.current += outstanding;
-      else if (daysPast <= 30) buckets.days_1_30 += outstanding;
-      else if (daysPast <= 60) buckets.days_31_60 += outstanding;
-      else if (daysPast <= 90) buckets.days_61_90 += outstanding;
-      else buckets.over_90 += outstanding;
+    const docs = rows.filter(({ bill }) => bill.documentType !== "credit_note");
+
+    let owedById: Map<number, number>;
+    let creditsH: number;
+    let onAccount: { supplierAdvances: number | null; supplierDeposits: number | null; unidentifiedPayments: number | null; totalH: number };
+    // 🔴 F-25 — the same rule as the AR ageing: a settlement dated after as_of is not yet in it.
+    let events: Awaited<ReturnType<typeof supplierStatementRepository.events>> | null = null;
+    if (asOf < today) events = await supplierStatementRepository.events(null, { upTo: asOf });
+    else {
+      const all = await supplierStatementRepository.events(null);
+      const docDate = new Map(docs.map(({ bill }) => [bill.id, bill.date]));
+      const cacheAhead = all.some((e) => e.date > asOf && (e.creditDelta !== 0 || e.onAccountDelta !== 0
+        || (e.payableDelta !== 0 && e.billId != null && (docDate.get(e.billId) ?? "") <= asOf)));
+      if (cacheAhead) events = all.filter((e) => e.date <= asOf);
     }
-    const fmtBuckets = Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, fmt2(v)]));
-    const total = fmt2(Object.values(buckets).reduce((s, v) => s + v, 0));
-    // What the SUPPLIER holds, from the one definition of a supplier position.
-    const positions = await supplierStatementService.positions();
-    const supplierCredits = fmt2(positions.items.reduce((s, p) => s + p.creditBalance, 0));
-    const supplierAdvances = fmt2(positions.items.reduce((s, p) => s + p.advanceBalance, 0));
-    const supplierDeposits = fmt2(positions.items.reduce((s, p) => s + p.depositBalance, 0));
-    const unidentifiedPayments = fmt2(positions.items.reduce((s, p) => s + p.unidentifiedBalance, 0));
+    if (events == null) {
+      owedById = new Map(docs.map(({ bill, outstanding }) => [bill.id, toHalalas(outstanding)]));
+      const positions = await supplierStatementService.positions();
+      creditsH = positions.items.reduce((s, p) => s + toHalalas(p.creditBalance), 0);
+      const adv = positions.items.reduce((s, p) => s + toHalalas(p.advanceBalance), 0);
+      const dep = positions.items.reduce((s, p) => s + toHalalas(p.depositBalance), 0);
+      const uni = positions.items.reduce((s, p) => s + toHalalas(p.unidentifiedBalance), 0);
+      onAccount = { supplierAdvances: fromHalalas(adv), supplierDeposits: fromHalalas(dep), unidentifiedPayments: fromHalalas(uni), totalH: adv + dep + uni };
+    } else {
+      owedById = new Map();
+      creditsH = 0;
+      let onAccountH = 0;
+      for (const e of events) {
+        if (e.billId != null && e.payableDelta !== 0) owedById.set(e.billId, (owedById.get(e.billId) ?? 0) + toHalalas(e.payableDelta));
+        creditsH += toHalalas(e.creditDelta);
+        onAccountH += toHalalas(e.onAccountDelta);
+      }
+      onAccount = { supplierAdvances: null, supplierDeposits: null, unidentifiedPayments: null, totalH: onAccountH };
+    }
+
+    const buckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 };
+    const items: { id: number; billNumber: string; documentType: string; vendorName: string; vendorNameAr: string; dueDate: string | null; outstanding: number; daysPastDue: number }[] = [];
+    for (const { bill, vendor } of docs) {
+      if (bill.date > asOf) continue;
+      const owedH = owedById.get(bill.id) ?? 0;
+      if (owedH < 1) continue;
+      const due = new Date(`${bill.dueDate ?? bill.date}T00:00:00Z`);
+      const daysPast = Math.floor((asOfDay.getTime() - due.getTime()) / 86400000);
+      items.push({ id: bill.id, billNumber: bill.billNumber, documentType: bill.documentType, vendorName: vendor?.name ?? "Unknown", vendorNameAr: vendor?.nameAr ?? "", dueDate: bill.dueDate, outstanding: fromHalalas(owedH), daysPastDue: Math.max(0, daysPast) });
+      bucketInto(buckets, daysPast, owedH);
+    }
+    const totalH = Object.values(buckets).reduce((s, v) => s + v, 0);
     return {
-      buckets: fmtBuckets,
-      total,
-      assets: { supplierCredits, supplierAdvances, supplierDeposits, unidentifiedPayments },
-      netSupplierPosition: fmt2(total - supplierCredits - supplierAdvances - supplierDeposits - unidentifiedPayments),
+      asOf,
+      basis: events == null ? ("subledger" as const) : ("events" as const),
+      buckets: halalaBuckets(buckets),
+      total: fromHalalas(totalH),
+      assets: {
+        supplierCredits: fromHalalas(creditsH),
+        supplierAdvances: onAccount.supplierAdvances,
+        supplierDeposits: onAccount.supplierDeposits,
+        unidentifiedPayments: onAccount.unidentifiedPayments,
+        onAccountTotal: fromHalalas(onAccount.totalH),
+      },
+      netSupplierPosition: fromHalalas(totalH - creditsH - onAccount.totalH),
       items: items.sort((a, b) => b.daysPastDue - a.daysPastDue),
     };
   },

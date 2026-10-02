@@ -7,12 +7,17 @@
  */
 import type { AgingBuckets } from './agingBuckets';
 import type { ArAgingItem } from './arAgingItem';
+import type { ArAgingReportBasis } from './arAgingReportBasis';
 import type { ArAgingReportLiabilities } from './arAgingReportLiabilities';
 
 /**
  * Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is shown beside them, never folded into a bucket, and the net is derived.
  */
 export interface ArAgingReport {
+  /** The as-of date applied (default the business day) */
+  asOf: string;
+  /** subledger = today's caches; events = the customer-statement events replayed up to asOf (D14-08) */
+  basis: ArAgingReportBasis;
   buckets: AgingBuckets;
   /** @minimum 0 */
   total: number;

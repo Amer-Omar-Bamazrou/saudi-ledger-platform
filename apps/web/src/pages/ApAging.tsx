@@ -1,4 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { businessToday } from "@workspace/shared";
+import { Input } from "@/components/ui/input";
+import { ReportExportButtons } from "@/components/reports/ReportExport";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,9 +31,11 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import type { ApAgingReport } from "@workspace/api-client-react";
 
 const EMPTY: ApAgingReport = {
+  asOf: "",
+  basis: "subledger",
   buckets: { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0 },
   total: 0,
-  assets: { supplierCredits: 0, supplierAdvances: 0, supplierDeposits: 0, unidentifiedPayments: 0 },
+  assets: { supplierCredits: 0, supplierAdvances: 0, supplierDeposits: 0, unidentifiedPayments: 0, onAccountTotal: 0 },
   netSupplierPosition: 0,
   items: [],
 };
@@ -61,12 +67,15 @@ const BUCKET_LABELS: Record<string, { en: string; ar: string }> = {
 
 export default function ApAging() {
   const { t } = useLanguage();
+  // Phase 14 (D14-08): the ageing AS OF a date — today by default; a past date
+  // replays the supplier-statement events up to it (the server says which).
+  const [asOf, setAsOf] = useState(businessToday());
   // 🔴 No `.catch(() => …)` here. A failed request must reach the error state
   // rather than be disguised as an empty report — "no outstanding payables" and
   // "we could not load your payables" are different facts.
   const { data, isLoading, isError, error } = useQuery<ApAgingReport>({
-    queryKey: ["ap-aging"],
-    queryFn: () => apiFetch<ApAgingReport>("/reports/ap-aging"),
+    queryKey: ["ap-aging", asOf],
+    queryFn: () => apiFetch<ApAgingReport>(`/reports/ap-aging?as_of=${encodeURIComponent(asOf)}`),
   });
 
   const report = data ?? EMPTY;
@@ -79,7 +88,19 @@ export default function ApAging() {
           <h1 className="text-2xl font-bold text-foreground">{t("AP Aging", "أعمار الذمم الدائنة")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Accounts Payable aging — overdue bills by vendor", "أعمار الذمم الدائنة — الفواتير المتأخرة حسب المورّد")}</p>
         </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-xs text-muted-foreground">
+            {t("As of", "كما في")}
+            <Input type="date" value={asOf} max={businessToday()} onChange={(e) => e.target.value && setAsOf(e.target.value)} className="mt-1 h-8 text-sm w-40" data-testid="ap-aging-as-of" />
+          </label>
+          <ReportExportButtons report="ap-aging" params={{ as_of: asOf }} />
+        </div>
       </div>
+      {data?.basis === "events" && (
+        <p className="text-xs text-muted-foreground" data-testid="ap-aging-basis">
+          {t(`What each bill owed on ${data.asOf}, rebuilt from the dated supplier events. Money held on account is shown as one figure for a past date.`, `ما كانت تستحقه كل فاتورة في ${data.asOf}، مُعاد بناؤه من أحداث الموردين المؤرخة. وتظهر الأموال المحتفظ بها لدى الموردين رقماً واحداً للتاريخ السابق.`)}
+        </p>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {(Object.keys(BUCKET_LABELS) as (keyof ApAgingReport["buckets"])[]).map((key) => (
@@ -115,11 +136,11 @@ export default function ApAging() {
             </div>
             <div className="rounded-md border border-border p-3">
               <p className="text-xs text-muted-foreground">{t("− Advances paid", "− دفعات مقدمة مدفوعة")}</p>
-              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-advances">{fmtNum(report.assets.supplierAdvances)}</p>
+              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-advances">{report.assets.supplierAdvances == null ? "—" : fmtNum(report.assets.supplierAdvances)}</p>
             </div>
             <div className="rounded-md border border-border p-3">
               <p className="text-xs text-muted-foreground">{t("− Deposits & unidentified", "− تأمينات ومدفوعات غير محددة")}</p>
-              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-deposits">{fmtNum(report.assets.supplierDeposits + report.assets.unidentifiedPayments)}</p>
+              <p className="font-mono font-semibold text-lg text-info" data-testid="ap-recon-deposits">{report.assets.supplierDeposits == null || report.assets.unidentifiedPayments == null ? fmtNum(report.assets.onAccountTotal) : fmtNum(report.assets.supplierDeposits + report.assets.unidentifiedPayments)}</p>
             </div>
             <div className="rounded-md border border-primary/40 p-3">
               <p className="text-xs text-muted-foreground">{t("= Net supplier position (derived)", "= صافي مركز الموردين (مشتق)")}</p>

@@ -162,6 +162,18 @@ describeMaybe("demo seed", () => {
     expect(is.totalExpenses).toBeGreaterThan(0);
   });
 
+  it("🔴 Phase 15 — an APPROVED base budget whose actuals are the demo's own postings; the annual line is never divided", async () => {
+    const { budgetsService } = await import("../services/budgets.service");
+    const budgets = await inTenant(() => budgetsService.list({ scenario: "base" }));
+    expect(budgets.map((b) => b.name)).toEqual(["Operating budget"]);
+    const vs = await inTenant(() => budgetsService.vsActual(budgets[0]!.id, { through_period: 6 }));
+    expect(vs.version.status).toBe("approved");
+    const sales = vs.lines.find((l) => l.mode === "periods")!;
+    expect([sales.ytd.budget, sales.ytd.actual > 0]).toEqual([240000, true]);
+    const annual = vs.lines.find((l) => l.mode === "annual")!;
+    expect([annual.ytd.budget, annual.fullYear.budget]).toEqual([null, 120000]);
+  });
+
   it("leaves recent invoices OUTSTANDING so the receivable surfaces have content", async () => {
     const aging = await inTenant(() => reportsService.arAging());
     expect(aging.total).toBeGreaterThan(0);

@@ -321,6 +321,13 @@ seeing a wrong variance — which is what apportioning would have given them.
 
 **Revisit trigger:** a real user asking for monthly budgets. Not before.
 
+> **Status (2026-10-02): superseded in part, PENDING THE OWNER'S CONFIRMATION.**
+> Phase 15 built option (a) on the owner's Phase 15 brief; the trigger above
+> (a real user) was not met. "Do not apportion" is kept and binds both modes.
+> The rule, and the option to remove the period editor: [`phase-14-15` pack
+> D15-03](phase-14-15-reporting-budgeting-decision-pack.md). Current state
+> authority: CLAUDE.md §2.
+
 Also open, and tied to §4: **are budget actuals cash or accrual?** Pick the one
 that matches whatever series shares the screen, or the two will disagree in
 front of the user.

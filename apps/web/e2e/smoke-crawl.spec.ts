@@ -36,11 +36,12 @@ function ids(): SeededIds {
 
 /** Concrete URL for a route, substituting seeded ids for parameters. */
 function concrete(route: string): string {
-  const { customerId, vendorId, migrationBatchId } = ids();
+  const { customerId, vendorId, migrationBatchId, budgetId } = ids();
   if (route === "/migration/:id") return `/migration/${migrationBatchId}`;
   if (route === "/customers/:id") return `/customers/${customerId}`;
   if (route === "/customers/:id/statement") return `/customers/${customerId}/statement`;
   if (route === "/vendors/:id") return `/vendors/${vendorId}`;
+  if (route === "/budgets/:id") return `/budgets/${budgetId}`;
   if (route === "/supplier-statements/:vendorId") return `/supplier-statements/${vendorId}`;
   // A slug that must exist in `lib/comingSoon.ts`; `nav-tree.spec.ts` asserts it.
   if (route === "/coming-soon/:slug") return "/coming-soon/transfers";

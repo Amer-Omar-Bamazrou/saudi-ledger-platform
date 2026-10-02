@@ -249,7 +249,8 @@ describe("the standing check, mechanized — every mounted route has a terminus"
  * to flag.
  *
  * This guard closes the mirror: it extracts every hand-written `apiFetch(...)`
- * URL in the web app and asserts each resolves to a mounted API route.
+ * (and, since Phase 14, `apiDownload(...)` — the report exports) URL in the
+ * web app and asserts each resolves to a mounted API route.
  *
  * ── Its limits, stated plainly ─────────────────────────────────────────────
  *  - It matches `apiFetch("/literal")` and template PREFIXES
@@ -305,14 +306,16 @@ describe("the inverse guard — every URL the web calls hits a mounted route", (
     };
 
     const webSrc = readAll(WEB_SRC, [".ts", ".tsx"]);
-    // Capture the static leading path of every apiFetch call, stopping at the
-    // first query, interpolation, or closing quote.
+    // Capture the static leading path of every apiFetch / apiDownload call,
+    // stopping at the first query, interpolation, or closing quote.
     const called = new Set<string>();
-    for (const m of webSrc.matchAll(/apiFetch(?:<[^>]*>)?\(\s*[`"'](\/[a-zA-Z0-9/_-]*)/g)) {
+    for (const m of webSrc.matchAll(/(?:apiFetch|apiDownload)(?:<[^>]*>)?\(\s*[`"'](\/[a-zA-Z0-9/_-]*)/g)) {
       let p = m[1].replace(/\/$/, "");
       if (p) called.add(p);
     }
     expect(called.size, "no apiFetch calls parsed — the call shape changed").toBeGreaterThan(15);
+    // The probe SEES a download call (a known-present case), so its silence elsewhere means something.
+    expect(called.has("/reports/export"), "no apiDownload call parsed — the export call shape changed").toBe(true);
 
     const unbacked = [...called]
       .filter((p) => !backed(p))

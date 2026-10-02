@@ -6,8 +6,20 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GeneralLedgerMovement } from './generalLedgerMovement';
+import type { GeneralLedgerParty } from './generalLedgerParty';
+import type { ReportWindow } from './reportWindow';
 
+/**
+ * The ledger of one account (or party) for a window. It opens on EXACTLY the trial-balance row it is drilled from (D14-09): lines before the window, plus migration opening entries up to the window end (D14-03) — which are therefore never listed as movements — and, for an income or expense account with a declared fiscal year, only from the start of the fiscal year containing date_from (plResetFrom).
+ */
 export interface GeneralLedgerReport {
+  window: ReportWindow;
+  /**
+     * The fiscal-year start an income or expense account opens at; null when no reset applied
+     * @nullable
+     */
+  plResetFrom: string | null;
+  party: GeneralLedgerParty | null;
   /** @nullable */
   accountId: number | null;
   accountName: string;

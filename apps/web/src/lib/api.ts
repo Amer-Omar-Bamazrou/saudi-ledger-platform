@@ -87,6 +87,37 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return res.json();
 }
 
+/**
+ * Phase 14 (D14-10) — download a file the API produces (a report export).
+ * The same seam as `apiFetch`: the session cookie, the 401 redirect, and the
+ * app-wide refusal handler — so an export the server refuses (422
+ * `export_too_large`, 503 `pdf_renderer_unavailable`, a 400 on a bad date)
+ * throws the SAME `ApiError` with the server's own words, never a broken file.
+ */
+export async function apiDownload(path: string, fallbackFilename: string): Promise<void> {
+  const res = await fetch(`${API}${path}`, { credentials: "include" });
+  if (res.status === 401) {
+    window.location.href = `${import.meta.env.BASE_URL}login`;
+    throw new ApiError(401, { error: tOutside("Session expired. Please log in.", "انتهت الجلسة. يرجى تسجيل الدخول.") });
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    handleApiErrorResponse(res.status, body);
+    throw new ApiError(res.status, body);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallbackFilename;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // SAR is hardcoded because the API REFUSES any other currency
 // (writeGuards.assertSupportedCurrency + DB CHECK 0062). Before that boundary
 // existed this formatter labelled a stored USD amount "SAR" — the number real,

@@ -7,6 +7,6 @@
  */
 
 export type GetIncomeStatementParams = {
-date_from?: string;
-date_to?: string;
+date_from?: Date;
+date_to?: Date;
 };

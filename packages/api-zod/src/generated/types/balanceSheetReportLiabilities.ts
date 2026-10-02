@@ -11,6 +11,11 @@ import type { BalanceSheetItem } from './balanceSheetItem';
 export type BalanceSheetReportLiabilities = {
   items: BalanceSheetItem[];
   accountsPayable: number;
+  /**
+     * The item key of the AP account (resolved by system code)
+     * @nullable
+     */
+  accountsPayableKey: string | null;
   total: number;
   current: BalanceSheetBucket;
   nonCurrent: BalanceSheetBucket;

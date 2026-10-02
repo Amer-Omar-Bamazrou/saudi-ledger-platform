@@ -104,10 +104,14 @@ describeMaybe("Purchase orders (M21.3)", () => {
     await cleanup();
   });
 
+  // Phase 14 (D14-02): a balance sheet with no date is AS OF TODAY, and this suite's documents are
+  // dated in October 2026 — after the day it may run. Every balance-sheet read names the fixture's
+  // window end, so the figures include the documents under test (a today-dated read would exclude
+  // them, and every "must not move" below would pass vacuously).
   async function financialSnapshot() {
     const [is, bs, tb, ap] = await Promise.all([
       reportsService.incomeStatement(FROM, TO),
-      reportsService.balanceSheet(),
+      reportsService.balanceSheet(TO),
       reportsService.trialBalance(FROM, TO),
       reportsService.apAging(),
     ]);
@@ -356,14 +360,14 @@ describeMaybe("Purchase orders (M21.3)", () => {
       ),
     );
     const approved = await inTenant(() => purchaseOrdersService.approve(po.id, userId));
-    const apBefore = (await inTenant(() => reportsService.balanceSheet())).liabilities.accountsPayable;
+    const apBefore = (await inTenant(() => reportsService.balanceSheet(TO))).liabilities.accountsPayable;
 
     const { bill } = await inTenant(() =>
       purchaseOrderConversionService.convert(approved.id, { date: DATE }, userId),
     );
     expect(bill.status, "conversion is drafts-only").toBe("draft");
     expect(
-      (await inTenant(() => reportsService.balanceSheet())).liabilities.accountsPayable,
+      (await inTenant(() => reportsService.balanceSheet(TO))).liabilities.accountsPayable,
       "a DRAFT bill must not move AP",
     ).toBe(apBefore);
 
@@ -371,7 +375,7 @@ describeMaybe("Purchase orders (M21.3)", () => {
     // records the invoice the supplier sent — as a user does — before it posts.
     await inTenant(() => billsService.update(bill.id, { supplierDocumentKind: "tax_invoice", vendorReference: "SUP-PO-INV-1" }));
     await inTenant(() => billsService.approve(bill.id, {}, userId));
-    const apAfterConverted = (await inTenant(() => reportsService.balanceSheet())).liabilities.accountsPayable;
+    const apAfterConverted = (await inTenant(() => reportsService.balanceSheet(TO))).liabilities.accountsPayable;
     const movedByConversion = Math.round((apAfterConverted - apBefore) * 100) / 100;
 
     await inTenant(() =>
@@ -388,7 +392,7 @@ describeMaybe("Purchase orders (M21.3)", () => {
     const handTyped = (await inTenant(() => billsService.list({}))).items.find((b: any) => b.billNumber === "BILL-HANDTYPED-1");
     expect(handTyped, "the hand-typed bill must exist for this comparison to mean anything").toBeTruthy();
     await inTenant(() => billsService.approve(handTyped!.id, {}, userId));
-    const apAfterManual = (await inTenant(() => reportsService.balanceSheet())).liabilities.accountsPayable;
+    const apAfterManual = (await inTenant(() => reportsService.balanceSheet(TO))).liabilities.accountsPayable;
     const movedByManual = Math.round((apAfterManual - apAfterConverted) * 100) / 100;
 
     expect(movedByConversion, "an approved converted bill must move AP").toBe(460);

@@ -15,7 +15,7 @@
  * and the service folds forward. The DB does the grouping because it is far
  * better at it than a JS reduce over every row.
  *
- * Semantics are copied deliberately from `reportsRepository.bsLines`: posted
+ * Semantics are copied deliberately from `reportsRepository.ledgerBalances` (was `bsLines`): posted
  * entries only, `date <= as_of`. A trend that disagreed with the balance sheet
  * it is charting would be meta-finding #9 in a new costume.
  */
