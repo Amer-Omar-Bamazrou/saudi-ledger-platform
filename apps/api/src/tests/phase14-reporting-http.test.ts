@@ -24,6 +24,8 @@ import bcrypt from "bcryptjs";
 import { pool, PERMISSION_MATRIX } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { __resetRateLimitsForTests } from "../routes/auth";
+import { errorHandler } from "../middleware/errorHandler";
+import { RendererUnavailableError } from "../services/document/htmlToPdf";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -215,5 +217,21 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
     // the boundary itself is an id like any other: an account nobody has is an empty ledger, a budget nobody has is a 404
     expect((await asX("GET", "/reports/general-ledger?account_id=2147483647")).status).toBe(200);
     expect((await asX("GET", "/reports/export/budget-vs-actual?format=csv&budget_id=2147483647")).status).toBe(404);
+  });
+});
+
+/**
+ * 🔴 The renderer's 503 carries its NAME on the wire — in every environment. The wire-format test
+ * above can only see this branch where Chromium is missing (CI), so it was red in CI and green on
+ * every machine with a browser (pre-merge audit 2026-10-02). This drives the branch directly.
+ */
+describe("the PDF renderer's refusal through the error handler", () => {
+  it("🔴 503 with { error, code: 'pdf_renderer_unavailable' } — the code the export client keys on", () => {
+    let status = 0;
+    let body: unknown;
+    const res = { headersSent: false, status(s: number) { status = s; return this; }, json(b: unknown) { body = b; return this; } };
+    errorHandler(new RendererUnavailableError("no Chromium here"), { log: { warn() {}, error() {} } } as never, res as never, () => {});
+    expect(status).toBe(503);
+    expect(body).toMatchObject({ code: "pdf_renderer_unavailable", error: expect.stringContaining("no Chromium here") });
   });
 });

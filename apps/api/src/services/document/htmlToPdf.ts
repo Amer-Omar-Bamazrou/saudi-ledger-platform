@@ -21,6 +21,15 @@ export class RendererUnavailableError extends Error {
     );
     this.name = "RendererUnavailableError";
   }
+  /**
+   * The body the central error handler sends. Without it the handler answered
+   * `{ error }` only and the `code` above never left the server — the 503 was
+   * named in the type and anonymous on the wire (pre-merge audit 2026-10-02:
+   * CI, which has no Chromium, was the only place that ever took this branch).
+   */
+  get payload() {
+    return { error: this.message, code: this.code };
+  }
 }
 
 let browserPromise: Promise<Browser> | null = null;

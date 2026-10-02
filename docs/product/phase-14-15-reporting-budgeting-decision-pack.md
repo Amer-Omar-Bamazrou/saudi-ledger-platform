@@ -4,9 +4,9 @@
 the branch below; the PR is open and NOT merged. Written before the code, and
 corrected where the build or the reviews proved a decision wrong (D14-03,
 D14-15 — marked in place).**
-**Status (2026-10-02): the pre-merge human audit gate ran (§8) — three defects
-fixed with tests, three findings corrected, D15-03 restated as a supersession
-for the owner.**
+**Status (2026-10-02): the pre-merge human audit gate ran (§8) — four defects
+fixed with tests (one of them CI's red `test` job, F-36), three findings
+corrected, D15-03 restated as a supersession for the owner.**
 Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
 Branch: `feat/phase14-15-reporting-budgeting` (from `main` @ `0b0175da`).
 
@@ -948,6 +948,7 @@ suites already use for committed migrations.
 | F-32 | LOW | Budget vs actual `fullYear.actualToDate` is everything booked in the fiscal year — including entries dated AFTER today — under the label "Actual to date" / «الفعلي حتى الآن» (probe: 900 against an income statement to today of 600). YTD, variance and forecast are unaffected (through a completed period) | OPEN — relabel ("booked for the year") or bound it by the business date; a product choice. `phase15-budgets` pins the current meaning |
 | F-33 | INFO | A general ledger for an account id that does not exist (or belongs to another tenant) answers 200, "All Accounts", zero rows | no leak (foreign = missing, byte-identical); recommend echoing the id or a 404 |
 | F-34 | INFO | Budgets are not in the pending-approvals queue (`/approvals/pending` lists invoices, bills, journals and payroll) — a submitted budget is found only on the Budgets page | OPEN — "who finds out?"; add `budget_version` to the queue |
+| F-36 | MEDIUM | 🔴 **CI's `test` job was RED on the PR from its first push (`4877841e`, run 36921716442) while §7 and the PR reported the API suite green.** `phase14-reporting-http` "a PDF that IS a PDF" expects a 503 to carry `code: pdf_renderer_unavailable`; `RendererUnavailableError` declared that code but the central error handler sends only an error's `payload`, so the 503 left as `{ error }` — anonymous on the wire since L1 (`api.ts` documents the code). §7's verification ran on a machine WITH Chromium, where the branch never executes; CI has none — the narrower verification reported as the broader one, and a stub branch only one environment can reach | **FIXED 2026-10-02** — the error carries a `payload` (`{ error, code }`); reproduced locally with Chromium hidden (`PLAYWRIGHT_BROWSERS_PATH` → an empty dir: red → green), plus an environment-independent test through `errorHandler` + mutation A4 |
 | F-35 | INFO | Cosmetic: a negative variance wraps its minus sign onto its own line in the budget table (EN and AR); "(annual only)" sits tight against the account name; TB's Arabic sub-name puts `ms-2` on a `dir="rtl"` span, so the gap lands on the far side (pre-existing on `main`) | OPEN — `whitespace-nowrap` on money cells; a gap that does not depend on the span's direction |
 
 ### 6.1 The three reviews (2026-10-01) — every finding, and what happened to it
@@ -1127,6 +1128,7 @@ Playwright specs' (EN/AR × desktop/390 px, no sideways scroll), run below.
 | A1 | F-25 — post-dated settlements left today's ageing | `phase14-ageing-post-dated-settlements.test.ts` | the replay switch disabled → FAILS |
 | A2 | F-30 — ids above int4 → 500 with SQL | `phase14-reporting-http.test.ts` (new case) | the three bounds removed → FAILS |
 | A3 | F-31 — budget tables LTR in Arabic | `e2e/phase15-budgets.spec.ts` (new assertions) | the `dir` prop removed → FAILS ("Expected rtl, received ltr") |
+| A4 | F-36 — the renderer's 503 anonymous on the wire (CI red) | `phase14-reporting-http.test.ts` ("the PDF renderer's refusal through the error handler"), and the wire-format test with Chromium hidden | the `payload` getter removed → FAILS |
 
 ### 8.5 Decisions
 
@@ -1154,5 +1156,6 @@ Playwright specs' (EN/AR × desktop/390 px, no sideways scroll), run below.
 | ZATCA TLV · web unit | 10 / 10 · 109 / 109 |
 | Build | exit 0 |
 | Browser — the affected specs (phase15-budgets, phase14-reporting, statement-figures, phase11-ap-subledger, batch-1b-payment-flows, rtl-direction) | **50 / 50**. The full browser suite (497) was NOT re-run locally — this machine's memory limit killed it before (§7); CI runs it |
-| Mutation proofs | 43 + 3 = **46 killed** |
+| Mutation proofs | 43 + 4 = **47 killed** |
+| CI (the arbiter §7 did not consult) | `test` was RED on `4877841e` and on the first audit push — F-36, the same assertion both times; fixed in the follow-up commit. That commit was verified on the three suites touching the renderer (with Chromium 37/37; with Chromium hidden, the HTTP suite 8/8) and the API typecheck — the counts above are from the run before it; CI's run of it is the full suite. Read CI's CONCLUSIONS, never a local green, before calling a PR verified |
 | Secrets | gitleaks, CI's exact container invocation, full history including the audit commit: **446 commits, no leaks** |
