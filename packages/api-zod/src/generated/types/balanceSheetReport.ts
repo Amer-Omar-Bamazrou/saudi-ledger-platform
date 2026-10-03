@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { BalanceSheetItem } from './balanceSheetItem';
 import type { BalanceSheetReportAssets } from './balanceSheetReportAssets';
 import type { BalanceSheetReportEquity } from './balanceSheetReportEquity';
 import type { BalanceSheetReportLiabilities } from './balanceSheetReportLiabilities';
@@ -13,7 +14,10 @@ export interface BalanceSheetReport {
   asOf: string;
   assets: BalanceSheetReportAssets;
   liabilities: BalanceSheetReportLiabilities;
+  /** Equity accounts plus the profit or loss not yet allocated by any entry, split by the fiscal year containing as_of (D14-05). retainedEarnings = priorYearsProfit + currentYearProfit (it is NOT the RETAINED_EARNINGS account, which is among the items). Without a declared fiscal year the whole amount is in priorYearsProfit and fiscalYear is null. */
   equity: BalanceSheetReportEquity;
+  /** Ledger accounts with a balance but no balance-sheet or P&L type — listed, never folded; they make the sheet unbalanced. */
+  unmapped: BalanceSheetItem[];
   totalLiabilitiesAndEquity: number;
   balanced: boolean;
   /** @nullable */

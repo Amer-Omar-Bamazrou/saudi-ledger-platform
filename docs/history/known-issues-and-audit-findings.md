@@ -2689,3 +2689,18 @@ capture allow-list already maps type → extension), and a note on how existing
 archived names are left (the archive has no rename — no delete, by design).
 
 State: OPEN (recorded; not changed in Phase 13).
+
+## THE INCOME STATEMENT'S TRANSACTIONS FALLBACK — CLOSED, 2026-10-01 (Phase 14, D14-06)
+
+**What it was.** When a window had no journal lines, `reports.incomeStatement` fell back to
+`transactions` — gross of VAT, a second truth beside the ledger, and the reason the P&L page
+refused to compare two windows that answered from different sources (finding #9). Listed in
+CLAUDE.md §5 "Traps" until this commit.
+
+**How it closed.** Phase 14 reads every statement from ONE ledger seam (`ledgerBalances`): a window
+with no GL lines reports zero, from the ledger, and `source` always reads `journal_entries`. Since A
+(2026-08-17) every accepted transaction posts to the GL, so nothing the fallback used to show is
+lost. Record: `docs/product/phase-14-15-reporting-budgeting-decision-pack.md` D14-06; tests:
+`phase14-reporting-invariants.test.ts` (C — the P&L is the ledger), mutation M5.
+
+State: CLOSED.

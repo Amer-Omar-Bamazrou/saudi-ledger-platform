@@ -1715,45 +1715,76 @@ paths:
       operationId: listBudgets
       tags: [budgets]
       summary: >
-        Budget vs actual for one ANNUAL period (M19.5). `period` is a YYYY
-        string — budgets are annual by decision, not by omission: see
-        design-analytics.md §7. Actuals are signed by account type (M19.0), so a
-        refund reduces spend rather than adding to it.
+        Phase 15 — the company's budgets, newest fiscal year first, each with its versions. A budget
+        FREEZES its fiscal year when created (D15-01). `as_of` keeps the budgets whose fiscal year
+        contains that date; `scenario` filters.
       parameters:
-        - { name: period, in: query, required: false, schema: { type: string } }
+        - { name: as_of, in: query, required: false, schema: { type: string } }
+        - { name: scenario, in: query, required: false, schema: { type: string, enum: [base, best_case, worst_case] } }
       responses:
         "200":
-          description: One row per budgeted category
+          description: The budgets
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: "#/components/schemas/BudgetLine"
+                items: { $ref: "#/components/schemas/BudgetSummary" }
+        "400": { description: A malformed date }
     post:
       operationId: createBudget
       tags: [budgets]
-      summary: Create an annual budget line for a category
+      summary: >
+        Create a budget for one fiscal year of the company, with an empty DRAFT version 1. Refused with
+        422 `fiscal_year_undeclared` when the company has not declared its fiscal year (D15-15).
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/BudgetInput" }
+            schema: { $ref: "#/components/schemas/CreateBudgetInput" }
       responses:
         "201":
-          description: The created budget (without the derived actuals — re-list for those)
+          description: The created budget
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Budget" }
-        "400":
-          description: Body failed validation
+              schema: { $ref: "#/components/schemas/BudgetDetail" }
+        "400": { description: Body failed validation }
+        "409": { description: "A budget with this name, scenario and fiscal year exists" }
+        "422": { description: The company has not declared its fiscal year }
+
+  /budgets/accounts:
+    get:
+      operationId: listBudgetAccounts
+      tags: [budgets]
+      summary: The income and expense posting accounts a budget line may name (D15-02).
+      responses:
+        "200":
+          description: The accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BudgetAccount" }
 
   /budgets/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getBudget
+      tags: [budgets]
+      summary: One budget with its versions and the lines of one version (default — the open draft or submitted version, else the approved one, else the latest).
+      parameters:
+        - { name: version_id, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: The budget
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BudgetDetail" }
+        "404": { description: Not found }
     patch:
       operationId: updateBudget
       tags: [budgets]
+      summary: Rename, or edit the notes. The company, scenario and fiscal year are fixed (refused at the database).
       requestBody:
         required: true
         content:
@@ -1761,20 +1792,154 @@ paths:
             schema: { $ref: "#/components/schemas/UpdateBudgetInput" }
       responses:
         "200":
-          description: The updated budget
+          description: The budget
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Budget" }
-        "400":
-          description: Body failed validation
-        "404":
-          description: Not found
+              schema: { $ref: "#/components/schemas/BudgetDetail" }
+        "400": { description: Body failed validation }
+        "404": { description: Not found }
     delete:
       operationId: deleteBudget
       tags: [budgets]
+      summary: Delete a budget that was NEVER approved. An approved budget is a record — revise it instead (409 `budget_ever_approved`).
       responses:
-        "204":
-          description: Deleted
+        "204": { description: Deleted }
+        "404": { description: Not found }
+        "409": { description: The budget has an approved or superseded version }
+
+  /budgets/{id}/versions:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: reviseBudget
+      tags: [budgets]
+      summary: Start a revision — a new DRAFT version copying the approved version's lines (D15-04).
+      responses:
+        "201":
+          description: The budget, showing the new draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BudgetDetail" }
+        "404": { description: Not found }
+        "409": { description: "No approved version to revise, or a version is already open" }
+
+  /budgets/{id}/versions/{versionId}/lines:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    put:
+      operationId: replaceBudgetLines
+      tags: [budgets]
+      summary: >
+        Replace a DRAFT version's lines. Each account is budgeted EITHER by its twelve fiscal periods OR
+        as one annual amount — an annual amount is never divided (D15-03).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReplaceBudgetLinesInput" }
+      responses:
+        "200":
+          description: The budget, showing this version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BudgetDetail" }
+        "400": { description: Body failed validation }
+        "404": { description: Not found }
+        "409": { description: The version is not a draft — its lines are locked }
+        "422": { description: An account is not an income or expense posting account of this organisation }
+
+  /budgets/{id}/versions/{versionId}/submit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    post:
+      operationId: submitBudgetVersion
+      tags: [budgets]
+      summary: Submit a draft version for approval (draft → submitted).
+      responses:
+        "200":
+          description: The budget, showing this version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BudgetDetail" }
+        "404": { description: Not found }
+        "409": { description: Not a step from this version's status }
+
+  /budgets/{id}/versions/{versionId}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    post:
+      operationId: approveBudgetVersion
+      tags: [budgets]
+      summary: Approve a version (approver). A revision supersedes the previously approved version in the same transaction.
+      responses:
+        "200":
+          description: The budget, showing this version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BudgetDetail" }
+        "404": { description: Not found }
+        "409": { description: Not a step from this version's status }
+
+  /budgets/{id}/versions/{versionId}/send-back:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    post:
+      operationId: sendBackBudgetVersion
+      tags: [budgets]
+      summary: Send a submitted version back to its author for correction (submitted → draft), with a note.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BudgetSendBackInput" }
+      responses:
+        "200":
+          description: The budget, showing this version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BudgetDetail" }
+        "404": { description: Not found }
+        "409": { description: Not a step from this version's status }
+
+  /budgets/{id}/versions/{versionId}/reject:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    post:
+      operationId: rejectBudgetVersion
+      tags: [budgets]
+      summary: Reject a draft or submitted version — it is deleted (the approval engine's rule); a budget left with no version goes with it.
+      responses:
+        "204": { description: Rejected }
+        "404": { description: Not found }
+        "409": { description: An approved version cannot be rejected }
+
+  /budgets/{id}/vs-actual:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getBudgetVsActual
+      tags: [budgets]
+      summary: >
+        Budget vs actual (D15-06…D15-09). Actuals are the posted ledger (accrual), signed in each
+        account's natural direction; variance = actual − budget, judged by account type; year to date runs
+        through a COMPLETED fiscal period; the forecast is actuals through that period plus the budget of
+        the rest. An annual-only line has no period, YTD or forecast budget — nothing is apportioned.
+      parameters:
+        - { name: version_id, in: query, required: false, schema: { type: integer } }
+        - { name: through_period, in: query, required: false, schema: { type: integer, minimum: 0, maximum: 12 } }
+      responses:
+        "200":
+          description: Budget vs actual
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BudgetVsActual" }
+        "400": { description: A malformed parameter }
+        "404": { description: Not found }
 
   /analytics/trend:
     get:
@@ -1796,6 +1961,23 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/TrendPoint"
+
+  /analytics/pnl-trend:
+    get:
+      operationId: getPnlTrend
+      tags: [analytics]
+      summary: >
+        Monthly profit-or-loss trend from the ledger (Phase 14 D14-12): revenue, expenses and net per
+        calendar month; the months sum to the income statement of the same window.
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string } }
+        - { name: to, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: One point per month, oldest first, and the window totals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PnlTrend" }
 
   /analytics/receivables-bridge:
     get:
@@ -2238,10 +2420,13 @@ paths:
     get:
       operationId: getTrialBalance
       tags: [reports]
-      summary: Trial balance — every account's debit/credit totals over a window
+      summary: >
+        Trial balance — opening, period debit, period credit and closing per account (Phase 14 D14-04).
+        Migration opening entries are opening even inside the window; with a declared fiscal year,
+        income and expense accounts open at the fiscal-year start and earlier P&L is one computed equity row.
       parameters:
-        - { name: date_from, in: query, schema: { type: string } }
-        - { name: date_to, in: query, schema: { type: string } }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
       responses:
         "200":
           description: Trial balance
@@ -2253,10 +2438,10 @@ paths:
     get:
       operationId: getIncomeStatement
       tags: [reports]
-      summary: Income statement (P&L) over a window
+      summary: Income statement (P&L) over a window — from the ledger only; expenses by nature (Phase 14 D14-06)
       parameters:
-        - { name: date_from, in: query, schema: { type: string } }
-        - { name: date_to, in: query, schema: { type: string } }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
       responses:
         "200":
           description: Income statement
@@ -2268,9 +2453,9 @@ paths:
     get:
       operationId: getBalanceSheet
       tags: [reports]
-      summary: Balance sheet as of a date, with the current/non-current split
+      summary: Balance sheet as of a date, with the current/non-current split and profit split by fiscal year (Phase 14 D14-05)
       parameters:
-        - { name: as_of, in: query, schema: { type: string } }
+        - { name: as_of, in: query, schema: { type: string, format: date } }
       responses:
         "200":
           description: Balance sheet
@@ -2282,10 +2467,10 @@ paths:
     get:
       operationId: getCashFlow
       tags: [reports]
-      summary: Cash flow statement (DIRECT method) over a window
+      summary: Cash flow statement (DIRECT method) from the ledger over a window — reconciles to the cash accounts (Phase 14 D14-07)
       parameters:
-        - { name: date_from, in: query, schema: { type: string } }
-        - { name: date_to, in: query, schema: { type: string } }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
       responses:
         "200":
           description: Cash flow
@@ -2312,12 +2497,15 @@ paths:
     get:
       operationId: getGeneralLedger
       tags: [reports]
-      summary: General ledger movements with a running balance
+      summary: General ledger movements with a running balance; optionally filtered to one party (Phase 14 D14-11)
       parameters:
         - { name: account_id, in: query, schema: { type: string } }
         - { name: account_name, in: query, schema: { type: string } }
-        - { name: date_from, in: query, schema: { type: string } }
-        - { name: date_to, in: query, schema: { type: string } }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: party_type, in: query, schema: { type: string, enum: [customer, vendor] } }
+        - { name: customer_id, in: query, schema: { type: string } }
+        - { name: vendor_id, in: query, schema: { type: string } }
       responses:
         "200":
           description: General ledger
@@ -2394,7 +2582,9 @@ paths:
     get:
       operationId: getArAgingReport
       tags: [reports]
-      summary: Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
+      summary: Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it; as of a date (Phase 14 D14-08)
+      parameters:
+        - { name: as_of, in: query, schema: { type: string, format: date } }
       responses:
         "200":
           description: AR aging
@@ -2406,13 +2596,56 @@ paths:
     get:
       operationId: getApAgingReport
       tags: [reports]
-      summary: Accounts payable aging
+      summary: Accounts payable aging, as of a date (Phase 14 D14-08)
+      parameters:
+        - { name: as_of, in: query, schema: { type: string, format: date } }
       responses:
         "200":
           description: AP aging
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApAgingReport" }
+
+  /reports/export/{report}:
+    get:
+      operationId: exportReport
+      tags: [reports]
+      summary: >
+        Export a report as CSV or PDF (Phase 14 D14-10). Runs the report's own service call with the
+        report's own parameters, behind the same permission and in the same tenant/company scope as the
+        screen. CSV is UTF-8 with a BOM; PDF is RTL with Arabic labels for lang=ar. An export that would
+        exceed the row limit is refused (422 export_too_large), never truncated.
+      parameters:
+        - { name: report, in: path, required: true, schema: { type: string, enum: [trial-balance, income-statement, balance-sheet, cash-flow, general-ledger, ar-aging, ap-aging, budget-vs-actual] } }
+        - { name: format, in: query, schema: { type: string, enum: [csv, pdf] } }
+        - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: as_of, in: query, schema: { type: string, format: date } }
+        - { name: compare_from, in: query, schema: { type: string, format: date } }
+        - { name: compare_to, in: query, schema: { type: string, format: date } }
+        - { name: compare_as_of, in: query, schema: { type: string, format: date } }
+        - { name: account_id, in: query, schema: { type: string } }
+        - { name: party_type, in: query, schema: { type: string, enum: [customer, vendor] } }
+        - { name: customer_id, in: query, schema: { type: string } }
+        - { name: vendor_id, in: query, schema: { type: string } }
+        - { name: budget_id, in: query, schema: { type: string }, description: "budget-vs-actual only" }
+        - { name: version_id, in: query, schema: { type: string }, description: "budget-vs-actual only" }
+        - { name: through_period, in: query, schema: { type: string }, description: "budget-vs-actual only" }
+      responses:
+        "200":
+          description: The report file
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+        "400":
+          description: An unknown report, format, language, or a malformed parameter
+        "422":
+          description: export_too_large — the export would exceed the row limit for its format
+        "503":
+          description: pdf_renderer_unavailable — no Chromium executable on the server
 
   /reports/tax-journal-entries:
     get:
@@ -6803,26 +7036,46 @@ components:
           items:
             $ref: "#/components/schemas/FiscalPeriod"
 
-    BudgetLine:
+    PnlTrendPoint:
       type: object
-      required: [id, period, budgetedAmount, actualAmount, variance, variancePct]
+      required: [month, revenue, expenses, net]
       properties:
-        id: { type: integer }
-        name: { type: ["string", "null"] }
-        nameAr: { type: ["string", "null"] }
-        period: { type: string, description: "YYYY — annual only." }
-        categoryId: { type: ["integer", "null"] }
-        categoryName: { type: ["string", "null"] }
-        categoryNameAr: { type: ["string", "null"] }
-        categoryType: { type: ["string", "null"] }
-        budgetedAmount: { type: number }
-        actualAmount:
-          type: number
+        month: { type: string }
+        revenue: { type: number }
+        expenses: { type: number }
+        net: { type: number }
+
+    PnlTrend:
+      type: object
+      required: [from, to, expenseAnalysis, points, migrated, totals]
+      properties:
+        from: { type: string }
+        to: { type: string }
+        expenseAnalysis: { type: string, enum: [nature] }
+        migrated:
           description: >
-            Signed by account type (M19.0). May be NEGATIVE when refunds exceed
-            spend — a real state, reported rather than clamped to zero.
-        variance: { type: number }
-        variancePct: { type: number }
+            A migration opening entry's year-to-date P&L (the previous system's), shown as ONE amount on its
+            date and kept out of the months — it would read as that month's. Included in the totals, so the
+            totals still equal the income statement for the window. null when no migration falls in it.
+          oneOf:
+            - type: object
+              required: [date, revenue, expenses, net]
+              properties:
+                date: { type: string }
+                revenue: { type: number }
+                expenses: { type: number }
+                net: { type: number }
+            - { type: "null" }
+        points:
+          type: array
+          items: { $ref: "#/components/schemas/PnlTrendPoint" }
+        totals:
+          type: object
+          required: [revenue, expenses, net]
+          properties:
+            revenue: { type: number }
+            expenses: { type: number }
+            net: { type: number }
 
     TrendPoint:
       type: object
@@ -9625,27 +9878,48 @@ components:
     # ── Report schemas (2026-09-01) — shaped from reports.service.ts, verified
     #    against real rows by tests/report-contract-conformance.test.ts ────────
 
-    TrialBalanceRow:
+    ReportWindow:
+      description: The window a report covers, as the server applied it (null = open-ended).
       type: object
-      required: [name, nameAr, accountId, type, debit, credit, balance]
+      required: [from, to]
       properties:
+        from: { type: ["string", "null"] }
+        to: { type: ["string", "null"] }
+
+    TrialBalanceRow:
+      description: >
+        debit / credit / balance are the PERIOD movement (balance = debit − credit). openingBalance and
+        closingBalance are debit-positive; closing = opening + debit − credit. A `computed` row is the
+        unallocated P&L of prior fiscal years (no account).
+      type: object
+      required: [key, name, nameAr, accountId, type, computed, openingBalance, debit, credit, balance, closingBalance]
+      properties:
+        key: { type: string }
         name: { type: string }
         nameAr: { type: string }
         accountId: { type: ["integer", "null"] }
         type: { type: string }
+        computed: { type: boolean }
+        openingBalance: { type: number }
         debit: { type: number }
         credit: { type: number }
         balance: { type: number }
+        closingBalance: { type: number }
 
     TrialBalanceReport:
       type: object
-      required: [accounts, totalDebit, totalCredit, balanced]
+      required: [window, fiscalYearDeclared, plResetFrom, accounts, totalDebit, totalCredit, totalOpening, totalClosing, balanced]
       properties:
+        window: { $ref: "#/components/schemas/ReportWindow" }
+        fiscalYearDeclared: { type: boolean }
+        plResetFrom: { type: ["string", "null"], description: The fiscal-year start income and expense accounts open at, when a reset applied }
         accounts:
           type: array
           items: { $ref: "#/components/schemas/TrialBalanceRow" }
         totalDebit: { type: number }
         totalCredit: { type: number }
+        totalOpening: { type: number, description: Σ opening — zero when the ledger balances }
+        totalClosing: { type: number, description: Σ closing — zero when the ledger balances }
         balanced: { type: boolean }
 
     ReportKeyedAmount:
@@ -9659,9 +9933,14 @@ components:
         amount: { type: number }
 
     IncomeStatementReport:
+      description: >
+        From the ledger only (Phase 14 D14-06 — the former transactions fallback is gone). Expenses are
+        presented BY NATURE (IAS 1.102), so there is no gross-profit line: `grossProfit` is null.
       type: object
-      required: [revenue, expenses, totalRevenue, totalExpenses, grossProfit, netIncome, netIncomeMargin, source]
+      required: [window, revenue, expenses, totalRevenue, totalExpenses, grossProfit, expenseAnalysis, netIncome, netIncomeMargin, source]
       properties:
+        window: { $ref: "#/components/schemas/ReportWindow" }
+        expenseAnalysis: { type: string, enum: [nature] }
         revenue:
           type: array
           items: { $ref: "#/components/schemas/ReportKeyedAmount" }
@@ -9670,12 +9949,12 @@ components:
           items: { $ref: "#/components/schemas/ReportKeyedAmount" }
         totalRevenue: { type: number }
         totalExpenses: { type: number }
-        grossProfit: { type: number }
+        grossProfit: { type: ["number", "null"] }
         netIncome: { type: number }
         netIncomeMargin: { type: number }
         source:
           type: string
-          enum: [journal_entries, transactions]
+          enum: [journal_entries]
 
     BalanceSheetItem:
       type: object
@@ -9698,17 +9977,18 @@ components:
 
     BalanceSheetReport:
       type: object
-      required: [asOf, assets, liabilities, equity, totalLiabilitiesAndEquity, balanced, warning]
+      required: [asOf, assets, liabilities, equity, unmapped, totalLiabilitiesAndEquity, balanced, warning]
       properties:
         asOf: { type: string }
         assets:
           type: object
-          required: [items, accountsReceivable, total, current, nonCurrent, unclassified, quickTotal, suspenseBalance, transferSuspenseBalance]
+          required: [items, accountsReceivable, accountsReceivableKey, total, current, nonCurrent, unclassified, quickTotal, suspenseBalance, transferSuspenseBalance]
           properties:
             items:
               type: array
               items: { $ref: "#/components/schemas/BalanceSheetItem" }
             accountsReceivable: { type: number }
+            accountsReceivableKey: { type: ["string", "null"], description: The item key of the AR account (resolved by system code) }
             total: { type: number }
             current: { $ref: "#/components/schemas/BalanceSheetBucket" }
             nonCurrent: { $ref: "#/components/schemas/BalanceSheetBucket" }
@@ -9718,25 +9998,45 @@ components:
             transferSuspenseBalance: { type: number }
         liabilities:
           type: object
-          required: [items, accountsPayable, total, current, nonCurrent, unclassified]
+          required: [items, accountsPayable, accountsPayableKey, total, current, nonCurrent, unclassified]
           properties:
             items:
               type: array
               items: { $ref: "#/components/schemas/BalanceSheetItem" }
             accountsPayable: { type: number }
+            accountsPayableKey: { type: ["string", "null"], description: The item key of the AP account (resolved by system code) }
             total: { type: number }
             current: { $ref: "#/components/schemas/BalanceSheetBucket" }
             nonCurrent: { $ref: "#/components/schemas/BalanceSheetBucket" }
             unclassified: { $ref: "#/components/schemas/BalanceSheetBucket" }
         equity:
           type: object
-          required: [items, retainedEarnings, total]
+          required: [items, retainedEarnings, priorYearsProfit, currentYearProfit, fiscalYear, total]
+          description: >
+            Equity accounts plus the profit or loss not yet allocated by any entry, split by the fiscal year
+            containing as_of (D14-05). retainedEarnings = priorYearsProfit + currentYearProfit (it is NOT the
+            RETAINED_EARNINGS account, which is among the items). Without a declared fiscal year the whole
+            amount is in priorYearsProfit and fiscalYear is null.
           properties:
             items:
               type: array
               items: { $ref: "#/components/schemas/ReportKeyedAmount" }
             retainedEarnings: { type: number }
+            priorYearsProfit: { type: number }
+            currentYearProfit: { type: number }
+            fiscalYear:
+              type: ["object", "null"]
+              required: [label, startDate, endDate, calendar]
+              properties:
+                label: { type: integer }
+                startDate: { type: string }
+                endDate: { type: string }
+                calendar: { type: string, enum: [gregorian, hijri] }
             total: { type: number }
+        unmapped:
+          type: array
+          description: Ledger accounts with a balance but no balance-sheet or P&L type — listed, never folded; they make the sheet unbalanced.
+          items: { $ref: "#/components/schemas/BalanceSheetItem" }
         totalLiabilitiesAndEquity: { type: number }
         balanced: { type: boolean }
         warning: { type: ["string", "null"] }
@@ -9750,21 +10050,42 @@ components:
           type: array
           items:
             type: object
-            required: [name, amount]
+            required: [key, name, nameAr, amount, accounts]
+            description: One direct-method line (a class of receipts or payments) with the accounts that make it up.
             properties:
+              key: { type: string }
               name: { type: string }
+              nameAr: { type: string }
               amount: { type: number }
+              accounts:
+                type: array
+                items: { $ref: "#/components/schemas/ReportKeyedAmount" }
 
     CashFlowReport:
-      description: DIRECT method — actual cash movements classified by kind and account class. The indirect method is not built.
+      description: >
+        DIRECT method from THE LEDGER (Phase 14 D14-07): every in-books entry touching a cash account, each
+        non-cash line contributing to the activity of its account. openingCash + operating + investing +
+        financing + internal + migrationOpeningCash = closingCash (`reconciles`). Flows are inclusive of VAT.
+        The indirect method is not built.
       type: object
-      required: [operating, investing, financing, internal, netChange]
+      required: [window, method, vatBasis, openingCash, operating, investing, financing, internal, migrationOpeningCash, netCashFromActivities, netChange, closingCash, reconciles, limitations]
       properties:
+        window: { $ref: "#/components/schemas/ReportWindow" }
+        method: { type: string, enum: [direct] }
+        vatBasis: { type: string, enum: [inclusive] }
+        openingCash: { type: number }
         operating: { $ref: "#/components/schemas/CashFlowSection" }
         investing: { $ref: "#/components/schemas/CashFlowSection" }
         financing: { $ref: "#/components/schemas/CashFlowSection" }
         internal: { $ref: "#/components/schemas/CashFlowSection" }
+        migrationOpeningCash: { type: number }
+        netCashFromActivities: { type: number }
         netChange: { type: number }
+        closingCash: { type: number }
+        reconciles: { type: boolean }
+        limitations:
+          type: array
+          items: { type: string }
 
     JournalReportLine:
       type: object
@@ -9808,7 +10129,7 @@ components:
 
     GeneralLedgerMovement:
       type: object
-      required: [date, entryNumber, jeId, description, reference, accountName, accountId, debit, credit, balance, accountNameAr]
+      required: [date, entryNumber, jeId, description, reference, accountName, accountId, debit, credit, balance, accountNameAr, partyType, customerId, vendorId]
       properties:
         date: { type: string }
         entryNumber: { type: string }
@@ -9821,11 +10142,32 @@ components:
         credit: { type: number }
         balance: { type: number }
         accountNameAr: { type: string }
+        partyType: { type: ["string", "null"] }
+        customerId: { type: ["integer", "null"] }
+        vendorId: { type: ["integer", "null"] }
+
+    GeneralLedgerParty:
+      type: object
+      required: [type, id]
+      properties:
+        type: { type: string, enum: [customer, vendor] }
+        id: { type: integer }
 
     GeneralLedgerReport:
       type: object
-      required: [accountId, accountName, accountNameAr, openingBalance, movements, closingBalance, totalDebit, totalCredit]
+      description: >
+        The ledger of one account (or party) for a window. It opens on EXACTLY the trial-balance row it is drilled
+        from (D14-09): lines before the window, plus migration opening entries up to the window end (D14-03) — which
+        are therefore never listed as movements — and, for an income or expense account with a declared fiscal year,
+        only from the start of the fiscal year containing date_from (plResetFrom).
+      required: [window, plResetFrom, accountId, accountName, accountNameAr, party, openingBalance, movements, closingBalance, totalDebit, totalCredit]
       properties:
+        window: { $ref: "#/components/schemas/ReportWindow" }
+        plResetFrom: { type: ["string", "null"], description: "The fiscal-year start an income or expense account opens at; null when no reset applied" }
+        party:
+          oneOf:
+            - { $ref: "#/components/schemas/GeneralLedgerParty" }
+            - { type: "null" }
         accountId: { type: ["integer", "null"] }
         accountName: { type: string }
         accountNameAr: { type: string }
@@ -9873,9 +10215,12 @@ components:
 
     AccountSummaryRow:
       type: object
-      required: [name, type, openingBalance, periodDebit, periodCredit, closingBalance]
+      required: [key, accountId, name, nameAr, type, openingBalance, periodDebit, periodCredit, closingBalance]
       properties:
+        key: { type: string }
+        accountId: { type: ["integer", "null"] }
         name: { type: string }
+        nameAr: { type: string }
         type: { type: string }
         openingBalance: { type: number }
         periodDebit: { type: number }
@@ -9884,8 +10229,9 @@ components:
 
     AccountSummaryReport:
       type: object
-      required: [accounts, count]
+      required: [window, accounts, count]
       properties:
+        window: { $ref: "#/components/schemas/ReportWindow" }
         accounts:
           type: array
           items: { $ref: "#/components/schemas/AccountSummaryRow" }
@@ -9998,8 +10344,13 @@ components:
         Phase E — the buckets carry ONLY real receivable exposure (every item ≥ 0, Σ = GL Accounts Receivable). What we owe customers is
         shown beside them, never folded into a bucket, and the net is derived.
       type: object
-      required: [buckets, total, liabilities, netCustomerPosition, items]
+      required: [asOf, basis, buckets, total, liabilities, netCustomerPosition, items]
       properties:
+        asOf: { type: string, description: The as-of date applied (default the business day) }
+        basis:
+          type: string
+          enum: [subledger, events]
+          description: subledger = today's caches; events = the customer-statement events replayed up to asOf (D14-08)
         buckets: { $ref: "#/components/schemas/AgingBuckets" }
         total: { type: number, minimum: 0 }
         liabilities:
@@ -10027,7 +10378,7 @@ components:
 
     ApAgingReport:
       type: object
-      required: [buckets, total, items, assets, netSupplierPosition]
+      required: [asOf, basis, buckets, total, items, assets, netSupplierPosition]
       description: >
         B6: the buckets carry only real payable exposure — every item is what
         a bill still owes after its live allocations, credit notes are not aged
@@ -10035,17 +10386,25 @@ components:
         What the SUPPLIER holds is shown BESIDE the buckets and never folded
         into them: an advance is an asset, not a negative payable.
       properties:
+        asOf: { type: string, description: The as-of date applied (default the business day) }
+        basis:
+          type: string
+          enum: [subledger, events]
+          description: subledger = today's positions; events = the supplier-statement events replayed up to asOf (D14-08)
         buckets: { $ref: "#/components/schemas/AgingBuckets" }
         total: { type: number }
         assets:
           type: object
-          required: [supplierCredits, supplierAdvances, supplierDeposits, unidentifiedPayments]
-          description: What the supplier holds or owes us — each one an ASSET, never a bucket.
+          required: [supplierCredits, supplierAdvances, supplierDeposits, unidentifiedPayments, onAccountTotal]
+          description: >
+            What the supplier holds or owes us — each one an ASSET, never a bucket. At a past as-of date the
+            money held on account is one figure (onAccountTotal) and its split is null.
           properties:
             supplierCredits: { type: number, description: Unapplied purchase credit notes }
-            supplierAdvances: { type: number }
-            supplierDeposits: { type: number, description: Refundable security deposits paid }
-            unidentifiedPayments: { type: number, description: Paid, but nobody has said what for }
+            supplierAdvances: { type: ["number", "null"] }
+            supplierDeposits: { type: ["number", "null"], description: Refundable security deposits paid }
+            unidentifiedPayments: { type: ["number", "null"], description: Paid, but nobody has said what for }
+            onAccountTotal: { type: number, description: Advances + deposits + unidentified payments }
         netSupplierPosition: { type: number, description: total less every asset above — DERIVED, never stored }
         items:
           type: array
@@ -12156,29 +12515,257 @@ components:
           type: number
           description: The document's own total; a journal entry's is the sum of its debit lines, from the same aggregate the ledger list uses.
 
-    Budget:
+    BudgetFiscalYear:
       type: object
-      required: [id, name, period, categoryId, budgetedAmount, notes]
+      description: The fiscal year FROZEN on the budget when it was created (D15-01).
+      required: [calendar, startMonth, label, startDate, endDate]
+      properties:
+        calendar: { type: string, enum: [gregorian, hijri] }
+        startMonth: { type: integer }
+        label: { type: integer, description: "The year the fiscal year starts in, in its own calendar (an AH year for Hijri)." }
+        startDate: { type: string }
+        endDate: { type: string }
+
+    BudgetPeriod:
+      type: object
+      required: [no, calendarMonth, calendarYear, startDate, endDate]
+      properties:
+        no: { type: integer, description: "1–12, from the fiscal year's first month." }
+        calendarMonth: { type: integer }
+        calendarYear: { type: integer }
+        startDate: { type: string }
+        endDate: { type: string }
+
+    BudgetVersionSummary:
+      type: object
+      required: [id, versionNo, status, basedOnVersionId, notes, sendBackNote, createdBy, createdAt, submittedBy, submittedAt, approvedBy, approvedAt, supersededAt]
+      properties:
+        id: { type: integer }
+        versionNo: { type: integer }
+        status: { type: string, enum: [draft, submitted, approved, superseded] }
+        basedOnVersionId: { type: ["integer", "null"] }
+        notes: { type: ["string", "null"] }
+        sendBackNote: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        submittedBy: { type: ["integer", "null"] }
+        submittedAt: { type: ["string", "null"] }
+        approvedBy: { type: ["integer", "null"] }
+        approvedAt: { type: ["string", "null"] }
+        supersededAt: { type: ["string", "null"] }
+
+    BudgetSummary:
+      type: object
+      required: [id, name, nameAr, scenario, fiscalYear, notes, createdAt, versions, approvedVersionId, openVersionId]
       properties:
         id: { type: integer }
         name: { type: string }
         nameAr: { type: ["string", "null"] }
-        period: { type: string, description: "YYYY — annual only." }
-        categoryId: { type: ["integer", "null"] }
-        budgetedAmount: { type: number }
+        scenario: { type: string, enum: [base, best_case, worst_case] }
+        fiscalYear: { $ref: "#/components/schemas/BudgetFiscalYear" }
         notes: { type: ["string", "null"] }
         createdAt: { type: string }
+        versions:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetVersionSummary" }
+        approvedVersionId: { type: ["integer", "null"] }
+        openVersionId: { type: ["integer", "null"], description: "The draft or submitted version, if one is open." }
 
-    BudgetInput:
+    BudgetAccount:
       type: object
-      required: [name, period, budgetedAmount]
+      required: [id, name, nameAr, type]
       properties:
-        name: { type: string, minLength: 1 }
+        id: { type: integer }
+        name: { type: string }
         nameAr: { type: ["string", "null"] }
-        period: { type: string }
-        categoryId: { type: ["integer", "null"] }
-        budgetedAmount: { type: number, minimum: 0 }
-        notes: { type: ["string", "null"] }
+        type: { type: string, enum: [income, expense] }
+
+    BudgetAccountLine:
+      type: object
+      required: [accountId, accountName, accountNameAr, accountType, mode, periods, annualAmount, total]
+      properties:
+        accountId: { type: integer }
+        accountName: { type: string }
+        accountNameAr: { type: ["string", "null"] }
+        accountType: { type: string, enum: [income, expense] }
+        mode: { type: string, enum: [periods, annual] }
+        periods:
+          description: Twelve period amounts when mode = periods; null for an annual-only line (never divided).
+          type: ["array", "null"]
+          items: { type: number }
+        annualAmount: { type: ["number", "null"] }
+        total: { type: number }
+
+    BudgetDetail:
+      allOf:
+        - { $ref: "#/components/schemas/BudgetSummary" }
+        - type: object
+          required: [periods, version, lines, totals]
+          properties:
+            periods:
+              type: array
+              items: { $ref: "#/components/schemas/BudgetPeriod" }
+            version:
+              oneOf:
+                - { $ref: "#/components/schemas/BudgetVersionSummary" }
+                - { type: "null" }
+            lines:
+              type: array
+              items: { $ref: "#/components/schemas/BudgetAccountLine" }
+            totals:
+              type: object
+              required: [income, expense]
+              properties:
+                income: { type: number }
+                expense: { type: number }
+
+    CreateBudgetInput:
+      type: object
+      required: [name, fiscalYearLabel]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        nameAr: { type: ["string", "null"], maxLength: 120 }
+        fiscalYearLabel: { type: integer, description: "The fiscal year, named by the year it starts in, in the company's calendar." }
+        scenario: { type: string, enum: [base, best_case, worst_case] }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    UpdateBudgetInput:
+      description: Name and notes only — the company, scenario and fiscal year are fixed.
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        nameAr: { type: ["string", "null"], maxLength: 120 }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    ReplaceBudgetLinesInput:
+      type: object
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          maxItems: 2000
+          items:
+            type: object
+            required: [accountId]
+            description: Exactly one of `periods` (twelve amounts) or `annualAmount`.
+            properties:
+              accountId: { type: integer }
+              periods:
+                type: array
+                minItems: 12
+                maxItems: 12
+                items: { type: number, minimum: 0 }
+              annualAmount: { type: number, minimum: 0 }
+
+    BudgetSendBackInput:
+      type: object
+      properties:
+        note: { type: ["string", "null"], maxLength: 1000 }
+
+    BudgetVsActualFigure:
+      type: object
+      required: [budget, actual, variance, variancePct, favourable]
+      properties:
+        budget: { type: ["number", "null"], description: "null when the line is annual-only — nothing is apportioned." }
+        actual: { type: number }
+        variance: { type: ["number", "null"], description: "actual − budget, in the account's natural direction." }
+        variancePct: { type: ["number", "null"], description: "variance ÷ budget × 100; null when the budget is zero or absent." }
+        favourable: { type: ["boolean", "null"], description: "income: variance ≥ 0; expense: variance ≤ 0. A judgment, shown in words." }
+
+    BudgetVsActualPeriodFigure:
+      type: object
+      required: [no, budget, actual, variance, variancePct]
+      properties:
+        no: { type: integer }
+        budget: { type: ["number", "null"] }
+        actual: { type: number }
+        variance: { type: ["number", "null"] }
+        variancePct: { type: ["number", "null"] }
+
+    BudgetVsActualFullYear:
+      type: object
+      required: [budget, actualToDate, remaining]
+      properties:
+        budget: { type: ["number", "null"] }
+        actualToDate: { type: number }
+        remaining: { type: ["number", "null"], description: "budget − actual to date. No variance is judged before the year ends." }
+
+    BudgetVsActualForecast:
+      type: object
+      required: [amount, variance, favourable, reason]
+      properties:
+        amount: { type: ["number", "null"], description: "Actuals through the period + the budget of the remaining periods. Deterministic; never stored." }
+        variance: { type: ["number", "null"] }
+        favourable: { type: ["boolean", "null"] }
+        reason: { type: ["string", "null"], enum: [annual_only, unbudgeted, null] }
+
+    BudgetVsActualLine:
+      type: object
+      required: [accountId, accountName, accountNameAr, accountType, mode, migrated, periods, ytd, fullYear, forecast]
+      properties:
+        migrated:
+          description: >
+            The account's year-to-date P&L brought in by a migration opening entry: ONE amount on its date,
+            never spread across the periods it covers. In the year to date once the through-period reaches
+            its date; always in the actual to date.
+          oneOf:
+            - type: object
+              required: [amount, date]
+              properties:
+                amount: { type: number }
+                date: { type: string }
+            - { type: "null" }
+        accountId: { type: integer }
+        accountName: { type: string }
+        accountNameAr: { type: ["string", "null"] }
+        accountType: { type: string, enum: [income, expense] }
+        mode: { type: string, enum: [periods, annual, unbudgeted] }
+        periods:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetVsActualPeriodFigure" }
+        ytd: { $ref: "#/components/schemas/BudgetVsActualFigure" }
+        fullYear: { $ref: "#/components/schemas/BudgetVsActualFullYear" }
+        forecast: { $ref: "#/components/schemas/BudgetVsActualForecast" }
+
+    BudgetVsActualTotals:
+      type: object
+      required: [ytd, fullYear, forecast, annualOnlyLines]
+      properties:
+        ytd: { $ref: "#/components/schemas/BudgetVsActualFigure" }
+        fullYear: { $ref: "#/components/schemas/BudgetVsActualFullYear" }
+        forecast: { $ref: "#/components/schemas/BudgetVsActualForecast" }
+        annualOnlyLines: { type: integer, description: "Lines with an annual amount only — when > 0 the YTD budget and forecast totals are null rather than partial." }
+
+    BudgetVsActual:
+      type: object
+      required: [budgetId, name, nameAr, scenario, version, fiscalYear, periods, throughPeriod, throughDate, basis, lines, unbudgeted, totals]
+      properties:
+        budgetId: { type: integer }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        scenario: { type: string, enum: [base, best_case, worst_case] }
+        version: { $ref: "#/components/schemas/BudgetVersionSummary" }
+        fiscalYear: { $ref: "#/components/schemas/BudgetFiscalYear" }
+        periods:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetPeriod" }
+        throughPeriod: { type: integer, description: "Year to date runs through this COMPLETED fiscal period (0 = none yet)." }
+        throughDate: { type: ["string", "null"] }
+        basis: { type: string, enum: [accrual_gl] }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetVsActualLine" }
+        unbudgeted:
+          description: Income and expense accounts that moved in the fiscal year with no line — so Σ actual = the income statement (D15-09).
+          type: array
+          items: { $ref: "#/components/schemas/BudgetVsActualLine" }
+        totals:
+          type: object
+          required: [income, expense, net]
+          properties:
+            income: { $ref: "#/components/schemas/BudgetVsActualTotals" }
+            expense: { $ref: "#/components/schemas/BudgetVsActualTotals" }
+            net: { $ref: "#/components/schemas/BudgetVsActualTotals" }
 
     QuotationLineInput:
       description: A line as a CLIENT sends it — the server computes vatAmount/total and assigns ids; `id` is passed only on update, to keep the identity a conversion points at.
@@ -12220,17 +12807,6 @@ components:
             lastErrorDetail: { type: ["string", "null"] }
             consecutiveFailures: { type: integer }
             lastSuccessOn: { type: ["string", "null"] }
-    UpdateBudgetInput:
-      description: A PARTIAL update — every field optional; the CREATE input requires name, period and amount.
-      type: object
-      properties:
-        name: { type: string, minLength: 1 }
-        nameAr: { type: ["string", "null"] }
-        period: { type: string }
-        categoryId: { type: ["integer", "null"] }
-        budgetedAmount: { type: number, minimum: 0 }
-        notes: { type: ["string", "null"] }
-
     # ── Batch 1C — migration ─────────────────────────────────────────────────
     CreateMigrationBatchInput:
       type: object

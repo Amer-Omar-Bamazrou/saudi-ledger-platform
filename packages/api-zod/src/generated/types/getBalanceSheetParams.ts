@@ -7,5 +7,5 @@
  */
 
 export type GetBalanceSheetParams = {
-as_of?: string;
+as_of?: Date;
 };

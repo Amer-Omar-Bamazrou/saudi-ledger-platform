@@ -163,6 +163,11 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
     await post("RC-2", "2026-04-10", "posted", [[ar, 1150, 0], [vatOut, 0, 150], [revenue, 0, 1000]]);
     await post("RC-3", "2026-05-05", "posted", [[rent, 460, 0], [ap, 0, 460]]);
     await post("RC-4", "2026-06-01", "draft", [[cash, 5, 0], [equity, 0, 5]]);
+    // Phase 14 (D14-07): the cash flow reads THE LEDGER, so its sections are
+    // exercised by posted cash entries — a customer receipt (operating) and an
+    // own-account transfer still in transit at the window end (internal).
+    await post("RC-5", "2026-04-15", "posted", [[cash, 1150, 0], [ar, 0, 1150]]);
+    await post("RC-6", "2026-12-31", "posted", [[await acct("TRANSFER_CLEARING"), 200, 0], [cash, 0, 200]]);
 
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number) VALUES ($1,'Contract Customer','عميل العقد','310000000000003') RETURNING id`, [orgId])).rows[0].id;
     const vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Contract Vendor') RETURNING id`, [orgId])).rows[0].id;
@@ -237,10 +242,12 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
 
   it("GET /reports/cash-flow", async () => {
     const out = await inTenant(() => reportsService.cashFlow(FROM, TO));
-    // Accepted operating rows (categorised AND uncategorised) plus a transfer,
-    // so every section's item schema is exercised, not skipped.
-    expect(out.operating.items.length).toBe(2);
-    expect(out.internal.items.length).toBe(1);
+    // Phase 14: one line in each non-empty section (operating receipt, owner
+    // capital, the transfer in transit), each carrying its accounts, so every
+    // section's item schema — and the nested account schema — is exercised.
+    expect([out.operating.items.length, out.financing.items.length, out.internal.items.length]).toEqual([1, 1, 1]);
+    for (const sec of [out.operating, out.financing, out.internal]) expect(sec.items[0].accounts.length).toBeGreaterThan(0);
+    expect(out.reconciles).toBe(true);
     conforms(GetCashFlowResponse, out, "cashFlow");
   });
 

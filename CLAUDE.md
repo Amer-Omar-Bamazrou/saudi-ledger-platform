@@ -54,13 +54,14 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-09-29.** Full as-built narrative for everything below:
+**Last updated: 2026-10-01.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED**; A4/A5 as invariants (§4); follow-ups built ([`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17). Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
 **2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-H BUILT**; its four invariants are in the [`pack`](docs/product/fixed-assets-decision-pack.md) §20–§27. 🔴 THREE CLOCKS (fiscal year · tax period · accounting life) — none stands in for another.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
+**2026-10-01** — 🔴 **PHASES 14+15 BUILT** (`docs/product/phase-14-15-*` pack).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
@@ -593,7 +594,6 @@ fresh hold-out before launch. Record: findings file,
 - 🔴 **Our VAT-return boxes are NOT ZATCA's** (P13-N1).
 - Manual transaction create has no `kind`/`taxTreatment`: every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
 - Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the gate).
-- The income-statement **transactions-fallback** (zero journal lines) reports gross of VAT.
 - The Categories UI cannot mark system accounts (no edit routes exist).
 - **Deferred:** action-level permissions (post-to-GL / pay / approve, gateable separately).
 - 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local stack where the grants were measured.

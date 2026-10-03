@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
-import { reportsService } from "../services/reports.service";
+import { reportsService, reportParty } from "../services/reports.service";
+import { exportReport } from "../services/reporting/reportExport.service";
+import { BadRequestError } from "../lib/errors";
 
 /**
  * Reports historically returned `{ error: String(err) }` with 500 on unexpected
@@ -25,6 +27,23 @@ const withReportError =
 const q = (req: Request) => req.query as Record<string, string>;
 
 export const reportsController = {
+  /**
+   * D14-10 — an export runs the report's OWN service call (see
+   * reportExport.service.ts): same permission, same tenant/company
+   * transaction, same filters and date rules as the screen.
+   */
+  export: withReportError(async (req, res) => {
+    const format = String(req.query.format ?? "csv");
+    const lang = String(req.query.lang ?? "en");
+    if (format !== "csv" && format !== "pdf") throw new BadRequestError("format must be 'csv' or 'pdf'.");
+    if (lang !== "en" && lang !== "ar") throw new BadRequestError("lang must be 'en' or 'ar'.");
+    const out = await exportReport(String(req.params.report), q(req), format, lang);
+    res
+      .status(200)
+      .type(out.contentType)
+      .setHeader("Content-Disposition", `attachment; filename="${out.filename.replace(/[^A-Za-z0-9._-]/g, "_")}"`)
+      .send(out.body);
+  }),
   trialBalance: withReportError(async (req, res) => {
     const { date_from, date_to } = q(req);
     res.json(await reportsService.trialBalance(date_from, date_to));
@@ -45,8 +64,8 @@ export const reportsController = {
     res.json(await reportsService.journalReport(date_from, date_to));
   }),
   generalLedger: withReportError(async (req, res) => {
-    const { account_id, account_name, date_from, date_to } = q(req);
-    res.json(await reportsService.generalLedger(account_id, account_name, date_from, date_to));
+    const { account_id, account_name, date_from, date_to, party_type, customer_id, vendor_id } = q(req);
+    res.json(await reportsService.generalLedger(account_id, account_name, date_from, date_to, reportParty(party_type, customer_id, vendor_id)));
   }),
   accountStatement: withReportError(async (req, res) => {
     const { account_id, account_name, date_from, date_to } = q(req);
@@ -64,11 +83,11 @@ export const reportsController = {
     const { date_from, date_to } = q(req);
     res.json(await reportsService.ownerEquity(date_from, date_to));
   }),
-  arAging: withReportError(async (_req, res) => {
-    res.json(await reportsService.arAging());
+  arAging: withReportError(async (req, res) => {
+    res.json(await reportsService.arAging(q(req).as_of));
   }),
-  apAging: withReportError(async (_req, res) => {
-    res.json(await reportsService.apAging());
+  apAging: withReportError(async (req, res) => {
+    res.json(await reportsService.apAging(q(req).as_of));
   }),
   taxJournalEntries: withReportError(async (req, res) => {
     const { date_from, date_to } = q(req);

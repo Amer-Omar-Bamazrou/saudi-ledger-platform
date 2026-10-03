@@ -146,6 +146,53 @@ export function resolveFiscalYear(settings: FiscalYearSettings, label: number): 
   };
 }
 
+/** One month of a fiscal year — a budget period (Phase 15, D15-03). */
+export interface FiscalMonth {
+  /** 1–12, counted from the fiscal year's first month. */
+  no: number;
+  /** The month IN the company's calendar (1 = January, or 1 = Muharram). */
+  calendarMonth: number;
+  /** The year of that month in the company's calendar. */
+  calendarYear: number;
+  /** Inclusive `YYYY-MM-DD`. */
+  startDate: string;
+  /** Inclusive — the day before the next month begins. */
+  endDate: string;
+}
+
+/**
+ * The twelve months of one fiscal year, in the company's calendar — Gregorian
+ * months, or Umm al-Qura Hijri months (29 or 30 days, tabulated, never
+ * assumed). Contiguous by construction: each month ends the day before the
+ * next begins, and the twelfth ends on the fiscal year's own end date.
+ *
+ * Pure, like the rest of this module: a budget FREEZES its settings and label
+ * at creation (D15-01) and re-derives its periods from them through here.
+ */
+export function fiscalMonths(settings: FiscalYearSettings, label: number): FiscalMonth[] {
+  const fy = resolveFiscalYear(settings, label); // validates the start month and the Hijri table range
+  const startOf = (offset: number): { year: number; month: number; day: number } => {
+    const idx = settings.fiscalYearStart - 1 + offset;
+    const year = label + Math.floor(idx / 12);
+    const month = (idx % 12) + 1;
+    if (settings.calendar === "gregorian") return { year, month, day: gregorianStart(year, month) };
+    const day = fromHijri(year, month, 1);
+    if (day === null) throw new RangeError(`Hijri month ${month}/${year} is outside the Umm al-Qura tables available on this runtime.`);
+    return { year, month, day };
+  };
+  const out: FiscalMonth[] = [];
+  for (let k = 0; k < 12; k++) {
+    const s = startOf(k);
+    const next = startOf(k + 1);
+    out.push({ no: k + 1, calendarMonth: s.month, calendarYear: s.year, startDate: toIsoDate(s.day), endDate: toIsoDate(next.day - 1) });
+  }
+  if (out[0]!.startDate !== fy.startDate || out[11]!.endDate !== fy.endDate) {
+    // cannot happen — the months and the year come from the same tables; refuse rather than drift
+    throw new RangeError(`fiscal months of ${label} do not cover the fiscal year ${fy.startDate}…${fy.endDate}`);
+  }
+  return out;
+}
+
 /**
  * Which fiscal year does a given date fall in? Returns the period, so the
  * caller never has to re-derive the boundaries it is about to need.

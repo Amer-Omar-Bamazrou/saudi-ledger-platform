@@ -5,8 +5,15 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { ReportKeyedAmount } from './reportKeyedAmount';
 
+/**
+ * One direct-method line (a class of receipts or payments) with the accounts that make it up.
+ */
 export type CashFlowSectionItemsItem = {
+  key: string;
   name: string;
+  nameAr: string;
   amount: number;
+  accounts: ReportKeyedAmount[];
 };

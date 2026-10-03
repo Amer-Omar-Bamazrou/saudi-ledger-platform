@@ -68,7 +68,9 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   employees: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   assets: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
   bank_accounts: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
-  budgets: { read: READ_ALL, create: WRITE, update: WRITE, delete: ADMIN_ONLY },
+  // Phase 15 (D15-12): a budget version is approved / sent back / rejected by an
+  // approver — the invoices/bills split: a bookkeeper drafts and submits.
+  budgets: { read: READ_ALL, create: WRITE, update: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
 
   /**
    * Quotations (M21.1) — an offer to a customer, with NO ledger effect at any

@@ -58,9 +58,11 @@ import type {
   BillHeaderInput,
   BooksStatus,
   BridgePoint,
-  Budget,
-  BudgetInput,
-  BudgetLine,
+  BudgetAccount,
+  BudgetDetail,
+  BudgetSendBackInput,
+  BudgetSummary,
+  BudgetVsActual,
   CancelAssetInput,
   CancelRecognitionInput,
   CancelRecognitionSchedule200,
@@ -93,6 +95,7 @@ import type {
   CreateAssetInput,
   CreateBadDebtRecoveryInput,
   CreateBillInput,
+  CreateBudgetInput,
   CreateCustomerInput,
   CreateEmployeeInput,
   CreateInvoiceInput,
@@ -127,6 +130,7 @@ import type {
   EmployeeInputFields,
   ErrorResponse,
   ExpensesPage,
+  ExportReportParams,
   FinancialSummary,
   Finding,
   FindingsPage,
@@ -139,9 +143,13 @@ import type {
   GetAccountStatementParams,
   GetAccountSummaryParams,
   GetActivityReportParams,
+  GetApAgingReportParams,
+  GetArAgingReportParams,
   GetAskStatus200,
   GetBalanceSheetParams,
   GetBankReconciliationPositionParams,
+  GetBudgetParams,
+  GetBudgetVsActualParams,
   GetCashFlowParams,
   GetCashReconciliationParams,
   GetCustomerLedgerParams,
@@ -156,6 +164,7 @@ import type {
   GetJournalReportParams,
   GetLiquidityParams,
   GetOwnerEquityParams,
+  GetPnlTrendParams,
   GetReceivablesBridgeParams,
   GetSummaryByCategoryParams,
   GetSummaryParams,
@@ -266,6 +275,7 @@ import type {
   PendingReviewTransaction,
   PeriodLock,
   PeriodLockInput,
+  PnlTrend,
   PurchaseOrder,
   PurchaseOrderConversion,
   PurchaseOrderConversionResult,
@@ -286,6 +296,7 @@ import type {
   RefundCustomerInput,
   RefundSupplierPaymentInput,
   ReopenBankReconciliationInput,
+  ReplaceBudgetLinesInput,
   ReverseBankTransferInput,
   ReverseMigrationBatchInput,
   ReverseReconciliationLinkInput,
@@ -6447,12 +6458,12 @@ export const getListBudgetsUrl = (params?: ListBudgetsParams,) => {
 }
 
 /**
- * @summary Budget vs actual for one ANNUAL period (M19.5). `period` is a YYYY string — budgets are annual by decision, not by omission: see design-analytics.md §7. Actuals are signed by account type (M19.0), so a refund reduces spend rather than adding to it.
+ * @summary Phase 15 — the company's budgets, newest fiscal year first, each with its versions. A budget FREEZES its fiscal year when created (D15-01). `as_of` keeps the budgets whose fiscal year contains that date; `scenario` filters.
 
  */
-export const listBudgets = async (params?: ListBudgetsParams, options?: RequestInit): Promise<BudgetLine[]> => {
+export const listBudgets = async (params?: ListBudgetsParams, options?: RequestInit): Promise<BudgetSummary[]> => {
 
-  return customFetch<BudgetLine[]>(getListBudgetsUrl(params),
+  return customFetch<BudgetSummary[]>(getListBudgetsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -6472,7 +6483,7 @@ export const getListBudgetsQueryKey = (params?: ListBudgetsParams,) => {
     }
 
 
-export const getListBudgetsQueryOptions = <TData = Awaited<ReturnType<typeof listBudgets>>, TError = ErrorType<unknown>>(params?: ListBudgetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBudgets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListBudgetsQueryOptions = <TData = Awaited<ReturnType<typeof listBudgets>>, TError = ErrorType<void>>(params?: ListBudgetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBudgets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -6491,15 +6502,15 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListBudgetsQueryResult = NonNullable<Awaited<ReturnType<typeof listBudgets>>>
-export type ListBudgetsQueryError = ErrorType<unknown>
+export type ListBudgetsQueryError = ErrorType<void>
 
 
 /**
- * @summary Budget vs actual for one ANNUAL period (M19.5). `period` is a YYYY string — budgets are annual by decision, not by omission: see design-analytics.md §7. Actuals are signed by account type (M19.0), so a refund reduces spend rather than adding to it.
+ * @summary Phase 15 — the company's budgets, newest fiscal year first, each with its versions. A budget FREEZES its fiscal year when created (D15-01). `as_of` keeps the budgets whose fiscal year contains that date; `scenario` filters.
 
  */
 
-export function useListBudgets<TData = Awaited<ReturnType<typeof listBudgets>>, TError = ErrorType<unknown>>(
+export function useListBudgets<TData = Awaited<ReturnType<typeof listBudgets>>, TError = ErrorType<void>>(
  params?: ListBudgetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBudgets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -6526,16 +6537,17 @@ export const getCreateBudgetUrl = () => {
 }
 
 /**
- * @summary Create an annual budget line for a category
- */
-export const createBudget = async (budgetInput: BudgetInput, options?: RequestInit): Promise<Budget> => {
+ * @summary Create a budget for one fiscal year of the company, with an empty DRAFT version 1. Refused with 422 `fiscal_year_undeclared` when the company has not declared its fiscal year (D15-15).
 
-  return customFetch<Budget>(getCreateBudgetUrl(),
+ */
+export const createBudget = async (createBudgetInput: CreateBudgetInput, options?: RequestInit): Promise<BudgetDetail> => {
+
+  return customFetch<BudgetDetail>(getCreateBudgetUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(budgetInput)
+    body: JSON.stringify(createBudgetInput)
   }
 );}
 
@@ -6544,8 +6556,8 @@ export const createBudget = async (budgetInput: BudgetInput, options?: RequestIn
 
 
 export const getCreateBudgetMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBudget>>, TError,{data: BodyType<BudgetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createBudget>>, TError,{data: BodyType<BudgetInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBudget>>, TError,{data: BodyType<CreateBudgetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBudget>>, TError,{data: BodyType<CreateBudgetInput>}, TContext> => {
 
 const mutationKey = ['createBudget'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -6557,7 +6569,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBudget>>, {data: BodyType<BudgetInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBudget>>, {data: BodyType<CreateBudgetInput>}> = (props) => {
           const {data} = props ?? {};
 
           return  createBudget(data,requestOptions)
@@ -6571,22 +6583,189 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type CreateBudgetMutationResult = NonNullable<Awaited<ReturnType<typeof createBudget>>>
-    export type CreateBudgetMutationBody = BodyType<BudgetInput>
+    export type CreateBudgetMutationBody = BodyType<CreateBudgetInput>
     export type CreateBudgetMutationError = ErrorType<void>
 
     /**
- * @summary Create an annual budget line for a category
+ * @summary Create a budget for one fiscal year of the company, with an empty DRAFT version 1. Refused with 422 `fiscal_year_undeclared` when the company has not declared its fiscal year (D15-15).
+
  */
 export const useCreateBudget = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBudget>>, TError,{data: BodyType<BudgetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBudget>>, TError,{data: BodyType<CreateBudgetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createBudget>>,
         TError,
-        {data: BodyType<BudgetInput>},
+        {data: BodyType<CreateBudgetInput>},
         TContext
       > => {
       return useMutation(getCreateBudgetMutationOptions(options));
     }
+
+export const getListBudgetAccountsUrl = () => {
+
+
+
+
+  return `/api/budgets/accounts`
+}
+
+/**
+ * @summary The income and expense posting accounts a budget line may name (D15-02).
+ */
+export const listBudgetAccounts = async ( options?: RequestInit): Promise<BudgetAccount[]> => {
+
+  return customFetch<BudgetAccount[]>(getListBudgetAccountsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBudgetAccountsQueryKey = () => {
+    return [
+    `/api/budgets/accounts`
+    ] as const;
+    }
+
+
+export const getListBudgetAccountsQueryOptions = <TData = Awaited<ReturnType<typeof listBudgetAccounts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBudgetAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBudgetAccountsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBudgetAccounts>>> = ({ signal }) => listBudgetAccounts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBudgetAccounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBudgetAccountsQueryResult = NonNullable<Awaited<ReturnType<typeof listBudgetAccounts>>>
+export type ListBudgetAccountsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The income and expense posting accounts a budget line may name (D15-02).
+ */
+
+export function useListBudgetAccounts<TData = Awaited<ReturnType<typeof listBudgetAccounts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBudgetAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBudgetAccountsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetBudgetUrl = (id: number,
+    params?: GetBudgetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/budgets/${id}?${stringifiedParams}` : `/api/budgets/${id}`
+}
+
+/**
+ * @summary One budget with its versions and the lines of one version (default — the open draft or submitted version, else the approved one, else the latest).
+ */
+export const getBudget = async (id: number,
+    params?: GetBudgetParams, options?: RequestInit): Promise<BudgetDetail> => {
+
+  return customFetch<BudgetDetail>(getGetBudgetUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBudgetQueryKey = (id: number,
+    params?: GetBudgetParams,) => {
+    return [
+    `/api/budgets/${id}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetBudgetQueryOptions = <TData = Awaited<ReturnType<typeof getBudget>>, TError = ErrorType<void>>(id: number,
+    params?: GetBudgetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBudget>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBudgetQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBudget>>> = ({ signal }) => getBudget(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBudget>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBudgetQueryResult = NonNullable<Awaited<ReturnType<typeof getBudget>>>
+export type GetBudgetQueryError = ErrorType<void>
+
+
+/**
+ * @summary One budget with its versions and the lines of one version (default — the open draft or submitted version, else the approved one, else the latest).
+ */
+
+export function useGetBudget<TData = Awaited<ReturnType<typeof getBudget>>, TError = ErrorType<void>>(
+ id: number,
+    params?: GetBudgetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBudget>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBudgetQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getUpdateBudgetUrl = (id: number,) => {
 
@@ -6596,10 +6775,13 @@ export const getUpdateBudgetUrl = (id: number,) => {
   return `/api/budgets/${id}`
 }
 
+/**
+ * @summary Rename, or edit the notes. The company, scenario and fiscal year are fixed (refused at the database).
+ */
 export const updateBudget = async (id: number,
-    updateBudgetInput: UpdateBudgetInput, options?: RequestInit): Promise<Budget> => {
+    updateBudgetInput: UpdateBudgetInput, options?: RequestInit): Promise<BudgetDetail> => {
 
-  return customFetch<Budget>(getUpdateBudgetUrl(id),
+  return customFetch<BudgetDetail>(getUpdateBudgetUrl(id),
   {
     ...options,
     method: 'PATCH',
@@ -6643,7 +6825,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateBudgetMutationBody = BodyType<UpdateBudgetInput>
     export type UpdateBudgetMutationError = ErrorType<void>
 
-    export const useUpdateBudget = <TError = ErrorType<void>,
+    /**
+ * @summary Rename, or edit the notes. The company, scenario and fiscal year are fixed (refused at the database).
+ */
+export const useUpdateBudget = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBudget>>, TError,{id: number;data: BodyType<UpdateBudgetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateBudget>>,
@@ -6662,6 +6847,9 @@ export const getDeleteBudgetUrl = (id: number,) => {
   return `/api/budgets/${id}`
 }
 
+/**
+ * @summary Delete a budget that was NEVER approved. An approved budget is a record — revise it instead (409 `budget_ever_approved`).
+ */
 export const deleteBudget = async (id: number, options?: RequestInit): Promise<void> => {
 
   return customFetch<void>(getDeleteBudgetUrl(id),
@@ -6677,7 +6865,7 @@ export const deleteBudget = async (id: number, options?: RequestInit): Promise<v
 
 
 
-export const getDeleteBudgetMutationOptions = <TError = ErrorType<unknown>,
+export const getDeleteBudgetMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBudget>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteBudget>>, TError,{id: number}, TContext> => {
 
@@ -6706,9 +6894,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteBudgetMutationResult = NonNullable<Awaited<ReturnType<typeof deleteBudget>>>
 
-    export type DeleteBudgetMutationError = ErrorType<unknown>
+    export type DeleteBudgetMutationError = ErrorType<void>
 
-    export const useDeleteBudget = <TError = ErrorType<unknown>,
+    /**
+ * @summary Delete a budget that was NEVER approved. An approved budget is a record — revise it instead (409 `budget_ever_approved`).
+ */
+export const useDeleteBudget = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBudget>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteBudget>>,
@@ -6718,6 +6909,537 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteBudgetMutationOptions(options));
     }
+
+export const getReviseBudgetUrl = (id: number,) => {
+
+
+
+
+  return `/api/budgets/${id}/versions`
+}
+
+/**
+ * @summary Start a revision — a new DRAFT version copying the approved version's lines (D15-04).
+ */
+export const reviseBudget = async (id: number, options?: RequestInit): Promise<BudgetDetail> => {
+
+  return customFetch<BudgetDetail>(getReviseBudgetUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReviseBudgetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviseBudget>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviseBudget>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['reviseBudget'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviseBudget>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  reviseBudget(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviseBudgetMutationResult = NonNullable<Awaited<ReturnType<typeof reviseBudget>>>
+
+    export type ReviseBudgetMutationError = ErrorType<void>
+
+    /**
+ * @summary Start a revision — a new DRAFT version copying the approved version's lines (D15-04).
+ */
+export const useReviseBudget = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviseBudget>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviseBudget>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getReviseBudgetMutationOptions(options));
+    }
+
+export const getReplaceBudgetLinesUrl = (id: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/budgets/${id}/versions/${versionId}/lines`
+}
+
+/**
+ * @summary Replace a DRAFT version's lines. Each account is budgeted EITHER by its twelve fiscal periods OR as one annual amount — an annual amount is never divided (D15-03).
+
+ */
+export const replaceBudgetLines = async (id: number,
+    versionId: number,
+    replaceBudgetLinesInput: ReplaceBudgetLinesInput, options?: RequestInit): Promise<BudgetDetail> => {
+
+  return customFetch<BudgetDetail>(getReplaceBudgetLinesUrl(id,versionId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(replaceBudgetLinesInput)
+  }
+);}
+
+
+
+
+
+export const getReplaceBudgetLinesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceBudgetLines>>, TError,{id: number;versionId: number;data: BodyType<ReplaceBudgetLinesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replaceBudgetLines>>, TError,{id: number;versionId: number;data: BodyType<ReplaceBudgetLinesInput>}, TContext> => {
+
+const mutationKey = ['replaceBudgetLines'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replaceBudgetLines>>, {id: number;versionId: number;data: BodyType<ReplaceBudgetLinesInput>}> = (props) => {
+          const {id,versionId,data} = props ?? {};
+
+          return  replaceBudgetLines(id,versionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplaceBudgetLinesMutationResult = NonNullable<Awaited<ReturnType<typeof replaceBudgetLines>>>
+    export type ReplaceBudgetLinesMutationBody = BodyType<ReplaceBudgetLinesInput>
+    export type ReplaceBudgetLinesMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace a DRAFT version's lines. Each account is budgeted EITHER by its twelve fiscal periods OR as one annual amount — an annual amount is never divided (D15-03).
+
+ */
+export const useReplaceBudgetLines = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceBudgetLines>>, TError,{id: number;versionId: number;data: BodyType<ReplaceBudgetLinesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replaceBudgetLines>>,
+        TError,
+        {id: number;versionId: number;data: BodyType<ReplaceBudgetLinesInput>},
+        TContext
+      > => {
+      return useMutation(getReplaceBudgetLinesMutationOptions(options));
+    }
+
+export const getSubmitBudgetVersionUrl = (id: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/budgets/${id}/versions/${versionId}/submit`
+}
+
+/**
+ * @summary Submit a draft version for approval (draft → submitted).
+ */
+export const submitBudgetVersion = async (id: number,
+    versionId: number, options?: RequestInit): Promise<BudgetDetail> => {
+
+  return customFetch<BudgetDetail>(getSubmitBudgetVersionUrl(id,versionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubmitBudgetVersionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitBudgetVersion>>, TError,{id: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitBudgetVersion>>, TError,{id: number;versionId: number}, TContext> => {
+
+const mutationKey = ['submitBudgetVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitBudgetVersion>>, {id: number;versionId: number}> = (props) => {
+          const {id,versionId} = props ?? {};
+
+          return  submitBudgetVersion(id,versionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitBudgetVersionMutationResult = NonNullable<Awaited<ReturnType<typeof submitBudgetVersion>>>
+
+    export type SubmitBudgetVersionMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a draft version for approval (draft → submitted).
+ */
+export const useSubmitBudgetVersion = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitBudgetVersion>>, TError,{id: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitBudgetVersion>>,
+        TError,
+        {id: number;versionId: number},
+        TContext
+      > => {
+      return useMutation(getSubmitBudgetVersionMutationOptions(options));
+    }
+
+export const getApproveBudgetVersionUrl = (id: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/budgets/${id}/versions/${versionId}/approve`
+}
+
+/**
+ * @summary Approve a version (approver). A revision supersedes the previously approved version in the same transaction.
+ */
+export const approveBudgetVersion = async (id: number,
+    versionId: number, options?: RequestInit): Promise<BudgetDetail> => {
+
+  return customFetch<BudgetDetail>(getApproveBudgetVersionUrl(id,versionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveBudgetVersionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveBudgetVersion>>, TError,{id: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveBudgetVersion>>, TError,{id: number;versionId: number}, TContext> => {
+
+const mutationKey = ['approveBudgetVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveBudgetVersion>>, {id: number;versionId: number}> = (props) => {
+          const {id,versionId} = props ?? {};
+
+          return  approveBudgetVersion(id,versionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveBudgetVersionMutationResult = NonNullable<Awaited<ReturnType<typeof approveBudgetVersion>>>
+
+    export type ApproveBudgetVersionMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve a version (approver). A revision supersedes the previously approved version in the same transaction.
+ */
+export const useApproveBudgetVersion = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveBudgetVersion>>, TError,{id: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveBudgetVersion>>,
+        TError,
+        {id: number;versionId: number},
+        TContext
+      > => {
+      return useMutation(getApproveBudgetVersionMutationOptions(options));
+    }
+
+export const getSendBackBudgetVersionUrl = (id: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/budgets/${id}/versions/${versionId}/send-back`
+}
+
+/**
+ * @summary Send a submitted version back to its author for correction (submitted → draft), with a note.
+ */
+export const sendBackBudgetVersion = async (id: number,
+    versionId: number,
+    budgetSendBackInput?: BudgetSendBackInput, options?: RequestInit): Promise<BudgetDetail> => {
+
+  return customFetch<BudgetDetail>(getSendBackBudgetVersionUrl(id,versionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(budgetSendBackInput)
+  }
+);}
+
+
+
+
+
+export const getSendBackBudgetVersionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBackBudgetVersion>>, TError,{id: number;versionId: number;data?: BodyType<BudgetSendBackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendBackBudgetVersion>>, TError,{id: number;versionId: number;data?: BodyType<BudgetSendBackInput>}, TContext> => {
+
+const mutationKey = ['sendBackBudgetVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendBackBudgetVersion>>, {id: number;versionId: number;data?: BodyType<BudgetSendBackInput>}> = (props) => {
+          const {id,versionId,data} = props ?? {};
+
+          return  sendBackBudgetVersion(id,versionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendBackBudgetVersionMutationResult = NonNullable<Awaited<ReturnType<typeof sendBackBudgetVersion>>>
+    export type SendBackBudgetVersionMutationBody = BodyType<BudgetSendBackInput> | undefined
+    export type SendBackBudgetVersionMutationError = ErrorType<void>
+
+    /**
+ * @summary Send a submitted version back to its author for correction (submitted → draft), with a note.
+ */
+export const useSendBackBudgetVersion = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBackBudgetVersion>>, TError,{id: number;versionId: number;data?: BodyType<BudgetSendBackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendBackBudgetVersion>>,
+        TError,
+        {id: number;versionId: number;data?: BodyType<BudgetSendBackInput>},
+        TContext
+      > => {
+      return useMutation(getSendBackBudgetVersionMutationOptions(options));
+    }
+
+export const getRejectBudgetVersionUrl = (id: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/budgets/${id}/versions/${versionId}/reject`
+}
+
+/**
+ * @summary Reject a draft or submitted version — it is deleted (the approval engine's rule); a budget left with no version goes with it.
+ */
+export const rejectBudgetVersion = async (id: number,
+    versionId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRejectBudgetVersionUrl(id,versionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectBudgetVersionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectBudgetVersion>>, TError,{id: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectBudgetVersion>>, TError,{id: number;versionId: number}, TContext> => {
+
+const mutationKey = ['rejectBudgetVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectBudgetVersion>>, {id: number;versionId: number}> = (props) => {
+          const {id,versionId} = props ?? {};
+
+          return  rejectBudgetVersion(id,versionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectBudgetVersionMutationResult = NonNullable<Awaited<ReturnType<typeof rejectBudgetVersion>>>
+
+    export type RejectBudgetVersionMutationError = ErrorType<void>
+
+    /**
+ * @summary Reject a draft or submitted version — it is deleted (the approval engine's rule); a budget left with no version goes with it.
+ */
+export const useRejectBudgetVersion = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectBudgetVersion>>, TError,{id: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectBudgetVersion>>,
+        TError,
+        {id: number;versionId: number},
+        TContext
+      > => {
+      return useMutation(getRejectBudgetVersionMutationOptions(options));
+    }
+
+export const getGetBudgetVsActualUrl = (id: number,
+    params?: GetBudgetVsActualParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/budgets/${id}/vs-actual?${stringifiedParams}` : `/api/budgets/${id}/vs-actual`
+}
+
+/**
+ * @summary Budget vs actual (D15-06…D15-09). Actuals are the posted ledger (accrual), signed in each account's natural direction; variance = actual − budget, judged by account type; year to date runs through a COMPLETED fiscal period; the forecast is actuals through that period plus the budget of the rest. An annual-only line has no period, YTD or forecast budget — nothing is apportioned.
+
+ */
+export const getBudgetVsActual = async (id: number,
+    params?: GetBudgetVsActualParams, options?: RequestInit): Promise<BudgetVsActual> => {
+
+  return customFetch<BudgetVsActual>(getGetBudgetVsActualUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBudgetVsActualQueryKey = (id: number,
+    params?: GetBudgetVsActualParams,) => {
+    return [
+    `/api/budgets/${id}/vs-actual`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetBudgetVsActualQueryOptions = <TData = Awaited<ReturnType<typeof getBudgetVsActual>>, TError = ErrorType<void>>(id: number,
+    params?: GetBudgetVsActualParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBudgetVsActual>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBudgetVsActualQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBudgetVsActual>>> = ({ signal }) => getBudgetVsActual(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBudgetVsActual>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBudgetVsActualQueryResult = NonNullable<Awaited<ReturnType<typeof getBudgetVsActual>>>
+export type GetBudgetVsActualQueryError = ErrorType<void>
+
+
+/**
+ * @summary Budget vs actual (D15-06…D15-09). Actuals are the posted ledger (accrual), signed in each account's natural direction; variance = actual − budget, judged by account type; year to date runs through a COMPLETED fiscal period; the forecast is actuals through that period plus the budget of the rest. An annual-only line has no period, YTD or forecast budget — nothing is apportioned.
+
+ */
+
+export function useGetBudgetVsActual<TData = Awaited<ReturnType<typeof getBudgetVsActual>>, TError = ErrorType<void>>(
+ id: number,
+    params?: GetBudgetVsActualParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBudgetVsActual>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBudgetVsActualQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetTrendUrl = (params: GetTrendParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -6793,6 +7515,92 @@ export function useGetTrend<TData = Awaited<ReturnType<typeof getTrend>>, TError
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTrendQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPnlTrendUrl = (params: GetPnlTrendParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/pnl-trend?${stringifiedParams}` : `/api/analytics/pnl-trend`
+}
+
+/**
+ * @summary Monthly profit-or-loss trend from the ledger (Phase 14 D14-12): revenue, expenses and net per calendar month; the months sum to the income statement of the same window.
+
+ */
+export const getPnlTrend = async (params: GetPnlTrendParams, options?: RequestInit): Promise<PnlTrend> => {
+
+  return customFetch<PnlTrend>(getGetPnlTrendUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPnlTrendQueryKey = (params?: GetPnlTrendParams,) => {
+    return [
+    `/api/analytics/pnl-trend`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPnlTrendQueryOptions = <TData = Awaited<ReturnType<typeof getPnlTrend>>, TError = ErrorType<unknown>>(params: GetPnlTrendParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPnlTrend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPnlTrendQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPnlTrend>>> = ({ signal }) => getPnlTrend(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPnlTrend>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPnlTrendQueryResult = NonNullable<Awaited<ReturnType<typeof getPnlTrend>>>
+export type GetPnlTrendQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Monthly profit-or-loss trend from the ledger (Phase 14 D14-12): revenue, expenses and net per calendar month; the months sum to the income statement of the same window.
+
+ */
+
+export function useGetPnlTrend<TData = Awaited<ReturnType<typeof getPnlTrend>>, TError = ErrorType<unknown>>(
+ params: GetPnlTrendParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPnlTrend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPnlTrendQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -8493,7 +9301,8 @@ export const getGetTrialBalanceUrl = (params?: GetTrialBalanceParams,) => {
 }
 
 /**
- * @summary Trial balance — every account's debit/credit totals over a window
+ * @summary Trial balance — opening, period debit, period credit and closing per account (Phase 14 D14-04). Migration opening entries are opening even inside the window; with a declared fiscal year, income and expense accounts open at the fiscal-year start and earlier P&L is one computed equity row.
+
  */
 export const getTrialBalance = async (params?: GetTrialBalanceParams, options?: RequestInit): Promise<TrialBalanceReport> => {
 
@@ -8540,7 +9349,8 @@ export type GetTrialBalanceQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Trial balance — every account's debit/credit totals over a window
+ * @summary Trial balance — opening, period debit, period credit and closing per account (Phase 14 D14-04). Migration opening entries are opening even inside the window; with a declared fiscal year, income and expense accounts open at the fiscal-year start and earlier P&L is one computed equity row.
+
  */
 
 export function useGetTrialBalance<TData = Awaited<ReturnType<typeof getTrialBalance>>, TError = ErrorType<unknown>>(
@@ -8577,7 +9387,7 @@ export const getGetIncomeStatementUrl = (params?: GetIncomeStatementParams,) => 
 }
 
 /**
- * @summary Income statement (P&L) over a window
+ * @summary Income statement (P&L) over a window — from the ledger only; expenses by nature (Phase 14 D14-06)
  */
 export const getIncomeStatement = async (params?: GetIncomeStatementParams, options?: RequestInit): Promise<IncomeStatementReport> => {
 
@@ -8624,7 +9434,7 @@ export type GetIncomeStatementQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Income statement (P&L) over a window
+ * @summary Income statement (P&L) over a window — from the ledger only; expenses by nature (Phase 14 D14-06)
  */
 
 export function useGetIncomeStatement<TData = Awaited<ReturnType<typeof getIncomeStatement>>, TError = ErrorType<unknown>>(
@@ -8661,7 +9471,7 @@ export const getGetBalanceSheetUrl = (params?: GetBalanceSheetParams,) => {
 }
 
 /**
- * @summary Balance sheet as of a date, with the current/non-current split
+ * @summary Balance sheet as of a date, with the current/non-current split and profit split by fiscal year (Phase 14 D14-05)
  */
 export const getBalanceSheet = async (params?: GetBalanceSheetParams, options?: RequestInit): Promise<BalanceSheetReport> => {
 
@@ -8708,7 +9518,7 @@ export type GetBalanceSheetQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Balance sheet as of a date, with the current/non-current split
+ * @summary Balance sheet as of a date, with the current/non-current split and profit split by fiscal year (Phase 14 D14-05)
  */
 
 export function useGetBalanceSheet<TData = Awaited<ReturnType<typeof getBalanceSheet>>, TError = ErrorType<unknown>>(
@@ -8745,7 +9555,7 @@ export const getGetCashFlowUrl = (params?: GetCashFlowParams,) => {
 }
 
 /**
- * @summary Cash flow statement (DIRECT method) over a window
+ * @summary Cash flow statement (DIRECT method) from the ledger over a window — reconciles to the cash accounts (Phase 14 D14-07)
  */
 export const getCashFlow = async (params?: GetCashFlowParams, options?: RequestInit): Promise<CashFlowReport> => {
 
@@ -8792,7 +9602,7 @@ export type GetCashFlowQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Cash flow statement (DIRECT method) over a window
+ * @summary Cash flow statement (DIRECT method) from the ledger over a window — reconciles to the cash accounts (Phase 14 D14-07)
  */
 
 export function useGetCashFlow<TData = Awaited<ReturnType<typeof getCashFlow>>, TError = ErrorType<unknown>>(
@@ -8913,7 +9723,7 @@ export const getGetGeneralLedgerUrl = (params?: GetGeneralLedgerParams,) => {
 }
 
 /**
- * @summary General ledger movements with a running balance
+ * @summary General ledger movements with a running balance; optionally filtered to one party (Phase 14 D14-11)
  */
 export const getGeneralLedger = async (params?: GetGeneralLedgerParams, options?: RequestInit): Promise<GeneralLedgerReport> => {
 
@@ -8960,7 +9770,7 @@ export type GetGeneralLedgerQueryError = ErrorType<unknown>
 
 
 /**
- * @summary General ledger movements with a running balance
+ * @summary General ledger movements with a running balance; optionally filtered to one party (Phase 14 D14-11)
  */
 
 export function useGetGeneralLedger<TData = Awaited<ReturnType<typeof getGeneralLedger>>, TError = ErrorType<unknown>>(
@@ -9317,20 +10127,27 @@ export function useGetOwnerEquity<TData = Awaited<ReturnType<typeof getOwnerEqui
 
 
 
-export const getGetArAgingReportUrl = () => {
+export const getGetArAgingReportUrl = (params?: GetArAgingReportParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/ar-aging`
+  return stringifiedParams.length > 0 ? `/api/reports/ar-aging?${stringifiedParams}` : `/api/reports/ar-aging`
 }
 
 /**
- * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it; as of a date (Phase 14 D14-08)
  */
-export const getArAgingReport = async ( options?: RequestInit): Promise<ArAgingReport> => {
+export const getArAgingReport = async (params?: GetArAgingReportParams, options?: RequestInit): Promise<ArAgingReport> => {
 
-  return customFetch<ArAgingReport>(getGetArAgingReportUrl(),
+  return customFetch<ArAgingReport>(getGetArAgingReportUrl(params),
   {
     ...options,
     method: 'GET'
@@ -9343,23 +10160,23 @@ export const getArAgingReport = async ( options?: RequestInit): Promise<ArAgingR
 
 
 
-export const getGetArAgingReportQueryKey = () => {
+export const getGetArAgingReportQueryKey = (params?: GetArAgingReportParams,) => {
     return [
-    `/api/reports/ar-aging`
+    `/api/reports/ar-aging`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetArAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetArAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>(params?: GetArAgingReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetArAgingReportQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetArAgingReportQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArAgingReport>>> = ({ signal }) => getArAgingReport({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArAgingReport>>> = ({ signal }) => getArAgingReport(params, { signal, ...requestOptions });
 
 
 
@@ -9373,15 +10190,15 @@ export type GetArAgingReportQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it
+ * @summary Accounts receivable aging — real receivable exposure only, with customer credits and deposits shown beside it; as of a date (Phase 14 D14-08)
  */
 
 export function useGetArAgingReport<TData = Awaited<ReturnType<typeof getArAgingReport>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetArAgingReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetArAgingReportQueryOptions(options)
+  const queryOptions = getGetArAgingReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -9394,20 +10211,27 @@ export function useGetArAgingReport<TData = Awaited<ReturnType<typeof getArAging
 
 
 
-export const getGetApAgingReportUrl = () => {
+export const getGetApAgingReportUrl = (params?: GetApAgingReportParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/ap-aging`
+  return stringifiedParams.length > 0 ? `/api/reports/ap-aging?${stringifiedParams}` : `/api/reports/ap-aging`
 }
 
 /**
- * @summary Accounts payable aging
+ * @summary Accounts payable aging, as of a date (Phase 14 D14-08)
  */
-export const getApAgingReport = async ( options?: RequestInit): Promise<ApAgingReport> => {
+export const getApAgingReport = async (params?: GetApAgingReportParams, options?: RequestInit): Promise<ApAgingReport> => {
 
-  return customFetch<ApAgingReport>(getGetApAgingReportUrl(),
+  return customFetch<ApAgingReport>(getGetApAgingReportUrl(params),
   {
     ...options,
     method: 'GET'
@@ -9420,23 +10244,23 @@ export const getApAgingReport = async ( options?: RequestInit): Promise<ApAgingR
 
 
 
-export const getGetApAgingReportQueryKey = () => {
+export const getGetApAgingReportQueryKey = (params?: GetApAgingReportParams,) => {
     return [
-    `/api/reports/ap-aging`
+    `/api/reports/ap-aging`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetApAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getApAgingReport>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetApAgingReportQueryOptions = <TData = Awaited<ReturnType<typeof getApAgingReport>>, TError = ErrorType<unknown>>(params?: GetApAgingReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApAgingReportQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetApAgingReportQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApAgingReport>>> = ({ signal }) => getApAgingReport({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApAgingReport>>> = ({ signal }) => getApAgingReport(params, { signal, ...requestOptions });
 
 
 
@@ -9450,15 +10274,106 @@ export type GetApAgingReportQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Accounts payable aging
+ * @summary Accounts payable aging, as of a date (Phase 14 D14-08)
  */
 
 export function useGetApAgingReport<TData = Awaited<ReturnType<typeof getApAgingReport>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetApAgingReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAgingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetApAgingReportQueryOptions(options)
+  const queryOptions = getGetApAgingReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportReportUrl = (report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging' | 'budget-vs-actual',
+    params?: ExportReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/export/${report}?${stringifiedParams}` : `/api/reports/export/${report}`
+}
+
+/**
+ * @summary Export a report as CSV or PDF (Phase 14 D14-10). Runs the report's own service call with the report's own parameters, behind the same permission and in the same tenant/company scope as the screen. CSV is UTF-8 with a BOM; PDF is RTL with Arabic labels for lang=ar. An export that would exceed the row limit is refused (422 export_too_large), never truncated.
+
+ */
+export const exportReport = async (report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging' | 'budget-vs-actual',
+    params?: ExportReportParams, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportReportUrl(report,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportReportQueryKey = (report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging' | 'budget-vs-actual',
+    params?: ExportReportParams,) => {
+    return [
+    `/api/reports/export/${report}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportReportQueryOptions = <TData = Awaited<ReturnType<typeof exportReport>>, TError = ErrorType<void>>(report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging' | 'budget-vs-actual',
+    params?: ExportReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportReportQueryKey(report,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportReport>>> = ({ signal }) => exportReport(report,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: report !== null && report !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportReportQueryResult = NonNullable<Awaited<ReturnType<typeof exportReport>>>
+export type ExportReportQueryError = ErrorType<void>
+
+
+/**
+ * @summary Export a report as CSV or PDF (Phase 14 D14-10). Runs the report's own service call with the report's own parameters, behind the same permission and in the same tenant/company scope as the screen. CSV is UTF-8 with a BOM; PDF is RTL with Arabic labels for lang=ar. An export that would exceed the row limit is refused (422 export_too_large), never truncated.
+
+ */
+
+export function useExportReport<TData = Awaited<ReturnType<typeof exportReport>>, TError = ErrorType<void>>(
+ report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'cash-flow' | 'general-ledger' | 'ar-aging' | 'ap-aging' | 'budget-vs-actual',
+    params?: ExportReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportReportQueryOptions(report,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

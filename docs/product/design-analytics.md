@@ -321,6 +321,16 @@ seeing a wrong variance — which is what apportioning would have given them.
 
 **Revisit trigger:** a real user asking for monthly budgets. Not before.
 
+> **Status (2026-10-04): SUPERSEDED IN PART — owner decision D15-03.**
+> Option (a), periodised entry (built in Phase 15), is KEPT beside annual-only
+> entry; both are user-entered and the period editor stays. "Do not apportion"
+> is KEPT and binds both: no period amount is ever divided, apportioned or
+> derived from an annual one, and no automatic seasonal or distribution logic
+> is added. The revisit trigger above no longer applies — the owner has
+> decided. The rule: [`phase-14-15` pack
+> D15-03](phase-14-15-reporting-budgeting-decision-pack.md). Current state
+> authority: CLAUDE.md §2.
+
 Also open, and tied to §4: **are budget actuals cash or accrual?** Pick the one
 that matches whatever series shares the screen, or the two will disagree in
 front of the user.

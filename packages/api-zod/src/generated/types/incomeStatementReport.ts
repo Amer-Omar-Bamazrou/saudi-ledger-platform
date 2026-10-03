@@ -5,15 +5,23 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { IncomeStatementReportExpenseAnalysis } from './incomeStatementReportExpenseAnalysis';
 import type { IncomeStatementReportSource } from './incomeStatementReportSource';
 import type { ReportKeyedAmount } from './reportKeyedAmount';
+import type { ReportWindow } from './reportWindow';
 
+/**
+ * From the ledger only (Phase 14 D14-06 — the former transactions fallback is gone). Expenses are presented BY NATURE (IAS 1.102), so there is no gross-profit line: `grossProfit` is null.
+ */
 export interface IncomeStatementReport {
+  window: ReportWindow;
+  expenseAnalysis: IncomeStatementReportExpenseAnalysis;
   revenue: ReportKeyedAmount[];
   expenses: ReportKeyedAmount[];
   totalRevenue: number;
   totalExpenses: number;
-  grossProfit: number;
+  /** @nullable */
+  grossProfit: number | null;
   netIncome: number;
   netIncomeMargin: number;
   source: IncomeStatementReportSource;

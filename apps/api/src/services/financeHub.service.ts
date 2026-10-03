@@ -28,6 +28,7 @@ import { transactionsService } from "./transactions.service";
 import { companiesRepository } from "../repositories/companies.repository";
 import { zatcaOnboardingService } from "./einvoice/onboarding/zatcaOnboarding.service";
 import { round2 } from "../lib/money";
+import { businessToday } from "@workspace/shared";
 
 
 /** Below this a rule of thumb starts to mean something. NOT a compliance line. */
@@ -158,7 +159,11 @@ export const financeHubService = {
    * away — the hub states the condition and links to where the work happens
    * (design §2), it does not become a second VAT page.
    */
-  async taxCompliance(now: Date = new Date()) {
+  // F-06 (Phase 14, 2026-10-01): the default is the BUSINESS day (Asia/Riyadh,
+  // the one seam), read as a calendar day — `new Date()` named the UTC day, so
+  // from 21:00 UTC on a quarter's last day the hub reported the quarter that
+  // had already ended in Riyadh.
+  async taxCompliance(now: Date = new Date(`${businessToday()}T00:00:00Z`)) {
     const year = now.getUTCFullYear();
     const quarter = Math.floor(now.getUTCMonth() / 3); // 0-3
     const pad = (m: number) => String(m).padStart(2, "0");

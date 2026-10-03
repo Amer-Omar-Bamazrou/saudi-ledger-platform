@@ -74,6 +74,11 @@ export const journalEntriesTable = pgTable(
     // money-unique-indexes.test.ts, which asserts BOTH the database and this
     // declaration.
     uniqueIndex("journal_entries_company_number_unq").on(t.companyId, t.entryNumber),
+    // Phase 14 D14-15 (re-measured 2026-10-01, AS THE TENANT ROLE): the report seam scopes
+    // the company with the TYPED predicate (companyScope.ts) — an Index Cond on this index;
+    // the earlier `company_id::text` form could not use one under RLS. Plus the date every
+    // report bounds. Record: phase-14-15 decision pack D14-15.
+    index("journal_entries_company_date_idx").on(t.companyId, t.date),
   ],
 );
 
@@ -110,7 +115,12 @@ export const journalEntryLinesTable = pgTable(
     creditAmount: numeric("credit_amount", { precision: 15, scale: 2 }).notNull().default("0"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("journal_entry_lines_org_entry_idx").on(t.organizationId, t.journalEntryId)],
+  (t) => [
+    index("journal_entry_lines_org_entry_idx").on(t.organizationId, t.journalEntryId),
+    // Phase 14 D14-15: the seam joins entries → lines by entry id; the org-led
+    // index above cannot serve a probe on journal_entry_id alone.
+    index("journal_entry_lines_entry_idx").on(t.journalEntryId),
+  ],
 );
 
 export const insertJournalEntrySchema = createInsertSchema(journalEntriesTable).omit({ id: true, createdAt: true });

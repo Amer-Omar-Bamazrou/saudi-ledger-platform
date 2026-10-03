@@ -41,7 +41,7 @@ const RECEIVABLE_DOC = sql`i.document_type NOT IN ('advance_invoice', 'advance_c
 /** A receipt that is not a reversed opening deposit (Policy C). */
 const RECEIPT_LIVE = sql`${paymentNotReversedSql("p")}`;
 /** N1 — the scoped company's rows only, as raw SQL for the CTEs below (same predicate as `companyScoped`). */
-const scopedCo = (alias: string) => sql.raw(`${alias}.company_id::text = current_setting('app.current_company_id', true)`);
+const scopedCo = (alias: string) => sql.raw(`${alias}.company_id = nullif(current_setting('app.current_company_id', true), '')::uuid`);
 
 export type CustomerPositionRow = {
   customerId: number;
@@ -75,6 +75,14 @@ export type StatementEventRow = {
   refundId: number | null;
   journalEntryId: number | null;
 };
+
+/**
+ * Phase 14 (D14-08): the event query serves ONE customer (the statement) or
+ * EVERY customer (as-of ageing, which replays the same events up to a date —
+ * one definition of "what moved the receivable", never a second model).
+ * `null` means every customer; the SQL for a given id is unchanged.
+ */
+const customerIs = (col: string, customerId: number | null) => (customerId == null ? sql`true` : sql`${sql.raw(col)} = ${customerId}`);
 
 export const customerStatementRepository = {
   /**
@@ -163,7 +171,7 @@ export const customerStatementRepository = {
    * note's issue carries the note's. A back-dated event sorts by its business
    * date — the statement shows the books as dated, not as typed.
    */
-  async events(customerId: number): Promise<StatementEventRow[]> {
+  async events(customerId: number | null, opts: { upTo?: string } = {}): Promise<StatementEventRow[]> {
     const rows = await db.execute<{
       kind: StatementEventKind; date: string; ts: string; rank: number; id: number; document_number: string; reference: string | null;
       description: string; amount: string; receivable_delta: string; credit_delta: string; deposit_delta: string;
@@ -178,7 +186,7 @@ export const customerStatementRepository = {
                i.total::numeric AS amount, i.total::numeric AS receivable_delta, 0::numeric AS credit_delta, 0::numeric AS deposit_delta,
                i.id AS invoice_id, NULL::int AS payment_id, NULL::int AS credit_note_id, NULL::int AS allocation_id, NULL::int AS refund_id, NULL::int AS journal_entry_id
           FROM invoices i
-         WHERE i.customer_id = ${customerId} AND i.document_type <> 'credit_note' AND ${RECEIVABLE_DOC} AND ${IN_BOOKS} AND ${scopedCo("i")}
+         WHERE ${customerIs("i.customer_id", customerId)} AND i.document_type <> 'credit_note' AND ${RECEIVABLE_DOC} AND ${IN_BOOKS} AND ${scopedCo("i")}
         UNION ALL
         -- AP-2: an issued advance tax invoice declares VAT on the deposit; nothing moves (the deposit stays until it is applied)
         SELECT 'advance_invoice', i.date::date::text, coalesce(i.issued_at, i.created_at), 1, i.id,
@@ -187,7 +195,7 @@ export const customerStatementRepository = {
                i.total::numeric, 0, 0, 0,
                i.id, i.advance_payment_id, NULL, NULL, NULL, NULL
           FROM invoices i
-         WHERE i.customer_id = ${customerId} AND i.document_type = 'advance_invoice' AND ${IN_BOOKS} AND ${scopedCo("i")}
+         WHERE ${customerIs("i.customer_id", customerId)} AND i.document_type = 'advance_invoice' AND ${IN_BOOKS} AND ${scopedCo("i")}
         UNION ALL
         -- AP-3: an issued credit note against a 386 returns the advance's VAT to the deposit; nothing moves (the cash stays the receipt's deposit until refunded)
         SELECT 'advance_credit_note', i.date::date::text, coalesce(i.issued_at, i.created_at), 1, i.id,
@@ -197,7 +205,7 @@ export const customerStatementRepository = {
                i.id, o.advance_payment_id, NULL, NULL, NULL, NULL
           FROM invoices i
           LEFT JOIN invoices o ON o.id = i.original_invoice_id
-         WHERE i.customer_id = ${customerId} AND i.document_type = 'advance_credit_note' AND ${IN_BOOKS} AND ${scopedCo("i")}
+         WHERE ${customerIs("i.customer_id", customerId)} AND i.document_type = 'advance_credit_note' AND ${IN_BOOKS} AND ${scopedCo("i")}
         UNION ALL
         -- 2026-09-22: a bad-debt write-off with Art. 40(7) relief takes the unpaid consideration OFF the receivable (nothing is owed by the customer any more; the VAT is relieved in the return)
         SELECT 'bad_debt_write_off', i.bad_debt_relief_claimed_on, i.created_at, 4, i.id,
@@ -206,7 +214,7 @@ export const customerStatementRepository = {
                i.written_off_amount::numeric, -i.written_off_amount::numeric, 0, 0,
                i.id, NULL, NULL, NULL, NULL, i.bad_debt_relief_journal_entry_id
           FROM invoices i
-         WHERE i.customer_id = ${customerId} AND i.written_off_amount::numeric > 0 AND i.bad_debt_relief_source = 'recorded' AND ${IN_BOOKS} AND ${scopedCo("i")}
+         WHERE ${customerIs("i.customer_id", customerId)} AND i.written_off_amount::numeric > 0 AND i.bad_debt_relief_source = 'recorded' AND ${IN_BOOKS} AND ${scopedCo("i")}
         UNION ALL
         -- 2026-09-22: an Art. 40(9) recovery invoice declares the VAT payable again on consideration received; nothing moves on the statement (the cash arrived as a receipt and was applied)
         SELECT 'recovery_invoice', i.date::date::text, coalesce(i.issued_at, i.created_at), 1, i.id,
@@ -216,7 +224,7 @@ export const customerStatementRepository = {
                i.id, i.recovery_payment_id, NULL, NULL, NULL, NULL
           FROM invoices i
           LEFT JOIN invoices o ON o.id = i.recovers_invoice_id
-         WHERE i.customer_id = ${customerId} AND i.document_type = 'recovery_invoice' AND ${IN_BOOKS} AND ${scopedCo("i")}
+         WHERE ${customerIs("i.customer_id", customerId)} AND i.document_type = 'recovery_invoice' AND ${IN_BOOKS} AND ${scopedCo("i")}
         UNION ALL
         -- issued credit notes: the credit balance rises by the note; its application is its own line
         SELECT 'credit_note', i.date::date::text, coalesce(i.issued_at, i.created_at), 1, i.id,
@@ -226,7 +234,7 @@ export const customerStatementRepository = {
                NULL, NULL, i.id, NULL, NULL, NULL
           FROM invoices i
           LEFT JOIN invoices o ON o.id = i.original_invoice_id
-         WHERE i.customer_id = ${customerId} AND i.document_type = 'credit_note' AND ${IN_BOOKS} AND ${scopedCo("i")}
+         WHERE ${customerIs("i.customer_id", customerId)} AND i.document_type = 'credit_note' AND ${IN_BOOKS} AND ${scopedCo("i")}
         UNION ALL
         -- receipts: money in raises the deposit balance until it is allocated
         SELECT 'receipt', p.paid_at::text, p.created_at, 2, p.id,
@@ -235,7 +243,7 @@ export const customerStatementRepository = {
                p.amount::numeric, 0, 0, p.amount::numeric,
                NULL, p.id, NULL, NULL, NULL, p.journal_entry_id
           FROM payments p
-         WHERE p.customer_id = ${customerId} AND p.direction = 'in' AND ${RECEIPT_LIVE} AND ${scopedCo("p")}
+         WHERE ${customerIs("p.customer_id", customerId)} AND p.direction = 'in' AND ${RECEIPT_LIVE} AND ${scopedCo("p")}
         UNION ALL
         -- a receipt allocated to an invoice: receivable and deposit both fall.
         -- Allocated AT receipt (no journal of its own) it carries the receipt's
@@ -251,12 +259,12 @@ export const customerStatementRepository = {
           JOIN payments p ON p.id = a.payment_id
           JOIN invoices i ON i.id = a.invoice_id
           LEFT JOIN journal_entries je ON je.id = a.journal_entry_id
-         WHERE p.customer_id = ${customerId} AND p.direction = 'in' AND ${RECEIPT_LIVE} AND ${scopedCo("p")}
+         WHERE ${customerIs("p.customer_id", customerId)} AND p.direction = 'in' AND ${RECEIPT_LIVE} AND ${scopedCo("p")}
         UNION ALL
         -- a credit note applied to an invoice: receivable and credit balance both fall.
         -- Applied AT issue (the note's own GL entry) it carries the note's
         -- timestamp, so it follows the note's issue line exactly.
-        SELECT 'credit_application', coalesce(je.date::date, a.created_at::date)::text,
+        SELECT 'credit_application', coalesce(je.date::date, (a.created_at AT TIME ZONE 'Asia/Riyadh')::date)::text,
                CASE WHEN je.entry_number = 'GL-' || n.invoice_number THEN coalesce(n.issued_at, n.created_at) ELSE a.created_at END, 3, a.id,
                i.invoice_number, n.invoice_number,
                'Credit note ' || n.invoice_number || ' applied to ' || i.invoice_number,
@@ -266,10 +274,10 @@ export const customerStatementRepository = {
           JOIN invoices n ON n.id = a.credit_note_id
           JOIN invoices i ON i.id = a.invoice_id
           LEFT JOIN journal_entries je ON je.id = a.journal_entry_id
-         WHERE n.customer_id = ${customerId} AND ${scopedCo("n")}
+         WHERE ${customerIs("n.customer_id", customerId)} AND ${scopedCo("n")}
         UNION ALL
         -- an unallocation supersedes an allocation: its deltas come back
-        SELECT 'unallocation', coalesce(je.date::date, r.created_at::date)::text, r.created_at, 5, r.id,
+        SELECT 'unallocation', coalesce(je.date::date, (r.created_at AT TIME ZONE 'Asia/Riyadh')::date)::text, r.created_at, 5, r.id,
                i.invoice_number, coalesce('RCPT-' || a.payment_id::text, n.invoice_number),
                'Unallocated from ' || i.invoice_number || ': ' || r.reason,
                r.amount::numeric, r.amount::numeric,
@@ -282,7 +290,7 @@ export const customerStatementRepository = {
           LEFT JOIN payments p ON p.id = a.payment_id
           LEFT JOIN invoices n ON n.id = a.credit_note_id
           LEFT JOIN journal_entries je ON je.id = r.journal_entry_id
-         WHERE coalesce(p.customer_id, n.customer_id) = ${customerId} AND ${scopedCo("i")}
+         WHERE ${customerIs("coalesce(p.customer_id, n.customer_id)", customerId)} AND ${scopedCo("i")}
         UNION ALL
         -- a refund pays a liability out: deposit or credit balance falls
         SELECT 'refund', f.refunded_at::text, f.created_at, 6, f.id,
@@ -294,8 +302,9 @@ export const customerStatementRepository = {
                NULL, f.payment_id, f.credit_note_id, NULL, f.id, f.journal_entry_id
           FROM customer_refunds f
           LEFT JOIN invoices n ON n.id = f.credit_note_id
-         WHERE f.customer_id = ${customerId} AND ${scopedCo("f")}
+         WHERE ${customerIs("f.customer_id", customerId)} AND ${scopedCo("f")}
       ) e
+      ${opts.upTo ? sql`WHERE e.date::date <= ${opts.upTo}::date` : sql``}
       ORDER BY e.date::date, e.ts, e.rank, e.id`);
     return rows.rows.map((r) => ({
       kind: r.kind,

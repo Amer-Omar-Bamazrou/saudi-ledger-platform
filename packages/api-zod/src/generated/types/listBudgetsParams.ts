@@ -5,7 +5,9 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListBudgetsScenario } from './listBudgetsScenario';
 
 export type ListBudgetsParams = {
-period?: string;
+as_of?: string;
+scenario?: ListBudgetsScenario;
 };

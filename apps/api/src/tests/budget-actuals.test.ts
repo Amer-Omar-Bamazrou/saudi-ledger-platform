@@ -1,24 +1,25 @@
 /**
- * M19.0 — budget actuals respect DIRECTION.
+ * M19.0 → Phase 15 — budget actuals respect DIRECTION, now from THE LEDGER.
  *
- * 🔴 The defect: actuals were `sum(amount)`. Amounts are stored POSITIVE with
- * the direction in `type` (CLAUDE.md §4), so every movement counted the same
- * way and **a refund INCREASED "spent"** — buy 5,000, refund 5,000, and the
- * budget reported 10,000 consumed against it instead of nothing.
+ * 🔴 The M19.0 defect: actuals were `sum(amount)`, so a refund INCREASED
+ * "spent" — buy 5,000, refund 5,000, and the budget reported 10,000 consumed.
+ * The fix was direction by ACCOUNT TYPE. Phase 15 (D15-06) moved the source
+ * from `transactions` to the posted GL (the P&L's own basis), so every property
+ * this file pinned is re-pinned on journal lines the product posted:
  *
- * It was tolerable while budgets were an unused corner (a tracked audit
- * leftover). It stops being tolerable the moment Analytics charts the variance
- * (design-analytics.md §7): a wrong number nobody looks at becomes a wrong
- * claim on a chart.
- *
- * The fix is direction by ACCOUNT TYPE — the same split the income statement
- * already applies to GL lines — so both the expense and the income case are
- * pinned here, plus the filters that were already correct and must stay so.
+ *   · a credit to an expense account (a refund) REDUCES spend;
+ *   · an income account runs the other way;
+ *   · a negative actual is REPORTED, not clamped;
+ *   · what is not in the books (a DRAFT entry) and what is outside the fiscal
+ *     year does not count — the successors of M19's "pending" and "period"
+ *     filters (a transfer never reaches a P&L account under A, so M19's
+ *     transfer filter has no ledger counterpart).
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { budgetsService } from "../services/budgets.service";
+import { journalEntriesService } from "../services/journalEntries.service";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -27,21 +28,20 @@ if (!REAL_DB) console.warn("[budget-actuals] no real DATABASE_URL — skipping."
 
 const SLUG = "m19-budget-actuals";
 const EMAIL = "m19-budget@test.local";
-const YEAR = "2026";
 
-describeMaybe("M19.0 — budget actuals are signed by account type", () => {
+describeMaybe("M19.0 / Phase 15 — budget actuals are the ledger, signed by account type", () => {
   let orgId = "";
   let companyId = "";
   let userId = 0;
   let expenseCat = 0;
   let incomeCat = 0;
+  let clearing = 0;
+  let seq = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
     const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
     try {
-      const out = await conn.run(() =>
-        auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn),
-      );
+      const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
       return out;
     } catch (err) {
@@ -50,45 +50,44 @@ describeMaybe("M19.0 — budget actuals are signed by account type", () => {
     }
   }
 
-  /** Insert one accepted, operating transaction against a category. */
-  async function tx(
-    categoryId: number,
-    type: "debit" | "credit",
-    amount: number,
-    opts: { reviewStatus?: string; kind?: string; date?: string } = {},
-  ) {
-    await pool.query(
-      `INSERT INTO transactions
-         (organization_id, company_id, date, description, amount, currency, type,
-          category_id, review_status, kind)
-       VALUES ($1,$2,$3,$4,$5,'SAR',$6,$7,$8,$9)`,
-      [
-        orgId,
-        companyId,
-        opts.date ?? `${YEAR}-06-15`,
-        `${type} ${amount}`,
-        String(amount),
-        type,
-        categoryId,
-        opts.reviewStatus ?? "accepted",
-        opts.kind ?? "operating",
-      ],
-    );
+  /** Post (or leave as a draft) one two-line entry: `account` debited or credited against a clearing account. */
+  async function je(account: number, side: "debit" | "credit", amount: number, opts: { date?: string; draft?: boolean } = {}) {
+    const lines = side === "debit"
+      ? [{ accountId: account, debitAmount: amount, creditAmount: 0 }, { accountId: clearing, debitAmount: 0, creditAmount: amount }]
+      : [{ accountId: clearing, debitAmount: amount, creditAmount: 0 }, { accountId: account, debitAmount: 0, creditAmount: amount }];
+    await inTenant(async () => {
+      const e = (await journalEntriesService.create({ entryNumber: `BA-${++seq}`, date: opts.date ?? "2026-06-15", description: `${side} ${amount}`, lines }, userId)) as { id: number };
+      if (!opts.draft) await journalEntriesService.approve(e.id, userId);
+    });
   }
 
-  async function budgetFor(categoryId: number, amount: number) {
-    await pool.query(
-      `INSERT INTO budgets (organization_id, company_id, name, name_ar, period, category_id, budgeted_amount)
-       VALUES ($1,$2,'Budget','ميزانية',$3,$4,$5)`,
-      [orgId, companyId, YEAR, categoryId, String(amount)],
-    );
+  /** A fresh approved budget holding ONE annual line, and its year-to-date figure for that account. */
+  async function actualFor(account: number, budgeted: number) {
+    return inTenant(async () => {
+      const b = await budgetsService.create({ name: `B${++seq}`, fiscalYearLabel: 2026 }, userId);
+      await budgetsService.replaceLines(b.id, b.version!.id, { lines: [{ accountId: account, periods: Array(12).fill(budgeted / 12) }] });
+      await budgetsService.approve(b.id, b.version!.id, userId);
+      const vs = await budgetsService.vsActual(b.id, { through_period: 12 });
+      return vs.lines[0]!;
+    });
   }
 
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
-    await pool.query(`DELETE FROM budgets WHERE organization_id IN ${O}`);
-    await pool.query(`DELETE FROM transactions WHERE organization_id IN ${O}`);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // approved budget versions are immutable at the database (0112): triggers off, children first
+      await client.query("SET LOCAL session_replication_role = replica");
+      for (const t of ["budget_lines", "budget_versions", "budgets", "journal_entry_lines", "journal_entries"]) await client.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`);
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
@@ -99,96 +98,48 @@ describeMaybe("M19.0 — budget actuals are signed by account type", () => {
 
   beforeAll(async () => {
     await cleanup();
-    orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Budget Org','${SLUG}') RETURNING id`)).rows[0].id;
-    companyId = (
-      await pool.query(
-        `INSERT INTO companies (organization_id, name, cr_number) VALUES ($1,'BG Co','1010101021') RETURNING id`,
-        [orgId],
-      )
-    ).rows[0].id;
-    userId = (
-      await pool.query(
-        `INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','BG',' ','viewer',true) RETURNING id`,
-      )
-    ).rows[0].id;
-    await pool.query(
-      `INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`,
-      [userId, orgId],
-    );
-    expenseCat = (
-      await pool.query(
-        `INSERT INTO categories (organization_id, name, name_ar, type, vat_applicable)
-         VALUES ($1,'Office Supplies','لوازم مكتبية','expense',false) RETURNING id`,
-        [orgId],
-      )
-    ).rows[0].id;
-    incomeCat = (
-      await pool.query(
-        `INSERT INTO categories (organization_id, name, name_ar, type, vat_applicable)
-         VALUES ($1,'Service Income','إيرادات خدمات','income',true) RETURNING id`,
-        [orgId],
-      )
-    ).rows[0].id;
-  });
+    orgId = (await pool.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('Budget Org','${SLUG}','approved') RETURNING id`)).rows[0].id;
+    companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, fiscal_year_start, fiscal_calendar) VALUES ($1,'BG Co','1010101021',1,'gregorian') RETURNING id`, [orgId])).rows[0].id;
+    userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','BG',' ','admin',true) RETURNING id`)).rows[0].id;
+    await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
+    const cat = async (name: string, type: string) => (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, vat_applicable) VALUES ($1,$2,$2,$3,false) RETURNING id`, [orgId, name, type])).rows[0].id as number;
+    expenseCat = await cat("Office Supplies", "expense");
+    incomeCat = await cat("Service Income", "income");
+    clearing = await cat("Budget test clearing", "asset");
+  }, 60_000);
 
   afterAll(cleanup);
 
   it("🔴 THE DEFECT: a refund REDUCES spend on an expense budget — it does not add to it", async () => {
-    await budgetFor(expenseCat, 20000);
-    await tx(expenseCat, "debit", 5000); // bought
-    await tx(expenseCat, "credit", 5000); // returned it
-
-    const [row] = (await inTenant(() => budgetsService.list(YEAR))) as Array<{
-      actualAmount: number;
-      variance: number;
-      categoryName: string | null;
-    }>;
-
-    // Pre-fix this was 10,000: sum(amount) counted the refund as more spending.
-    expect(row.actualAmount).toBe(0);
-    expect(row.variance).toBe(20000);
+    await je(expenseCat, "debit", 5000); // bought
+    await je(expenseCat, "credit", 5000); // returned it
+    const line = await actualFor(expenseCat, 24000);
+    // Pre-M19.0 this was 10,000: the refund counted as more spending.
+    expect([line.ytd.actual, line.ytd.variance, line.ytd.favourable]).toEqual([0, -24000, true]);
   });
 
-  it("an ordinary expense still accumulates normally", async () => {
-    await tx(expenseCat, "debit", 3000);
-    const [row] = (await inTenant(() => budgetsService.list(YEAR))) as Array<{ actualAmount: number }>;
-    expect(row.actualAmount).toBe(3000);
+  it("an ordinary expense accumulates normally", async () => {
+    await je(expenseCat, "debit", 3000);
+    expect((await actualFor(expenseCat, 24000)).ytd.actual).toBe(3000);
   });
 
-  it("🔴 INCOME budgets run the OTHER WAY — earning is credits, a reversal is a debit", async () => {
-    // The reason the sign cannot live in the SQL: direction depends on the
-    // ACCOUNT TYPE, not on the transaction.
-    await pool.query(`DELETE FROM budgets WHERE organization_id = $1`, [orgId]);
-    await budgetFor(incomeCat, 100000);
-    await tx(incomeCat, "credit", 40000); // earned
-    await tx(incomeCat, "debit", 1000); // credit note / reversal
-
-    const [row] = (await inTenant(() => budgetsService.list(YEAR))) as Array<{ actualAmount: number }>;
-    expect(row.actualAmount).toBe(39000);
+  it("🔴 INCOME runs the OTHER WAY — earning is a credit, a reversal a debit; and a shortfall is unfavourable", async () => {
+    await je(incomeCat, "credit", 40000); // earned
+    await je(incomeCat, "debit", 1000); // a credit note / reversal
+    const line = await actualFor(incomeCat, 120000);
+    expect([line.accountType, line.ytd.actual, line.ytd.variance, line.ytd.favourable]).toEqual(["income", 39000, -81000, false]);
   });
 
   it("🔴 a negative actual is REPORTED, not clamped to zero", async () => {
-    // Refunds exceeding spend is a real state. Flooring it at zero would be the
-    // same class of lie as the original bug — a number chosen to look sensible.
-    await pool.query(`DELETE FROM budgets WHERE organization_id = $1`, [orgId]);
-    await pool.query(`DELETE FROM transactions WHERE organization_id = $1`, [orgId]);
-    await budgetFor(expenseCat, 10000);
-    await tx(expenseCat, "credit", 750); // a refund with no matching spend
-
-    const [row] = (await inTenant(() => budgetsService.list(YEAR))) as Array<{ actualAmount: number }>;
-    expect(row.actualAmount).toBe(-750);
+    await je(expenseCat, "credit", 3750); // a refund beyond the 3,000 spent
+    expect((await actualFor(expenseCat, 12000)).ytd.actual).toBe(-750);
   });
 
-  it("the filters that were already right stay right — pending and transfers are excluded", async () => {
-    await pool.query(`DELETE FROM budgets WHERE organization_id = $1`, [orgId]);
-    await pool.query(`DELETE FROM transactions WHERE organization_id = $1`, [orgId]);
-    await budgetFor(expenseCat, 10000);
-    await tx(expenseCat, "debit", 1000); // counts
-    await tx(expenseCat, "debit", 9999, { reviewStatus: "pending_review" }); // M15 holding area
-    await tx(expenseCat, "debit", 8888, { kind: "transfer" }); // M16.2 — not spending
-    await tx(expenseCat, "debit", 7777, { date: "2025-06-15" }); // outside the period
-
-    const [row] = (await inTenant(() => budgetsService.list(YEAR))) as Array<{ actualAmount: number }>;
-    expect(row.actualAmount).toBe(1000);
+  it("what is not in the books does not count — a DRAFT entry, or one outside the fiscal year", async () => {
+    const before = (await actualFor(expenseCat, 12000)).ytd.actual;
+    await je(expenseCat, "debit", 9999, { draft: true }); // not in the books
+    await je(expenseCat, "debit", 7777, { date: "2025-12-31" }); // the previous fiscal year
+    await je(expenseCat, "debit", 6666, { date: "2027-01-01" }); // the next one
+    expect((await actualFor(expenseCat, 12000)).ytd.actual).toBe(before);
   });
 });

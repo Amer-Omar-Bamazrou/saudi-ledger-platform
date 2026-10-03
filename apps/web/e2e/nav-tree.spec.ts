@@ -172,6 +172,9 @@ test.describe("the tree is internally consistent", () => {
       "/assets/:id",
       // Batch 1C: one batch, reached from the migration list.
       "/migration/:id",
+      // Phase 15: one budget, reached by clicking its row on /budgets (walked by
+      // clicking in phase15-budgets.spec; crawled via the seeded budget id).
+      "/budgets/:id",
       // The placeholder route itself; its entries are counted individually.
       "/coming-soon/:slug",
     ]);

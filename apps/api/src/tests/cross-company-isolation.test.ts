@@ -258,8 +258,10 @@ describeMaybe("same-org cross-company isolation", () => {
   // findById, openForSettlement…) still rely on RLS's company arm (0065)
   // alone. This detector reads the FILE, so it cannot tell the two apart:
   // the removal is the ratchet's requirement, not an audit of every query.
+  // Phase 15 (2026-10-01): `budgets` LEFT — the rebuilt repository carries
+  // companyScoped() on every query (an org-wide connection reads nothing; P9).
   const NO_COMPANY_FILTER = [
-    "assets", "bankAccounts", "budgets", "categorize",
+    "assets", "bankAccounts", "categorize",
     "employees", "journalEntries", "payroll",
     "transactions", "vendors",
   ];
@@ -271,7 +273,7 @@ describeMaybe("same-org cross-company isolation", () => {
     const blind: string[] = [];
     for (const f of readdirSync(dir).filter((n) => n.endsWith(".repository.ts"))) {
       const src = readFileSync(join(dir, f), "utf8");
-      const touchesCompanyScoped = /\b(invoices|bills|journalEntries|transactions|payroll|fixedAssets|budgets|bankAccounts|employees|invoiceItems|billItems|journalEntryLines|invoicePayments|billPayments|depreciationEntries|payrollRuns|payrollItems)Table\b/.test(src);
+      const touchesCompanyScoped = /\b(invoices|bills|journalEntries|transactions|payroll|fixedAssets|budgets|budgetVersions|budgetLines|bankAccounts|employees|invoiceItems|billItems|journalEntryLines|invoicePayments|billPayments|depreciationEntries|payrollRuns|payrollItems)Table\b/.test(src);
       if (!touchesCompanyScoped) continue;
       if (!/companyId|company_id/.test(src)) blind.push(f.replace(".repository.ts", ""));
     }
