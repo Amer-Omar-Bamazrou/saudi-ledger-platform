@@ -7,6 +7,9 @@ D14-15 — marked in place).**
 **Status (2026-10-02): the pre-merge human audit gate ran (§8) — four defects
 fixed with tests (one of them CI's red `test` job, F-36), three findings
 corrected, D15-03 restated as a supersession for the owner.**
+**Status (2026-10-04): D15-03 DECIDED by the owner — periodised budget entry
+is KEPT beside annual entry, both user-entered, and nothing is ever
+apportioned. The code already matched; no code change.**
 Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
 Branch: `feat/phase14-15-reporting-budgeting` (from `main` @ `0b0175da`).
 
@@ -680,6 +683,61 @@ definition — additions, not balances).
 
 ### D15-03 — Periods: the 12 fiscal months; annual-only lines are kept; NOTHING is apportioned
 
+✅ **OWNER DECISION — APPROVED 2026-10-04 (FINAL): KEEP PERIODISED BUDGET
+ENTRY.** The supersession set out below is CONFIRMED. The owner's rules,
+verbatim:
+
+> - Users may manually enter budget amounts for individual periods.
+> - The system must NEVER automatically divide, apportion, or derive period
+>   amounts from an annual budget.
+> - Annual and periodised budget values must remain user-entered.
+> - Preserve the existing implementation of the period editor.
+> - Do NOT remove the period editor.
+> - Do NOT introduce automatic seasonal allocation or automatic distribution
+>   logic.
+
+So the four-point rule below ("The rule in force if the owner confirms") is
+**IN FORCE**, and "If the owner declines" is **CLOSED** — the period editor
+stays. 🔴 Anything that fills a period from another figure — ÷ 12,
+distribution percentages, a seasonal profile, linear proration, a run-rate, a
+"spread evenly" control, a mode switch that carries an amount across — is a
+REVERSAL of this decision, not a feature, and needs a new owner decision.
+
+**Checked against the code the same day (branch at `e83e5e4e`) — it already
+matches; no code change was needed:**
+
+- *Write boundary:* `budgetsService.replaceLines` refuses a line that is not
+  EITHER exactly twelve period amounts OR one annual amount (400), and the
+  `budget_lines_guard` trigger refuses a mixed mode at the database
+  (`budget_line_mode`).
+- *Reads:* in `vsActual`, an annual line's period, year-to-date and forecast
+  budgets are `null`; a total containing one withholds its YTD budget and
+  forecast. The only arithmetic on budget amounts is SUMMING user-entered
+  periods into a full-year total — never dividing.
+- *Editor (`BudgetDetail.tsx`):* twelve inputs per periodised line, one per
+  annual line; switching a line's mode patches the mode alone and carries no
+  figure across; no fill or spread control exists. The Analytics card renders
+  the server's `null` as "—" and derives nothing.
+- *Other writers:* the M19 import writes annual lines (`period_no` NULL); the
+  demo seed writes authored figures through `replaceLines`.
+- *Search shape:* the budget service, repository, routes and controller;
+  `BudgetDetail.tsx`, `Budgets.tsx`, `budgetLabels.ts`, `Analytics.tsx`; the
+  schema, migration 0112 and the demo seed — grepped for `/ 12`, `÷`,
+  `spreadOverPeriods`, distribut-, apportion, prorat-, seasonal, run-rate,
+  evenly, split (control: the same grep finds `spreadOverPeriods` in
+  `lib/money.ts`). Hits: a test fixture that enters twelve equal amounts AS
+  the user (`budget-actuals.test.ts`); the service comment and the on-page
+  notes saying migrated actuals are NEVER split; date-string `.split`s. A
+  divide or spread on a product path would have falsified this.
+- *Tests (on `saudi_ledger_p1415_fresh`, exactly this branch's 113
+  migrations):* `phase15-budgets`, `phase15-budgets-http` and `budget-actuals`
+  — 3 files, 27 / 27, none skipped (P7, P10, review M2 and D15-11 among them);
+  `e2e/phase15-budgets.spec.ts` — 6 / 6, including twelve period amounts and
+  one annual amount entered by clicking, and the annual line showing no
+  divided budget.
+
+The record as it stood before the decision:
+
 - Periods are the twelve months of the frozen fiscal year — Gregorian months,
   or Umm al-Qura Hijri months for a Hijri company (the platform's one Hijri
   source, `hijriCalendar.ts`).
@@ -1059,7 +1117,7 @@ database — proof that they were residue.
 
 **Blockers:** none CRITICAL or HIGH. The open items are §6's OPEN rows (F-18,
 F-19 partial, F-25, F-27, F-28, L-CF1, L-CF2) and the owner-review decisions
-(D15-03, F-00, F-16).
+(D15-03, F-00, F-16). *(D15-03 decided by the owner 2026-10-04 — see D15-03.)*
 
 ---
 
@@ -1143,6 +1201,8 @@ Playwright specs' (EN/AR × desktop/390 px, no sideways scroll), run below.
   an IFRS statement for a company that buys assets on credit.
 - **D15-03:** a supersession of the 2026-08-15 "annual only" choice, not an
   extension — the exact rule and the owner's two options are in D15-03.
+  **Decided 2026-10-04: KEEP periodised entry** (the owner's rules are in
+  D15-03; the period editor stays).
 - **F-00, F-16, F-18, F-19, F-27, F-28:** determinations in their §6 rows.
 
 ### 8.6 Verification after the fixes (fresh database)

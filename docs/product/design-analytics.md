@@ -321,10 +321,13 @@ seeing a wrong variance — which is what apportioning would have given them.
 
 **Revisit trigger:** a real user asking for monthly budgets. Not before.
 
-> **Status (2026-10-02): superseded in part, PENDING THE OWNER'S CONFIRMATION.**
-> Phase 15 built option (a) on the owner's Phase 15 brief; the trigger above
-> (a real user) was not met. "Do not apportion" is kept and binds both modes.
-> The rule, and the option to remove the period editor: [`phase-14-15` pack
+> **Status (2026-10-04): SUPERSEDED IN PART — owner decision D15-03.**
+> Option (a), periodised entry (built in Phase 15), is KEPT beside annual-only
+> entry; both are user-entered and the period editor stays. "Do not apportion"
+> is KEPT and binds both: no period amount is ever divided, apportioned or
+> derived from an annual one, and no automatic seasonal or distribution logic
+> is added. The revisit trigger above no longer applies — the owner has
+> decided. The rule: [`phase-14-15` pack
 > D15-03](phase-14-15-reporting-budgeting-decision-pack.md). Current state
 > authority: CLAUDE.md §2.
 
