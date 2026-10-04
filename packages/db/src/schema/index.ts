@@ -32,6 +32,9 @@ export * from "./invoicePrepayments";
 export * from "./cashCutover";
 export * from "./inputVatLedger";
 export * from "./openingPayableVatDeclarations";
+export * from "./whtTypes";
+export * from "./tax";
+export * from "./treasury";
 
 // Multi-tenancy / platform tables (Milestone 2 — additive, not yet enforced)
 export * from "./organizations";

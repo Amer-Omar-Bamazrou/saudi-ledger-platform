@@ -7,6 +7,7 @@
  */
 import type { IncomeStatementReportExpenseAnalysis } from './incomeStatementReportExpenseAnalysis';
 import type { IncomeStatementReportSource } from './incomeStatementReportSource';
+import type { IncomeStatementReportZakatAndIncomeTax } from './incomeStatementReportZakatAndIncomeTax';
 import type { ReportKeyedAmount } from './reportKeyedAmount';
 import type { ReportWindow } from './reportWindow';
 
@@ -18,7 +19,13 @@ export interface IncomeStatementReport {
   expenseAnalysis: IncomeStatementReportExpenseAnalysis;
   revenue: ReportKeyedAmount[];
   expenses: ReportKeyedAmount[];
+  /** Σ expenses — every expense but Zakat and income tax. */
+  expensesBeforeZakatAndIncomeTax: number;
+  profitBeforeZakatAndIncomeTax: number;
+  /** Phase 16 — SOCPA Zakat Accounting Standard para 6: Zakat (and income tax) on their OWN line before the profit or loss. */
+  zakatAndIncomeTax: IncomeStatementReportZakatAndIncomeTax;
   totalRevenue: number;
+  /** ALL expenses, Zakat and income tax included. */
   totalExpenses: number;
   /** @nullable */
   grossProfit: number | null;

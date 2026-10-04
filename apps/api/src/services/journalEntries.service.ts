@@ -52,6 +52,15 @@ function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): strin
       return `This entry is supplier advance invoice ${documentRef}'s own posting. It cannot be reversed from here; an advance invoice is corrected with the supplier's advance credit note.`;
     case "advance_credit_note":
       return `This entry is supplier advance credit note ${documentRef}'s own posting. A supplier's note is the supplier's document; its entry cannot be reversed from here.`;
+    // Phase 16 (migration 0113)
+    case "wht_withholding":
+      return `This entry is a supplier payment that withheld tax (${documentRef}). It cannot be reversed from here: the withholding is a record for ZATCA and is kept with the payment.`;
+    case "wht_remittance":
+      return `This entry is a withholding-tax remittance to ZATCA. Reverse the remittance on the Withholding tax page, with its reason, instead.`;
+    case "wht_remittance_reversal":
+      return `This entry reverses a withholding-tax remittance; it is itself the correction and is not reversed again.`;
+    case "tax_accrual":
+      return `This entry is a Zakat or income-tax computation's accrual. Change it by revising and approving the computation, which posts the difference.`;
   }
 }
 

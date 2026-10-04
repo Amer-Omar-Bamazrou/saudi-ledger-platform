@@ -40,6 +40,7 @@ import {
   type SupplierPaymentClassification,
 } from "@workspace/api-client-react";
 import { useBankOptions } from "@/components/payments/shared";
+import { WhtFields, type WhtDeclarationValue } from "@/components/payments/WhtFields";
 
 /**
  * Every response shape on this page is the GENERATED one — none is declared
@@ -100,6 +101,8 @@ export default function SupplierPayments() {
       void qc.invalidateQueries({ queryKey: [key] });
     }
     void qc.invalidateQueries({ queryKey: ["ap-aging"] });
+    // Phase 16: a payment to a non-resident withholds — the WHT workspace moves with it.
+    void qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/tax") });
   };
 
   return (
@@ -207,6 +210,9 @@ function NewPaymentDialog({ vendors, banks, t, lang, onDone }: {
   const [reference, setReference] = useState("");
   const [classification, setClassification] = useState("unknown");
   const [allocations, setAllocations] = useState<Record<number, string>>({});
+  // Phase 16: the WHT declaration <WhtFields> reports (empty unless the supplier is non-resident).
+  const [wht, setWht] = useState<{ declaration: WhtDeclarationValue; ready: boolean }>({ declaration: {}, ready: true });
+  const vendor = vendors.find((v) => String(v.id) === vendorId);
 
   const openBills = useOpenBills(vendorId ? Number(vendorId) : null);
   // One key per dialog: a double-click or a retried request is the SAME
@@ -225,6 +231,8 @@ function NewPaymentDialog({ vendors, banks, t, lang, onDone }: {
       allocations: Object.entries(allocations)
         .filter(([, v]) => Number(v) > 0)
         .map(([billId, v]) => ({ billId: Number(billId), amount: Number(v) })),
+      // Phase 16: a declared WHT field is sent; an unstated one is ABSENT (the server decides the rest).
+      ...wht.declaration,
     }),
     onSuccess: () => { toast({ title: t("Payment recorded", "تم تسجيل الدفعة") }); onDone(); },
     onError: (e: Error) => toast({ title: t("Refused", "مرفوض"), description: e.message, variant: "destructive" }),
@@ -283,6 +291,13 @@ function NewPaymentDialog({ vendors, banks, t, lang, onDone }: {
         </div>
       </div>
 
+      {/* Phase 16: a non-resident supplier's payment declares its WHT; the figures are the server's preview. */}
+      {vendorId && (
+        <WhtFields vendorId={vendor?.id ?? null} residency={vendor?.residency} defaultType={vendor?.whtDefaultPaymentType}
+          amount={Number(amount) || 0} date={paidAt}
+          onChange={(declaration, ready) => setWht({ declaration, ready })} />
+      )}
+
       {vendorId && (
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">{t("Apply to bills (optional)", "التخصيص على الفواتير (اختياري)")}</Label>
@@ -308,7 +323,7 @@ function NewPaymentDialog({ vendors, banks, t, lang, onDone }: {
       )}
 
       <DialogFooter>
-        <Button onClick={() => create.mutate()} disabled={create.isPending} data-testid="sp-submit">
+        <Button onClick={() => create.mutate()} disabled={create.isPending || !wht.ready} data-testid="sp-submit">
           {t("Record payment", "تسجيل الدفعة")}
         </Button>
       </DialogFooter>

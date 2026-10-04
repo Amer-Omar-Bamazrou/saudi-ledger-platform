@@ -31,9 +31,11 @@ import { SUPPLIER_DOCUMENT_KINDS, inputVatLabel, kindLabel, statusLabel as evide
 
 const BILL_PAGE_SIZE = 50;
 
-import type { Bill, BillApproveInput, CreateBillInput, ListBills200, PaymentInput, UpdateBillInput, Vendor } from "@workspace/api-client-react";
-import { listSupplierOpenAdvanceInvoices, previewBillVatEvidence, type AttachEvidenceInput, type VatEvidencePreviewInput } from "@workspace/api-client-react";
+import type { Bill, BillApproveInput, BillPaymentInput, CreateBillInput, ListBills200, Payment, UpdateBillInput, Vendor } from "@workspace/api-client-react";
+import { listSupplierOpenAdvanceInvoices, previewBillVatEvidence, useGetVendor, getGetVendorQueryKey, type AttachEvidenceInput, type VatEvidencePreviewInput } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
+import { WhtFields, type WhtDeclarationValue } from "@/components/payments/WhtFields";
+import { whtTypeLabel } from "@/lib/taxLabels";
 
 /**
  * Request bodies go through the GENERATED input types (contract batch 3), so
@@ -45,7 +47,8 @@ const json = {
   create: (b: CreateBillInput) => JSON.stringify(b),
   update: (b: UpdateBillInput) => JSON.stringify(b),
   post: (b: BillApproveInput) => JSON.stringify(b),
-  pay: (b: PaymentInput) => JSON.stringify(b),
+  // Phase 16: the bill-payment body carries the WHT declaration (`BillPaymentInput` = PaymentInput + the WHT fields).
+  pay: (b: BillPaymentInput) => JSON.stringify(b),
 };
 
 
@@ -187,6 +190,8 @@ export default function Bills() {
   const [payAmount, setPayAmount] = useState("");
   // D-3: a payment names the bank it LEFT from — see Invoices.tsx.
   const [payBank, setPayBank] = useState<string>("");
+  // Phase 16: the WHT declaration the pay dialog's <WhtFields> reports (empty unless the supplier is non-resident).
+  const [payWht, setPayWht] = useState<{ declaration: WhtDeclarationValue; ready: boolean }>({ declaration: {}, ready: true });
   const { data: bankAccounts = [] } = useQuery<Array<{ id: number; name: string; bankName: string; isDefault: boolean; isActive: boolean }>>({
     queryKey: ["bank-accounts"],
     queryFn: () => apiFetch("/bank-accounts"),
@@ -373,16 +378,20 @@ export default function Bills() {
   });
 
   const payMut = useMutation({
-    mutationFn: ({ id, amount, bankAccountId }: { id: number; amount: number; bankAccountId: number }) =>
+    mutationFn: ({ id, amount, bankAccountId, wht }: { id: number; amount: number; bankAccountId: number; wht: WhtDeclarationValue }) =>
       apiFetch(`/bills/${id}/pay`, {
         method: "POST",
-        body: json.pay({ amount, paidAt: businessToday(), bankAccountId }),
+        // Phase 16: a declared WHT field is sent; an unstated one is ABSENT, never "" (the server decides the rest).
+        body: json.pay({ amount, paidAt: businessToday(), bankAccountId, ...wht }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
       qc.invalidateQueries({ queryKey: ["bank-accounts"] });
+      // Phase 16: a withholding moves the WHT workspace (generated-client keys).
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/tax") });
       setPayOpen(null);
       setPayAmount("");
+      setPayWht({ declaration: {}, ready: true });
       toast({ title: t("Payment recorded", "تم تسجيل الدفعة") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
@@ -497,6 +506,13 @@ export default function Bills() {
   const bills = billPage?.items ?? [];
   const billTotals = billPage?.totals;
   const billPageInfo = billPage?.page;
+
+  // Phase 16: whose payment is it? The bill being paid names its supplier; the supplier RECORD
+  // (generated client) says its residency and declared default nature — never inferred here.
+  const payVendorId = payOpen != null ? (bills.find((b) => b.id === payOpen)?.vendorId ?? null) : null;
+  const { data: payVendor } = useGetVendor(payVendorId ?? 0, {
+    query: { queryKey: getGetVendorQueryKey(payVendorId ?? 0), enabled: payVendorId != null },
+  });
 
   // Derived JE preview values for the manual bill form
   const previewSubtotal  = Number(form.subtotal)  || 0;
@@ -978,7 +994,7 @@ export default function Bills() {
 
       {/* ── payment dialog ──────────────────────────────────────────────────── */}
       <Dialog open={payOpen !== null} onOpenChange={() => setPayOpen(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{t("Record Payment", "تسجيل دفعة")}</DialogTitle></DialogHeader>
           <div className="mt-2">
             <Label className="text-xs text-muted-foreground">{t("Amount Paid (SAR)", "المبلغ المدفوع (ر.س)")}</Label>
@@ -990,12 +1006,17 @@ export default function Bills() {
               <SelectContent>{activeBanks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name} — {b.bankName}</SelectItem>)}</SelectContent>
             </Select>
             {activeBanks.length === 0 && <p className="text-xs text-destructive mt-1">{t("Add a bank account first — a payment is recorded against the account it left from.", "أضف حسابًا بنكيًا أولًا — تُسجَّل الدفعة على الحساب الذي خرجت منه.")}</p>}
+            {/* Phase 16: a non-resident supplier's payment declares its WHT; the figures are the server's preview. */}
+            <WhtFields vendorId={payVendorId} residency={payVendor?.residency} defaultType={payVendor?.whtDefaultPaymentType}
+              amount={Number(payAmount) || 0} date={businessToday()}
+              onChange={(declaration, ready) => setPayWht({ declaration, ready })} />
             <PaymentHistory entity="bills" id={payOpen} />
+            <BillPaymentWithholdings billId={payOpen} />
           </div>
           <Button
             className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => { const bank = Number(payBank || defaultBankId); if (payingRef.current || !payOpen || !bank) return; payingRef.current = true; payMut.mutate({ id: payOpen, amount: Number(payAmount), bankAccountId: bank }); }}
-            disabled={!payAmount || payMut.isPending || !(payBank || defaultBankId)}
+            onClick={() => { const bank = Number(payBank || defaultBankId); if (payingRef.current || !payOpen || !bank || !payWht.ready) return; payingRef.current = true; payMut.mutate({ id: payOpen, amount: Number(payAmount), bankAccountId: bank, wht: payWht.declaration }); }}
+            disabled={!payAmount || payMut.isPending || !(payBank || defaultBankId) || !payWht.ready}
           >
             {payMut.isPending ? t("Recording…", "جارٍ التسجيل…") : t("Record Payment", "تسجيل الدفعة")}
           </Button>
@@ -1008,6 +1029,39 @@ export default function Bills() {
         onOpenChange={setScanOpen}
         onExtracted={handleScanned}
       />
+    </div>
+  );
+}
+
+/**
+ * Phase 16 — what each of this bill's payments WITHHELD, from the server's
+ * payment history (`withheld` / `cashPaid` / `whtPaymentType`, present only
+ * where a WHT record exists). The same query key and fetch as <PaymentHistory>,
+ * so it reads that one cached response — no second request, no second figure.
+ * A bill payment's id is the `bill_payments` row's (`paymentId` is null on the
+ * bill side — D-4 covers customer payments only).
+ */
+function BillPaymentWithholdings({ billId }: { billId: number | null }) {
+  const { t } = useLanguage();
+  const { data: rows = [] } = useQuery<Payment[]>({
+    queryKey: ["bills", billId, "payments"],
+    queryFn: () => apiFetch(`/bills/${billId}/payments`),
+    enabled: billId !== null,
+  });
+  const recorded = rows.filter((p): p is Payment & { withheld: number } => p.withheld != null);
+  if (recorded.length === 0) return null;
+  return (
+    <div className="mt-2 space-y-1" data-testid="bill-payment-withholdings">
+      <p className="text-xs text-muted-foreground">{t("Withholding tax on these payments", "ضريبة الاستقطاع على هذه الدفعات")}</p>
+      {recorded.map((p) => (
+        <p key={p.id} className="flex flex-wrap gap-x-2 text-xs text-muted-foreground" data-testid={`bill-payment-withheld-${p.paymentId ?? p.id}`}>
+          <DualDate date={p.paidAt} inline />
+          <span>{t("withheld", "مستقطع")} <span className="font-mono" dir="ltr">{fmtNum(p.withheld)}</span></span>
+          <span>· {t("cash paid", "نقد مدفوع")} <span className="font-mono" dir="ltr">{p.cashPaid != null ? fmtNum(p.cashPaid) : "—"}</span></span>
+          {/* a WITHHELD record always names its nature; one without is the not-subject record */}
+          <span>· {p.whtPaymentType ? whtTypeLabel(p.whtPaymentType, t) : t("not subject to withholding", "غير خاضعة للاستقطاع")}</span>
+        </p>
+      ))}
     </div>
   );
 }

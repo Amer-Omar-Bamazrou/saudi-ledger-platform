@@ -108,6 +108,8 @@ export interface SeededIds {
   migrationBankId: number;
   /** Phase 15: the smoke tenant's APPROVED 2026 base budget, so `/budgets/:id` is crawlable. */
   budgetId: number;
+  /** Phase 16: the smoke tenant's DRAFT FY 2025 Zakat computation, so `/tax/computations/:id` is crawlable. */
+  taxComputationId: number;
 }
 
 export const SEEDED_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), ".auth", "ids.json");
@@ -450,6 +452,9 @@ export default async function globalSetup(): Promise<void> {
   // budget (it FREEZES its year, D15-01), then put the company back undeclared, as every other spec found it.
   await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: 1, fiscalCalendar: "gregorian" });
   const budget = await api<{ id: number; version: { id: number } }>(ctx, "POST", "/budgets", { name: "E2E Operating Budget", nameAr: "ميزانية التشغيل", fiscalYearLabel: 2026 });
+  // Phase 16: a DRAFT Zakat computation for FY 2025 (a computation also freezes its year at creation), so
+  // /zakat lists a row and /tax/computations/:id is crawlable. A draft moves nothing in the books.
+  const taxComputation = await api<{ id: number }>(ctx, "POST", "/tax/computations", { kind: "zakat", fiscalYearLabel: 2025 });
   await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: null });
   const budgetAccounts = await api<Array<{ id: number; name: string }>>(ctx, "GET", "/budgets/accounts");
   const salesAccount = budgetAccounts.find((a) => a.name === "Sales Revenue");
@@ -521,5 +526,5 @@ export default async function globalSetup(): Promise<void> {
     await s1.dispose();
   }
 
-  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id, budgetId: budget.id } satisfies SeededIds, null, 2));
+  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id, budgetId: budget.id, taxComputationId: taxComputation.id } satisfies SeededIds, null, 2));
 }

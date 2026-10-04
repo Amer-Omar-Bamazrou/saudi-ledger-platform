@@ -28,8 +28,11 @@ import { reportsService, reportAccountId, reportDate, reportParty, reportWindow,
 import { htmlToPdf } from "../document/htmlToPdf";
 import { CASH_FLOW_LINE_LABEL, type CashFlowLine } from "./cashFlowClassification";
 import { budgetsService } from "../budgets.service";
+import { whtService } from "../tax/wht.service";
+import { taxComputationsService } from "../tax/taxComputations.service";
+import { treasuryService } from "../treasury/treasury.service";
 
-export const EXPORTABLE_REPORTS = ["trial-balance", "income-statement", "balance-sheet", "cash-flow", "general-ledger", "ar-aging", "ap-aging", "budget-vs-actual"] as const;
+export const EXPORTABLE_REPORTS = ["trial-balance", "income-statement", "balance-sheet", "cash-flow", "general-ledger", "ar-aging", "ap-aging", "budget-vs-actual", "wht-return", "wht-annual", "tax-computation", "treasury-forecast"] as const;
 export type ExportableReport = (typeof EXPORTABLE_REPORTS)[number];
 export type ExportFormat = "csv" | "pdf";
 export type ExportLang = "en" | "ar";
@@ -81,8 +84,9 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
       const cmpWin = q.compare_from || q.compare_to ? reportWindow(q.compare_from, q.compare_to) : null;
       const prior = cmpWin ? await reportsService.incomeStatement(cmpWin.from, cmpWin.to) : null;
       const priorBy = (xs: { key: string; amount: number }[] | undefined) => new Map((xs ?? []).map((x) => [x.key, x.amount]));
-      const pRev = priorBy(prior?.revenue), pExp = priorBy(prior?.expenses);
+      const pRev = priorBy(prior?.revenue), pExp = priorBy(prior?.expenses), pTax = priorBy(prior?.zakatAndIncomeTax.items);
       const keysRev = mergeKeys(cur.revenue, prior?.revenue), keysExp = mergeKeys(cur.expenses, prior?.expenses);
+      const keysTax = mergeKeys(cur.zakatAndIncomeTax.items, prior?.zakatAndIncomeTax.items);
       const amountCols = prior ? [col(windowLabel(from, to), windowLabel(from, to), "money"), col(windowLabel(cmpWin!.from, cmpWin!.to), windowLabel(cmpWin!.from, cmpWin!.to), "money")] : [col("Amount", "المبلغ", "money")];
       const line = (x: { key: string; name: string; nameAr: string; amount: number } | undefined, key: string, prev: Map<string, number>, fallbackName: string): Row =>
         ({ kind: "row", cells: [x ? nameIn(x, lang) : fallbackName, x?.amount ?? 0, ...(prior ? [prev.get(key) ?? 0] : [])] });
@@ -99,11 +103,23 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
             { kind: "subtotal", cells: [pick(L("Total revenue", "إجمالي الإيرادات"), lang), cur.totalRevenue, ...(prior ? [prior.totalRevenue] : [])] },
             { kind: "section", cells: [pick(L("Expenses (by nature)", "المصروفات (حسب طبيعتها)"), lang)] },
             ...keysExp.map((k) => line(cur.expenses.find((r) => r.key === k), k, pExp, prior?.expenses.find((r) => r.key === k) ? nameIn(prior.expenses.find((r) => r.key === k)!, lang) : k)),
-            { kind: "subtotal", cells: [pick(L("Total expenses", "إجمالي المصروفات"), lang), cur.totalExpenses, ...(prior ? [prior.totalExpenses] : [])] },
+            { kind: "subtotal", cells: [pick(L("Total expenses", "إجمالي المصروفات"), lang), cur.expensesBeforeZakatAndIncomeTax, ...(prior ? [prior.expensesBeforeZakatAndIncomeTax] : [])] },
+            { kind: "subtotal", cells: [pick(L("Profit (loss) before Zakat and income tax", "الربح (الخسارة) قبل الزكاة وضريبة الدخل"), lang), cur.profitBeforeZakatAndIncomeTax, ...(prior ? [prior.profitBeforeZakatAndIncomeTax] : [])] },
+            // Phase 16 — SOCPA Zakat Accounting Standard para 6: Zakat on its OWN line, with income tax
+            ...(keysTax.length > 0
+              ? [
+                  { kind: "section" as const, cells: [pick(L("Zakat and income tax", "الزكاة وضريبة الدخل"), lang)] },
+                  ...keysTax.map((k) => line(cur.zakatAndIncomeTax.items.find((r) => r.key === k), k, pTax, prior?.zakatAndIncomeTax.items.find((r) => r.key === k) ? nameIn(prior.zakatAndIncomeTax.items.find((r) => r.key === k)!, lang) : k)),
+                  { kind: "subtotal" as const, cells: [pick(L("Total Zakat and income tax", "إجمالي الزكاة وضريبة الدخل"), lang), cur.zakatAndIncomeTax.total, ...(prior ? [prior.zakatAndIncomeTax.total] : [])] },
+                ]
+              : []),
             { kind: "total", cells: [pick(L("Profit (loss) for the period", "ربح (خسارة) الفترة"), lang), cur.netIncome, ...(prior ? [prior.netIncome] : [])] },
           ],
         }],
-        notes: [L("Expenses are analysed by nature (IAS 1.102); no zakat expense is recorded in the ledger.", "تُحلَّل المصروفات حسب طبيعتها (معيار المحاسبة الدولي 1.102)؛ ولا يتضمن الدفتر مصروف زكاة مسجَّلاً.")],
+        notes: [L(
+          "Expenses are analysed by nature (IAS 1.102). Zakat and income tax are presented on their own line before the profit or loss (SOCPA Zakat Accounting Standard, para 6); they appear once an approved Zakat or income-tax computation accrues them.",
+          "تُحلَّل المصروفات حسب طبيعتها (معيار المحاسبة الدولي 1.102). وتُعرض الزكاة وضريبة الدخل في بند مستقل قبل الربح أو الخسارة (معيار الزكاة الصادر عن الهيئة السعودية للمراجعين والمحاسبين، الفقرة 6)، وتظهر متى استُحقت بموجب احتساب زكاة أو ضريبة دخل معتمد.",
+        )],
       };
     }
     case "balance-sheet": {
@@ -315,6 +331,144 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
           L("Actuals are the posted ledger (accrual), in each account's natural direction; variance = actual − budget, judged by account type.", "الفعلي من الدفتر المرحَّل (أساس الاستحقاق) باتجاه كل حساب؛ الانحراف = الفعلي − الميزانية، ويُقيَّم حسب نوع الحساب."),
           L("An annual-only amount is never divided across periods: it has no year-to-date budget and no forecast.", "المبلغ السنوي لا يُقسَّم على الفترات: لا ميزانية له حتى تاريخه ولا توقع."),
           L("Forecast = actuals through the period above + the budget of the remaining periods. It is a projection, not a budget.", "التوقع = الفعلي حتى الفترة المذكورة + ميزانية الفترات المتبقية. وهو إسقاط وليس ميزانية."),
+        ],
+      };
+    }
+    case "wht-return": {
+      // Phase 16 (pack §2.5): the screen's own call — whtService.monthlyReturn — as Form 06 laid out.
+      const period = q.period ?? "";
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new BadRequestError("period (YYYY-MM) is required to export a WHT return.");
+      const r = await whtService.monthlyReturn(period);
+      const reason = (x: string | null) => (x === "goods" ? pick(L("Payment for goods (IR Art. 63(7))", "دفعة مقابل سلع (المادة 63(7))"), lang) : x === "not_kingdom_source" ? pick(L("Not from a source in the Kingdom (Art. 5)", "ليست من مصدر في المملكة (المادة 5)"), lang) : "—");
+      return {
+        report: "wht-return",
+        title: L("Withholding tax return (Form 06)", "إقرار ضريبة الاستقطاع (النموذج 06)"),
+        scope: L(`Month ${r.period} · due ${r.dueDate} · status ${r.status}`, `شهر ${r.period} · الاستحقاق ${r.dueDate} · الحالة ${r.status}`),
+        filenameStem: `wht-return_${r.period}`,
+        tables: [
+          {
+            title: L("Return lines", "بنود الإقرار"),
+            columns: [col("Row", "البند", "text"), col("Payment", "نوع الدفعة", "text"), col("Payment total", "إجمالي المدفوع", "money"), col("Tax withheld", "الضريبة المستقطعة", "money")],
+            rows: [
+              ...r.lines.map((l) => ({ kind: "row" as const, cells: [l.formRow, lang === "ar" ? l.nameAr : l.nameEn, l.paymentTotal, l.taxWithheld] })),
+              { kind: "total", cells: [pick(L("Monthly total", "الإجمالي الشهري"), lang), "", r.totals.paymentTotal, r.totals.taxWithheld] },
+            ],
+          },
+          {
+            title: L("Schedule of beneficiaries", "جدول المستفيدين"),
+            columns: [col("Date", "التاريخ", "date"), col("Beneficiary", "المستفيد", "text"), col("Country", "الدولة", "text"), col("Registration no.", "رقم التسجيل", "text"), col("Nature", "النوع", "text"), col("Base", "المبلغ", "money"), col("Rate", "النسبة", "text"), col("WHT", "الضريبة", "money"), col("Document", "المستند", "text")],
+            rows: r.schedule.map((w) => ({ kind: "row" as const, cells: [w.paymentDate, nameIn({ name: w.vendorName, nameAr: w.vendorNameAr }, lang), w.vendorCountry ?? "—", w.vendorForeignTaxId ?? "—", w.paymentType ?? "—", w.baseAmount, `${(w.rate * 100).toFixed(2)}%${w.treatyReliefId ? " (treaty)" : ""}`, w.whtAmount, w.document ?? "—"] })),
+          },
+          ...(r.excluded.length ? [{
+            title: L("Payments to non-residents not subject, with the reason", "مدفوعات لغير مقيمين غير خاضعة، مع السبب"),
+            columns: [col("Date", "التاريخ", "date"), col("Beneficiary", "المستفيد", "text"), col("Reason", "السبب", "text"), col("Amount", "المبلغ", "money")],
+            rows: r.excluded.map((w) => ({ kind: "row" as const, cells: [w.paymentDate, nameIn({ name: w.vendorName, nameAr: w.vendorNameAr }, lang), reason(w.notSubjectReason), w.baseAmount] })),
+          }] : []),
+        ],
+        notes: [
+          L(`Remitted ${r.totals.remitted.toFixed(2)}; outstanding ${r.totals.outstanding.toFixed(2)}. Due within the first 10 days of the following month (IR Art. 63(9)(a)).`, `المسدد ${r.totals.remitted.toFixed(2)}؛ المتبقي ${r.totals.outstanding.toFixed(2)}. يستحق خلال الأيام العشرة الأولى من الشهر التالي (المادة 63(9)(أ)).`),
+          ...(r.delayFineEstimate ? [L(`Delay-fine ESTIMATE: ${r.delayFineEstimate.amount.toFixed(2)} (1% of the unpaid tax per full 30 days late — Art. 77(A)); not posted.`, `تقدير غرامة التأخير: ${r.delayFineEstimate.amount.toFixed(2)} (1% من الضريبة غير المسددة عن كل 30 يومًا كاملة — المادة 77(أ))؛ غير مرحَّل.`)] : []),
+          L("Form rows 07 and 08 (services to head office / associated company) have no separate band since Resolution 25; a related-party service is reported on its nature's row (open question W-4).", "البندان 07 و08 (خدمات للمركز الرئيسي/شركة مرتبطة) بلا شريحة مستقلة منذ القرار 25؛ وتُدرج خدمة الطرف المرتبط في بند طبيعتها (سؤال مفتوح W-4)."),
+        ],
+      };
+    }
+    case "wht-annual": {
+      const a = await whtService.annual(q.fiscal_year);
+      return {
+        report: "wht-annual",
+        title: L("Annual withholding information", "البيانات السنوية لضريبة الاستقطاع"),
+        scope: L(`Fiscal year ${a.fiscalYear.startDate} – ${a.fiscalYear.endDate} · due ${a.dueDate}`, `السنة المالية ${a.fiscalYear.startDate} – ${a.fiscalYear.endDate} · الاستحقاق ${a.dueDate}`),
+        filenameStem: `wht-annual_${a.fiscalYear.label}`,
+        tables: [{
+          columns: [col("Beneficiary", "المستفيد", "text"), col("Country", "الدولة", "text"), col("Address", "العنوان", "text"), col("Registration no.", "رقم التسجيل", "text"), col("Nature", "النوع", "text"), col("Payments", "عدد الدفعات", "int"), col("Paid", "المدفوع", "money"), col("WHT", "الضريبة", "money")],
+          rows: [
+            ...a.beneficiaries.map((b) => ({ kind: "row" as const, cells: [nameIn({ name: b.vendorName, nameAr: b.vendorNameAr }, lang), b.country ?? "—", b.address ?? "—", b.foreignTaxId ?? "—", b.paymentType, b.payments, b.base, b.wht] })),
+            { kind: "total", cells: [pick(L("Total", "الإجمالي"), lang), "", "", "", "", a.totals.payments, a.totals.base, a.totals.wht] },
+          ],
+        }],
+        notes: [L("Filed within 120 days of the fiscal year-end (IR Art. 63(9)(b)); the beneficiary's name, address and registration number as Art. 68(B)(3) asks.", "يُقدَّم خلال 120 يومًا من نهاية السنة المالية (المادة 63(9)(ب))؛ مع اسم المستفيد وعنوانه ورقم تسجيله كما تطلب المادة 68(ب)(3).")],
+      };
+    }
+    case "tax-computation": {
+      const int = (v: string | undefined, name: string) => {
+        if (v == null || v === "") return undefined;
+        if (!/^\d+$/.test(v) || Number(v) > MAX_ID || Number(v) === 0) throw new BadRequestError(`${name} must be a positive whole number.`);
+        return Number(v);
+      };
+      const id = int(q.computation_id, "computation_id");
+      if (id == null) throw new BadRequestError("computation_id is required to export a tax computation.");
+      const d = await taxComputationsService.detail(id, int(q.version_id, "version_id"));
+      // an APPROVED version exports its frozen working paper — the figure that was approved, never a recomputation
+      const frozen = (d.approvedSnapshot as { computation?: typeof d.live } | null)?.computation ?? null;
+      const comp = frozen ?? d.live;
+      if (!comp) throw new BadRequestError("This computation has no version to export.");
+      const isZakat = d.kind === "zakat";
+      const v = d.version;
+      const stepRows = (steps: { key: string; article: string; amount: number }[]): Row[] => steps.map((s) => ({ kind: "row" as const, cells: [s.key.replace(/_/g, " "), s.article, s.amount] }));
+      const tables: Table[] = [];
+      if (isZakat && comp.zakat) {
+        tables.push({
+          title: L("Balance-sheet accounts at the year-end, by class", "حسابات المركز المالي في نهاية السنة، حسب الفئة"),
+          columns: [col("Account", "الحساب", "text"), col("Class", "الفئة", "text"), col("Article", "المادة", "text"), col("Amount", "المبلغ", "money")],
+          rows: comp.zakat.lines.map((l) => ({ kind: "row" as const, cells: [nameIn({ name: l.name, nameAr: l.nameAr }, lang), l.zakatClass, l.article, l.amount] })),
+        });
+        if (comp.zakat.result) tables.push({
+          title: L("The Zakat base (Implementing Regulations, MoF Decision 1007)", "الوعاء الزكوي (اللائحة التنفيذية، القرار 1007)"),
+          columns: [col("Step", "الخطوة", "text"), col("Article", "المادة", "text"), col("Amount", "المبلغ", "money")],
+          rows: [...stepRows(comp.zakat.result.steps), { kind: "note", cells: [`${pick(L("Rate", "النسبة"), lang)}: ${comp.zakat.result.rate.display}`] }],
+        });
+      }
+      if (!isZakat && comp.incomeTax) tables.push({
+        title: L("Income tax on the non-Saudi share (Income Tax Law)", "ضريبة الدخل على حصة غير السعوديين (نظام ضريبة الدخل)"),
+        columns: [col("Step", "الخطوة", "text"), col("Article", "المادة", "text"), col("Amount", "المبلغ", "money")],
+        rows: stepRows(comp.incomeTax.steps),
+      });
+      if (comp.adjustments.length) tables.push({
+        title: L("Tax adjustments", "التعديلات الضريبية"),
+        columns: [col("Target", "البند", "text"), col("Effect", "الأثر", "text"), col("Amount", "المبلغ", "money"), col("Reason", "السبب", "text"), col("Article", "المادة", "text"), col("Source", "المستند", "text")],
+        rows: comp.adjustments.map((a) => ({ kind: "row" as const, cells: [a.target, a.effect, a.amount, a.reason, a.legalReference, a.sourceReference ?? "—"] })),
+      });
+      return {
+        report: "tax-computation",
+        title: isZakat ? L("Zakat base working paper", "ورقة عمل الوعاء الزكوي") : L("Income-tax computation", "احتساب ضريبة الدخل"),
+        scope: L(
+          `Fiscal year ${d.fiscalYear.startDate} – ${d.fiscalYear.endDate} · version ${v?.versionNo ?? "—"} (${v?.status ?? "—"})${frozen ? " · the frozen approved working paper" : " · live from the ledger"}`,
+          `السنة المالية ${d.fiscalYear.startDate} – ${d.fiscalYear.endDate} · الإصدار ${v?.versionNo ?? "—"}${frozen ? " · ورقة العمل المعتمدة المجمدة" : " · محسوبة الآن من الدفاتر"}`,
+        ),
+        filenameStem: `${isZakat ? "zakat" : "income-tax"}_${d.fiscalYear.label}_v${v?.versionNo ?? 0}`,
+        tables,
+        notes: [
+          ...(comp.blockers.length ? [L(`Not computable yet: ${comp.blockers.map((b) => b.message).join(" ")}`, `غير قابل للاحتساب بعد: ${comp.blockers.map((b) => b.message).join(" ")}`)] : []),
+          isZakat
+            ? L("A working paper, not a filing (owner decision Q1). Classes and adjustments are declared by people and cite their articles; open questions Z-1…Z-8 are listed in the decision pack.", "ورقة عمل وليست إقرارًا (قرار المالك Q1). الفئات والتعديلات يقررها أشخاص وتستند إلى موادها؛ والأسئلة المفتوحة Z-1…Z-8 مدرجة في حزمة القرارات.")
+            : L("Current tax only — deferred tax (IAS 12 / IFRS for SMEs s.29) is not computed.", "الضريبة الجارية فقط — لا تُحتسب الضريبة المؤجلة (معيار المحاسبة الدولي 12 / القسم 29 للمنشآت الصغيرة والمتوسطة)."),
+          L(`Due 120 days after the fiscal year-end: ${d.dueDate}.`, `تستحق بعد 120 يومًا من نهاية السنة المالية: ${d.dueDate}.`),
+        ],
+      };
+    }
+    case "treasury-forecast": {
+      const f = await treasuryService.forecast(q.weeks);
+      const kindLabel = (k: string) => pick({ committed: L("Committed", "ملتزم به"), expected: L("Expected", "متوقع"), forecast: L("Forecast", "تنبؤ"), manual: L("Manual assumption", "افتراض يدوي") }[k as "committed"] ?? L(k, k), lang);
+      return {
+        report: "treasury-forecast",
+        title: L("Cash forecast", "توقع النقد"),
+        scope: L(`From ${f.asOf} · ${f.horizonWeeks} weeks (to ${f.horizonEnd}) · opening cash (actual) ${f.opening.amount.toFixed(2)}`, `من ${f.asOf} · ${f.horizonWeeks} أسبوعًا (حتى ${f.horizonEnd}) · النقد الافتتاحي (فعلي) ${f.opening.amount.toFixed(2)}`),
+        filenameStem: `cash-forecast_${f.asOf}_${f.horizonWeeks}w`,
+        tables: [
+          {
+            title: L("By week — a projection, never cash", "حسب الأسبوع — إسقاط وليس نقدًا"),
+            columns: [col("Bucket", "الفترة", "text"), col("From", "من", "date"), col("To", "إلى", "date"), col("Opening", "الافتتاحي", "money"), col("In", "داخل", "money"), col("Out", "خارج", "money"), col("Closing", "الختامي", "money")],
+            rows: f.buckets.map((b) => ({ kind: "row" as const, cells: [lang === "ar" ? b.labelAr : b.label, b.from ?? "—", b.to ?? "—", b.opening, b.inflow.total, b.outflow.total, b.closing] })),
+          },
+          {
+            title: L("Every row, typed and sourced", "كل بند، بنوعه ومصدره"),
+            columns: [col("Bucket", "الفترة", "int"), col("Date", "التاريخ", "date"), col("Type", "النوع", "text"), col("Category", "الفئة", "text"), col("Item", "البند", "text"), col("In", "داخل", "money"), col("Out", "خارج", "money")],
+            rows: f.rows.map((r) => ({ kind: "row" as const, cells: [r.bucket, r.date ?? "—", kindLabel(r.kind), r.category, lang === "ar" ? r.labelAr : r.label, r.direction === "in" ? r.amount : null, r.direction === "out" ? r.amount : null] })),
+          },
+        ],
+        notes: [
+          ...(f.funding.recommendation ? [L(`RECOMMENDATION (a calculation, not a transaction): ${f.funding.recommendation.en}`, `توصية (حساب وليست معاملة): ${f.funding.recommendation.ar}`)] : []),
+          ...f.notes.map((n) => L(n.en, n.ar)),
         ],
       };
     }

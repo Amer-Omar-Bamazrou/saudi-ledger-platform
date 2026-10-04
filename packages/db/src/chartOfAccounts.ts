@@ -133,6 +133,22 @@ export const SYSTEM_ACCOUNTS = {
   ACCUMULATED_DEPRECIATION: "ACCUMULATED_DEPRECIATION",
   DEPRECIATION_EXPENSE: "DEPRECIATION_EXPENSE",
   ASSET_DISPOSAL_GAIN_LOSS: "ASSET_DISPOSAL_GAIN_LOSS",
+  /**
+   * Phase 16 (migration 0113; pack §3.5, §4, §2.5). SOCPA's Zakat Accounting
+   * Standard makes Zakat an EXPENSE presented on its own line (para 6); an
+   * approved computation accrues it Dr ZAKAT_EXPENSE / Cr ZAKAT_PAYMENT.
+   * 🔴 ZAKAT_PAYMENT is the EXISTING liability (0029, retyped 0036) that bank
+   * lines categorised "zakat" already settle — promoted to a protected system
+   * account and displayed "Zakat payable", never duplicated: a second payable
+   * would leave the accrual on one account and the payment on the other.
+   * Income tax mirrors it (current tax only — no deferred tax, pack §4).
+   * TAX_PENALTIES holds a delay fine actually paid (a fine is a cost, not a tax).
+   */
+  ZAKAT_EXPENSE: "ZAKAT_EXPENSE",
+  ZAKAT_PAYMENT: "ZAKAT_PAYMENT",
+  INCOME_TAX_EXPENSE: "INCOME_TAX_EXPENSE",
+  INCOME_TAX_PAYABLE: "INCOME_TAX_PAYABLE",
+  TAX_PENALTIES: "TAX_PENALTIES",
 } as const;
 
 export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACCOUNTS];
@@ -143,8 +159,12 @@ export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACC
  * NAME (/vat|tax|ضريبة|زكاة/), a second definition of this fact that flagged
  * "Taxi expenses" and missed a renamed VAT account.
  */
-// VAT_PAYMENT and ZAKAT_PAYMENT are chart codes (SYSTEM_CHART_OF_ACCOUNTS) with no
-// SYSTEM_ACCOUNTS key — they are settlement accounts no posting path resolves.
+// VAT_PAYMENT is a chart code (a default category) with no SYSTEM_ACCOUNTS key —
+// a settlement account no posting path resolves. ZAKAT_PAYMENT became a system
+// account in Phase 16 (the Zakat accrual credits it). WHT_PAYABLE and the
+// income-tax and Zakat accounts are tax lines too (Phase 16 — the second
+// definition this list disagreed with, cashFlowClassification's TAX_CODES,
+// named WHT_PAYABLE while this list did not).
 export const TAX_ACCOUNT_SYSTEM_CODES: readonly string[] = [
   SYSTEM_ACCOUNTS.VAT_OUTPUT,
   SYSTEM_ACCOUNTS.VAT_INPUT,
@@ -152,7 +172,11 @@ export const TAX_ACCOUNT_SYSTEM_CODES: readonly string[] = [
   SYSTEM_ACCOUNTS.VAT_ADJ_NONPAYMENT,
   SYSTEM_ACCOUNTS.VAT_ADJ_BLOCKED,
   "VAT_PAYMENT",
-  "ZAKAT_PAYMENT",
+  SYSTEM_ACCOUNTS.ZAKAT_PAYMENT,
+  SYSTEM_ACCOUNTS.WHT_PAYABLE,
+  SYSTEM_ACCOUNTS.ZAKAT_EXPENSE,
+  SYSTEM_ACCOUNTS.INCOME_TAX_EXPENSE,
+  SYSTEM_ACCOUNTS.INCOME_TAX_PAYABLE,
 ];
 
 /**
@@ -248,6 +272,9 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "VAT_OUTPUT", name: "VAT Payable", nameAr: "ضريبة القيمة المضافة المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["VAT Payable"] },
   { code: "SALARIES_PAYABLE", name: "Salaries Payable", nameAr: "الرواتب المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["Salaries Payable"] },
   { code: "GOSI_PAYABLE", name: "GOSI Payable", nameAr: "التأمينات الاجتماعية المستحقة", type: "liability", liquidityClass: "current", legacyNames: ["GOSI Payable"] },
+  // Phase 16 (0113): the Zakat payable (the promoted ZAKAT_PAYMENT) and the income-tax payable — see SYSTEM_ACCOUNTS.
+  { code: "ZAKAT_PAYMENT", name: "Zakat payable", nameAr: "الزكاة المستحقة", type: "liability", liquidityClass: "current", legacyNames: [] },
+  { code: "INCOME_TAX_PAYABLE", name: "Income tax payable", nameAr: "ضريبة الدخل المستحقة", type: "liability", liquidityClass: "current", legacyNames: [] },
   // D-4 (2026-09-17): customer money the books owe back or must earn — see SYSTEM_ACCOUNTS.
   { code: "CUSTOMER_DEPOSITS", name: "Customer deposits and advances", nameAr: "ودائع ودفعات مقدمة من العملاء", type: "liability", liquidityClass: "current", legacyNames: [] },
   { code: "CUSTOMER_CREDITS", name: "Customer credit balances", nameAr: "أرصدة دائنة للعملاء", type: "liability", liquidityClass: "current", legacyNames: [] },
@@ -280,6 +307,10 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "BAD_DEBT_EXPENSE", name: "Bad debts", nameAr: "ديون معدومة", type: "expense", legacyNames: [] },
   // Fixed assets FA-A (2026-09-22): the schedule's expense side.
   { code: "DEPRECIATION_EXPENSE", name: "Depreciation expense", nameAr: "مصروف الإهلاك", type: "expense", legacyNames: [] },
+  // Phase 16 (0113): presented in their OWN income-statement section, "Zakat and income tax" (SOCPA Zakat Standard para 6).
+  { code: "ZAKAT_EXPENSE", name: "Zakat expense", nameAr: "مصروف الزكاة", type: "expense", legacyNames: [] },
+  { code: "INCOME_TAX_EXPENSE", name: "Income tax expense", nameAr: "مصروف ضريبة الدخل", type: "expense", legacyNames: [] },
+  { code: "TAX_PENALTIES", name: "Tax fines and penalties", nameAr: "غرامات ضريبية", type: "expense", legacyNames: [] },
 ];
 
 /**

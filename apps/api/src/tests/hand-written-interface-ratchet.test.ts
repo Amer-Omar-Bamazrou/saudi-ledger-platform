@@ -94,7 +94,8 @@ const KNOWN_HAND_WRITTEN: readonly string[] = [
   "pages/Upload.tsx",
   "pages/UserManagement.tsx",
   "pages/VerificationStatus.tsx",
-  "pages/ZakatReport.tsx",
+  // "pages/ZakatReport.tsx" — LEFT in Phase 16 (2026-10-04): the Zakat workspace reads the company through
+  // the generated `useGetCurrentCompany`. Deleted, not reworded, per the pattern.
   "pages/ZatcaOnboarding.tsx",
 ];
 

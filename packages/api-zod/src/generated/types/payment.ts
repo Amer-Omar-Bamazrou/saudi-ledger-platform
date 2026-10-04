@@ -18,4 +18,16 @@ export interface Payment {
      * @nullable
      */
   paymentId: number | null;
+  /**
+     * Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded).
+     * @nullable
+     */
+  withheld?: number | null;
+  /**
+     * Bill payments: the cash that left the bank (amount − withheld).
+     * @nullable
+     */
+  cashPaid?: number | null;
+  /** @nullable */
+  whtPaymentType?: string | null;
 }

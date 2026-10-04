@@ -175,6 +175,9 @@ test.describe("the tree is internally consistent", () => {
       // Phase 15: one budget, reached by clicking its row on /budgets (walked by
       // clicking in phase15-budgets.spec; crawled via the seeded budget id).
       "/budgets/:id",
+      // Phase 16: one Zakat or income-tax computation, reached by clicking its row on /zakat or
+      // /tax/income-tax (walked by clicking in phase16-tax.spec; crawled via the seeded computation id).
+      "/tax/computations/:id",
       // The placeholder route itself; its entries are counted individually.
       "/coming-soon/:slug",
     ]);

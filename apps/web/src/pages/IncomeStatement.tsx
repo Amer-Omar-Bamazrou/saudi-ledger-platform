@@ -64,7 +64,8 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
     enabled: !!prior,
   });
 
-  const priorEmpty = !!priorData && priorData.revenue.length === 0 && priorData.expenses.length === 0;
+  // Phase 16: `expenses` no longer holds Zakat and income tax — a window whose only movement is those is not empty.
+  const priorEmpty = !!priorData && priorData.revenue.length === 0 && priorData.expenses.length === 0 && priorData.zakatAndIncomeTax.items.length === 0;
   // Phase 14 (D14-06): both windows now answer from THE LEDGER — the server's
   // transactions fallback is gone — so the old source-mismatch refusal
   // (finding #9: gross-incl-VAT beside net-of-VAT) has nothing left to catch.
@@ -201,22 +202,55 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : !data ? null : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {section("Revenue", "الإيرادات", data.revenue, priorData?.revenue, data.totalRevenue, priorData?.totalRevenue, "text-positive", "border-positive-surface/30", <TrendingUp className="w-4 h-4 text-positive" />, "Total Revenue", "إجمالي الإيرادات")}
-          {section("Expenses", "المصروفات", data.expenses, priorData?.expenses, data.totalExpenses, priorData?.totalExpenses, "text-negative", "border-negative-surface/30", <TrendingDown className="w-4 h-4 text-negative" />, "Total Expenses", "إجمالي المصروفات")}
+          {/* Phase 16: `expenses` is every expense BUT Zakat and income tax, so its total is the server's
+              `expensesBeforeZakatAndIncomeTax` — the rows above it add up to the figure below them. */}
+          {section("Expenses", "المصروفات", data.expenses, priorData?.expenses, data.expensesBeforeZakatAndIncomeTax, priorData?.expensesBeforeZakatAndIncomeTax, "text-negative", "border-negative-surface/30", <TrendingDown className="w-4 h-4 text-negative" />, "Expenses before Zakat and income tax", "المصروفات قبل الزكاة وضريبة الدخل")}
 
-          {/* Net Income summary */}
+          {/* Net Income summary — revenue − expenses before Zakat and income tax = profit before Zakat and
+              income tax; − Zakat and income tax = net income. Every figure is the server's; none is computed here. */}
           <Card className="md:col-span-2 border-border bg-card">
             <CardContent className="pt-4">
-              <div className="flex items-center justify-between py-3 border-b border-border">
+              <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
                 <span className="text-muted-foreground text-sm">{t("Total Revenue", "إجمالي الإيرادات")}</span>
                 <span className="font-mono font-semibold text-positive" data-testid="is-total-revenue">{fmtNum(data.totalRevenue)}</span>
               </div>
-              <div className="flex items-center justify-between py-3 border-b border-border">
-                <span className="text-muted-foreground text-sm">{t("Total Expenses", "إجمالي المصروفات")}</span>
-                <span className="font-mono font-semibold text-negative" data-testid="is-total-expenses">({fmtNum(data.totalExpenses)})</span>
+              <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
+                <span className="text-muted-foreground text-sm">{t("Expenses before Zakat and income tax", "المصروفات قبل الزكاة وضريبة الدخل")}</span>
+                <span className="font-mono font-semibold text-negative" data-testid="is-expenses-before-zakat">({fmtNum(data.expensesBeforeZakatAndIncomeTax)})</span>
               </div>
+              <div className="flex items-center justify-between gap-3 py-3 border-b-2 border-border">
+                <span className="text-sm font-semibold">{t("Profit before Zakat and income tax", "الربح قبل الزكاة وضريبة الدخل")}</span>
+                <span className="font-mono font-semibold" data-testid="is-profit-before-zakat">{fmtNum(data.profitBeforeZakatAndIncomeTax)}</span>
+              </div>
+              {/* SOCPA Zakat Standard para 6: Zakat (with income tax) on its OWN line before the profit or loss.
+                  An empty block prints its emptiness — so the section turns itself on only when it has lines. */}
+              {data.zakatAndIncomeTax.items.length > 0 && (
+                <div className="py-3 border-b border-border" data-testid="is-zakat-section">
+                  <p className="text-sm font-semibold text-negative mb-1">{t("Zakat and income tax", "الزكاة وضريبة الدخل")}</p>
+                  {data.zakatAndIncomeTax.items.map((row) => (
+                    <div key={row.key} className="flex items-center justify-between gap-3 py-1.5 ps-3 text-sm">
+                      <span className="text-foreground">
+                        {/^\d+$/.test(row.key)
+                          ? <Link href={glDrillHref(Number(row.key), applied.from, applied.to)} className="hover:text-primary hover:underline" data-testid={`is-drill-${row.key}`}>{n(row.name, row.nameAr)}</Link>
+                          : n(row.name, row.nameAr)}
+                      </span>
+                      <span className="font-mono text-negative">({fmtNum(row.amount)})</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-3 pt-2 mt-1 border-t border-border/50">
+                    <span className="text-muted-foreground text-sm">{t("Total Zakat and income tax", "إجمالي الزكاة وضريبة الدخل")}</span>
+                    <span className="font-mono font-semibold text-negative" data-testid="is-zakat-total">({fmtNum(data.zakatAndIncomeTax.total)})</span>
+                  </div>
+                </div>
+              )}
               <div className={`flex items-center justify-between py-4 rounded-lg px-3 mt-2 ${data.netIncome >= 0 ? "bg-positive-surface/10 border border-positive-surface/20" : "bg-negative-surface/10 border border-negative-surface/20"}`}>
                 <span className={`font-bold uppercase tracking-wide ${data.netIncome >= 0 ? "text-positive" : "text-negative"}`}>{data.netIncome >= 0 ? t("Net Income", "صافي الدخل") : t("Net Loss", "صافي الخسارة")}</span>
                 <span className={`font-mono font-bold text-xl ${data.netIncome >= 0 ? "text-positive" : "text-negative"}`}>{fmtNum(Math.abs(data.netIncome))}</span>
+              </div>
+              {/* `totalExpenses` keeps its meaning — ALL expenses, Zakat and income tax included — and says so. */}
+              <div className="flex items-center justify-between gap-3 py-2 px-3 text-xs text-muted-foreground">
+                <span>{t("Total expenses, including Zakat and income tax", "إجمالي المصروفات شاملًا الزكاة وضريبة الدخل")}</span>
+                <span className="font-mono" data-testid="is-total-expenses">({fmtNum(data.totalExpenses)})</span>
               </div>
               {comparing && priorData && (
                 <div className="flex items-center justify-between py-2 px-3 text-xs text-muted-foreground">

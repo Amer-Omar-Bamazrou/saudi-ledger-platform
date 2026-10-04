@@ -18,7 +18,9 @@ export interface JournalEntryListFilter {
 export type JournalEntryOwner =
   | "bank_transfer" | "statement_line" | "bill" | "supplier_note" | "bill_vat_claim" | "input_vat_event"
   // Phase 13B-1a (migration 0108): a supplier advance invoice's BILLADV- entry and an advance credit note's BILLADVCN-.
-  | "advance_invoice" | "advance_credit_note";
+  | "advance_invoice" | "advance_credit_note"
+  // Phase 16 (migration 0113, `tax_journal_owner()`): a payment that withheld tax, a WHT remittance and its reversal, a tax computation's accrual.
+  | "wht_withholding" | "wht_remittance" | "wht_remittance_reversal" | "tax_accrual";
 
 /** One predicate for the rows AND the count — so they cannot describe different sets. */
 const jeConditions = (f: JournalEntryListFilter) =>
@@ -51,7 +53,7 @@ export const journalEntriesRepository = {
     const { rows } = await db.execute<{ owner: JournalEntryOwner | null }>(sql`
       SELECT CASE WHEN EXISTS (SELECT 1 FROM bank_transfers WHERE journal_entry_id = ${entryId}) THEN 'bank_transfer'
                   WHEN EXISTS (SELECT 1 FROM transactions WHERE journal_entry_id = ${entryId}) THEN 'statement_line'
-                  ELSE input_vat_journal_owner(${entryId})
+                  ELSE coalesce(input_vat_journal_owner(${entryId}), tax_journal_owner(${entryId}))
              END AS owner`);
     return rows[0]?.owner ?? null;
   },

@@ -44,6 +44,7 @@ import { postJournalEntry } from "./glPosting.js";
 import { checkPeriodOpen } from "./periodLock.js";
 import { assertBankAccount } from "./bankIdentity.js";
 import { billsRepository } from "../../repositories/bills.repository.js";
+import { decideWithholding, recordWithholding, supplierPaymentWasWithheld, whtDeclarationFrom, whtLine, whtOf } from "./wht.js";
 import {
   supplierOnAccountAsset, mayAllocate,
   type SupplierPaymentClassificationKind,
@@ -104,6 +105,13 @@ export const supplierPaymentsService = {
     // or unclassified payment may not (see supplierCreditPolicy). The
     // remainder simply sits on its account until somebody classifies it.
 
+    // 🔴 Phase 16 (pack §2.4): a payment to a NON-RESIDENT withholds — decided
+    // before anything is written; `amount` stays what the supplier is credited
+    // with (allocated + on account), and the bank line is the cash that left.
+    const withholding = await decideWithholding({ vendorId, paymentDate: paidAt, base: amount, declared: whtDeclarationFrom(body) });
+    const withheld = whtOf(withholding);
+    const cashPaid = round2(amount - withheld);
+
     const asset = supplierOnAccountAsset(classification);
     const lines = [];
     for (const a of allocations) {
@@ -122,7 +130,8 @@ export const supplierPaymentsService = {
         party: { type: "vendor" as const, vendorId },
       });
     }
-    lines.push({ bankAccountId, description: `Payment to ${vendor!.name}`, debitAmount: 0, creditAmount: amount });
+    lines.push({ bankAccountId, description: `Payment to ${vendor!.name}`, debitAmount: 0, creditAmount: cashPaid });
+    lines.push(...whtLine(withholding, `Withholding tax on payment to ${vendor!.name}`));
 
     const reference = typeof body.reference === "string" ? body.reference : null;
     const entry = await postJournalEntry({
@@ -163,8 +172,9 @@ export const supplierPaymentsService = {
         supplierPaymentId: payment!.id, classification, note: (body.classificationNote as string) ?? null, createdBy: userId,
       });
     }
+    await recordWithholding(withholding, { kind: "supplier_payment", supplierPaymentId: payment!.id }, paidAt, entry.id, userId);
 
-    await auditService.created("supplier_payment", payment!.id, payment);
+    await auditService.created("supplier_payment", payment!.id, { ...payment, withholding: withheld > 0 ? { amount: withheld, cashPaid } : null });
     return this.getById(payment!.id);
   },
 
@@ -374,6 +384,13 @@ export const supplierPaymentsService = {
   /** Money coming back from the supplier: the asset falls, the bank rises. */
   async refund(id: number, body: { amount?: unknown; bankAccountId?: unknown; refundedAt?: unknown; reason?: unknown }, userId: number | null) {
     const payment = await this.findOrThrow(id, { lock: true });
+    // 🔴 Phase 16 (pack §2.4, open W-12): the supplier returns what it RECEIVED;
+    // the part withheld was paid to ZATCA and is a claim on ZATCA, not on the
+    // supplier. Booking a refund here would leave that part sitting on the
+    // supplier's account as an advance it never held — refused by name.
+    if (await supplierPaymentWasWithheld(id)) {
+      refuse("wht_refund_unsupported", "Tax was withheld from this payment, so part of it went to ZATCA, not the supplier. A refund of it is not recorded here until the recovery of the withheld tax is decided (open question W-12) — record it with your adviser.", undefined, 409);
+    }
     // Z-AP1: money the supplier has invoiced (its VAT claimed) comes back only
     // after their credit note against that advance invoice reverses the claim.
     const available = await this.uninvoicedOf(id);

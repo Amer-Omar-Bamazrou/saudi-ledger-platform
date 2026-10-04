@@ -188,6 +188,17 @@ export const SupplierPaymentClassification = {
   unknown: 'unknown',
 } as const;
 
+/**
+ * @nullable
+ */
+export type CreateSupplierPaymentInputWhtNotSubjectReason = typeof CreateSupplierPaymentInputWhtNotSubjectReason[keyof typeof CreateSupplierPaymentInputWhtNotSubjectReason] | null;
+
+
+export const CreateSupplierPaymentInputWhtNotSubjectReason = {
+  goods: 'goods',
+  not_kingdom_source: 'not_kingdom_source',
+} as const;
+
 export interface CreateSupplierPaymentInput {
   vendorId: number;
   amount: number;
@@ -202,6 +213,18 @@ export interface CreateSupplierPaymentInput {
   /** A retried request with the same key returns the ORIGINAL payment rather than paying twice. */
   idempotencyKey?: string | null;
   allocations?: SupplierPaymentAllocationInput[];
+  /**
+     * Phase 16: a payment to a NON-RESIDENT states its nature (or the supplier's declared default applies) — never assumed.
+     * @nullable
+     */
+  whtPaymentType?: string | null;
+  /** @nullable */
+  whtNotSubjectReason?: CreateSupplierPaymentInputWhtNotSubjectReason;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  whtNotSubjectNote?: string | null;
 }
 
 export interface AllocateSupplierPaymentInput {
@@ -3997,6 +4020,14 @@ export const IncomeStatementReportExpenseAnalysis = {
   nature: 'nature',
 } as const;
 
+/**
+ * Phase 16 — SOCPA Zakat Accounting Standard para 6: Zakat (and income tax) on their OWN line before the profit or loss.
+ */
+export type IncomeStatementReportZakatAndIncomeTax = {
+  items: ReportKeyedAmount[];
+  total: number;
+};
+
 export type IncomeStatementReportSource = typeof IncomeStatementReportSource[keyof typeof IncomeStatementReportSource];
 
 
@@ -4012,7 +4043,13 @@ export interface IncomeStatementReport {
   expenseAnalysis: IncomeStatementReportExpenseAnalysis;
   revenue: ReportKeyedAmount[];
   expenses: ReportKeyedAmount[];
+  /** Σ expenses — every expense but Zakat and income tax. */
+  expensesBeforeZakatAndIncomeTax: number;
+  profitBeforeZakatAndIncomeTax: number;
+  /** Phase 16 — SOCPA Zakat Accounting Standard para 6: Zakat (and income tax) on their OWN line before the profit or loss. */
+  zakatAndIncomeTax: IncomeStatementReportZakatAndIncomeTax;
   totalRevenue: number;
+  /** ALL expenses, Zakat and income tax included. */
   totalExpenses: number;
   /** @nullable */
   grossProfit: number | null;
@@ -4817,7 +4854,7 @@ export interface CreateCustomerInput {
 export type UpdateCustomerInput = CustomerInputFields;
 
 /**
- * B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed.
+ * Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed.
  */
 export type VendorResidency = typeof VendorResidency[keyof typeof VendorResidency];
 
@@ -4856,8 +4893,18 @@ export interface Vendor {
   /** @nullable */
   notes: string | null;
   isActive: boolean;
-  /** B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed. */
+  /** Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed. */
   residency: VendorResidency;
+  /**
+     * The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.
+     * @nullable
+     */
+  whtDefaultPaymentType: string | null;
+  /**
+     * The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3)).
+     * @nullable
+     */
+  foreignTaxId: string | null;
   createdAt: string;
 }
 
@@ -4873,7 +4920,7 @@ export type VendorCreated = Vendor & {
 };
 
 /**
- * B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed.
+ * Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed.
  */
 export type VendorInputFieldsResidency = typeof VendorInputFieldsResidency[keyof typeof VendorInputFieldsResidency];
 
@@ -4915,12 +4962,22 @@ export interface VendorInputFields {
   /** @nullable */
   notes?: string | null;
   isActive?: boolean;
-  /** B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed. */
+  /** Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed. */
   residency?: VendorInputFieldsResidency;
+  /**
+     * The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.
+     * @nullable
+     */
+  whtDefaultPaymentType?: string | null;
+  /**
+     * The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3)).
+     * @nullable
+     */
+  foreignTaxId?: string | null;
 }
 
 /**
- * B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed.
+ * Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed.
  */
 export type CreateVendorInputResidency = typeof CreateVendorInputResidency[keyof typeof CreateVendorInputResidency];
 
@@ -4959,8 +5016,18 @@ export interface CreateVendorInput {
   /** @nullable */
   notes?: string | null;
   isActive?: boolean;
-  /** B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed. */
+  /** Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed. */
   residency?: CreateVendorInputResidency;
+  /**
+     * The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.
+     * @nullable
+     */
+  whtDefaultPaymentType?: string | null;
+  /**
+     * The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3)).
+     * @nullable
+     */
+  foreignTaxId?: string | null;
 }
 
 export type UpdateVendorInput = VendorInputFields;
@@ -4997,6 +5064,18 @@ export interface Payment {
      * @nullable
      */
   paymentId: number | null;
+  /**
+     * Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded).
+     * @nullable
+     */
+  withheld?: number | null;
+  /**
+     * Bill payments: the cash that left the bank (amount − withheld).
+     * @nullable
+     */
+  cashPaid?: number | null;
+  /** @nullable */
+  whtPaymentType?: string | null;
 }
 
 export interface PaymentAllocationInput {
@@ -5647,6 +5726,32 @@ export interface PaymentInput {
   /** D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank's own GL cash account — there is no shared cash account and no default. Validated against the tenant's own accounts; a missing or unknown id is a 422 (`bank_account_required` / `reference_not_found`). Recorded on the payment row as its bank evidence. */
   bankAccountId: number;
 }
+
+/**
+ * @nullable
+ */
+export type BillPaymentInputWhtNotSubjectReason = typeof BillPaymentInputWhtNotSubjectReason[keyof typeof BillPaymentInputWhtNotSubjectReason] | null;
+
+
+export const BillPaymentInputWhtNotSubjectReason = {
+  goods: 'goods',
+  not_kingdom_source: 'not_kingdom_source',
+} as const;
+
+/**
+ * A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier's declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.
+ */
+export type BillPaymentInput = PaymentInput & ({
+  /** @nullable */
+  whtPaymentType?: string | null;
+  /** @nullable */
+  whtNotSubjectReason?: BillPaymentInputWhtNotSubjectReason;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  whtNotSubjectNote?: string | null;
+});
 
 export interface InvoiceLineInput {
   /** @minLength 1 */
@@ -9445,6 +9550,1635 @@ export type MigrationReversed = MigrationBatch & {
   reversed: MigrationReversedReversed;
 };
 
+/**
+ * A payment nature of Income Tax Implementing Regulations Art. 63(1) as amended by MoF Resolution 25 (in force 12-09-2023).
+ */
+export type WhtPaymentType = typeof WhtPaymentType[keyof typeof WhtPaymentType];
+
+
+export const WhtPaymentType = {
+  rent: 'rent',
+  royalty: 'royalty',
+  management_fee: 'management_fee',
+  air_tickets_or_air_freight: 'air_tickets_or_air_freight',
+  sea_freight: 'sea_freight',
+  intl_telecom: 'intl_telecom',
+  dividends: 'dividends',
+  technical_consulting: 'technical_consulting',
+  loan_returns: 'loan_returns',
+  insurance_premiums: 'insurance_premiums',
+  other_payments: 'other_payments',
+} as const;
+
+export interface WhtRate {
+  id: number;
+  paymentType: WhtPaymentType;
+  /** A fraction: 0.05 = 5 %. */
+  rate: number;
+  effectiveFrom: string;
+  /** @nullable */
+  effectiveTo: string | null;
+  formRow: string;
+  nameEn: string;
+  nameAr: string;
+  legalReference: string;
+}
+
+export type WhtPreviewKind = typeof WhtPreviewKind[keyof typeof WhtPreviewKind];
+
+
+export const WhtPreviewKind = {
+  no_vendor: 'no_vendor',
+  resident: 'resident',
+  unknown_residency: 'unknown_residency',
+  not_subject: 'not_subject',
+  withheld: 'withheld',
+} as const;
+
+export interface WhtPreview {
+  kind: WhtPreviewKind;
+  amount: number;
+  date: string;
+  /** @nullable */
+  paymentType: string | null;
+  /** @nullable */
+  rate: number | null;
+  /** @nullable */
+  statutoryRate: number | null;
+  /** @nullable */
+  treatyReliefId: number | null;
+  /** @nullable */
+  legalReference: string | null;
+  /** @nullable */
+  formRow: string | null;
+  withheld: number;
+  /** What leaves the bank: amount − withheld. */
+  cashPaid: number;
+  /** @nullable */
+  notSubjectReason: string | null;
+}
+
+/**
+ * A STATUTORY ESTIMATE (Income Tax Law Art. 77(A); IR Art. 68(2)): 1 % of the unpaid tax per full 30 days after the due date — never posted.
+ */
+export interface WhtDelayFine {
+  blocks: number;
+  daysLate: number;
+  amount: number;
+}
+
+export type WhtMonthStatus = typeof WhtMonthStatus[keyof typeof WhtMonthStatus];
+
+
+export const WhtMonthStatus = {
+  nil: 'nil',
+  open: 'open',
+  due: 'due',
+  overdue: 'overdue',
+  remitted: 'remitted',
+} as const;
+
+export interface WhtMonth {
+  period: string;
+  /** The 10th of the following month (IR Art. 63(9)(a)). */
+  dueDate: string;
+  status: WhtMonthStatus;
+  base: number;
+  withheld: number;
+  remitted: number;
+  outstanding: number;
+  payments: number;
+  notSubject: number;
+  finesPaid: number;
+  /** @nullable */
+  lastPaidAt: string | null;
+  delayFineEstimate: WhtDelayFine | null;
+}
+
+export type WhtOverviewOpening = {
+  balance: number;
+  unremitted: number;
+};
+
+/**
+ * Invariant W1 — GL WHT payable against opening + withheld − remitted, EXACT.
+ */
+export type WhtOverviewReconciliation = {
+  glWhtPayable: number;
+  whtLedger: number;
+  reconciles: boolean;
+};
+
+export type WhtOverviewExceptions = {
+  undeclaredResidency: number;
+  possiblyMissed: number;
+  paymentsWithoutSupplier: number;
+  reliefsExpiringIn30Days: number;
+};
+
+export interface WhtOverview {
+  asOf: string;
+  months: WhtMonth[];
+  opening: WhtOverviewOpening;
+  /** Invariant W1 — GL WHT payable against opening + withheld − remitted, EXACT. */
+  reconciliation: WhtOverviewReconciliation;
+  exceptions: WhtOverviewExceptions;
+}
+
+export type WhtWithholdingSourceKind = typeof WhtWithholdingSourceKind[keyof typeof WhtWithholdingSourceKind];
+
+
+export const WhtWithholdingSourceKind = {
+  bill_payment: 'bill_payment',
+  supplier_payment: 'supplier_payment',
+} as const;
+
+export type WhtWithholdingStatus = typeof WhtWithholdingStatus[keyof typeof WhtWithholdingStatus];
+
+
+export const WhtWithholdingStatus = {
+  withheld: 'withheld',
+  not_subject: 'not_subject',
+} as const;
+
+export interface WhtWithholding {
+  id: number;
+  sourceKind: WhtWithholdingSourceKind;
+  /** @nullable */
+  billPaymentId: number | null;
+  /** @nullable */
+  supplierPaymentId: number | null;
+  vendorId: number;
+  vendorName: string;
+  /** @nullable */
+  vendorNameAr: string | null;
+  /** @nullable */
+  vendorCountry: string | null;
+  /** @nullable */
+  vendorAddress: string | null;
+  /** @nullable */
+  vendorForeignTaxId: string | null;
+  /** @nullable */
+  billId: number | null;
+  /** @nullable */
+  document: string | null;
+  paymentDate: string;
+  period: string;
+  status: WhtWithholdingStatus;
+  /** @nullable */
+  paymentType: string | null;
+  /** @nullable */
+  formRow: string | null;
+  /** @nullable */
+  notSubjectReason: string | null;
+  /** @nullable */
+  notSubjectNote: string | null;
+  baseAmount: number;
+  rate: number;
+  /** @nullable */
+  statutoryRate: number | null;
+  /** @nullable */
+  treatyReliefId: number | null;
+  /** @nullable */
+  treatyApprovalReference: string | null;
+  whtAmount: number;
+  cashPaid: number;
+  journalEntryId: number;
+}
+
+export type WhtRemittanceReversal = {
+  id: number;
+  reason: string;
+  reversedOn: string;
+  journalEntryId: number;
+} | null;
+
+export interface WhtRemittance {
+  id: number;
+  /**
+     * YYYY-MM, or null for the migrated opening balance.
+     * @nullable
+     */
+  period: string | null;
+  amount: number;
+  fineAmount: number;
+  paidAt: string;
+  bankAccountId: number;
+  bankName: string;
+  /** @nullable */
+  reference: string | null;
+  /** @nullable */
+  notes: string | null;
+  journalEntryId: number;
+  createdAt: string;
+  reversal: WhtRemittanceReversal;
+}
+
+export interface WhtReturnLine {
+  formRow: string;
+  paymentType: string;
+  nameEn: string;
+  nameAr: string;
+  applicable: boolean;
+  paymentTotal: number;
+  taxWithheld: number;
+}
+
+export type WhtMonthlyReturnStatus = typeof WhtMonthlyReturnStatus[keyof typeof WhtMonthlyReturnStatus];
+
+
+export const WhtMonthlyReturnStatus = {
+  nil: 'nil',
+  open: 'open',
+  due: 'due',
+  overdue: 'overdue',
+  remitted: 'remitted',
+} as const;
+
+export type WhtMonthlyReturnTotals = {
+  paymentTotal: number;
+  taxWithheld: number;
+  remitted: number;
+  outstanding: number;
+};
+
+export interface WhtMonthlyReturn {
+  period: string;
+  dueDate: string;
+  status: WhtMonthlyReturnStatus;
+  asOf: string;
+  lines: WhtReturnLine[];
+  totals: WhtMonthlyReturnTotals;
+  delayFineEstimate: WhtDelayFine | null;
+  schedule: WhtWithholding[];
+  excluded: WhtWithholding[];
+  remittances: WhtRemittance[];
+  /** Form 06 rows 07/08 have no separate band after Resolution 25 (open question W-4). */
+  unusedFormRows: string[];
+}
+
+export type WhtAnnualReturnFiscalYearCalendar = typeof WhtAnnualReturnFiscalYearCalendar[keyof typeof WhtAnnualReturnFiscalYearCalendar];
+
+
+export const WhtAnnualReturnFiscalYearCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+export type WhtAnnualReturnFiscalYear = {
+  label: number;
+  startDate: string;
+  endDate: string;
+  calendar: WhtAnnualReturnFiscalYearCalendar;
+};
+
+export type WhtAnnualReturnBeneficiariesItem = {
+  vendorId: number;
+  vendorName: string;
+  /** @nullable */
+  vendorNameAr: string | null;
+  /** @nullable */
+  country: string | null;
+  /** @nullable */
+  address: string | null;
+  /** @nullable */
+  foreignTaxId: string | null;
+  paymentType: string;
+  base: number;
+  wht: number;
+  payments: number;
+};
+
+export type WhtAnnualReturnTotals = {
+  base: number;
+  wht: number;
+  payments: number;
+};
+
+export interface WhtAnnualReturn {
+  fiscalYear: WhtAnnualReturnFiscalYear;
+  dueDate: string;
+  beneficiaries: WhtAnnualReturnBeneficiariesItem[];
+  totals: WhtAnnualReturnTotals;
+}
+
+export type WhtBeneficiaryStatementVendor = {
+  id: number;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  /** @nullable */
+  country: string | null;
+  /** @nullable */
+  foreignTaxId: string | null;
+  residency: string;
+};
+
+export type WhtBeneficiaryStatementTotals = {
+  base: number;
+  wht: number;
+};
+
+export interface WhtBeneficiaryStatement {
+  vendor: WhtBeneficiaryStatementVendor;
+  /** @nullable */
+  period: string | null;
+  payments: WhtWithholding[];
+  totals: WhtBeneficiaryStatementTotals;
+}
+
+export type WhtExceptionsKind = typeof WhtExceptionsKind[keyof typeof WhtExceptionsKind];
+
+
+export const WhtExceptionsKind = {
+  undeclared: 'undeclared',
+  possibly_missed: 'possibly_missed',
+} as const;
+
+export type WhtExceptionsItemsItem = {
+  sourceKind: string;
+  paymentId: number;
+  vendorId: number;
+  vendorName: string;
+  /** @nullable */
+  document: string | null;
+  paidAt: string;
+  amount: number;
+  /** @nullable */
+  journalEntryId: number | null;
+};
+
+export interface WhtExceptions {
+  kind: WhtExceptionsKind;
+  /** The TRUE count; the list is capped at 200. */
+  total: number;
+  shown: number;
+  items: WhtExceptionsItemsItem[];
+}
+
+export interface WhtRemitInput {
+  /**
+     * Defaults to everything the month still owes.
+     * @nullable
+     */
+  amount?: number | null;
+  /**
+     * A delay fine ACTUALLY paid with it (posted to tax fines).
+     * @nullable
+     */
+  fineAmount?: number | null;
+  /**
+     * YYYY-MM-DD; today by default; never in the future.
+     * @nullable
+     */
+  paidAt?: string | null;
+  bankAccountId: number;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  reference?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+}
+
+export interface WhtRemittanceResult {
+  remittance: WhtRemittance;
+  /** true when an idempotency key returned the original remittance. */
+  replayed: boolean;
+}
+
+export interface ReverseWithReasonInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+  /** @nullable */
+  date?: string | null;
+}
+
+export interface ReasonInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type WhtReliefStatus = typeof WhtReliefStatus[keyof typeof WhtReliefStatus];
+
+
+export const WhtReliefStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  revoked: 'revoked',
+} as const;
+
+export interface WhtRelief {
+  id: number;
+  vendorId: number;
+  vendorName: string;
+  /** @nullable */
+  vendorNameAr: string | null;
+  paymentType: string;
+  reducedRate: number;
+  treatyCountry: string;
+  zatcaApprovalReference: string;
+  residencyCertificateReference: string;
+  validFrom: string;
+  validTo: string;
+  status: WhtReliefStatus;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+  /** @nullable */
+  approvedBy: number | null;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  revokedBy: number | null;
+  /** @nullable */
+  revokedAt: string | null;
+  /** @nullable */
+  revokeReason: string | null;
+}
+
+export interface CreateWhtReliefInput {
+  vendorId: number;
+  paymentType: WhtPaymentType;
+  /**
+     * @minimum 0
+     * @maximum 0.9999
+     */
+  reducedRate: number;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     */
+  treatyCountry: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  zatcaApprovalReference: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  residencyCertificateReference: string;
+  validFrom: string;
+  validTo: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export type ZakatClass = typeof ZakatClass[keyof typeof ZakatClass];
+
+
+export const ZakatClass = {
+  equity: 'equity',
+  provision_as_equity: 'provision_as_equity',
+  noncurrent_liability: 'noncurrent_liability',
+  current_liability: 'current_liability',
+  noncurrent_asset_deducted: 'noncurrent_asset_deducted',
+  noncurrent_asset_not_deducted: 'noncurrent_asset_not_deducted',
+  current_asset_deducted: 'current_asset_deducted',
+  current_asset_not_deducted: 'current_asset_not_deducted',
+} as const;
+
+export type ZakatAccountClassificationType = typeof ZakatAccountClassificationType[keyof typeof ZakatAccountClassificationType];
+
+
+export const ZakatAccountClassificationType = {
+  asset: 'asset',
+  liability: 'liability',
+} as const;
+
+export interface ZakatAccountClassification {
+  accountId: number;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  type: ZakatAccountClassificationType;
+  /** @nullable */
+  liquidityClass: string | null;
+  /** @nullable */
+  systemCode: string | null;
+  classification: ZakatClass | null;
+  /** @nullable */
+  article: string | null;
+  /** @nullable */
+  basisNote: string | null;
+  /** @nullable */
+  confirmedBy: number | null;
+  /** @nullable */
+  confirmedAt: string | null;
+  /** Pre-selected from what the account IS — confirmed by a person, never applied by itself. */
+  suggestion: ZakatClass | null;
+  allowed: ZakatClass[];
+}
+
+export interface SetZakatClassificationInput {
+  classification: ZakatClass;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  basisNote?: string | null;
+}
+
+export type TaxObligationKind = typeof TaxObligationKind[keyof typeof TaxObligationKind];
+
+
+export const TaxObligationKind = {
+  wht: 'wht',
+  zakat: 'zakat',
+  income_tax: 'income_tax',
+  vat: 'vat',
+} as const;
+
+export type TaxObligationSourceType = typeof TaxObligationSourceType[keyof typeof TaxObligationSourceType];
+
+
+export const TaxObligationSourceType = {
+  wht_period: 'wht_period',
+  gl_account: 'gl_account',
+  vat_return: 'vat_return',
+} as const;
+
+export type TaxObligationSource = {
+  type: TaxObligationSourceType;
+  /** @nullable */
+  period?: string | null;
+  systemCode?: string;
+  from?: string;
+  to?: string;
+};
+
+export interface TaxObligation {
+  kind: TaxObligationKind;
+  reference: string;
+  amount: number;
+  /** @nullable */
+  dueDate: string | null;
+  /** @nullable */
+  note: string | null;
+  source: TaxObligationSource;
+  overdue: boolean;
+}
+
+export interface TaxObligationsReport {
+  asOf: string;
+  obligations: TaxObligation[];
+  total: number;
+}
+
+export type TaxFiscalYearCalendar = typeof TaxFiscalYearCalendar[keyof typeof TaxFiscalYearCalendar];
+
+
+export const TaxFiscalYearCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+export interface TaxFiscalYear {
+  calendar: TaxFiscalYearCalendar;
+  startMonth: number;
+  label: number;
+  startDate: string;
+  endDate: string;
+}
+
+export type TaxComputationVersionStatus = typeof TaxComputationVersionStatus[keyof typeof TaxComputationVersionStatus];
+
+
+export const TaxComputationVersionStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  approved: 'approved',
+  superseded: 'superseded',
+} as const;
+
+export interface TaxComputationVersion {
+  id: number;
+  versionNo: number;
+  status: TaxComputationVersionStatus;
+  /** @nullable */
+  basedOnVersionId: number | null;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  sendBackNote: string | null;
+  /** @nullable */
+  lossCarryforwardAvailable: number | null;
+  /** @nullable */
+  lossCarryforwardReference: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+  /** @nullable */
+  submittedBy: number | null;
+  /** @nullable */
+  submittedAt: string | null;
+  /** @nullable */
+  approvedBy: number | null;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  supersededAt: string | null;
+  /** @nullable */
+  resultAmount: number | null;
+  /**
+     * Signed: what THIS approval posted (the difference from earlier accruals).
+     * @nullable
+     */
+  accruedAmount: number | null;
+  /** @nullable */
+  accrualDate: string | null;
+  /** @nullable */
+  accrualJournalEntryId: number | null;
+}
+
+export type TaxComputationSummaryKind = typeof TaxComputationSummaryKind[keyof typeof TaxComputationSummaryKind];
+
+
+export const TaxComputationSummaryKind = {
+  zakat: 'zakat',
+  income_tax: 'income_tax',
+} as const;
+
+export interface TaxComputationSummary {
+  id: number;
+  kind: TaxComputationSummaryKind;
+  fiscalYear: TaxFiscalYear;
+  /** @nullable */
+  notes: string | null;
+  createdAt: string;
+  versions: TaxComputationVersion[];
+  /** @nullable */
+  approvedVersionId: number | null;
+  /** @nullable */
+  openVersionId: number | null;
+  /** @nullable */
+  approvedAmount: number | null;
+  /** 120 days after the fiscal year-end (Zakat Regs Art. 102(1); Income Tax Law Arts 60(b), 69). */
+  dueDate: string;
+}
+
+export type TaxAdjustmentTarget = typeof TaxAdjustmentTarget[keyof typeof TaxAdjustmentTarget];
+
+
+export const TaxAdjustmentTarget = {
+  adjusted_net_profit: 'adjusted_net_profit',
+  zakat_base: 'zakat_base',
+  taxable_income: 'taxable_income',
+} as const;
+
+export type TaxAdjustmentEffect = typeof TaxAdjustmentEffect[keyof typeof TaxAdjustmentEffect];
+
+
+export const TaxAdjustmentEffect = {
+  increase: 'increase',
+  decrease: 'decrease',
+} as const;
+
+export interface TaxAdjustment {
+  id: number;
+  target: TaxAdjustmentTarget;
+  effect: TaxAdjustmentEffect;
+  amount: number;
+  reason: string;
+  legalReference: string;
+  /** @nullable */
+  sourceReference: string | null;
+  /** @nullable */
+  accountId: number | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+}
+
+export type TaxBlockerAccountsItem = {
+  key: string;
+  name: string;
+  nameAr: string;
+  amount: number;
+};
+
+export interface TaxBlocker {
+  code: string;
+  message: string;
+  accounts?: TaxBlockerAccountsItem[];
+}
+
+export interface TaxStep {
+  key: string;
+  article: string;
+  amount: number;
+}
+
+export interface ZakatLineOut {
+  /** @nullable */
+  accountId: number | null;
+  key: string;
+  name: string;
+  nameAr: string;
+  zakatClass: string;
+  article: string;
+  amount: number;
+}
+
+export type ZakatResultOutNonCurrentLiabilitiesExcludedItem = {
+  /** @nullable */
+  accountId: number | null;
+  name: string;
+  nameAr: string;
+  asset: number;
+  excluded: number;
+};
+
+export type ZakatResultOutCurrentLiabilitiesAddedForDeductedItem = {
+  /** @nullable */
+  accountId: number | null;
+  name: string;
+  nameAr: string;
+  asset: number;
+  added: number;
+};
+
+export type ZakatResultOutMinimumRule = typeof ZakatResultOutMinimumRule[keyof typeof ZakatResultOutMinimumRule];
+
+
+export const ZakatResultOutMinimumRule = {
+  not_applied: 'not_applied',
+  '27(2)': '27(2)',
+  '27(3)': '27(3)',
+  '27(4)': '27(4)',
+} as const;
+
+export type ZakatResultOutRate = {
+  numerator: number;
+  denominator: number;
+  display: string;
+  basis: string;
+};
+
+export interface ZakatResultOut {
+  equity: number;
+  provisions: number;
+  nonCurrentAssets: number;
+  nonCurrentDeducted: number;
+  nonCurrentNotDeducted: number;
+  currentAssets: number;
+  currentDeducted: number;
+  currentNotDeducted: number;
+  nonCurrentLiabilities: number;
+  currentLiabilities: number;
+  deductions: number;
+  nonCurrentLiabilitiesExcluded: ZakatResultOutNonCurrentLiabilitiesExcludedItem[];
+  nonCurrentLiabilitiesExcludedTotal: number;
+  currentLiabilitiesAddedForDeducted: ZakatResultOutCurrentLiabilitiesAddedForDeductedItem[];
+  currentLiabilitiesAddedForDeductedTotal: number;
+  currentLiabilitiesExcessOverCurrentAssets: number;
+  liabilitiesAddedBeforeCap: number;
+  liabilitiesAdded: number;
+  bookNetProfit: number;
+  netProfitAdjustments: number;
+  adjustedNetProfit: number;
+  baseAdjustments: number;
+  difference: number;
+  baseByMethod: number;
+  undeductedAssets: number;
+  minimumRule: ZakatResultOutMinimumRule;
+  baseAfterMinimum: number;
+  maximum: number;
+  maximumApplied: boolean;
+  floorAboveCeiling: boolean;
+  zakatBase: number;
+  rate: ZakatResultOutRate;
+  zakat: number;
+  steps: TaxStep[];
+}
+
+export type ZakatWorkingPaperCalendar = typeof ZakatWorkingPaperCalendar[keyof typeof ZakatWorkingPaperCalendar];
+
+
+export const ZakatWorkingPaperCalendar = {
+  gregorian: 'gregorian',
+  hijri: 'hijri',
+} as const;
+
+export interface ZakatWorkingPaper {
+  lines: ZakatLineOut[];
+  bookNetProfit: number;
+  fiscalYearDays: number;
+  calendar: ZakatWorkingPaperCalendar;
+  result: ZakatResultOut | null;
+}
+
+export type IncomeTaxResultOutRate = {
+  numerator: number;
+  denominator: number;
+  display: string;
+};
+
+export interface IncomeTaxResultOut {
+  profitBeforeTaxes: number;
+  bookDepreciationAddBack: number;
+  bookDisposalReversal: number;
+  poolDeduction: number;
+  poolExcessIncome: number;
+  repairsOverCap: number;
+  declaredAdjustments: number;
+  taxableIncome: number;
+  lossCap: number;
+  lossUsed: number;
+  taxableIncomeAfterLosses: number;
+  foreignSharePct: number;
+  taxableShare: number;
+  rate: IncomeTaxResultOutRate;
+  incomeTax: number;
+  lossOfTheYear: number;
+  steps: TaxStep[];
+}
+
+export type TaxComputationLiveKind = typeof TaxComputationLiveKind[keyof typeof TaxComputationLiveKind];
+
+
+export const TaxComputationLiveKind = {
+  zakat: 'zakat',
+  income_tax: 'income_tax',
+} as const;
+
+/**
+ * Z1 — Σ the asset rows read = the balance sheet's total assets (after this computation's own accrual is taken out); Z2 — book net profit = the balance sheet's result of the year.
+ */
+export interface ZakatReconciliation {
+  balanceSheetTotalAssets: number;
+  assetsRead: number;
+  classifiedAssets: number;
+  bookNetProfit: number;
+  /** @nullable */
+  balanceSheetYearResult: number | null;
+  /** @nullable */
+  bookProfitMatchesBalanceSheet: boolean | null;
+  excludedOwnAccruals: number;
+}
+
+export type IncomeTaxReconciliationPool = {
+  status: string;
+  /** @nullable */
+  reason: string | null;
+};
+
+export interface IncomeTaxReconciliation {
+  profitPerIncomeStatement: number;
+  zakatAndIncomeTaxAddedBack: number;
+  pool: IncomeTaxReconciliationPool;
+  excludedOwnAccruals: number;
+  /** @nullable */
+  ownership: string | null;
+}
+
+export interface TaxComputationLive {
+  kind: TaxComputationLiveKind;
+  blockers: TaxBlocker[];
+  /** The figures the working paper ties to — Zakat (Z1/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status). */
+  reconciliation: ZakatReconciliation | IncomeTaxReconciliation;
+  adjustments: TaxAdjustment[];
+  fingerprint: string;
+  /** @nullable */
+  amount: number | null;
+  zakat: ZakatWorkingPaper | null;
+  incomeTax: IncomeTaxResultOut | null;
+}
+
+export type TaxComputationSnapshotKind = typeof TaxComputationSnapshotKind[keyof typeof TaxComputationSnapshotKind];
+
+
+export const TaxComputationSnapshotKind = {
+  zakat: 'zakat',
+  income_tax: 'income_tax',
+} as const;
+
+export type TaxComputationSnapshotAccrual = {
+  previouslyAccrued: number;
+  thisApproval: number;
+  /** @nullable */
+  date: string | null;
+  /** @nullable */
+  basis: string | null;
+  /** @nullable */
+  journalEntryId: number | null;
+};
+
+/**
+ * The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.
+ */
+export interface TaxComputationSnapshot {
+  frozenAt: string;
+  kind: TaxComputationSnapshotKind;
+  fiscalYear: TaxFiscalYear;
+  computation: TaxComputationLive;
+  accrual: TaxComputationSnapshotAccrual;
+}
+
+export type TaxComputationDetailKind = typeof TaxComputationDetailKind[keyof typeof TaxComputationDetailKind];
+
+
+export const TaxComputationDetailKind = {
+  zakat: 'zakat',
+  income_tax: 'income_tax',
+} as const;
+
+export interface TaxComputationDetail {
+  id: number;
+  kind: TaxComputationDetailKind;
+  fiscalYear: TaxFiscalYear;
+  /** @nullable */
+  notes: string | null;
+  createdAt: string;
+  dueDate: string;
+  versions: TaxComputationVersion[];
+  /** @nullable */
+  approvedVersionId: number | null;
+  /** @nullable */
+  openVersionId: number | null;
+  version: TaxComputationVersion | null;
+  live: TaxComputationLive | null;
+  approvedSnapshot: TaxComputationSnapshot | null;
+  /** @nullable */
+  ledgerChangedSinceApproval: boolean | null;
+}
+
+export type CreateTaxComputationInputKind = typeof CreateTaxComputationInputKind[keyof typeof CreateTaxComputationInputKind];
+
+
+export const CreateTaxComputationInputKind = {
+  zakat: 'zakat',
+  income_tax: 'income_tax',
+} as const;
+
+export interface CreateTaxComputationInput {
+  kind: CreateTaxComputationInputKind;
+  fiscalYearLabel: number;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export interface UpdateTaxComputationInput {
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export type TaxAdjustmentInputTarget = typeof TaxAdjustmentInputTarget[keyof typeof TaxAdjustmentInputTarget];
+
+
+export const TaxAdjustmentInputTarget = {
+  adjusted_net_profit: 'adjusted_net_profit',
+  zakat_base: 'zakat_base',
+  taxable_income: 'taxable_income',
+} as const;
+
+export type TaxAdjustmentInputEffect = typeof TaxAdjustmentInputEffect[keyof typeof TaxAdjustmentInputEffect];
+
+
+export const TaxAdjustmentInputEffect = {
+  increase: 'increase',
+  decrease: 'decrease',
+} as const;
+
+export interface TaxAdjustmentInput {
+  target: TaxAdjustmentInputTarget;
+  effect: TaxAdjustmentInputEffect;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  reason: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  legalReference: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  sourceReference?: string | null;
+  /** @nullable */
+  accountId?: number | null;
+}
+
+export type UpdateTaxAdjustmentInputTarget = typeof UpdateTaxAdjustmentInputTarget[keyof typeof UpdateTaxAdjustmentInputTarget];
+
+
+export const UpdateTaxAdjustmentInputTarget = {
+  adjusted_net_profit: 'adjusted_net_profit',
+  zakat_base: 'zakat_base',
+  taxable_income: 'taxable_income',
+} as const;
+
+export type UpdateTaxAdjustmentInputEffect = typeof UpdateTaxAdjustmentInputEffect[keyof typeof UpdateTaxAdjustmentInputEffect];
+
+
+export const UpdateTaxAdjustmentInputEffect = {
+  increase: 'increase',
+  decrease: 'decrease',
+} as const;
+
+export interface UpdateTaxAdjustmentInput {
+  target?: UpdateTaxAdjustmentInputTarget;
+  effect?: UpdateTaxAdjustmentInputEffect;
+  /** @exclusiveMinimum 0 */
+  amount?: number;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  reason?: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  legalReference?: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  sourceReference?: string | null;
+  /** @nullable */
+  accountId?: number | null;
+}
+
+export interface TaxLossesInput {
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  amount?: number | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  reference?: string | null;
+}
+
+export interface TaxSendBackInput {
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  note?: string | null;
+}
+
+export type TreasuryBankLatestStatement = {
+  id: number;
+  periodTo: string;
+  closingBalance: number;
+} | null;
+
+export interface TreasuryBank {
+  bankAccountId: number;
+  name: string;
+  /** @nullable */
+  bankName: string | null;
+  currency: string;
+  isActive: boolean;
+  ledgerBalance: number;
+  overdrawn: boolean;
+  latestStatement: TreasuryBankLatestStatement;
+  /** @nullable */
+  reconciledThrough: string | null;
+}
+
+export interface BilingualText {
+  en: string;
+  ar: string;
+}
+
+export type TreasuryPositionReconciliation = {
+  balanceSheetCash: number;
+  reconciles: boolean;
+};
+
+export interface TreasuryPosition {
+  asOf: string;
+  banks: TreasuryBank[];
+  /** Pre-D-3 history on the Cash and Bank header, attributed to no bank. */
+  unattributedCash: number;
+  totalCash: number;
+  /** Own-account transfers in transit — beside cash, never in it. */
+  inTransit: number;
+  reconciliation: TreasuryPositionReconciliation;
+  policy: BilingualText;
+}
+
+export type TreasuryFlowRowKind = typeof TreasuryFlowRowKind[keyof typeof TreasuryFlowRowKind];
+
+
+export const TreasuryFlowRowKind = {
+  committed: 'committed',
+  expected: 'expected',
+  forecast: 'forecast',
+  manual: 'manual',
+} as const;
+
+export type TreasuryFlowRowCategory = typeof TreasuryFlowRowCategory[keyof typeof TreasuryFlowRowCategory];
+
+
+export const TreasuryFlowRowCategory = {
+  receivables: 'receivables',
+  payables: 'payables',
+  payment_plans: 'payment_plans',
+  tax: 'tax',
+  payroll: 'payroll',
+  recurring: 'recurring',
+  assumptions: 'assumptions',
+} as const;
+
+export type TreasuryFlowRowDirection = typeof TreasuryFlowRowDirection[keyof typeof TreasuryFlowRowDirection];
+
+
+export const TreasuryFlowRowDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+/**
+ * @nullable
+ */
+export type TreasuryFlowRowBucketReason = typeof TreasuryFlowRowBucketReason[keyof typeof TreasuryFlowRowBucketReason] | null;
+
+
+export const TreasuryFlowRowBucketReason = {
+  overdue: 'overdue',
+  undated: 'undated',
+} as const;
+
+export type TreasuryFlowRowSource = {
+  type: string;
+  /** @nullable */
+  id: number | string | null;
+  /** @nullable */
+  reference: string | null;
+};
+
+export interface TreasuryFlowRow {
+  kind: TreasuryFlowRowKind;
+  category: TreasuryFlowRowCategory;
+  direction: TreasuryFlowRowDirection;
+  bucket: number;
+  /** @nullable */
+  date: string | null;
+  amount: number;
+  label: string;
+  labelAr: string;
+  /** @nullable */
+  bucketReason: TreasuryFlowRowBucketReason;
+  source: TreasuryFlowRowSource;
+}
+
+export type TreasuryBucketInflow = {
+  total: number;
+  expected: number;
+  forecast: number;
+  manual: number;
+};
+
+export type TreasuryBucketOutflow = {
+  total: number;
+  committed: number;
+  expected: number;
+  forecast: number;
+  manual: number;
+};
+
+export interface TreasuryBucket {
+  index: number;
+  /** @nullable */
+  from: string | null;
+  /** @nullable */
+  to: string | null;
+  label: string;
+  labelAr: string;
+  opening: number;
+  inflow: TreasuryBucketInflow;
+  outflow: TreasuryBucketOutflow;
+  net: number;
+  closing: number;
+}
+
+export type TreasuryForecastOpeningKind = typeof TreasuryForecastOpeningKind[keyof typeof TreasuryForecastOpeningKind];
+
+
+export const TreasuryForecastOpeningKind = {
+  actual: 'actual',
+} as const;
+
+export type TreasuryForecastOpening = {
+  kind: TreasuryForecastOpeningKind;
+  amount: number;
+};
+
+export type TreasuryForecastLiquidity = {
+  actualCash: number;
+  committed: number;
+  available: number;
+  expectedInflows30: number;
+  expectedOutflows30: number;
+  overdueReceivables: number;
+  overduePayables: number;
+  undatedObligations: number;
+  lowestClosing: number;
+};
+
+export type TreasuryForecastFunding = {
+  /** @nullable */
+  minimumBalance: number | null;
+  bufferDeclared: boolean;
+  requirement: number;
+  /** @nullable */
+  firstShortfallBucket: number | null;
+  /** @nullable */
+  peakShortfallBucket: number | null;
+  recommendation: BilingualText | null;
+};
+
+export type TreasuryForecastExcludedBeyondHorizon = {
+  inflow: number;
+  outflow: number;
+  count: number;
+};
+
+export type TreasuryForecastExcluded = {
+  beyondHorizon: TreasuryForecastExcludedBeyondHorizon;
+  staleAssumptions: number;
+  journalEntryRules: number;
+  rulesWithoutHistory: number;
+};
+
+export type TreasuryForecastPlanFlagsItem = {
+  planId: number;
+  covered: number;
+  exceedsOutstanding: boolean;
+  /** The plan's bill is an opening item the migration reversed (Policy C) — it owes nothing, the plan covers nothing, and it is to be cancelled. */
+  billReversed: boolean;
+};
+
+export interface TreasuryForecast {
+  asOf: string;
+  horizonWeeks: number;
+  horizonEnd: string;
+  opening: TreasuryForecastOpening;
+  buckets: TreasuryBucket[];
+  rows: TreasuryFlowRow[];
+  liquidity: TreasuryForecastLiquidity;
+  funding: TreasuryForecastFunding;
+  excluded: TreasuryForecastExcluded;
+  planFlags: TreasuryForecastPlanFlagsItem[];
+  notes: BilingualText[];
+}
+
+export interface TreasuryDashboard {
+  position: TreasuryPosition;
+  forecast: TreasuryForecast;
+  upcomingOutflows: TreasuryFlowRow[];
+  upcomingOutflowsTotal: number;
+}
+
+export type PaymentPlanPriority = typeof PaymentPlanPriority[keyof typeof PaymentPlanPriority];
+
+
+export const PaymentPlanPriority = {
+  high: 'high',
+  normal: 'normal',
+  low: 'low',
+} as const;
+
+export type PaymentPlanStatus = typeof PaymentPlanStatus[keyof typeof PaymentPlanStatus];
+
+
+export const PaymentPlanStatus = {
+  planned: 'planned',
+  approved: 'approved',
+  paid: 'paid',
+  cancelled: 'cancelled',
+} as const;
+
+export interface PaymentPlan {
+  id: number;
+  billId: number;
+  /** @nullable */
+  billNumber: string | null;
+  /** @nullable */
+  vendorId: number | null;
+  /** @nullable */
+  vendorName: string | null;
+  /** @nullable */
+  vendorNameAr: string | null;
+  /** @nullable */
+  vendorResidency: string | null;
+  /** @nullable */
+  billDueDate: string | null;
+  billDate: string;
+  billOutstanding: number;
+  plannedDate: string;
+  amount: number;
+  /** @nullable */
+  bankAccountId: number | null;
+  /** @nullable */
+  bankName: string | null;
+  priority: PaymentPlanPriority;
+  status: PaymentPlanStatus;
+  /** @nullable */
+  whtPaymentType: string | null;
+  /** @nullable */
+  whtEstimate: number | null;
+  cashEstimate: number;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+  /** @nullable */
+  approvedBy: number | null;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  paidBillPaymentId: number | null;
+  /** @nullable */
+  paidBy: number | null;
+  /** @nullable */
+  paidAt: string | null;
+  /** @nullable */
+  cancelledBy: number | null;
+  /** @nullable */
+  cancelledAt: string | null;
+  /** @nullable */
+  cancelReason: string | null;
+  overdue: boolean;
+  exceedsOutstanding: boolean;
+  /** The bill is an opening item the migration reversed (Policy C): it owes nothing (billOutstanding 0) and an open plan on it is to be cancelled — it can be neither approved nor paid. */
+  billReversed: boolean;
+}
+
+export type CreatePaymentPlanInputPriority = typeof CreatePaymentPlanInputPriority[keyof typeof CreatePaymentPlanInputPriority];
+
+
+export const CreatePaymentPlanInputPriority = {
+  high: 'high',
+  normal: 'normal',
+  low: 'low',
+} as const;
+
+export interface CreatePaymentPlanInput {
+  billId: number;
+  plannedDate: string;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** @nullable */
+  bankAccountId?: number | null;
+  priority?: CreatePaymentPlanInputPriority;
+  /** @nullable */
+  whtPaymentType?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export type UpdatePaymentPlanInputPriority = typeof UpdatePaymentPlanInputPriority[keyof typeof UpdatePaymentPlanInputPriority];
+
+
+export const UpdatePaymentPlanInputPriority = {
+  high: 'high',
+  normal: 'normal',
+  low: 'low',
+} as const;
+
+export interface UpdatePaymentPlanInput {
+  plannedDate?: string;
+  /** @exclusiveMinimum 0 */
+  amount?: number;
+  /** @nullable */
+  bankAccountId?: number | null;
+  priority?: UpdatePaymentPlanInputPriority;
+  /** @nullable */
+  whtPaymentType?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+/**
+ * @nullable
+ */
+export type PayPaymentPlanInputWhtNotSubjectReason = typeof PayPaymentPlanInputWhtNotSubjectReason[keyof typeof PayPaymentPlanInputWhtNotSubjectReason] | null;
+
+
+export const PayPaymentPlanInputWhtNotSubjectReason = {
+  goods: 'goods',
+  not_kingdom_source: 'not_kingdom_source',
+} as const;
+
+export interface PayPaymentPlanInput {
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  bankAccountId?: number | null;
+  /** @nullable */
+  whtPaymentType?: string | null;
+  /** @nullable */
+  whtNotSubjectReason?: PayPaymentPlanInputWhtNotSubjectReason;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  whtNotSubjectNote?: string | null;
+}
+
+export type PaymentPlanPaidPayment = {
+  billPaymentId: number;
+  journalEntryId: number;
+  amount: number;
+  cashPaid: number;
+  withheld: number;
+};
+
+export interface PaymentPlanPaid {
+  plan: PaymentPlan;
+  payment: PaymentPlanPaidPayment;
+}
+
+export type ForecastAssumptionDirection = typeof ForecastAssumptionDirection[keyof typeof ForecastAssumptionDirection];
+
+
+export const ForecastAssumptionDirection = {
+  inflow: 'inflow',
+  outflow: 'outflow',
+} as const;
+
+export type ForecastAssumptionCategory = typeof ForecastAssumptionCategory[keyof typeof ForecastAssumptionCategory];
+
+
+export const ForecastAssumptionCategory = {
+  financing: 'financing',
+  capex: 'capex',
+  tax: 'tax',
+  payroll: 'payroll',
+  receipt: 'receipt',
+  payment: 'payment',
+  other: 'other',
+} as const;
+
+export interface ForecastAssumption {
+  id: number;
+  entryDate: string;
+  direction: ForecastAssumptionDirection;
+  amount: number;
+  category: ForecastAssumptionCategory;
+  description: string;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+  /** @nullable */
+  updatedBy: number | null;
+  /** @nullable */
+  updatedAt: string | null;
+}
+
+export type ForecastAssumptionInputDirection = typeof ForecastAssumptionInputDirection[keyof typeof ForecastAssumptionInputDirection];
+
+
+export const ForecastAssumptionInputDirection = {
+  inflow: 'inflow',
+  outflow: 'outflow',
+} as const;
+
+export type ForecastAssumptionInputCategory = typeof ForecastAssumptionInputCategory[keyof typeof ForecastAssumptionInputCategory];
+
+
+export const ForecastAssumptionInputCategory = {
+  financing: 'financing',
+  capex: 'capex',
+  tax: 'tax',
+  payroll: 'payroll',
+  receipt: 'receipt',
+  payment: 'payment',
+  other: 'other',
+} as const;
+
+export interface ForecastAssumptionInput {
+  entryDate: string;
+  direction: ForecastAssumptionInputDirection;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  category?: ForecastAssumptionInputCategory;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  description: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export type UpdateForecastAssumptionInputDirection = typeof UpdateForecastAssumptionInputDirection[keyof typeof UpdateForecastAssumptionInputDirection];
+
+
+export const UpdateForecastAssumptionInputDirection = {
+  inflow: 'inflow',
+  outflow: 'outflow',
+} as const;
+
+export type UpdateForecastAssumptionInputCategory = typeof UpdateForecastAssumptionInputCategory[keyof typeof UpdateForecastAssumptionInputCategory];
+
+
+export const UpdateForecastAssumptionInputCategory = {
+  financing: 'financing',
+  capex: 'capex',
+  tax: 'tax',
+  payroll: 'payroll',
+  receipt: 'receipt',
+  payment: 'payment',
+  other: 'other',
+} as const;
+
+export interface UpdateForecastAssumptionInput {
+  entryDate?: string;
+  direction?: UpdateForecastAssumptionInputDirection;
+  /** @exclusiveMinimum 0 */
+  amount?: number;
+  category?: UpdateForecastAssumptionInputCategory;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  description?: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export interface TreasurySettings {
+  /**
+     * NULL = not declared — the funding requirement is then measured against zero, and says so.
+     * @nullable
+     */
+  minimumCashBalance: number | null;
+  forecastHorizonWeeks: number;
+  /** @nullable */
+  updatedBy: number | null;
+  /** @nullable */
+  updatedAt: string | null;
+}
+
+export interface UpdateTreasurySettingsInput {
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  minimumCashBalance?: number | null;
+  /**
+     * @minimum 1
+     * @maximum 52
+     */
+  forecastHorizonWeeks?: number;
+}
+
 export type ListTransactionsParams = {
 /**
  * @nullable
@@ -9941,6 +11675,22 @@ version_id?: string;
  * budget-vs-actual only
  */
 through_period?: string;
+/**
+ * wht-return only (YYYY-MM)
+ */
+period?: string;
+/**
+ * wht-annual only
+ */
+fiscal_year?: string;
+/**
+ * tax-computation only
+ */
+computation_id?: string;
+/**
+ * treasury-forecast only
+ */
+weeks?: string;
 };
 
 export type ExportReportFormat = typeof ExportReportFormat[keyof typeof ExportReportFormat];
@@ -10412,5 +12162,79 @@ vendorId?: number;
 
 export type ListSupplierCreditNotes200 = {
   items: SupplierCreditNote[];
+};
+
+export type PreviewWhtParams = {
+vendorId: number;
+amount: number;
+date?: string;
+whtPaymentType?: string;
+whtNotSubjectReason?: string;
+whtNotSubjectNote?: string;
+};
+
+export type GetWhtAnnualParams = {
+fiscal_year?: number;
+};
+
+export type GetWhtBeneficiaryStatementParams = {
+period?: string;
+};
+
+export type ListWhtExceptionsParams = {
+kind: ListWhtExceptionsKind;
+};
+
+export type ListWhtExceptionsKind = typeof ListWhtExceptionsKind[keyof typeof ListWhtExceptionsKind];
+
+
+export const ListWhtExceptionsKind = {
+  undeclared: 'undeclared',
+  possibly_missed: 'possibly_missed',
+} as const;
+
+export type ListWhtReliefsParams = {
+vendorId?: number;
+};
+
+export type ListTaxComputationsParams = {
+kind?: ListTaxComputationsKind;
+};
+
+export type ListTaxComputationsKind = typeof ListTaxComputationsKind[keyof typeof ListTaxComputationsKind];
+
+
+export const ListTaxComputationsKind = {
+  zakat: 'zakat',
+  income_tax: 'income_tax',
+} as const;
+
+export type GetTaxComputationParams = {
+version_id?: number;
+};
+
+export type GetTreasuryDashboardParams = {
+/**
+ * @minimum 1
+ * @maximum 52
+ */
+weeks?: number;
+};
+
+export type GetTreasuryPositionParams = {
+as_of?: string;
+};
+
+export type GetTreasuryForecastParams = {
+/**
+ * @minimum 1
+ * @maximum 52
+ */
+weeks?: number;
+};
+
+export type ListPaymentPlansParams = {
+status?: string;
+billId?: number;
 };
 

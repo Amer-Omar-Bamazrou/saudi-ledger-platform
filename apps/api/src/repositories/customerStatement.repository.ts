@@ -86,6 +86,32 @@ const customerIs = (col: string, customerId: number | null) => (customerId == nu
 
 export const customerStatementRepository = {
   /**
+   * Phase 17 (Treasury, pack §8.3) — every receivable DOCUMENT still owed, one
+   * row each, with its due date: THIS module's in-books and receivable
+   * predicates and the same per-document arithmetic `positions()` sums (total
+   * − paid − credited − written off), so the forecast cannot hold a second
+   * definition of "owed". No customer filter: an invoice with no customer
+   * record is still money due (the ageing's set). Σ outstanding = GL AR —
+   * pinned by a test.
+   */
+  async openReceivables() {
+    const { rows } = await db.execute<{
+      id: number; invoice_number: string | null; customer_id: number | null; customer_name: string | null; customer_name_ar: string | null;
+      payment_terms_days: string | null; date: string; due_date: string | null; outstanding: string;
+    }>(sql`
+      SELECT * FROM (
+        SELECT i.id, i.invoice_number, i.customer_id, c.name AS customer_name, c.name_ar AS customer_name_ar, c.payment_terms_days,
+               i.date::date::text AS date, nullif(i.due_date, '') AS due_date,
+               (i.total::numeric - coalesce(i.paid_amount::numeric, 0) - coalesce(i.credited_amount::numeric, 0) - coalesce(i.written_off_amount::numeric, 0))::text AS outstanding
+          FROM invoices i
+          LEFT JOIN customers c ON c.id = i.customer_id
+         WHERE ${IN_BOOKS} AND ${RECEIVABLE_DOC} AND i.document_type <> 'credit_note' AND ${scopedCo("i")}
+      ) x WHERE x.outstanding::numeric <> 0
+      ORDER BY coalesce(x.due_date, x.date), x.id`);
+    return rows;
+  },
+
+  /**
    * The position of one customer, or of every customer that has any
    * document, receipt or refund (one grouped query, never N+1). `restrictTo`
    * narrows the customer set (the list's filter) without changing the

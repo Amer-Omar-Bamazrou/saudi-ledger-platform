@@ -42,6 +42,14 @@ const DECIDED: Record<string, CashFlowLine | "cash"> = {
   VAT_ADJ_NONPAYMENT: "taxes",
   VAT_ADJ_BLOCKED: "taxes",
   WHT_PAYABLE: "taxes",
+  // operating — the entity's OWN taxes on income and Zakat, SEPARATELY DISCLOSED (IAS 7.35 as endorsed by
+  // SOCPA, SOCPA-ED 24/12/2025 — Phase 16): never folded into the VAT/WHT line
+  ZAKAT_PAYMENT: "zakat_income_tax",
+  ZAKAT_EXPENSE: "zakat_income_tax",
+  INCOME_TAX_PAYABLE: "zakat_income_tax",
+  INCOME_TAX_EXPENSE: "zakat_income_tax",
+  // a tax FINE is a cost, not a tax (SYSTEM_ACCOUNTS; absent from TAX_ACCOUNT_SYSTEM_CODES): an operating expense paid
+  TAX_PENALTIES: "payments_suppliers",
   // operating — refundable security deposits: not a sale or a purchase; operating, listed apart
   SECURITY_DEPOSITS_PAID: "other_operating",
   SECURITY_DEPOSITS_HELD: "other_operating",
@@ -71,6 +79,21 @@ describe("Phase 14 — the cash-flow classification of every system account is d
       const got = classifyCashFlowAccount({ type: def.type, liquidityClass: def.liquidityClass ?? null, systemCode: def.code });
       expect(got, def.code).toBe(DECIDED[def.code]);
     }
+  });
+
+  it("🔴 Phase 16 — Zakat and income tax are their OWN operating line (IAS 7.35 as endorsed: separately disclosed); a fine is not a tax", () => {
+    expect(CASH_FLOW_LINE_ACTIVITY.zakat_income_tax).toBe("operating");
+    expect(CASH_FLOW_LINE_LABEL.zakat_income_tax.en).toMatch(/Zakat/);
+    expect(CASH_FLOW_LINE_LABEL.taxes.en, "the VAT/WHT line must not claim Zakat or income tax").not.toMatch(/Zakat|income tax/i);
+    for (const code of ["ZAKAT_PAYMENT", "ZAKAT_EXPENSE", "INCOME_TAX_PAYABLE", "INCOME_TAX_EXPENSE"]) {
+      const def = SYSTEM_CHART_OF_ACCOUNTS.find((d) => d.code === code)!;
+      const line = classifyCashFlowAccount({ type: def.type, liquidityClass: def.liquidityClass ?? null, systemCode: code });
+      expect([code, line]).toEqual([code, "zakat_income_tax"]);
+    }
+    // the same account WITHOUT its system code would classify as an ordinary liability/expense — the code is what decides
+    expect(classifyCashFlowAccount({ type: "liability", liquidityClass: "current", systemCode: null })).toBe("other_operating");
+    expect(classifyCashFlowAccount({ type: "expense", liquidityClass: null, systemCode: "TAX_PENALTIES" })).toBe("payments_suppliers");
+    expect(classifyCashFlowAccount({ type: "liability", liquidityClass: "current", systemCode: "WHT_PAYABLE" })).toBe("taxes");
   });
 
   it("🔴 own-account transfers are internal (never an activity); the undeclared transfer is held apart, never guessed operating", () => {

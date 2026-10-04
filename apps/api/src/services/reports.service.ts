@@ -262,23 +262,38 @@ export const reportsService = {
     // merges lines across two windows by account id, never by display name.
     const revenue: { key: string; name: string; nameAr: string; amountH: number }[] = [];
     const expenses: { key: string; name: string; nameAr: string; amountH: number }[] = [];
+    // Phase 16 — SOCPA Zakat Accounting Standard para 6: Zakat is presented on
+    // its OWN line before profit or loss, with income tax (IAS 1.82(d) as
+    // endorsed: "tax expense and Zakat"). Their accounts leave `expenses` for
+    // this section; `totalExpenses` keeps meaning ALL expenses (the summary and
+    // the P&L trend read it so), and the subtotals below carry the split.
+    const zakatAndIncomeTax: { key: string; name: string; nameAr: string; amountH: number }[] = [];
+    const TAX_ON_PROFIT = new Set<string>(["ZAKAT_EXPENSE", "INCOME_TAX_EXPENSE"]);
     for (const a of accounts) {
       // an account appears when it MOVED in the window (as before), even if it nets to zero;
       // the seam also returns accounts whose only lines are before `from` — those did not move.
       if (a.debitH === 0 && a.creditH === 0) continue;
       if (isIncomeType(a.type)) revenue.push({ key: a.key, name: a.name, nameAr: a.nameAr, amountH: a.creditH - a.debitH });
+      else if (a.type === "expense" && a.systemCode && TAX_ON_PROFIT.has(a.systemCode)) zakatAndIncomeTax.push({ key: a.key, name: a.name, nameAr: a.nameAr, amountH: a.debitH - a.creditH });
       else if (a.type === "expense") expenses.push({ key: a.key, name: a.name, nameAr: a.nameAr, amountH: a.debitH - a.creditH });
     }
     const out = (xs: typeof revenue) => xs.map((x) => ({ key: x.key, name: x.name, nameAr: x.nameAr, amount: fromHalalas(x.amountH) })).sort((a, b) => b.amount - a.amount);
     const totalRevenueH = revenue.reduce((s, r) => s + r.amountH, 0);
-    const totalExpensesH = expenses.reduce((s, e) => s + e.amountH, 0);
+    const expensesBeforeTaxH = expenses.reduce((s, e) => s + e.amountH, 0);
+    const zakatAndIncomeTaxH = zakatAndIncomeTax.reduce((s, e) => s + e.amountH, 0);
+    const totalExpensesH = expensesBeforeTaxH + zakatAndIncomeTaxH;
     const netIncomeH = totalRevenueH - totalExpensesH;
 
     return {
       window: { from: from ?? null, to: to ?? null },
       revenue: out(revenue),
       expenses: out(expenses),
+      /** Σ `expenses` — every expense but Zakat and income tax. */
+      expensesBeforeZakatAndIncomeTax: fromHalalas(expensesBeforeTaxH),
+      profitBeforeZakatAndIncomeTax: fromHalalas(totalRevenueH - expensesBeforeTaxH),
+      zakatAndIncomeTax: { items: out(zakatAndIncomeTax), total: fromHalalas(zakatAndIncomeTaxH) },
       totalRevenue: fromHalalas(totalRevenueH),
+      /** ALL expenses, Zakat and income tax included (unchanged meaning). */
       totalExpenses: fromHalalas(totalExpensesH),
       grossProfit: null as number | null,
       expenseAnalysis: "nature" as const,

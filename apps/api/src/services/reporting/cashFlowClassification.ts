@@ -32,6 +32,7 @@ export type CashFlowLine =
   | "payments_suppliers"
   | "payments_employees"
   | "taxes"
+  | "zakat_income_tax"
   | "unidentified"
   | "other_operating"
   | "non_current_assets"
@@ -45,6 +46,7 @@ export const CASH_FLOW_LINE_ACTIVITY: Record<CashFlowLine, CashFlowActivity> = {
   payments_suppliers: "operating",
   payments_employees: "operating",
   taxes: "operating",
+  zakat_income_tax: "operating",
   unidentified: "operating",
   other_operating: "operating",
   non_current_assets: "investing",
@@ -60,6 +62,7 @@ export const CASH_FLOW_LINE_LABEL: Record<CashFlowLine, { en: string; ar: string
   payments_suppliers: { en: "Cash paid to suppliers and for expenses", ar: "النقد المدفوع للموردين وللمصروفات" },
   payments_employees: { en: "Cash paid to and for employees", ar: "النقد المدفوع للموظفين ونيابةً عنهم" },
   taxes: { en: "VAT and withholding tax paid, net of refunds", ar: "ضريبة القيمة المضافة وضريبة الاستقطاع المدفوعة بالصافي" },
+  zakat_income_tax: { en: "Zakat and income tax paid", ar: "الزكاة وضريبة الدخل المدفوعة" },
   unidentified: { en: "Movements awaiting classification (suspense)", ar: "حركات بانتظار التصنيف (معلّقة)" },
   other_operating: { en: "Other operating movements", ar: "حركات تشغيلية أخرى" },
   non_current_assets: { en: "Purchase and disposal of non-current assets", ar: "شراء الأصول غير المتداولة واستبعادها" },
@@ -72,7 +75,29 @@ export const CASH_FLOW_LINE_LABEL: Record<CashFlowLine, { en: string; ar: string
 const CUSTOMER_CODES = new Set(["AR", "CUSTOMER_DEPOSITS", "CUSTOMER_CREDITS", "UNIDENTIFIED_RECEIPTS"]);
 const SUPPLIER_CODES = new Set(["AP", "SUPPLIER_ADVANCES", "PREPAID_EXPENSES", "ACCRUED_LIABILITIES", "UNIDENTIFIED_PAYMENTS"]);
 const EMPLOYEE_CODES = new Set(["SALARIES_PAYABLE", "GOSI_PAYABLE", "SALARIES", "GOSI_EXPENSE"]);
-const TAX_CODES = new Set(["VAT_OUTPUT", "VAT_INPUT", "VAT_AWAITING_EVIDENCE", "VAT_ADJ_NONPAYMENT", "VAT_ADJ_BLOCKED", "WHT_PAYABLE"]);
+/**
+ * VAT and WHT settled with ZATCA. WHT is tax WITHHELD from a supplier and
+ * remitted on its behalf — not the entity's own tax on income — so it sits with
+ * VAT. 🔴 VAT_PAYMENT (the default category a VAT remittance bank line is
+ * categorised to) was missing, so a remittance read as "other operating" while
+ * the cash-flow page says VAT settled with ZATCA is its own line — found while
+ * adding the Zakat codes (pack §13), fixed here.
+ */
+const TAX_CODES = new Set([
+  "VAT_OUTPUT", "VAT_INPUT", "VAT_AWAITING_EVIDENCE", "VAT_ADJ_NONPAYMENT", "VAT_ADJ_BLOCKED", "VAT_PAYMENT", "WHT_PAYABLE",
+]);
+/**
+ * Phase 16 — the entity's OWN taxes on income, and Zakat. IAS 7.35 as endorsed
+ * by SOCPA (SOCPA-ED 24/12/2025; the header): "cash flows arising from taxes on
+ * income [and Zakat] shall be SEPARATELY DISCLOSED and classified as operating"
+ * — so they have their own line, never folded into VAT. The expense accounts
+ * are listed for a direct payment posted without an accrual.
+ *
+ * TAX_PENALTIES is deliberately NOT here or in TAX_CODES: a fine is a cost, not
+ * a tax (SYSTEM_ACCOUNTS; it is likewise absent from TAX_ACCOUNT_SYSTEM_CODES —
+ * one definition), so it classifies by its type as an operating expense paid.
+ */
+const ZAKAT_INCOME_TAX_CODES = new Set(["ZAKAT_PAYMENT", "ZAKAT_EXPENSE", "INCOME_TAX_PAYABLE", "INCOME_TAX_EXPENSE"]);
 /** An accepted bank line still lacking a category: an operating movement not yet classified. */
 const UNIDENTIFIED_CODES = new Set(["SUSPENSE"]);
 /** Disposal gain/loss travels with the disposal it arises from (IAS 7.16(b)): the
@@ -112,6 +137,7 @@ export function classifyCashFlowAccount(a: ClassifiableAccount): CashFlowLine {
   if (code && SUPPLIER_CODES.has(code)) return "payments_suppliers";
   if (code && EMPLOYEE_CODES.has(code)) return "payments_employees";
   if (code && TAX_CODES.has(code)) return "taxes";
+  if (code && ZAKAT_INCOME_TAX_CODES.has(code)) return "zakat_income_tax";
   if (code && UNIDENTIFIED_CODES.has(code)) return "unidentified";
   switch (a.type) {
     case "income":

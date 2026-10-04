@@ -55,7 +55,8 @@ export const assetReportsService = {
    * `Asia/Riyadh` through `businessToday()`, never the server's own midnight.
    */
   async report(opts: { from?: string; to?: string } = {}) {
-    const company = await companiesRepository.findActive();
+    // the company IN SCOPE (the request's company GUC) — never the org's first-created one (F-19; found again in Phase 16, pack §13)
+    const company = await companiesRepository.findCurrent();
     if (!company) throw new NotFoundError("No company is configured for this organization.");
     const today = businessToday();
     const to = opts.to ?? today;

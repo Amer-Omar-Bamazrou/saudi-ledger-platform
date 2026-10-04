@@ -93,6 +93,31 @@ const vendorIs = (col: string, vendorId: number | null) => (vendorId == null ? s
 
 export const supplierStatementRepository = {
   /**
+   * Phase 17 (Treasury, pack §8.3) — every payable DOCUMENT still owed, one
+   * row each, with its due date and its supplier's residency: THIS module's
+   * in-books predicate and `billPosition`'s ONE definition of what a bill
+   * owes. Σ outstanding = the AP ageing's total — pinned by a test.
+   */
+  async openPayables() {
+    const { rows } = await db.execute<{
+      id: number; bill_number: string | null; vendor_id: number | null; vendor_name: string | null; vendor_name_ar: string | null;
+      vendor_residency: string | null; vendor_wht_default_payment_type: string | null; payment_terms_days: string | null;
+      date: string; due_date: string | null; currency: string | null; outstanding: string;
+    }>(sql`
+      SELECT * FROM (
+        SELECT b.id, b.bill_number, b.vendor_id, v.name AS vendor_name, v.name_ar AS vendor_name_ar, v.residency AS vendor_residency,
+               v.wht_default_payment_type AS vendor_wht_default_payment_type, v.payment_terms_days,
+               b.date::date::text AS date, nullif(b.due_date::text, '') AS due_date, b.currency,
+               ${billOutstandingSql("b")}::text AS outstanding
+          FROM bills b
+          LEFT JOIN vendors v ON v.id = b.vendor_id
+         WHERE ${IN_BOOKS} AND ${billIsPayableSql("b")} AND ${scopedCo("b")}
+      ) x WHERE x.outstanding::numeric <> 0
+      ORDER BY coalesce(x.due_date, x.date), x.id`);
+    return rows;
+  },
+
+  /**
    * The position of one supplier, or of every supplier with any document,
    * payment or refund — one grouped query, never N+1.
    */
