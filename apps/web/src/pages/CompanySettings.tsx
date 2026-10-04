@@ -323,8 +323,8 @@ export default function CompanySettings() {
               </select>
               <p className="text-[11px] text-muted-foreground">
                 {t(
-                  "Determines whether the Zakat module applies. Foreign and mixed-ownership entities are assessed differently and are out of scope for now.",
-                  "يحدد ما إذا كانت وحدة الزكاة تنطبق. المنشآت ذات الملكية الأجنبية أو المختلطة تخضع لمعالجة مختلفة وهي خارج النطاق حالياً.",
+                  "Decides which tax applies: a 100 % Saudi/GCC-owned company pays Zakat; a foreign-owned company pays income tax; a mixed-owned company pays income tax on its non-Saudi share (declare that share below) — the Zakat on its Saudi share is not computed here yet.",
+                  "يحدد الضريبة التي تنطبق: الشركة المملوكة بالكامل لسعوديين أو خليجيين تدفع الزكاة؛ والمملوكة لأجانب تدفع ضريبة الدخل؛ والمختلطة تدفع ضريبة الدخل على الحصة غير السعودية (أدخلها أدناه) — ولا تُحتسب هنا بعدُ الزكاة على حصتها السعودية.",
                 )}
               </p>
             </div>

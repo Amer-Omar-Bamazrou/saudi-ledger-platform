@@ -24,6 +24,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { computationStatusLabel } from "@/lib/taxLabels";
+import { useGuarded } from "@/lib/singleSubmit";
+import { defaultComputationYear } from "@/lib/taxYears";
+import { businessToday } from "@workspace/shared";
 
 /** The 1445H Zakat Regulations apply to fiscal years starting on or after 1/1/2024 (Decision 1007). */
 const ZAKAT_REGULATIONS_FROM = "2024-01-01";
@@ -39,8 +42,9 @@ export function ComputationList({ kind }: { kind: ListTaxComputationsKind }) {
   const declared = fiscal.data?.declared === true;
   const existing = new Set((list.data ?? []).map((c) => c.fiscalYear.label));
   const years = (fiscal.data?.periods ?? []).filter((p) => (kind === "zakat" ? p.startDate >= ZAKAT_REGULATIONS_FROM : true) && !existing.has(p.label));
-  const chosen = year || (years.length ? String(years[years.length - 1]!.label) : "");
-  const create = useCreateTaxComputation({
+  const suggested = defaultComputationYear(years, businessToday());
+  const chosen = year || (suggested ? String(suggested.label) : "");
+  const create = useGuarded(useCreateTaxComputation({
     mutation: {
       onSuccess: (c) => {
         qc.invalidateQueries({ queryKey: getListTaxComputationsQueryKey({ kind }) });
@@ -48,7 +52,7 @@ export function ComputationList({ kind }: { kind: ListTaxComputationsKind }) {
         navigate(`/tax/computations/${c.id}`);
       },
     },
-  });
+  }));
   const what = kind === "zakat" ? t("Zakat", "الزكاة") : t("income-tax", "ضريبة الدخل");
 
   return (

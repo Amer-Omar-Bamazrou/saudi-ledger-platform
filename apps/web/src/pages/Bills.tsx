@@ -188,6 +188,11 @@ export default function Bills() {
   const effectivePostAccountId = postDebitAccountId ?? defaultExpenseId;
   const [form, setForm] = useState(makeEmpty());
   const [payAmount, setPayAmount] = useState("");
+  // The day the money LEFT — today unless stated, never later. It used to be today, always: a payment
+  // recorded after the fact was dated the day it was typed, so its withholding fell into the wrong
+  // month's return (the trigger is the payment date, Income Tax Law Art. 68) — QA 2026-10-04.
+  const [payDate, setPayDate] = useState(businessToday());
+  const payDateOk = /^\d{4}-\d{2}-\d{2}$/.test(payDate) && payDate <= businessToday();
   // D-3: a payment names the bank it LEFT from — see Invoices.tsx.
   const [payBank, setPayBank] = useState<string>("");
   // Phase 16: the WHT declaration the pay dialog's <WhtFields> reports (empty unless the supplier is non-resident).
@@ -378,11 +383,11 @@ export default function Bills() {
   });
 
   const payMut = useMutation({
-    mutationFn: ({ id, amount, bankAccountId, wht }: { id: number; amount: number; bankAccountId: number; wht: WhtDeclarationValue }) =>
+    mutationFn: ({ id, amount, paidAt, bankAccountId, wht }: { id: number; amount: number; paidAt: string; bankAccountId: number; wht: WhtDeclarationValue }) =>
       apiFetch(`/bills/${id}/pay`, {
         method: "POST",
         // Phase 16: a declared WHT field is sent; an unstated one is ABSENT, never "" (the server decides the rest).
-        body: json.pay({ amount, paidAt: businessToday(), bankAccountId, ...wht }),
+        body: json.pay({ amount, paidAt, bankAccountId, ...wht }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
@@ -391,6 +396,7 @@ export default function Bills() {
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/tax") });
       setPayOpen(null);
       setPayAmount("");
+      setPayDate(businessToday());
       setPayWht({ declaration: {}, ready: true });
       toast({ title: t("Payment recorded", "تم تسجيل الدفعة") });
     },
@@ -898,7 +904,7 @@ export default function Bills() {
                       )}
                       {(b.status === "received" || b.status === "approved") && b.documentType !== "credit_note" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-positive" data-testid={`pay-bill-${b.id}`}
-                          onClick={() => { setPayOpen(b.id); setPayAmount(String(b.outstanding ?? "")); }}>
+                          onClick={() => { setPayOpen(b.id); setPayAmount(String(b.outstanding ?? "")); setPayDate(businessToday()); }}>
                           {t("Pay", "دفع")}
                         </Button>
                       )}
@@ -1000,6 +1006,9 @@ export default function Bills() {
             <Label className="text-xs text-muted-foreground">{t("Amount Paid (SAR)", "المبلغ المدفوع (ر.س)")}</Label>
             <Input type="number" value={payAmount}
               onChange={e => setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" data-testid="pay-amount" />
+            <Label className="text-xs text-muted-foreground mt-3 block">{t("Paid on", "تاريخ الدفع")}</Label>
+            <Input type="date" dir="ltr" max={businessToday()} value={payDate} onChange={e => setPayDate(e.target.value)} className="mt-1 h-8 text-sm" data-testid="pay-date" />
+            {!payDateOk && <p className="text-xs text-destructive mt-1">{t("A payment records money that has left — today or an earlier day.", "الدفعة تسجّل مالًا خرج فعلًا — اليوم أو يومًا سابقًا.")}</p>}
             <Label className="text-xs text-muted-foreground mt-3 block">{t("Paid from bank account *", "دُفع من الحساب البنكي *")}</Label>
             <Select value={payBank || (defaultBankId != null ? String(defaultBankId) : "")} onValueChange={setPayBank}>
               <SelectTrigger className="mt-1 h-8 text-sm" data-testid="pay-bank-account"><SelectValue placeholder={t("Choose the bank account", "اختر الحساب البنكي")} /></SelectTrigger>
@@ -1008,15 +1017,15 @@ export default function Bills() {
             {activeBanks.length === 0 && <p className="text-xs text-destructive mt-1">{t("Add a bank account first — a payment is recorded against the account it left from.", "أضف حسابًا بنكيًا أولًا — تُسجَّل الدفعة على الحساب الذي خرجت منه.")}</p>}
             {/* Phase 16: a non-resident supplier's payment declares its WHT; the figures are the server's preview. */}
             <WhtFields vendorId={payVendorId} residency={payVendor?.residency} defaultType={payVendor?.whtDefaultPaymentType}
-              amount={Number(payAmount) || 0} date={businessToday()}
+              amount={Number(payAmount) || 0} date={payDateOk ? payDate : businessToday()}
               onChange={(declaration, ready) => setPayWht({ declaration, ready })} />
             <PaymentHistory entity="bills" id={payOpen} />
             <BillPaymentWithholdings billId={payOpen} />
           </div>
           <Button
             className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => { const bank = Number(payBank || defaultBankId); if (payingRef.current || !payOpen || !bank || !payWht.ready) return; payingRef.current = true; payMut.mutate({ id: payOpen, amount: Number(payAmount), bankAccountId: bank, wht: payWht.declaration }); }}
-            disabled={!payAmount || payMut.isPending || !(payBank || defaultBankId) || !payWht.ready}
+            onClick={() => { const bank = Number(payBank || defaultBankId); if (payingRef.current || !payOpen || !bank || !payWht.ready || !payDateOk) return; payingRef.current = true; payMut.mutate({ id: payOpen, amount: Number(payAmount), paidAt: payDate, bankAccountId: bank, wht: payWht.declaration }); }}
+            disabled={!payAmount || payMut.isPending || !(payBank || defaultBankId) || !payWht.ready || !payDateOk}
           >
             {payMut.isPending ? t("Recording…", "جارٍ التسجيل…") : t("Record Payment", "تسجيل الدفعة")}
           </Button>

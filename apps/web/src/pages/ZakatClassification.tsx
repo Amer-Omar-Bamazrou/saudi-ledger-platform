@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useGuarded } from "@/lib/singleSubmit";
 import { zakatClassLabel } from "@/lib/taxLabels";
 import { liquidityLabel } from "@/lib/liquidity";
 
@@ -90,8 +91,8 @@ function ClassRow({ row, label }: { row: ZakatAccountClassification; label: stri
   const [cls, setCls] = useState<string>(row.classification ?? row.suggestion ?? "");
   const [note, setNote] = useState(row.basisNote ?? "");
   const refresh = () => qc.invalidateQueries({ queryKey: getListZakatClassificationsQueryKey() });
-  const save = useSetZakatClassification({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Classification confirmed", "تم تأكيد التصنيف") }); } } });
-  const clear = useClearZakatClassification({ mutation: { onSuccess: () => { refresh(); setCls(row.suggestion ?? ""); toast({ title: t("Classification withdrawn", "تم سحب التصنيف") }); } } });
+  const save = useGuarded(useSetZakatClassification({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Classification confirmed", "تم تأكيد التصنيف") }); } } }));
+  const clear = useGuarded(useClearZakatClassification({ mutation: { onSuccess: () => { refresh(); setCls(row.suggestion ?? ""); toast({ title: t("Classification withdrawn", "تم سحب التصنيف") }); } } }));
   const changed = cls !== (row.classification ?? "") || (note.trim() || null) !== (row.basisNote ?? null);
   return (
     <tr className="border-b border-border/50 align-top" data-testid={`zakat-class-row-${row.accountId}`}>

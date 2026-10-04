@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useGuarded } from "@/lib/singleSubmit";
 import { ReportExportButtons } from "@/components/reports/ReportExport";
 import {
   computationStatusLabel, stepLabel, zakatClassLabel, adjustmentTargetLabel, blockerLabel, minimumRuleLabel, articleLabel,
@@ -57,12 +58,12 @@ export default function TaxComputationDetail() {
     qc.invalidateQueries({ predicate: (x) => typeof x.queryKey[0] === "string" && (x.queryKey[0] as string).startsWith("/api/tax") });
   };
   const ok = (msg: [string, string]) => () => { refresh(); toast({ title: t(...msg) }); };
-  const submit = useSubmitTaxComputationVersion({ mutation: { onSuccess: ok(["Submitted for approval", "قُدِّم للاعتماد"]) } });
-  const approve = useApproveTaxComputationVersion({ mutation: { onSuccess: ok(["Approved — the accrual is posted", "اعتُمد — رُحِّل الاستحقاق"]) } });
-  const sendBack = useSendBackTaxComputationVersion({ mutation: { onSuccess: ok(["Sent back to draft", "أُعيد إلى المسودة"]) } });
-  const reject = useRejectTaxComputationVersion({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Version rejected and removed", "رُفض الإصدار وحُذف") }); navigate(`/tax/computations/${id}`); } } });
-  const revise = useReviseTaxComputation({ mutation: { onSuccess: (r) => { refresh(); toast({ title: t("Revision started as a new draft", "بدأت مراجعة كمسودة جديدة") }); if (r.version) navigate(`/tax/computations/${id}?version_id=${r.version.id}`); } } });
-  const remove = useDeleteTaxComputation({ mutation: { onSuccess: () => { qc.invalidateQueries({ queryKey: getListTaxComputationsQueryKey() }); toast({ title: t("Computation deleted", "حُذف الاحتساب") }); navigate(d?.kind === "income_tax" ? "/tax/income-tax" : "/zakat"); } } });
+  const submit = useGuarded(useSubmitTaxComputationVersion({ mutation: { onSuccess: ok(["Submitted for approval", "قُدِّم للاعتماد"]) } }));
+  const approve = useGuarded(useApproveTaxComputationVersion({ mutation: { onSuccess: ok(["Approved — the accrual is posted", "اعتُمد — رُحِّل الاستحقاق"]) } }));
+  const sendBack = useGuarded(useSendBackTaxComputationVersion({ mutation: { onSuccess: ok(["Sent back to draft", "أُعيد إلى المسودة"]) } }));
+  const reject = useGuarded(useRejectTaxComputationVersion({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Version rejected and removed", "رُفض الإصدار وحُذف") }); navigate(`/tax/computations/${id}`); } } }));
+  const revise = useGuarded(useReviseTaxComputation({ mutation: { onSuccess: (r) => { refresh(); toast({ title: t("Revision started as a new draft", "بدأت مراجعة كمسودة جديدة") }); if (r.version) navigate(`/tax/computations/${id}?version_id=${r.version.id}`); } } }));
+  const remove = useGuarded(useDeleteTaxComputation({ mutation: { onSuccess: () => { qc.invalidateQueries({ queryKey: getListTaxComputationsQueryKey() }); toast({ title: t("Computation deleted", "حُذف الاحتساب") }); navigate(d?.kind === "income_tax" ? "/tax/income-tax" : "/zakat"); } } }));
   const [note, setNote] = useState("");
   const [confirm, setConfirm] = useState<"send-back" | "reject" | "delete" | null>(null);
 
@@ -300,8 +301,8 @@ function Adjustments({ d, live, versionId, editable, onChanged }: { d: Detail; l
   const { toast } = useToast();
   const targets: TaxAdjustmentInputTarget[] = d.kind === "zakat" ? ["adjusted_net_profit", "zakat_base"] : ["taxable_income"];
   const [form, setForm] = useState({ target: targets[0]!, effect: "increase" as TaxAdjustmentInputEffect, amount: "", reason: "", legalReference: "", sourceReference: "" });
-  const add = useAddTaxAdjustment({ mutation: { onSuccess: () => { onChanged(); toast({ title: t("Adjustment added", "أُضيف التعديل") }); setForm((f) => ({ ...f, amount: "", reason: "", legalReference: "", sourceReference: "" })); } } });
-  const remove = useRemoveTaxAdjustment({ mutation: { onSuccess: () => { onChanged(); toast({ title: t("Adjustment removed", "أُزيل التعديل") }); } } });
+  const add = useGuarded(useAddTaxAdjustment({ mutation: { onSuccess: () => { onChanged(); toast({ title: t("Adjustment added", "أُضيف التعديل") }); setForm((f) => ({ ...f, amount: "", reason: "", legalReference: "", sourceReference: "" })); } } }));
+  const remove = useGuarded(useRemoveTaxAdjustment({ mutation: { onSuccess: () => { onChanged(); toast({ title: t("Adjustment removed", "أُزيل التعديل") }); } } }));
   const valid = Number(form.amount) > 0 && form.reason.trim().length > 0 && form.legalReference.trim().length > 0;
   return (
     <Card className="border-border" data-testid="tax-adjustments">
@@ -355,7 +356,7 @@ function Losses({ d, versionId, editable, onChanged }: { d: Detail; versionId: n
   const v = d.version;
   const [amount, setAmount] = useState(v?.lossCarryforwardAvailable == null ? "" : String(v.lossCarryforwardAvailable));
   const [reference, setReference] = useState(v?.lossCarryforwardReference ?? "");
-  const save = useSetTaxLosses({ mutation: { onSuccess: () => { onChanged(); toast({ title: t("Losses carried forward saved", "حُفظت الخسائر المرحلة") }); } } });
+  const save = useGuarded(useSetTaxLosses({ mutation: { onSuccess: () => { onChanged(); toast({ title: t("Losses carried forward saved", "حُفظت الخسائر المرحلة") }); } } }));
   return (
     <Card className="border-border" data-testid="tax-losses">
       <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Losses carried forward", "الخسائر المرحلة")}</CardTitle></CardHeader>

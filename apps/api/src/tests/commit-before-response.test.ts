@@ -127,6 +127,35 @@ describe("C13 — commit before the response goes out", () => {
     expect(failures[0]!.responseAlreadyStarted).toBe(false);
   });
 
+  it("🔴 a DEFERRED trigger's refusal at COMMIT is the refusal it is — its 422 and sentence, no commit_failed, nobody paged (QA 2026-10-04)", async () => {
+    // Phase 16's `wht_payable_line_owned` is DEFERRABLE INITIALLY DEFERRED: it refuses at COMMIT.
+    // It used to come back 500 `commit_failed` ("please try again") and page a database-health alert.
+    const sentence = "journal entry 9 (JE-9) moves Withholding tax payable, but no WHT record owns it";
+    const { res, raw } = fakeRes(201);
+    const failures: CommitFailure[] = [];
+    const refusals: unknown[] = [];
+    commitBeforeResponse(
+      res,
+      async () => { throw Object.assign(new Error(sentence), { code: "23514", constraint: "wht_payable_unowned" }); },
+      (f) => failures.push(f),
+      (r) => refusals.push(r),
+    );
+    res.json({ id: 9 });
+    await flush();
+    expect(raw.written).not.toContainEqual({ id: 9 });
+    expect([raw.statusCode, (raw.body as { code: string }).code, (raw.body as { error: string }).error]).toEqual([422, "wht_payable_unowned", sentence]);
+    expect(failures, "a business refusal is not a database failure — no page").toHaveLength(0);
+    expect(refusals).toHaveLength(1);
+
+    // control: an UNRECOGNISED commit error is still the 500 and still reported
+    const second = fakeRes(201);
+    const failures2: CommitFailure[] = [];
+    commitBeforeResponse(second.res, async () => { throw Object.assign(new Error("x"), { code: "23514", constraint: "some_plain_check" }); }, (f) => failures2.push(f), () => {});
+    second.res.json({ id: 10 });
+    await flush();
+    expect([second.raw.statusCode, (second.raw.body as { code: string }).code, failures2.length]).toEqual([500, "commit_failed", 1]);
+  });
+
   it("an error response ROLLS BACK, before its body goes out", async () => {
     const { res, events } = fakeRes(200);
     commitBeforeResponse(

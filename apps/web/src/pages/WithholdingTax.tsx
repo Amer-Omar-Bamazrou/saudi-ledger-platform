@@ -6,7 +6,7 @@
  * fine is labelled an ESTIMATE and never posted. Statuses are words in neutral
  * ink (a due date is a state, but nothing here colours a judgement).
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useGuarded } from "@/lib/singleSubmit";
 import { ReportExportButtons } from "@/components/reports/ReportExport";
 import { BankPicker } from "@/components/payments/shared";
 import { notSubjectLabel, whtMonthStatusLabel, whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
@@ -143,9 +144,14 @@ function MonthReturn({ period, months, onPeriod, onChanged }: { period: string; 
   const [reference, setReference] = useState("");
   const [reverseId, setReverseId] = useState<number | null>(null);
   const [reason, setReason] = useState("");
-  const done = (msg: [string, string]) => () => { onChanged(); qc.invalidateQueries({ queryKey: getGetWhtReturnQueryKey(period) }); toast({ title: t(...msg) }); setFine(""); setReference(""); setReverseId(null); setReason(""); };
-  const remit = useRemitWht({ mutation: { onSuccess: done(["Remittance recorded", "تم تسجيل التسديد"]) } });
-  const reverse = useReverseWhtRemittance({ mutation: { onSuccess: done(["Remittance reversed", "تم عكس التسديد"]) } });
+  // One idempotency key per remittance the person means: a retried or duplicated request replays the
+  // first instead of paying ZATCA twice (the server honours it — audit A-3). A new key per month and
+  // after each recorded remittance.
+  const remitKey = useRef(crypto.randomUUID());
+  useEffect(() => { remitKey.current = crypto.randomUUID(); }, [period]);
+  const done = (msg: [string, string]) => () => { onChanged(); qc.invalidateQueries({ queryKey: getGetWhtReturnQueryKey(period) }); toast({ title: t(...msg) }); setFine(""); setReference(""); setReverseId(null); setReason(""); remitKey.current = crypto.randomUUID(); };
+  const remit = useGuarded(useRemitWht({ mutation: { onSuccess: done(["Remittance recorded", "تم تسجيل التسديد"]) } }));
+  const reverse = useGuarded(useReverseWhtRemittance({ mutation: { onSuccess: done(["Remittance reversed", "تم عكس التسديد"]) } }));
   const d = r.data;
   return (
     <div className="space-y-4" data-testid="wht-return">
@@ -223,7 +229,7 @@ function MonthReturn({ period, months, onPeriod, onChanged }: { period: string; 
                 <div><Label className="text-xs text-muted-foreground">{t("Delay fine actually paid (optional)", "غرامة تأخير مدفوعة فعلًا (اختياري)")}</Label><Input dir="ltr" inputMode="decimal" value={fine} onChange={(e) => setFine(e.target.value)} data-testid="wht-remit-fine" /></div>
                 <div><Label className="text-xs text-muted-foreground">{t("SADAD reference", "رقم سداد")}</Label><Input dir="ltr" value={reference} onChange={(e) => setReference(e.target.value)} data-testid="wht-remit-reference" /></div>
                 <Button className="sm:col-span-4 w-full sm:w-auto" disabled={!bank || remit.isPending} data-testid="wht-remit-submit"
-                  onClick={() => remit.mutate({ period, data: { bankAccountId: Number(bank), paidAt: paidAt || null, fineAmount: fine ? Number(fine) : null, reference: reference || null } })}>
+                  onClick={() => remit.mutate({ period, data: { bankAccountId: Number(bank), paidAt: paidAt || null, fineAmount: fine ? Number(fine) : null, reference: reference || null, idempotencyKey: remitKey.current } })}>
                   {t(`Record remittance of ${fmtNum(d.totals.outstanding)}`, `تسجيل تسديد ${fmtNum(d.totals.outstanding)}`)}
                 </Button>
               </div>
@@ -309,13 +315,18 @@ function Reliefs({ onChanged }: { onChanged: () => void }) {
   const vendors = useListVendors({ search: vendorSearch.trim() || undefined, limit: 200 });
   const vendorItems = (vendors.data?.items ?? []).filter((v) => v.residency === "non_resident");
   const vendorsCapped = (vendors.data?.page.total ?? 0) > (vendors.data?.items.length ?? 0);
-  const [form, setForm] = useState({ vendorId: "", paymentType: "technical_consulting", reducedRate: "0", treatyCountry: "", zatcaApprovalReference: "", residencyCertificateReference: "", validFrom: "", validTo: "" });
+  // 🔴 The reduced rate starts EMPTY. It used to start at "0" — a full exemption one approval away from every
+  // payment to that supplier withholding nothing (QA 2026-10-04). A rate is a declaration the person types,
+  // never a default (pack §2.3); "0" stays possible, typed, for a treaty that exempts.
+  const blankRelief = { vendorId: "", paymentType: "technical_consulting", reducedRate: "", treatyCountry: "", zatcaApprovalReference: "", residencyCertificateReference: "", validFrom: "", validTo: "" };
+  const [form, setForm] = useState(blankRelief);
+  const rateOk = /^0(\.\d{1,4})?$/.test(form.reducedRate.trim());
   const [revoke, setRevoke] = useState<{ id: number; reason: string } | null>(null);
   const done = (msg: [string, string]) => () => { onChanged(); list.refetch(); toast({ title: t(...msg) }); setRevoke(null); };
-  const create = useCreateWhtRelief({ mutation: { onSuccess: done(["Relief recorded — pending approval", "سُجِّل الإعفاء — بانتظار الاعتماد"]) } });
-  const approve = useApproveWhtRelief({ mutation: { onSuccess: done(["Relief approved", "اعتُمد الإعفاء"]) } });
-  const revokeM = useRevokeWhtRelief({ mutation: { onSuccess: done(["Relief revoked", "أُلغي الإعفاء"]) } });
-  const remove = useDeleteWhtRelief({ mutation: { onSuccess: done(["Relief deleted", "حُذف الإعفاء"]) } });
+  const create = useGuarded(useCreateWhtRelief({ mutation: { onSuccess: () => { done(["Relief recorded — pending approval", "سُجِّل الإعفاء — بانتظار الاعتماد"])(); setForm(blankRelief); } } }));
+  const approve = useGuarded(useApproveWhtRelief({ mutation: { onSuccess: done(["Relief approved", "اعتُمد الإعفاء"]) } }));
+  const revokeM = useGuarded(useRevokeWhtRelief({ mutation: { onSuccess: done(["Relief revoked", "أُلغي الإعفاء"]) } }));
+  const remove = useGuarded(useDeleteWhtRelief({ mutation: { onSuccess: done(["Relief deleted", "حُذف الإعفاء"]) } }));
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
   return (
     <div className="space-y-4" data-testid="wht-reliefs">
@@ -333,13 +344,14 @@ function Reliefs({ onChanged }: { onChanged: () => void }) {
         <div><Label className="text-xs text-muted-foreground">{t("Nature", "النوع")}</Label>
           <Select value={form.paymentType} onValueChange={(v) => setForm((f) => ({ ...f, paymentType: v }))}><SelectTrigger className="h-9 text-sm" data-testid="wht-relief-type"><SelectValue /></SelectTrigger>
             <SelectContent>{WHT_TYPES.map((x) => <SelectItem key={x} value={x}>{whtTypeLabel(x, t)}</SelectItem>)}</SelectContent></Select></div>
-        <div><Label className="text-xs text-muted-foreground">{t("Reduced rate (0.05 = 5 %)", "النسبة المخفضة (0.05 = 5%)")}</Label><Input dir="ltr" value={form.reducedRate} onChange={set("reducedRate")} data-testid="wht-relief-rate" /></div>
+        <div><Label className="text-xs text-muted-foreground">{t("Reduced rate (0.05 = 5 %)", "النسبة المخفضة (0.05 = 5%)")}</Label><Input dir="ltr" inputMode="decimal" placeholder="0.05" value={form.reducedRate} onChange={set("reducedRate")} data-testid="wht-relief-rate" />
+          <p className="text-[11px] text-muted-foreground mt-1">{t("The treaty's rate as a fraction, below the statutory rate. 0 is a full exemption — type it only if the treaty exempts.", "نسبة الاتفاقية ككسر، أقل من النسبة النظامية. الصفر إعفاء كامل — اكتبه فقط إذا كانت الاتفاقية تُعفي.")}</p></div>
         <div><Label className="text-xs text-muted-foreground">{t("Treaty country (ISO code)", "دولة الاتفاقية (الرمز)")}</Label><Input dir="ltr" maxLength={2} value={form.treatyCountry} onChange={set("treatyCountry")} data-testid="wht-relief-country" /></div>
         <div><Label className="text-xs text-muted-foreground">{t("ZATCA approval reference", "رقم موافقة الهيئة")}</Label><Input dir="ltr" value={form.zatcaApprovalReference} onChange={set("zatcaApprovalReference")} data-testid="wht-relief-approval" /></div>
         <div><Label className="text-xs text-muted-foreground">{t("Residency certificate reference", "رقم شهادة الإقامة الضريبية")}</Label><Input dir="ltr" value={form.residencyCertificateReference} onChange={set("residencyCertificateReference")} data-testid="wht-relief-certificate" /></div>
         <div><Label className="text-xs text-muted-foreground">{t("Valid from", "صالح من")}</Label><Input type="date" dir="ltr" value={form.validFrom} onChange={set("validFrom")} data-testid="wht-relief-from" /></div>
         <div><Label className="text-xs text-muted-foreground">{t("Valid to", "صالح حتى")}</Label><Input type="date" dir="ltr" value={form.validTo} onChange={set("validTo")} data-testid="wht-relief-to" /></div>
-        <Button className="sm:col-span-4 w-full sm:w-auto" disabled={!form.vendorId || create.isPending} data-testid="wht-relief-create"
+        <Button className="sm:col-span-4 w-full sm:w-auto" disabled={!form.vendorId || !rateOk || create.isPending} data-testid="wht-relief-create"
           onClick={() => create.mutate({ data: { vendorId: Number(form.vendorId), paymentType: form.paymentType as never, reducedRate: Number(form.reducedRate), treatyCountry: form.treatyCountry.toUpperCase(), zatcaApprovalReference: form.zatcaApprovalReference, residencyCertificateReference: form.residencyCertificateReference, validFrom: form.validFrom, validTo: form.validTo } })}>
           {t("Record relief (pending approval)", "تسجيل الإعفاء (بانتظار الاعتماد)")}
         </Button>

@@ -39,8 +39,18 @@
  * failure on a later write), the answer cannot be recalled. That is the ONLY
  * remaining commit-after-response case, it keeps the original alert key, and
  * it is reported separately from the case we can now correct.
+ *
+ * ── 🔴 A DEFERRED TRIGGER'S REFUSAL IS NOT A COMMIT FAILURE ───────────────
+ * A constraint trigger declared DEFERRABLE INITIALLY DEFERRED (Phase 16's
+ * `wht_payable_line_owned`: a journal line on WHT_PAYABLE that no WHT record
+ * owns) refuses AT COMMIT. That rejection is a business refusal: answering it
+ * 500 `commit_failed` told the user to "try again" — which can never pass — and
+ * paged a critical database-health alert for it (QA 2026-10-04). A refusal
+ * `translateDbRefusal` recognises is answered with its own 409/422 and
+ * sentence, and reported through `onRefusal`, never through `onFailure`.
  */
 import type { Response } from "express";
+import { translateDbRefusal, type DbRefusal } from "./dbRefusals";
 
 /** Settle the request's transaction. `commit: false` means roll back. */
 export type SettleTransaction = (commit: boolean) => Promise<void>;
@@ -77,6 +87,7 @@ export function commitBeforeResponse(
   res: Response,
   settle: SettleTransaction,
   onFailure: (failure: CommitFailure) => void,
+  onRefusal: (refusal: DbRefusal) => void = () => {},
 ): () => boolean {
   let settled = false;
 
@@ -101,6 +112,15 @@ export function commitBeforeResponse(
           // original (already unsuccessful) response.
           if (!wantCommit) {
             (original as AnyFn).apply(this, args);
+            return;
+          }
+          // A deferred trigger refused the write: the client is told what it may
+          // not do, not that the database failed (and nobody is paged for it).
+          const refusal = alreadyStarted ? null : translateDbRefusal(error);
+          if (refusal) {
+            onRefusal(refusal);
+            originalStatus(refusal.status);
+            originalJson(refusal.body);
             return;
           }
           onFailure({ error, responseAlreadyStarted: alreadyStarted });

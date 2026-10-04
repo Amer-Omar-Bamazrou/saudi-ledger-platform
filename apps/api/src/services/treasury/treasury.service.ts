@@ -259,10 +259,12 @@ export const treasuryService = {
     }
     const first = firstShortfall != null ? bucketTotals[firstShortfall]! : null;
     const requirement = fromHalalas(peakH);
+    // the sentence carries the page's money format (QA 2026-10-04: "SAR 149028.08" beside "SAR 149,028.08")
+    const sar = (x: number) => x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const recommendation = requirement > 0 && first
       ? {
-          en: `Arrange funding of SAR ${requirement.toFixed(2)} ${first.index === 0 ? "now" : `before ${first.from}`} to keep cash at or above ${bufferDeclared ? `the minimum balance of SAR ${fromHalalas(bufferH).toFixed(2)}` : "zero (no minimum balance is declared)"}. This is a calculation from the forecast, not a financing transaction.`,
-          ar: `رتّب تمويلاً بمبلغ ${requirement.toFixed(2)} ريال ${first.index === 0 ? "الآن" : `قبل ${first.from}`} ليبقى النقد عند ${bufferDeclared ? `الحد الأدنى البالغ ${fromHalalas(bufferH).toFixed(2)} ريال` : "الصفر (لم يُحدَّد حد أدنى للرصيد)"} أو فوقه. هذا حساب من التوقع، وليس معاملة تمويل.`,
+          en: `Arrange funding of SAR ${sar(requirement)} ${first.index === 0 ? "now" : `before ${first.from}`} to keep cash at or above ${bufferDeclared ? `the minimum balance of SAR ${sar(fromHalalas(bufferH))}` : "zero (no minimum balance is declared)"}. This is a calculation from the forecast, not a financing transaction.`,
+          ar: `رتّب تمويلاً بمبلغ ${sar(requirement)} ريال ${first.index === 0 ? "الآن" : `قبل ${first.from}`} ليبقى النقد عند ${bufferDeclared ? `الحد الأدنى البالغ ${sar(fromHalalas(bufferH))} ريال` : "الصفر (لم يُحدَّد حد أدنى للرصيد)"} أو فوقه. هذا حساب من التوقع، وليس معاملة تمويل.`,
         }
       : null;
 

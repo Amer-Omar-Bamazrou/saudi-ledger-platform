@@ -13,6 +13,7 @@
  * each 30 days (Income Tax Law Art. 77(A); IR Art. 68(2) — no fine under 30
  * days) — an ESTIMATE on the page, never posted.
  */
+import { randomUUID } from "node:crypto";
 import { businessToday } from "@workspace/shared";
 import { WHT_PAYMENT_TYPES } from "@workspace/db";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../../lib/errors";
@@ -286,7 +287,9 @@ export const whtService = {
     const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
     const label = period ?? "OPENING";
     const entry = await postJournalEntry({
-      entryNumber: `WHTREM-${label}-${Date.now()}`,
+      // a random suffix, not the clock: two requests in one millisecond collided on the entry number (a 500)
+      // before the remittance trigger could decide which one was owed (QA 2026-10-04)
+      entryNumber: `WHTREM-${label}-${randomUUID().slice(0, 8)}`,
       date: paidAt,
       description: `Withholding tax remitted to ZATCA for ${period ?? "the opening balance"}`,
       reference: reference ?? undefined,

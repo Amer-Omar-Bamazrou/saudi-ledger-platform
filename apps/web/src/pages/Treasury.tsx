@@ -51,6 +51,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useGuarded } from "@/lib/singleSubmit";
 import { useBankOptions } from "@/components/payments/shared";
 import {
   flowKindLabel, flowCategoryLabel, planStatusLabel, priorityLabel, assumptionCategoryLabel,
@@ -404,7 +405,10 @@ function SourceCell({ s }: { s: TreasuryFlowRowSource }) {
   const href = sourceHref(s.type);
   // a tax row's id is its period; its `reference` is an explanatory note the API writes in English only
   const isTax = s.type.startsWith("tax_");
-  const ref = isTax ? (s.id != null ? String(s.id) : null) : (s.reference ?? (s.id != null ? String(s.id) : null));
+  // a manual assumption's reference is its category CODE — shown as its label, in the reader's language
+  const ref = isTax ? (s.id != null ? String(s.id) : null)
+    : s.type === "treasury_forecast_entry" && s.reference ? assumptionCategoryLabel(s.reference, t)
+    : (s.reference ?? (s.id != null ? String(s.id) : null));
   const text = <>{sourceTypeLabel(s.type, t)}{ref ? <> · <span dir="ltr">{ref}</span></> : null}</>;
   return (
     <span className="text-xs">
@@ -734,7 +738,7 @@ function PlanRow({ p, forecast, covered, action, onAction, n, t, onTab }: {
   const nonResident = p.vendorResidency === "non_resident";
   const refresh = useRefresh();
   const { toast } = useToast();
-  const approve = useApprovePaymentPlan({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Plan approved — it now counts as committed", "اعتُمدت الخطة — تُحتسب الآن ملتزمًا بها") }); } } });
+  const approve = useGuarded(useApprovePaymentPlan({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Plan approved — it now counts as committed", "اعتُمدت الخطة — تُحتسب الآن ملتزمًا بها") }); } } }));
 
   // §8.7: the projected closing of the plan's week, and whether it falls below the buffer — words, neutral ink
   let week: ReactNode = "—";
@@ -789,7 +793,7 @@ function PlanRow({ p, forecast, covered, action, onAction, n, t, onTab }: {
         <td className="py-2 pe-3 text-xs">
           {nonResident
             ? (p.whtEstimate != null
-              ? <>{whtTypeLabel(p.whtPaymentType, t)}<span className="block">{t("WHT", "الاستقطاع")} <M v={p.whtEstimate} /> · {t("cash", "النقد")} <M v={p.cashEstimate} /></span></>
+              ? <>{p.whtPaymentType ? whtTypeLabel(p.whtPaymentType, t) : t("The supplier's default nature", "النوع الافتراضي للمورد")}<span className="block">{t("WHT", "الاستقطاع")} <M v={p.whtEstimate} /> · {t("cash", "النقد")} <M v={p.cashEstimate} /></span></>
               : <span className="text-muted-foreground">{t("No nature stated — no estimate", "لم تُذكر طبيعة الدفعة — لا تقدير")}</span>)
             : <span className="text-muted-foreground">—</span>}
         </td>
@@ -858,11 +862,11 @@ function PlanCreateForm({ onDone }: { onDone: () => void }) {
   const parsed = parseAmount(amount);
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(plannedDate) && plannedDate >= today;
 
-  const create = useCreatePaymentPlan({
+  const create = useGuarded(useCreatePaymentPlan({
     mutation: {
       onSuccess: () => { refresh(); toast({ title: t("Plan created — an approver approves it before it is paid", "أُنشئت الخطة — يعتمدها معتمِد قبل دفعها") }); onDone(); },
     },
-  });
+  }));
 
   const pickBill = (v: string) => {
     setBillId(v);
@@ -976,7 +980,7 @@ function PlanEditPanel({ p, onClose }: { p: PaymentPlan; onClose: () => void }) 
   const [notes, setNotes] = useState(p.notes ?? "");
   const parsed = parseAmount(amount);
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(plannedDate) && plannedDate >= today;
-  const update = useUpdatePaymentPlan({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Plan updated", "حُدّثت الخطة") }); onClose(); } } });
+  const update = useGuarded(useUpdatePaymentPlan({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Plan updated", "حُدّثت الخطة") }); onClose(); } } }));
   return (
     <div className="space-y-3" data-testid={`treasury-plan-edit-form-${p.id}`}>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -1041,7 +1045,7 @@ function PlanPayPanel({ p, onClose, onTab }: { p: PaymentPlan; onClose: () => vo
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(paidAt) && paidAt <= today;
   const noteOk = !(nonResident && mode === "not_subject" && reason === "not_kingdom_source") || note.trim().length >= 10;
 
-  const pay = usePayPaymentPlan({
+  const pay = useGuarded(usePayPaymentPlan({
     mutation: {
       onSuccess: (r) => {
         refresh(true);
@@ -1049,7 +1053,7 @@ function PlanPayPanel({ p, onClose, onTab }: { p: PaymentPlan; onClose: () => vo
         onClose();
       },
     },
-  });
+  }));
   const submit = () => {
     const data: PayPaymentPlanInput = { paidAt, bankAccountId: bank ? Number(bank) : null };
     if (nonResident && mode === "withhold" && nature) data.whtPaymentType = nature;
@@ -1134,7 +1138,7 @@ function PlanCancelPanel({ p, onClose }: { p: PaymentPlan; onClose: () => void }
   const { toast } = useToast();
   const refresh = useRefresh();
   const [reason, setReason] = useState("");
-  const cancel = useCancelPaymentPlan({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Plan cancelled", "أُلغيت الخطة") }); onClose(); } } });
+  const cancel = useGuarded(useCancelPaymentPlan({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Plan cancelled", "أُلغيت الخطة") }); onClose(); } } }));
   return (
     <div className="flex flex-wrap items-end gap-2">
       <div className="grow min-w-48">
@@ -1151,7 +1155,7 @@ function PlanDeletePanel({ p, onClose }: { p: PaymentPlan; onClose: () => void }
   const { t } = useLanguage();
   const { toast } = useToast();
   const refresh = useRefresh();
-  const remove = useDeletePaymentPlan({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Plan deleted", "حُذفت الخطة") }); onClose(); } } });
+  const remove = useGuarded(useDeletePaymentPlan({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Plan deleted", "حُذفت الخطة") }); onClose(); } } }));
   return (
     <div className="space-y-2">
       <p className="text-sm">{t("Delete this plan? It was never approved, so no record of a commitment is lost. Deleting is an administrator's act — anyone else asks an approver to cancel it with a reason.", "حذف هذه الخطة؟ لم تُعتمد قط، فلا يضيع سجل التزام. الحذف من صلاحيات المدير — ويطلب غيره من معتمِد إلغاءها مع ذكر السبب.")}</p>
@@ -1180,9 +1184,9 @@ function AssumptionsTab() {
   const parsed = parseAmount(form.amount);
   const valid = /^\d{4}-\d{2}-\d{2}$/.test(form.entryDate) && parsed != null && form.description.trim().length >= 3;
   const reset = () => { setForm(blankAssumption()); setEditingId(null); };
-  const create = useCreateForecastAssumption({ mutation: { onSuccess: () => { refresh(); reset(); toast({ title: t("Assumption added", "أُضيف الافتراض") }); } } });
-  const update = useUpdateForecastAssumption({ mutation: { onSuccess: () => { refresh(); reset(); toast({ title: t("Assumption updated", "حُدّث الافتراض") }); } } });
-  const remove = useDeleteForecastAssumption({ mutation: { onSuccess: () => { refresh(); setDeleting(null); toast({ title: t("Assumption deleted", "حُذف الافتراض") }); } } });
+  const create = useGuarded(useCreateForecastAssumption({ mutation: { onSuccess: () => { refresh(); reset(); toast({ title: t("Assumption added", "أُضيف الافتراض") }); } } }));
+  const update = useGuarded(useUpdateForecastAssumption({ mutation: { onSuccess: () => { refresh(); reset(); toast({ title: t("Assumption updated", "حُدّث الافتراض") }); } } }));
+  const remove = useGuarded(useDeleteForecastAssumption({ mutation: { onSuccess: () => { refresh(); setDeleting(null); toast({ title: t("Assumption deleted", "حُذف الافتراض") }); } } }));
   const set = <K extends keyof AssumptionForm>(k: K, v: AssumptionForm[K]) => setForm((f) => ({ ...f, [k]: v }));
   const startEdit = (a: ForecastAssumption) => {
     setEditingId(a.id); setDeleting(null);
@@ -1319,7 +1323,7 @@ function SettingsTab() {
       setWeeks(String(s.data.forecastHorizonWeeks));
     }
   }, [s.data, dirty]);
-  const save = useUpdateTreasurySettings({ mutation: { onSuccess: () => { setDirty(false); refresh(); toast({ title: t("Settings saved — the forecast is measured against them now", "حُفظت الإعدادات — يُقاس التوقع مقابلها الآن") }); } } });
+  const save = useGuarded(useUpdateTreasurySettings({ mutation: { onSuccess: () => { setDirty(false); refresh(); toast({ title: t("Settings saved — the forecast is measured against them now", "حُفظت الإعدادات — يُقاس التوقع مقابلها الآن") }); } } }));
   // blank = no minimum declared; anything else must BE an amount — `Number("abc")` would serialise as null and clear it silently
   const minParsed = minimum.trim() === "" ? null : parseAmount(minimum, { allowZero: true });
   const minOk = minimum.trim() === "" || minParsed != null;

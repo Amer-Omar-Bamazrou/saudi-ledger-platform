@@ -25,7 +25,7 @@ import { treasuryRepository, type PlanRow } from "../../repositories/treasury.re
 import { billsRepository } from "../../repositories/bills.repository";
 import { assertBankAccount } from "../accounting/bankIdentity";
 import { assertNotReversedOpening } from "../accounting/openingReversed";
-import { rateInForce, whtHalalas } from "../accounting/wht";
+import { decideWithholding } from "../accounting/wht";
 import { payBill } from "../bills.payment";
 import { auditService } from "../audit.service";
 
@@ -44,11 +44,17 @@ async function planOut(p: PlanRow) {
   const today = businessToday();
   const outstanding = Number(p.bill_outstanding);
   const amount = Number(p.amount);
-  // the WHT a non-resident's payment would withhold, at the declared nature's rate on the planned date — an ESTIMATE
+  // the WHT a non-resident's payment would withhold on the planned date — an ESTIMATE, decided by the pay
+  // path's OWN function (QA 2026-10-04: a second rule here ignored the supplier's declared default nature
+  // and an approved treaty relief, so a plan said "no estimate" or showed the statutory rate)
   let whtEstimate: number | null = null;
-  if (p.vendor_residency === "non_resident" && p.wht_payment_type) {
-    const rate = await rateInForce(p.wht_payment_type as (typeof WHT_PAYMENT_TYPES)[number], p.planned_date < today ? today : p.planned_date);
-    whtEstimate = rate ? fromHalalas(whtHalalas(toHalalas(amount), rate.rate)) : null;
+  if (p.vendor_residency === "non_resident" && amount > 0) {
+    try {
+      const d = await decideWithholding({ vendorId: p.vendor_id, paymentDate: p.planned_date < today ? today : p.planned_date, base: amount, declared: { paymentType: p.wht_payment_type } });
+      whtEstimate = d.kind === "withheld" ? fromHalalas(d.whtH) : d.kind === "not_subject" ? 0 : null;
+    } catch {
+      whtEstimate = null; // undecidable until the payment states its nature — said so on the page, never a guessed rate
+    }
   }
   const open = p.status === "planned" || p.status === "approved";
   return {

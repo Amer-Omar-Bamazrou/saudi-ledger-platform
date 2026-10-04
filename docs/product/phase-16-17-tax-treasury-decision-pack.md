@@ -673,6 +673,12 @@ nothing interpretive):
 | W-12 | A refund of an advance from which WHT was withheld — how is the withheld part recovered? | Refused |
 | I-1 | Mixed income tax: is the 25 % loss cap applied before or after the non-Saudi share? | Mixed with losses refused |
 | S-1 | Are Qawaem's XBRL line-item lists a binding mapping software must produce? | Nothing labelled statutory |
+| W-13 (QA-08) | How is a WHT-bearing payment entered in error corrected — in its own month or the next; before and after the month is remitted and its Form 06 filed? | No correction exists (D-11) |
+| W-14 (QA-09) | Is a refundable security deposit, an erroneous payment or an unidentified payment to a non-resident subject to WHT when paid? If it was withheld, how is its return recorded (W-12)? | Withheld at the supplier's default nature; refund refused (D-12) |
+| A-6 (QA-14) | On a migration batch reversal, are its migrated fixed assets marked reversed (out of the register and depreciation), or is the reversal refused while they are in service? | Neither — they stay in service (D-13) |
+| W-8b | Nil WHT months: listed from which month (first withholding, go-live, fiscal year)? | Only months with records (D-16) |
+| W-15 | Should residency be effective-dated, so a payment is judged by the residency in force when it was made? | Current residency judges every payment |
+| T-1 | Should the forecast count overdue receivables as cash coming in (it does, in the overdue bucket)? | Counted (D-20) |
 
 **For the OWNER** (not the accountant):
 
@@ -755,7 +761,10 @@ isolation test; `phase16-17-http` over the wire).
 **Status (2026-10-04): the joint audit of both phases, run adversarially after
 the build; every CRITICAL/HIGH finding is fixed, each with a regression test
 proven RED by a mutation (the change reverted, the test failing, the file
-restored by hash); MEDIUM/LOW findings are fixed or listed below.**
+restored by hash); MEDIUM/LOW findings are fixed or listed below.** A manual
+product QA followed (2026-10-04, a disposable database, three tenants, real
+clicks, every figure reconciled to the GL): F-16…F-25 and D-11…D-22 below;
+record [`phase-16-17-manual-qa-2026-10-04.md`](../history/phase-16-17-manual-qa-2026-10-04.md).
 
 ### 13.1 Areas and verdicts
 
@@ -810,6 +819,16 @@ restored by hash); MEDIUM/LOW findings are fixed or listed below.**
 | F-12 | LOW | Every plan action re-read ALL plans to return one | `plans({ id })` | — |
 | F-13 | LOW | The annual WHT return did not flag a non-resident recorded in "SA" or without a registration number (Art. 68(B)(3)) | Flagged on the page | — |
 | F-15 | LOW | The Treasury dashboard (Overview) lacked the forecast closing by week that §8.8 lists — it was on the Forecast tab only. Found by the first CI browser run | The chart on the Overview too (one money axis, the buffer in the same unit) | e2e `phase17-treasury` |
+| F-16 | MEDIUM | None of the 55 Phase 16/17 trigger refusals was mapped: a remittance race or a treaty rate above the statutory one answered 500 (the service tests saw only "refused" — verified below the layer that had the bug) | `lib/dbRefusals.ts`: one translation by constraint, an exact allow-list, shared by the error handler and the commit path | `phase16-17-qa-fixes` (M15) |
+| F-17 | MEDIUM | A journal line on WHT_PAYABLE — the DEFERRED W3 trigger — answered 500 `commit_failed` ("try again") and paged a critical database-health alert | The commit path answers a recognised refusal with its 422 and logs it | `commit-before-response`, `phase16-17-qa-fixes` (M16) |
+| F-18 | MEDIUM | The remittance entry number carried `Date.now()`: two in one millisecond collided (500) before the trigger decided | Random suffix; `journal_entries_company_number_unq` → 409 (ten pre-existing clock-numbered entry types too) | `phase16-17-qa-fixes` (M18, clock pinned) |
+| F-19 | MEDIUM | Every tax/treasury action was guarded by `isPending` only: a double-click added a Zakat adjustment twice (the Zakat rose), created two plans, fired two remittances | `useGuarded` (`lib/singleSubmit.ts`) on all 28 mutations; the remittance carries an idempotency key | `singleSubmit.test.ts`; e2e `phase16-17-qa-fixes` (red with the guard off) |
+| F-20 | MEDIUM | The treaty-relief rate was pre-filled "0" — a full exemption one approval away | Empty; a typed fraction required | e2e (red reverted) |
+| F-21 | MEDIUM | The bill pay dialog had no date: a payment entered late was dated today and its WHT fell into the wrong month's return | A "Paid on" date (≤ today) into the request and the preview | e2e (red reverted) |
+| F-22 | LOW | A plan's WHT estimate ignored the supplier's default nature and an approved relief | The pay path's own `decideWithholding` | `phase16-17-qa-fixes` (M17) |
+| F-23 | LOW | A new computation pre-selected the OLDEST offered year | The latest completed fiscal year | `taxYears.test.ts` |
+| F-24 | LOW | Company Settings called foreign and mixed ownership "out of scope" | Says which tax applies | e2e |
+| F-25 | LOW | Raw money in the funding sentence; raw category codes in the forecast | Formatted; labelled | `phase16-17-qa-fixes` |
 
 ### 13.3 Documented — not fixed
 
@@ -825,6 +844,18 @@ restored by hash); MEDIUM/LOW findings are fixed or listed below.**
 | D-08 | LOW | The spec types WHT natures as `string`, not the enum | The server validates; generated types are wider than the rule |
 | D-09 | LOW | The direct cash flow shows a supplier payment gross of WHT (the counterpart method); the WHT shows on the tax line when withheld (+) and remitted (−) | The Phase 14 model; totals reconcile |
 | D-10 | INFO | The engine approves from `draft` (no forced submit) | Platform-wide approval semantics |
+| D-11 | HIGH | **No correction path for a WHT-bearing payment**: the generic reverse refuses a withholding-owned entry (right, for W1) and payments have no reversal — a wrong nature, rate, amount, bank, date or supplier is permanent on the return (QA-08) | A tax correction model (same month vs next; before vs after remittance) is the accountant's — §11 |
+| D-12 | HIGH | **Every non-resident payment withholds whatever its classification** — a refundable deposit, an erroneous or unidentified payment too — and its refund is then refused for any amount (W-12): the money cannot be recovered in the product (QA-09) | Whether such a payment is subject at all is a regulatory question — §11 |
+| D-13 | HIGH | (pre-existing, Batch 1C × FA-D) A migration reversal leaves the batch's fixed assets in service; a replacement adds a second copy and every depreciation run depreciates both (register ≠ GL; feeds Zakat and income tax) (QA-14) | Mark reversed vs refuse the reversal is an A4/A5 decision — §11; the FA follow-up note understated it |
+| D-14 | MEDIUM | The approvals inbox never shows a submitted computation, a pending relief or a planned payment (QA-15) | The inbox covers four entities by design; extending it is a build |
+| D-15 | LOW | When the last completed VAT period nets ≤ 0 there is no VAT row, so D-01's note never shows (QA-06) | A refinement of D-01 |
+| D-16 | LOW | Nil WHT months are not listed (W-8's default) (QA-10) | From which month is open — §11 |
+| D-17 | LOW | The classification page shows no balances; the blocker's link lands on every account (QA-04) | UX |
+| D-18 | LOW | The plans table scrolls sideways at 1280 and 390 px, clipping its inline forms; the plan pay form shows no WHT preview; obligations links drop their period; legal-reference strings stay English in Arabic | UX; D-04 family |
+| D-19 | LOW | A relief at exactly the statutory rate is accepted; residency is undated; an inapplicable computation can be created (invisible in the UI for a Saudi company's income tax) | §11 |
+| D-20 | LOW | The forecast's overdue bucket counts overdue receivables as inflow — the lowest closing assumes they are collected | A treasury judgment — §11 |
+| D-21 | INFO | (pre-existing) the invoice pay dialog also hard-codes today (no WHT effect); the sidebar shows "VIEWER" for an org admin; an operator can approve with no documents | Outside Phase 16/17 |
+| D-22 | INFO | A bookkeeper may classify Zakat accounts and add adjustments (the `tax` WRITE grant); the approver sees both on the paper before approving | The platform's maker/checker split |
 
 The pre-existing `batch-1c-migration-staging` 30-second timeout seen once in a
 loaded full run was diagnosed (every test in that file ran 10–17× slower under

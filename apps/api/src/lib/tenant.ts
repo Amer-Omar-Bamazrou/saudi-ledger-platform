@@ -219,7 +219,10 @@ export async function resolveTenant(
       })();
     };
 
-    const wasSettledBySend = commitBeforeResponse(res, finalize, onCommitFailure);
+    const wasSettledBySend = commitBeforeResponse(res, finalize, onCommitFailure, (refusal) => {
+      // A deferred trigger refused the write at COMMIT — a business refusal, logged, never paged.
+      req.log.warn({ code: refusal.body.code }, "refusal from the database at commit");
+    });
 
     /**
      * The net for responses that never write at all — an aborted connection,
