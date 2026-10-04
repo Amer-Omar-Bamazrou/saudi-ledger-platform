@@ -695,7 +695,8 @@ ownership trigger, the lifecycle locks, RLS, grants, `tax` permissions),
 `0114_phase17_treasury` (settings, payment plans, assumptions, `treasury` /
 `treasury_settings` permissions), `0115_phase16_17_hardening` (the audit's
 database fixes: treasury `delete` admin-only; a plan never names, nor is
-approved on, a reversed opening bill). Migrated from zero on a fresh database;
+approved on, a reversed opening bill; a header carrying entries of its own —
+the `CASH` header's pre-D-3 history — is classifiable for Zakat). Migrated from zero on a fresh database;
 `drizzle-kit check` clean; no schema drift.
 
 **API** (`/tax/*`, `/treasury/*`, OpenAPI-first): WHT — rates, preview,
@@ -796,6 +797,7 @@ restored by hash); MEDIUM/LOW findings are fixed or listed below.**
 |---|---|---|---|---|
 | F-01 | HIGH | A reversed opening bill (Batch 1C Policy C) could be planned and approved; the plan list showed it as owing; the forecast mislabelled it; a batch reversal was not blocked by an open plan. The tax and treasury repositories did not consume the one reversed-row predicate. | Predicate in both repositories; `assertNotReversedOpening` in every plan writer; the DB admit/guard refuse it (0115); the batch reversal names an open plan as a blocker | `phase16-17-opening-reversal` (M1–M5) |
 | F-02 | HIGH | `treasury.delete` granted to the accountant and the bookkeeper | SPEC + 0115: admin-only | `phase16-17-http`, `permission-seed-grants` (M6) |
+| F-14 | HIGH | A Zakat blocker nobody could clear: pre-D-3 cash history on the NON-POSTING `CASH` header (every local company until the cut-over, CLAUDE.md §5) is a balance the paper reads and blocks on — but the classification page listed posting accounts only and the database admitted posting accounts only. Found by the first CI browser run (the walk) and proven red first | A non-posting account that carries lines of its own is listed, classifiable (service) and admitted (DB, 0115 §3); a true header (no lines) stays refused — the leaf grain holds | `phase16-17-audit` A-6 (M13 the list; M14 the database) |
 | F-03 | MEDIUM | Zakat and income tax folded into the VAT/WHT cash-flow line (IAS 7.35 as endorsed: separately disclosed); a tax fine classified as a tax | Own line `zakat_income_tax`; the fine by its type | `phase14-cash-flow-classification`, `phase16-zakat-income-tax`, `phase16-wht` (M7, M8) |
 | F-04 | MEDIUM | An unpaid VAT period vanished from the obligations calendar — and Treasury — the day it became overdue (every quarterly filer, two months in three) | Listed while unpaid, flagged overdue | `phase16-vat-obligation-overdue` (M10) |
 | F-05 | MEDIUM | A confident zero: a Zakat or income-tax year with nothing in the books computed 0.00 and could be approved | Blockers `zakat_no_books`, `income_tax_no_books` | `phase16-17-audit` A-1 (M11) |
@@ -807,6 +809,7 @@ restored by hash); MEDIUM/LOW findings are fixed or listed below.**
 | F-11 | LOW | Untranslated strings (liquidity codes, placeholders, "(to date)") | Bilingual; liquidity labels one shared definition | Arabic sweep |
 | F-12 | LOW | Every plan action re-read ALL plans to return one | `plans({ id })` | — |
 | F-13 | LOW | The annual WHT return did not flag a non-resident recorded in "SA" or without a registration number (Art. 68(B)(3)) | Flagged on the page | — |
+| F-15 | LOW | The Treasury dashboard (Overview) lacked the forecast closing by week that §8.8 lists — it was on the Forecast tab only. Found by the first CI browser run | The chart on the Overview too (one money axis, the buffer in the same unit) | e2e `phase17-treasury` |
 
 ### 13.3 Documented — not fixed
 

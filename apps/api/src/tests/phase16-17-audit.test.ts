@@ -218,6 +218,33 @@ describeMaybe("Phase 16 + 17 — the joint audit's regressions", () => {
     expect(Number((await pool.query(`SELECT coalesce(sum(amount),0)::numeric s FROM wht_remittances WHERE company_id = $1 AND period = $2`, [coW, period])).rows[0].s)).toBe(100);
   });
 
+  it("🔴 A-6 — pre-D-3 cash history on the NON-POSTING `CASH` header can be classified: the blocker that names it is a blocker a person can clear (it was a dead end — the page never listed it, the database refused it)", async () => {
+    // CLAUDE.md §5: pre-D-3 cash history stays on the CASH header (non-posting) until the per-company cut-over
+    // runs — every local company. PLANTED (triggers off) because the posting path can no longer write it.
+    const coH = await company("Audit Header Co", "SAUDI_GCC", "1010505055");
+    const header = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'CASH'`, [orgId])).rows[0].id as number;
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN"); await c.query("SET LOCAL session_replication_role = replica");
+      const je = (await c.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, posted_at) VALUES ($1,$2,'AUD-PRE-D3','2025-03-01','pre-D-3 history','posted',now()) RETURNING id`, [orgId, coH])).rows[0].id;
+      await c.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'Cash and Bank',80000,0), ($1,$2,$3,$5,'Audit capital',0,80000)`, [orgId, coH, je, header, ids.capital]);
+      await c.query("COMMIT");
+    } catch (e) { await c.query("ROLLBACK"); throw e; } finally { c.release(); }
+
+    const comp = await inCo(coH, () => taxComputationsService.create({ kind: "zakat", fiscalYearLabel: 2025 }, userId));
+    const blocker = comp.live!.blockers.find((b) => b.code === "zakat_unclassified_accounts");
+    expect(blocker?.accounts?.map((a) => a.key), "the blocker names the header").toEqual([String(header)]);
+    // the classification list offers it (it carries this company's history) …
+    const listed = (await inCo(coH, () => zakatClassificationService.list())).find((a) => a.accountId === header);
+    expect([listed?.suggestion, listed?.classification], "listed, with its cash suggestion").toEqual(["current_asset_not_deducted", null]);
+    // … a person confirms it, the database admits it, and the blocker leaves
+    await inCo(coH, () => zakatClassificationService.set(header, { classification: "current_asset_not_deducted" }, userId));
+    const after = await inCo(coH, () => taxComputationsService.detail(comp.id));
+    expect(after.live!.blockers).toEqual([]);
+    // base 80,000 (equity; nothing deducted) · 2.5 % × 365 ÷ 354 = 2,062.15
+    expect(after.live!.amount).toBe(2_062.15);
+  });
+
   it("🔴 A-4 — two plans for the WHOLE of one bill race: the bill's row lock lets one through; Σ open plans ≤ what the bill owes", async () => {
     const b = await bill(coP, ids.res!, addDays(today, -2), 1_000);
     const results = await Promise.allSettled([

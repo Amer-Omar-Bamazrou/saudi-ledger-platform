@@ -238,6 +238,19 @@ export const taxRepository = {
   },
 
   // ── Zakat classification (org-level: the chart is) ─────────────────────
+  /**
+   * Of the given accounts, those carrying at least one line in this company's books. A NON-POSTING
+   * account normally has none (its sub-accounts do) — but the `CASH` header still carries pre-D-3
+   * history until the per-company cut-over runs (CLAUDE.md §5), and that balance must be classifiable.
+   */
+  async accountsCarryingLines(accountIds: number[]): Promise<Set<number>> {
+    if (accountIds.length === 0) return new Set();
+    const { rows } = await db.execute<{ id: number }>(sql`
+      SELECT DISTINCT l.account_id AS id FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id
+       WHERE e.company_id = ${CO} AND e.status IN ('posted', 'reversed')
+         AND l.account_id IN (${sql.join(accountIds.map((i) => sql`${i}`), sql`, `)})`);
+    return new Set(rows.map((r) => Number(r.id)));
+  },
   classifications() {
     return db.select().from(zakatAccountClassificationsTable);
   },

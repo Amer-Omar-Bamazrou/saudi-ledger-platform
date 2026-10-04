@@ -106,4 +106,40 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;--> statement-breakpoint
-REVOKE ALL ON FUNCTION scheduled_payments_guard() FROM PUBLIC;
+REVOKE ALL ON FUNCTION scheduled_payments_guard() FROM PUBLIC;--> statement-breakpoint
+
+-- ── 3. 🔴 A Zakat classification a person CAN make (joint audit F-14) ──────
+-- 0113 admitted posting accounts only. But the `CASH` header — non-posting —
+-- still carries pre-D-3 cash history until the per-company cut-over runs
+-- (CLAUDE.md §5: every local company), the balance sheet reads that balance,
+-- and the computation blocks until it is classified: a blocker nobody could
+-- clear. A non-posting account is admitted when it carries lines of its own
+-- in this organisation; a true header (no lines — its sub-accounts carry the
+-- balances) stays refused, so the leaf grain (M17.3) holds where it means
+-- something.
+CREATE OR REPLACE FUNCTION zakat_account_classifications_admit() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE a record;
+BEGIN
+  IF TG_OP = 'UPDATE' AND (NEW.organization_id IS DISTINCT FROM OLD.organization_id OR NEW.account_id IS DISTINCT FROM OLD.account_id) THEN
+    RAISE EXCEPTION 'Zakat classification %: its account is fixed', OLD.id USING ERRCODE = '23514', CONSTRAINT = 'zakat_classification_identity';
+  END IF;
+  SELECT id, organization_id, type, is_posting INTO a FROM categories WHERE id = NEW.account_id;
+  IF a.id IS NULL OR a.organization_id IS DISTINCT FROM NEW.organization_id
+     OR (a.is_posting IS NOT TRUE AND NOT EXISTS (
+           SELECT 1 FROM journal_entry_lines l WHERE l.account_id = NEW.account_id AND l.organization_id = NEW.organization_id)) THEN
+    RAISE EXCEPTION 'Zakat classification: account % is not a posting account of this organisation, nor a header carrying entries of its own', NEW.account_id
+      USING ERRCODE = '23514', CONSTRAINT = 'zakat_classification_account';
+  END IF;
+  -- Art. 9: an EQUITY account is equity by its own SOCPA type — it is never classified here
+  IF a.type = 'asset' AND NEW.classification NOT IN ('noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted') THEN
+    RAISE EXCEPTION 'Zakat classification: an asset takes an asset class, not %', NEW.classification USING ERRCODE = '23514', CONSTRAINT = 'zakat_classification_type';
+  ELSIF a.type = 'liability' AND NEW.classification NOT IN ('equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability') THEN
+    RAISE EXCEPTION 'Zakat classification: a liability takes a liability, provision or equity class, not %', NEW.classification USING ERRCODE = '23514', CONSTRAINT = 'zakat_classification_type';
+  ELSIF a.type NOT IN ('asset', 'liability') THEN
+    RAISE EXCEPTION 'Zakat classification: only asset and liability accounts are classified (equity is equity, Art. 23(1); income and expense enter through net profit)'
+      USING ERRCODE = '23514', CONSTRAINT = 'zakat_classification_type';
+  END IF;
+  RETURN NEW;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION zakat_account_classifications_admit() FROM PUBLIC;

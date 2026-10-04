@@ -113,7 +113,8 @@ test.describe.serial("Phase 16 — Saudi tax, end to end", () => {
     await page.getByTestId("wht-remit-bank").click();
     await page.getByRole("option").first().click();
     await page.getByTestId("wht-remit-submit").click();
-    await expect(page.getByTestId("wht-return-outstanding")).toHaveText("0.00");
+    // the page formats money ("SAR 0.00"): compare the FIGURE, not the formatting
+    await expect.poll(async () => Number((await page.getByTestId("wht-return-outstanding").innerText()).replace(/[^0-9.]/g, ""))).toBe(0);
     await expect(page.getByTestId("wht-return-status")).toContainText("Remitted");
     // W1 on the page: the ledger equals the WHT records
     await page.getByTestId("wht-tab-months").click();
@@ -128,6 +129,7 @@ test.describe.serial("Phase 16 — Saudi tax, end to end", () => {
   });
 
   test("🔴 ZAKAT: start the current year; the blockers NAME the unclassified accounts; confirm each class; the working paper computes; approving the open year is refused BY NAME", async ({ page }) => {
+    test.setTimeout(120_000); // a walk through every account the blocker names, one confirmation each
     await api.patch("/api/companies/current", { data: { fiscalYearStart: 1, fiscalCalendar: "gregorian", ownershipType: "SAUDI_GCC" } });
     await page.goto("/zakat");
     await expect(page.getByTestId("zakat-scope-eligible")).toBeVisible();
@@ -138,14 +140,15 @@ test.describe.serial("Phase 16 — Saudi tax, end to end", () => {
     expect(computationId).toBeGreaterThan(0);
     await expect(page.getByTestId("tax-blocker-zakat_unclassified_accounts")).toBeVisible();
 
-    // classify: each unclassified account — the suggestion is pre-selected, the person confirms it; with no suggestion, a class is CHOSEN
+    // classify EXACTLY the accounts the blocker names (the person's workflow): the suggestion is pre-selected and
+    // confirmed; with no suggestion, a class is CHOSEN. Each confirmed row leaves the "not yet classified" list.
+    const detail = await json<{ live: { blockers: { code: string; accounts?: { key: string }[] }[] } }>(api.get(`/api/tax/computations/${computationId}`), "detail");
+    const named = (detail.live.blockers.find((b) => b.code === "zakat_unclassified_accounts")?.accounts ?? []).map((a) => a.key);
+    expect(named.length, "the blocker names at least one account").toBeGreaterThan(0);
     await page.goto("/zakat/classification");
     await expect(page.getByTestId("zakat-class-table")).toBeVisible();
-    for (let guard = 0; guard < 60; guard++) {
-      const rows = page.locator('[data-testid^="zakat-class-row-"]');
-      if ((await rows.count()) === 0) break;
-      const first = rows.first();
-      const id = (await first.getAttribute("data-testid"))!.replace("zakat-class-row-", "");
+    for (const id of named) {
+      await expect(page.getByTestId(`zakat-class-row-${id}`), `account ${id} is offered for classification`).toBeVisible();
       const save = page.getByTestId(`zakat-class-save-${id}`);
       if (await save.isDisabled()) {
         await page.getByTestId(`zakat-class-select-${id}`).click();
@@ -154,7 +157,6 @@ test.describe.serial("Phase 16 — Saudi tax, end to end", () => {
       await save.click();
       await expect(page.getByTestId(`zakat-class-row-${id}`)).toHaveCount(0);
     }
-    await expect(page.getByTestId("zakat-class-empty")).toBeVisible();
 
     await page.goto(`/tax/computations/${computationId}`);
     await expect(page.getByTestId("tax-blocker-zakat_unclassified_accounts")).toHaveCount(0);
@@ -177,6 +179,7 @@ test.describe.serial("Phase 16 — Saudi tax, end to end", () => {
   });
 
   test("🔴 every tax page in Arabic (dir=rtl, the Arabic heading ASSERTED) and English, desktop and a 390 px phone — no sideways scroll", async ({ page }) => {
+    test.setTimeout(240_000); // seven pages × four views, each loaded and reloaded
     const PAGES: [string, string, RegExp][] = [
       ["/zakat", "zakat-page", /الزكاة/],
       ["/zakat/classification", "zakat-classification-page", /تصنيف الحسابات للزكاة/],

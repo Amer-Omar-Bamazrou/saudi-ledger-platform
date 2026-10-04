@@ -56,12 +56,19 @@ export function suggestZakatClass(c: Pick<Cat, "type" | "liquidityClass" | "syst
 }
 
 export const zakatClassificationService = {
-  /** Every asset and liability posting leaf of the chart, with its class (if confirmed) and a suggestion. */
+  /**
+   * Every asset and liability posting leaf of the chart, with its class (if confirmed) and a suggestion —
+   * and every NON-posting account that carries lines of its own in this company's books (the `CASH` header's
+   * pre-D-3 history): the computation reads its balance, so a person must be able to classify it
+   * (joint audit F-14 — it was a blocker nobody could clear).
+   */
   async list() {
     const [cats, stored, fa] = await Promise.all([reportsRepository.allCategories(), taxRepository.classifications(), fixedAssetAccountIds()]);
     const byAccount = new Map(stored.map((s) => [s.accountId, s]));
+    const headersWithHistory = await taxRepository.accountsCarryingLines(
+      cats.filter((c) => (c.type === "asset" || c.type === "liability") && c.isPosting === false).map((c) => c.id));
     return cats
-      .filter((c) => (c.type === "asset" || c.type === "liability") && c.isPosting !== false)
+      .filter((c) => (c.type === "asset" || c.type === "liability") && (c.isPosting !== false || headersWithHistory.has(c.id)))
       .map((c) => {
         const s = byAccount.get(c.id);
         return {
@@ -88,6 +95,11 @@ export const zakatClassificationService = {
     if (!cat) throw new NotFoundError("Account not found.");
     if (cat.type !== "asset" && cat.type !== "liability") {
       throw new BusinessRuleError(422, { code: "zakat_class_type", error: "Only asset and liability accounts are classified: an equity account is equity (Art. 23(1)), and income and expense enter the base through net profit." });
+    }
+    // a header with no lines of its own is not classified — its sub-accounts are (the leaf grain, M17.3);
+    // a header that carries history (the CASH header, pre-D-3) is, because the computation reads its balance
+    if (cat.isPosting === false && !(await taxRepository.accountsCarryingLines([accountId])).has(accountId)) {
+      throw new BusinessRuleError(422, { code: "zakat_class_header", error: "This is a header account with no entries of its own: its sub-accounts carry the balances and are classified instead." });
     }
     const allowed = cat.type === "asset" ? ASSET_CLASSES : LIABILITY_CLASSES;
     if (!allowed.includes(cls as ZakatClass)) {

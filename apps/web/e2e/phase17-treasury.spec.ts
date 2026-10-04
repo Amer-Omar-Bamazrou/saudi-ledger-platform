@@ -85,7 +85,8 @@ test.describe.serial("Phase 17 — treasury, end to end", () => {
 
   test("🔴 a PLAN by clicking: create for the bill, approve, pay — the bill's ordinary pay path; the plan reads Paid and the bill owes nothing", async ({ page }) => {
     await page.goto("/treasury?tab=plans");
-    await expect(page.getByTestId("treasury-plans")).toBeVisible();
+    // before any plan exists the list is its empty state, not an empty table (an empty block prints its emptiness)
+    await expect(page.getByTestId("treasury-plans").or(page.getByTestId("treasury-plans-empty"))).toBeVisible();
     await page.getByTestId("treasury-plan-create").click();
     await page.getByTestId("treasury-plan-bill").click();
     await page.getByRole("option", { name: new RegExp(`E2E-TRS-${STAMP}`) }).click();
@@ -112,7 +113,8 @@ test.describe.serial("Phase 17 — treasury, end to end", () => {
 
   test("🔴 a MANUAL assumption appears in the forecast as a manual row; deleting it takes two clicks", async ({ page }) => {
     await page.goto("/treasury?tab=assumptions");
-    await expect(page.getByTestId("treasury-assumptions")).toBeVisible();
+    // before the first assumption the list is its empty state, not an empty table
+    await expect(page.getByTestId("treasury-assumption-form")).toBeVisible();
     const desc = `E2E shareholder loan ${STAMP}`;
     await page.getByTestId("treasury-assumption-date").fill(addDays(TODAY, 10));
     await page.getByTestId("treasury-assumption-direction").click();
@@ -148,13 +150,14 @@ test.describe.serial("Phase 17 — treasury, end to end", () => {
   });
 
   test("🔴 nav deep links open the tab they name", async ({ page }) => {
-    for (const [tab, testId] of [["forecast", "treasury-buckets"], ["plans", "treasury-plans"], ["assumptions", "treasury-assumptions"], ["settings", "treasury-settings-save"]] as const) {
+    for (const [tab, testId] of [["forecast", "treasury-buckets"], ["plans", "treasury-plan-create"], ["assumptions", "treasury-assumption-form"], ["settings", "treasury-settings-save"]] as const) {
       await page.goto(`/treasury?tab=${tab}`);
       await expect(page.getByTestId(testId), tab).toBeVisible();
     }
   });
 
   test("🔴 treasury in Arabic (dir=rtl, the Arabic heading ASSERTED) and English, desktop and a 390 px phone — no sideways scroll", async ({ page }) => {
+    test.setTimeout(180_000); // five tabs × four views, each loaded and reloaded
     for (const tab of ["overview", "forecast", "plans", "assumptions", "settings"]) {
       for (const [lang, viewport, label] of [["en", null, "EN desktop"], ["en", PHONE, "EN phone"], ["ar", null, "AR desktop"], ["ar", PHONE, "AR phone"]] as [string, typeof PHONE | null, string][]) {
         await page.setViewportSize(viewport ?? { width: DESKTOP, height: 900 });

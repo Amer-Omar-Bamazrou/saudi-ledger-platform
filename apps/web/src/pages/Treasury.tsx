@@ -192,6 +192,14 @@ function OverviewTab({ data, onTab }: { data: TreasuryDashboard; onTab: (t: Trea
     <div className="space-y-4">
       <PositionCard todays={data.position} />
       <LiquidityCard f={f} />
+      {/* pack §8.8: the dashboard carries the forecast closing by week — one money axis, the buffer in the same unit */}
+      <Card className="border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-muted-foreground">{t("Projected closing cash by week", "الإقفال النقدي المتوقع لكل أسبوع")} <KindTag kind="projection" /></CardTitle>
+          <p className="text-xs text-muted-foreground">{t("One money axis. The dashed line is the minimum balance — or zero when none is declared — in the same unit. The Forecast tab lists every row behind each point.", "محور مالي واحد. الخط المتقطع هو الحد الأدنى للرصيد — أو الصفر إن لم يُحدَّد — بالوحدة نفسها. ويعرض تبويب التوقع كل البنود خلف كل نقطة.")}</p>
+        </CardHeader>
+        <CardContent><ClosingChart f={f} /></CardContent>
+      </Card>
       <FundingCard f={f} onTab={onTab} />
       <Card className="border-border">
         <CardHeader className="pb-2">
