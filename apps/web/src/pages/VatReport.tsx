@@ -18,10 +18,9 @@
  * un-invoiced advance is absent from them — this panel is where it becomes
  * visible. The server decides every state; the page renders its list.
  */
-import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useGetVatReturn, useGetVatSummary, useGetDepositReview } from "@workspace/api-client-react";
 import { useClassificationLabels } from "@/components/payments/shared";
 import { fmtNum } from "@/lib/api";
@@ -34,10 +33,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DualDate } from "@/components/DualDate";
 
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
 export default function VatReport() {
   const { t, n } = useLanguage();
-  const [periodFrom, setPeriodFrom] = useState("");
-  const [periodTo, setPeriodTo] = useState("");
+  // 🔴 QA-16 (2026-10-04): the period lives in the URL (`?from=YYYY-MM&to=YYYY-MM`), so the tax obligations
+  // calendar's VAT row opens THIS return for ITS period — it used to land on an unscoped page — and a reload,
+  // a shared link and back/forward keep it. Replaced, not pushed: re-scoping a page is not a step to walk back.
+  const search = useSearch();
+  const [location, navigate] = useLocation();
+  const params = new URLSearchParams(search);
+  const periodFrom = MONTH.test(params.get("from") ?? "") ? params.get("from")! : "";
+  const periodTo = MONTH.test(params.get("to") ?? "") ? params.get("to")! : "";
+  const setPeriod = (next: { from?: string; to?: string }) => {
+    const q = new URLSearchParams(search);
+    for (const [k, v] of Object.entries(next)) { if (v) q.set(k, v); else q.delete(k); }
+    const qs = q.toString();
+    navigate(`${location}${qs ? `?${qs}` : ""}`, { replace: true });
+  };
+  const setPeriodFrom = (v: string) => setPeriod({ from: v });
+  const setPeriodTo = (v: string) => setPeriod({ to: v });
 
   const { data: vatReturn, isLoading } = useGetVatReturn({
     period_from: periodFrom || undefined,
@@ -99,14 +114,14 @@ export default function VatReport() {
           <div className="flex gap-4 items-end">
             <div className="space-y-1">
               <Label className="text-xs">{t("Period from", "الفترة من")}</Label>
-              <Input type="month" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="h-8" />
+              <Input type="month" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="h-8" data-testid="vat-period-from" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">{t("Period to", "الفترة إلى")}</Label>
-              <Input type="month" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="h-8" />
+              <Input type="month" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="h-8" data-testid="vat-period-to" />
             </div>
           </div>
-          <PeriodShortcuts granularity="month" from={periodFrom} to={periodTo} onSelect={(r)=>{setPeriodFrom(r.from);setPeriodTo(r.to);}} />
+          <PeriodShortcuts granularity="month" from={periodFrom} to={periodTo} onSelect={(r)=>{setPeriod({ from: r.from, to: r.to });}} />
         </div>
       </div>
 

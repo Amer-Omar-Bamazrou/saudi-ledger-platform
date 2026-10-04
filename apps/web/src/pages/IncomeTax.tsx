@@ -51,7 +51,9 @@ export default function IncomeTax() {
         </CardContent>
       </Card>
 
-      {ownership === "FOREIGN" || ownership === "MIXED" ? <ComputationList kind="income_tax" /> : null}
+      {ownership === "FOREIGN" || ownership === "MIXED"
+        ? <ComputationList kind="income_tax" />
+        : <ComputationList kind="income_tax" canStart={false} notStartedWhy={t("Income tax does not apply to this company as its ownership is declared today, so a new computation is not started here. A computation that already exists stays listed — it may cover a year when the ownership was different — and can be opened, reviewed or, if never approved, deleted.", "لا تنطبق ضريبة الدخل على هذه الشركة وفق ملكيتها المصرَّح بها اليوم، فلا يُبدأ هنا احتساب جديد. ويبقى الاحتساب القائم مدرجًا — فقد يغطي سنة كانت الملكية فيها مختلفة — ويمكن فتحه ومراجعته أو حذفه إن لم يُعتمد.")} />}
 
       <Card className="border-border" data-testid="income-tax-limits">
         <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Not computed here", "ما لا يُحتسب هنا")}</CardTitle></CardHeader>

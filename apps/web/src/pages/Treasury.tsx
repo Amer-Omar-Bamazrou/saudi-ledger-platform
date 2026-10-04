@@ -31,9 +31,9 @@ import {
   useListPaymentPlans, useCreatePaymentPlan, useUpdatePaymentPlan, useDeletePaymentPlan,
   useApprovePaymentPlan, usePayPaymentPlan, useCancelPaymentPlan,
   useListForecastAssumptions, useCreateForecastAssumption, useUpdateForecastAssumption, useDeleteForecastAssumption,
-  useGetTreasurySettings, useUpdateTreasurySettings, useListBills, useListVendors,
+  useGetTreasurySettings, useUpdateTreasurySettings, useListBills, useListVendors, useGetVendor,
   getGetTreasuryPositionQueryKey, getGetTreasuryForecastQueryKey, getListPaymentPlansQueryKey,
-  getListBillsQueryKey, getListVendorsQueryKey,
+  getListBillsQueryKey, getListVendorsQueryKey, getGetVendorQueryKey,
   type TreasuryDashboard, type TreasuryForecast, type TreasuryBucket, type TreasuryFlowRow, type TreasuryFlowRowSource,
   type PaymentPlan, type ForecastAssumption, type ListBillsParams, type ListPaymentPlansParams, type Bill,
   type ForecastAssumptionInputCategory, type ForecastAssumptionInputDirection, type CreatePaymentPlanInputPriority,
@@ -53,9 +53,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useGuarded } from "@/lib/singleSubmit";
 import { useBankOptions } from "@/components/payments/shared";
+import { WhtFields, type WhtDeclarationValue } from "@/components/payments/WhtFields";
 import {
   flowKindLabel, flowCategoryLabel, planStatusLabel, priorityLabel, assumptionCategoryLabel,
-  whtTypeLabel, WHT_TYPES, notSubjectLabel, residencyLabel,
+  whtTypeLabel, WHT_TYPES, residencyLabel,
 } from "@/lib/taxLabels";
 import {
   TREASURY_TABS, parseTreasuryTab, treasuryTabLabel, bucketReasonLabel, directionLabel, assumptionDirectionLabel,
@@ -75,6 +76,17 @@ const NONE = "__none";
 const PRIORITIES = ["high", "normal", "low"] as const;
 const ASSUMPTION_CATEGORIES = ["financing", "capex", "tax", "payroll", "receipt", "payment", "other"] as const;
 const PLAN_STATUSES = ["planned", "approved", "paid", "cancelled"] as const;
+/**
+ * QA-16 (2026-10-04): the plans list was an 11-column table that scrolled sideways at 1280 AND 390 px and clipped
+ * the inline pay / edit / cancel forms inside its scroll box. Now ONE grid — six columns from `lg`, each cell
+ * carrying its own label below it (two per line on a tablet, one on a phone) — with nothing dropped: every
+ * figure the table had is still on the row, and the act's form opens full width beneath it.
+ */
+const PLAN_GRID = "lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1.2fr)] lg:gap-x-3";
+const planColumns = (t: T) => [
+  t("Bill and supplier", "الفاتورة والمورد"), t("The plan", "الخطة"), t("Status", "الحالة"),
+  t("WHT / cash (estimate)", "الاستقطاع / النقد (تقدير)"), t("Its week's projected closing", "الإقفال المتوقع لأسبوعها"), "",
+];
 
 /**
  * A typed amount, or null when it is not one. `Number("")` is 0 and
@@ -706,21 +718,15 @@ function PlansTab({ forecast, onTab }: { forecast: TreasuryForecast | undefined;
                 : t("No plans with this status.", "لا خطط بهذه الحالة.")}
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm" data-testid="treasury-plans">
-                <thead>
-                  <tr className="border-b border-border text-xs text-muted-foreground">
-                    {[t("Bill", "الفاتورة"), t("Bill due", "استحقاق الفاتورة"), t("Bill owes now", "المتبقي على الفاتورة الآن"), t("Planned for", "التاريخ المخطط"), t("Amount", "المبلغ"), t("Bank", "البنك"), t("Priority", "الأولوية"), t("Status", "الحالة"), t("WHT / cash (estimate)", "الاستقطاع / النقد (تقدير)"), t("Its week's projected closing", "الإقفال المتوقع لأسبوعها"), ""].map((x, i) => <th key={`${x}-${i}`} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{x}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.map((p) => (
-                    <PlanRow key={p.id} p={p} forecast={forecast} covered={flags.get(p.id)?.covered} n={n} t={t}
-                      action={action?.id === p.id ? action.kind : null}
-                      onAction={(kind) => setAction(kind ? { kind, id: p.id } : null)} onTab={onTab} />
-                  ))}
-                </tbody>
-              </table>
+            <div className="text-sm" data-testid="treasury-plans" role="list">
+              <div className={`hidden ${PLAN_GRID} border-b border-border pb-2 text-xs text-muted-foreground font-medium`} aria-hidden="true">
+                {planColumns(t).map((x, i) => <div key={`${x}-${i}`} className="text-start">{x}</div>)}
+              </div>
+              {list.map((p) => (
+                <PlanRow key={p.id} p={p} forecast={forecast} covered={flags.get(p.id)?.covered} n={n} t={t}
+                  action={action?.id === p.id ? action.kind : null}
+                  onAction={(kind) => setAction(kind ? { kind, id: p.id } : null)} onTab={onTab} />
+              ))}
             </div>
           )}
         </CardContent>
@@ -769,36 +775,60 @@ function PlanRow({ p, forecast, covered, action, onAction, n, t, onTab }: {
     flagWords.push({ key: "covered", text: t(`The forecast counts ${fmtNum(covered)} of it — what the bill still owes after earlier plans.`, `يحتسب التوقع منها ${fmtNum(covered)} — ما تبقى على الفاتورة بعد الخطط السابقة.`) });
   }
 
+  const ownLabel = (label: string, children: ReactNode, extra = "") => (
+    <div className={`min-w-0 ${extra}`}>
+      <p className="lg:hidden text-[11px] text-muted-foreground">{label}</p>
+      {children}
+    </div>
+  );
+  const [colBill, colPlan, colStatus, colWht, colWeek] = planColumns(t);
+
   return (
-    <>
-      <tr className="border-b border-border/50 align-top" data-testid={`treasury-plan-${p.id}`}>
-        <td className="py-2 pe-3">
-          <Link href="/bills" className="font-medium hover:underline" dir="ltr">{p.billNumber ?? `#${p.billId}`}</Link>
-          <span className="block text-xs text-muted-foreground">
-            {p.vendorId != null ? <Link href={`/vendors/${p.vendorId}`} className="hover:underline">{p.vendorName ? n(p.vendorName, p.vendorNameAr) : `#${p.vendorId}`}</Link> : t("No supplier", "بدون مورد")}
-            {" · "}{residencyLabel(p.vendorResidency, t)}
+    <div className="border-b border-border/50 py-3" data-testid={`treasury-plan-${p.id}`} role="listitem">
+      <div className={`grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 ${PLAN_GRID}`}>
+        {ownLabel(colBill, (
+          <>
+            <Link href="/bills" className="font-medium hover:underline" dir="ltr">{p.billNumber ?? `#${p.billId}`}</Link>
+            <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">
+              {p.vendorId != null ? <Link href={`/vendors/${p.vendorId}`} className="hover:underline">{p.vendorName ? n(p.vendorName, p.vendorNameAr) : `#${p.vendorId}`}</Link> : t("No supplier", "بدون مورد")}
+              {" · "}{residencyLabel(p.vendorResidency, t)}
+            </span>
+            <span className="block text-xs">
+              {t("Due", "الاستحقاق")} <D d={p.billDueDate || p.billDate} />{!p.billDueDate && <span className="text-muted-foreground"> ({t("no due date — its own date", "بلا تاريخ استحقاق — تاريخها")})</span>}
+            </span>
+            <span className="block text-xs">{t("Owes now", "المتبقي الآن")} <M v={p.billOutstanding} /></span>
+          </>
+        ))}
+        {ownLabel(colPlan, (
+          <>
+            <span className="block"><M v={p.amount} bold testId={`treasury-plan-amount-${p.id}`} /> <span className="text-xs">{t("on", "في")} <D d={p.plannedDate} /></span></span>
+            <span className="block text-xs [overflow-wrap:anywhere]">{p.bankName ?? (p.bankAccountId != null ? `#${p.bankAccountId}` : <span className="text-muted-foreground">{t("bank not named yet", "البنك لم يُحدَّد بعد")}</span>)}</span>
+            <span className="block text-xs text-muted-foreground">{t("Priority", "الأولوية")}: {priorityLabel(p.priority, t)}</span>
+          </>
+        ))}
+        {ownLabel(colStatus, (
+          <span className="block text-xs" data-testid={`treasury-plan-status-${p.id}`}>
+            {planStatusLabel(p.status, t)}
+            {p.status === "paid" && p.paidAt && <span className="block text-muted-foreground">{t("on", "في")} <D d={p.paidAt} /></span>}
+            {p.status === "cancelled" && p.cancelReason && <span className="block text-muted-foreground [overflow-wrap:anywhere]">{p.cancelReason}</span>}
           </span>
-        </td>
-        <td className="py-2 pe-3 text-xs"><D d={p.billDueDate || p.billDate} />{!p.billDueDate && <span className="block text-muted-foreground">{t("no due date — its own date", "بلا تاريخ استحقاق — تاريخها")}</span>}</td>
-        <td className="py-2 pe-3 text-end"><M v={p.billOutstanding} /></td>
-        <td className="py-2 pe-3 text-xs"><D d={p.plannedDate} /></td>
-        <td className="py-2 pe-3 text-end"><M v={p.amount} bold testId={`treasury-plan-amount-${p.id}`} /></td>
-        <td className="py-2 pe-3 text-xs">{p.bankName ?? (p.bankAccountId != null ? `#${p.bankAccountId}` : <span className="text-muted-foreground">{t("not named yet", "لم يُحدَّد بعد")}</span>)}</td>
-        <td className="py-2 pe-3 text-xs">{priorityLabel(p.priority, t)}</td>
-        <td className="py-2 pe-3 text-xs" data-testid={`treasury-plan-status-${p.id}`}>
-          {planStatusLabel(p.status, t)}
-          {p.status === "paid" && p.paidAt && <span className="block text-muted-foreground">{t("on", "في")} <D d={p.paidAt} /></span>}
-          {p.status === "cancelled" && p.cancelReason && <span className="block text-muted-foreground">{p.cancelReason}</span>}
-        </td>
-        <td className="py-2 pe-3 text-xs">
-          {nonResident
-            ? (p.whtEstimate != null
-              ? <>{p.whtPaymentType ? whtTypeLabel(p.whtPaymentType, t) : t("The supplier's default nature", "النوع الافتراضي للمورد")}<span className="block">{t("WHT", "الاستقطاع")} <M v={p.whtEstimate} /> · {t("cash", "النقد")} <M v={p.cashEstimate} /></span></>
-              : <span className="text-muted-foreground">{t("No nature stated — no estimate", "لم تُذكر طبيعة الدفعة — لا تقدير")}</span>)
-            : <span className="text-muted-foreground">—</span>}
-        </td>
-        <td className="py-2 pe-3">{week}</td>
-        <td className="py-2">
+        ))}
+        {ownLabel(colWht, (
+          <span className="block text-xs">
+            {p.status === "paid"
+              ? (p.whtWithheld != null
+                ? <span data-testid={`treasury-plan-withheld-${p.id}`}>{t("Withheld at payment", "المستقطع عند الدفع")}<span className="block">{t("WHT", "الاستقطاع")} <M v={p.whtWithheld} /> · {t("cash", "النقد")} <M v={p.cashEstimate} /></span></span>
+                : <span className="text-muted-foreground">{nonResident ? t("No withholding recorded", "لا استقطاع مسجّل") : t("Resident supplier — nothing withheld", "مورد مقيم — لا استقطاع")}</span>)
+              : p.status === "cancelled" ? <span className="text-muted-foreground">—</span>
+              : nonResident
+              ? (p.whtEstimate != null
+                ? <>{p.whtPaymentType ? whtTypeLabel(p.whtPaymentType, t) : t("The supplier's default nature", "النوع الافتراضي للمورد")}<span className="block">{t("WHT", "الاستقطاع")} <M v={p.whtEstimate} /> · {t("cash", "النقد")} <M v={p.cashEstimate} /></span></>
+                : <span className="text-muted-foreground">{t("No nature stated — no estimate", "لم تُذكر طبيعة الدفعة — لا تقدير")}</span>)
+              : <span className="text-muted-foreground">{t("Resident supplier — nothing withheld", "مورد مقيم — لا استقطاع")}</span>}
+          </span>
+        ))}
+        {ownLabel(colWeek, week)}
+        <div className="min-w-0 sm:col-span-2 lg:col-span-1">
           <div className="flex flex-wrap gap-1">
             {p.status === "planned" && <Button size="sm" variant="outline" className="h-7" onClick={() => onAction(action === "edit" ? null : "edit")} data-testid={`treasury-plan-edit-${p.id}`}>{t("Edit", "تعديل")}</Button>}
             {p.status === "planned" && <Button size="sm" variant="secondary" className="h-7" disabled={approve.isPending} onClick={() => approve.mutate({ id: p.id })} data-testid={`treasury-plan-approve-${p.id}`}>{t("Approve", "اعتماد")}</Button>}
@@ -806,27 +836,24 @@ function PlanRow({ p, forecast, covered, action, onAction, n, t, onTab }: {
             {open && <Button size="sm" variant="outline" className="h-7" onClick={() => onAction(action === "cancel" ? null : "cancel")} data-testid={`treasury-plan-cancel-${p.id}`}>{t("Cancel plan", "إلغاء الخطة")}</Button>}
             {p.status === "planned" && <Button size="sm" variant="ghost" className="h-7" onClick={() => onAction(action === "delete" ? null : "delete")} data-testid={`treasury-plan-delete-${p.id}`}>{t("Delete", "حذف")}</Button>}
           </div>
-        </td>
-      </tr>
+        </div>
+      </div>
       {(flagWords.length > 0 || p.notes) && (
-        <tr className="border-b border-border/50">
-          <td colSpan={11} className="pb-2 pe-3 text-xs" data-testid={`treasury-plan-flags-${p.id}`}>
-            {flagWords.map((f) => <span key={f.key} className="block" data-testid={`treasury-plan-flag-${f.key}-${p.id}`}>{f.text}</span>)}
-            {p.notes && <span className="block text-muted-foreground">{t("Note: ", "ملاحظة: ")}{p.notes}</span>}
-          </td>
-        </tr>
+        <div className="pt-2 text-xs [overflow-wrap:anywhere]" data-testid={`treasury-plan-flags-${p.id}`}>
+          {flagWords.map((f) => <span key={f.key} className="block" data-testid={`treasury-plan-flag-${f.key}-${p.id}`}>{f.text}</span>)}
+          {p.notes && <span className="block text-muted-foreground">{t("Note: ", "ملاحظة: ")}{p.notes}</span>}
+        </div>
       )}
+      {/* the act's form, full width beneath its row — never clipped inside a scrolling table (QA-16) */}
       {action && (
-        <tr className="border-b border-border">
-          <td colSpan={11} className="py-3">
-            {action === "edit" && <PlanEditPanel p={p} onClose={() => onAction(null)} />}
-            {action === "pay" && <PlanPayPanel p={p} onClose={() => onAction(null)} onTab={onTab} />}
-            {action === "cancel" && <PlanCancelPanel p={p} onClose={() => onAction(null)} />}
-            {action === "delete" && <PlanDeletePanel p={p} onClose={() => onAction(null)} />}
-          </td>
-        </tr>
+        <div className="mt-3 rounded border border-border p-3">
+          {action === "edit" && <PlanEditPanel p={p} onClose={() => onAction(null)} />}
+          {action === "pay" && <PlanPayPanel p={p} onClose={() => onAction(null)} onTab={onTab} />}
+          {action === "cancel" && <PlanCancelPanel p={p} onClose={() => onAction(null)} />}
+          {action === "delete" && <PlanDeletePanel p={p} onClose={() => onAction(null)} />}
+        </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -1030,6 +1057,17 @@ function PlanEditPanel({ p, onClose }: { p: PaymentPlan; onClose: () => void }) 
   );
 }
 
+/**
+ * Pay an approved plan — through the bill's ordinary pay path (`payBill`, WHT included).
+ *
+ * 🔴 QA-16 (2026-10-04): the other two supplier pay dialogs showed the server's withholding preview; this one
+ * did not, and its own nature control offered "Not stated — the supplier's default applies" while SENDING
+ * nothing — so the server applied the PLAN's stored nature behind a screen naming another. It now carries
+ * the same `<WhtFields>` as the bill and supplier-payment dialogs: the nature (the plan's, else the
+ * supplier's declared default) or a not-subject reason, and the preview from `GET /tax/wht/preview` —
+ * `decideWithholding`, the function the payment itself runs, on the plan's amount and the payment date. The
+ * request then states exactly what the screen shows; nothing here computes a rate.
+ */
 function PlanPayPanel({ p, onClose, onTab }: { p: PaymentPlan; onClose: () => void; onTab: (t: TreasuryTab) => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -1038,12 +1076,11 @@ function PlanPayPanel({ p, onClose, onTab }: { p: PaymentPlan; onClose: () => vo
   const nonResident = p.vendorResidency === "non_resident";
   const [paidAt, setPaidAt] = useState(today);
   const [bank, setBank] = useState(p.bankAccountId != null ? String(p.bankAccountId) : "");
-  const [mode, setMode] = useState<"withhold" | "not_subject">("withhold");
-  const [nature, setNature] = useState(p.whtPaymentType ?? "");
-  const [reason, setReason] = useState<"goods" | "not_kingdom_source">("goods");
-  const [note, setNote] = useState("");
+  const [decl, setDecl] = useState<{ value: WhtDeclarationValue; ready: boolean }>({ value: {}, ready: true });
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(paidAt) && paidAt <= today;
-  const noteOk = !(nonResident && mode === "not_subject" && reason === "not_kingdom_source") || note.trim().length >= 10;
+  // the supplier's declared default nature, for a plan made without one (the residency is already on the plan)
+  const vendor = useGetVendor(p.vendorId ?? 0, { query: { queryKey: getGetVendorQueryKey(p.vendorId ?? 0), enabled: nonResident && p.vendorId != null && !p.whtPaymentType } });
+  const defaultType = p.whtPaymentType ?? (vendor.data?.whtDefaultPaymentType ?? null);
 
   const pay = useGuarded(usePayPaymentPlan({
     mutation: {
@@ -1056,8 +1093,14 @@ function PlanPayPanel({ p, onClose, onTab }: { p: PaymentPlan; onClose: () => vo
   }));
   const submit = () => {
     const data: PayPaymentPlanInput = { paidAt, bankAccountId: bank ? Number(bank) : null };
-    if (nonResident && mode === "withhold" && nature) data.whtPaymentType = nature;
-    if (nonResident && mode === "not_subject") { data.whtNotSubjectReason = reason; data.whtNotSubjectNote = note.trim() || null; }
+    if (nonResident) {
+      // say exactly what the screen says — a stated nature or a not-subject reason; never silence, which would let
+      // the plan's stored nature apply behind a screen showing another
+      if (decl.value.whtNotSubjectReason) {
+        data.whtNotSubjectReason = decl.value.whtNotSubjectReason;
+        data.whtNotSubjectNote = decl.value.whtNotSubjectNote ?? null;
+      } else data.whtPaymentType = decl.value.whtPaymentType ?? null;
+    }
     pay.mutate({ id: p.id, data });
   };
 
@@ -1073,57 +1116,18 @@ function PlanPayPanel({ p, onClose, onTab }: { p: PaymentPlan; onClose: () => vo
           <Label className="text-xs text-muted-foreground">{t("Paid from", "دُفع من")}</Label>
           <BankSelect value={bank} onChange={setBank} testId="treasury-plan-pay-bank" />
         </div>
-        {nonResident && (
-          <>
-            <div className="sm:col-span-2">
-              <Label className="text-xs text-muted-foreground">{t("Withholding tax (non-resident supplier)", "ضريبة الاستقطاع (مورد غير مقيم)")}</Label>
-              <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
-                <SelectTrigger className="mt-1 h-9 text-sm" data-testid="treasury-plan-pay-wht-mode"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="withhold">{t("Withhold — state the payment's nature", "استقطاع — حدّد طبيعة الدفعة")}</SelectItem>
-                  <SelectItem value="not_subject">{t("Not subject — state the reason", "غير خاضعة — اذكر السبب")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {mode === "withhold" ? (
-              <div className="sm:col-span-2">
-                <Label className="text-xs text-muted-foreground">{t("Payment nature", "طبيعة الدفعة")}</Label>
-                <NatureSelect value={nature} onChange={setNature} testId="treasury-plan-pay-wht" />
-              </div>
-            ) : (
-              <>
-                <div>
-                  <Label className="text-xs text-muted-foreground">{t("Reason", "السبب")}</Label>
-                  <Select value={reason} onValueChange={(v) => setReason(v as typeof reason)}>
-                    <SelectTrigger className="mt-1 h-9 text-sm" data-testid="treasury-plan-pay-reason"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="goods">{notSubjectLabel("goods", t)}</SelectItem>
-                      <SelectItem value="not_kingdom_source">{notSubjectLabel("not_kingdom_source", t)}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    {reason === "not_kingdom_source"
-                      ? t("Why — at least 10 characters; kept with the record", "السبب — 10 أحرف على الأقل؛ يُحفظ مع السجل")
-                      : t("Note (optional; kept with the record)", "ملاحظة (اختياري؛ تُحفظ مع السجل)")}
-                  </Label>
-                  <Textarea className="mt-1 text-sm" maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} data-testid="treasury-plan-pay-note" />
-                </div>
-                {p.whtPaymentType && (
-                  <p className="sm:col-span-2 text-xs text-muted-foreground" data-testid="treasury-plan-pay-replaces">
-                    {t(`The plan was made with a nature (${whtTypeLabel(p.whtPaymentType, t)}); the reason you give now replaces it for this payment — what is declared at payment governs.`,
-                      `أُعدّت الخطة بطبيعة دفعة (${whtTypeLabel(p.whtPaymentType, t)})؛ والسبب الذي تذكره الآن يحل محلها لهذه الدفعة — العبرة بما يُصرَّح به عند الدفع.`)}
-                  </p>
-                )}
-              </>
-            )}
-          </>
-        )}
       </div>
+      <WhtFields vendorId={p.vendorId} residency={p.vendorResidency} defaultType={defaultType} presetFrom={p.whtPaymentType ? "plan" : "supplier"}
+        amount={p.amount} date={dateOk ? paidAt : today} onChange={(value, ready) => setDecl({ value, ready })} />
+      {nonResident && p.whtPaymentType && decl.value.whtNotSubjectReason && (
+        <p className="text-xs text-muted-foreground" data-testid="treasury-plan-pay-replaces">
+          {t(`The plan was made with a nature (${whtTypeLabel(p.whtPaymentType, t)}); the reason you give now replaces it for this payment — what is declared at payment governs.`,
+            `أُعدّت الخطة بطبيعة دفعة (${whtTypeLabel(p.whtPaymentType, t)})؛ والسبب الذي تذكره الآن يحل محلها لهذه الدفعة — العبرة بما يُصرَّح به عند الدفع.`)}
+        </p>
+      )}
       {!dateOk && <p className="text-xs text-muted-foreground">{t("A payment records money that has left — today or an earlier day, never a later one.", "الدفعة تسجّل أموالًا خرجت — اليوم أو يومًا سابقًا، وليس لاحقًا أبدًا.")}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={!dateOk || !bank || !noteOk || pay.isPending} onClick={submit} data-testid="treasury-plan-pay-submit">
+        <Button size="sm" disabled={!dateOk || !bank || !decl.ready || pay.isPending} onClick={submit} data-testid="treasury-plan-pay-submit">
           {pay.isPending ? t("Recording…", "جارٍ التسجيل…") : t(`Record payment of ${fmtNum(p.amount)}`, `تسجيل دفعة بمبلغ ${fmtNum(p.amount)}`)}
         </Button>
         <Button size="sm" variant="ghost" onClick={onClose}>{t("Back", "رجوع")}</Button>

@@ -26,7 +26,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useGuarded } from "@/lib/singleSubmit";
 import { ReportExportButtons } from "@/components/reports/ReportExport";
 import { BankPicker } from "@/components/payments/shared";
-import { notSubjectLabel, whtMonthStatusLabel, whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
+import { legalRef, notSubjectLabel, whtMonthStatusLabel, whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
+import { businessToday } from "@workspace/shared";
 
 const money = (x: number | null | undefined) => (x == null ? "—" : fmtNum(x));
 const pct = (r: number) => `${(r * 100).toFixed(2)}%`;
@@ -36,13 +37,24 @@ const TABS = ["months", "return", "annual", "exceptions", "reliefs", "rates"] as
 export default function WithholdingTax() {
   const { t, lang } = useLanguage();
   const qc = useQueryClient();
-  // the tab lives in the URL, so a link (the navigation, a drill from Treasury) opens the tab it names
+  // the tab AND the month live in the URL, so a link (the navigation, a drill from Treasury, an obligations row —
+  // QA-16: it used to land on the latest month whatever row was clicked) opens what it names, and back/forward and
+  // a reload keep it
   const search = useSearch();
   const [location, navigate] = useLocation();
-  const fromUrl = new URLSearchParams(search).get("tab");
+  const params = new URLSearchParams(search);
+  const fromUrl = params.get("tab");
   const tab = (TABS as readonly string[]).includes(fromUrl ?? "") ? fromUrl! : "months";
-  const setTab = (next: string) => navigate(`${location}?tab=${next}`, { replace: true });
-  const [period, setPeriod] = useState<string>("");
+  const periodParam = params.get("period");
+  const period = periodParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(periodParam) ? periodParam : "";
+  const go = (next: { tab?: string; period?: string }) => {
+    const q = new URLSearchParams(search);
+    if (next.tab) q.set("tab", next.tab);
+    if (next.period) q.set("period", next.period);
+    navigate(`${location}?${q.toString()}`, { replace: true });
+  };
+  const setTab = (next: string) => go({ tab: next });
+  const setPeriod = (next: string) => go({ period: next });
   const ov = useGetWhtOverview();
   const refresh = () => qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && ((q.queryKey[0] as string).startsWith("/api/tax") || (q.queryKey[0] as string).startsWith("/api/treasury")) });
 
@@ -113,7 +125,7 @@ export default function WithholdingTax() {
                         <td className="py-2 pe-3 text-end font-mono" dir="ltr">{money(m.remitted)}</td>
                         <td className="py-2 pe-3 text-end font-mono font-semibold" dir="ltr" data-testid={`wht-month-outstanding-${m.period}`}>{money(m.outstanding)}</td>
                         <td className="py-2 pe-3 text-end font-mono" dir="ltr">{m.delayFineEstimate ? money(m.delayFineEstimate.amount) : "—"}</td>
-                        <td className="py-2"><Button size="sm" variant="outline" className="h-7" onClick={() => { setPeriod(m.period); setTab("return"); }} data-testid={`wht-open-${m.period}`}>{t("Open", "فتح")}</Button></td>
+                        <td className="py-2"><Button size="sm" variant="outline" className="h-7" onClick={() => go({ tab: "return", period: m.period })} data-testid={`wht-open-${m.period}`}>{t("Open", "فتح")}</Button></td>
                       </tr>
                     ))}</tbody>
                   </table>
@@ -160,7 +172,8 @@ function MonthReturn({ period, months, onPeriod, onChanged }: { period: string; 
           <Label className="text-xs text-muted-foreground">{t("Month", "الشهر")}</Label>
           <Select value={period} onValueChange={onPeriod}>
             <SelectTrigger className="mt-1 h-8 w-40 text-sm" data-testid="wht-return-period"><SelectValue /></SelectTrigger>
-            <SelectContent>{months.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            {/* a month named by a link or the URL is offered even with no withholding on it (it reads as nothing withheld) */}
+            <SelectContent>{(months.includes(period) ? months : [period, ...months]).map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <ReportExportButtons report="wht-return" params={{ period }} />
@@ -321,6 +334,15 @@ function Reliefs({ onChanged }: { onChanged: () => void }) {
   const blankRelief = { vendorId: "", paymentType: "technical_consulting", reducedRate: "", treatyCountry: "", zatcaApprovalReference: "", residencyCertificateReference: "", validFrom: "", validTo: "" };
   const [form, setForm] = useState(blankRelief);
   const rateOk = /^0(\.\d{1,4})?$/.test(form.reducedRate.trim());
+  // Q-d (QA 2026-10-04): the statutory rate the database will judge this relief against — the schedule's rate for the
+  // nature in force on the relief's first day (trigger wht_relief_rate), read from the server's own rate table. A
+  // relief AT that rate relieves nothing (accepted — whether to refuse it is the owner's question); one above it is
+  // refused. Said here, before anything is recorded; the server still decides.
+  const rates = useListWhtRates();
+  const asOfRelief = /^\d{4}-\d{2}-\d{2}$/.test(form.validFrom) ? form.validFrom : businessToday();
+  const statutory = (rates.data ?? []).find((r) => r.paymentType === form.paymentType && r.effectiveFrom <= asOfRelief && (r.effectiveTo == null || r.effectiveTo >= asOfRelief))?.rate;
+  const typedBp = rateOk ? Math.round(Number(form.reducedRate) * 10_000) : null;
+  const statutoryBp = statutory != null ? Math.round(statutory * 10_000) : null;
   const [revoke, setRevoke] = useState<{ id: number; reason: string } | null>(null);
   const done = (msg: [string, string]) => () => { onChanged(); list.refetch(); toast({ title: t(...msg) }); setRevoke(null); };
   const create = useGuarded(useCreateWhtRelief({ mutation: { onSuccess: () => { done(["Relief recorded — pending approval", "سُجِّل الإعفاء — بانتظار الاعتماد"])(); setForm(blankRelief); } } }));
@@ -345,7 +367,11 @@ function Reliefs({ onChanged }: { onChanged: () => void }) {
           <Select value={form.paymentType} onValueChange={(v) => setForm((f) => ({ ...f, paymentType: v }))}><SelectTrigger className="h-9 text-sm" data-testid="wht-relief-type"><SelectValue /></SelectTrigger>
             <SelectContent>{WHT_TYPES.map((x) => <SelectItem key={x} value={x}>{whtTypeLabel(x, t)}</SelectItem>)}</SelectContent></Select></div>
         <div><Label className="text-xs text-muted-foreground">{t("Reduced rate (0.05 = 5 %)", "النسبة المخفضة (0.05 = 5%)")}</Label><Input dir="ltr" inputMode="decimal" placeholder="0.05" value={form.reducedRate} onChange={set("reducedRate")} data-testid="wht-relief-rate" />
-          <p className="text-[11px] text-muted-foreground mt-1">{t("The treaty's rate as a fraction, below the statutory rate. 0 is a full exemption — type it only if the treaty exempts.", "نسبة الاتفاقية ككسر، أقل من النسبة النظامية. الصفر إعفاء كامل — اكتبه فقط إذا كانت الاتفاقية تُعفي.")}</p></div>
+          <p className="text-[11px] text-muted-foreground mt-1">{t("The treaty's rate as a fraction, below the statutory rate. 0 is a full exemption — type it only if the treaty exempts.", "نسبة الاتفاقية ككسر، أقل من النسبة النظامية. الصفر إعفاء كامل — اكتبه فقط إذا كانت الاتفاقية تُعفي.")}</p>
+          {statutory != null && <p className="text-[11px] text-muted-foreground" data-testid="wht-relief-statutory">{t(`Statutory rate for this nature: ${pct(statutory)}.`, `النسبة النظامية لهذا النوع: ${pct(statutory)}.`)}</p>}
+          {typedBp != null && statutoryBp != null && typedBp === statutoryBp && <p className="text-[11px]" data-testid="wht-relief-equals-statutory">{t("This equals the statutory rate — the relief would withhold exactly what no relief withholds. Check the treaty's rate.", "هذه هي النسبة النظامية نفسها — لن يغيّر الإعفاء ما يُستقطع شيئًا. تحقّق من نسبة الاتفاقية.")}</p>}
+          {typedBp != null && statutoryBp != null && typedBp > statutoryBp && <p className="text-[11px]" data-testid="wht-relief-above-statutory">{t("This is above the statutory rate — a treaty only reduces it, and the server refuses it.", "هذه أعلى من النسبة النظامية — الاتفاقية تخفّضها فقط، ويرفضها الخادم.")}</p>}
+        </div>
         <div><Label className="text-xs text-muted-foreground">{t("Treaty country (ISO code)", "دولة الاتفاقية (الرمز)")}</Label><Input dir="ltr" maxLength={2} value={form.treatyCountry} onChange={set("treatyCountry")} data-testid="wht-relief-country" /></div>
         <div><Label className="text-xs text-muted-foreground">{t("ZATCA approval reference", "رقم موافقة الهيئة")}</Label><Input dir="ltr" value={form.zatcaApprovalReference} onChange={set("zatcaApprovalReference")} data-testid="wht-relief-approval" /></div>
         <div><Label className="text-xs text-muted-foreground">{t("Residency certificate reference", "رقم شهادة الإقامة الضريبية")}</Label><Input dir="ltr" value={form.residencyCertificateReference} onChange={set("residencyCertificateReference")} data-testid="wht-relief-certificate" /></div>
@@ -389,7 +415,7 @@ function Rates() {
       <div className="overflow-x-auto"><table className="w-full text-sm">
         <thead><tr className="border-b border-border text-xs text-muted-foreground">{[t("Form row", "البند"), t("Payment", "الدفعة"), t("Rate", "النسبة"), t("In force from", "سارية من"), t("Source", "المصدر")].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
         <tbody>{(rates.data ?? []).map((r) => (
-          <tr key={r.id} className="border-b border-border/50"><td className="py-1.5 pe-3 font-mono" dir="ltr">{r.formRow}</td><td className="py-1.5 pe-3">{lang === "ar" ? r.nameAr : r.nameEn}</td><td className="py-1.5 pe-3 font-mono" dir="ltr">{pct(r.rate)}</td><td className="py-1.5 pe-3">{fmtDate(r.effectiveFrom)}</td><td className="py-1.5 pe-3 text-xs">{r.legalReference}</td></tr>
+          <tr key={r.id} className="border-b border-border/50"><td className="py-1.5 pe-3 font-mono" dir="ltr">{r.formRow}</td><td className="py-1.5 pe-3">{lang === "ar" ? r.nameAr : r.nameEn}</td><td className="py-1.5 pe-3 font-mono" dir="ltr">{pct(r.rate)}</td><td className="py-1.5 pe-3">{fmtDate(r.effectiveFrom)}</td><td className="py-1.5 pe-3 text-xs" title={r.legalReference}>{legalRef(r.legalReference, lang)}</td></tr>
         ))}</tbody>
       </table></div>
       <p className="text-xs text-muted-foreground mt-2">{t("The regulation's table, read-only. A payment uses the rate in force on its date, and keeps it.", "جدول اللائحة للقراءة فقط. تأخذ كل دفعة النسبة السارية في تاريخها وتحتفظ بها.")}</p>

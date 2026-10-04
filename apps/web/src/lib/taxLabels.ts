@@ -109,9 +109,83 @@ export const minimumRuleLabel = (rule: string, t: T) =>
     "27(4)": t("Art. 27(4): no adjusted profit and a positive base — the base by the method stands.", "المادة 27(4): لا ربح معدل والوعاء موجب — يبقى الوعاء وفق الطريقة."),
   } as Record<string, string>)[rule] ?? rule;
 
-/** A step's article column: the engine writes article numbers, plus two words — translated here. */
-export const articleLabel = (a: string, t: T) =>
-  a === "declared" ? t("declared", "مُقرّ") : a.replace(" (not applied)", ` ${t("(not applied)", "(لم يُطبَّق)")}`);
+// ── Legal references in the reader's language (QA-16, D-04 family) ─────────
+type Lang = "en" | "ar";
+
+/**
+ * English sub-paragraph letters → the Arabic letters the Saudi texts number
+ * them with, in abjad order (أ ب ج د هـ و ز ح ط ي ك ل م). The Arabic text IS
+ * the original — the English letters are its translation's — so the Arabic
+ * screen shows the numbering the regulation itself uses ("63(9)(أ)", "17(ز)").
+ */
+const ABJAD: Record<string, string> = { a: "أ", b: "ب", c: "ج", d: "د", e: "هـ", f: "و", g: "ز", h: "ح", i: "ط", j: "ي", k: "ك", l: "ل", m: "م" };
+
+/**
+ * An article reference the engines write ("23(2), 25, 29", "17(d),(h),(i)",
+ * "28 (not applied)", "declared", "ledger") in the reader's language. English
+ * is returned as written. 🔴 In Arabic, anything not recognised is returned
+ * VERBATIM rather than half-translated — a citation with one Latin word left
+ * in it would read as settled while being neither text.
+ */
+export function articleRef(a: string, lang: Lang): string {
+  if (lang !== "ar") return a;
+  if (a === "declared") return "مُقرّ";
+  if (a === "ledger") return "الدفاتر";
+  const notApplied = a.endsWith(" (not applied)");
+  const core = notApplied ? a.slice(0, -" (not applied)".length) : a;
+  const out = core.replace(/\(([a-m])\)/g, (_, l: string) => `(${ABJAD[l]})`).replace(/,\s*/g, "، ");
+  if (/[A-Za-z]/.test(out)) return a;
+  return notApplied ? `${out} (لم يُطبَّق)` : out;
+}
+
+/** The regulations our citations name, by their OFFICIAL Arabic titles (the originals; the English names are translations). */
+const SOURCE_AR: Record<string, string> = {
+  "Income Tax IR": "اللائحة التنفيذية لنظام ضريبة الدخل",
+  "Income Tax Law": "نظام ضريبة الدخل",
+  ITL: "نظام ضريبة الدخل",
+  "Zakat Regulations": "اللائحة التنفيذية لجباية الزكاة",
+};
+
+/**
+ * A full citation stored in English (the WHT rate schedule's "Income Tax IR
+ * Art. 63(1), (4) (MoF Res. 25/1445H)") in the reader's language: in Arabic,
+ * "المادة 63(1)، (4) من اللائحة التنفيذية لنظام ضريبة الدخل (قرار وزير المالية
+ * رقم 25/1445هـ)" — the article, the regulation by its official Arabic title,
+ * the amending resolution term by term. 🔴 Only a citation whose EVERY part is
+ * recognised is rendered; anything else stays verbatim in English (the caller
+ * keeps the original as the element's title, so it is never lost).
+ */
+export function legalRef(ref: string | null | undefined, lang: Lang): string {
+  if (!ref) return "—";
+  if (lang !== "ar") return ref;
+  const m = ref.match(/^(Income Tax IR|Income Tax Law|ITL|Zakat Regulations) (Arts?\.?) (.+?)(?: \(((?:MoF )?Res\. [^()]+)\))?$/);
+  if (!m) return ref;
+  const [, source, art, numbers, amending] = m as unknown as [string, string, string, string, string | undefined];
+  const nums = articleRef(numbers, "ar");
+  if (/[A-Za-z]/.test(nums)) return ref;
+  const parts = (amending ? amending.split(/;\s*/) : []).map((p) => {
+    const mof = p.match(/^MoF Res\. (\d+)\/(\d+)H$/);
+    if (mof) return `قرار وزير المالية رقم ${mof[1]}/${mof[2]}هـ`;
+    const res = p.match(/^Res\. (\d+)\/(\d+)H$/);
+    return res ? `القرار رقم ${res[1]}/${res[2]}هـ` : null;
+  });
+  if (parts.some((p) => p == null)) return ref;
+  return `${art.startsWith("Arts") ? "المواد" : "المادة"} ${nums} من ${SOURCE_AR[source]}${parts.length ? ` (${parts.join("؛ ")})` : ""}`;
+}
+
+/**
+ * The Art. 17 pool's frame limits, keyed by the server's article CODE (its
+ * sentences are English — the code decides the words, so rewording either side
+ * breaks nothing).
+ */
+const POOL_LIMIT_AR: Record<string, string> = {
+  "17(a)": "الأرض لا تُهلك، ولا يحمل السجل علامةً للأرض — فالفئة المُدرجة في مجموعة من مجموعات المادة 17 تُعامل هنا على أنها قابلة للإهلاك.",
+  "17(f)": "تحويل الأصل إلى الاستعمال الشخصي استبعادٌ حكميٌّ بالقيمة السوقية. ويحفظ السجل المتحصلات المقبوضة فعلًا، فيدخل السحب الوعاء بصفر ما لم تُسجَّل قيمة؛ ويُدرج كل سحب بجانب الأرقام.",
+  "17(j)": "الأرض المشتراة أو المبيعة مع المباني القائمة عليها يجب توزيع قيمتها بينهما. ولا يُجري شيء هنا هذا التوزيع.",
+  "17(k)": "الاستخدام الجزئي في النشاط يقصر الحسم على الجزء المستخدم في النشاط. ولا يحمل السجل نسبةً للاستخدام في النشاط.",
+  "17(l)": "الأصول المقامة بعقود البناء والتشغيل ونقل الملكية (BOT/BOOT) تُهلك على مدة العقد لا بنسبة المجموعة.",
+};
+export const poolLimitLabel = (article: string, serverSentence: string, lang: Lang) => (lang === "ar" && POOL_LIMIT_AR[article] ? POOL_LIMIT_AR[article] : serverSentence);
 
 export const adjustmentTargetLabel = (s: string, t: T) =>
   ({ adjusted_net_profit: t("Adjusted net profit", "صافي الربح المعدل"), zakat_base: t("Zakat base (direct)", "الوعاء الزكوي (مباشرة)"), taxable_income: t("Taxable income", "الدخل الخاضع للضريبة") } as Record<string, string>)[s] ?? s;

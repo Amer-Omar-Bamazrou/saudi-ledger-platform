@@ -83,7 +83,7 @@ export const treasuryRepository = {
       planned_date: string; amount: string; bank_account_id: number | null; bank_name: string | null; priority: string; status: string;
       wht_payment_type: string | null; notes: string | null; created_by: number | null; created_at: string;
       approved_by: number | null; approved_at: string | null; paid_bill_payment_id: number | null; paid_by: number | null; paid_at: string | null;
-      cancelled_by: number | null; cancelled_at: string | null; cancel_reason: string | null;
+      cancelled_by: number | null; cancelled_at: string | null; cancel_reason: string | null; paid_wht: string | null;
     }>(sql`
       SELECT p.id, p.bill_id, b.bill_number, b.vendor_id, v.name AS vendor_name, v.name_ar AS vendor_name_ar, v.residency AS vendor_residency,
              nullif(b.due_date::text, '') AS bill_due_date, b.date::date::text AS bill_date,
@@ -92,11 +92,14 @@ export const treasuryRepository = {
              p.planned_date::text AS planned_date, p.amount::text, p.bank_account_id, ba.name AS bank_name, p.priority, p.status,
              p.wht_payment_type, p.notes, p.created_by, p.created_at::text AS created_at,
              p.approved_by, p.approved_at::text AS approved_at, p.paid_bill_payment_id, p.paid_by, p.paid_at::text AS paid_at,
-             p.cancelled_by, p.cancelled_at::text AS cancelled_at, p.cancel_reason
+             p.cancelled_by, p.cancelled_at::text AS cancelled_at, p.cancel_reason,
+             w.wht_amount::text AS paid_wht
         FROM scheduled_payments p
         JOIN bills b ON b.id = p.bill_id
         LEFT JOIN vendors v ON v.id = b.vendor_id
         LEFT JOIN bank_accounts ba ON ba.id = p.bank_account_id
+        -- a paid plan's withholding AS RECORDED by its payment (one row per bill payment — wht_withholdings_bill_payment_unq)
+        LEFT JOIN wht_withholdings w ON w.bill_payment_id = p.paid_bill_payment_id
        WHERE p.company_id = ${CO}
          ${f.status?.length ? sql`AND p.status IN (${sql.join(f.status.map((s) => sql`${s}`), sql`, `)})` : sql``}
          ${f.billId != null ? sql`AND p.bill_id = ${f.billId}` : sql``}

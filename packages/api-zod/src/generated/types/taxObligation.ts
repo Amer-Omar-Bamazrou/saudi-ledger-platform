@@ -7,10 +7,12 @@
  */
 import type { TaxObligationKind } from './taxObligationKind';
 import type { TaxObligationSource } from './taxObligationSource';
+import type { TaxObligationVatPosition } from './taxObligationVatPosition';
 
 export interface TaxObligation {
   kind: TaxObligationKind;
   reference: string;
+  /** What is owed now — never negative. A VAT period that nets to zero or to a credit, or whose payments already cover it, owes 0 and says which (`vatPosition`). */
   amount: number;
   /** @nullable */
   dueDate: string | null;
@@ -18,4 +20,23 @@ export interface TaxObligation {
   note: string | null;
   source: TaxObligationSource;
   overdue: boolean;
+  /**
+     * A VAT period's position on its own return (QA-06): `payable` (owed),
+     * `settled` (VAT payments booked since the period ended cover it),
+     * `nil` (the return nets to zero) or `credit` (input VAT exceeds output
+     * VAT — nothing is owed, and the credit is NOT projected as cash).
+     * Null on every other row.
+     * @nullable
+     */
+  vatPosition?: TaxObligationVatPosition;
+  /**
+     * A VAT period's net VAT exactly as its return computes it (negative for a credit) — the return's own figure, never re-derived.
+     * @nullable
+     */
+  returnNet?: number | null;
+  /**
+     * VAT payments booked since a completed VAT period ended (presumed for it); null on every other row.
+     * @nullable
+     */
+  paidSince?: number | null;
 }

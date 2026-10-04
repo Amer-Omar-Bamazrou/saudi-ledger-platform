@@ -35,8 +35,17 @@ export interface PaymentPlan {
   status: PaymentPlanStatus;
   /** @nullable */
   whtPaymentType: string | null;
-  /** @nullable */
+  /**
+     * An OPEN plan's estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.
+     * @nullable
+     */
   whtEstimate: number | null;
+  /**
+     * A PAID plan's withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today's supplier, relief or rate. Null otherwise.
+     * @nullable
+     */
+  whtWithheld: number | null;
+  /** The amount less the estimate (an open plan) or less the withholding recorded (a paid plan). */
   cashEstimate: number;
   /** @nullable */
   notes: string | null;

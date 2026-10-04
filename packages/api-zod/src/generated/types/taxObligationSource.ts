@@ -14,4 +14,9 @@ export type TaxObligationSource = {
   systemCode?: string;
   from?: string;
   to?: string;
+  /**
+     * Zakat / income tax — the approved computation whose fiscal year dates the balance (the row links to it).
+     * @nullable
+     */
+  computationId?: number | null;
 };

@@ -7585,7 +7585,12 @@ export interface UpdateAssetInput {
 }
 
 /**
- * Matches the URL segment its actions post to (`/{entity}/{id}/approve` …).
+ * The four documents match the URL segment their actions post to
+ * (`/{entity}/{id}/approve` …). Phase 16/17 (QA-15): a SUBMITTED tax
+ * computation version (`/tax/computations/{parentId}/versions/{id}/…`),
+ * a PENDING treaty relief (`/tax/wht/reliefs/{id}/…`) and a PLANNED
+ * payment plan (`/treasury/payment-plans/{id}/…`) — each acted on
+ * through its own route and permission.
  */
 export type ApprovalPendingRowEntity = typeof ApprovalPendingRowEntity[keyof typeof ApprovalPendingRowEntity];
 
@@ -7595,6 +7600,9 @@ export const ApprovalPendingRowEntity = {
   bills: 'bills',
   'journal-entries': 'journal-entries',
   payroll: 'payroll',
+  'tax-computations': 'tax-computations',
+  'wht-reliefs': 'wht-reliefs',
+  'payment-plans': 'payment-plans',
 } as const;
 
 export type ApprovalPendingRowStatus = typeof ApprovalPendingRowStatus[keyof typeof ApprovalPendingRowStatus];
@@ -7603,17 +7611,48 @@ export type ApprovalPendingRowStatus = typeof ApprovalPendingRowStatus[keyof typ
 export const ApprovalPendingRowStatus = {
   draft: 'draft',
   submitted: 'submitted',
+  pending: 'pending',
+  planned: 'planned',
 } as const;
 
 export interface ApprovalPendingRow {
-  /** Matches the URL segment its actions post to (`/{entity}/{id}/approve` …). */
+  /**
+     * The four documents match the URL segment their actions post to
+     * (`/{entity}/{id}/approve` …). Phase 16/17 (QA-15): a SUBMITTED tax
+     * computation version (`/tax/computations/{parentId}/versions/{id}/…`),
+     * a PENDING treaty relief (`/tax/wht/reliefs/{id}/…`) and a PLANNED
+     * payment plan (`/treasury/payment-plans/{id}/…`) — each acted on
+     * through its own route and permission.
+     */
   entity: ApprovalPendingRowEntity;
   id: number;
-  /** The human identifier — document number or payroll period. */
+  /** The human identifier — document number, payroll period, fiscal year and version, supplier and treaty rate, or bill and planned date. */
   label: string;
+  /**
+     * The label with the party's Arabic name, where the party has one.
+     * @nullable
+     */
+  labelAr?: string | null;
   status: ApprovalPendingRowStatus;
-  /** The document's own total; a journal entry's is the sum of its debit lines, from the same aggregate the ledger list uses. */
-  amount: number;
+  /**
+     * The document's own total; a journal entry's is the sum of its debit
+     * lines, from the same aggregate the ledger list uses; a plan's is what
+     * it would settle. NULL where the record has no amount of its own — a
+     * treaty relief is a rate, and a computation's figure is the working
+     * paper's live reading, shown on its own page.
+     * @nullable
+     */
+  amount: number | null;
+  /**
+     * A computation version's computation id (its routes are nested under it).
+     * @nullable
+     */
+  parentId?: number | null;
+  /**
+     * `zakat` | `income_tax` for a computation; the IR Art. 63(1) nature for a relief.
+     * @nullable
+     */
+  subtype?: string | null;
 }
 
 export type BudgetFiscalYearCalendar = typeof BudgetFiscalYearCalendar[keyof typeof BudgetFiscalYearCalendar];
@@ -10078,6 +10117,18 @@ export interface ZakatAccountClassification {
   liquidityClass: string | null;
   /** @nullable */
   systemCode: string | null;
+  /** False for a header account listed because it carries entries of its own (the CASH header's pre-D-3 history, F-14). */
+  isPosting: boolean;
+  /**
+     * The account's amount in the statement of financial position at `asOf` (assets debit-positive, liabilities credit-positive; a contra account negative); 0 when it carries nothing then; null when no `asOf` was given.
+     * @nullable
+     */
+  balance: number | null;
+  /**
+     * What the Zakat computation for a fiscal year ending at `asOf` reads from the account — the balance less that computation's OWN accrual (Z-3). It equals `balance` unless the year's own Zakat accrual sits in it; an unclassified account blocks a computation only when this is non-zero. Null when no `asOf` was given.
+     * @nullable
+     */
+  zakatReads: number | null;
   classification: ZakatClass | null;
   /** @nullable */
   article: string | null;
@@ -10127,11 +10178,35 @@ export type TaxObligationSource = {
   systemCode?: string;
   from?: string;
   to?: string;
+  /**
+     * Zakat / income tax — the approved computation whose fiscal year dates the balance (the row links to it).
+     * @nullable
+     */
+  computationId?: number | null;
 };
+
+/**
+ * A VAT period's position on its own return (QA-06): `payable` (owed),
+ * `settled` (VAT payments booked since the period ended cover it),
+ * `nil` (the return nets to zero) or `credit` (input VAT exceeds output
+ * VAT — nothing is owed, and the credit is NOT projected as cash).
+ * Null on every other row.
+ * @nullable
+ */
+export type TaxObligationVatPosition = typeof TaxObligationVatPosition[keyof typeof TaxObligationVatPosition] | null;
+
+
+export const TaxObligationVatPosition = {
+  payable: 'payable',
+  settled: 'settled',
+  nil: 'nil',
+  credit: 'credit',
+} as const;
 
 export interface TaxObligation {
   kind: TaxObligationKind;
   reference: string;
+  /** What is owed now — never negative. A VAT period that nets to zero or to a credit, or whose payments already cover it, owes 0 and says which (`vatPosition`). */
   amount: number;
   /** @nullable */
   dueDate: string | null;
@@ -10139,6 +10214,25 @@ export interface TaxObligation {
   note: string | null;
   source: TaxObligationSource;
   overdue: boolean;
+  /**
+     * A VAT period's position on its own return (QA-06): `payable` (owed),
+     * `settled` (VAT payments booked since the period ended cover it),
+     * `nil` (the return nets to zero) or `credit` (input VAT exceeds output
+     * VAT — nothing is owed, and the credit is NOT projected as cash).
+     * Null on every other row.
+     * @nullable
+     */
+  vatPosition?: TaxObligationVatPosition;
+  /**
+     * A VAT period's net VAT exactly as its return computes it (negative for a credit) — the return's own figure, never re-derived.
+     * @nullable
+     */
+  returnNet?: number | null;
+  /**
+     * VAT payments booked since a completed VAT period ended (presumed for it); null on every other row.
+     * @nullable
+     */
+  paidSince?: number | null;
 }
 
 export interface TaxObligationsReport {
@@ -10915,8 +11009,17 @@ export interface PaymentPlan {
   status: PaymentPlanStatus;
   /** @nullable */
   whtPaymentType: string | null;
-  /** @nullable */
+  /**
+     * An OPEN plan's estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.
+     * @nullable
+     */
   whtEstimate: number | null;
+  /**
+     * A PAID plan's withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today's supplier, relief or rate. Null otherwise.
+     * @nullable
+     */
+  whtWithheld: number | null;
+  /** The amount less the estimate (an open plan) or less the withholding recorded (a paid plan). */
   cashEstimate: number;
   /** @nullable */
   notes: string | null;
@@ -12195,6 +12298,13 @@ export const ListWhtExceptionsKind = {
 
 export type ListWhtReliefsParams = {
 vendorId?: number;
+};
+
+export type ListZakatClassificationsParams = {
+/**
+ * YYYY-MM-DD — the date the balances are read at (a fiscal year-end, typically).
+ */
+asOf?: string;
 };
 
 export type ListTaxComputationsParams = {

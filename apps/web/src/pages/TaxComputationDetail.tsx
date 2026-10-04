@@ -34,7 +34,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useGuarded } from "@/lib/singleSubmit";
 import { ReportExportButtons } from "@/components/reports/ReportExport";
 import {
-  computationStatusLabel, stepLabel, zakatClassLabel, adjustmentTargetLabel, blockerLabel, minimumRuleLabel, articleLabel,
+  computationStatusLabel, stepLabel, zakatClassLabel, adjustmentTargetLabel, blockerLabel, minimumRuleLabel, articleRef,
 } from "@/lib/taxLabels";
 
 const money = (x: number | null | undefined) => (x == null ? "—" : fmtNum(x));
@@ -172,7 +172,7 @@ export default function TaxComputationDetail() {
 }
 
 function LivePaper({ d, live, t }: { d: Detail; live: TaxComputationLive; t: T }) {
-  const { n } = useLanguage();
+  const { n, lang } = useLanguage();
   const glHref = (accountId: number | null) => accountId == null ? null : `/reports/general-ledger?account_id=${accountId}&date_from=${d.fiscalYear.startDate}&date_to=${d.fiscalYear.endDate}`;
   return (
     <>
@@ -186,7 +186,8 @@ function LivePaper({ d, live, t }: { d: Detail; live: TaxComputationLive; t: T }
                 {(b.accounts ?? []).length > 0 && (
                   <ul className="text-xs mt-1 space-y-0.5">{(b.accounts ?? []).map((a) => <li key={a.key}>{n(a.name, a.nameAr)} · <span className="font-mono" dir="ltr">{money(a.amount)}</span></li>)}</ul>
                 )}
-                {b.code === "zakat_unclassified_accounts" && <Link href="/zakat/classification" className="text-xs underline">{t("Classify these accounts", "صنِّف هذه الحسابات")}</Link>}
+                {/* QA-04: scoped to THIS year-end and to the accounts that block — it used to land on every account */}
+                {b.code === "zakat_unclassified_accounts" && <Link href={`/zakat/classification?asOf=${d.fiscalYear.endDate}&filter=blocking`} className="text-xs underline" data-testid="tax-classify-link">{t("Classify these accounts", "صنِّف هذه الحسابات")}</Link>}
                 {(b.code.includes("ownership") || b.code === "foreign_share_not_declared") && <Link href="/company" className="text-xs underline">{t("Company Settings", "إعدادات الشركة")}</Link>}
                 {b.code.startsWith("income_tax_pool") && <Link href="/assets/income-tax-pool" className="text-xs underline">{t("Income-tax pool", "وعاء ضريبة الدخل")}</Link>}
               </div>
@@ -231,7 +232,7 @@ function LivePaper({ d, live, t }: { d: Detail; live: TaxComputationLive; t: T }
                     <tr key={l.key} className="border-b border-border/50">
                       <td className="py-1.5 pe-3">{href ? <Link href={href} className="underline">{n(l.name, l.nameAr)}</Link> : n(l.name, l.nameAr)}</td>
                       <td className="py-1.5 pe-3">{zakatClassLabel(l.zakatClass, t)}</td>
-                      <td className="py-1.5 pe-3 font-mono text-xs" dir="ltr">{l.article}</td>
+                      <td className="py-1.5 pe-3 font-mono text-xs" dir={lang === "ar" ? undefined : "ltr"} title={l.article}>{articleRef(l.article, lang)}</td>
                       <td className="py-1.5 pe-3 text-end font-mono" dir="ltr">{money(l.amount)}</td>
                     </tr>
                   );
@@ -260,6 +261,7 @@ function LivePaper({ d, live, t }: { d: Detail; live: TaxComputationLive; t: T }
 }
 
 function StepsTable({ steps, t, testId }: { steps: { key: string; article: string; amount: number }[]; t: T; testId: string }) {
+  const { lang } = useLanguage();
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm" data-testid={testId}>
@@ -267,7 +269,7 @@ function StepsTable({ steps, t, testId }: { steps: { key: string; article: strin
         <tbody>{steps.map((s) => (
           <tr key={s.key} className="border-b border-border/50" data-testid={`${testId}-${s.key}`}>
             <td className="py-1.5 pe-3">{stepLabel(s.key, t)}</td>
-            <td className="py-1.5 pe-3 font-mono text-xs" dir="ltr">{articleLabel(s.article, t)}</td>
+            <td className="py-1.5 pe-3 font-mono text-xs" dir={lang === "ar" ? undefined : "ltr"} title={s.article}>{articleRef(s.article, lang)}</td>
             <td className="py-1.5 pe-3 text-end font-mono" dir="ltr">{money(s.amount)}</td>
           </tr>
         ))}</tbody>

@@ -18,6 +18,18 @@ export interface ZakatAccountClassification {
   liquidityClass: string | null;
   /** @nullable */
   systemCode: string | null;
+  /** False for a header account listed because it carries entries of its own (the CASH header's pre-D-3 history, F-14). */
+  isPosting: boolean;
+  /**
+     * The account's amount in the statement of financial position at `asOf` (assets debit-positive, liabilities credit-positive; a contra account negative); 0 when it carries nothing then; null when no `asOf` was given.
+     * @nullable
+     */
+  balance: number | null;
+  /**
+     * What the Zakat computation for a fiscal year ending at `asOf` reads from the account — the balance less that computation's OWN accrual (Z-3). It equals `balance` unless the year's own Zakat accrual sits in it; an unclassified account blocks a computation only when this is non-zero. Null when no `asOf` was given.
+     * @nullable
+     */
+  zakatReads: number | null;
   classification: ZakatClass | null;
   /** @nullable */
   article: string | null;

@@ -8,6 +8,14 @@
  * needs a DECLARED fiscal year — the page says so and names Company Settings;
  * the server's refusal is the backstop ("explain a refusal; do not hide the
  * control", CLAUDE.md §3).
+ *
+ * 🔴 Q-e (QA 2026-10-04): the list used to render only where the company's
+ * CURRENT ownership makes the tax apply — so an income-tax computation of a
+ * company now declared Saudi (or a Zakat one of a company now mixed) existed,
+ * accrued, and could not be seen or opened. Ownership is undated (a year may
+ * have been computed under another), so an existing record is ALWAYS listed;
+ * where the tax does not apply today, starting a new one is simply not offered
+ * here (whether the server should refuse it is the owner's question, Q-e).
  */
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -31,7 +39,7 @@ import { businessToday } from "@workspace/shared";
 /** The 1445H Zakat Regulations apply to fiscal years starting on or after 1/1/2024 (Decision 1007). */
 const ZAKAT_REGULATIONS_FROM = "2024-01-01";
 
-export function ComputationList({ kind }: { kind: ListTaxComputationsKind }) {
+export function ComputationList({ kind, canStart = true, notStartedWhy }: { kind: ListTaxComputationsKind; canStart?: boolean; notStartedWhy?: string }) {
   const { t } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -54,6 +62,8 @@ export function ComputationList({ kind }: { kind: ListTaxComputationsKind }) {
     },
   }));
   const what = kind === "zakat" ? t("Zakat", "الزكاة") : t("income-tax", "ضريبة الدخل");
+  // where the tax does not apply today there is nothing to start — and nothing to show unless a record exists
+  if (!canStart && (list.isLoading || (list.data ?? []).length === 0)) return null;
 
   return (
     <Card className="border-border" data-testid={`tax-computations-${kind}`}>
@@ -84,7 +94,9 @@ export function ComputationList({ kind }: { kind: ListTaxComputationsKind }) {
             </div>
           )}
 
-        <div className="border-t border-border pt-4" data-testid="tax-computation-create">
+        {!canStart ? (
+          <p className="border-t border-border pt-4 text-sm text-muted-foreground" data-testid="tax-computation-not-offered">{notStartedWhy}</p>
+        ) : <div className="border-t border-border pt-4" data-testid="tax-computation-create">
           {!fiscal.data ? null : !declared ? (
             <p className="text-sm text-muted-foreground" data-testid="tax-fy-undeclared">
               {t(`A ${kind === "zakat" ? "Zakat" : "income-tax"} year is the company's fiscal year, and this company has not declared one. Declare it in `, `سنة ${kind === "zakat" ? "الزكاة" : "ضريبة الدخل"} هي السنة المالية للشركة، ولم تُعلن هذه الشركة سنتها المالية بعد. أعلنها من `)}
@@ -111,7 +123,7 @@ export function ComputationList({ kind }: { kind: ListTaxComputationsKind }) {
               <p className="text-xs text-muted-foreground basis-full">{t(`A draft ${what} computation moves nothing in the books. Only its approval posts the accrual — after the year has ended.`, `مسودة احتساب ${what} لا تحرّك شيئًا في الدفاتر. اعتمادها وحده يرحّل الاستحقاق — بعد انتهاء السنة.`)}</p>
             </div>
           )}
-        </div>
+        </div>}
       </CardContent>
     </Card>
   );

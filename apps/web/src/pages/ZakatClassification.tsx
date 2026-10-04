@@ -10,15 +10,29 @@
  * click — never applied by itself, never in bulk ("suggestions are
  * pre-selected, the human clicks", CLAUDE.md §9). Equity accounts are equity by
  * their own type (Art. 9, 23(1)) and do not appear here.
+ *
+ * 🔴 QA-04 (2026-10-04): the page showed NO balances, so an accountant
+ * classified blind, and a computation's "Classify these accounts" link landed
+ * on every account with its blockers unmarked. Each account now shows its
+ * amount in the statement of financial position at a chosen date (a fiscal
+ * year-end by default) — the server reads the SAME balance-sheet rows the
+ * computation reads at its year-end (never a second balance computation) — and
+ * the "blocking" filter shows exactly the unclassified accounts that would
+ * block a computation for a year ending at that date — by what the computation
+ * READS (`zakatReads`: the year's own Zakat accrual left out, Z-3), not by the
+ * raw balance. The date and the filter live in the
+ * URL, so the computation's link opens the page already scoped to its year.
  */
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListZakatClassifications, useSetZakatClassification, useClearZakatClassification, getListZakatClassificationsQueryKey,
+  useListFiscalYears,
   type ZakatAccountClassification, type ZakatClass,
 } from "@workspace/api-client-react";
-import { fmtDate } from "@/lib/api";
+import { businessToday } from "@workspace/shared";
+import { fmtDate, fmtNum } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,19 +42,51 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useGuarded } from "@/lib/singleSubmit";
 import { zakatClassLabel } from "@/lib/taxLabels";
 import { liquidityLabel } from "@/lib/liquidity";
+import { defaultComputationYear } from "@/lib/taxYears";
 
-type Filter = "unclassified" | "all";
+type Filter = "unclassified" | "blocking" | "all";
+const FILTERS: Filter[] = ["unclassified", "blocking", "all"];
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * Carries an amount the Zakat computation for a year ending at the date READS — to the halala, as it counts.
+ * Not the raw balance: the year's own Zakat accrual is left out of its base (Z-3), so the Zakat payable holding
+ * only that accrual blocks nothing (the page said it did until the walk of 2026-10-04).
+ */
+const carries = (r: ZakatAccountClassification) => r.zakatReads != null && Math.round(r.zakatReads * 100) !== 0;
+const hasBalance = (r: ZakatAccountClassification) => r.balance != null && Math.round(r.balance * 100) !== 0;
 
 export default function ZakatClassification() {
   const { t, n } = useLanguage();
-  const list = useListZakatClassifications();
-  const [filter, setFilter] = useState<Filter>("unclassified");
-  const [search, setSearch] = useState("");
+  const today = businessToday();
+  const search = useSearch();
+  const [location, navigate] = useLocation();
+  const params = new URLSearchParams(search);
+  const fiscal = useListFiscalYears();
+  // the year-ends a balance is read at: every fiscal year that has started (its end — the Zakat date), and today
+  const yearEnds = (fiscal.data?.periods ?? []).filter((p) => p.startDate <= today).map((p) => p.endDate);
+  const suggested = defaultComputationYear(fiscal.data?.periods ?? [], today);
+  const fromUrl = params.get("asOf");
+  const asOf = fromUrl && ISO.test(fromUrl) ? fromUrl : suggested && suggested.endDate < today ? suggested.endDate : today;
+  const filterParam = params.get("filter");
+  const filter: Filter = FILTERS.includes(filterParam as Filter) ? (filterParam as Filter) : "unclassified";
+  const term = params.get("q") ?? "";
+  /** One writer for the page's scope: the URL (replaced — re-scoping a page is not a step back/forward should walk). */
+  const setParam = (key: string, value: string | null) => {
+    const next = new URLSearchParams(search);
+    if (value == null || value === "") next.delete(key); else next.set(key, value);
+    const qs = next.toString();
+    navigate(`${location}${qs ? `?${qs}` : ""}`, { replace: true });
+  };
+
+  const q = { asOf };
+  const list = useListZakatClassifications(q, { query: { queryKey: getListZakatClassificationsQueryKey(q) } });
   const rows = list.data ?? [];
   const shown = useMemo(() => rows
-    .filter((r) => (filter === "all" ? true : r.classification == null))
-    .filter((r) => !search.trim() || `${r.name} ${r.nameAr ?? ""} ${r.systemCode ?? ""}`.toLowerCase().includes(search.trim().toLowerCase())), [rows, filter, search]);
+    .filter((r) => (filter === "all" ? true : filter === "blocking" ? r.classification == null && carries(r) : r.classification == null))
+    .filter((r) => !term.trim() || `${r.name} ${r.nameAr ?? ""} ${r.systemCode ?? ""}`.toLowerCase().includes(term.trim().toLowerCase())), [rows, filter, term]);
   const unclassified = rows.filter((r) => r.classification == null).length;
+  const blocking = rows.filter((r) => r.classification == null && carries(r)).length;
+  const dateOptions = [...new Set([...yearEnds, today, asOf])].sort((a, b) => b.localeCompare(a));
 
   return (
     <div className="space-y-6" data-testid="zakat-classification-page">
@@ -53,26 +99,46 @@ export default function ZakatClassification() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={filter} onValueChange={(v) => setFilter(v as Filter)}>
-          <SelectTrigger className="h-8 w-64 text-sm" data-testid="zakat-class-filter"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="unclassified">{t("Not yet classified", "غير مصنفة بعد")}</SelectItem>
-            <SelectItem value="all">{t("All asset and liability accounts", "كل حسابات الأصول والالتزامات")}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input className="h-8 w-56 text-sm" placeholder={t("Search accounts", "بحث في الحسابات")} value={search} onChange={(e) => setSearch(e.target.value)} data-testid="zakat-class-search" />
-        {list.data && <p className="text-sm text-muted-foreground" data-testid="zakat-class-counts">{t(`${unclassified} of ${rows.length} accounts not yet classified`, `${unclassified} من ${rows.length} حسابًا غير مصنف بعد`)}</p>}
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">{t("Balances at", "الأرصدة في")}</p>
+          <Select value={asOf} onValueChange={(v) => setParam("asOf", v)}>
+            <SelectTrigger className="h-8 w-56 text-sm" data-testid="zakat-class-asof"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {dateOptions.map((d) => (
+                <SelectItem key={d} value={d}>{fmtDate(d)}{d === today ? ` — ${t("today", "اليوم")}` : yearEnds.includes(d) ? ` — ${t("year-end", "نهاية السنة")}` : ""}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">{t("Show", "عرض")}</p>
+          <Select value={filter} onValueChange={(v) => setParam("filter", v === "unclassified" ? null : v)}>
+            <SelectTrigger className="h-8 w-72 max-w-full text-sm" data-testid="zakat-class-filter"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="unclassified">{t("Not yet classified", "غير مصنفة بعد")}</SelectItem>
+              <SelectItem value="blocking">{t("Not classified — blocking a computation at this date", "غير مصنفة — توقف احتساب هذا التاريخ")}</SelectItem>
+              <SelectItem value="all">{t("All asset and liability accounts", "كل حسابات الأصول والالتزامات")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Input className="h-8 w-56 max-w-full text-sm" placeholder={t("Search accounts", "بحث في الحسابات")} value={term} onChange={(e) => setParam("q", e.target.value)} data-testid="zakat-class-search" />
+        {list.data && (
+          <p className="text-sm text-muted-foreground basis-full" data-testid="zakat-class-counts">
+            {t(`${unclassified} of ${rows.length} accounts not yet classified — ${blocking} of them carry an amount a Zakat computation for a year ending ${fmtDate(asOf)} reads, and would block it.`,
+              `${unclassified} من ${rows.length} حسابًا غير مصنف بعد — منها ${blocking} تحمل مبلغًا يقرؤه احتساب زكاة سنة تنتهي في ${fmtDate(asOf)}، فتوقفه.`)}
+          </p>
+        )}
       </div>
 
       <Card className="border-border"><CardContent className="pt-4">
         {list.isLoading ? <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
-          : shown.length === 0 ? <p className="text-sm text-muted-foreground" data-testid="zakat-class-empty">{filter === "unclassified" ? t("Every asset and liability account is classified.", "كل حسابات الأصول والالتزامات مصنفة.") : t("No account matches.", "لا يوجد حساب مطابق.")}</p>
+          : shown.length === 0 ? <p className="text-sm text-muted-foreground" data-testid="zakat-class-empty">{term.trim() ? t("No account matches.", "لا يوجد حساب مطابق.") : filter === "unclassified" ? t("Every asset and liability account is classified.", "كل حسابات الأصول والالتزامات مصنفة.") : filter === "blocking" ? t(`No unclassified account carries an amount a computation for a year ending ${fmtDate(asOf)} reads — nothing here blocks it.`, `لا يوجد حساب غير مصنف يحمل مبلغًا يقرؤه احتساب سنة تنتهي في ${fmtDate(asOf)} — لا شيء هنا يوقفه.`) : t("No account matches.", "لا يوجد حساب مطابق.")}</p>
           : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm" data-testid="zakat-class-table">
                 <thead><tr className="border-b border-border text-xs text-muted-foreground">
-                  {[t("Account", "الحساب"), t("Type", "النوع"), t("Class", "التصنيف"), t("Basis (optional)", "الأساس (اختياري)"), t("Confirmed", "التأكيد"), ""].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>)}
+                  {[t("Account", "الحساب"), t("Type", "النوع"), t(`Balance at ${fmtDate(asOf)}`, `الرصيد في ${fmtDate(asOf)}`), t("Class", "التصنيف"), t("Basis (optional)", "الأساس (اختياري)"), t("Confirmed", "التأكيد"), ""].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>)}
                 </tr></thead>
                 <tbody>{shown.map((r) => <ClassRow key={r.accountId} row={r} label={n(r.name, r.nameAr)} />)}</tbody>
               </table>
@@ -96,8 +162,21 @@ function ClassRow({ row, label }: { row: ZakatAccountClassification; label: stri
   const changed = cls !== (row.classification ?? "") || (note.trim() || null) !== (row.basisNote ?? null);
   return (
     <tr className="border-b border-border/50 align-top" data-testid={`zakat-class-row-${row.accountId}`}>
-      <td className="py-2 pe-3">{label}{row.systemCode && <span className="block text-xs text-muted-foreground font-mono" dir="ltr">{row.systemCode}</span>}</td>
+      <td className="py-2 pe-3">
+        {label}{row.systemCode && <span className="block text-xs text-muted-foreground font-mono" dir="ltr">{row.systemCode}</span>}
+        {!row.isPosting && <span className="block text-xs text-muted-foreground max-w-64" data-testid={`zakat-class-header-${row.accountId}`}>{t("Header account — listed because it carries entries of its own from before per-bank cash accounts; the computation reads its balance.", "حساب رئيسي — مُدرج لأنه يحمل قيودًا خاصة به من قبل الحسابات النقدية لكل بنك؛ ويقرأ الاحتساب رصيده.")}</span>}
+      </td>
       <td className="py-2 pe-3">{row.type === "asset" ? t("Asset", "أصل") : t("Liability", "التزام")}{liquidityLabel(row.liquidityClass, t) && <span className="block text-xs text-muted-foreground">{liquidityLabel(row.liquidityClass, t)}</span>}</td>
+      <td className="py-2 pe-3 text-end whitespace-nowrap" data-testid={`zakat-class-balance-${row.accountId}`}>
+        {row.balance == null ? "—" : <span className={`font-mono ${hasBalance(row) ? "" : "text-muted-foreground"}`} dir="ltr">{fmtNum(row.balance)}</span>}
+        {row.balance != null && !hasBalance(row) && <span className="block text-xs text-muted-foreground">{t("no balance — blocks nothing", "لا رصيد — لا يوقف شيئًا")}</span>}
+        {hasBalance(row) && row.zakatReads != null && Math.round(row.zakatReads * 100) !== Math.round((row.balance ?? 0) * 100) && (
+          <span className="block text-xs text-muted-foreground whitespace-normal max-w-56" data-testid={`zakat-class-own-accrual-${row.accountId}`}>
+            {t(`The year's own Zakat accrual is left out of its base (Z-3) — the computation reads ${fmtNum(row.zakatReads)}.`, `تُستبعد زكاة السنة نفسها من وعائها (Z-3) — يقرأ الاحتساب ${fmtNum(row.zakatReads)}.`)}
+          </span>
+        )}
+        {carries(row) && row.classification == null && <span className="block text-xs" data-testid={`zakat-class-blocks-${row.accountId}`}>{t("unclassified, with a balance — blocks", "غير مصنف وله رصيد — يوقف الاحتساب")}</span>}
+      </td>
       <td className="py-2 pe-3 min-w-56">
         <Select value={cls} onValueChange={setCls}>
           <SelectTrigger className="h-8 text-sm" data-testid={`zakat-class-select-${row.accountId}`}><SelectValue placeholder={t("Choose a class…", "اختر تصنيفًا…")} /></SelectTrigger>

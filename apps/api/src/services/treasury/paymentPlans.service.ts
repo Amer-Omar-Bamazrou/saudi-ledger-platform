@@ -47,8 +47,11 @@ async function planOut(p: PlanRow) {
   // the WHT a non-resident's payment would withhold on the planned date — an ESTIMATE, decided by the pay
   // path's OWN function (QA 2026-10-04: a second rule here ignored the supplier's declared default nature
   // and an approved treaty relief, so a plan said "no estimate" or showed the statutory rate)
+  // 🔴 only an OPEN plan is estimated: a paid plan shows what its payment RECORDED (QA 2026-10-04 — a paid plan
+  // showed a re-estimate with today's supplier, relief and rate, a figure the payment never withheld)
+  const open = p.status === "planned" || p.status === "approved";
   let whtEstimate: number | null = null;
-  if (p.vendor_residency === "non_resident" && amount > 0) {
+  if (open && p.vendor_residency === "non_resident" && amount > 0) {
     try {
       const d = await decideWithholding({ vendorId: p.vendor_id, paymentDate: p.planned_date < today ? today : p.planned_date, base: amount, declared: { paymentType: p.wht_payment_type } });
       whtEstimate = d.kind === "withheld" ? fromHalalas(d.whtH) : d.kind === "not_subject" ? 0 : null;
@@ -56,13 +59,14 @@ async function planOut(p: PlanRow) {
       whtEstimate = null; // undecidable until the payment states its nature — said so on the page, never a guessed rate
     }
   }
-  const open = p.status === "planned" || p.status === "approved";
+  const whtWithheld = p.status === "paid" && p.paid_wht != null ? Number(p.paid_wht) : null;
   return {
     id: p.id, billId: p.bill_id, billNumber: p.bill_number, vendorId: p.vendor_id, vendorName: p.vendor_name, vendorNameAr: p.vendor_name_ar,
     vendorResidency: p.vendor_residency, billDueDate: p.bill_due_date, billDate: p.bill_date, billOutstanding: outstanding,
     plannedDate: p.planned_date, amount, bankAccountId: p.bank_account_id, bankName: p.bank_name,
     priority: p.priority as (typeof PRIORITIES)[number], status: p.status as "planned" | "approved" | "paid" | "cancelled",
-    whtPaymentType: p.wht_payment_type, whtEstimate, cashEstimate: whtEstimate == null ? amount : round2(amount - whtEstimate),
+    whtPaymentType: p.wht_payment_type, whtEstimate, whtWithheld,
+    cashEstimate: open ? (whtEstimate == null ? amount : round2(amount - whtEstimate)) : whtWithheld != null ? round2(amount - whtWithheld) : amount,
     notes: p.notes, createdBy: p.created_by, createdAt: p.created_at, approvedBy: p.approved_by, approvedAt: p.approved_at,
     paidBillPaymentId: p.paid_bill_payment_id, paidBy: p.paid_by, paidAt: p.paid_at,
     cancelledBy: p.cancelled_by, cancelledAt: p.cancelled_at, cancelReason: p.cancel_reason,

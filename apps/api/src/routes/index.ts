@@ -147,7 +147,7 @@ router.use("/journal-entries", requirePermission("journal_entries"), journalEntr
 router.use("/recognition-schedules", requirePermission("journal_entries"), recognitionSchedules);
 // Spans four resources: at least one READ grant to reach it, and the service
 // then filters to exactly the entities this role may read.
-router.use("/approvals", requireAnyPermission(["invoices", "bills", "journal_entries", "payroll"]), approvals);
+router.use("/approvals", requireAnyPermission(["invoices", "bills", "journal_entries", "payroll", "tax", "treasury"]), approvals);
 router.use("/employees", requirePermission("employees"), employees);
 router.use("/payroll", requirePermission("payroll"), payroll);
 router.use("/assets", requirePermission("assets"), assets);

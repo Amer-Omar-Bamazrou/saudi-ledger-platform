@@ -7,7 +7,10 @@
  * The pending set is bounded by what approvers have not acted on, not by data
  * volume; a LIMIT returning here would be the same defect wearing the fix.
  */
-import { db, billsTable, categoriesTable, invoicesTable, journalEntriesTable, payrollRunsTable } from "@workspace/db";
+import {
+  db, billsTable, categoriesTable, invoicesTable, journalEntriesTable, payrollRunsTable,
+  taxComputationsTable, taxComputationVersionsTable, vendorWhtTreatyReliefsTable, scheduledPaymentsTable, vendorsTable,
+} from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 const PENDING = ["draft", "submitted"];
@@ -64,5 +67,57 @@ export const approvalsQueueRepository = {
       .from(payrollRunsTable)
       .where(and(inArray(payrollRunsTable.status, PENDING), sql`${payrollRunsTable.companyId} = ${currentCompany}`))
       .orderBy(desc(payrollRunsTable.period), desc(payrollRunsTable.id));
+  },
+
+  /**
+   * Phase 16 (QA-15): a computation version a preparer SUBMITTED. A draft is the
+   * preparer's working paper — a live projection until its year ends — not a
+   * request for approval, so only `submitted` is listed (the act of submitting is
+   * what asks an approver). Company by the computation's own column.
+   */
+  pendingTaxComputationVersions() {
+    return db
+      .select({
+        id: taxComputationVersionsTable.id, computationId: taxComputationVersionsTable.computationId,
+        versionNo: taxComputationVersionsTable.versionNo, status: taxComputationVersionsTable.status,
+        kind: taxComputationsTable.kind, fiscalLabel: taxComputationsTable.fiscalLabel,
+      })
+      .from(taxComputationVersionsTable)
+      .innerJoin(taxComputationsTable, eq(taxComputationsTable.id, taxComputationVersionsTable.computationId))
+      .where(and(eq(taxComputationVersionsTable.status, "submitted"), sql`${taxComputationsTable.companyId} = ${currentCompany}`))
+      .orderBy(desc(taxComputationVersionsTable.submittedAt), desc(taxComputationVersionsTable.id));
+  },
+
+  /** Phase 16 (QA-15): a treaty relief recorded and not yet approved — it relieves nothing until it is. */
+  pendingWhtReliefs() {
+    return db
+      .select({
+        id: vendorWhtTreatyReliefsTable.id, status: vendorWhtTreatyReliefsTable.status,
+        paymentType: vendorWhtTreatyReliefsTable.paymentType, reducedRate: vendorWhtTreatyReliefsTable.reducedRate,
+        treatyCountry: vendorWhtTreatyReliefsTable.treatyCountry, vendorName: vendorsTable.name, vendorNameAr: vendorsTable.nameAr,
+      })
+      .from(vendorWhtTreatyReliefsTable)
+      .leftJoin(vendorsTable, eq(vendorsTable.id, vendorWhtTreatyReliefsTable.vendorId))
+      .where(and(eq(vendorWhtTreatyReliefsTable.status, "pending"), sql`${vendorWhtTreatyReliefsTable.companyId} = ${currentCompany}`))
+      .orderBy(desc(vendorWhtTreatyReliefsTable.createdAt), desc(vendorWhtTreatyReliefsTable.id));
+  },
+
+  /**
+   * Phase 17 (QA-15): a payment plan not yet approved. An APPROVED plan waits for
+   * payment, not for approval, and is not listed. The amount is the plan's own —
+   * what it would settle — never a bill figure.
+   */
+  pendingPaymentPlans() {
+    return db
+      .select({
+        id: scheduledPaymentsTable.id, status: scheduledPaymentsTable.status, amount: scheduledPaymentsTable.amount,
+        plannedDate: scheduledPaymentsTable.plannedDate, billId: scheduledPaymentsTable.billId, billNumber: billsTable.billNumber,
+        vendorName: vendorsTable.name, vendorNameAr: vendorsTable.nameAr,
+      })
+      .from(scheduledPaymentsTable)
+      .innerJoin(billsTable, eq(billsTable.id, scheduledPaymentsTable.billId))
+      .leftJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))
+      .where(and(eq(scheduledPaymentsTable.status, "planned"), sql`${scheduledPaymentsTable.companyId} = ${currentCompany}`))
+      .orderBy(desc(scheduledPaymentsTable.plannedDate), desc(scheduledPaymentsTable.id));
   },
 };

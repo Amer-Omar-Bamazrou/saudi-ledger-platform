@@ -12,7 +12,9 @@
  *   Zakat     the ZAKAT_PAYMENT balance; due 120 days after the year-end (Zakat Regs Art. 102(1))
  *   Income    the INCOME_TAX_PAYABLE balance; due 120 days after the year-end (ITL Arts 60(b), 69)
  *   VAT       the return's net VAT for the last completed tax period, less VAT payments booked
- *             since it ended; due the last day of the following month (VAT IR "Payment of Tax")
+ *             since it ended; due the last day of the following month (VAT IR "Payment of Tax").
+ *             Listed whatever its sign, with its position (payable · settled · nil · credit) —
+ *             a zero or credit period owes 0 and is never projected as cash (QA-06)
  */
 import { businessToday } from "@workspace/shared";
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
@@ -32,9 +34,31 @@ export type TaxObligation = {
   /** Why the date is null, or what it assumes. */
   note: string | null;
   /** Where the figure comes from — every figure drills to its source. */
-  source: { type: "wht_period" | "gl_account" | "vat_return"; period?: string | null; systemCode?: string; from?: string; to?: string };
+  source: { type: "wht_period" | "gl_account" | "vat_return"; period?: string | null; systemCode?: string; from?: string; to?: string; computationId?: number | null };
   overdue: boolean;
+  /** A VAT period's position on its own return; null on every other row (QA-06). */
+  vatPosition?: "payable" | "settled" | "nil" | "credit" | null;
+  /** A VAT period's net VAT exactly as its return computes it — negative for a credit. */
+  returnNet?: number | null;
+  /** VAT payments booked since a completed VAT period ended (presumed for it). */
+  paidSince?: number | null;
 };
+
+/**
+ * A VAT period's row, whatever its sign (QA-06). It used to exist only while
+ * something was owed, so a period that netted to zero or to a credit had NO
+ * row — and the note that earlier periods are not projected here (D-01's
+ * mitigation) disappeared with it, on exactly the screens where a reader would
+ * conclude "nothing to watch". The amount stays what is OWED (never negative):
+ * a credit is not projected as cash — it is the return's to carry forward or
+ * reclaim — and Treasury reads only amounts above zero.
+ */
+function vatPositionOf(net: number, paid: number): { position: "payable" | "settled" | "nil" | "credit"; owed: number } {
+  if (net < 0) return { position: "credit", owed: 0 };
+  if (net === 0) return { position: "nil", owed: 0 };
+  const owed = round2(net - paid);
+  return owed > 0 ? { position: "payable", owed } : { position: "settled", owed: 0 };
+}
 
 /** Credit-positive GL balances of system-coded accounts as of a date (this company, in the books) — the Phase 14 seam. */
 export async function liabilityBalances(codes: string[], asOf: string): Promise<Map<string, number>> {
@@ -98,7 +122,8 @@ export const taxObligationsService = {
         kind, reference: latest ? `FY ${latest.fiscalYearStart} – ${latest.fiscalYearEnd}` : "payable",
         amount: bal, dueDate: due,
         note: latest ? "120 days after the fiscal year-end of the latest approved computation; a balance from earlier years is shown with it." : "No approved computation dates this balance.",
-        source: { type: "gl_account", systemCode: code }, overdue: due != null && due < today,
+        // the computation that dates the row — the row links to IT, not to the list (QA-16: the link lost the year)
+        source: { type: "gl_account", systemCode: code, computationId: latest?.id ?? null }, overdue: due != null && due < today,
       });
     }
 
@@ -118,11 +143,32 @@ export const taxObligationsService = {
       const ret = await reportsService.vatReturn(last.from, last.to);
       // VAT payments booked since the period ended are presumed to be for it (labelled)
       const paidSince = await taxRepository.movementBySystemCode(["VAT_PAYMENT"], addDays(last.to, 1), today);
-      const amount = round2(Number(ret.netVatDue) - (paidSince.get("VAT_PAYMENT") ?? 0));
-      if (amount > 0) out.push({ kind: "vat", reference: `${last.from} – ${last.to}`, amount, dueDate: lastDue, note: ["Net VAT per the return, less VAT payments booked since the period ended (presumed for it). Periods before it are not projected here — the VAT return answers for each.", assumption].filter(Boolean).join(" "), source: { type: "vat_return", from: last.from, to: last.to }, overdue: lastDue < today });
+      const lastNet = round2(Number(ret.netVatDue));
+      const paid = round2(paidSince.get("VAT_PAYMENT") ?? 0);
+      const lastPos = vatPositionOf(lastNet, paid);
+      const lastNote = {
+        payable: "Net VAT per the return, less VAT payments booked since the period ended (presumed for it).",
+        settled: "VAT payments booked since the period ended (presumed for it) cover the return's net VAT — nothing is owed.",
+        nil: "The return nets to zero — nothing is owed.",
+        credit: "The return nets to a credit (input VAT exceeds output VAT) — nothing is owed. The credit is not projected as cash here.",
+      }[lastPos.position];
+      out.push({
+        kind: "vat", reference: `${last.from} – ${last.to}`, amount: lastPos.owed, dueDate: lastDue,
+        note: [lastNote, "Periods before it are not projected here — the VAT return answers for each.", assumption].filter(Boolean).join(" "),
+        source: { type: "vat_return", from: last.from, to: last.to },
+        // overdue only while something is owed past the deadline
+        overdue: lastPos.owed > 0 && lastDue < today,
+        vatPosition: lastPos.position, returnNet: lastNet, paidSince: paid,
+      });
       const toDate = await reportsService.vatReturn(current.from, today);
-      const amt = round2(Number(toDate.netVatDue));
-      if (amt > 0) out.push({ kind: "vat", reference: `${current.from} – ${current.to} (to date)`, amount: amt, dueDate: vatDue(current.to), note: ["The current period TO DATE — it grows until the period ends.", assumption].filter(Boolean).join(" "), source: { type: "vat_return", from: current.from, to: today }, overdue: false });
+      const curNet = round2(Number(toDate.netVatDue));
+      const curPos = vatPositionOf(curNet, 0);
+      out.push({
+        kind: "vat", reference: `${current.from} – ${current.to} (to date)`, amount: curPos.owed, dueDate: vatDue(current.to),
+        note: ["The current period TO DATE — it grows until the period ends.", assumption].filter(Boolean).join(" "),
+        source: { type: "vat_return", from: current.from, to: today }, overdue: false,
+        vatPosition: curPos.position, returnNet: curNet, paidSince: null,
+      });
     }
 
     out.sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"));

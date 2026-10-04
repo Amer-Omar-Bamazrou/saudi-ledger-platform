@@ -3698,7 +3698,7 @@ paths:
     get:
       operationId: listPendingApprovals
       tags: [approvals]
-      summary: Every document waiting for approval, across all four draftable entities
+      summary: Every record waiting for approval — the four draftable documents, and the Phase 16/17 tax and treasury approvals
       description: |
         🔴 UNBOUNDED, DELIBERATELY (owner decision, 2026-09-02). The page this
         replaced fetched the default page (50) of each list and filtered
@@ -6637,6 +6637,17 @@ paths:
       operationId: listZakatClassifications
       tags: [tax]
       summary: Every asset and liability posting account with its Zakat-base class (if a person confirmed one) and a suggestion.
+      description: |
+        With `asOf`, each account also carries its amount in the statement of
+        financial position at that date (this company) — the balance-sheet rows
+        the Zakat computation reads at its year-end, never a second computation
+        (QA-04). Without it, `balance` is null.
+      parameters:
+        - in: query
+          name: asOf
+          required: false
+          schema: { type: string }
+          description: YYYY-MM-DD — the date the balances are read at (a fiscal year-end, typically).
       responses:
         "200":
           description: The chart's classification
@@ -13300,18 +13311,38 @@ components:
       properties:
         entity:
           type: string
-          enum: [invoices, bills, journal-entries, payroll]
-          description: Matches the URL segment its actions post to (`/{entity}/{id}/approve` …).
+          enum: [invoices, bills, journal-entries, payroll, tax-computations, wht-reliefs, payment-plans]
+          description: |
+            The four documents match the URL segment their actions post to
+            (`/{entity}/{id}/approve` …). Phase 16/17 (QA-15): a SUBMITTED tax
+            computation version (`/tax/computations/{parentId}/versions/{id}/…`),
+            a PENDING treaty relief (`/tax/wht/reliefs/{id}/…`) and a PLANNED
+            payment plan (`/treasury/payment-plans/{id}/…`) — each acted on
+            through its own route and permission.
         id: { type: integer }
         label:
           type: string
-          description: The human identifier — document number or payroll period.
+          description: The human identifier — document number, payroll period, fiscal year and version, supplier and treaty rate, or bill and planned date.
+        labelAr:
+          type: ["string", "null"]
+          description: The label with the party's Arabic name, where the party has one.
         status:
           type: string
-          enum: [draft, submitted]
+          enum: [draft, submitted, pending, planned]
         amount:
-          type: number
-          description: The document's own total; a journal entry's is the sum of its debit lines, from the same aggregate the ledger list uses.
+          type: ["number", "null"]
+          description: |
+            The document's own total; a journal entry's is the sum of its debit
+            lines, from the same aggregate the ledger list uses; a plan's is what
+            it would settle. NULL where the record has no amount of its own — a
+            treaty relief is a rate, and a computation's figure is the working
+            paper's live reading, shown on its own page.
+        parentId:
+          type: ["integer", "null"]
+          description: A computation version's computation id (its routes are nested under it).
+        subtype:
+          type: ["string", "null"]
+          description: "`zakat` | `income_tax` for a computation; the IR Art. 63(1) nature for a relief."
 
     BudgetFiscalYear:
       type: object
@@ -14820,7 +14851,7 @@ components:
 
     ZakatAccountClassification:
       type: object
-      required: [accountId, name, nameAr, type, liquidityClass, systemCode, classification, article, basisNote, confirmedBy, confirmedAt, suggestion, allowed]
+      required: [accountId, name, nameAr, type, liquidityClass, systemCode, isPosting, balance, zakatReads, classification, article, basisNote, confirmedBy, confirmedAt, suggestion, allowed]
       properties:
         accountId: { type: integer }
         name: { type: string }
@@ -14828,6 +14859,15 @@ components:
         type: { type: string, enum: [asset, liability] }
         liquidityClass: { type: ["string", "null"] }
         systemCode: { type: ["string", "null"] }
+        isPosting:
+          type: boolean
+          description: False for a header account listed because it carries entries of its own (the CASH header's pre-D-3 history, F-14).
+        balance:
+          type: ["number", "null"]
+          description: The account's amount in the statement of financial position at `asOf` (assets debit-positive, liabilities credit-positive; a contra account negative); 0 when it carries nothing then; null when no `asOf` was given.
+        zakatReads:
+          type: ["number", "null"]
+          description: What the Zakat computation for a fiscal year ending at `asOf` reads from the account — the balance less that computation's OWN accrual (Z-3). It equals `balance` unless the year's own Zakat accrual sits in it; an unclassified account blocks a computation only when this is non-zero. Null when no `asOf` was given.
         classification:
           oneOf:
             - { $ref: "#/components/schemas/ZakatClass" }
@@ -14858,7 +14898,9 @@ components:
       properties:
         kind: { type: string, enum: [wht, zakat, income_tax, vat] }
         reference: { type: string }
-        amount: { type: number }
+        amount:
+          type: number
+          description: What is owed now — never negative. A VAT period that nets to zero or to a credit, or whose payments already cover it, owes 0 and says which (`vatPosition`).
         dueDate: { type: ["string", "null"] }
         note: { type: ["string", "null"] }
         source:
@@ -14870,7 +14912,25 @@ components:
             systemCode: { type: string }
             from: { type: string }
             to: { type: string }
+            computationId:
+              type: ["integer", "null"]
+              description: Zakat / income tax — the approved computation whose fiscal year dates the balance (the row links to it).
         overdue: { type: boolean }
+        vatPosition:
+          type: ["string", "null"]
+          enum: [payable, settled, nil, credit, null]
+          description: |
+            A VAT period's position on its own return (QA-06): `payable` (owed),
+            `settled` (VAT payments booked since the period ended cover it),
+            `nil` (the return nets to zero) or `credit` (input VAT exceeds output
+            VAT — nothing is owed, and the credit is NOT projected as cash).
+            Null on every other row.
+        returnNet:
+          type: ["number", "null"]
+          description: A VAT period's net VAT exactly as its return computes it (negative for a credit) — the return's own figure, never re-derived.
+        paidSince:
+          type: ["number", "null"]
+          description: VAT payments booked since a completed VAT period ended (presumed for it); null on every other row.
 
     TaxObligationsReport:
       type: object
@@ -15444,7 +15504,7 @@ components:
     PaymentPlan:
       type: object
       required: [id, billId, billNumber, vendorId, vendorName, vendorNameAr, vendorResidency, billDueDate, billDate, billOutstanding, plannedDate, amount,
-                 bankAccountId, bankName, priority, status, whtPaymentType, whtEstimate, cashEstimate, notes, createdBy, createdAt, approvedBy, approvedAt,
+                 bankAccountId, bankName, priority, status, whtPaymentType, whtEstimate, whtWithheld, cashEstimate, notes, createdBy, createdAt, approvedBy, approvedAt,
                  paidBillPaymentId, paidBy, paidAt, cancelledBy, cancelledAt, cancelReason, overdue, exceedsOutstanding, billReversed]
       properties:
         id: { type: integer }
@@ -15464,8 +15524,15 @@ components:
         priority: { type: string, enum: [high, normal, low] }
         status: { type: string, enum: [planned, approved, paid, cancelled] }
         whtPaymentType: { type: ["string", "null"] }
-        whtEstimate: { type: ["number", "null"] }
-        cashEstimate: { type: number }
+        whtEstimate:
+          type: ["number", "null"]
+          description: An OPEN plan's estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.
+        whtWithheld:
+          type: ["number", "null"]
+          description: A PAID plan's withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today's supplier, relief or rate. Null otherwise.
+        cashEstimate:
+          type: number
+          description: The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).
         notes: { type: ["string", "null"] }
         createdBy: { type: ["integer", "null"] }
         createdAt: { type: string }

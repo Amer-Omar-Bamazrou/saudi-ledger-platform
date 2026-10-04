@@ -36,7 +36,7 @@ import { auditService } from "../audit.service";
 import { approvalService, type Approvable, type ApprovalState } from "../approval";
 import { computeZakat, type ZakatLine, type ZakatResult } from "./zakatEngine";
 import { computeIncomeTax, type IncomeTaxResult } from "./incomeTaxEngine";
-import { ZAKAT_CLASS_ARTICLE } from "./zakatClassification.service";
+import { ZAKAT_CLASS_ARTICLE, accountIdOfKey, withoutOwnAccrualH } from "./zakatClassification.service";
 
 export type TaxKind = "zakat" | "income_tax";
 const KINDS: TaxKind[] = ["zakat", "income_tax"];
@@ -75,8 +75,6 @@ const isOpen = (v: TaxComputationVersion) => v.status === "draft" || v.status ==
 
 type Blocker = { code: string; message: string; accounts?: { key: string; name: string; nameAr: string; amount: number }[] };
 
-/** A balance-sheet row's account id (legacy rows with no account carry their name as key). */
-const accountIdOfKey = (key: string): number | null => (/^\d+$/.test(key) ? Number(key) : null);
 
 async function zakatInputs(c: TaxComputation, adjustments: Awaited<ReturnType<typeof taxRepository.adjustmentsOf>>) {
   const blockers: Blocker[] = [];
@@ -117,7 +115,7 @@ async function zakatInputs(c: TaxComputation, adjustments: Awaited<ReturnType<ty
     const accountId = accountIdOfKey(item.key);
     // undo the own-accrual effect on this account: assets are debit-positive, liabilities/equity credit-positive
     const eff = accountId != null ? toHalalas(effectBy.get(accountId) ?? 0) : 0;
-    const amountH = section === "asset" ? toHalalas(item.amount) - eff : toHalalas(item.amount) + eff;
+    const amountH = withoutOwnAccrualH(section, toHalalas(item.amount), eff);
     if (section === "asset") totalAssetsH += amountH;
     if (amountH === 0) return;
     if (section === "equity") { lines.push({ accountId, key: item.key, name: item.name, nameAr: item.nameAr, zakatClass: "equity", amountH }); return; }

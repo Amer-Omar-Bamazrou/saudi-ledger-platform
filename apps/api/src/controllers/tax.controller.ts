@@ -56,7 +56,7 @@ export const taxController = {
   },
 
   // ── Zakat classification ───────────────────────────────────────────────
-  async classifications(_req: Request, res: Response) { res.json(await zakatClassificationService.list()); },
+  async classifications(req: Request, res: Response) { res.json(await zakatClassificationService.list(req.query.asOf)); },
   async setClassification(req: Request, res: Response) {
     res.json(await zakatClassificationService.set(intParam(req.params.accountId, "accountId"), parseOr400(SetZakatClassificationBody.safeParse(req.body)), userOf(req)));
   },

@@ -1,7 +1,8 @@
 /**
  * Phase 16A — the withholding-tax declaration on a supplier payment, and the
- * SERVER's preview of it. Used by the two supplier pay dialogs (Bills → Pay,
- * Supplier payments → New payment) — the two pay paths that withhold.
+ * SERVER's preview of it. Used by the three supplier pay forms (Bills → Pay,
+ * Supplier payments → New payment, Treasury → pay a plan — QA-16 added the
+ * third, which had its own controls and no preview).
  * Record: docs/product/phase-16-17-tax-treasury-decision-pack.md §2.3–§2.4.
  *
  * 🔴 Nothing here decides anything:
@@ -24,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { refusalOf } from "@/lib/openingVatRefusals";
-import { notSubjectLabel, whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
+import { legalRef, notSubjectLabel, whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
 
 /** The WHT fields of a pay request — the same names on both pay paths (`whtDeclarationFrom`). Absent = not stated. */
 export type WhtDeclarationValue = {
@@ -37,8 +38,10 @@ type WhtFieldsProps = {
   vendorId: number | null | undefined;
   /** The supplier record's `residency` — `undefined` while it loads (nothing renders). */
   residency: string | null | undefined;
-  /** The supplier's declared default nature (`vendors.wht_default_payment_type`). */
+  /** The nature preselected: the supplier's declared default (`vendors.wht_default_payment_type`), or a plan's own. */
   defaultType: string | null | undefined;
+  /** Whose nature `defaultType` is — the copy says so ("supplier" unless a payment plan's). */
+  presetFrom?: "supplier" | "plan";
   /** What the SUPPLIER is credited with — the base the server withholds on. */
   amount: number;
   /** The payment date (YYYY-MM-DD) — the rate in force is the date's. */
@@ -65,8 +68,8 @@ function useDebounced<T extends string | number>(value: T, ms = 300): T {
 /** A rate the server sent (a fraction) as a percentage — display only. */
 const pct = (r: number) => `${Number((r * 100).toFixed(2))}%`;
 
-export function WhtFields({ vendorId, residency, defaultType, amount, date, onChange }: WhtFieldsProps) {
-  const { t } = useLanguage();
+export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supplier", amount, date, onChange }: WhtFieldsProps) {
+  const { t, lang } = useLanguage();
   const [mode, setMode] = useState<"withhold" | "not_subject">("withhold");
   const [nature, setNature] = useState<string>(defaultType ?? "");
   const [reason, setReason] = useState<"" | "goods" | "not_kingdom_source">("");
@@ -166,7 +169,9 @@ export function WhtFields({ vendorId, residency, defaultType, amount, date, onCh
             </SelectContent>
           </Select>
           <p className="text-[11px] text-muted-foreground mt-1">
-            {defaultType
+            {defaultType && presetFrom === "plan"
+              ? t("The nature the plan was made with is preselected; change it if this payment is for something else — what is declared at payment governs.", "طبيعة الدفعة التي أُعدّت بها الخطة مختارة مسبقًا؛ غيّرها إن كانت هذه الدفعة لغير ذلك — العبرة بما يُصرَّح به عند الدفع.")
+              : defaultType
               ? t("The supplier's declared default is preselected; change it if this payment is for something else.", "الطبيعة الافتراضية المُصرَّح بها للمورد مختارة مسبقًا؛ غيّرها إن كانت هذه الدفعة لغير ذلك.")
               : t("This supplier has no declared default nature — choose one; it is never assumed.", "لا توجد للمورد طبيعة افتراضية مُصرَّح بها — اختر واحدة؛ فلا تُفترض أبدًا.")}
           </p>
@@ -216,7 +221,7 @@ export function WhtFields({ vendorId, residency, defaultType, amount, date, onCh
               </div>
             )}
             {p.kind === "withheld" && p.legalReference && (
-              <p className="text-muted-foreground">{t("Legal basis", "السند النظامي")}: <span dir="ltr">{p.legalReference}</span></p>
+              <p className="text-muted-foreground" data-testid="wht-preview-legal">{t("Legal basis", "السند النظامي")}: <span dir={lang === "ar" ? undefined : "ltr"} title={p.legalReference}>{legalRef(p.legalReference, lang)}</span></p>
             )}
             {p.kind === "not_subject" && (
               <p className="text-muted-foreground">

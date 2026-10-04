@@ -5,7 +5,10 @@ are fixed on `feat/phase16-17-tax-treasury` with regression tests; the design
 questions are open for the owner and the accountant (§I).** Current state
 authority: [CLAUDE.md §2](../../CLAUDE.md). Decision pack:
 [`phase-16-17-tax-treasury-decision-pack.md`](../product/phase-16-17-tax-treasury-decision-pack.md)
-§13.2 (F-16…F-25) and §13.3 (D-11…D-22).
+§13.2 (F-16…F-25) and §13.3 (D-11…D-22). **Follow-up (2026-10-04):** the
+items in §J and the UI parts of §I that needed no decision were closed
+(F-26…F-36) — record [`phase-16-17-gap-closure-2026-10-04.md`](phase-16-17-gap-closure-2026-10-04.md);
+QA-08, QA-09 and QA-14 remain open.
 
 A walk of the product as an accountant would use it — real clicks in Chrome,
 the API the pages call, the database, the GL and the reports compared figure

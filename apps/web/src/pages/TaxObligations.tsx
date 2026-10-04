@@ -7,6 +7,14 @@
  * return); every date is a statutory rule applied to a declared fact. Where a
  * date cannot be established the row says so — never a guessed day. The
  * server's notes are English; the page words them by the row's SOURCE.
+ *
+ * 🔴 QA-16 (2026-10-04): every row linked to its tax's front page — `/zakat`,
+ * `/vat`, `/tax/withholding` — and the destination answered a broader question
+ * than the row asked (a navigation that loses the scope, CLAUDE.md §3). Each
+ * link now carries the row's own scope: the WHT month, the VAT period, the
+ * approved computation that dates a Zakat or income-tax balance — and each
+ * destination READS it (the WHT and VAT pages take it from the URL).
+ * QA-06: a VAT period is listed whatever its sign, and says its position.
  */
 import { Link } from "wouter";
 import { useGetTaxObligations, type TaxObligation } from "@workspace/api-client-react";
@@ -14,11 +22,10 @@ import { fmtDate, fmtNum } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { obligationKindLabel } from "@/lib/taxLabels";
+import { hrefOf } from "@/lib/taxLinks";
 
 type T = (en: string, ar: string) => string;
 
-const hrefOf = (o: TaxObligation) =>
-  o.kind === "wht" ? "/tax/withholding" : o.kind === "zakat" ? "/zakat" : o.kind === "income_tax" ? "/tax/income-tax" : "/vat";
 
 function ruleOf(o: TaxObligation, t: T) {
   if (o.kind === "wht") return o.dueDate
@@ -28,9 +35,32 @@ function ruleOf(o: TaxObligation, t: T) {
     ? t("Due 120 days after the fiscal year-end of the latest approved computation; a balance from earlier years is shown with it.", "تستحق بعد 120 يومًا من نهاية السنة المالية لأحدث احتساب معتمد؛ ويُعرض معها رصيد السنوات السابقة.")
     : t("No approved computation dates this balance.", "لا يوجد احتساب معتمد يؤرّخ هذا الرصيد.");
   if (o.dueDate == null) return t("The company's VAT tax period (monthly or quarterly) is not declared, so VAT is not projected. Declare it in Company Settings.", "لم يُصرَّح بفترة ضريبة القيمة المضافة للشركة (شهرية أو ربع سنوية)، فلا تُسقَط. صرِّح بها في إعدادات الشركة.");
-  return o.reference.includes("(to date)")
-    ? t("The current period TO DATE — it grows until the period ends. Due by the last day of the month after the period.", "الفترة الحالية حتى تاريخه — تنمو حتى تنتهي الفترة. تستحق بنهاية الشهر التالي للفترة.")
-    : t("Net VAT per the return for the last completed period, less VAT payments booked since it ended (presumed for it). Due by the last day of the following month.", "صافي الضريبة حسب الإقرار لآخر فترة مكتملة، مطروحًا منه ما دُفع للضريبة منذ نهايتها (يُفترض أنه لها). تستحق بنهاية الشهر التالي.");
+  const earlier = t(" Periods before it are not projected here — the VAT return answers for each.", " لا تُسقَط الفترات السابقة لها هنا — يجيب إقرار ضريبة القيمة المضافة عن كل منها.");
+  if (o.reference.includes("(to date)")) {
+    return o.vatPosition === "credit"
+      ? t("The current period TO DATE nets to a credit — nothing is owed so far; a credit is not projected as cash.", "الفترة الحالية حتى تاريخه صافيها رصيد دائن — لا شيء مستحق حتى الآن؛ ولا يُسقَط الرصيد الدائن نقدًا.")
+      : o.vatPosition === "nil"
+        ? t("The current period TO DATE nets to zero — nothing is owed so far. It grows until the period ends.", "الفترة الحالية حتى تاريخه صافيها صفر — لا شيء مستحق حتى الآن. وتنمو حتى تنتهي الفترة.")
+        : t("The current period TO DATE — it grows until the period ends. Due by the last day of the month after the period.", "الفترة الحالية حتى تاريخه — تنمو حتى تنتهي الفترة. تستحق بنهاية الشهر التالي للفترة.");
+  }
+  const lead = o.vatPosition === "credit"
+    ? t("The return for the last completed period nets to a credit (input VAT exceeds output VAT) — nothing is owed. A credit is not projected as cash here.", "صافي إقرار آخر فترة مكتملة رصيد دائن (ضريبة المدخلات تفوق ضريبة المخرجات) — لا شيء مستحق. ولا يُسقَط الرصيد الدائن هنا نقدًا.")
+    : o.vatPosition === "nil"
+      ? t("The return for the last completed period nets to zero — nothing is owed.", "صافي إقرار آخر فترة مكتملة صفر — لا شيء مستحق.")
+      : o.vatPosition === "settled"
+        ? t("VAT payments booked since the last completed period ended (presumed for it) cover its return — nothing is owed.", "ما دُفع للضريبة منذ نهاية آخر فترة مكتملة (يُفترض أنه لها) يغطي إقرارها — لا شيء مستحق.")
+        : t("Net VAT per the return for the last completed period, less VAT payments booked since it ended (presumed for it). Due by the last day of the following month.", "صافي الضريبة حسب الإقرار لآخر فترة مكتملة، مطروحًا منه ما دُفع للضريبة منذ نهايتها (يُفترض أنه لها). تستحق بنهاية الشهر التالي.");
+  return lead + earlier;
+}
+
+/** Under a VAT row's amount: the return's own figure, when what is owed is not the whole story. */
+function vatDetail(o: TaxObligation, t: T): string | null {
+  if (o.kind !== "vat" || o.returnNet == null) return null;
+  if (o.vatPosition === "credit") return t(`credit ${fmtNum(-o.returnNet)} on the return`, `رصيد دائن ${fmtNum(-o.returnNet)} في الإقرار`);
+  if (o.vatPosition === "nil") return t("the return nets to zero", "صافي الإقرار صفر");
+  if (o.vatPosition === "settled") return t(`return ${fmtNum(o.returnNet)} · paid since ${fmtNum(o.paidSince ?? 0)}`, `الإقرار ${fmtNum(o.returnNet)} · المدفوع منذ ${fmtNum(o.paidSince ?? 0)}`);
+  if (o.vatPosition === "payable" && (o.paidSince ?? 0) > 0) return t(`return ${fmtNum(o.returnNet)} · paid since ${fmtNum(o.paidSince ?? 0)}`, `الإقرار ${fmtNum(o.returnNet)} · المدفوع منذ ${fmtNum(o.paidSince ?? 0)}`);
+  return null;
 }
 
 export default function TaxObligations() {
@@ -54,10 +84,13 @@ export default function TaxObligations() {
                 </tr></thead>
                 <tbody>{rows.map((o, i) => (
                   <tr key={`${o.kind}-${o.reference}-${i}`} className="border-b border-border/50 align-top" data-testid={`tax-obligation-${o.kind}-${i}`}>
-                    <td className="py-2 pe-3 whitespace-nowrap"><Link href={hrefOf(o)} className="underline">{obligationKindLabel(o.kind, t)}</Link></td>
+                    <td className="py-2 pe-3 whitespace-nowrap"><Link href={hrefOf(o)} className="underline" data-testid={`tax-obligation-link-${o.kind}-${i}`}>{obligationKindLabel(o.kind, t)}</Link></td>
                     <td className="py-2 pe-3 font-mono text-xs"><span dir="ltr">{o.reference.replace(" (to date)", "")}</span>{o.reference.endsWith("(to date)") ? <span className="block font-sans">{t("to date — still growing", "حتى تاريخه — ما زال ينمو")}</span> : null}</td>
-                    <td className="py-2 pe-3 text-end font-mono" dir="ltr">{o.dueDate == null && o.amount === 0 ? "—" : fmtNum(o.amount)}</td>
-                    <td className="py-2 pe-3 whitespace-nowrap">{o.dueDate ? <>{fmtDate(o.dueDate)}{o.overdue ? <span className="block text-xs">{t("past its due date", "تجاوز تاريخ استحقاقه")}</span> : null}</> : t("not dated", "غير مؤرَّخ")}</td>
+                    <td className="py-2 pe-3 text-end">
+                      <span className="font-mono" dir="ltr">{o.dueDate == null && o.amount === 0 ? "—" : fmtNum(o.amount)}</span>
+                      {vatDetail(o, t) && <span className="block text-xs text-muted-foreground whitespace-nowrap" data-testid={`tax-obligation-vat-detail-${i}`}>{vatDetail(o, t)}</span>}
+                    </td>
+                    <td className="py-2 pe-3 whitespace-nowrap">{o.dueDate ? <>{fmtDate(o.dueDate)}{o.overdue ? <span className="block text-xs">{t("past its due date", "تجاوز تاريخ استحقاقه")}</span> : o.kind === "vat" && o.amount === 0 && o.vatPosition && o.vatPosition !== "payable" ? <span className="block text-xs text-muted-foreground">{t("nothing owed", "لا شيء مستحق")}</span> : null}</> : t("not dated", "غير مؤرَّخ")}</td>
                     <td className="py-2 pe-3 text-xs text-muted-foreground max-w-md">{ruleOf(o, t)}</td>
                   </tr>
                 ))}</tbody>

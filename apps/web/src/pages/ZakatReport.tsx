@@ -90,7 +90,9 @@ export default function ZakatReport() {
         </CardContent>
       </Card>
 
-      {ownership === "SAUDI_GCC" || ownership == null ? <ComputationList kind="zakat" /> : null}
+      {ownership === "SAUDI_GCC" || ownership == null
+        ? <ComputationList kind="zakat" />
+        : <ComputationList kind="zakat" canStart={false} notStartedWhy={t("The Zakat working paper covers a fully Saudi/GCC-owned company, and this company's ownership is declared otherwise today, so a new computation is not started here. A computation that already exists stays listed — it may cover a year when the ownership was different — and can be opened, reviewed or, if never approved, deleted.", "تغطي ورقة عمل الزكاة الشركة المملوكة بالكامل لسعوديين/خليجيين، وملكية هذه الشركة مصرَّح بها اليوم على خلاف ذلك، فلا يُبدأ هنا احتساب جديد. ويبقى الاحتساب القائم مدرجًا — فقد يغطي سنة كانت الملكية فيها مختلفة — ويمكن فتحه ومراجعته أو حذفه إن لم يُعتمد.")} />}
 
       <Card className="border-border" data-testid="zakat-open-questions">
         <CardHeader className="pb-2">

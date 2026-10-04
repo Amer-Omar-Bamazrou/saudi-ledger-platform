@@ -258,6 +258,7 @@ import type {
   ListVendorsParams,
   ListWhtExceptionsParams,
   ListWhtReliefsParams,
+  ListZakatClassificationsParams,
   MatchOverrideInput,
   MatchingApplyResult,
   MigratedOpenItemCorrection,
@@ -14122,7 +14123,7 @@ export const getListPendingApprovalsUrl = () => {
  * A cap returning through this endpoint would be the same defect wearing
  * the fix. Amounts come from the same aggregates the ledger uses (a
  * journal entry's from its line sums — never a second computation).
- * @summary Every document waiting for approval, across all four draftable entities
+ * @summary Every record waiting for approval — the four draftable documents, and the Phase 16/17 tax and treasury approvals
  */
 export const listPendingApprovals = async ( options?: RequestInit): Promise<ApprovalPendingRow[]> => {
 
@@ -14169,7 +14170,7 @@ export type ListPendingApprovalsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Every document waiting for approval, across all four draftable entities
+ * @summary Every record waiting for approval — the four draftable documents, and the Phase 16/17 tax and treasury approvals
  */
 
 export function useListPendingApprovals<TData = Awaited<ReturnType<typeof listPendingApprovals>>, TError = ErrorType<unknown>>(
@@ -23529,20 +23530,31 @@ export const useRevokeWhtRelief = <TError = ErrorType<unknown>,
       return useMutation(getRevokeWhtReliefMutationOptions(options));
     }
 
-export const getListZakatClassificationsUrl = () => {
+export const getListZakatClassificationsUrl = (params?: ListZakatClassificationsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/tax/zakat/classifications`
+  return stringifiedParams.length > 0 ? `/api/tax/zakat/classifications?${stringifiedParams}` : `/api/tax/zakat/classifications`
 }
 
 /**
+ * With `asOf`, each account also carries its amount in the statement of
+ * financial position at that date (this company) — the balance-sheet rows
+ * the Zakat computation reads at its year-end, never a second computation
+ * (QA-04). Without it, `balance` is null.
  * @summary Every asset and liability posting account with its Zakat-base class (if a person confirmed one) and a suggestion.
  */
-export const listZakatClassifications = async ( options?: RequestInit): Promise<ZakatAccountClassification[]> => {
+export const listZakatClassifications = async (params?: ListZakatClassificationsParams, options?: RequestInit): Promise<ZakatAccountClassification[]> => {
 
-  return customFetch<ZakatAccountClassification[]>(getListZakatClassificationsUrl(),
+  return customFetch<ZakatAccountClassification[]>(getListZakatClassificationsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -23555,23 +23567,23 @@ export const listZakatClassifications = async ( options?: RequestInit): Promise<
 
 
 
-export const getListZakatClassificationsQueryKey = () => {
+export const getListZakatClassificationsQueryKey = (params?: ListZakatClassificationsParams,) => {
     return [
-    `/api/tax/zakat/classifications`
+    `/api/tax/zakat/classifications`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListZakatClassificationsQueryOptions = <TData = Awaited<ReturnType<typeof listZakatClassifications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZakatClassifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListZakatClassificationsQueryOptions = <TData = Awaited<ReturnType<typeof listZakatClassifications>>, TError = ErrorType<unknown>>(params?: ListZakatClassificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZakatClassifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListZakatClassificationsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListZakatClassificationsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listZakatClassifications>>> = ({ signal }) => listZakatClassifications({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listZakatClassifications>>> = ({ signal }) => listZakatClassifications(params, { signal, ...requestOptions });
 
 
 
@@ -23589,11 +23601,11 @@ export type ListZakatClassificationsQueryError = ErrorType<unknown>
  */
 
 export function useListZakatClassifications<TData = Awaited<ReturnType<typeof listZakatClassifications>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZakatClassifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListZakatClassificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZakatClassifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListZakatClassificationsQueryOptions(options)
+  const queryOptions = getListZakatClassificationsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

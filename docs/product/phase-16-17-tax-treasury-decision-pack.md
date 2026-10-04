@@ -676,9 +676,11 @@ nothing interpretive):
 | W-13 (QA-08) | How is a WHT-bearing payment entered in error corrected — in its own month or the next; before and after the month is remitted and its Form 06 filed? | No correction exists (D-11) |
 | W-14 (QA-09) | Is a refundable security deposit, an erroneous payment or an unidentified payment to a non-resident subject to WHT when paid? If it was withheld, how is its return recorded (W-12)? | Withheld at the supplier's default nature; refund refused (D-12) |
 | A-6 (QA-14) | On a migration batch reversal, are its migrated fixed assets marked reversed (out of the register and depreciation), or is the reversal refused while they are in service? | Neither — they stay in service (D-13) |
-| W-8b | Nil WHT months: listed from which month (first withholding, go-live, fiscal year)? | Only months with records (D-16) |
+| W-8b | Nil WHT months: is a nil Form 06 required (ZATCA's pages read are silent; secondary sites say yes by analogy to VAT — unverified), and if so listed from which month (first withholding, go-live, fiscal year)? | Only months with records are LISTED; any month can be OPENED by its URL (D-16) |
 | W-15 | Should residency be effective-dated, so a payment is judged by the residency in force when it was made? | Current residency judges every payment |
-| T-1 | Should the forecast count overdue receivables as cash coming in (it does, in the overdue bucket)? | Counted (D-20) |
+| T-1 | Should the forecast count overdue receivables as cash coming in (it does, in the overdue bucket)? A product judgment — no regulation governs an internal forecast | Counted, labelled as overdue (D-20) |
+| Q-d | Refuse a treaty relief at exactly the statutory rate (it relieves nothing)? | Accepted, with a warning before submit (F-34) |
+| Q-e | Refuse creating a computation the company's TODAY ownership does not take (income tax for a Saudi company; Zakat for a mixed one) — and judged by which year's ownership, since ownership is undated? | Accepted by the API; never offered by the UI; an existing one always listed (F-33) |
 
 **For the OWNER** (not the accountant):
 
@@ -765,6 +767,10 @@ restored by hash); MEDIUM/LOW findings are fixed or listed below.** A manual
 product QA followed (2026-10-04, a disposable database, three tenants, real
 clicks, every figure reconciled to the GL): F-16…F-25 and D-11…D-22 below;
 record [`phase-16-17-manual-qa-2026-10-04.md`](../history/phase-16-17-manual-qa-2026-10-04.md).
+The gaps that needed no decision were then closed (F-26…F-36; D-14, D-15,
+D-17, D-18 closed, D-16 and D-19 in part); the three HIGH items stay open with
+a technical design each — record
+[`phase-16-17-gap-closure-2026-10-04.md`](../history/phase-16-17-gap-closure-2026-10-04.md).
 
 ### 13.1 Areas and verdicts
 
@@ -829,6 +835,17 @@ record [`phase-16-17-manual-qa-2026-10-04.md`](../history/phase-16-17-manual-qa-
 | F-23 | LOW | A new computation pre-selected the OLDEST offered year | The latest completed fiscal year | `taxYears.test.ts` |
 | F-24 | LOW | Company Settings called foreign and mixed ownership "out of scope" | Says which tax applies | e2e |
 | F-25 | LOW | Raw money in the funding sentence; raw category codes in the forecast | Formatted; labelled | `phase16-17-qa-fixes` |
+| F-26 | MEDIUM | (was D-14) The approvals inbox never showed a submitted computation, a pending relief or a planned payment — a bookkeeper "submitted" and no approver was told | The ONE queue lists them (company-scoped, read-gated by `tax`/`treasury`); every act posts to the record's own route; reasons inline; single-flight | `phase16-17-gap-closure` (M19a/b); e2e |
+| F-27 | LOW | (was D-15) A VAT period netting to zero or to a credit had no row, so D-01's note vanished | Every period listed with its position (payable · settled · nil · credit) and the return's own figure; owed stays ≥ 0 — a credit is never projected as cash | `phase16-vat-obligation-positions` (M20) |
+| F-28 | LOW | (was D-17) The classification page showed no balances; the blocker link landed on every account | Balances at a chosen date from the balance-sheet rows the computation reads, and what it READS (own accrual left out, Z-3 — one shared rule); a "blocking" filter on that; date and filter in the URL; the link scoped to the year | `phase16-17-gap-closure` (M21, M24); e2e |
+| F-29 | LOW | (D-18) The plans table scrolled sideways at 1280 and 390 px and clipped its forms | One responsive grid, nothing dropped; forms full width beneath the row | e2e (red with the old page) |
+| F-30 | MEDIUM | (D-18, and NEW) The plan pay form had no WHT preview, and its "Not stated — the supplier's default applies" option sent nothing, so the server applied the PLAN's stored nature behind a screen naming another | The shared `<WhtFields>`: the preview is `decideWithholding` via `/tax/wht/preview`; the request states the declaration on screen | e2e: preview → payment withheld the same (red with the old page) |
+| F-31 | LOW | (D-18) Obligations links dropped their period | The row's scope in the link (WHT month, VAT period, the approved computation); the WHT and VAT pages read it from the URL | `phase16-17-gap-closure` (M22); e2e |
+| F-32 | LOW | (D-18, D-04 family) Legal references stayed English in Arabic | `legalRef`/`articleRef`: official Arabic titles, abjad sub-paragraphs, verbatim when not fully recognised | `taxLabels.test.ts`; e2e |
+| F-33 | LOW | (D-19, part) An existing computation was invisible when today's ownership does not take its tax | Always listed; creation not offered there (refusal open — §11) | e2e |
+| F-34 | LOW | (D-19, part) A relief at the statutory rate was accepted silently | Warned before submit (equal / above), from the rate in force on its first day | e2e |
+| F-35 | LOW | The Approvals page (now hosting tax/treasury acts) was `isPending`-guarded and prompted with `window.prompt` | `useGuarded`; inline notes; a "waiting" summary at the top | e2e |
+| F-36 | LOW | (NEW, the walk) A PAID plan showed a WHT estimate re-computed with today's supplier, relief and rate — not what its payment withheld | `whtWithheld` from the payment's `wht_withholdings` row; estimates for open plans only | `phase16-17-gap-closure` (M23a/b) |
 
 ### 13.3 Documented — not fixed
 
@@ -847,12 +864,12 @@ record [`phase-16-17-manual-qa-2026-10-04.md`](../history/phase-16-17-manual-qa-
 | D-11 | HIGH | **No correction path for a WHT-bearing payment**: the generic reverse refuses a withholding-owned entry (right, for W1) and payments have no reversal — a wrong nature, rate, amount, bank, date or supplier is permanent on the return (QA-08) | A tax correction model (same month vs next; before vs after remittance) is the accountant's — §11 |
 | D-12 | HIGH | **Every non-resident payment withholds whatever its classification** — a refundable deposit, an erroneous or unidentified payment too — and its refund is then refused for any amount (W-12): the money cannot be recovered in the product (QA-09) | Whether such a payment is subject at all is a regulatory question — §11 |
 | D-13 | HIGH | (pre-existing, Batch 1C × FA-D) A migration reversal leaves the batch's fixed assets in service; a replacement adds a second copy and every depreciation run depreciates both (register ≠ GL; feeds Zakat and income tax) (QA-14) | Mark reversed vs refuse the reversal is an A4/A5 decision — §11; the FA follow-up note understated it |
-| D-14 | MEDIUM | The approvals inbox never shows a submitted computation, a pending relief or a planned payment (QA-15) | The inbox covers four entities by design; extending it is a build |
-| D-15 | LOW | When the last completed VAT period nets ≤ 0 there is no VAT row, so D-01's note never shows (QA-06) | A refinement of D-01 |
-| D-16 | LOW | Nil WHT months are not listed (W-8's default) (QA-10) | From which month is open — §11 |
-| D-17 | LOW | The classification page shows no balances; the blocker's link lands on every account (QA-04) | UX |
-| D-18 | LOW | The plans table scrolls sideways at 1280 and 390 px, clipping its inline forms; the plan pay form shows no WHT preview; obligations links drop their period; legal-reference strings stay English in Arabic | UX; D-04 family |
-| D-19 | LOW | A relief at exactly the statutory rate is accepted; residency is undated; an inapplicable computation can be created (invisible in the UI for a Saudi company's income tax) | §11 |
+| D-14 | MEDIUM | The approvals inbox never shows a submitted computation, a pending relief or a planned payment (QA-15) | **Closed 2026-10-04 → F-26** |
+| D-15 | LOW | When the last completed VAT period nets ≤ 0 there is no VAT row, so D-01's note never shows (QA-06) | **Closed 2026-10-04 → F-27** |
+| D-16 | LOW | Nil WHT months are not listed (W-8's default) (QA-10) | A nil month can now be OPENED by its URL (F-31); whether a nil form is required, and from which month, is open — §11 W-8b |
+| D-17 | LOW | The classification page shows no balances; the blocker's link lands on every account (QA-04) | **Closed 2026-10-04 → F-28** |
+| D-18 | LOW | The plans table scrolls sideways at 1280 and 390 px, clipping its inline forms; the plan pay form shows no WHT preview; obligations links drop their period; legal-reference strings stay English in Arabic | **Closed 2026-10-04 → F-29…F-32** (D-04's export codes remain) |
+| D-19 | LOW | A relief at exactly the statutory rate is accepted; residency is undated; an inapplicable computation can be created (invisible in the UI for a Saudi company's income tax) | The UI parts closed (F-33 visible; F-34 warned); refusing either, and dated residency, stay open — §11 Q-d, Q-e, W-15 |
 | D-20 | LOW | The forecast's overdue bucket counts overdue receivables as inflow — the lowest closing assumes they are collected | A treasury judgment — §11 |
 | D-21 | INFO | (pre-existing) the invoice pay dialog also hard-codes today (no WHT effect); the sidebar shows "VIEWER" for an org admin; an operator can approve with no documents | Outside Phase 16/17 |
 | D-22 | INFO | A bookkeeper may classify Zakat accounts and add adjustments (the `tax` WRITE grant); the approver sees both on the paper before approving | The platform's maker/checker split |

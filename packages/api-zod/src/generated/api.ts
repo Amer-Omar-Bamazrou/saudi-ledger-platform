@@ -8139,14 +8139,17 @@ export const CreateBillResponse = zod.object({
  * A cap returning through this endpoint would be the same defect wearing
  * the fix. Amounts come from the same aggregates the ledger uses (a
  * journal entry's from its line sums — never a second computation).
- * @summary Every document waiting for approval, across all four draftable entities
+ * @summary Every record waiting for approval — the four draftable documents, and the Phase 16/17 tax and treasury approvals
  */
 export const ListPendingApprovalsResponseItem = zod.object({
-  "entity": zod.enum(['invoices', 'bills', 'journal-entries', 'payroll']).describe('Matches the URL segment its actions post to (`\/{entity}\/{id}\/approve` …).'),
+  "entity": zod.enum(['invoices', 'bills', 'journal-entries', 'payroll', 'tax-computations', 'wht-reliefs', 'payment-plans']).describe('The four documents match the URL segment their actions post to\n(`\/{entity}\/{id}\/approve` …). Phase 16\/17 (QA-15): a SUBMITTED tax\ncomputation version (`\/tax\/computations\/{parentId}\/versions\/{id}\/…`),\na PENDING treaty relief (`\/tax\/wht\/reliefs\/{id}\/…`) and a PLANNED\npayment plan (`\/treasury\/payment-plans\/{id}\/…`) — each acted on\nthrough its own route and permission.\n'),
   "id": zod.number(),
-  "label": zod.string().describe('The human identifier — document number or payroll period.'),
-  "status": zod.enum(['draft', 'submitted']),
-  "amount": zod.number().describe('The document\'s own total; a journal entry\'s is the sum of its debit lines, from the same aggregate the ledger list uses.')
+  "label": zod.string().describe('The human identifier — document number, payroll period, fiscal year and version, supplier and treaty rate, or bill and planned date.'),
+  "labelAr": zod.string().nullish().describe('The label with the party\'s Arabic name, where the party has one.'),
+  "status": zod.enum(['draft', 'submitted', 'pending', 'planned']),
+  "amount": zod.number().nullable().describe('The document\'s own total; a journal entry\'s is the sum of its debit\nlines, from the same aggregate the ledger list uses; a plan\'s is what\nit would settle. NULL where the record has no amount of its own — a\ntreaty relief is a rate, and a computation\'s figure is the working\npaper\'s live reading, shown on its own page.\n'),
+  "parentId": zod.number().nullish().describe('A computation version\'s computation id (its routes are nested under it).'),
+  "subtype": zod.string().nullish().describe('`zakat` | `income_tax` for a computation; the IR Art. 63(1) nature for a relief.')
 })
 export const ListPendingApprovalsResponse = zod.array(ListPendingApprovalsResponseItem)
 
@@ -14548,7 +14551,7 @@ export const GetTaxObligationsResponse = zod.object({
   "obligations": zod.array(zod.object({
   "kind": zod.enum(['wht', 'zakat', 'income_tax', 'vat']),
   "reference": zod.string(),
-  "amount": zod.number(),
+  "amount": zod.number().describe('What is owed now — never negative. A VAT period that nets to zero or to a credit, or whose payments already cover it, owes 0 and says which (`vatPosition`).'),
   "dueDate": zod.string().nullable(),
   "note": zod.string().nullable(),
   "source": zod.object({
@@ -14556,9 +14559,13 @@ export const GetTaxObligationsResponse = zod.object({
   "period": zod.string().nullish(),
   "systemCode": zod.string().optional(),
   "from": zod.string().optional(),
-  "to": zod.string().optional()
+  "to": zod.string().optional(),
+  "computationId": zod.number().nullish().describe('Zakat \/ income tax — the approved computation whose fiscal year dates the balance (the row links to it).')
 }),
-  "overdue": zod.boolean()
+  "overdue": zod.boolean(),
+  "vatPosition": zod.union([zod.literal('payable'),zod.literal('settled'),zod.literal('nil'),zod.literal('credit'),zod.literal(null)]).nullish().describe('A VAT period\'s position on its own return (QA-06): `payable` (owed),\n`settled` (VAT payments booked since the period ended cover it),\n`nil` (the return nets to zero) or `credit` (input VAT exceeds output\nVAT — nothing is owed, and the credit is NOT projected as cash).\nNull on every other row.\n'),
+  "returnNet": zod.number().nullish().describe('A VAT period\'s net VAT exactly as its return computes it (negative for a credit) — the return\'s own figure, never re-derived.'),
+  "paidSince": zod.number().nullish().describe('VAT payments booked since a completed VAT period ended (presumed for it); null on every other row.')
 })),
   "total": zod.number()
 })
@@ -15134,8 +15141,16 @@ export const RevokeWhtReliefResponse = zod.object({
 
 
 /**
+ * With `asOf`, each account also carries its amount in the statement of
+ * financial position at that date (this company) — the balance-sheet rows
+ * the Zakat computation reads at its year-end, never a second computation
+ * (QA-04). Without it, `balance` is null.
  * @summary Every asset and liability posting account with its Zakat-base class (if a person confirmed one) and a suggestion.
  */
+export const ListZakatClassificationsQueryParams = zod.object({
+  "asOf": zod.coerce.string().optional().describe('YYYY-MM-DD — the date the balances are read at (a fiscal year-end, typically).')
+})
+
 export const ListZakatClassificationsResponseItem = zod.object({
   "accountId": zod.number(),
   "name": zod.string(),
@@ -15143,6 +15158,9 @@ export const ListZakatClassificationsResponseItem = zod.object({
   "type": zod.enum(['asset', 'liability']),
   "liquidityClass": zod.string().nullable(),
   "systemCode": zod.string().nullable(),
+  "isPosting": zod.boolean().describe('False for a header account listed because it carries entries of its own (the CASH header\'s pre-D-3 history, F-14).'),
+  "balance": zod.number().nullable().describe('The account\'s amount in the statement of financial position at `asOf` (assets debit-positive, liabilities credit-positive; a contra account negative); 0 when it carries nothing then; null when no `asOf` was given.'),
+  "zakatReads": zod.number().nullable().describe('What the Zakat computation for a fiscal year ending at `asOf` reads from the account — the balance less that computation\'s OWN accrual (Z-3). It equals `balance` unless the year\'s own Zakat accrual sits in it; an unclassified account blocks a computation only when this is non-zero. Null when no `asOf` was given.'),
   "classification": zod.union([zod.enum(['equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability', 'noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted']),zod.null()]),
   "article": zod.string().nullable(),
   "basisNote": zod.string().nullable(),
@@ -15177,6 +15195,9 @@ export const SetZakatClassificationResponse = zod.object({
   "type": zod.enum(['asset', 'liability']),
   "liquidityClass": zod.string().nullable(),
   "systemCode": zod.string().nullable(),
+  "isPosting": zod.boolean().describe('False for a header account listed because it carries entries of its own (the CASH header\'s pre-D-3 history, F-14).'),
+  "balance": zod.number().nullable().describe('The account\'s amount in the statement of financial position at `asOf` (assets debit-positive, liabilities credit-positive; a contra account negative); 0 when it carries nothing then; null when no `asOf` was given.'),
+  "zakatReads": zod.number().nullable().describe('What the Zakat computation for a fiscal year ending at `asOf` reads from the account — the balance less that computation\'s OWN accrual (Z-3). It equals `balance` unless the year\'s own Zakat accrual sits in it; an unclassified account blocks a computation only when this is non-zero. Null when no `asOf` was given.'),
   "classification": zod.union([zod.enum(['equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability', 'noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted']),zod.null()]),
   "article": zod.string().nullable(),
   "basisNote": zod.string().nullable(),
@@ -19762,8 +19783,9 @@ export const ListPaymentPlansResponseItem = zod.object({
   "priority": zod.enum(['high', 'normal', 'low']),
   "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
   "whtPaymentType": zod.string().nullable(),
-  "whtEstimate": zod.number().nullable(),
-  "cashEstimate": zod.number(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
   "notes": zod.string().nullable(),
   "createdBy": zod.number().nullable(),
   "createdAt": zod.string(),
@@ -19819,8 +19841,9 @@ export const CreatePaymentPlanResponse = zod.object({
   "priority": zod.enum(['high', 'normal', 'low']),
   "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
   "whtPaymentType": zod.string().nullable(),
-  "whtEstimate": zod.number().nullable(),
-  "cashEstimate": zod.number(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
   "notes": zod.string().nullable(),
   "createdBy": zod.number().nullable(),
   "createdAt": zod.string(),
@@ -19878,8 +19901,9 @@ export const UpdatePaymentPlanResponse = zod.object({
   "priority": zod.enum(['high', 'normal', 'low']),
   "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
   "whtPaymentType": zod.string().nullable(),
-  "whtEstimate": zod.number().nullable(),
-  "cashEstimate": zod.number(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
   "notes": zod.string().nullable(),
   "createdBy": zod.number().nullable(),
   "createdAt": zod.string(),
@@ -19932,8 +19956,9 @@ export const ApprovePaymentPlanResponse = zod.object({
   "priority": zod.enum(['high', 'normal', 'low']),
   "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
   "whtPaymentType": zod.string().nullable(),
-  "whtEstimate": zod.number().nullable(),
-  "cashEstimate": zod.number(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
   "notes": zod.string().nullable(),
   "createdBy": zod.number().nullable(),
   "createdAt": zod.string(),
@@ -19989,8 +20014,9 @@ export const PayPaymentPlanResponse = zod.object({
   "priority": zod.enum(['high', 'normal', 'low']),
   "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
   "whtPaymentType": zod.string().nullable(),
-  "whtEstimate": zod.number().nullable(),
-  "cashEstimate": zod.number(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
   "notes": zod.string().nullable(),
   "createdBy": zod.number().nullable(),
   "createdAt": zod.string(),
@@ -20049,8 +20075,9 @@ export const CancelPaymentPlanResponse = zod.object({
   "priority": zod.enum(['high', 'normal', 'low']),
   "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
   "whtPaymentType": zod.string().nullable(),
-  "whtEstimate": zod.number().nullable(),
-  "cashEstimate": zod.number(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
   "notes": zod.string().nullable(),
   "createdBy": zod.number().nullable(),
   "createdAt": zod.string(),

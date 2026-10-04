@@ -12,9 +12,52 @@
  */
 import { ZAKAT_CLASSES, type ZakatClass } from "@workspace/db";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../../lib/errors";
+import { fromHalalas, toHalalas } from "../../lib/money";
 import { taxRepository } from "../../repositories/tax.repository";
 import { reportsRepository } from "../../repositories/reports.repository";
+import { reportsService } from "../reports.service";
 import { auditService } from "../audit.service";
+
+/**
+ * A balance-sheet row's account id — the ONE rule for reading it (legacy rows with no
+ * account carry their name as key). The Zakat engine's inputs and this page's balances
+ * both read rows through it.
+ */
+export const accountIdOfKey = (key: string): number | null => (/^\d+$/.test(key) ? Number(key) : null);
+
+/**
+ * Z-3 (pack §3.4): a computation leaves its OWN accrual out of the base it reads — the ONE rule, shared
+ * by the engine's inputs and this page. An asset is debit-positive, a liability or equity credit-positive.
+ */
+export function withoutOwnAccrualH(section: "asset" | "liability" | "equity", amountH: number, ownEffectDebitPositiveH: number): number {
+  return section === "asset" ? amountH - ownEffectDebitPositiveH : amountH + ownEffectDebitPositiveH;
+}
+
+/**
+ * Each account's amount in the statement of financial position at `asOf` (this company):
+ * assets debit-positive, liabilities credit-positive, a contra account negative — the rows
+ * `reportsService.balanceSheet` produces, which are the rows the Zakat computation reads
+ * at its year-end (Art. 17). Read here, never computed a second way (QA-04).
+ *
+ * `reads` is what the Zakat computation for a fiscal year ENDING on `asOf` takes from that row:
+ * the balance less that computation's own accrual (Z-3), by the same repository reads and the
+ * same rule as the engine. Without it the page called the year's own Zakat payable a blocker the
+ * computation itself never raises (found walking the page, 2026-10-04).
+ */
+async function balancesAt(asOf: string): Promise<Map<number, { balance: number; reads: number }>> {
+  const [bs, comps] = await Promise.all([reportsService.balanceSheet(asOf), taxRepository.computations("zakat")]);
+  const own = (await Promise.all(comps.filter((c) => c.fiscalYearEnd === asOf).map((c) => taxRepository.accrualEntryIds(c.id)))).flat();
+  const effectBy = new Map((await taxRepository.entryEffects(own, asOf)).map((e) => [e.accountId, toHalalas(e.debitPositive)]));
+  const out = new Map<number, { balance: number; reads: number }>();
+  for (const [section, items] of [["asset", bs.assets.items], ["liability", bs.liabilities.items]] as const) {
+    for (const item of items) {
+      const id = accountIdOfKey(item.key);
+      if (id == null) continue;
+      out.set(id, { balance: item.amount, reads: fromHalalas(withoutOwnAccrualH(section, toHalalas(item.amount), effectBy.get(id) ?? 0)) });
+    }
+  }
+  return out;
+}
 
 /** The article each class stands on — shown beside it on every page. */
 export const ZAKAT_CLASS_ARTICLE: Record<ZakatClass, string> = {
@@ -62,8 +105,12 @@ export const zakatClassificationService = {
    * pre-D-3 history): the computation reads its balance, so a person must be able to classify it
    * (joint audit F-14 — it was a blocker nobody could clear).
    */
-  async list() {
-    const [cats, stored, fa] = await Promise.all([reportsRepository.allCategories(), taxRepository.classifications(), fixedAssetAccountIds()]);
+  async list(asOfParam?: unknown) {
+    const asOf = asOfParam == null || asOfParam === "" ? null : String(asOfParam);
+    if (asOf != null && (!/^\d{4}-\d{2}-\d{2}$/.test(asOf) || Number.isNaN(Date.parse(`${asOf}T00:00:00Z`)))) throw new BadRequestError("asOf must be a YYYY-MM-DD date.");
+    const [cats, stored, fa, balances] = await Promise.all([
+      reportsRepository.allCategories(), taxRepository.classifications(), fixedAssetAccountIds(), asOf ? balancesAt(asOf) : Promise.resolve(null),
+    ]);
     const byAccount = new Map(stored.map((s) => [s.accountId, s]));
     const headersWithHistory = await taxRepository.accountsCarryingLines(
       cats.filter((c) => (c.type === "asset" || c.type === "liability") && c.isPosting === false).map((c) => c.id));
@@ -74,6 +121,12 @@ export const zakatClassificationService = {
         return {
           accountId: c.id, name: c.name, nameAr: c.nameAr ?? null, type: c.type as "asset" | "liability",
           liquidityClass: c.liquidityClass ?? null, systemCode: c.systemCode ?? null,
+          // a header listed here carries entries of its own (the CASH header's pre-D-3 history — F-14)
+          isPosting: c.isPosting !== false,
+          // null when no date was asked for; 0 when the account carries nothing at that date (it then blocks nothing)
+          balance: balances ? (balances.get(c.id)?.balance ?? 0) : null,
+          // what a Zakat computation for a year ending then reads from it (its own accrual left out, Z-3)
+          zakatReads: balances ? (balances.get(c.id)?.reads ?? 0) : null,
           classification: (s?.classification ?? null) as ZakatClass | null,
           article: s ? ZAKAT_CLASS_ARTICLE[s.classification as ZakatClass] : null,
           basisNote: s?.basisNote ?? null,
