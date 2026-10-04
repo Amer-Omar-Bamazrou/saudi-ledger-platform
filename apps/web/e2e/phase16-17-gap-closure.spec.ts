@@ -65,6 +65,30 @@ const bill = async (vendorId: number, no: string, amount: number) => {
 };
 const plan = async (billId: number, amount: number, extra: Record<string, unknown> = {}) =>
   (await json<{ id: number }>(api.post("/api/treasury/payment-plans", { data: { billId, amount, plannedDate: addDays(TODAY, 5), ...extra } }), "plan")).id;
+/**
+ * 🔴 THE SUITE SHARES ONE TENANT, AND ITS STATEMENTS ARE ASSERTED LATER (statement-figures: total assets > 0).
+ * This spec's payments took 20,900 of cash and drove the seeded bank — and the tenant's total assets — negative
+ * (CI 37232689559). Each payment is now FUNDED first by an entry of exactly the cash it takes (the bank against
+ * retained earnings, as fixed-asset-report does), so the spec leaves the tenant's cash where it found it.
+ */
+const fundBank = async (amount: number, why: string) => {
+  const { bankId } = JSON.parse(readFileSync(SEEDED_IDS_PATH, "utf8")) as SeededIds;
+  const cats = await json<Array<{ id: number; name: string; systemCode: string | null; bankAccountId?: number | null }> | { items: Array<{ id: number; name: string; systemCode: string | null; bankAccountId?: number | null }> }>(api.get("/api/categories?limit=500"), "chart");
+  const all = Array.isArray(cats) ? cats : cats.items;
+  const leaf = all.find((c) => c.bankAccountId === bankId);
+  const equity = all.find((c) => c.systemCode === "RETAINED_EARNINGS");
+  expect(leaf && equity, "the seeded bank's GL account and retained earnings").toBeTruthy();
+  const je = await json<{ id: number }>(api.post("/api/journal-entries", { data: {
+    date: TODAY, description: `E2E gap-closure: funds ${why}, so the shared tenant's cash is left as it was`,
+    lines: [
+      { accountId: leaf!.id, accountName: leaf!.name, debitAmount: amount, creditAmount: 0 },
+      { accountId: equity!.id, accountName: equity!.name, debitAmount: 0, creditAmount: amount },
+    ],
+  } }), "funding entry");
+  await json(api.post(`/api/journal-entries/${je.id}/approve`, { data: {} }), "approve the funding entry");
+};
+/** The tenant's cash in the ledger (Treasury's position — the GL by construction, T1). */
+const totalCash = async () => (await json<{ totalCash: number }>(api.get("/api/treasury/position"), "position")).totalCash;
 const relief = async (vendorId: number, paymentType: string, reducedRate: number) =>
   (await json<{ id: number }>(api.post("/api/tax/wht/reliefs", { data: {
     vendorId, paymentType, reducedRate, treatyCountry: "AE", zatcaApprovalReference: `Z-${STAMP}`, residencyCertificateReference: `R-${STAMP}`,
@@ -169,8 +193,11 @@ test.describe.serial("Phase 16 + 17 — the gaps closed without a decision", () 
     await expect(form.getByTestId("wht-preview-withheld")).toHaveText(amount(1_000));
     await form.getByTestId("treasury-plan-pay-bank").click();
     await page.getByRole("option").first().click();
+    const cashBefore = await totalCash();
+    await fundBank(19_000, "the plan payment (20,000 less 1,000 withheld)");
     await form.getByTestId("treasury-plan-pay-submit").click();
     await expect(page.getByTestId(`treasury-plan-status-${planId}`)).toContainText("Paid");
+    expect(await totalCash(), "the payment took exactly the cash it was funded with — the shared tenant's cash is unchanged").toBe(cashBefore);
     const ret = await json<{ schedule: Array<{ billId: number | null; whtAmount: number }> }>(api.get(`/api/tax/wht/returns/${PERIOD}`), "return");
     expect(ret.schedule.filter((r) => r.billId === billId).map((r) => r.whtAmount), "withheld = what the screen showed").toEqual([1_000]);
   });
@@ -180,7 +207,10 @@ test.describe.serial("Phase 16 + 17 — the gaps closed without a decision", () 
     const { bankId } = JSON.parse(readFileSync(SEEDED_IDS_PATH, "utf8")) as SeededIds;
     const rent = await vendor(`E2E Gap Landlord ${STAMP}`, { residency: "non_resident", country: "AE", whtDefaultPaymentType: "rent", foreignTaxId: `AE-L-${STAMP}` });
     const rentBill = await bill(rent, `E2E-GAP-RENT-${STAMP}`, 2_000);
+    const cashBefore = await totalCash();
+    await fundBank(1_900, "the rent payment (2,000 less 100 withheld)");
     await json(api.post(`/api/bills/${rentBill}/pay`, { data: { amount: 2_000, paidAt: TODAY, bankAccountId: bankId } }), "pay the rent (withholds 100)");
+    expect(await totalCash(), "the shared tenant's cash is unchanged by this spec").toBe(cashBefore);
     await page.goto("/tax/obligations");
     const whtLink = page.locator(`[data-testid^="tax-obligation-wht-"]`).filter({ hasText: PERIOD }).locator(`[data-testid^="tax-obligation-link-wht-"]`);
     await expect(whtLink).toHaveAttribute("href", `/tax/withholding?tab=return&period=${PERIOD}`);

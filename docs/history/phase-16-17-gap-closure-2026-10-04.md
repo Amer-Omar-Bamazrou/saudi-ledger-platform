@@ -44,7 +44,16 @@ computed: balances from `reportsService.balanceSheet`, the VAT position from
   (4, pinned date: nil, credit — never a Treasury row — payable, settled and
   part-paid).
 - **Web unit:** `taxLabels.test.ts` (6).
-- **Browser:** `e2e/phase16-17-gap-closure.spec.ts` (8).
+- **Browser:** `e2e/phase16-17-gap-closure.spec.ts` (8). 🔴 Its first CI run
+  (37232689559, on 94a6b344: 536 passed, 1 failed) failed a DIFFERENT spec —
+  `statement-figures`, which asserts the shared tenant's total assets are
+  above zero: this spec's two payments took 20,900 of cash and drove the
+  seeded bank, and the tenant's total assets, negative (−15,748). A fixture
+  defect in this pass's own test, not a product one (the sheet balanced; AR
+  equalled the aging). Each payment is now funded first by an entry of exactly
+  the cash it takes, and the spec ASSERTS the tenant's cash is unchanged by it
+  — red with the funding removed (locally the bank went to −11,510, the CI
+  mechanism reproduced), green with it, and `statement-figures` green after it.
 - **Mutation proofs (fix reverted → red → restored, hash-checked — never a stash or a checkout):**
   - API (`mutate.mjs`): M19a the computation and relief readers off → 5 red; M19b the plan reader off → 3 red;
     M20 the VAT row back to "only while owed" → 3 of 4 red (the payable case stays green, as it should);
