@@ -43,3 +43,18 @@ is a literal `X-API-Key:` header in a REST-design example — a placeholder in
 prose, not a credential.
 """
 paths = ['''^\.claude/skills/.*\.md$''']
+
+[[allowlists]]
+description = """
+A TEST FIXTURE's idempotency key (2026-10-05, Phase 16 Q1). The literal
+"q1-double-click" is the client-chosen key the double-click test replays to
+prove a correction is applied once; it authenticates nothing. Flagged by
+generic-api-key only because the field name contains "Key".
+
+Narrow by construction: this ONE file AND this ONE literal (condition AND),
+so any other key-shaped value in the file is still reported.
+"""
+condition = "AND"
+paths = ['''^apps/api/src/tests/phase16-wht-correction\.test\.ts$''']
+regexTarget = "match"
+regexes = ['''idempotencyKey: "q1-double-click"''']
