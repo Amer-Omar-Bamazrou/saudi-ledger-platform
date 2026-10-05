@@ -686,6 +686,9 @@ nothing interpretive):
 | T-1 | Should the forecast count overdue receivables as cash coming in (it does, in the overdue bucket)? A product judgment — no regulation governs an internal forecast | Counted, labelled as overdue (D-20) |
 | Q-d | Refuse a treaty relief at exactly the statutory rate (it relieves nothing)? | Accepted, with a warning before submit (F-34) |
 | Q-e | Refuse creating a computation the company's TODAY ownership does not take (income tax for a Saudi company; Zakat for a mixed one) — and judged by which year's ownership, since ownership is undated? | Accepted by the API; never offered by the UI; an existing one always listed (F-33) |
+| ZK-1 (final audit) | Should the Zakat and income-tax accounts accept postings ONLY from a computation (a manual Zakat provision is accepted today, and the approval then accrues the full amount on top: expense and payable counted twice), or should the paper name any other tax expense it finds? | Unchanged: manual entries accepted; the paper shows them among its inputs (§15) |
+| TR-2 (final audit) | Should the forecast net a customer's deposit on account against that customer's open invoices (it is in opening cash AND projected as a receipt), and a supplier advance against bills? | Not netted (§15) — a treasury product decision |
+| MG-3 (final audit) | A migration reversal's mirror is dated the opening date: what of months CLOSED since the cutover that it restates? Today only the opening month's lock and the months holding depreciation to unwind block it | Unchanged (pre-existing Batch 1C behaviour) — for the accountant |
 
 **For the OWNER** (not the accountant):
 
@@ -1216,3 +1219,52 @@ reversed assets · M15 the out-of-books trigger dropped · M16 the one-live-copy
 index dropped · M17 the closed-month blocker removed · M18 the replacement link
 dropped · M19 the sweep's invariant neutered · M20 a reversed asset no longer
 frozen · M21 the disposed-asset blocker removed.
+
+## 15. Final audit and fix pass (2026-10-05)
+
+**Status (2026-10-05): the final comprehensive audit found four blockers and five
+recommended fixes; all nine are fixed on `feat/phase16-17-tax-treasury`; the PR
+stays OPEN.** Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
+
+The audit: six independent read-only reviews of the Phase 16/17 diff, and about
+ninety soft checks on real rows (scenarios A–E, period-lock and concurrency
+attacks, cross-company and cross-organisation probes, the cross-ledger
+reconciliations), every material claim confirmed on rows before it was ranked.
+Each fix below has a regression test on real rows whose expected figure comes
+from the fixture, never from a second call to the code under test, and a
+mutation proven red. The findings that need a decision are §11 rows (ZK-1,
+TR-2, MG-3) — not fixed, by instruction.
+
+| Id | Finding (confirmed) | Fix | Enforced at |
+|---|---|---|---|
+| OB-1 | The VAT obligation passed full DATES to the month-based return → `"2026-07-01-01"`; document dates are text, so every day-1 document fell out (obligation 300, return 450; to date 0 where 75 was owed) | One computation over a date window, `reportsService.vatReturnBetween`; the month API (`vatReturn`) delegates to it and REFUSES anything that is not a month (the spec's own pattern, never enforced); the obligations call the date window | service (both entry points validate) |
+| WHT-1 | Settling a non-resident's bill from a bank line treated the line's CASH as the gross (9,500 line: AP 9,500, WHT 475, bank 9,025) | The line is cash: the bill is settled by the gross whose cash it is — the pay path's arithmetic inverted (`wht.ts` `baseForCash`, the same rate and rounding), the pay path re-deciding on the gross; the cash it moves must equal the line or nothing is written (`settlement_cash_mismatch`); a halala tie no outstanding decides is refused (`settlement_wht_gross_ambiguous`) | service |
+| WHT-2 | An expense's approval (which also pays) paid a non-resident with no declaration or preview | The canonical decision judges the payment BEFORE anything is written; a payment it would withhold on, or cannot judge without a nature, is refused by name (`expense_wht_requires_bill_payment`) — pay it from the bill | service |
+| MG-2 | The generic journal reverse accepted a migration's opening journal and its mirrors (a reversed batch's position re-imposed while the batch and asset read reversed) | A mirror is never reversed (`journal_mirror_not_reversible`); a migration's own entries are withdrawn only by its batch reversal (`journal_migration_owned`) | service + database (0119 `journal_entries_mirror_admit`, with one answer for another tenant's entry and a missing one) |
+| SEC-1 | `wht_return_tax`, `wht_return_base`, `wht_unremitted` ran as their owner and were callable by the app: another company's figures for its id | SECURITY INVOKER — RLS decides what they read (the `input_vat_journal_owner` contract: another tenant's id answers 0); the definer triggers that call them are unchanged | database (0119) |
+| MG-1 | A depreciation could commit while a migration reversal was in flight → a reversed asset with an unmirrored charge | The reversal locks the batch's assets FOR UPDATE before reading what was depreciated; a posting reads its asset FOR SHARE (0119 trigger, now caller's rights — SEC-2 too); the refusal is a mapped 409 | service + database |
+| TR-1 | The Treasury plan-pay dialog dropped the filed-month treatment → every plan paid into a filed month was refused | The dialog sends the treatment chosen on the screen, as the bill's pay dialog does (the API always took it) | web |
+| SEC-4 | A repeated filing recorded a permanent false amendment | The same ZATCA reference is the same filing: an exact replay writes nothing; the same reference on another date is refused (`wht_filing_reference_reused`); a genuine amendment carries its own | service + database (0119 unique index) |
+| IT-1 | The income-tax add-back read only the system `DEPRECIATION_EXPENSE`; a category's own expense account escaped it (book depreciation deducted beside the pool) | Plus the register's depreciation on any category account — only lines of entries the register posted (or their mirrors), so another expense on that account is never added back | repository |
+
+**Tests:** `phase16-17-audit-fixes` (13, real rows) and
+`phase16-17-audit-fixes-vat` (4, pinned date, day 1 / middle / last day /
+prior period / current period, quarterly and monthly); five earlier suites
+moved from full dates to the month contract they always declared;
+`phase16-17-accountant-answers` gains the TR-1 walk.
+
+**Mutations, each proven red then restored (source by hash, the database by
+its definition):** OB-M1 the obligation on the month API with dates, unvalidated (the original bug) · OB-M2b both period validations removed
+(OB-M2, the month check alone, is an EQUIVALENT mutant — the date window's own check still refuses) · WHT1-M1 the cash settled as the gross ·
+WHT1-M2 that and no cash check (the original defect) · WHT1-M3 the inverse a halala off (the cash check refuses it) · WHT2-M the expense guard
+removed · MG2-M1 the service guard removed (the database still refuses) · MG2-M2 the mirror admit trigger dropped · MG1-M1 the reversal's
+up-front lock removed (it then mirrors July and misses August — found only after the first version of the test, which held a lock but posted
+nothing, let this mutant survive) · MG1-M2 the trigger without FOR SHARE · SEC1-M `wht_return_tax` back to SECURITY DEFINER · SEC4-M1 the
+service replay removed · SEC4-M2 the reference index dropped · IT1-M the custom-account add-back removed. Fourteen red, one equivalent.
+
+**Documented, not fixed in this pass (non-blocking):** RPT-1 (the WHT return
+export omits corrections and the filing state), ZK-2 (approval not bound to the
+reviewed fingerprint), IT-2 (undeclared repairs read as 0), SEC-3 (an
+idempotency key reused on another target answers `replayed`), PERF-1…3,
+TQ-1…5, RTL-1…7, and the LOW items of the audit register (WHT-3…9, SEC-5,
+SEC-10, IT-3/4, ZK-3/4, AD-1, OB-2/3, TR-3…5, RPT-2/3, UI-1/2, MG-4…8).

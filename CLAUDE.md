@@ -62,10 +62,10 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
 **2026-10-01** — 🔴 **PHASES 14+15 BUILT** (`docs/product/phase-14-15-*` pack).
-**2026-10-05** — 🔴 **PHASES 16+17 BUILT; ACCOUNTANT Q1–Q3 APPLIED; PR OPEN** ([`pack`](docs/product/phase-16-17-tax-treasury-decision-pack.md) §12–§14).
+**2026-10-05** — 🔴 **PHASES 16+17 BUILT; Q1–Q3 + FINAL AUDIT FIXES; PR OPEN** ([`pack`](docs/product/phase-16-17-tax-treasury-decision-pack.md) §12–§15).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
-**2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
+**2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -563,7 +563,7 @@ the order is not the severity order.**
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
 | **1** | **Password recovery — break-glass ✅ SHIPPED** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
-| **2** | 🔴 **The generic journal reverse accepts an entry an invoice or payment OWNS** — the document reads live while its entry is cancelled (guarded: transfers, statement lines; bills + VAT claims since 13B-1). | posts + hides. | Phase 12 pack §7 #8. |
+| **2** | 🔴 **The generic journal reverse accepts an entry an invoice or payment OWNS** — the document reads live while its entry is cancelled (guarded: transfers, statement lines, bills, VAT claims; mirrors + migration rows since 2026-10-05). | posts + hides. | Phase 12 pack §7 #8. |
 | **3** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — legal, not code. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **4** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
 
