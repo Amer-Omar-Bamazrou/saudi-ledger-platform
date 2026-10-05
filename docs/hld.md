@@ -134,7 +134,10 @@ on a contract" tells them why they must not.*
 ### 2.5 Background work
 
 An **in-process scheduler** (`apps/api/src/jobs/`), not a queue system. There is
-no Redis and no external broker; rate limiting is in-memory per process.
+no Redis and no external broker. Rate limiting counts in a shared Postgres
+table (`rate_limit_hits`), so every instance enforces one limit — *(2026-10-05;
+this line said "in-memory per process", which stopped being true with C1 on
+2026-08-20)*; see §3.6.
 
 Registered jobs include the e-invoice outbox worker, the archive sweep,
 certificate renewal checks, document-capture promotion and purge, recurring
@@ -285,6 +288,14 @@ only the queries.
   re-grant `TRUNCATE`/`REFERENCES`/`TRIGGER` on every `CREATE TABLE`, and
   **TRUNCATE bypasses RLS**. The defaults are narrowed and a guard test pins it.
 - **Audit trail is append-only at the grants**, and has a reader UI.
+- **Rate limiting** *(2026-10-05)*: credential endpoints are limited per IP
+  (IPv6 per /56) and per ACCOUNT; every authenticated request is counted per
+  user, per organization and per endpoint class (reports, exports, uploads, AI,
+  bulk, the ZATCA OTP, break-glass) — one statement in the shared Postgres
+  counter, run after tenant resolution and before validation, idempotency and
+  the (lazy) tenant transaction, so a `429 rate_limited` has executed nothing.
+  Fail-closed (`503 rate_limit_unavailable`). Record:
+  [`design-rate-limiting.md`](product/design-rate-limiting.md).
 
 ---
 
@@ -607,6 +618,9 @@ a real environment, and each is tracked in `CLAUDE.md` §5:
   exists to prevent.*
 - **The real proxy count** in front of the application, because a wrong number
   makes the rate limiter spoofable in either direction.
+- **Volumetric flood protection at the edge** (proxy/CDN/WAF). The database
+  counter deliberately does not guard cheap anonymous endpoints — counting a
+  request that costs nothing in the database would amplify the flood.
 - **A malware scanner sidecar.**
 - **The Saudi entity registration**, which gates ZATCA simulation and the
   production pilot, and open-banking connectivity.
@@ -652,7 +666,7 @@ loop waited for `status: completed` and never looked at `conclusion`.
 | Data fetching | TanStack Query |
 | ORM | Drizzle |
 | Database | PostgreSQL (Supabase — Postgres only, **not** Supabase Auth) |
-| Cache / queue | **None** — in-process scheduler, in-memory rate limiting |
+| Cache / queue | **None** — in-process scheduler; rate limiting counts in Postgres (2026-10-05) |
 | Auth | `express-session` + `connect-pg-simple`, bcryptjs |
 | API contract | OpenAPI-first, orval codegen |
 | Validation | Zod (generated) |

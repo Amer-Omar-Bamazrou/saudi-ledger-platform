@@ -8168,3 +8168,28 @@ say this?* — grep the code, the UI copy and the tests for the old value (here:
 "5,000", "next return", "63(3)") in the same commit that records the
 decision. A decision recorded without that sweep is research that has not
 reached the product.
+
+## 🔴 2026-10-05 — C1 MOVED THREE LIMITERS AND RECORDED "ALL" (the rate-limiting audit)
+
+*The report is a sample, not an inventory* — 7th instance.
+
+**What happened.** C1 (2026-08-20) found that every rate limiter counted in
+process memory, so N instances enforced N times each stated limit. The fix
+built a shared Postgres store and moved the limiters in `routes/auth.ts`; the
+record says "All three limiters (auth/signup/user-admin) now share it". There
+were FIVE: `routes/invitations.ts` (unauthenticated user creation) and
+`routes/onboarding.ts` (10 MB uploads buffered in memory) were built without a
+`store:` and stayed per-process for seven weeks. The rate-limiting audit
+(2026-10-05) found them by enumerating every `rateLimit(` call in the tree, not
+by reading the file C1 had worked in.
+
+**Why it was invisible.** The C1 record named a count ("all three") and the
+count was true inside its frame — one file. Nothing tested the property for
+the other two: a test of the shared counter used the store directly, never a
+route.
+
+**The countermeasure.** Every limiter is now built by one function
+(`preSessionLimiter`, `lib/rateLimit.ts`) that cannot be called without the
+shared store, and `tests/rate-limit-login.test.ts` asserts a ROW in Postgres
+for the invitation and onboarding limiters — what MemoryStore cannot produce.
+Record: [`design-rate-limiting.md`](../product/design-rate-limiting.md) §1.

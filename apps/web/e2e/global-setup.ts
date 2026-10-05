@@ -255,8 +255,10 @@ export default async function globalSetup(): Promise<void> {
   // The suite now logs three users in per run (Batch 1C added a second tenant);
   // the login limiter is 10 per 15 minutes per IP, so a few local re-runs would
   // start answering 429 for reasons that are not regressions. This is the
-  // suite's own database: clear the auth counters it filled.
-  await db.query(`DELETE FROM rate_limit_hits WHERE key LIKE 'auth%'`);
+  // suite's own database: clear the auth counters it filled — and the request
+  // budget's (`budget:%`, 2026-10-05), whose ten-minute upload and export
+  // windows a quick local re-run would otherwise inherit.
+  await db.query(`DELETE FROM rate_limit_hits WHERE key LIKE 'auth%' OR key LIKE 'budget:%'`);
   await db.end();
 
   /**

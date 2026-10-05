@@ -83,6 +83,7 @@ configuration is complete rather than accidentally-sufficient.
 
 ```
 NODE_ENV=production
+TRUST_PROXY_HOPS=<the number of proxies in front of the app — see below>
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 SESSION_SECRET=<paste 48+ random chars>
 CORS_ALLOWED_ORIGINS=https://<your-app>.up.railway.app
@@ -117,6 +118,16 @@ it resolves to the database service's URL.
 every redeploy**. That is acceptable here and only here: nothing is ever
 archived, because nothing is ever issued. On a real deployment this must point
 at durable storage — which is why the absolute-path guard exists.
+
+**`TRUST_PROXY_HOPS` is a deployment fact, not a default** (C1). Railway's
+edge proxy sits in front of the app and adds `X-Forwarded-For`; left at 0, the
+app sees every visitor as the proxy, and every visitor shares ONE rate-limit
+bucket — 10 login attempts per 15 minutes for everyone. Set it to the number of
+proxies that rewrite the header (not verified here; confirm against Railway's
+current networking docs). The check after deploy: the log line
+`rate_limit.xff_untrusted` appears when the header arrives while the value is
+0 — if you see it, the value is wrong. Too HIGH is the opposite failure: a
+client-supplied header is believed, and the IP limits stop meaning anything.
 
 **Do NOT set `PORT`.** Railway injects it.
 

@@ -1,0 +1,25 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Rate limiting (2026-10-05) — the shared counter becomes UNLOGGED.
+--
+-- Until now only the credential endpoints counted (login, signup, user admin),
+-- so the counter was written a few times per login. The request budget
+-- (`lib/requestBudget.ts`) counts EVERY authenticated request, which makes this
+-- table the most-written table in the database — one upsert per request.
+--
+-- Measured on the local stack (500 iterations each, same statement):
+--   logged table     ~3.0 ms per upsert  (the commit waits for the WAL fsync)
+--   UNLOGGED table   ~1.2 ms per upsert  (round-trip floor ~0.9 ms)
+-- and no WAL at all, so the counter adds nothing to backups, PITR or
+-- replication volume.
+--
+-- 🔴 What UNLOGGED gives up, stated: after a database CRASH (not a clean
+-- restart) or a failover to a standby, the table comes back EMPTY — every
+-- window restarts from zero. A counter is not a record: nothing is lost that
+-- the next window does not re-count, and the longest window is one hour. It is
+-- the right trade for a value whose only job is to be approximately current.
+--
+-- Grants are unchanged (owner-only, migration 0050): SET UNLOGGED rewrites the
+-- table but keeps its ACL, indexes and constraints.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE "rate_limit_hits" SET UNLOGGED;

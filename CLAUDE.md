@@ -62,7 +62,7 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
 **2026-10-01** — 🔴 **PHASES 14+15 BUILT** (`docs/product/phase-14-15-*` pack).
-**2026-10-05** — 🔴 **PHASES 16+17 BUILT; Q1–Q3 + FINAL AUDIT FIXES; PR OPEN** ([`pack`](docs/product/phase-16-17-tax-treasury-decision-pack.md) §12–§15).
+**2026-10-05** — 🔴 **PHASES 16+17 MERGED (#190)** ([`pack`](docs/product/phase-16-17-tax-treasury-decision-pack.md) §12–§15). 🔴 **RATE LIMITING BUILT, PR OPEN** ([`design`](docs/product/design-rate-limiting.md)).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
@@ -260,7 +260,7 @@ doing the thing it governs rather than only once you know its name.
 
 #### The fix that does not finish
 
-- **🔴 THE REPORT IS A SAMPLE, NOT AN INVENTORY** — fixing a reported instance without sweeping its shape leaves the reachable copies in place, and the reported one is often the least dangerous. *(6 instances.)*
+- **🔴 THE REPORT IS A SAMPLE, NOT AN INVENTORY** — fixing a reported instance without sweeping its shape leaves the reachable copies in place, and the reported one is often the least dangerous. *(7 instances.)*
 - **Green fixes the case, not the class** — when a fix is "add a guard to X", grep for X's siblings before accepting green as done.
 - **🔴 A TARGETED FIX SEES ONLY WHAT IT WAS SENT TO FIX — MEASURE.** Working on a file causes none of its other defects to be noticed, so coverage questions are asked PERIODICALLY and MECHANICALLY against the whole surface.
 - **🔴 THE FRAME IS PART OF THE COUNT** — a walk produces a SAMPLE; only an inventory produces a COUNT, and a count is correct only inside its frame — subtler than under-counting. State the frame beside the number. *(3 instances.)*
@@ -518,7 +518,7 @@ which holds every closed item with its full reasoning.
 
 **Every remaining path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq.
-**Fixed assets BUILT** ([`pack`](docs/product/fixed-assets-decision-pack.md)); the VAT-return wiring remains and needs the accountant.
+**Fixed assets:** the VAT-return wiring remains and needs the accountant.
 
 ### Blocking, by their own nature
 

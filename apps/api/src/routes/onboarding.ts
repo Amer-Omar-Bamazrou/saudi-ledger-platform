@@ -11,7 +11,7 @@
  */
 import { Router } from "express";
 import multer from "multer";
-import rateLimit from "express-rate-limit";
+import { preSessionLimiter } from "../lib/rateLimit";
 import { onboardingService } from "../services/onboarding.service";
 import { documentsService } from "../services/documents.service";
 import { MAX_DOCUMENT_BYTES } from "../lib/fileValidation";
@@ -31,14 +31,13 @@ const upload = multer({
  * multer buffers each file in PROCESS MEMORY, so unbounded concurrent uploads are
  * a memory/storage-cost DoS. Throttle per IP; a per-org quota is additionally
  * enforced in documentsService.upload.
+ *
+ * 🔴 On the SHARED store since 2026-10-05 — it was per-process (C1 missed it).
+ * The request budget's upload class additionally counts this route per USER
+ * (it is mounted at `/onboarding`), so one account cannot spread the upload
+ * across addresses.
  */
-const uploadRateLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many document uploads. Please try again later." },
-});
+const uploadRateLimiter = preSessionLimiter({ name: "onboarding-upload", dimension: "ip", windowMs: 60 * 60 * 1000, limit: 20 });
 
 function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
   return { actorEmail: req.session.userEmail ?? null, ipAddress: req.ip ?? null };
