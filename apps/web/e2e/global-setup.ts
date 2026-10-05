@@ -81,6 +81,19 @@ export const E2E_S1 = {
   bookkeeperState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "s1-bookkeeper.json"),
 };
 
+/**
+ * The accountant's answers Q1–Q3 (2026-10-05; pack phase-16-17 §14): a FOURTH tenant, owned by the two specs that
+ * walk them. Q3 reverses a migration (the migration tenant above ends blocked and S1 stays committed); Q1/Q2 make
+ * WHT payments — which, in the shared smoke tenant, changed the month's return lines another spec asserts on
+ * (CI 37311565856: phase16-tax's consulting line read 900.00, not its own 500.00). Nothing else reads this tenant.
+ */
+export const E2E_ANSWERS = {
+  slug: "e2e-accountant-answers",
+  adminEmail: "e2e-answers-admin@smoke.local",
+  password: process.env.E2E_PASSWORD ?? "e2e-smoke-password-2026",
+  adminState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "answers-admin.json"),
+};
+
 export const E2E = {
   slug: "e2e-smoke",
   email: "e2e@smoke.local",
@@ -108,6 +121,8 @@ export interface SeededIds {
   migrationBankId: number;
   /** Phase 15: the smoke tenant's APPROVED 2026 base budget, so `/budgets/:id` is crawlable. */
   budgetId: number;
+  /** Phase 16: the smoke tenant's DRAFT FY 2025 Zakat computation, so `/tax/computations/:id` is crawlable. */
+  taxComputationId: number;
 }
 
 export const SEEDED_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), ".auth", "ids.json");
@@ -150,7 +165,7 @@ export default async function globalSetup(): Promise<void> {
    */
   const { rows: orgRows } = await db.query<{ id: string }>(
     `SELECT id FROM organizations WHERE slug = ANY($1::text[])`,
-    [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug]],
+    [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_ANSWERS.slug]],
   );
 
   if (orgRows.length > 0) {
@@ -180,13 +195,13 @@ export default async function globalSetup(): Promise<void> {
         // information_schema, not from input, and are quoted.
         await db.query(`DELETE FROM "${table_name}" WHERE organization_id = ANY($1::uuid[])`, [ids]);
       }
-      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail]]);
-      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug]]);
+      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_ANSWERS.adminEmail]]);
+      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_ANSWERS.slug]]);
     } finally {
       await db.query(`SET session_replication_role = DEFAULT`);
     }
   } else {
-    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail]]);
+    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_ANSWERS.adminEmail]]);
   }
 
   // ── The identity layer: the only rows written directly ─────────────────────
@@ -232,6 +247,11 @@ export default async function globalSetup(): Promise<void> {
     const uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,$2,'${hash}','viewer', true) RETURNING id`, [email, name])).rows[0].id as number;
     await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,$3,'active')`, [s1OrgId, uid, role]);
   }
+  // ── The accountant-answers tenant: identity only; its specs make WHT payments and commit/reverse/replace a migration ──
+  const q3OrgId = (await db.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('E2E Accountant Answers Org', $1, 'approved') RETURNING id`, [E2E_ANSWERS.slug])).rows[0].id as string;
+  await db.query(`INSERT INTO companies (organization_id, name, name_ar, fiscal_year_start, fiscal_calendar) VALUES ($1,'E2E Answers Co','شركة إجابات المحاسب',1,'gregorian')`, [q3OrgId]);
+  const q3Uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,'E2E Answers Admin','${hash}','viewer', true) RETURNING id`, [E2E_ANSWERS.adminEmail])).rows[0].id as number;
+  await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,'admin','active')`, [q3OrgId, q3Uid]);
   // The suite now logs three users in per run (Batch 1C added a second tenant);
   // the login limiter is 10 per 15 minutes per IP, so a few local re-runs would
   // start answering 429 for reasons that are not regressions. This is the
@@ -450,6 +470,9 @@ export default async function globalSetup(): Promise<void> {
   // budget (it FREEZES its year, D15-01), then put the company back undeclared, as every other spec found it.
   await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: 1, fiscalCalendar: "gregorian" });
   const budget = await api<{ id: number; version: { id: number } }>(ctx, "POST", "/budgets", { name: "E2E Operating Budget", nameAr: "ميزانية التشغيل", fiscalYearLabel: 2026 });
+  // Phase 16: a DRAFT Zakat computation for FY 2025 (a computation also freezes its year at creation), so
+  // /zakat lists a row and /tax/computations/:id is crawlable. A draft moves nothing in the books.
+  const taxComputation = await api<{ id: number }>(ctx, "POST", "/tax/computations", { kind: "zakat", fiscalYearLabel: 2025 });
   await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: null });
   const budgetAccounts = await api<Array<{ id: number; name: string }>>(ctx, "GET", "/budgets/accounts");
   const salesAccount = budgetAccounts.find((a) => a.name === "Sales Revenue");
@@ -521,5 +544,14 @@ export default async function globalSetup(): Promise<void> {
     await s1.dispose();
   }
 
-  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id, budgetId: budget.id } satisfies SeededIds, null, 2));
+  // The accountant-answers tenant: one session, one bank account and the asset category Q3's migrated asset names.
+  const q3 = await request.newContext({ baseURL: API });
+  const q3Login = await q3.post("/api/auth/login", { data: { email: E2E_ANSWERS.adminEmail, password: E2E_ANSWERS.password } });
+  if (!q3Login.ok()) throw new Error(`e2e accountant-answers login failed: ${q3Login.status()}`);
+  await api(q3, "POST", "/bank-accounts", { name: "Answers Main", bankName: "Riyad Bank", currency: "SAR" });
+  await api(q3, "POST", "/asset-categories", { name: "Q3 machinery", nameAr: "آلات", defaultUsefulLifeMonths: 48, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" });
+  await q3.storageState({ path: E2E_ANSWERS.adminState });
+  await q3.dispose();
+
+  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id, budgetId: budget.id, taxComputationId: taxComputation.id } satisfies SeededIds, null, 2));
 }

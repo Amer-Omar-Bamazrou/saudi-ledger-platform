@@ -20,4 +20,6 @@ export const SupplierStatementLineKind = {
   unallocation: 'unallocation',
   refund: 'refund',
   reclassification: 'reclassification',
+  payment_reversal: 'payment_reversal',
+  bill_payment_reversal: 'bill_payment_reversal',
 } as const;

@@ -7,7 +7,7 @@
  * the register and the ledger cannot disagree by construction.
  */
 import { db, fixedAssetsTable, assetCategoriesTable, assetDepreciationScheduleTable, assetEventsTable, assetDisposalsTable, assetTaxPoolDeclarationsTable, assetVatUseRecordsTable, categoriesTable } from "@workspace/db";
-import { and, eq, sql, isNull, isNotNull, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { DEFAULT_PAGE } from "../lib/httpParams";
 import { INVOICE_NOT_IN_BOOKS } from "./reports.repository";
 import { invoiceNotReversedSql } from "./openingReversal";
@@ -30,7 +30,8 @@ export function parseFigures(asset: { cost: string; status: string }, raw: strin
   const cost = Number(asset.cost);
   return {
     accumulatedDepreciation: accumulated,
-    carryingAmount: asset.status === "disposed" ? 0 : Math.round((cost - accumulated) * 100) / 100,
+    // a disposed asset left the books by its disposal; a REVERSED migrated asset never was in them (Q3)
+    carryingAmount: asset.status === "disposed" || asset.status === "reversed" ? 0 : Math.round((cost - accumulated) * 100) / 100,
     postedPeriods: Number(j?.posted ?? 0),
     plannedPeriods: Number(j?.planned ?? 0),
     lastPostedPeriod: j?.last_posted ?? null,
@@ -123,6 +124,31 @@ export const assetsRepository = {
       .where(eq(fixedAssetsTable.id, id))
       .limit(1);
   },
+  /** Q3: the register rows a migration batch created — every status (a disposed one blocks its reversal). */
+  assetsOfMigrationBatch(batchId: number) {
+    return db.select().from(fixedAssetsTable)
+      .where(and(eq(fixedAssetsTable.migrationBatchId, batchId), eq(fixedAssetsTable.source, "migration")))
+      .orderBy(asc(fixedAssetsTable.id));
+  },
+  /**
+   * MG-1 (final audit 2026-10-05): lock a migration batch's register rows FOR UPDATE, in id order — taken by the batch
+   * reversal BEFORE it reads what was depreciated. A depreciation posting reads its asset FOR SHARE at the database
+   * (0119 `depreciation_refused_out_of_books`), so the two serialise: one committed first is seen and mirrored; one
+   * arriving after waits, then finds the asset reversed and is refused. Never a reversed asset with an unmirrored charge.
+   */
+  async lockAssetsOfMigrationBatch(batchId: number) {
+    await db.execute(sql`SELECT id FROM fixed_assets WHERE migration_batch_id = ${batchId} AND source = 'migration' ORDER BY id FOR UPDATE`);
+  },
+  /** Q3: the POSTED depreciation of these assets, with each entry's date and status (a reversed entry is already netted). */
+  async postedDepreciationOf(assetIds: number[]) {
+    if (assetIds.length === 0) return [];
+    const { rows } = await db.execute<{ id: number; asset_id: number; asset_number: string; period: string; amount: string; journal_entry_id: number; entry_date: string; entry_status: string }>(sql`
+      SELECT s.id, s.asset_id, a.asset_number, s.period, s.amount::text, s.journal_entry_id, e.date::date::text AS entry_date, e.status AS entry_status
+        FROM asset_depreciation_schedule s JOIN fixed_assets a ON a.id = s.asset_id JOIN journal_entries e ON e.id = s.journal_entry_id
+       WHERE s.asset_id IN (${sql.join(assetIds.map((i) => sql`${i}`), sql`, `)}) AND s.journal_entry_id IS NOT NULL
+       ORDER BY s.asset_id, s.sequence`);
+    return rows;
+  },
   findByNumber(assetNumber: string) {
     return db.select({ id: fixedAssetsTable.id }).from(fixedAssetsTable).where(eq(fixedAssetsTable.assetNumber, assetNumber)).limit(1);
   },
@@ -172,6 +198,12 @@ export const assetsRepository = {
   /** FA-C: the asset's terminal record (one per asset, by the table's unique). */
   async disposalOf(assetId: number) {
     const [row] = await db.select().from(assetDisposalsTable).where(eq(assetDisposalsTable.assetId, assetId)).limit(1);
+    return row ?? null;
+  },
+
+  /** Q3 lineage: the asset a replacement batch created in place of this reversed one (the newest, if ever more than one). */
+  async replacementOf(assetId: number) {
+    const [row] = await db.select({ id: fixedAssetsTable.id }).from(fixedAssetsTable).where(eq(fixedAssetsTable.replacesAssetId, assetId)).orderBy(desc(fixedAssetsTable.id)).limit(1);
     return row ?? null;
   },
 
@@ -422,8 +454,10 @@ export const assetsRepository = {
              (coalesce((SELECT sum(fa.opening_accumulated_depreciation) FROM fixed_assets fa WHERE fa.category_id = c.id AND fa.status = 'in_service'), 0)
               + coalesce((SELECT sum(s.amount) FROM asset_depreciation_schedule s JOIN fixed_assets fa ON fa.id = s.asset_id
                            WHERE fa.category_id = c.id AND fa.status = 'in_service' AND s.journal_entry_id IS NOT NULL), 0))::text register_accum,
+             -- every posted row reached the expense account — except a REVERSED migrated asset's, whose depreciation the
+             -- batch reversal mirrored (Q3): it never existed in these books, so its charge is not the register's
              coalesce((SELECT sum(s.amount) FROM asset_depreciation_schedule s JOIN fixed_assets fa ON fa.id = s.asset_id
-                        WHERE fa.category_id = c.id AND s.journal_entry_id IS NOT NULL), 0)::text register_charge,
+                        WHERE fa.category_id = c.id AND fa.status <> 'reversed' AND s.journal_entry_id IS NOT NULL), 0)::text register_charge,
              coalesce((SELECT sum(l.debit_amount - l.credit_amount) FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id
                         WHERE l.account_id = c.cost_account_id AND e.status IN ('posted', 'reversed')), 0)::text gl_cost,
              coalesce((SELECT sum(l.credit_amount - l.debit_amount) FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id

@@ -1,14 +1,17 @@
 /** Vendors service — AP summary + supplier matching. Behavior preserved from pre-M6. */
-import { NotFoundError } from "../lib/errors";
+import { BadRequestError, NotFoundError } from "../lib/errors";
 import { pick } from "../lib/writeGuards";
+import { WHT_PAYMENT_TYPES } from "@workspace/db";
 
 /** H1 allowlist — user-settable vendor fields (system columns excluded). */
 const VENDOR_FIELDS = [
   "name", "nameAr", "taxNumber", "crNumber", "phone", "email", "address",
   "city", "country", "currency", "iban", "paymentTermsDays", "notes", "isActive",
   // B8: residency is a FACT about the supplier, recorded by the person who
-  // knows it. Nothing withholds on it yet — see the column's note in the schema.
+  // knows it. Phase 16: a payment to a non-resident withholds on it (accounting/wht.ts).
   "residency",
+  // Phase 16: the supplier's DECLARED default WHT nature, and its registration number abroad (Art. 68(B)(3)).
+  "whtDefaultPaymentType", "foreignTaxId",
 ] as const;
 import { auditService } from "./audit.service";
 import { vatEvidenceService } from "./purchaseEvidence/vatEvidence.service";
@@ -25,6 +28,11 @@ function normalize(values: Partial<VendorInsert>): Partial<VendorInsert> {
   for (const key of VENDOR_FIELDS) {
     // "" → NULL, nameAr now included — the sentinel default died (2026-09-14).
     if (out[key] === "") out[key] = null;
+  }
+  // Phase 16: a declared WHT nature is one of IR Art. 63(1)'s — refused in words, not by the database CHECK.
+  const t = out.whtDefaultPaymentType;
+  if (t != null && !(WHT_PAYMENT_TYPES as readonly string[]).includes(String(t))) {
+    throw new BadRequestError(`whtDefaultPaymentType must be one of ${WHT_PAYMENT_TYPES.join(", ")}.`);
   }
   return out as Partial<VendorInsert>;
 }

@@ -9,17 +9,45 @@
  * writer per effect). `billsService.pay` is the HTTP-facing wrapper; the
  * approval adapter calls this directly (it cannot import the service without
  * a cycle).
+ *
+ * 🔴 Phase 16 (pack §2.4): a payment to a NON-RESIDENT supplier withholds tax
+ * HERE, through `accounting/wht.ts` — Dr AP (the amount settled) / Cr bank
+ * (that amount less the tax) / Cr WHT_PAYABLE (the tax). `bill_payments.amount`
+ * and `bills.paid_amount` keep meaning what the SUPPLIER is credited with, so
+ * `billPosition` is untouched; the bank line is the cash that actually left.
  */
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
+import { decideWithholding, recordWithholding, returnPeriodFor, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
 import { billsRepository } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { businessToday } from "@workspace/shared";
+import { fromHalalas, toHalalas } from "../lib/money";
 
-export async function payBill(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown }, _userId: number | null): Promise<void> {
+export interface BillPaymentResult {
+  billPaymentId: number;
+  journalEntryId: number;
+  /** What the supplier was credited with (the AP settled). */
+  amount: number;
+  /** The cash that left the bank: amount − withheld. */
+  cashPaid: number;
+  withheld: number;
+  withholding: WhtDecision;
+}
+
+export async function payBill(
+  id: number,
+  body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown },
+  userId: number | null,
+  /**
+   * Q1 (pack §14.1): set ONLY by the WHT correction when this payment is the corrected RE-ENTRY — never from a
+   * request. Its withholding names the correction, and a subsequent-period report lands in the correction's month.
+   */
+  opts: { correction?: { id: number; correctionPeriod: string } } = {},
+): Promise<BillPaymentResult> {
     const { amount, paidAt } = body;
 
     const [existing] = await billsRepository.findById(id);
@@ -82,6 +110,20 @@ export async function payBill(id: number, body: { amount: unknown; paidAt?: stri
     const fullySettled = outstanding - paid < 0.01;
 
     const payDate = paidAt ?? businessToday();
+    // 🔴 Phase 16: decided BEFORE anything is written — a payment to a
+    // non-resident whose nature is not declared is refused here, in words,
+    // with nothing posted (wht.ts).
+    const declared = whtDeclarationFrom(body as Record<string, unknown>);
+    const withholding = await decideWithholding({
+      vendorId: existing.vendorId, paymentDate: payDate, base: paid, currency: existing.currency,
+      paymentClass: "bill_payment", // settling a bill is consideration: judged by its nature (Q2)
+      declared,
+    });
+    // Q1: which month's return carries it — a FILED month is never changed silently (refused here, before any write)
+    const reported = await returnPeriodFor(withholding, payDate, declared.filedMonthTreatment, { today: businessToday(), correctionPeriod: opts.correction?.correctionPeriod });
+    const withheld = whtOf(withholding);
+    const cashPaid = fromHalalas(toHalalas(paid) - toHalalas(withheld));
+
     const [bill] = await billsRepository.update(id, {
       paidAmount: String(newPaid),
       paidAt: payDate,
@@ -93,7 +135,7 @@ export async function payBill(id: number, body: { amount: unknown; paidAt?: stri
     // unique — `BILL-x-PAY` alone collided on the second partial payment.
     const payment = await paymentsRepository.recordBillPayment(id, paid, payDate, bankAccountId);
 
-    // ── GL: Dr Accounts Payable / Cr <the bank's own cash account> ──
+    // ── GL: Dr Accounts Payable / Cr <the bank's own cash account> (/ Cr WHT_PAYABLE) ──
     const payEntry = await postJournalEntry({
       entryNumber: `BILL-${bill.billNumber}-PAY-${payment.id}`,
       date: payDate,
@@ -101,11 +143,17 @@ export async function payBill(id: number, body: { amount: unknown; paidAt?: stri
       reference: bill.billNumber ?? undefined,
       lines: [
         { systemCode: "AP", accountName: "Accounts Payable", description: `Payment for ${bill.billNumber}`, debitAmount: paid, creditAmount: 0, party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } },
-        { bankAccountId, description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: paid },
+        { bankAccountId, description: `Payment for ${bill.billNumber}`, debitAmount: 0, creditAmount: cashPaid },
+        ...whtLine(withholding, `Withholding tax on payment for ${bill.billNumber}`),
       ],
     });
 
     // Phase 12B: the payment names its entry, so its cash line can be reconciled to the bank's statement line.
     await paymentsRepository.setBillPaymentEntry(payment.id, payEntry.id);
-    await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: bill });
+    // Phase 16: the withholding names the payment and its entry (after both exist — the database checks they are its own).
+    await recordWithholding(withholding, { kind: "bill_payment", billPaymentId: payment.id, billId: id }, payDate, payEntry.id, userId, {
+      returnPeriod: reported.returnPeriod, filedMonthTreatment: reported.filedMonthTreatment, correctionId: opts.correction?.id ?? null,
+    });
+    await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: { ...bill, withholding: withheld > 0 ? { amount: withheld, cashPaid } : null } });
+    return { billPaymentId: payment.id, journalEntryId: payEntry.id, amount: paid, cashPaid, withheld, withholding };
 }

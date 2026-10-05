@@ -139,6 +139,17 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
     (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name, created_at) VALUES ($1,$2,$3,'ANB','2026-01-01') RETURNING id`, [orgId, companyId, name])).rows[0].id as number;
   const accountByCode = async (org: string, code: string) =>
     (await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = $2`, [org, code])).rows[0] as { id: number; name: string };
+  /** A reversal of a MISSING entry — refused by the database since 0119, so planted with triggers off (legacy rows only). */
+  const plantedOrphanReversal = async (org: string, companyId: string, entryNumber: string, date: string, lines: Array<{ accountId: number; accountName: string; dr: number; cr: number }>, reversalOf: number) => {
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN"); await c.query("SET LOCAL session_replication_role = replica");
+      const je = (await c.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, reversal_of, posted_at) VALUES ($1,$2,$3,$4,'fixture','posted',$5,now()) RETURNING id`, [org, companyId, entryNumber, date, reversalOf])).rows[0].id as number;
+      for (const l of lines) await c.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [org, companyId, je, l.accountId, l.accountName, l.dr, l.cr]);
+      await c.query("COMMIT");
+      return je;
+    } catch (err) { await c.query("ROLLBACK"); throw err; } finally { c.release(); }
+  };
   const entry = async (org: string, companyId: string, entryNumber: string, date: string, lines: Array<{ accountId: number; accountName: string; dr: number; cr: number }>, opts: { status?: string; reversalOf?: number | null; reference?: string | null } = {}) => {
     const je = (await pool.query(
       `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, reversal_of, reference, posted_at)
@@ -331,7 +342,9 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
       await entry(orgId, c5, "GL-PAIR-E2-PAY", "2026-02-27", [{ ...H, dr: 600, cr: 0 }, { ...AR, dr: 0, cr: 600 }], { reference: "PAIR-E2" });
       const jeF = await entry(orgId, c5, "JE-F-ORIGINAL", "2026-03-02", [{ ...H, dr: 77, cr: 0 }, { ...S, dr: 0, cr: 77 }], { status: "reversed" });
       await entry(orgId, c5, "JE-F-ORIGINAL-REV", "2026-03-03", [{ ...S, dr: 78, cr: 0 }, { ...H, dr: 0, cr: 78 }], { reversalOf: jeF });
-      await entry(orgId, c5, "JE-F-ORPHAN-REV", "2026-03-04", [{ ...S, dr: 5, cr: 0 }, { ...H, dr: 0, cr: 5 }], { reversalOf: 999999904 });
+      // PLANTED with triggers off: a reversal of an entry that does not exist is LEGACY data — since 0119 the database
+      // refuses to write one (`journal_entries_mirror_admit`); the cut-over must still name it if a book carries one
+      await plantedOrphanReversal(orgId, c5, "JE-F-ORPHAN-REV", "2026-03-04", [{ ...S, dr: 5, cr: 0 }, { ...H, dr: 0, cr: 5 }], 999999904);
     });
 
     const otherHeader = await accountByCode(otherOrgId, "CASH");

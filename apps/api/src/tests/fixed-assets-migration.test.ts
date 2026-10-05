@@ -174,8 +174,9 @@ describeMaybe("FA-D — migrated fixed assets (real rows)", () => {
     expect([a.schedule[0]!.period, a.schedule[0]!.sequence, a.schedule[0]!.amount]).toEqual(["2026-07", 25, 2_916.67]);
     expect([a.schedule[23]!.period, a.schedule[23]!.sequence, a.schedule[23]!.carryingAfter]).toEqual(["2028-06", 48, 0]);
     expect(Math.round(a.schedule.reduce((s, r) => s + r.amount, 0) * 100) / 100).toBe(70_000);
-    expect(a.events.map((e) => e.kind)).toEqual(["capitalised"]);
-    expect(a.events[0]!.payload).toMatchObject({ migrated: true, batchId, sourceId: "FA-1", openingPeriodsBooked: 24 });
+    expect(a.events.map((e) => e.kind)).toEqual(["created", "capitalised"]); // the audit spine every asset carries (asset_state_evidence)
+    expect(a.events[0]!.payload).toMatchObject({ migrated: true, batchId, sourceId: "FA-1" });
+    expect(a.events[1]!.payload).toMatchObject({ migrated: true, batchId, sourceId: "FA-1", openingPeriodsBooked: 24 });
     // the next monthly run posts the resumed row, and the figures read opening + posted
     const run = await inTenant(() => assetCapitalisationService.depreciate(assetId, { period: "2026-07" }, userId));
     expect(run.amount).toBe(2_916.67);

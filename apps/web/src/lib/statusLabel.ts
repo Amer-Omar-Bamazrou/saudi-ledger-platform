@@ -18,6 +18,9 @@ const STATUS_AR: Record<string, string> = {
   rejected: "مرفوضة",
   converted: "محوّلة",
   expired: "منتهية",
+  // Phase 16/17 in the approvals queue: a treaty relief awaiting approval, a payment plan not yet approved
+  pending: "بانتظار الاعتماد",
+  planned: "مخططة",
 };
 
 export function statusLabel(status: string, lang: "en" | "ar"): string {

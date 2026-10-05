@@ -45,7 +45,8 @@ export const vatCapitalAssetService = {
    * twelve-month windows, and the disposal adjustment where one has happened.
    */
   async report(opts: { assetId?: number } = {}) {
-    const company = await companiesRepository.findActive();
+    // the company IN SCOPE (the request's company GUC) — never the org's first-created one (F-19; found again in Phase 16, pack §13)
+    const company = await companiesRepository.findCurrent();
     if (!company) throw new NotFoundError("No company is configured for this organization.");
 
     const base = {
@@ -183,6 +184,11 @@ export const vatCapitalAssetService = {
     const [row0] = await assetsRepository.findById(input.assetId);
     if (!row0) throw new NotFoundError("Asset not found.");
     const asset = row0.asset;
+    // Q3 (pack phase-16-17 §14.3): a migrated asset reversed with its batch never existed in these books — the
+    // Art. 52 report no longer reads it, so a use stated for it would be a figure nothing can ever show
+    if (asset.status === "reversed") {
+      throw new BusinessRuleError(409, { error: `${asset.assetNumber} was reversed with its migration batch: it is out of the books and has no adjustment period to state a use for.`, code: "asset_reversed", field: "assetId" });
+    }
     if (!VAT_USE_BASES.includes(input.basis as (typeof VAT_USE_BASES)[number])) {
       throw new BusinessRuleError(422, { error: `A use record states WHY it differs from the Art. 51 default: ${VAT_USE_BASES.join(", ")}.`, code: "vat_use_basis_unknown", field: "basis" });
     }

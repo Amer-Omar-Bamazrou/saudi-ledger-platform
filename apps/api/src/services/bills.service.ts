@@ -107,6 +107,7 @@ import { buildBillOut } from "./bills.presenter";
 import { billsRepository, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { round2 } from "../lib/money";
+import { taxRepository } from "../repositories/tax.repository";
 import { businessToday } from "@workspace/shared";
 import { supplierAdvanceInvoicesService, type PrepaymentInput } from "./accounting/supplierAdvanceInvoices.service";
 import { capturedDocumentsRepository } from "../repositories/capturedDocuments.repository";
@@ -461,7 +462,7 @@ export const billsService = {
    * (`bills.payment.ts`), then read the bill back through the one definition,
    * so the response carries what it owes NOW.
    */
-  async pay(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown }, userId: number | null) {
+  async pay(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown }, userId: number | null) {
     await payBill(id, body, userId);
     return billsService.getById(id);
   },
@@ -470,14 +471,27 @@ export const billsService = {
   async payments(id: number) {
     const [existing] = await billsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
-    return (await paymentsRepository.listForBill(id)).map((p) => ({
-      id: p.id,
-      amount: Number(p.amount),
-      paidAt: p.paidAt,
-      backfilled: p.backfilled,
-      // D-4 covers customer payments only in Batch 1B Part 1; a bill payment is still the B4 row.
-      paymentId: null as number | null,
-    }));
+    const rows = await paymentsRepository.listForBill(id);
+    // Phase 16: what each payment withheld (one read for the whole list, never per row)
+    const wht = new Map((await taxRepository.withholdingsForBillPayments(rows.map((p) => p.id))).map((w) => [w.billPaymentId, w]));
+    // Q1 (pack §14.1): a payment reversed by a WHT correction stays in the history, marked — never deleted, never edited
+    const corrections = new Map((await taxRepository.correctionsForBillPayments(rows.map((p) => p.id))).map((c) => [c.billPaymentId, c]));
+    return rows.map((p) => {
+      const w = wht.get(p.id);
+      const c = corrections.get(p.id);
+      return {
+        id: p.id,
+        amount: Number(p.amount),
+        paidAt: p.paidAt,
+        backfilled: p.backfilled,
+        // D-4 covers customer payments only in Batch 1B Part 1; a bill payment is still the B4 row.
+        paymentId: null as number | null,
+        withheld: w ? Number(w.whtAmount) : null,
+        cashPaid: w ? round2(Number(p.amount) - Number(w.whtAmount)) : null,
+        whtPaymentType: w?.paymentType ?? null,
+        reversal: c ? { correctionId: c.id, correctedOn: c.correctedOn, reason: c.reason, reversalJournalEntryId: c.reversalJournalEntryId } : null,
+      };
+    });
   },
 
   /**

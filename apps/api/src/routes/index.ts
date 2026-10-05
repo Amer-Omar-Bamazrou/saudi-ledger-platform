@@ -45,6 +45,8 @@ import assets from "./assets.js";
 import assetCategories from "./assetCategories.js";
 import bankAccounts from "./bankAccounts.js";
 import budgets from "./budgets.js";
+import tax from "./tax.js";
+import treasury from "./treasury.js";
 import reports from "./reports/index.js";
 import periodLocks from "./periodLocks.js";
 import financeHub from "./financeHub.js";
@@ -145,13 +147,16 @@ router.use("/journal-entries", requirePermission("journal_entries"), journalEntr
 router.use("/recognition-schedules", requirePermission("journal_entries"), recognitionSchedules);
 // Spans four resources: at least one READ grant to reach it, and the service
 // then filters to exactly the entities this role may read.
-router.use("/approvals", requireAnyPermission(["invoices", "bills", "journal_entries", "payroll"]), approvals);
+router.use("/approvals", requireAnyPermission(["invoices", "bills", "journal_entries", "payroll", "tax", "treasury"]), approvals);
 router.use("/employees", requirePermission("employees"), employees);
 router.use("/payroll", requirePermission("payroll"), payroll);
 router.use("/assets", requirePermission("assets"), assets);
 router.use("/asset-categories", requirePermission("assets"), assetCategories);
 router.use("/bank-accounts", requirePermission("bank_accounts"), bankAccounts);
 router.use("/budgets", requirePermission("budgets"), budgets);
+// Phase 16 — Saudi tax; Phase 17 — Treasury (its /settings carries its own, stricter `treasury_settings` guard inside).
+router.use("/tax", requirePermission("tax"), tax);
+router.use("/treasury", requirePermission("treasury"), treasury);
 router.use("/reports", requirePermission("reports"), reports);
 router.use("/period-locks", requirePermission("period_locks"), periodLocks);
 // M18.3 — read-only derived figures; gated on reports, which every role may read.

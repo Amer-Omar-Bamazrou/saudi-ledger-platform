@@ -34,4 +34,20 @@ version_id?: string;
  * budget-vs-actual only
  */
 through_period?: string;
+/**
+ * wht-return only (YYYY-MM)
+ */
+period?: string;
+/**
+ * wht-annual only
+ */
+fiscal_year?: string;
+/**
+ * tax-computation only
+ */
+computation_id?: string;
+/**
+ * treasury-forecast only
+ */
+weeks?: string;
 };

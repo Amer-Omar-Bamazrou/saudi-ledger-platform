@@ -488,7 +488,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     // ── THE REVERSAL ──
     const out = await inTenant(() => migrationCommitService.reverse(committedId, { reason: "opening AR was wrong by 5,000 — Beta's balance was 15,000, not 20,000" }, userId)) as Awaited<ReturnType<typeof migrationCommitService.reverse>> & { reversed: { invoices: number; bills: number; deposits: number }; reversalJournalEntryId: number };
     expect(out.status).toBe("reversed");
-    expect(out.reversed).toEqual({ invoices: 3, bills: 2, deposits: 2 });
+    expect(out.reversed).toEqual({ invoices: 3, bills: 2, deposits: 2, assets: 0, depreciationEntries: 0 });
     expect(out).not.toHaveProperty("removed");
     // The mirror: through the seam, dated the opening date, source opening_reversal, reversal_of set; the opening entry marked reversed; both in the books, netting to zero.
     const mirror = (await pool.query(`SELECT * FROM journal_entries WHERE id = $1`, [out.reversalJournalEntryId])).rows[0];

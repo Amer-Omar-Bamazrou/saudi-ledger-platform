@@ -109,6 +109,13 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/vendors": "app",
   "/verification": "authenticated-no-shell",
   "/zakat": "app",
+  // Phase 16 — Saudi tax; Phase 17 — Treasury.
+  "/zakat/classification": "app",
+  "/tax/income-tax": "app",
+  "/tax/withholding": "app",
+  "/tax/obligations": "app",
+  "/tax/computations/:id": "param",
+  "/treasury": "app",
   "/zatca": "app",
 
   "/login": "anonymous",

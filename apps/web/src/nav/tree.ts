@@ -281,6 +281,16 @@ export const NAV_TREE: readonly NavSection[] = [
       built("/bank-reconciliations", "Period Reconciliation", "التسوية البنكية للفترة", Scale),
       // Phase D/F: statement rows ↔ receipts/refunds, classified with evidence.
       built("/bank-matching", "Bank Matching", "مطابقة كشوف البنك", SearchCheck),
+      // Phase 17 (2026-10-04): the cash position, liquidity, the forecast, payment scheduling and the funding requirement.
+      {
+        ...built("/treasury", "Treasury", "الخزينة", Wallet),
+        children: [
+          built("/treasury", "Cash Position & Liquidity", "المركز النقدي والسيولة"),
+          built("/treasury?tab=forecast", "Cash Forecast", "التوقع النقدي"),
+          built("/treasury?tab=plans", "Payment Scheduling", "جدولة المدفوعات"),
+          built("/treasury?tab=assumptions", "Forecast Assumptions", "افتراضات التوقع"),
+        ],
+      },
       soon("live-bank-feeds", "Live Bank Feeds", "الربط المباشر مع البنوك", Plug),
       {
         label: "Banking Reports", labelAr: "التقارير البنكية", marker: "built",
@@ -308,17 +318,28 @@ export const NAV_TREE: readonly NavSection[] = [
           soon("zatca-production-submission", "Production Submission", "الإرسال الفعلي"),
         ],
       },
+      // Phase 16 (2026-10-04): the four Zakat placeholders and the WHT one became pages. "Zakat Reports" is
+      // the approved working paper with its exports (on each computation), and "Zakat Settings" is the
+      // ownership and fiscal-year declaration (Company Settings) plus the account classification — folded
+      // into the entries below rather than kept as labels over pages that already have one.
       {
         ...built("/zakat", "Zakat", "الزكاة", Landmark),
         children: [
-          built("/zakat", "Fiscal Calendar", "التقويم المالي"),
-          soon("zakat-calculation", "Zakat Calculation", "احتساب الزكاة"),
-          soon("zakat-base", "Zakat Base", "وعاء الزكاة"),
-          soon("zakat-reports", "Zakat Reports", "تقارير الزكاة"),
-          soon("zakat-settings", "Zakat Settings", "إعدادات الزكاة"),
+          built("/zakat", "Zakat Computations", "احتسابات الزكاة"),
+          built("/zakat/classification", "Zakat Base Classification", "تصنيف حسابات الوعاء"),
         ],
       },
-      soon("withholding-tax", "Withholding Tax", "ضريبة الاستقطاع", Receipt),
+      built("/tax/income-tax", "Income Tax", "ضريبة الدخل", Scale),
+      {
+        ...built("/tax/withholding", "Withholding Tax", "ضريبة الاستقطاع", Receipt),
+        children: [
+          built("/tax/withholding", "Months & Remittances", "الأشهر والتسديدات"),
+          built("/tax/withholding?tab=return", "Monthly Return", "الإقرار الشهري"),
+          built("/tax/withholding?tab=exceptions", "Exceptions", "الاستثناءات"),
+          built("/tax/withholding?tab=reliefs", "Treaty Reliefs", "إعفاءات الاتفاقيات"),
+        ],
+      },
+      built("/tax/obligations", "Tax Obligations", "الالتزامات الضريبية", CalendarClock),
     ],
   },
 

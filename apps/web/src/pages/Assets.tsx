@@ -38,10 +38,14 @@ export function useAssetCategories() {
 
 export function statusLabel(t: (en: string, ar: string) => string, a: Pick<Asset, "status" | "fullyDepreciated">) {
   if (a.status === "in_service" && a.fullyDepreciated) return t("Fully depreciated", "مُهلك بالكامل");
-  return ({ draft: t("Draft", "مسودة"), in_service: t("In service", "في الخدمة"), disposed: t("Disposed", "مستبعد"), cancelled: t("Cancelled", "ملغى") } as Record<string, string>)[a.status] ?? a.status;
+  return ({
+    draft: t("Draft", "مسودة"), in_service: t("In service", "في الخدمة"), disposed: t("Disposed", "مستبعد"), cancelled: t("Cancelled", "ملغى"),
+    // Q3 (pack phase-16-17 §14.3): a migrated asset whose migration was reversed — out of the books, never a disposal
+    reversed: t("Reversed with its migration", "معكوس مع ترحيله"),
+  } as Record<string, string>)[a.status] ?? a.status;
 }
 
-const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", in_service: "bg-positive-surface/20 text-positive", disposed: "bg-negative-surface/20 text-negative", cancelled: "bg-secondary text-muted-foreground" };
+const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", in_service: "bg-positive-surface/20 text-positive", disposed: "bg-negative-surface/20 text-negative", cancelled: "bg-secondary text-muted-foreground", reversed: "bg-secondary text-muted-foreground" };
 
 export default function Assets() {
   const [open, setOpen] = useState(false);

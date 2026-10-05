@@ -39,6 +39,7 @@ import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { billNotReversedSql } from "./openingReversal";
 import { billIsPayableSql, billLivePaidBySubledgerSql, billOutstandingSql, billSignSql } from "./billPosition";
+import { supplierPaymentReversedSql } from "./paymentReversal";
 
 /** Drafts and submitted documents are not in the books; a reversed opening item is history (Policy C). */
 const IN_BOOKS = sql`b.status NOT IN ('draft','submitted') AND ${billNotReversedSql("b")}`;
@@ -61,7 +62,9 @@ export type SupplierPositionRow = {
 
 export type SupplierStatementEventKind =
   | "bill" | "debit_note" | "credit_note"
-  | "payment" | "bill_payment" | "allocation" | "credit_application" | "unallocation" | "refund" | "reclassification";
+  | "payment" | "bill_payment" | "allocation" | "credit_application" | "unallocation" | "refund" | "reclassification"
+  // Q1 (pack §14.1): a WHT correction reversed the payment — the original stays, this answers it
+  | "payment_reversal" | "bill_payment_reversal";
 
 export type SupplierStatementEventRow = {
   kind: SupplierStatementEventKind;
@@ -92,6 +95,31 @@ export type SupplierStatementEventRow = {
 const vendorIs = (col: string, vendorId: number | null) => (vendorId == null ? sql`true` : sql`${sql.raw(col)} = ${vendorId}`);
 
 export const supplierStatementRepository = {
+  /**
+   * Phase 17 (Treasury, pack §8.3) — every payable DOCUMENT still owed, one
+   * row each, with its due date and its supplier's residency: THIS module's
+   * in-books predicate and `billPosition`'s ONE definition of what a bill
+   * owes. Σ outstanding = the AP ageing's total — pinned by a test.
+   */
+  async openPayables() {
+    const { rows } = await db.execute<{
+      id: number; bill_number: string | null; vendor_id: number | null; vendor_name: string | null; vendor_name_ar: string | null;
+      vendor_residency: string | null; vendor_wht_default_payment_type: string | null; payment_terms_days: string | null;
+      date: string; due_date: string | null; currency: string | null; outstanding: string;
+    }>(sql`
+      SELECT * FROM (
+        SELECT b.id, b.bill_number, b.vendor_id, v.name AS vendor_name, v.name_ar AS vendor_name_ar, v.residency AS vendor_residency,
+               v.wht_default_payment_type AS vendor_wht_default_payment_type, v.payment_terms_days,
+               b.date::date::text AS date, nullif(b.due_date::text, '') AS due_date, b.currency,
+               ${billOutstandingSql("b")}::text AS outstanding
+          FROM bills b
+          LEFT JOIN vendors v ON v.id = b.vendor_id
+         WHERE ${IN_BOOKS} AND ${billIsPayableSql("b")} AND ${scopedCo("b")}
+      ) x WHERE x.outstanding::numeric <> 0
+      ORDER BY coalesce(x.due_date, x.date), x.id`);
+    return rows;
+  },
+
   /**
    * The position of one supplier, or of every supplier with any document,
    * payment or refund — one grouped query, never N+1.
@@ -129,7 +157,9 @@ export const supplierStatementRepository = {
                    - coalesce((SELECT sum(a.amount::numeric) FROM supplier_payment_allocations a
                                 WHERE a.supplier_payment_id = p.id AND ${ALLOC_LIVE}), 0)
                    - coalesce((SELECT sum(f.amount::numeric) FROM supplier_refunds f
-                                WHERE f.supplier_payment_id = p.id), 0)) AS balance
+                                WHERE f.supplier_payment_id = p.id), 0)
+                   -- Q1: a payment a WHT correction reversed holds nothing on account (its mirror took it all back)
+                   - CASE WHEN ${supplierPaymentReversedSql("p")} THEN p.amount::numeric ELSE 0 END) AS balance
           FROM supplier_payments p
          WHERE ${scopedCo("p")}
          GROUP BY p.vendor_id, p.classification)
@@ -227,13 +257,15 @@ export const supplierStatementRepository = {
           LEFT JOIN bills o ON o.id = b.credit_note_against_bill_id
          WHERE ${vendorIs("b.vendor_id", vendorId)} AND b.document_type = 'credit_note' AND ${IN_BOOKS} AND ${scopedCo("b")}
         UNION ALL
-        -- money we paid: what was not allocated at the time went on account
+        -- money we paid: what was not allocated AT THE TIME went on account. 🔴 Every allocation the payment's own entry
+        -- made counts here, live or since superseded: the event is history, and a later reversal is its OWN event
+        -- (an 'unallocation'), never a rewrite of this one (the customer statement's rule).
         SELECT 'payment', p.paid_at::date::text, p.created_at, 1, p.id,
                coalesce(p.reference, 'SPAY-' || p.id::text), p.reference,
                'Payment to the supplier (' || p.classification || ')',
                p.amount::numeric, 0, 0,
                p.amount::numeric - coalesce((SELECT sum(a.amount::numeric) FROM supplier_payment_allocations a
-                                              WHERE a.supplier_payment_id = p.id AND a.journal_entry_id = p.journal_entry_id AND ${ALLOC_LIVE}), 0),
+                                              WHERE a.supplier_payment_id = p.id AND a.journal_entry_id = p.journal_entry_id), 0),
                NULL, p.id, NULL, NULL, NULL, p.journal_entry_id
           FROM supplier_payments p
          WHERE ${vendorIs("p.vendor_id", vendorId)} AND ${scopedCo("p")}
@@ -260,6 +292,10 @@ export const supplierStatementRepository = {
          WHERE ${vendorIs("tb.vendor_id", vendorId)} AND ${scopedCo("bp")}
         UNION ALL
         -- an allocation: the payable falls. From a PAYMENT it also consumes on-account money.
+        -- 🔴 Listed whether or not it was later superseded: its 'unallocation' (below) brings the deltas back. Filtering
+        -- superseded allocations out AND adding their unallocations counted every reversal twice — payable and
+        -- on-account each overstated by the amount, the net unchanged, so the net-only self-check stayed green and the
+        -- as-of AP ageing aged the bill at more than it owed (found 2026-10-05, probing Q1 on real rows).
         SELECT CASE WHEN a.supplier_credit_note_id IS NOT NULL THEN 'credit_application' ELSE 'allocation' END,
                coalesce(e.date::date::text, (a.created_at AT TIME ZONE 'Asia/Riyadh')::date::text), a.created_at, 2, a.id,
                tb.bill_number, NULL,
@@ -275,7 +311,7 @@ export const supplierStatementRepository = {
           JOIN bills tb ON tb.id = a.bill_id
           LEFT JOIN supplier_payments p ON p.id = a.supplier_payment_id
           LEFT JOIN journal_entries e ON e.id = a.journal_entry_id
-         WHERE ${vendorIs("tb.vendor_id", vendorId)} AND ${ALLOC_LIVE} AND ${scopedCo("a")}
+         WHERE ${vendorIs("tb.vendor_id", vendorId)} AND ${scopedCo("a")}
         UNION ALL
         -- a correction: the original allocation row stays; this is the record that answers it
         SELECT 'unallocation', coalesce(e.date::date::text, (rv.created_at AT TIME ZONE 'Asia/Riyadh')::date::text), rv.created_at, 3, rv.id,
@@ -297,6 +333,25 @@ export const supplierStatementRepository = {
                NULL, f.supplier_payment_id, NULL, NULL, f.id, f.journal_entry_id
           FROM supplier_refunds f
          WHERE ${vendorIs("f.vendor_id", vendorId)} AND ${scopedCo("f")}
+        UNION ALL
+        -- Q1 (pack §14.1): a WHT correction reversed a bill payment — the bill owes it again; the payment row stays
+        SELECT 'bill_payment_reversal', c.corrected_on::date::text, c.created_at, 6, c.id,
+               tb.bill_number, NULL, 'Payment against ' || tb.bill_number || ' reversed (WHT correction): ' || c.reason,
+               bp.amount::numeric, bp.amount::numeric, 0, 0,
+               bp.bill_id, NULL, NULL, NULL, NULL, c.reversal_journal_entry_id
+          FROM wht_corrections c
+          JOIN bill_payments bp ON bp.id = c.bill_payment_id
+          JOIN bills tb ON tb.id = bp.bill_id
+         WHERE ${vendorIs("tb.vendor_id", vendorId)} AND ${scopedCo("c")}
+        UNION ALL
+        -- Q1: a WHT correction reversed a supplier payment — after its allocations' unallocations, the whole payment leaves on-account
+        SELECT 'payment_reversal', c.corrected_on::date::text, c.created_at, 6, c.id,
+               coalesce(p.reference, 'SPAY-' || p.id::text), p.reference, 'Payment reversed (WHT correction): ' || c.reason,
+               p.amount::numeric, 0, 0, -p.amount::numeric,
+               NULL, p.id, NULL, NULL, NULL, c.reversal_journal_entry_id
+          FROM wht_corrections c
+          JOIN supplier_payments p ON p.id = c.supplier_payment_id
+         WHERE ${vendorIs("p.vendor_id", vendorId)} AND ${scopedCo("c")}
         UNION ALL
         -- saying what money on account IS: nothing moves between the components, but the chronology has to show the act
         SELECT 'reclassification', coalesce(c.effective_date::date::text, (c.created_at AT TIME ZONE 'Asia/Riyadh')::date::text), c.created_at, 5, c.id,

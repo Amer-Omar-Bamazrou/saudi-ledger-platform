@@ -103,6 +103,9 @@ import { periodLocksRepository } from "../repositories/periodLocks.repository";
 import { auditService } from "./audit.service";
 import { postJournalEntry, type GLLine } from "./accounting/glPosting";
 import { migratedAssetsService } from "./assets/migratedAssets.service";
+import { assetsRepository } from "../repositories/assets.repository";
+import { recordAssetEvent } from "./assets.service";
+import { journalEntriesService } from "./journalEntries.service";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { migrationService, toBatchOut } from "./migration.service";
 import { readStagedContent, type StagedContent } from "./migrationStaging.service";
@@ -114,6 +117,26 @@ const eq = (a: number, b: number) => Math.abs(a - b) < 0.005;
 
 type Refusal = { code: string; error: string; field?: string };
 const refuse = (status: number, r: Refusal): never => { throw new BusinessRuleError(status, { error: r.error, code: r.code, field: r.field ?? "id" }); };
+
+/**
+ * 🔴 Q3 (pack phase-16-17 §14.3): a migration is reversed WHOLE. The reversal
+ * mirrors ONE opening journal and marks every row it created; there is no
+ * deterministic way to withdraw part of a balanced opening position (the rest
+ * would no longer balance — A5), so a request that names anything to scope the
+ * reversal is REFUSED rather than approximated. Read from the RAW body: the
+ * generated schema strips unknown keys, which would silently turn a partial
+ * request into a whole one.
+ */
+export function assertWholeBatchReversal(raw: unknown) {
+  const extra = raw && typeof raw === "object" ? Object.keys(raw as Record<string, unknown>).filter((k) => k !== "reason") : [];
+  if (extra.length > 0) {
+    refuse(422, {
+      code: "migration_partial_reversal_unsupported",
+      error: `A migration is reversed whole — its opening journal, every opening item, deposit and fixed asset together. A partial reversal (${extra.join(", ")}) is not supported: it would leave an opening position that no longer balances. Reverse the batch and run a corrected replacement, or correct one item with a dated correction.`,
+      field: extra[0],
+    });
+  }
+}
 
 function assertCommittable(batch: MigrationBatch) {
   if (batch.status === "committed") return;
@@ -503,10 +526,37 @@ export const migrationCommitService = {
     const ownLock = lockNow != null && batch.periodLockId != null && lockNow.id === batch.periodLockId;
     if (lockNow && !ownLock) blockers.push(`${period} was closed by someone else since the migration (lock #${lockNow.id}); reopen it deliberately first`);
     const parties = await migrationRepository.parties(batchId);
+
+    // ── Q3 (§14.3, Option A): the batch's fixed assets, and the depreciation posted on them since ──
+    const assets = await assetsRepository.assetsOfMigrationBatch(batchId);
+    const posted = await assetsRepository.postedDepreciationOf(assets.map((a) => a.id));
+    for (const a of assets) {
+      if (a.status === "disposed") {
+        blockers.push(`fixed asset ${a.assetNumber} was disposed of on ${a.disposalDate} — its disposal posted proceeds and a gain or loss, and no path reverses a disposal; the migration cannot be reversed while it stands`);
+      }
+    }
+    // the unwind is dated as each depreciation was, so a month closed since is a blocker (reopen it deliberately) — never re-dated
+    for (const d of posted.filter((x) => x.entry_status === "posted")) {
+      const [lock] = await migrationRepository.periodLockByPeriod(d.entry_date.slice(0, 7));
+      if (lock && !(ownLock && lock.id === lockNow!.id)) {
+        blockers.push(`depreciation of fixed asset ${d.asset_number} for ${d.period} is posted in ${d.entry_date.slice(0, 7)}, which is closed (lock #${lock.id}); its reversal is dated as it was — reopen that month deliberately first`);
+      }
+    }
+    const openingLines = batch.openingJournalEntryId != null ? await migrationRepository.openingBalances(batch.openingJournalEntryId) : [];
     return {
       batchId,
       blockers,
       wouldReverse: {
+        assets: assets.map((a) => ({
+          id: a.id, assetNumber: a.assetNumber, name: a.name, status: a.status, sourceReference: a.sourceReference ?? null,
+          cost: num(a.cost), openingAccumulatedDepreciation: num(a.openingAccumulatedDepreciation),
+          depreciation: posted.filter((d) => d.asset_id === a.id).map((d) => ({
+            scheduleId: d.id, period: d.period, amount: num(d.amount), journalEntryId: d.journal_entry_id, entryDate: d.entry_date,
+            alreadyReversed: d.entry_status !== "posted",
+          })),
+        })),
+        // every balance the opening journal carried — inventory, provisions and every other mapped balance included; the mirror reverses each
+        openingBalances: openingLines.map((l) => ({ accountId: l.account_id, accountName: l.account_name, accountType: l.account_type, systemCode: l.system_code, debit: num(l.debit), credit: num(l.credit) })),
         openingJournalEntryId: batch.openingJournalEntryId,
         invoices: invoices.map((i) => ({ id: i.inv.id, number: i.inv.invoiceNumber, customerId: i.inv.customerId, total: num(i.inv.total) })),
         bills: bills.map((b) => ({ id: b.bill.id, number: b.bill.billNumber, vendorId: b.bill.vendorId, total: num(b.bill.total) })),
@@ -519,12 +569,16 @@ export const migrationCommitService = {
   },
 
   async reverse(batchId: number, body: { reason?: string | null }, userId: number | null) {
+    assertWholeBatchReversal(body);
     const [batch] = await migrationRepository.findBatchForUpdate(batchId);
     if (!batch) throw new NotFoundError("Migration batch not found");
     if (batch.status === "reversed") return migrationService.getBatch(batchId);
     if (batch.status !== "committed") refuse(409, { code: "migration_not_committed", error: `Migration batch ${batchId} is ${batch.status}; only a committed migration is reversed.` });
     const reason = body.reason?.trim();
     if (!reason || reason.length < 10) throw new BadRequestError("reason is required (at least 10 characters) — it is the audit record of why the opening position was withdrawn.");
+    // MG-1: the batch's assets are locked BEFORE what was depreciated is read — a concurrent depreciation either
+    // committed already (and is mirrored below) or waits for this reversal and is then refused (asset out of the books)
+    await assetsRepository.lockAssetsOfMigrationBatch(batch.id);
     const preview = await this.reversalPreview(batchId);
     if (preview.blockers.length > 0) {
       refuse(422, { code: "migration_reversal_blocked", error: `The migration cannot be reversed while: ${preview.blockers.join("; ")}. Unwind those first, or post dated correction journals instead.` });
@@ -560,6 +614,28 @@ export const migrationCommitService = {
       // A row the preview listed that the mark did not reach: never a partial reversal — the request rolls back.
       refuse(409, { code: "migration_reversal_incomplete", error: `The reversal marked ${reversedInvoices.length}/${preview.wouldReverse.invoices.length} invoices, ${reversedBills.length}/${preview.wouldReverse.bills.length} bills and ${reversedDeposits.length}/${preview.wouldReverse.deposits.length} deposits. Nothing was reversed.` });
     }
+    // 3b. 🔴 Q3 (§14.3, Option A): the batch's FIXED ASSETS. The opening journal's mirror (step 2) already took their cost
+    //     and opening accumulated depreciation out of the GL; what remains is the depreciation the product POSTED on them
+    //     since — each mirrored through the one journal reverse, dated as it was (so every month reads as if the asset
+    //     never existed; the preview refused a closed month). Then each asset is MARKED reversed — out of the register,
+    //     out of every run (the database refuses to post its schedule), its rows kept. No disposal, no proceeds, no
+    //     gain or loss: it never existed in these books.
+    const unwound: { assetId: number; period: string; journalEntryId: number; reversalId: number }[] = [];
+    for (const a of preview.wouldReverse.assets) {
+      for (const d of a.depreciation.filter((x) => !x.alreadyReversed)) {
+        const r = await journalEntriesService.reverse(d.journalEntryId, { reason: `Migration batch ${batch.id} reversed — ${reason}`, date: d.entryDate });
+        unwound.push({ assetId: a.id, period: d.period, journalEntryId: d.journalEntryId, reversalId: r.reversalId });
+      }
+    }
+    for (const a of preview.wouldReverse.assets.filter((x) => x.status === "in_service")) {
+      const [marked] = await assetsRepository.update(a.id, { status: "reversed", reversedAt: now, reversedByMigrationBatchId: batch.id });
+      if (!marked) refuse(409, { code: "migration_reversal_incomplete", error: `Fixed asset ${a.assetNumber} could not be marked reversed. Nothing was reversed.` });
+      await recordAssetEvent(a.id, "reversed", batch.openingDate, {
+        migrationBatchId: batch.id, reason, openingJournalEntryId: opening!.id, openingReversalJournalEntryId: mirror.id,
+        cost: a.cost, openingAccumulatedDepreciation: a.openingAccumulatedDepreciation,
+        depreciationUnwound: unwound.filter((u) => u.assetId === a.id),
+      }, { journalEntryId: mirror.id, documentRef: `migration:${batch.id}`, userId });
+    }
     // 4. Banks: display-only again.
     for (const b of preview.wouldReverse.banks) await migrationRepository.updateBankAccount(b.id, { openingJournalEntryId: null });
     // 5. Reversed.
@@ -567,8 +643,16 @@ export const migrationCommitService = {
     await auditService.record({
       action: "migration_batch_reverse", entityType: "migration_batch", entityId: batch.id,
       before: { status: "committed", openingJournalEntryId: opening!.id, periodLockId: batch.periodLockId },
-      after: { reversalJournalEntryId: mirror.id, reason, reversed: { invoices: preview.wouldReverse.invoices, bills: preview.wouldReverse.bills, deposits: preview.wouldReverse.deposits }, banksUnlinked: preview.wouldReverse.banks.map((b) => b.id), kept: preview.wouldReverse.keeps, by: userId },
+      after: {
+        reversalJournalEntryId: mirror.id, reason,
+        reversed: { invoices: preview.wouldReverse.invoices, bills: preview.wouldReverse.bills, deposits: preview.wouldReverse.deposits, assets: preview.wouldReverse.assets.map((a) => ({ id: a.id, assetNumber: a.assetNumber })) },
+        depreciationUnwound: unwound, openingBalances: preview.wouldReverse.openingBalances,
+        banksUnlinked: preview.wouldReverse.banks.map((b) => b.id), kept: preview.wouldReverse.keeps, by: userId,
+      },
     });
-    return { ...toBatchOut(updated), reversalJournalEntryId: mirror.id, reversed: { invoices: reversedInvoices.length, bills: reversedBills.length, deposits: reversedDeposits.length } };
+    return {
+      ...toBatchOut(updated), reversalJournalEntryId: mirror.id,
+      reversed: { invoices: reversedInvoices.length, bills: reversedBills.length, deposits: reversedDeposits.length, assets: preview.wouldReverse.assets.filter((a) => a.status === "in_service").length, depreciationEntries: unwound.length },
+    };
   },
 };

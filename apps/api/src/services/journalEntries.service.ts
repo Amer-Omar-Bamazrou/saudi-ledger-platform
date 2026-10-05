@@ -52,6 +52,17 @@ function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): strin
       return `This entry is supplier advance invoice ${documentRef}'s own posting. It cannot be reversed from here; an advance invoice is corrected with the supplier's advance credit note.`;
     case "advance_credit_note":
       return `This entry is supplier advance credit note ${documentRef}'s own posting. A supplier's note is the supplier's document; its entry cannot be reversed from here.`;
+    // Phase 16 (migration 0113)
+    case "wht_withholding":
+      return `This entry is a supplier payment that withheld tax (${documentRef}). It cannot be reversed from here: correct it on the Withholding tax page (reverse and re-enter), which keeps the original record beside the correction.`;
+    case "wht_remittance":
+      return `This entry is a withholding-tax remittance to ZATCA. Reverse the remittance on the Withholding tax page, with its reason, instead.`;
+    case "wht_remittance_reversal":
+      return `This entry reverses a withholding-tax remittance; it is itself the correction and is not reversed again.`;
+    case "tax_accrual":
+      return `This entry is a Zakat or income-tax computation's accrual. Change it by revising and approving the computation, which posts the difference.`;
+    case "wht_correction":
+      return `This entry reverses a payment that withheld tax, as part of its correction; it is itself the correction and is not reversed again.`;
   }
 }
 
@@ -332,7 +343,19 @@ export const journalEntriesService = {
    * closed one is refused LOUDLY with the structured 423 the UI already
    * explains, rather than silently moved.
    */
-  async reverse(id: number, body: { reason?: unknown; date?: unknown } = {}, owner: { document?: "bank_transfer" | "statement_line" } = {}) {
+  async reverse(
+    id: number,
+    body: { reason?: unknown; date?: unknown } = {},
+    owner: {
+      document?: "bank_transfer" | "statement_line" | "wht_withholding";
+      /**
+       * Q1 (pack §14.1): the owning record's own writer runs here — after the mirror exists, BEFORE the original is
+       * marked reversed — so a database guard that admits the status change only beside the owner's record
+       * (`journal_entries_tax_reversal_guard`, 0117) sees it. (Never read from a request.)
+       */
+      beforeFlip?: (reversalId: number) => Promise<void>;
+    } = {},
+  ) {
     const [original] = await journalEntriesRepository.findById(id);
     if (!original) throw new NotFoundError("Not found");
     // 🔴 Phase 12C: an entry a DOCUMENT owns is reversed through that document,
@@ -348,6 +371,24 @@ export const journalEntriesService = {
     const documentOwner = await journalEntriesRepository.documentOwner(id);
     if (documentOwner && owner.document !== documentOwner) {
       throw new ConflictError(ownedEntryRefusal(documentOwner, original.reference ?? original.entryNumber));
+    }
+    // 🔴 MG-2 (final audit 2026-10-05) — after the owner check, so an owned entry keeps its owner's own words: a MIRROR is never itself reversed — reversing it re-posts what its original
+    // undid while that original still reads `reversed` (a migration reversal's mirror re-imposed a withdrawn opening
+    // position, a Q3 depreciation mirror re-depreciated a reversed asset). And a migration's OWN entries — its opening
+    // journal, a dated opening correction, its reversal — are withdrawn only by the migration workspace, whose reversal
+    // marks every row it created. Refused here in words; the database refuses the same mirror (0119
+    // `journal_entries_mirror_admit`), so no path can say it.
+    if (original.reversalOf != null) {
+      throw new BusinessRuleError(409, {
+        code: "journal_mirror_not_reversible",
+        error: `Entry ${original.entryNumber} is itself the reversal of another entry; reversing it would re-post what that reversal undid. Record what is still needed as a new entry instead.`,
+      });
+    }
+    if (original.source === "opening" || original.source === "opening_correction" || original.source === "opening_reversal") {
+      throw new BusinessRuleError(409, {
+        code: "journal_migration_owned",
+        error: `Entry ${original.entryNumber} belongs to a migration batch. An opening position is withdrawn by reversing its batch in the migration workspace (which marks every row it created), and one item is changed by a dated correction there — never by reversing the journal alone.`,
+      });
     }
     // 🔴 Phase 12C: a statement line reconciled to this entry would go on
     // "reconciling" money the books now cancel. Refused in words here; the
@@ -410,6 +451,7 @@ export const journalEntriesService = {
     await journalEntriesRepository.copyBankAttributions(
       lines.map((l, i) => ({ originalLineId: l.id, mirrorLineId: mirrorLines[i]!.id, journalEntryId: reversal.id })),
     );
+    if (owner.beforeFlip) await owner.beforeFlip(reversal.id);
     await journalEntriesRepository.updateEntry(id, { status: "reversed" });
     const reversalLines = await journalEntriesRepository.linesByEntry(reversal.id);
     const reversalOut = buildJEOut(reversal, reversalLines);

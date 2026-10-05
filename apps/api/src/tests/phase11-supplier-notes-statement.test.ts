@@ -158,18 +158,18 @@ describeMaybe("Phase 11 B5/B6/B7 — supplier notes, ageing and statement (real 
 
   it("🔴 Art. 40(6): the return corrects INPUT TAX in the NOTE'S period, and files it NEGATIVE", async () => {
     // May: the bill alone.
-    const may = await inTenant(() => reportsService.vatReturn("2026-05-01", "2026-05-31"));
+    const may = await inTenant(() => reportsService.vatReturn("2026-05", "2026-05"));
     expect(Number(may.purchasesSection.box9_standardRatedPurchases)).toBe(10_000);
     expect(Number(may.purchasesSection.box13_recoverableInputVat)).toBe(1_500);
 
     // 🔴 June: the note alone, NEGATIVE. The correction did not re-date into
     // May, and it did not file positive.
-    const june = await inTenant(() => reportsService.vatReturn("2026-06-01", "2026-06-30"));
+    const june = await inTenant(() => reportsService.vatReturn("2026-06", "2026-06"));
     expect(Number(june.purchasesSection.box9_standardRatedPurchases)).toBe(-2_000);
     expect(Number(june.purchasesSection.box13_recoverableInputVat)).toBe(-300);
 
     // and over BOTH periods the supply nets to what was actually bought
-    const both = await inTenant(() => reportsService.vatReturn("2026-05-01", "2026-06-30"));
+    const both = await inTenant(() => reportsService.vatReturn("2026-05", "2026-06"));
     expect(Number(both.purchasesSection.box9_standardRatedPurchases)).toBe(8_000);
     expect(Number(both.purchasesSection.box13_recoverableInputVat)).toBe(1_200);
   }, 120_000);

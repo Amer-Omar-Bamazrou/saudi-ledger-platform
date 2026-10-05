@@ -37,6 +37,10 @@ tags:
     description: Trends and decomposition
   - name: budgets
     description: Annual budget vs actual
+  - name: tax
+    description: Phase 16 — withholding tax, Zakat and income-tax computations, tax adjustments and obligations
+  - name: treasury
+    description: Phase 17 — cash position, forecast, liquidity, funding requirement and payment plans
 
 paths:
   /healthz:
@@ -2616,7 +2620,7 @@ paths:
         screen. CSV is UTF-8 with a BOM; PDF is RTL with Arabic labels for lang=ar. An export that would
         exceed the row limit is refused (422 export_too_large), never truncated.
       parameters:
-        - { name: report, in: path, required: true, schema: { type: string, enum: [trial-balance, income-statement, balance-sheet, cash-flow, general-ledger, ar-aging, ap-aging, budget-vs-actual] } }
+        - { name: report, in: path, required: true, schema: { type: string, enum: [trial-balance, income-statement, balance-sheet, cash-flow, general-ledger, ar-aging, ap-aging, budget-vs-actual, wht-return, wht-annual, tax-computation, treasury-forecast] } }
         - { name: format, in: query, schema: { type: string, enum: [csv, pdf] } }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
         - { name: date_from, in: query, schema: { type: string, format: date } }
@@ -2632,6 +2636,10 @@ paths:
         - { name: budget_id, in: query, schema: { type: string }, description: "budget-vs-actual only" }
         - { name: version_id, in: query, schema: { type: string }, description: "budget-vs-actual only" }
         - { name: through_period, in: query, schema: { type: string }, description: "budget-vs-actual only" }
+        - { name: period, in: query, schema: { type: string }, description: "wht-return only (YYYY-MM)" }
+        - { name: fiscal_year, in: query, schema: { type: string }, description: "wht-annual only" }
+        - { name: computation_id, in: query, schema: { type: string }, description: "tax-computation only" }
+        - { name: weeks, in: query, schema: { type: string }, description: "treasury-forecast only" }
       responses:
         "200":
           description: The report file
@@ -2989,7 +2997,7 @@ paths:
         - in: query
           name: offset
           schema: { type: integer, minimum: 0, default: 0 }
-        - { in: query, name: status, schema: { type: string, enum: [draft, in_service, disposed] } }
+        - { in: query, name: status, schema: { type: string, enum: [draft, in_service, disposed, reversed] } }
         - { in: query, name: category_id, schema: { type: integer } }
       responses:
         "200":
@@ -3690,7 +3698,7 @@ paths:
     get:
       operationId: listPendingApprovals
       tags: [approvals]
-      summary: Every document waiting for approval, across all four draftable entities
+      summary: Every record waiting for approval — the four draftable documents, and the Phase 16/17 tax and treasury approvals
       description: |
         🔴 UNBOUNDED, DELIBERATELY (owner decision, 2026-09-02). The page this
         replaced fetched the default page (50) of each list and filtered
@@ -4757,7 +4765,7 @@ paths:
         "409":
           description: "`migration_not_committed`"
         "422":
-          description: "`migration_reversal_blocked` — the blockers are named; unwind them first, or post dated correction journals instead"
+          description: "`migration_reversal_blocked` — the blockers are named (Q3: a disposed migrated asset; depreciation posted in a month closed since); unwind them first, or post dated correction journals instead. `migration_partial_reversal_unsupported` — a request naming anything to scope the reversal: a batch is reversed whole."
 
   /migration/open-items/{itemId}/correct:
     post:
@@ -5231,6 +5239,8 @@ paths:
               schema: { $ref: "#/components/schemas/AssetVatUseRecord" }
         "422":
           description: The basis is unknown, the percentage is not a share, or the window is outside the adjustment period
+        "409":
+          description: "`asset_reversed` — the asset was reversed with its migration batch (Q3): out of the books, no adjustment period to state a use for"
         "404":
           description: Asset not found
 
@@ -5719,14 +5729,14 @@ paths:
     post:
       operationId: payBill
       tags: [bills]
-      summary: Record a payment against a posted bill
+      summary: Record a payment against a posted bill (a payment to a non-resident withholds tax — Phase 16)
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/PaymentInput" }
+            schema: { $ref: "#/components/schemas/BillPaymentInput" }
       responses:
         "200":
           description: The bill after the payment
@@ -6380,6 +6390,842 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
 
+
+  # ── Phase 16 — Saudi tax (docs/product/phase-16-17-tax-treasury-decision-pack.md §2–§7) ──
+
+  /tax/obligations:
+    get:
+      operationId: getTaxObligations
+      tags: [tax]
+      summary: What the company owes the State, from the ledger, each with its statutory due date (or the reason it has none).
+      responses:
+        "200":
+          description: The obligations calendar
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxObligationsReport" }
+
+  /tax/wht/rates:
+    get:
+      operationId: listWhtRates
+      tags: [tax]
+      summary: The WHT rates of Income Tax IR Art. 63(1) as loaded (effective-dated; read-only).
+      responses:
+        "200":
+          description: The rates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WhtRate" }
+
+  /tax/wht/preview:
+    get:
+      operationId: previewWht
+      tags: [tax]
+      summary: What a payment to this supplier would withhold — the same decision the pay paths take.
+      description: >-
+        A BILL payment states no classification (it is consideration). A SUPPLIER payment states its classification and
+        what of it is allocated to bills, so the preview judges the same class the pay path will (accountant Q2, pack §14.2):
+        a refundable deposit and an erroneous payment are not subject, an unidentified one is pending.
+      parameters:
+        - { in: query, name: vendorId, required: true, schema: { type: integer } }
+        - { in: query, name: amount, required: true, schema: { type: number } }
+        - { in: query, name: date, schema: { type: string, format: date } }
+        - { in: query, name: classification, schema: { type: string, enum: [advance, security_deposit, erroneous, unknown] } }
+        - { in: query, name: allocatedAmount, schema: { type: number } }
+        - { in: query, name: whtPaymentType, schema: { type: string } }
+        - { in: query, name: whtNotSubjectReason, schema: { type: string } }
+        - { in: query, name: whtNotSubjectNote, schema: { type: string } }
+        - { in: query, name: whtFiledMonthTreatment, schema: { type: string, enum: [subsequent_period, amendment] } }
+      responses:
+        "200":
+          description: The decision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtPreview" }
+        "422":
+          description: The payment cannot be judged (e.g. wht_classification_required)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /tax/wht/overview:
+    get:
+      operationId: getWhtOverview
+      tags: [tax]
+      summary: Every WHT month with its status and due date, the opening balance, invariant W1 (GL vs the WHT ledger, exact) and the exception counts.
+      responses:
+        "200":
+          description: The overview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtOverview" }
+
+  /tax/wht/returns/{period}:
+    parameters:
+      - { in: path, name: period, required: true, schema: { type: string, pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$" } }
+    get:
+      operationId: getWhtReturn
+      tags: [tax]
+      summary: The monthly withholding return (ZATCA Form 06) for a month — its lines, the per-beneficiary schedule, the excluded payments and the remittances.
+      responses:
+        "200":
+          description: The return
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtMonthlyReturn" }
+        "400": { description: Not a YYYY-MM month }
+
+  /tax/wht/annual:
+    get:
+      operationId: getWhtAnnual
+      tags: [tax]
+      summary: The annual withholding information for a fiscal year (IR Art. 63(9)(b)) — per beneficiary and nature.
+      parameters:
+        - { in: query, name: fiscal_year, schema: { type: integer } }
+      responses:
+        "200":
+          description: The annual information
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtAnnualReturn" }
+
+  /tax/wht/beneficiaries/{vendorId}:
+    parameters:
+      - { in: path, name: vendorId, required: true, schema: { type: integer } }
+    get:
+      operationId: getWhtBeneficiaryStatement
+      tags: [tax]
+      summary: What was paid to a beneficiary and withheld (Income Tax Law Art. 68(B)(2)), optionally for one month.
+      parameters:
+        - { in: query, name: period, schema: { type: string } }
+      responses:
+        "200":
+          description: The statement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtBeneficiaryStatement" }
+        "404": { description: No such supplier }
+
+  /tax/wht/exceptions:
+    get:
+      operationId: listWhtExceptions
+      tags: [tax]
+      summary: Supplier payments WHT could not judge (residency undeclared) or may have missed (supplier now non-resident, no withholding) — capped at 200 with the true total.
+      parameters:
+        - { in: query, name: kind, required: true, schema: { type: string, enum: [undeclared, possibly_missed, pending_classification] } }
+      responses:
+        "200":
+          description: The exceptions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtExceptions" }
+
+  /tax/wht/returns/{period}/file:
+    parameters:
+      - { in: path, name: period, required: true, schema: { type: string, pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$" } }
+    post:
+      operationId: fileWhtReturn
+      tags: [tax]
+      summary: "Q1: record that a month's Form 06 was FILED with ZATCA (approver) — or, when it already was, an AMENDMENT of it. The figures are the ledger's at this moment, written by the database."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FileWhtReturnInput" }
+      responses:
+        "200":
+          description: The month's return with its filing state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtMonthlyReturn" }
+        "422":
+          description: Filed before the month ended, in the future, or with no ZATCA reference
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /tax/wht/withholdings/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getWhtWithholdingLineage
+      tags: [tax]
+      summary: "Q1: one withholding's lineage — original → reversal → corrected — and the state its month is in (filed, remitted)."
+      responses:
+        "200":
+          description: The lineage
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtLineage" }
+        "404": { description: Not this company's withholding }
+
+  /tax/wht/withholdings/{id}/reverse:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: correctWhtWithholding
+      tags: [tax]
+      summary: "Q1: correct a WHT-bearing payment (approver) — reverse it (the original kept) and re-enter the corrected payment through the pay path. One correction per withholding."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CorrectWhtWithholdingInput" }
+      responses:
+        "200":
+          description: The lineage after the correction (replayed when the idempotency key was already used)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtLineage" }
+        "409":
+          description: "Already corrected; the month is filed and no treatment was stated; the payment was acted on since; reconciled to the bank"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "423": { description: The correction or re-entry date is in a closed period }
+
+  /tax/wht/periods/{period}/pay:
+    parameters:
+      - { in: path, name: period, required: true, schema: { type: string }, description: "YYYY-MM, or `opening` for a migrated opening WHT balance" }
+    post:
+      operationId: remitWht
+      tags: [tax]
+      summary: Record a month's WHT paid to ZATCA (approver) — Dr WHT payable (+ Dr tax fines) / Cr the bank.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WhtRemitInput" }
+      responses:
+        "200":
+          description: The remittance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtRemittanceResult" }
+        "409":
+          description: Nothing is owed, or more than is owed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /tax/wht/remittances/{id}/reverse:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: reverseWhtRemittance
+      tags: [tax]
+      summary: Reverse a WHT remittance with its reason (approver) — a mirror entry; refused while a statement line is reconciled to it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReverseWithReasonInput" }
+      responses:
+        "200":
+          description: The remittance, with its reversal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtRemittance" }
+        "409": { description: "Already reversed, or reconciled" }
+
+  /tax/wht/reliefs:
+    get:
+      operationId: listWhtReliefs
+      tags: [tax]
+      summary: Treaty reliefs of this company (pending, approved, revoked).
+      parameters:
+        - { in: query, name: vendorId, schema: { type: integer } }
+      responses:
+        "200":
+          description: The reliefs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WhtRelief" }
+    post:
+      operationId: createWhtRelief
+      tags: [tax]
+      summary: Record a treaty relief (pending until an approver approves it) — it needs ZATCA's approval reference.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWhtReliefInput" }
+      responses:
+        "201":
+          description: The relief
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtRelief" }
+
+  /tax/wht/reliefs/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    delete:
+      operationId: deleteWhtRelief
+      tags: [tax]
+      summary: Delete a PENDING relief (admin); an approved one is revoked instead.
+      responses:
+        "204": { description: Deleted }
+        "409": { description: Not pending }
+
+  /tax/wht/reliefs/{id}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: approveWhtRelief
+      tags: [tax]
+      summary: Approve a pending treaty relief (approver) — from then on it lowers the rate inside its window.
+      responses:
+        "200":
+          description: The relief
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtRelief" }
+
+  /tax/wht/reliefs/{id}/reject:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: revokeWhtRelief
+      tags: [tax]
+      summary: Revoke a relief with its reason (approver). A revoked relief stays on record.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReasonInput" }
+      responses:
+        "200":
+          description: The relief
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtRelief" }
+
+  /tax/zakat/classifications:
+    get:
+      operationId: listZakatClassifications
+      tags: [tax]
+      summary: Every asset and liability posting account with its Zakat-base class (if a person confirmed one) and a suggestion.
+      description: |
+        With `asOf`, each account also carries its amount in the statement of
+        financial position at that date (this company) — the balance-sheet rows
+        the Zakat computation reads at its year-end, never a second computation
+        (QA-04). Without it, `balance` is null.
+      parameters:
+        - in: query
+          name: asOf
+          required: false
+          schema: { type: string }
+          description: YYYY-MM-DD — the date the balances are read at (a fiscal year-end, typically).
+      responses:
+        "200":
+          description: The chart's classification
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ZakatAccountClassification" }
+
+  /tax/zakat/classifications/{accountId}:
+    parameters:
+      - { in: path, name: accountId, required: true, schema: { type: integer } }
+    put:
+      operationId: setZakatClassification
+      tags: [tax]
+      summary: Confirm or change one account's Zakat-base class.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetZakatClassificationInput" }
+      responses:
+        "200":
+          description: The account, classified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ZakatAccountClassification" }
+
+  /tax/zakat/classifications/{accountId}/clear:
+    parameters:
+      - { in: path, name: accountId, required: true, schema: { type: integer } }
+    post:
+      operationId: clearZakatClassification
+      tags: [tax]
+      summary: Withdraw an account's classification — it reads unclassified again.
+      responses:
+        "204": { description: Cleared }
+
+  /tax/computations:
+    get:
+      operationId: listTaxComputations
+      tags: [tax]
+      summary: Zakat and income-tax computations of this company.
+      parameters:
+        - { in: query, name: kind, schema: { type: string, enum: [zakat, income_tax] } }
+      responses:
+        "200":
+          description: The computations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TaxComputationSummary" }
+    post:
+      operationId: createTaxComputation
+      tags: [tax]
+      summary: Start a Zakat or income-tax computation for a fiscal year (a draft version 1).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTaxComputationInput" }
+      responses:
+        "201":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+
+  /tax/computations/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getTaxComputation
+      tags: [tax]
+      summary: A computation — its versions, the live working paper of the chosen version, and the frozen snapshot of an approved one.
+      parameters:
+        - { in: query, name: version_id, schema: { type: integer } }
+      responses:
+        "200":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+    patch:
+      operationId: updateTaxComputation
+      tags: [tax]
+      summary: Edit a computation's notes (its company, kind and fiscal year are fixed).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTaxComputationInput" }
+      responses:
+        "200":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+    delete:
+      operationId: deleteTaxComputation
+      tags: [tax]
+      summary: Delete a computation never approved (admin).
+      responses:
+        "204": { description: Deleted }
+        "409": { description: Ever approved }
+
+  /tax/computations/{id}/versions:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: reviseTaxComputation
+      tags: [tax]
+      summary: Start a revision of the approved version (a new draft with its adjustments).
+      responses:
+        "200":
+          description: The computation, showing the new draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+
+  /tax/computations/{id}/versions/{versionId}/adjustments:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    post:
+      operationId: addTaxAdjustment
+      tags: [tax]
+      summary: Add a tax adjustment to a draft version — its target, effect, amount, reason and article.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaxAdjustmentInput" }
+      responses:
+        "200":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+
+  /tax/computations/{id}/versions/{versionId}/adjustments/{adjustmentId}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+      - { in: path, name: adjustmentId, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateTaxAdjustment
+      tags: [tax]
+      summary: Edit a draft version's adjustment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTaxAdjustmentInput" }
+      responses:
+        "200":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+
+  /tax/computations/{id}/versions/{versionId}/adjustments/{adjustmentId}/remove:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+      - { in: path, name: adjustmentId, required: true, schema: { type: integer } }
+    post:
+      operationId: removeTaxAdjustment
+      tags: [tax]
+      summary: Remove a draft version's adjustment.
+      responses:
+        "200":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+
+  /tax/computations/{id}/versions/{versionId}/losses:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    put:
+      operationId: setTaxLosses
+      tags: [tax]
+      summary: Income tax — the losses carried forward available, from audited statutory accounts (Art. 21; IR Art. 11).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaxLossesInput" }
+      responses:
+        "200":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+
+  /tax/computations/{id}/versions/{versionId}/submit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    post:
+      operationId: submitTaxComputationVersion
+      tags: [tax]
+      summary: Submit a draft for approval (refused while the working paper is blocked).
+      responses:
+        "200":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+
+  /tax/computations/{id}/versions/{versionId}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    post:
+      operationId: approveTaxComputationVersion
+      tags: [tax]
+      summary: Approve a version (approver) — freezes its snapshot and posts the accrual difference.
+      responses:
+        "200":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+
+  /tax/computations/{id}/versions/{versionId}/send-back:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    post:
+      operationId: sendBackTaxComputationVersion
+      tags: [tax]
+      summary: Send a submitted version back for correction, with a note.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaxSendBackInput" }
+      responses:
+        "200":
+          description: The computation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaxComputationDetail" }
+
+  /tax/computations/{id}/versions/{versionId}/reject:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: versionId, required: true, schema: { type: integer } }
+    post:
+      operationId: rejectTaxComputationVersion
+      tags: [tax]
+      summary: Reject (delete) a version that was never approved.
+      responses:
+        "204": { description: Rejected }
+
+  # ── Phase 17 — Treasury (pack §8) ──────────────────────────────────────────
+
+  /treasury/dashboard:
+    get:
+      operationId: getTreasuryDashboard
+      tags: [treasury]
+      summary: The cash position, the forecast with liquidity and funding requirement, and the next 30 days' outflows.
+      parameters:
+        - { in: query, name: weeks, schema: { type: integer, minimum: 1, maximum: 52 } }
+      responses:
+        "200":
+          description: The dashboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreasuryDashboard" }
+
+  /treasury/position:
+    get:
+      operationId: getTreasuryPosition
+      tags: [treasury]
+      summary: Cash as of a date (today or earlier) — per bank from the ledger, the unattributed history, in-transit beside it, and T1 (= balance-sheet cash).
+      parameters:
+        - { in: query, name: as_of, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: The position
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreasuryPosition" }
+        "400": { description: "Malformed, or in the future" }
+
+  /treasury/forecast:
+    get:
+      operationId: getTreasuryForecast
+      tags: [treasury]
+      summary: The cash forecast — weekly buckets, every row typed and sourced, liquidity and funding requirement.
+      parameters:
+        - { in: query, name: weeks, schema: { type: integer, minimum: 1, maximum: 52 } }
+      responses:
+        "200":
+          description: The forecast
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreasuryForecast" }
+
+  /treasury/payment-plans:
+    get:
+      operationId: listPaymentPlans
+      tags: [treasury]
+      summary: Payment plans, with what each bill owes now.
+      parameters:
+        - { in: query, name: status, schema: { type: string } }
+        - { in: query, name: billId, schema: { type: integer } }
+      responses:
+        "200":
+          description: The plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PaymentPlan" }
+    post:
+      operationId: createPaymentPlan
+      tags: [treasury]
+      summary: Plan (part of) a bill's payment on a date — never more than it owes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePaymentPlanInput" }
+      responses:
+        "201":
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentPlan" }
+        "409":
+          description: More than the bill owes (plan_exceeds_outstanding), or not a posted bill
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /treasury/payment-plans/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updatePaymentPlan
+      tags: [treasury]
+      summary: Edit a plan not yet approved.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePaymentPlanInput" }
+      responses:
+        "200":
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentPlan" }
+    delete:
+      operationId: deletePaymentPlan
+      tags: [treasury]
+      summary: Delete a plan not yet approved.
+      responses:
+        "204": { description: Deleted }
+
+  /treasury/payment-plans/{id}/approve:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: approvePaymentPlan
+      tags: [treasury]
+      summary: Approve a plan (approver) — it becomes COMMITTED in the forecast.
+      responses:
+        "200":
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentPlan" }
+
+  /treasury/payment-plans/{id}/pay:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: payPaymentPlan
+      tags: [treasury]
+      summary: Pay an approved plan through the bill pay path (approver) — one payment, WHT included. Nothing is sent to a bank.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayPaymentPlanInput" }
+      responses:
+        "200":
+          description: The plan, paid, and the payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentPlanPaid" }
+        "409":
+          description: Not approved, or the bill owes less than the plan now
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /treasury/payment-plans/{id}/reject:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: cancelPaymentPlan
+      tags: [treasury]
+      summary: Cancel a planned or approved plan, with its reason (approver).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReasonInput" }
+      responses:
+        "200":
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentPlan" }
+
+  /treasury/assumptions:
+    get:
+      operationId: listForecastAssumptions
+      tags: [treasury]
+      summary: Manual forecast assumptions (never posted).
+      responses:
+        "200":
+          description: The assumptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ForecastAssumption" }
+    post:
+      operationId: createForecastAssumption
+      tags: [treasury]
+      summary: Record a manual assumption — money the books cannot know is coming or going.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForecastAssumptionInput" }
+      responses:
+        "201":
+          description: The assumption
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForecastAssumption" }
+
+  /treasury/assumptions/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateForecastAssumption
+      tags: [treasury]
+      summary: Edit an assumption.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateForecastAssumptionInput" }
+      responses:
+        "200":
+          description: The assumption
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForecastAssumption" }
+    delete:
+      operationId: deleteForecastAssumption
+      tags: [treasury]
+      summary: Delete an assumption.
+      responses:
+        "204": { description: Deleted }
+
+  /treasury/settings:
+    get:
+      operationId: getTreasurySettings
+      tags: [treasury]
+      summary: The treasury policy — the minimum cash balance and the default horizon.
+      responses:
+        "200":
+          description: The settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreasurySettings" }
+    put:
+      operationId: updateTreasurySettings
+      tags: [treasury]
+      summary: Set the minimum cash balance (or clear it) and the default horizon (approver).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTreasurySettingsInput" }
+      responses:
+        "200":
+          description: The settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreasurySettings" }
+
+
 components:
   schemas:
     SupplierPosition:
@@ -6410,7 +7256,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [bill, debit_note, credit_note, payment, bill_payment, allocation, credit_application, unallocation, refund, reclassification]
+          enum: [bill, debit_note, credit_note, payment, bill_payment, allocation, credit_application, unallocation, refund, reclassification, payment_reversal, bill_payment_reversal]
         date: { type: string, format: date }
         ts: { type: string, format: date-time }
         id: { type: integer }
@@ -6578,6 +7424,13 @@ components:
         allocations:
           type: array
           items: { $ref: "#/components/schemas/SupplierPaymentAllocationInput" }
+        whtPaymentType: { type: ["string", "null"], description: "Phase 16: a payment to a NON-RESIDENT states its nature (or the supplier's declared default applies) — never assumed." }
+        whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
+        whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
+        whtFiledMonthTreatment:
+          type: ["string", "null"]
+          enum: [subsequent_period, amendment, null]
+          description: "Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed."
 
     AllocateSupplierPaymentInput:
       type: object
@@ -6592,10 +7445,18 @@ components:
     ClassifySupplierPaymentInput:
       type: object
       required: [classification]
+      description: >-
+        Accountant Q2 (pack §14.2): a NON-RESIDENT's payment carries a WHT determination that follows what the money is.
+        Identifying pending or not-subject money as an advance reads its nature — goods or a non-Kingdom source is
+        recorded (superseding the old record, which stays); a taxable nature is refused by name (wht_late_withholding_open,
+        open question W-16): nothing was withheld when the money left.
       properties:
         classification: { $ref: "#/components/schemas/SupplierPaymentClassification" }
         note: { type: string, nullable: true }
         effectiveDate: { type: string, format: date }
+        whtPaymentType: { type: string, nullable: true }
+        whtNotSubjectReason: { type: string, nullable: true, enum: [goods, not_kingdom_source, null] }
+        whtNotSubjectNote: { type: string, nullable: true }
 
     RefundSupplierPaymentInput:
       type: object
@@ -6624,8 +7485,13 @@ components:
         reference: { type: string, nullable: true }
         classification: { $ref: "#/components/schemas/SupplierPaymentClassification" }
         source: { type: string, nullable: true }
-        availableAmount: { type: number, description: Derived on every read — the payment less live allocations less refunds }
+        availableAmount: { type: number, description: Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it) }
         journalEntryId: { type: integer, nullable: true }
+        reversal:
+          description: "Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise."
+          oneOf:
+            - $ref: "#/components/schemas/PaymentReversalRef"
+            - { type: "null" }
 
     SupplierPaymentAllocation:
       type: object
@@ -9937,7 +10803,7 @@ components:
         From the ledger only (Phase 14 D14-06 — the former transactions fallback is gone). Expenses are
         presented BY NATURE (IAS 1.102), so there is no gross-profit line: `grossProfit` is null.
       type: object
-      required: [window, revenue, expenses, totalRevenue, totalExpenses, grossProfit, expenseAnalysis, netIncome, netIncomeMargin, source]
+      required: [window, revenue, expenses, expensesBeforeZakatAndIncomeTax, profitBeforeZakatAndIncomeTax, zakatAndIncomeTax, totalRevenue, totalExpenses, grossProfit, expenseAnalysis, netIncome, netIncomeMargin, source]
       properties:
         window: { $ref: "#/components/schemas/ReportWindow" }
         expenseAnalysis: { type: string, enum: [nature] }
@@ -9947,8 +10813,19 @@ components:
         expenses:
           type: array
           items: { $ref: "#/components/schemas/ReportKeyedAmount" }
+        expensesBeforeZakatAndIncomeTax: { type: number, description: "Σ expenses — every expense but Zakat and income tax." }
+        profitBeforeZakatAndIncomeTax: { type: number }
+        zakatAndIncomeTax:
+          type: object
+          description: "Phase 16 — SOCPA Zakat Accounting Standard para 6: Zakat (and income tax) on their OWN line before the profit or loss."
+          required: [items, total]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/ReportKeyedAmount" }
+            total: { type: number }
         totalRevenue: { type: number }
-        totalExpenses: { type: number }
+        totalExpenses: { type: number, description: "ALL expenses, Zakat and income tax included." }
         grossProfit: { type: ["number", "null"] }
         netIncome: { type: number }
         netIncomeMargin: { type: number }
@@ -10680,7 +11557,7 @@ components:
     Vendor:
       type: object
       required: [id, name, nameAr, taxNumber, crNumber, phone, email, address, city, country, currency,
-                 iban, paymentTermsDays, notes, isActive, residency, createdAt]
+                 iban, paymentTermsDays, notes, isActive, residency, whtDefaultPaymentType, foreignTaxId, createdAt]
       properties:
         id: { type: integer }
         name: { type: string }
@@ -10701,12 +11578,14 @@ components:
           type: string
           enum: [resident, non_resident, unknown]
           description: >
-            B8: where the supplier is resident — the input every withholding
-            question starts from (Income Tax Law Art. 68). A FACT about the
-            supplier, not a tax rule: no rate is applied and nothing is
-            withheld anywhere in the platform. `unknown` is the default and is
-            first-class, because "resident" is the answer that withholds
-            nothing and must never be assumed.
+            Where the supplier is resident — the input every withholding
+            question starts from (Income Tax Law Art. 68). Phase 16: a payment
+            to a `non_resident` withholds at the pay paths, at the rate of the
+            payment's DECLARED nature. `unknown` is the default and is
+            first-class: a payment to it withholds nothing and is listed as a
+            WHT exception, because "resident" must never be assumed.
+        whtDefaultPaymentType: { type: ["string", "null"], description: "The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment." }
+        foreignTaxId: { type: ["string", "null"], description: "The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3))." }
         createdAt: { type: string }
 
     VendorWithBalance:
@@ -10754,12 +11633,14 @@ components:
           type: string
           enum: [resident, non_resident, unknown]
           description: >
-            B8: where the supplier is resident — the input every withholding
-            question starts from (Income Tax Law Art. 68). A FACT about the
-            supplier, not a tax rule: no rate is applied and nothing is
-            withheld anywhere in the platform. `unknown` is the default and is
-            first-class, because "resident" is the answer that withholds
-            nothing and must never be assumed.
+            Where the supplier is resident — the input every withholding
+            question starts from (Income Tax Law Art. 68). Phase 16: a payment
+            to a `non_resident` withholds at the pay paths, at the rate of the
+            payment's DECLARED nature. `unknown` is the default and is
+            first-class: a payment to it withholds nothing and is listed as a
+            WHT exception, because "resident" must never be assumed.
+        whtDefaultPaymentType: { type: ["string", "null"], description: "The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment." }
+        foreignTaxId: { type: ["string", "null"], description: "The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3))." }
 
     CreateVendorInput:
       type: object
@@ -10783,12 +11664,14 @@ components:
           type: string
           enum: [resident, non_resident, unknown]
           description: >
-            B8: where the supplier is resident — the input every withholding
-            question starts from (Income Tax Law Art. 68). A FACT about the
-            supplier, not a tax rule: no rate is applied and nothing is
-            withheld anywhere in the platform. `unknown` is the default and is
-            first-class, because "resident" is the answer that withholds
-            nothing and must never be assumed.
+            Where the supplier is resident — the input every withholding
+            question starts from (Income Tax Law Art. 68). Phase 16: a payment
+            to a `non_resident` withholds at the pay paths, at the rate of the
+            payment's DECLARED nature. `unknown` is the default and is
+            first-class: a payment to it withholds nothing and is listed as a
+            WHT exception, because "resident" must never be assumed.
+        whtDefaultPaymentType: { type: ["string", "null"], description: "The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment." }
+        foreignTaxId: { type: ["string", "null"], description: "The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3))." }
 
 
     UpdateVendorInput:
@@ -10831,6 +11714,23 @@ components:
         paymentId:
           type: ["integer", "null"]
           description: "D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row."
+        withheld: { type: ["number", "null"], description: "Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded)." }
+        cashPaid: { type: ["number", "null"], description: "Bill payments: the cash that left the bank (amount − withheld)." }
+        whtPaymentType: { type: ["string", "null"] }
+        reversal:
+          description: "Q1 (pack §14.1): a bill payment a WHT correction reversed — kept in the history, marked; absent/null otherwise."
+          oneOf:
+            - $ref: "#/components/schemas/PaymentReversalRef"
+            - { type: "null" }
+
+    PaymentReversalRef:
+      type: object
+      required: [correctionId, correctedOn, reason, reversalJournalEntryId]
+      properties:
+        correctionId: { type: integer }
+        correctedOn: { type: string }
+        reason: { type: string }
+        reversalJournalEntryId: { type: integer }
 
     PaymentAllocationInput:
       type: object
@@ -11232,6 +12132,23 @@ components:
             tenant's own accounts; a missing or unknown id is a 422
             (`bank_account_required` / `reference_not_found`). Recorded on
             the payment row as its bank evidence.
+
+    BillPaymentInput:
+      description: >
+        A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature
+        (`whtPaymentType`, or the supplier's declared default) or the reason it is not subject — never assumed.
+        `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.
+      allOf:
+        - { $ref: "#/components/schemas/PaymentInput" }
+        - type: object
+          properties:
+            whtPaymentType: { type: ["string", "null"] }
+            whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
+            whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
+            whtFiledMonthTreatment:
+              type: ["string", "null"]
+              enum: [subsequent_period, amendment, null]
+              description: "Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed."
 
     InvoiceLineInput:
       type: object
@@ -11698,6 +12615,7 @@ components:
                  acquisitionDate, availableForUseDate, disposalDate, cost, residualValue, usefulLifeMonths, depreciationMethod,
                  openingAccumulatedDepreciation, openingPeriodsBooked, vatInputTaxAmount, vatInitialRecoveryPct, vatCapitalAssetClass, vatAdjustmentPeriodYears, vatNonDeductibleReason,
                  incomeTaxGroup, incomeTaxRatePct, source, billId, transactionId, migrationBatchId, sourceReference, status, fullyDepreciated, capitalisationJournalEntryId, notes,
+                 reversedAt, reversedByMigrationBatchId, replacesAssetId,
                  accumulatedDepreciation, carryingAmount, depreciableAmount, postedPeriods, plannedPeriods, lastPostedPeriod, nextPeriod, createdAt, updatedAt]
       properties:
         id: { type: integer }
@@ -11732,7 +12650,13 @@ components:
         transactionId: { type: ["integer", "null"] }
         migrationBatchId: { type: ["integer", "null"] }
         sourceReference: { type: ["string", "null"] }
-        status: { type: string, enum: [draft, in_service, disposed, cancelled] }
+        reversedAt: { type: ["string", "null"], description: "Q3: when this migrated asset's batch was reversed (status reversed)." }
+        reversedByMigrationBatchId: { type: ["integer", "null"], description: "Q3: the reversed batch — always this asset's own migrationBatchId." }
+        replacesAssetId: { type: ["integer", "null"], description: "Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id)." }
+        status:
+          type: string
+          enum: [draft, in_service, disposed, cancelled, reversed]
+          description: "reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal."
         fullyDepreciated: { type: boolean, description: "DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet." }
         capitalisationJournalEntryId: { type: ["integer", "null"] }
         notes: { type: ["string", "null"] }
@@ -11788,8 +12712,9 @@ components:
       allOf:
         - { $ref: "#/components/schemas/Asset" }
         - type: object
-          required: [schedule, plannedSchedule, events, disposal]
+          required: [schedule, plannedSchedule, events, disposal, replacedByAssetId]
           properties:
+            replacedByAssetId: { type: ["integer", "null"], description: "Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one." }
             schedule:
               type: array
               items: { $ref: "#/components/schemas/AssetScheduleRow" }
@@ -12502,18 +13427,38 @@ components:
       properties:
         entity:
           type: string
-          enum: [invoices, bills, journal-entries, payroll]
-          description: Matches the URL segment its actions post to (`/{entity}/{id}/approve` …).
+          enum: [invoices, bills, journal-entries, payroll, tax-computations, wht-reliefs, payment-plans]
+          description: |
+            The four documents match the URL segment their actions post to
+            (`/{entity}/{id}/approve` …). Phase 16/17 (QA-15): a SUBMITTED tax
+            computation version (`/tax/computations/{parentId}/versions/{id}/…`),
+            a PENDING treaty relief (`/tax/wht/reliefs/{id}/…`) and a PLANNED
+            payment plan (`/treasury/payment-plans/{id}/…`) — each acted on
+            through its own route and permission.
         id: { type: integer }
         label:
           type: string
-          description: The human identifier — document number or payroll period.
+          description: The human identifier — document number, payroll period, fiscal year and version, supplier and treaty rate, or bill and planned date.
+        labelAr:
+          type: ["string", "null"]
+          description: The label with the party's Arabic name, where the party has one.
         status:
           type: string
-          enum: [draft, submitted]
+          enum: [draft, submitted, pending, planned]
         amount:
-          type: number
-          description: The document's own total; a journal entry's is the sum of its debit lines, from the same aggregate the ledger list uses.
+          type: ["number", "null"]
+          description: |
+            The document's own total; a journal entry's is the sum of its debit
+            lines, from the same aggregate the ledger list uses; a plan's is what
+            it would settle. NULL where the record has no amount of its own — a
+            treaty relief is a rate, and a computation's figure is the working
+            paper's live reading, shown on its own page.
+        parentId:
+          type: ["integer", "null"]
+          description: A computation version's computation id (its routes are nested under it).
+        subtype:
+          type: ["string", "null"]
+          description: "`zakat` | `income_tax` for a computation; the IR Art. 63(1) nature for a relief."
 
     BudgetFiscalYear:
       type: object
@@ -13569,6 +14514,7 @@ components:
       required: [reason]
       properties:
         reason: { type: string, minLength: 10, maxLength: 1000, description: "Why the opening position is withdrawn — the audit record of the reversal." }
+      description: "Q3 (pack phase-16-17 §14.3): the batch is reversed WHOLE — any other field (asset ids, items, a scope) is refused 422 `migration_partial_reversal_unsupported`, never ignored."
 
     MigrationReversalPreview:
       type: object
@@ -13580,9 +14526,48 @@ components:
           items: { type: string }
         wouldReverse:
           type: object
-          required: [openingJournalEntryId, invoices, bills, deposits, banks, periodLock, keeps]
+          required: [openingJournalEntryId, invoices, bills, deposits, banks, periodLock, keeps, assets, openingBalances]
           properties:
             openingJournalEntryId: { type: ["integer", "null"] }
+            assets:
+              type: array
+              description: "Q3 (§14.3, Option A): the fixed assets the batch created — marked reversed (out of the register and every run), each POSTED depreciation mirrored as it was dated. No disposal, no gain or loss."
+              items:
+                type: object
+                required: [id, assetNumber, name, status, sourceReference, cost, openingAccumulatedDepreciation, depreciation]
+                properties:
+                  id: { type: integer }
+                  assetNumber: { type: string }
+                  name: { type: string }
+                  status: { type: string }
+                  sourceReference: { type: ["string", "null"] }
+                  cost: { type: number }
+                  openingAccumulatedDepreciation: { type: number }
+                  depreciation:
+                    type: array
+                    items:
+                      type: object
+                      required: [scheduleId, period, amount, journalEntryId, entryDate, alreadyReversed]
+                      properties:
+                        scheduleId: { type: integer }
+                        period: { type: string }
+                        amount: { type: number }
+                        journalEntryId: { type: integer }
+                        entryDate: { type: string }
+                        alreadyReversed: { type: boolean }
+            openingBalances:
+              type: array
+              description: "Every balance the opening journal carried (inventory, provisions and every other mapped balance included) — the mirror reverses each."
+              items:
+                type: object
+                required: [accountId, accountName, accountType, systemCode, debit, credit]
+                properties:
+                  accountId: { type: integer }
+                  accountName: { type: string }
+                  accountType: { type: string }
+                  systemCode: { type: ["string", "null"] }
+                  debit: { type: number }
+                  credit: { type: number }
             invoices:
               type: array
               items:
@@ -13646,9 +14631,1402 @@ components:
             reversalJournalEntryId: { type: integer }
             reversed:
               type: object
-              description: "Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted."
-              required: [invoices, bills, deposits]
+              description: "Policy C: the opening rows MARKED reversed (invoices/bills/fixed assets) or given a superseding reversal record (deposits); the depreciation posted on the batch's assets mirrored. Nothing was deleted."
+              required: [invoices, bills, deposits, assets, depreciationEntries]
               properties:
                 invoices: { type: integer }
                 bills: { type: integer }
                 deposits: { type: integer }
+                assets: { type: integer }
+                depreciationEntries: { type: integer }
+
+    # ── Phase 16 — Saudi tax ─────────────────────────────────────────────────
+
+    WhtPaymentType:
+      type: string
+      enum: [rent, royalty, management_fee, air_tickets_or_air_freight, sea_freight, intl_telecom, dividends, technical_consulting, loan_returns, insurance_premiums, other_payments]
+      description: A payment nature of Income Tax Implementing Regulations Art. 63(1) as amended by MoF Resolution 25 (in force 12-09-2023).
+
+    WhtRate:
+      type: object
+      required: [id, paymentType, rate, effectiveFrom, effectiveTo, formRow, nameEn, nameAr, legalReference]
+      properties:
+        id: { type: integer }
+        paymentType: { $ref: "#/components/schemas/WhtPaymentType" }
+        rate: { type: number, description: "A fraction: 0.05 = 5 %." }
+        effectiveFrom: { type: string }
+        effectiveTo: { type: ["string", "null"] }
+        formRow: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        legalReference: { type: string }
+
+    WhtDetermination:
+      type: object
+      description: >-
+        The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a
+        recorded payment alike. Nothing here is computed by the client.
+      required: [outcome, reasonCode, recipient, kingdomSource, paymentClass, paymentType, natureBasis]
+      properties:
+        outcome: { type: string, enum: [taxable_wht, exempt_relief, not_wht, pending_classification] }
+        reasonCode:
+          type: string
+          description: "statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier"
+        recipient: { type: string, enum: [non_resident, resident, unknown, no_supplier] }
+        kingdomSource:
+          type: string
+          enum: [presumed, declared_not_kingdom_source, not_assessed]
+          description: "A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration."
+        paymentClass:
+          type: ["string", "null"]
+          enum: [bill_payment, advance, allocated, security_deposit, erroneous, unknown, null]
+          description: "What the money was; null on a record written before migration 0116."
+        paymentType: { type: ["string", "null"] }
+        natureBasis:
+          type: ["string", "null"]
+          enum: [declared, supplier_default, payment_class, null]
+
+    WhtPreview:
+      type: object
+      required: [kind, amount, date, paymentType, rate, statutoryRate, treatyReliefId, legalReference, formRow, withheld, cashPaid, notSubjectReason, determination, monthFiled, returnPeriod]
+      properties:
+        kind: { type: string, enum: [no_vendor, resident, unknown_residency, not_subject, withheld, pending] }
+        amount: { type: number }
+        date: { type: string }
+        paymentType: { type: ["string", "null"] }
+        rate: { type: ["number", "null"] }
+        statutoryRate: { type: ["number", "null"] }
+        treatyReliefId: { type: ["integer", "null"] }
+        legalReference: { type: ["string", "null"] }
+        formRow: { type: ["string", "null"] }
+        withheld: { type: number }
+        cashPaid: { type: number, description: "What leaves the bank: amount − withheld." }
+        notSubjectReason: { type: ["string", "null"] }
+        determination: { $ref: "#/components/schemas/WhtDetermination" }
+        monthFiled: { type: boolean, description: "Q1: the payment month's Form 06 is recorded filed and this payment withholds — a treatment is required." }
+        returnPeriod: { type: ["string", "null"], description: "The month whose return would carry it; null while a filed month's treatment is not stated." }
+
+    WhtDelayFine:
+      type: object
+      required: [blocks, daysLate, amount]
+      description: "A STATUTORY ESTIMATE (Income Tax Law Art. 77(A); IR Art. 68(2)): 1 % of the unpaid tax per full 30 days after the due date — never posted."
+      properties:
+        blocks: { type: integer }
+        daysLate: { type: integer }
+        amount: { type: number }
+
+    WhtMonth:
+      type: object
+      required: [period, dueDate, status, base, withheld, remitted, outstanding, payments, notSubject, pending, corrections, finesPaid, lastPaidAt, delayFineEstimate, filingStatus, filedOn, filedTaxWithheld]
+      properties:
+        period: { type: string, description: "The RETURN month (Q1): what its Form 06 carries." }
+        dueDate: { type: string, description: "The 10th of the following month (IR Art. 63(9)(a))." }
+        status:
+          type: string
+          enum: [nil, open, due, overdue, remitted, credit]
+          description: "credit (Q1): a correction left the month's return below what was remitted for it — shown, never netted against another month (open W-17)."
+        corrections: { type: integer, description: "Corrections whose reversal this month's return carries." }
+        filingStatus: { $ref: "#/components/schemas/WhtFilingStatus" }
+        filedOn: { type: ["string", "null"] }
+        filedTaxWithheld: { type: ["number", "null"], description: "The tax AS FILED (the latest filing's snapshot)." }
+        base: { type: number }
+        withheld: { type: number }
+        remitted: { type: number }
+        outstanding: { type: number }
+        payments: { type: integer }
+        notSubject: { type: integer }
+        pending: { type: integer, description: "Payments to a non-resident recorded PENDING — purpose not identified, nothing withheld (Q2)." }
+        finesPaid: { type: number }
+        lastPaidAt: { type: ["string", "null"] }
+        delayFineEstimate:
+          oneOf:
+            - { $ref: "#/components/schemas/WhtDelayFine" }
+            - { type: "null" }
+
+    WhtOverview:
+      type: object
+      required: [asOf, months, opening, reconciliation, exceptions]
+      properties:
+        asOf: { type: string }
+        months:
+          type: array
+          items: { $ref: "#/components/schemas/WhtMonth" }
+        opening:
+          type: object
+          required: [balance, unremitted]
+          properties:
+            balance: { type: number }
+            unremitted: { type: number }
+        reconciliation:
+          type: object
+          required: [glWhtPayable, whtLedger, reconciles]
+          description: "Invariant W1 — GL WHT payable against opening + withheld − remitted, EXACT."
+          properties:
+            glWhtPayable: { type: number }
+            whtLedger: { type: number }
+            reconciles: { type: boolean }
+        exceptions:
+          type: object
+          required: [undeclaredResidency, possiblyMissed, paymentsWithoutSupplier, pendingClassification, reliefsExpiringIn30Days]
+          properties:
+            undeclaredResidency: { type: integer }
+            possiblyMissed: { type: integer }
+            paymentsWithoutSupplier: { type: integer }
+            pendingClassification: { type: integer, description: "Live PENDING determinations (Q2) — the true count." }
+            reliefsExpiringIn30Days: { type: integer }
+
+    WhtWithholding:
+      type: object
+      required: [id, sourceKind, billPaymentId, supplierPaymentId, vendorId, vendorName, vendorNameAr, vendorCountry, vendorAddress, vendorForeignTaxId,
+                 billId, document, paymentDate, period, status, paymentType, formRow, notSubjectReason, notSubjectNote, baseAmount, rate, statutoryRate,
+                 treatyReliefId, treatyApprovalReference, whtAmount, cashPaid, journalEntryId, paymentClass, natureBasis, supersedesWithholdingId, determination,
+                 returnPeriod, filedMonthTreatment, reentryOfCorrectionId, correction]
+      properties:
+        id: { type: integer }
+        sourceKind: { type: string, enum: [bill_payment, supplier_payment] }
+        billPaymentId: { type: ["integer", "null"] }
+        supplierPaymentId: { type: ["integer", "null"] }
+        vendorId: { type: integer }
+        vendorName: { type: string }
+        vendorNameAr: { type: ["string", "null"] }
+        vendorCountry: { type: ["string", "null"] }
+        vendorAddress: { type: ["string", "null"] }
+        vendorForeignTaxId: { type: ["string", "null"] }
+        billId: { type: ["integer", "null"] }
+        document: { type: ["string", "null"] }
+        paymentDate: { type: string }
+        period: { type: string }
+        status: { type: string, enum: [withheld, not_subject, pending] }
+        paymentType: { type: ["string", "null"] }
+        formRow: { type: ["string", "null"] }
+        notSubjectReason: { type: ["string", "null"] }
+        notSubjectNote: { type: ["string", "null"] }
+        baseAmount: { type: number }
+        rate: { type: number }
+        statutoryRate: { type: ["number", "null"] }
+        treatyReliefId: { type: ["integer", "null"] }
+        treatyApprovalReference: { type: ["string", "null"] }
+        whtAmount: { type: number }
+        cashPaid: { type: number }
+        journalEntryId: { type: integer }
+        paymentClass: { type: ["string", "null"], description: "Frozen at the decision (Q2); null on a record written before migration 0116." }
+        natureBasis: { type: ["string", "null"] }
+        supersedesWithholdingId: { type: ["integer", "null"], description: "The pending or not-subject record a reclassification replaced (it stays, beside this one)." }
+        determination: { $ref: "#/components/schemas/WhtDetermination" }
+        returnPeriod: { type: string, description: "Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one." }
+        filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        reentryOfCorrectionId: { type: ["integer", "null"], description: "Q1: this payment RE-ENTERS that correction (the corrected transaction)." }
+        correction:
+          description: "Q1: this withholding's own correction (the reversal and its re-entry), or null."
+          oneOf:
+            - $ref: "#/components/schemas/WhtCorrectionRef"
+            - { type: "null" }
+
+    WhtCorrectionRef:
+      type: object
+      required: [id, correctedOn, reason, reversalReturnPeriod, filedMonthTreatment, reversalJournalEntryId, correctedWithholdingId, correctedBillPaymentId, correctedSupplierPaymentId]
+      properties:
+        id: { type: integer }
+        correctedOn: { type: string }
+        reason: { type: string }
+        reversalReturnPeriod: { type: string, description: "The month whose return carries the reversal." }
+        filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        reversalJournalEntryId: { type: integer }
+        correctedWithholdingId: { type: ["integer", "null"] }
+        correctedBillPaymentId: { type: ["integer", "null"] }
+        correctedSupplierPaymentId: { type: ["integer", "null"] }
+
+    WhtAdjustment:
+      type: object
+      required: [correctionId, withholdingId, correctedOn, reason, filedMonthTreatment, originalReturnPeriod, paymentDate, vendorId, vendorName, vendorNameAr, paymentType, status, baseAmount, whtAmount, reversalJournalEntryId, correctedWithholdingId]
+      properties:
+        correctionId: { type: integer }
+        withholdingId: { type: integer }
+        correctedOn: { type: string }
+        reason: { type: string }
+        filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        originalReturnPeriod: { type: string }
+        paymentDate: { type: string }
+        vendorId: { type: integer }
+        vendorName: { type: string }
+        vendorNameAr: { type: ["string", "null"] }
+        paymentType: { type: ["string", "null"] }
+        status: { type: string, enum: [withheld, not_subject, pending] }
+        baseAmount: { type: number, description: "The reversal's effect on THIS return (negative)." }
+        whtAmount: { type: number, description: "The reversal's effect on THIS return (negative)." }
+        reversalJournalEntryId: { type: integer }
+        correctedWithholdingId: { type: ["integer", "null"] }
+
+    WhtFilingStatus:
+      type: string
+      enum: [unfiled, filed, amended, amendment_due]
+      description: "Q1: amendment_due — the ledger's figure for the month no longer equals what was last filed (a correction chose to amend it)."
+
+    WhtFiling:
+      type: object
+      required: [id, period, kind, amendsFilingId, filedOn, zatcaReference, taxWithheld, paymentTotal, notes, createdBy, createdAt]
+      properties:
+        id: { type: integer }
+        period: { type: string }
+        kind: { type: string, enum: [original, amendment] }
+        amendsFilingId: { type: ["integer", "null"] }
+        filedOn: { type: string }
+        zatcaReference: { type: string }
+        taxWithheld: { type: number, description: "The return AS FILED — written by the database from the ledger at that moment." }
+        paymentTotal: { type: number }
+        notes: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+
+    WhtFilingState:
+      type: object
+      required: [status, latest, filings]
+      properties:
+        status: { $ref: "#/components/schemas/WhtFilingStatus" }
+        latest:
+          oneOf:
+            - $ref: "#/components/schemas/WhtFiling"
+            - { type: "null" }
+        filings: { type: array, items: { $ref: "#/components/schemas/WhtFiling" } }
+
+    FileWhtReturnInput:
+      type: object
+      required: [zatcaReference]
+      properties:
+        filedOn: { type: ["string", "null"], description: "Defaults to today; after the month ends, never in the future." }
+        zatcaReference: { type: string, minLength: 3, maxLength: 200 }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    CorrectWhtWithholdingInput:
+      type: object
+      required: [reason]
+      description: >-
+        Q1 (pack §14.1): reverse a WHT-bearing payment (its mirror entry; the original kept) and, with `reentry`, record the
+        corrected payment through the same pay path. `filedMonthTreatment` is required when a leg falls in a FILED month.
+      properties:
+        reason: { type: string, minLength: 10, maxLength: 2000 }
+        date: { type: ["string", "null"], description: "The correction (reversal) date — defaults to today; never before the payment, never in the future." }
+        filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        idempotencyKey: { type: ["string", "null"], maxLength: 200 }
+        reentry:
+          oneOf:
+            - $ref: "#/components/schemas/WhtReentryInput"
+            - { type: "null" }
+
+    WhtReentryInput:
+      type: object
+      required: [amount]
+      description: "The corrected payment. A bill payment's fields: billId (defaults to the original's bill), amount, paidAt, bankAccountId. A supplier payment's: vendorId, classification, allocations, reference. The WHT declaration as on any pay path."
+      properties:
+        amount: { type: number, exclusiveMinimum: 0 }
+        paidAt: { type: ["string", "null"] }
+        bankAccountId: { type: ["integer", "null"] }
+        billId: { type: ["integer", "null"] }
+        vendorId: { type: ["integer", "null"] }
+        classification: { type: ["string", "null"], enum: [advance, security_deposit, erroneous, unknown, null] }
+        allocations: { type: array, items: { $ref: "#/components/schemas/SupplierPaymentAllocationInput" } }
+        reference: { type: ["string", "null"] }
+        whtPaymentType: { type: ["string", "null"] }
+        whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
+        whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
+        whtFiledMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+
+    WhtLineage:
+      type: object
+      required: [withholding, state, correction, reentry, corrects]
+      description: "Q1: one withholding's lineage — the original as recorded, the state it is in, its correction and the corrected re-entry (or, for a re-entry, the original it corrects)."
+      properties:
+        withholding: { $ref: "#/components/schemas/WhtWithholding" }
+        state:
+          type: object
+          required: [returnPeriod, filingStatus, latestFiling, monthTaxWithheld, monthRemitted, monthOutstanding, monthStatus]
+          properties:
+            returnPeriod: { type: string }
+            filingStatus: { $ref: "#/components/schemas/WhtFilingStatus" }
+            latestFiling:
+              oneOf:
+                - $ref: "#/components/schemas/WhtFiling"
+                - { type: "null" }
+            monthTaxWithheld: { type: number }
+            monthRemitted: { type: number }
+            monthOutstanding: { type: number }
+            monthStatus: { type: string, enum: [nil, open, due, overdue, remitted, credit] }
+        correction:
+          oneOf:
+            - type: object
+              required: [id, reason, correctedOn, correctionPeriod, reversalJournalEntryId, reversalReturnPeriod, filedMonthTreatment, originalFilingId, remittedAtCorrection, correctedBillPaymentId, correctedSupplierPaymentId, createdBy, createdAt]
+              properties:
+                id: { type: integer }
+                reason: { type: string }
+                correctedOn: { type: string }
+                correctionPeriod: { type: string }
+                reversalJournalEntryId: { type: integer }
+                reversalReturnPeriod: { type: string }
+                filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+                originalFilingId: { type: ["integer", "null"], description: "The filing the original's month had when it was corrected (the FILED state)." }
+                remittedAtCorrection: { type: number, description: "What of the original's month was remitted when it was corrected (the REMITTED state)." }
+                correctedBillPaymentId: { type: ["integer", "null"] }
+                correctedSupplierPaymentId: { type: ["integer", "null"] }
+                createdBy: { type: ["integer", "null"] }
+                createdAt: { type: string }
+            - { type: "null" }
+        reentry:
+          oneOf:
+            - $ref: "#/components/schemas/WhtWithholding"
+            - { type: "null" }
+        corrects:
+          oneOf:
+            - $ref: "#/components/schemas/WhtWithholding"
+            - { type: "null" }
+        replayed: { type: boolean }
+
+    WhtRemittance:
+      type: object
+      required: [id, period, amount, fineAmount, paidAt, bankAccountId, bankName, reference, notes, journalEntryId, createdAt, reversal]
+      properties:
+        id: { type: integer }
+        period: { type: ["string", "null"], description: "YYYY-MM, or null for the migrated opening balance." }
+        amount: { type: number }
+        fineAmount: { type: number }
+        paidAt: { type: string }
+        bankAccountId: { type: integer }
+        bankName: { type: string }
+        reference: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        journalEntryId: { type: integer }
+        createdAt: { type: string }
+        reversal:
+          oneOf:
+            - type: object
+              required: [id, reason, reversedOn, journalEntryId]
+              properties:
+                id: { type: integer }
+                reason: { type: string }
+                reversedOn: { type: string }
+                journalEntryId: { type: integer }
+            - { type: "null" }
+
+    WhtReturnLine:
+      type: object
+      required: [formRow, paymentType, nameEn, nameAr, applicable, paymentTotal, taxWithheld]
+      properties:
+        formRow: { type: string }
+        paymentType: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        applicable: { type: boolean }
+        paymentTotal: { type: number }
+        taxWithheld: { type: number }
+
+    WhtMonthlyReturn:
+      type: object
+      required: [period, dueDate, status, asOf, lines, totals, delayFineEstimate, schedule, excluded, pending, corrected, adjustments, filing, remittances, unusedFormRows]
+      properties:
+        period: { type: string }
+        dueDate: { type: string }
+        status: { type: string, enum: [nil, open, due, overdue, remitted, credit] }
+        asOf: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/WhtReturnLine" }
+        totals:
+          type: object
+          required: [paymentTotal, taxWithheld, remitted, outstanding]
+          properties:
+            paymentTotal: { type: number }
+            taxWithheld: { type: number }
+            remitted: { type: number }
+            outstanding: { type: number }
+        delayFineEstimate:
+          oneOf:
+            - { $ref: "#/components/schemas/WhtDelayFine" }
+            - { type: "null" }
+        schedule:
+          type: array
+          items: { $ref: "#/components/schemas/WhtWithholding" }
+        excluded:
+          type: array
+          items: { $ref: "#/components/schemas/WhtWithholding" }
+        pending:
+          type: array
+          description: "Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2)."
+          items: { $ref: "#/components/schemas/WhtWithholding" }
+        corrected:
+          type: array
+          description: "Q1: rows reported in this month AND reversed within its return (before filing, or by amendment) — shown, out of the totals."
+          items: { $ref: "#/components/schemas/WhtWithholding" }
+        adjustments:
+          type: array
+          description: "Q1: corrections this month's return carries whose original is reported in an earlier, filed month (subsequent period) — negative lines."
+          items: { $ref: "#/components/schemas/WhtAdjustment" }
+        filing: { $ref: "#/components/schemas/WhtFilingState" }
+        remittances:
+          type: array
+          items: { $ref: "#/components/schemas/WhtRemittance" }
+        unusedFormRows:
+          type: array
+          items: { type: string }
+          description: "Form 06 rows 07/08 have no separate band after Resolution 25 (open question W-4)."
+
+    WhtAnnualReturn:
+      type: object
+      required: [fiscalYear, dueDate, beneficiaries, totals]
+      properties:
+        fiscalYear:
+          type: object
+          required: [label, startDate, endDate, calendar]
+          properties:
+            label: { type: integer }
+            startDate: { type: string }
+            endDate: { type: string }
+            calendar: { type: string, enum: [gregorian, hijri] }
+        dueDate: { type: string }
+        beneficiaries:
+          type: array
+          items:
+            type: object
+            required: [vendorId, vendorName, vendorNameAr, country, address, foreignTaxId, paymentType, base, wht, payments]
+            properties:
+              vendorId: { type: integer }
+              vendorName: { type: string }
+              vendorNameAr: { type: ["string", "null"] }
+              country: { type: ["string", "null"] }
+              address: { type: ["string", "null"] }
+              foreignTaxId: { type: ["string", "null"] }
+              paymentType: { type: string }
+              base: { type: number }
+              wht: { type: number }
+              payments: { type: integer }
+        totals:
+          type: object
+          required: [base, wht, payments]
+          properties:
+            base: { type: number }
+            wht: { type: number }
+            payments: { type: integer }
+
+    WhtBeneficiaryStatement:
+      type: object
+      required: [vendor, period, payments, totals]
+      properties:
+        vendor:
+          type: object
+          required: [id, name, nameAr, country, foreignTaxId, residency]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            nameAr: { type: ["string", "null"] }
+            country: { type: ["string", "null"] }
+            foreignTaxId: { type: ["string", "null"] }
+            residency: { type: string }
+        period: { type: ["string", "null"] }
+        payments:
+          type: array
+          items: { $ref: "#/components/schemas/WhtWithholding" }
+        totals:
+          type: object
+          required: [base, wht]
+          properties:
+            base: { type: number }
+            wht: { type: number }
+
+    WhtExceptions:
+      type: object
+      required: [kind, total, shown, items]
+      properties:
+        kind: { type: string, enum: [undeclared, possibly_missed, pending_classification] }
+        total: { type: integer, description: "The TRUE count; the list is capped at 200." }
+        shown: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            required: [sourceKind, paymentId, vendorId, vendorName, document, paidAt, amount, journalEntryId]
+            properties:
+              sourceKind: { type: string }
+              paymentId: { type: integer }
+              vendorId: { type: integer }
+              vendorName: { type: string }
+              document: { type: ["string", "null"] }
+              paidAt: { type: string }
+              amount: { type: number }
+              journalEntryId: { type: ["integer", "null"] }
+
+    WhtRemitInput:
+      type: object
+      required: [bankAccountId]
+      properties:
+        amount: { type: ["number", "null"], description: "Defaults to everything the month still owes." }
+        fineAmount: { type: ["number", "null"], description: "A delay fine ACTUALLY paid with it (posted to tax fines)." }
+        paidAt: { type: ["string", "null"], description: "YYYY-MM-DD; today by default; never in the future." }
+        bankAccountId: { type: integer }
+        reference: { type: ["string", "null"], maxLength: 200 }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+        idempotencyKey: { type: ["string", "null"], maxLength: 120 }
+
+    WhtRemittanceResult:
+      type: object
+      required: [remittance, replayed]
+      properties:
+        remittance: { $ref: "#/components/schemas/WhtRemittance" }
+        replayed: { type: boolean, description: "true when an idempotency key returned the original remittance." }
+
+    ReverseWithReasonInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+        date: { type: ["string", "null"] }
+
+    ReasonInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    WhtRelief:
+      type: object
+      required: [id, vendorId, vendorName, vendorNameAr, paymentType, reducedRate, treatyCountry, zatcaApprovalReference, residencyCertificateReference, validFrom, validTo, status, notes,
+                 createdBy, createdAt, approvedBy, approvedAt, revokedBy, revokedAt, revokeReason]
+      properties:
+        id: { type: integer }
+        vendorId: { type: integer }
+        vendorName: { type: string }
+        vendorNameAr: { type: ["string", "null"] }
+        paymentType: { type: string }
+        reducedRate: { type: number }
+        treatyCountry: { type: string }
+        zatcaApprovalReference: { type: string }
+        residencyCertificateReference: { type: string }
+        validFrom: { type: string }
+        validTo: { type: string }
+        status: { type: string, enum: [pending, approved, revoked] }
+        notes: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        approvedBy: { type: ["integer", "null"] }
+        approvedAt: { type: ["string", "null"] }
+        revokedBy: { type: ["integer", "null"] }
+        revokedAt: { type: ["string", "null"] }
+        revokeReason: { type: ["string", "null"] }
+
+    CreateWhtReliefInput:
+      type: object
+      required: [vendorId, paymentType, reducedRate, treatyCountry, zatcaApprovalReference, residencyCertificateReference, validFrom, validTo]
+      properties:
+        vendorId: { type: integer }
+        paymentType: { $ref: "#/components/schemas/WhtPaymentType" }
+        reducedRate: { type: number, minimum: 0, maximum: 0.9999 }
+        treatyCountry: { type: string, minLength: 2, maxLength: 2 }
+        zatcaApprovalReference: { type: string, minLength: 1, maxLength: 200 }
+        residencyCertificateReference: { type: string, minLength: 1, maxLength: 200 }
+        validFrom: { type: string }
+        validTo: { type: string }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    ZakatClass:
+      type: string
+      enum: [equity, provision_as_equity, noncurrent_liability, current_liability, noncurrent_asset_deducted, noncurrent_asset_not_deducted, current_asset_deducted, current_asset_not_deducted]
+
+    ZakatAccountClassification:
+      type: object
+      required: [accountId, name, nameAr, type, liquidityClass, systemCode, isPosting, balance, zakatReads, classification, article, basisNote, confirmedBy, confirmedAt, suggestion, allowed]
+      properties:
+        accountId: { type: integer }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        type: { type: string, enum: [asset, liability] }
+        liquidityClass: { type: ["string", "null"] }
+        systemCode: { type: ["string", "null"] }
+        isPosting:
+          type: boolean
+          description: False for a header account listed because it carries entries of its own (the CASH header's pre-D-3 history, F-14).
+        balance:
+          type: ["number", "null"]
+          description: The account's amount in the statement of financial position at `asOf` (assets debit-positive, liabilities credit-positive; a contra account negative); 0 when it carries nothing then; null when no `asOf` was given.
+        zakatReads:
+          type: ["number", "null"]
+          description: What the Zakat computation for a fiscal year ending at `asOf` reads from the account — the balance less that computation's OWN accrual (Z-3). It equals `balance` unless the year's own Zakat accrual sits in it; an unclassified account blocks a computation only when this is non-zero. Null when no `asOf` was given.
+        classification:
+          oneOf:
+            - { $ref: "#/components/schemas/ZakatClass" }
+            - { type: "null" }
+        article: { type: ["string", "null"] }
+        basisNote: { type: ["string", "null"] }
+        confirmedBy: { type: ["integer", "null"] }
+        confirmedAt: { type: ["string", "null"] }
+        suggestion:
+          description: Pre-selected from what the account IS — confirmed by a person, never applied by itself.
+          oneOf:
+            - { $ref: "#/components/schemas/ZakatClass" }
+            - { type: "null" }
+        allowed:
+          type: array
+          items: { $ref: "#/components/schemas/ZakatClass" }
+
+    SetZakatClassificationInput:
+      type: object
+      required: [classification]
+      properties:
+        classification: { $ref: "#/components/schemas/ZakatClass" }
+        basisNote: { type: ["string", "null"], maxLength: 2000 }
+
+    TaxObligation:
+      type: object
+      required: [kind, reference, amount, dueDate, note, source, overdue]
+      properties:
+        kind: { type: string, enum: [wht, zakat, income_tax, vat] }
+        reference: { type: string }
+        amount:
+          type: number
+          description: What is owed now — never negative. A VAT period that nets to zero or to a credit, or whose payments already cover it, owes 0 and says which (`vatPosition`).
+        dueDate: { type: ["string", "null"] }
+        note: { type: ["string", "null"] }
+        source:
+          type: object
+          required: [type]
+          properties:
+            type: { type: string, enum: [wht_period, gl_account, vat_return] }
+            period: { type: ["string", "null"] }
+            systemCode: { type: string }
+            from: { type: string }
+            to: { type: string }
+            computationId:
+              type: ["integer", "null"]
+              description: Zakat / income tax — the approved computation whose fiscal year dates the balance (the row links to it).
+        overdue: { type: boolean }
+        vatPosition:
+          type: ["string", "null"]
+          enum: [payable, settled, nil, credit, null]
+          description: |
+            A VAT period's position on its own return (QA-06): `payable` (owed),
+            `settled` (VAT payments booked since the period ended cover it),
+            `nil` (the return nets to zero) or `credit` (input VAT exceeds output
+            VAT — nothing is owed, and the credit is NOT projected as cash).
+            Null on every other row.
+        returnNet:
+          type: ["number", "null"]
+          description: A VAT period's net VAT exactly as its return computes it (negative for a credit) — the return's own figure, never re-derived.
+        paidSince:
+          type: ["number", "null"]
+          description: VAT payments booked since a completed VAT period ended (presumed for it); null on every other row.
+
+    TaxObligationsReport:
+      type: object
+      required: [asOf, obligations, total]
+      properties:
+        asOf: { type: string }
+        obligations:
+          type: array
+          items: { $ref: "#/components/schemas/TaxObligation" }
+        total: { type: number }
+
+    TaxFiscalYear:
+      type: object
+      required: [calendar, startMonth, label, startDate, endDate]
+      properties:
+        calendar: { type: string, enum: [gregorian, hijri] }
+        startMonth: { type: integer }
+        label: { type: integer }
+        startDate: { type: string }
+        endDate: { type: string }
+
+    TaxComputationVersion:
+      type: object
+      required: [id, versionNo, status, basedOnVersionId, notes, sendBackNote, lossCarryforwardAvailable, lossCarryforwardReference, createdBy, createdAt,
+                 submittedBy, submittedAt, approvedBy, approvedAt, supersededAt, resultAmount, accruedAmount, accrualDate, accrualJournalEntryId]
+      properties:
+        id: { type: integer }
+        versionNo: { type: integer }
+        status: { type: string, enum: [draft, submitted, approved, superseded] }
+        basedOnVersionId: { type: ["integer", "null"] }
+        notes: { type: ["string", "null"] }
+        sendBackNote: { type: ["string", "null"] }
+        lossCarryforwardAvailable: { type: ["number", "null"] }
+        lossCarryforwardReference: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        submittedBy: { type: ["integer", "null"] }
+        submittedAt: { type: ["string", "null"] }
+        approvedBy: { type: ["integer", "null"] }
+        approvedAt: { type: ["string", "null"] }
+        supersededAt: { type: ["string", "null"] }
+        resultAmount: { type: ["number", "null"] }
+        accruedAmount: { type: ["number", "null"], description: "Signed: what THIS approval posted (the difference from earlier accruals)." }
+        accrualDate: { type: ["string", "null"] }
+        accrualJournalEntryId: { type: ["integer", "null"] }
+
+    TaxComputationSummary:
+      type: object
+      required: [id, kind, fiscalYear, notes, createdAt, versions, approvedVersionId, openVersionId, approvedAmount, dueDate]
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [zakat, income_tax] }
+        fiscalYear: { $ref: "#/components/schemas/TaxFiscalYear" }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+        versions:
+          type: array
+          items: { $ref: "#/components/schemas/TaxComputationVersion" }
+        approvedVersionId: { type: ["integer", "null"] }
+        openVersionId: { type: ["integer", "null"] }
+        approvedAmount: { type: ["number", "null"] }
+        dueDate: { type: string, description: "120 days after the fiscal year-end (Zakat Regs Art. 102(1); Income Tax Law Arts 60(b), 69)." }
+
+    TaxAdjustment:
+      type: object
+      required: [id, target, effect, amount, reason, legalReference, sourceReference, accountId, createdBy, createdAt]
+      properties:
+        id: { type: integer }
+        target: { type: string, enum: [adjusted_net_profit, zakat_base, taxable_income] }
+        effect: { type: string, enum: [increase, decrease] }
+        amount: { type: number }
+        reason: { type: string }
+        legalReference: { type: string }
+        sourceReference: { type: ["string", "null"] }
+        accountId: { type: ["integer", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+
+    TaxBlocker:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        accounts:
+          type: array
+          items:
+            type: object
+            required: [key, name, nameAr, amount]
+            properties:
+              key: { type: string }
+              name: { type: string }
+              nameAr: { type: string }
+              amount: { type: number }
+
+    TaxStep:
+      type: object
+      required: [key, article, amount]
+      properties:
+        key: { type: string }
+        article: { type: string }
+        amount: { type: number }
+
+    ZakatLineOut:
+      type: object
+      required: [accountId, key, name, nameAr, zakatClass, article, amount]
+      properties:
+        accountId: { type: ["integer", "null"] }
+        key: { type: string }
+        name: { type: string }
+        nameAr: { type: string }
+        zakatClass: { type: string }
+        article: { type: string }
+        amount: { type: number }
+
+    ZakatResultOut:
+      type: object
+      required: [equity, provisions, nonCurrentAssets, nonCurrentDeducted, nonCurrentNotDeducted, currentAssets, currentDeducted, currentNotDeducted,
+                 nonCurrentLiabilities, currentLiabilities, deductions, nonCurrentLiabilitiesExcluded, nonCurrentLiabilitiesExcludedTotal,
+                 currentLiabilitiesAddedForDeducted, currentLiabilitiesAddedForDeductedTotal, currentLiabilitiesExcessOverCurrentAssets,
+                 liabilitiesAddedBeforeCap, liabilitiesAdded, bookNetProfit, netProfitAdjustments, adjustedNetProfit, baseAdjustments, difference,
+                 baseByMethod, undeductedAssets, minimumRule, baseAfterMinimum, maximum, maximumApplied, floorAboveCeiling, zakatBase, rate, zakat, steps]
+      properties:
+        equity: { type: number }
+        provisions: { type: number }
+        nonCurrentAssets: { type: number }
+        nonCurrentDeducted: { type: number }
+        nonCurrentNotDeducted: { type: number }
+        currentAssets: { type: number }
+        currentDeducted: { type: number }
+        currentNotDeducted: { type: number }
+        nonCurrentLiabilities: { type: number }
+        currentLiabilities: { type: number }
+        deductions: { type: number }
+        nonCurrentLiabilitiesExcluded:
+          type: array
+          items:
+            type: object
+            required: [accountId, name, nameAr, asset, excluded]
+            properties:
+              accountId: { type: ["integer", "null"] }
+              name: { type: string }
+              nameAr: { type: string }
+              asset: { type: number }
+              excluded: { type: number }
+        nonCurrentLiabilitiesExcludedTotal: { type: number }
+        currentLiabilitiesAddedForDeducted:
+          type: array
+          items:
+            type: object
+            required: [accountId, name, nameAr, asset, added]
+            properties:
+              accountId: { type: ["integer", "null"] }
+              name: { type: string }
+              nameAr: { type: string }
+              asset: { type: number }
+              added: { type: number }
+        currentLiabilitiesAddedForDeductedTotal: { type: number }
+        currentLiabilitiesExcessOverCurrentAssets: { type: number }
+        liabilitiesAddedBeforeCap: { type: number }
+        liabilitiesAdded: { type: number }
+        bookNetProfit: { type: number }
+        netProfitAdjustments: { type: number }
+        adjustedNetProfit: { type: number }
+        baseAdjustments: { type: number }
+        difference: { type: number }
+        baseByMethod: { type: number }
+        undeductedAssets: { type: number }
+        minimumRule: { type: string, enum: [not_applied, "27(2)", "27(3)", "27(4)"] }
+        baseAfterMinimum: { type: number }
+        maximum: { type: number }
+        maximumApplied: { type: boolean }
+        floorAboveCeiling: { type: boolean }
+        zakatBase: { type: number }
+        rate:
+          type: object
+          required: [numerator, denominator, display, basis]
+          properties:
+            numerator: { type: integer }
+            denominator: { type: integer }
+            display: { type: string }
+            basis: { type: string }
+        zakat: { type: number }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/TaxStep" }
+
+    ZakatWorkingPaper:
+      type: object
+      required: [lines, bookNetProfit, fiscalYearDays, calendar, result]
+      properties:
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/ZakatLineOut" }
+        bookNetProfit: { type: number }
+        fiscalYearDays: { type: integer }
+        calendar: { type: string, enum: [gregorian, hijri] }
+        result:
+          oneOf:
+            - { $ref: "#/components/schemas/ZakatResultOut" }
+            - { type: "null" }
+
+    IncomeTaxResultOut:
+      type: object
+      required: [profitBeforeTaxes, bookDepreciationAddBack, bookDisposalReversal, poolDeduction, poolExcessIncome, repairsOverCap, declaredAdjustments,
+                 taxableIncome, lossCap, lossUsed, taxableIncomeAfterLosses, foreignSharePct, taxableShare, rate, incomeTax, lossOfTheYear, steps]
+      properties:
+        profitBeforeTaxes: { type: number }
+        bookDepreciationAddBack: { type: number }
+        bookDisposalReversal: { type: number }
+        poolDeduction: { type: number }
+        poolExcessIncome: { type: number }
+        repairsOverCap: { type: number }
+        declaredAdjustments: { type: number }
+        taxableIncome: { type: number }
+        lossCap: { type: number }
+        lossUsed: { type: number }
+        taxableIncomeAfterLosses: { type: number }
+        foreignSharePct: { type: number }
+        taxableShare: { type: number }
+        rate:
+          type: object
+          required: [numerator, denominator, display]
+          properties:
+            numerator: { type: integer }
+            denominator: { type: integer }
+            display: { type: string }
+        incomeTax: { type: number }
+        lossOfTheYear: { type: number }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/TaxStep" }
+
+    TaxComputationLive:
+      type: object
+      required: [kind, blockers, reconciliation, adjustments, fingerprint, amount, zakat, incomeTax]
+      properties:
+        kind: { type: string, enum: [zakat, income_tax] }
+        blockers:
+          type: array
+          items: { $ref: "#/components/schemas/TaxBlocker" }
+        reconciliation:
+          description: The figures the working paper ties to — Zakat (Z1/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).
+          oneOf:
+            - { $ref: "#/components/schemas/ZakatReconciliation" }
+            - { $ref: "#/components/schemas/IncomeTaxReconciliation" }
+        adjustments:
+          type: array
+          items: { $ref: "#/components/schemas/TaxAdjustment" }
+        fingerprint: { type: string }
+        amount: { type: ["number", "null"] }
+        zakat:
+          oneOf:
+            - { $ref: "#/components/schemas/ZakatWorkingPaper" }
+            - { type: "null" }
+        incomeTax:
+          oneOf:
+            - { $ref: "#/components/schemas/IncomeTaxResultOut" }
+            - { type: "null" }
+
+    ZakatReconciliation:
+      type: object
+      description: "Z1 — Σ the asset rows read = the balance sheet's total assets (after this computation's own accrual is taken out); Z2 — book net profit = the balance sheet's result of the year."
+      required: [balanceSheetTotalAssets, assetsRead, classifiedAssets, bookNetProfit, balanceSheetYearResult, bookProfitMatchesBalanceSheet, excludedOwnAccruals]
+      properties:
+        balanceSheetTotalAssets: { type: number }
+        assetsRead: { type: number }
+        classifiedAssets: { type: number }
+        bookNetProfit: { type: number }
+        balanceSheetYearResult: { type: ["number", "null"] }
+        bookProfitMatchesBalanceSheet: { type: ["boolean", "null"] }
+        excludedOwnAccruals: { type: integer }
+
+    IncomeTaxReconciliation:
+      type: object
+      required: [profitPerIncomeStatement, zakatAndIncomeTaxAddedBack, pool, excludedOwnAccruals, ownership]
+      properties:
+        profitPerIncomeStatement: { type: number }
+        zakatAndIncomeTaxAddedBack: { type: number }
+        pool:
+          type: object
+          required: [status, reason]
+          properties:
+            status: { type: string }
+            reason: { type: ["string", "null"] }
+        excludedOwnAccruals: { type: integer }
+        ownership: { type: ["string", "null"] }
+
+    TaxComputationSnapshot:
+      type: object
+      description: The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.
+      required: [frozenAt, kind, fiscalYear, computation, accrual]
+      properties:
+        frozenAt: { type: string }
+        kind: { type: string, enum: [zakat, income_tax] }
+        fiscalYear: { $ref: "#/components/schemas/TaxFiscalYear" }
+        computation: { $ref: "#/components/schemas/TaxComputationLive" }
+        accrual:
+          type: object
+          required: [previouslyAccrued, thisApproval, date, basis, journalEntryId]
+          properties:
+            previouslyAccrued: { type: number }
+            thisApproval: { type: number }
+            date: { type: ["string", "null"] }
+            basis: { type: ["string", "null"] }
+            journalEntryId: { type: ["integer", "null"] }
+
+    TaxComputationDetail:
+      type: object
+      required: [id, kind, fiscalYear, notes, createdAt, dueDate, versions, approvedVersionId, openVersionId, version, live, approvedSnapshot, ledgerChangedSinceApproval]
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [zakat, income_tax] }
+        fiscalYear: { $ref: "#/components/schemas/TaxFiscalYear" }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+        dueDate: { type: string }
+        versions:
+          type: array
+          items: { $ref: "#/components/schemas/TaxComputationVersion" }
+        approvedVersionId: { type: ["integer", "null"] }
+        openVersionId: { type: ["integer", "null"] }
+        version:
+          oneOf:
+            - { $ref: "#/components/schemas/TaxComputationVersion" }
+            - { type: "null" }
+        live:
+          oneOf:
+            - { $ref: "#/components/schemas/TaxComputationLive" }
+            - { type: "null" }
+        approvedSnapshot:
+          oneOf:
+            - { $ref: "#/components/schemas/TaxComputationSnapshot" }
+            - { type: "null" }
+        ledgerChangedSinceApproval: { type: ["boolean", "null"] }
+
+    CreateTaxComputationInput:
+      type: object
+      required: [kind, fiscalYearLabel]
+      properties:
+        kind: { type: string, enum: [zakat, income_tax] }
+        fiscalYearLabel: { type: integer }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    UpdateTaxComputationInput:
+      type: object
+      properties:
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    TaxAdjustmentInput:
+      type: object
+      required: [target, effect, amount, reason, legalReference]
+      properties:
+        target: { type: string, enum: [adjusted_net_profit, zakat_base, taxable_income] }
+        effect: { type: string, enum: [increase, decrease] }
+        amount: { type: number, exclusiveMinimum: 0 }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        legalReference: { type: string, minLength: 1, maxLength: 200 }
+        sourceReference: { type: ["string", "null"], maxLength: 200 }
+        accountId: { type: ["integer", "null"] }
+
+    UpdateTaxAdjustmentInput:
+      type: object
+      properties:
+        target: { type: string, enum: [adjusted_net_profit, zakat_base, taxable_income] }
+        effect: { type: string, enum: [increase, decrease] }
+        amount: { type: number, exclusiveMinimum: 0 }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        legalReference: { type: string, minLength: 1, maxLength: 200 }
+        sourceReference: { type: ["string", "null"], maxLength: 200 }
+        accountId: { type: ["integer", "null"] }
+
+    TaxLossesInput:
+      type: object
+      properties:
+        amount: { type: ["number", "null"], minimum: 0 }
+        reference: { type: ["string", "null"], maxLength: 500 }
+
+    TaxSendBackInput:
+      type: object
+      properties:
+        note: { type: ["string", "null"], maxLength: 1000 }
+
+    # ── Phase 17 — Treasury ──────────────────────────────────────────────────
+
+    TreasuryBank:
+      type: object
+      required: [bankAccountId, name, bankName, currency, isActive, ledgerBalance, overdrawn, latestStatement, reconciledThrough]
+      properties:
+        bankAccountId: { type: integer }
+        name: { type: string }
+        bankName: { type: ["string", "null"] }
+        currency: { type: string }
+        isActive: { type: boolean }
+        ledgerBalance: { type: number }
+        overdrawn: { type: boolean }
+        latestStatement:
+          oneOf:
+            - type: object
+              required: [id, periodTo, closingBalance]
+              properties:
+                id: { type: integer }
+                periodTo: { type: string }
+                closingBalance: { type: number }
+            - { type: "null" }
+        reconciledThrough: { type: ["string", "null"] }
+
+    BilingualText:
+      type: object
+      required: [en, ar]
+      properties:
+        en: { type: string }
+        ar: { type: string }
+
+    TreasuryPosition:
+      type: object
+      required: [asOf, banks, unattributedCash, totalCash, inTransit, reconciliation, policy]
+      properties:
+        asOf: { type: string }
+        banks:
+          type: array
+          items: { $ref: "#/components/schemas/TreasuryBank" }
+        unattributedCash: { type: number, description: "Pre-D-3 history on the Cash and Bank header, attributed to no bank." }
+        totalCash: { type: number }
+        inTransit: { type: number, description: "Own-account transfers in transit — beside cash, never in it." }
+        reconciliation:
+          type: object
+          required: [balanceSheetCash, reconciles]
+          properties:
+            balanceSheetCash: { type: number }
+            reconciles: { type: boolean }
+        policy: { $ref: "#/components/schemas/BilingualText" }
+
+    TreasuryFlowRow:
+      type: object
+      required: [kind, category, direction, bucket, date, amount, label, labelAr, bucketReason, source]
+      properties:
+        kind: { type: string, enum: [committed, expected, forecast, manual] }
+        category: { type: string, enum: [receivables, payables, payment_plans, tax, payroll, recurring, assumptions] }
+        direction: { type: string, enum: [in, out] }
+        bucket: { type: integer }
+        date: { type: ["string", "null"] }
+        amount: { type: number }
+        label: { type: string }
+        labelAr: { type: string }
+        bucketReason: { type: ["string", "null"], enum: [overdue, undated, null] }
+        source:
+          type: object
+          required: [type, id, reference]
+          properties:
+            type: { type: string }
+            id: { type: ["integer", "string", "null"] }
+            reference: { type: ["string", "null"] }
+
+    TreasuryBucket:
+      type: object
+      required: [index, from, to, label, labelAr, opening, inflow, outflow, net, closing]
+      properties:
+        index: { type: integer }
+        from: { type: ["string", "null"] }
+        to: { type: ["string", "null"] }
+        label: { type: string }
+        labelAr: { type: string }
+        opening: { type: number }
+        inflow:
+          type: object
+          required: [total, expected, forecast, manual]
+          properties:
+            total: { type: number }
+            expected: { type: number }
+            forecast: { type: number }
+            manual: { type: number }
+        outflow:
+          type: object
+          required: [total, committed, expected, forecast, manual]
+          properties:
+            total: { type: number }
+            committed: { type: number }
+            expected: { type: number }
+            forecast: { type: number }
+            manual: { type: number }
+        net: { type: number }
+        closing: { type: number }
+
+    TreasuryForecast:
+      type: object
+      required: [asOf, horizonWeeks, horizonEnd, opening, buckets, rows, liquidity, funding, excluded, planFlags, notes]
+      properties:
+        asOf: { type: string }
+        horizonWeeks: { type: integer }
+        horizonEnd: { type: string }
+        opening:
+          type: object
+          required: [kind, amount]
+          properties:
+            kind: { type: string, enum: [actual] }
+            amount: { type: number }
+        buckets:
+          type: array
+          items: { $ref: "#/components/schemas/TreasuryBucket" }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/TreasuryFlowRow" }
+        liquidity:
+          type: object
+          required: [actualCash, committed, available, expectedInflows30, expectedOutflows30, overdueReceivables, overduePayables, undatedObligations, lowestClosing]
+          properties:
+            actualCash: { type: number }
+            committed: { type: number }
+            available: { type: number }
+            expectedInflows30: { type: number }
+            expectedOutflows30: { type: number }
+            overdueReceivables: { type: number }
+            overduePayables: { type: number }
+            undatedObligations: { type: number }
+            lowestClosing: { type: number }
+        funding:
+          type: object
+          required: [minimumBalance, bufferDeclared, requirement, firstShortfallBucket, peakShortfallBucket, recommendation]
+          properties:
+            minimumBalance: { type: ["number", "null"] }
+            bufferDeclared: { type: boolean }
+            requirement: { type: number }
+            firstShortfallBucket: { type: ["integer", "null"] }
+            peakShortfallBucket: { type: ["integer", "null"] }
+            recommendation:
+              oneOf:
+                - { $ref: "#/components/schemas/BilingualText" }
+                - { type: "null" }
+        excluded:
+          type: object
+          required: [beyondHorizon, staleAssumptions, journalEntryRules, rulesWithoutHistory]
+          properties:
+            beyondHorizon:
+              type: object
+              required: [inflow, outflow, count]
+              properties:
+                inflow: { type: number }
+                outflow: { type: number }
+                count: { type: integer }
+            staleAssumptions: { type: integer }
+            journalEntryRules: { type: integer }
+            rulesWithoutHistory: { type: integer }
+        planFlags:
+          type: array
+          items:
+            type: object
+            required: [planId, covered, exceedsOutstanding, billReversed]
+            properties:
+              planId: { type: integer }
+              covered: { type: number }
+              exceedsOutstanding: { type: boolean }
+              billReversed:
+                type: boolean
+                description: "The plan's bill is an opening item the migration reversed (Policy C) — it owes nothing, the plan covers nothing, and it is to be cancelled."
+        notes:
+          type: array
+          items: { $ref: "#/components/schemas/BilingualText" }
+
+    TreasuryDashboard:
+      type: object
+      required: [position, forecast, upcomingOutflows, upcomingOutflowsTotal]
+      properties:
+        position: { $ref: "#/components/schemas/TreasuryPosition" }
+        forecast: { $ref: "#/components/schemas/TreasuryForecast" }
+        upcomingOutflows:
+          type: array
+          items: { $ref: "#/components/schemas/TreasuryFlowRow" }
+        upcomingOutflowsTotal: { type: integer }
+
+    PaymentPlan:
+      type: object
+      required: [id, billId, billNumber, vendorId, vendorName, vendorNameAr, vendorResidency, billDueDate, billDate, billOutstanding, plannedDate, amount,
+                 bankAccountId, bankName, priority, status, whtPaymentType, whtEstimate, whtWithheld, cashEstimate, notes, createdBy, createdAt, approvedBy, approvedAt,
+                 paidBillPaymentId, paidBy, paidAt, cancelledBy, cancelledAt, cancelReason, overdue, exceedsOutstanding, billReversed]
+      properties:
+        id: { type: integer }
+        billId: { type: integer }
+        billNumber: { type: ["string", "null"] }
+        vendorId: { type: ["integer", "null"] }
+        vendorName: { type: ["string", "null"] }
+        vendorNameAr: { type: ["string", "null"] }
+        vendorResidency: { type: ["string", "null"] }
+        billDueDate: { type: ["string", "null"] }
+        billDate: { type: string }
+        billOutstanding: { type: number }
+        plannedDate: { type: string }
+        amount: { type: number }
+        bankAccountId: { type: ["integer", "null"] }
+        bankName: { type: ["string", "null"] }
+        priority: { type: string, enum: [high, normal, low] }
+        status: { type: string, enum: [planned, approved, paid, cancelled] }
+        whtPaymentType: { type: ["string", "null"] }
+        whtEstimate:
+          type: ["number", "null"]
+          description: An OPEN plan's estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.
+        whtWithheld:
+          type: ["number", "null"]
+          description: A PAID plan's withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today's supplier, relief or rate. Null otherwise.
+        cashEstimate:
+          type: number
+          description: The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).
+        notes: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        approvedBy: { type: ["integer", "null"] }
+        approvedAt: { type: ["string", "null"] }
+        paidBillPaymentId: { type: ["integer", "null"] }
+        paidBy: { type: ["integer", "null"] }
+        paidAt: { type: ["string", "null"] }
+        cancelledBy: { type: ["integer", "null"] }
+        cancelledAt: { type: ["string", "null"] }
+        cancelReason: { type: ["string", "null"] }
+        overdue: { type: boolean }
+        exceedsOutstanding: { type: boolean }
+        billReversed:
+          type: boolean
+          description: "The bill is an opening item the migration reversed (Policy C): it owes nothing (billOutstanding 0) and an open plan on it is to be cancelled — it can be neither approved nor paid."
+
+    CreatePaymentPlanInput:
+      type: object
+      required: [billId, plannedDate, amount]
+      properties:
+        billId: { type: integer }
+        plannedDate: { type: string }
+        amount: { type: number, exclusiveMinimum: 0 }
+        bankAccountId: { type: ["integer", "null"] }
+        priority: { type: string, enum: [high, normal, low] }
+        whtPaymentType: { type: ["string", "null"] }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    UpdatePaymentPlanInput:
+      type: object
+      properties:
+        plannedDate: { type: string }
+        amount: { type: number, exclusiveMinimum: 0 }
+        bankAccountId: { type: ["integer", "null"] }
+        priority: { type: string, enum: [high, normal, low] }
+        whtPaymentType: { type: ["string", "null"] }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    PayPaymentPlanInput:
+      type: object
+      properties:
+        paidAt: { type: ["string", "null"] }
+        bankAccountId: { type: ["integer", "null"] }
+        whtPaymentType: { type: ["string", "null"] }
+        whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
+        whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
+        whtFiledMonthTreatment:
+          type: ["string", "null"]
+          enum: [subsequent_period, amendment, null]
+          description: "Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed."
+
+    PaymentPlanPaid:
+      type: object
+      required: [plan, payment]
+      properties:
+        plan: { $ref: "#/components/schemas/PaymentPlan" }
+        payment:
+          type: object
+          required: [billPaymentId, journalEntryId, amount, cashPaid, withheld]
+          properties:
+            billPaymentId: { type: integer }
+            journalEntryId: { type: integer }
+            amount: { type: number }
+            cashPaid: { type: number }
+            withheld: { type: number }
+
+    ForecastAssumption:
+      type: object
+      required: [id, entryDate, direction, amount, category, description, notes, createdBy, createdAt, updatedBy, updatedAt]
+      properties:
+        id: { type: integer }
+        entryDate: { type: string }
+        direction: { type: string, enum: [inflow, outflow] }
+        amount: { type: number }
+        category: { type: string, enum: [financing, capex, tax, payroll, receipt, payment, other] }
+        description: { type: string }
+        notes: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedBy: { type: ["integer", "null"] }
+        updatedAt: { type: ["string", "null"] }
+
+    ForecastAssumptionInput:
+      type: object
+      required: [entryDate, direction, amount, description]
+      properties:
+        entryDate: { type: string }
+        direction: { type: string, enum: [inflow, outflow] }
+        amount: { type: number, exclusiveMinimum: 0 }
+        category: { type: string, enum: [financing, capex, tax, payroll, receipt, payment, other] }
+        description: { type: string, minLength: 1, maxLength: 500 }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    UpdateForecastAssumptionInput:
+      type: object
+      properties:
+        entryDate: { type: string }
+        direction: { type: string, enum: [inflow, outflow] }
+        amount: { type: number, exclusiveMinimum: 0 }
+        category: { type: string, enum: [financing, capex, tax, payroll, receipt, payment, other] }
+        description: { type: string, minLength: 1, maxLength: 500 }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    TreasurySettings:
+      type: object
+      required: [minimumCashBalance, forecastHorizonWeeks, updatedBy, updatedAt]
+      properties:
+        minimumCashBalance: { type: ["number", "null"], description: "NULL = not declared — the funding requirement is then measured against zero, and says so." }
+        forecastHorizonWeeks: { type: integer }
+        updatedBy: { type: ["integer", "null"] }
+        updatedAt: { type: ["string", "null"] }
+
+    UpdateTreasurySettingsInput:
+      type: object
+      properties:
+        minimumCashBalance: { type: ["number", "null"], minimum: 0 }
+        forecastHorizonWeeks: { type: integer, minimum: 1, maximum: 52 }

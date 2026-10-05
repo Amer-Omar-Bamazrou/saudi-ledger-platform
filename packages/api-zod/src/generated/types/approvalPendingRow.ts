@@ -9,12 +9,41 @@ import type { ApprovalPendingRowEntity } from './approvalPendingRowEntity';
 import type { ApprovalPendingRowStatus } from './approvalPendingRowStatus';
 
 export interface ApprovalPendingRow {
-  /** Matches the URL segment its actions post to (`/{entity}/{id}/approve` …). */
+  /**
+     * The four documents match the URL segment their actions post to
+     * (`/{entity}/{id}/approve` …). Phase 16/17 (QA-15): a SUBMITTED tax
+     * computation version (`/tax/computations/{parentId}/versions/{id}/…`),
+     * a PENDING treaty relief (`/tax/wht/reliefs/{id}/…`) and a PLANNED
+     * payment plan (`/treasury/payment-plans/{id}/…`) — each acted on
+     * through its own route and permission.
+     */
   entity: ApprovalPendingRowEntity;
   id: number;
-  /** The human identifier — document number or payroll period. */
+  /** The human identifier — document number, payroll period, fiscal year and version, supplier and treaty rate, or bill and planned date. */
   label: string;
+  /**
+     * The label with the party's Arabic name, where the party has one.
+     * @nullable
+     */
+  labelAr?: string | null;
   status: ApprovalPendingRowStatus;
-  /** The document's own total; a journal entry's is the sum of its debit lines, from the same aggregate the ledger list uses. */
-  amount: number;
+  /**
+     * The document's own total; a journal entry's is the sum of its debit
+     * lines, from the same aggregate the ledger list uses; a plan's is what
+     * it would settle. NULL where the record has no amount of its own — a
+     * treaty relief is a rate, and a computation's figure is the working
+     * paper's live reading, shown on its own page.
+     * @nullable
+     */
+  amount: number | null;
+  /**
+     * A computation version's computation id (its routes are nested under it).
+     * @nullable
+     */
+  parentId?: number | null;
+  /**
+     * `zakat` | `income_tax` for a computation; the IR Art. 63(1) nature for a relief.
+     * @nullable
+     */
+  subtype?: string | null;
 }

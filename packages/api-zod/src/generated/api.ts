@@ -4678,8 +4678,19 @@ export const GetIncomeStatementResponse = zod.object({
   "nameAr": zod.string(),
   "amount": zod.number()
 }).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.')),
+  "expensesBeforeZakatAndIncomeTax": zod.number().describe('Σ expenses — every expense but Zakat and income tax.'),
+  "profitBeforeZakatAndIncomeTax": zod.number(),
+  "zakatAndIncomeTax": zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+}).describe('A named amount keyed by account id where one exists — the key is what period comparisons join on.')),
+  "total": zod.number()
+}).describe('Phase 16 — SOCPA Zakat Accounting Standard para 6: Zakat (and income tax) on their OWN line before the profit or loss.'),
   "totalRevenue": zod.number(),
-  "totalExpenses": zod.number(),
+  "totalExpenses": zod.number().describe('ALL expenses, Zakat and income tax included.'),
   "grossProfit": zod.number().nullable(),
   "netIncome": zod.number(),
   "netIncomeMargin": zod.number(),
@@ -5214,7 +5225,7 @@ export const GetApAgingReportResponse = zod.object({
 
  */
 export const ExportReportParams = zod.object({
-  "report": zod.enum(['trial-balance', 'income-statement', 'balance-sheet', 'cash-flow', 'general-ledger', 'ar-aging', 'ap-aging', 'budget-vs-actual'])
+  "report": zod.enum(['trial-balance', 'income-statement', 'balance-sheet', 'cash-flow', 'general-ledger', 'ar-aging', 'ap-aging', 'budget-vs-actual', 'wht-return', 'wht-annual', 'tax-computation', 'treasury-forecast'])
 })
 
 export const ExportReportQueryParams = zod.object({
@@ -5232,7 +5243,11 @@ export const ExportReportQueryParams = zod.object({
   "vendor_id": zod.coerce.string().optional(),
   "budget_id": zod.coerce.string().optional().describe('budget-vs-actual only'),
   "version_id": zod.coerce.string().optional().describe('budget-vs-actual only'),
-  "through_period": zod.coerce.string().optional().describe('budget-vs-actual only')
+  "through_period": zod.coerce.string().optional().describe('budget-vs-actual only'),
+  "period": zod.coerce.string().optional().describe('wht-return only (YYYY-MM)'),
+  "fiscal_year": zod.coerce.string().optional().describe('wht-annual only'),
+  "computation_id": zod.coerce.string().optional().describe('tax-computation only'),
+  "weeks": zod.coerce.string().optional().describe('treasury-forecast only')
 })
 
 export const ExportReportResponse = zod.unknown()
@@ -6016,7 +6031,7 @@ export const listAssetsQueryOffsetMin = 0;
 export const ListAssetsQueryParams = zod.object({
   "limit": zod.coerce.number().min(1).max(listAssetsQueryLimitMax).default(listAssetsQueryLimitDefault),
   "offset": zod.coerce.number().min(listAssetsQueryOffsetMin).default(listAssetsQueryOffsetDefault),
-  "status": zod.enum(['draft', 'in_service', 'disposed']).optional(),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'reversed']).optional(),
   "category_id": zod.coerce.number().optional()
 })
 
@@ -6054,7 +6069,10 @@ export const ListAssetsResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6176,7 +6194,10 @@ export const CreateAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6190,6 +6211,7 @@ export const CreateAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -6276,7 +6298,10 @@ export const GetAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6290,6 +6315,7 @@ export const GetAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -6432,7 +6458,10 @@ export const UpdateAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6446,6 +6475,7 @@ export const UpdateAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -6540,7 +6570,10 @@ export const CancelAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6554,6 +6587,7 @@ export const CancelAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -7624,7 +7658,9 @@ export const ListVendorsResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
-  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment\'s DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because \"resident\" must never be assumed.\n'),
+  "whtDefaultPaymentType": zod.string().nullable().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
+  "foreignTaxId": zod.string().nullable().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).'),
   "createdAt": zod.string()
 }).and(zod.object({
   "totalBilled": zod.number(),
@@ -7665,7 +7701,9 @@ export const CreateVendorBody = zod.object({
   "paymentTermsDays": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
-  "residency": zod.enum(['resident', 'non_resident', 'unknown']).optional().describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n')
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).optional().describe('Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment\'s DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because \"resident\" must never be assumed.\n'),
+  "whtDefaultPaymentType": zod.string().nullish().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
+  "foreignTaxId": zod.string().nullish().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).')
 })
 
 export const CreateVendorResponse = zod.object({
@@ -7684,7 +7722,9 @@ export const CreateVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
-  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment\'s DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because \"resident\" must never be assumed.\n'),
+  "whtDefaultPaymentType": zod.string().nullable().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
+  "foreignTaxId": zod.string().nullable().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).'),
   "createdAt": zod.string()
 }).and(zod.object({
   "created": zod.boolean().describe('Always true here; lets a caller that also matches tell \"created\" from \"existed\".')
@@ -7717,7 +7757,9 @@ export const MatchVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
-  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment\'s DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because \"resident\" must never be assumed.\n'),
+  "whtDefaultPaymentType": zod.string().nullable().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
+  "foreignTaxId": zod.string().nullable().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).'),
   "createdAt": zod.string()
 }),zod.null()]),
   "suggestions": zod.array(zod.object({
@@ -7736,7 +7778,9 @@ export const MatchVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
-  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment\'s DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because \"resident\" must never be assumed.\n'),
+  "whtDefaultPaymentType": zod.string().nullable().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
+  "foreignTaxId": zod.string().nullable().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).'),
   "createdAt": zod.string()
 }))
 })
@@ -7765,7 +7809,9 @@ export const GetVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
-  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment\'s DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because \"resident\" must never be assumed.\n'),
+  "whtDefaultPaymentType": zod.string().nullable().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
+  "foreignTaxId": zod.string().nullable().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).'),
   "createdAt": zod.string()
 }).and(zod.object({
   "totalBilled": zod.number(),
@@ -7801,7 +7847,9 @@ export const UpdateVendorBody = zod.object({
   "paymentTermsDays": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
-  "residency": zod.enum(['resident', 'non_resident', 'unknown']).optional().describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n')
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).optional().describe('Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment\'s DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because \"resident\" must never be assumed.\n'),
+  "whtDefaultPaymentType": zod.string().nullish().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
+  "foreignTaxId": zod.string().nullish().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).')
 }).describe('The allow-listed, user-settable vendor fields.')
 
 export const UpdateVendorResponse = zod.object({
@@ -7820,7 +7868,9 @@ export const UpdateVendorResponse = zod.object({
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
-  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because \"resident\" is the answer that withholds nothing and must never be assumed.\n'),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).describe('Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment\'s DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because \"resident\" must never be assumed.\n'),
+  "whtDefaultPaymentType": zod.string().nullable().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
+  "foreignTaxId": zod.string().nullable().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).'),
   "createdAt": zod.string()
 })
 
@@ -8108,14 +8158,17 @@ export const CreateBillResponse = zod.object({
  * A cap returning through this endpoint would be the same defect wearing
  * the fix. Amounts come from the same aggregates the ledger uses (a
  * journal entry's from its line sums — never a second computation).
- * @summary Every document waiting for approval, across all four draftable entities
+ * @summary Every record waiting for approval — the four draftable documents, and the Phase 16/17 tax and treasury approvals
  */
 export const ListPendingApprovalsResponseItem = zod.object({
-  "entity": zod.enum(['invoices', 'bills', 'journal-entries', 'payroll']).describe('Matches the URL segment its actions post to (`\/{entity}\/{id}\/approve` …).'),
+  "entity": zod.enum(['invoices', 'bills', 'journal-entries', 'payroll', 'tax-computations', 'wht-reliefs', 'payment-plans']).describe('The four documents match the URL segment their actions post to\n(`\/{entity}\/{id}\/approve` …). Phase 16\/17 (QA-15): a SUBMITTED tax\ncomputation version (`\/tax\/computations\/{parentId}\/versions\/{id}\/…`),\na PENDING treaty relief (`\/tax\/wht\/reliefs\/{id}\/…`) and a PLANNED\npayment plan (`\/treasury\/payment-plans\/{id}\/…`) — each acted on\nthrough its own route and permission.\n'),
   "id": zod.number(),
-  "label": zod.string().describe('The human identifier — document number or payroll period.'),
-  "status": zod.enum(['draft', 'submitted']),
-  "amount": zod.number().describe('The document\'s own total; a journal entry\'s is the sum of its debit lines, from the same aggregate the ledger list uses.')
+  "label": zod.string().describe('The human identifier — document number, payroll period, fiscal year and version, supplier and treaty rate, or bill and planned date.'),
+  "labelAr": zod.string().nullish().describe('The label with the party\'s Arabic name, where the party has one.'),
+  "status": zod.enum(['draft', 'submitted', 'pending', 'planned']),
+  "amount": zod.number().nullable().describe('The document\'s own total; a journal entry\'s is the sum of its debit\nlines, from the same aggregate the ledger list uses; a plan\'s is what\nit would settle. NULL where the record has no amount of its own — a\ntreaty relief is a rate, and a computation\'s figure is the working\npaper\'s live reading, shown on its own page.\n'),
+  "parentId": zod.number().nullish().describe('A computation version\'s computation id (its routes are nested under it).'),
+  "subtype": zod.string().nullish().describe('`zakat` | `income_tax` for a computation; the IR Art. 63(1) nature for a relief.')
 })
 export const ListPendingApprovalsResponse = zod.array(ListPendingApprovalsResponseItem)
 
@@ -11016,6 +11069,31 @@ export const GetMigrationReversalPreviewResponse = zod.object({
   "blockers": zod.array(zod.string()),
   "wouldReverse": zod.object({
   "openingJournalEntryId": zod.number().nullable(),
+  "assets": zod.array(zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "status": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "cost": zod.number(),
+  "openingAccumulatedDepreciation": zod.number(),
+  "depreciation": zod.array(zod.object({
+  "scheduleId": zod.number(),
+  "period": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryDate": zod.string(),
+  "alreadyReversed": zod.boolean()
+}))
+})).describe('Q3 (§14.3, Option A): the fixed assets the batch created — marked reversed (out of the register and every run), each POSTED depreciation mirrored as it was dated. No disposal, no gain or loss.'),
+  "openingBalances": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountType": zod.string(),
+  "systemCode": zod.string().nullable(),
+  "debit": zod.number(),
+  "credit": zod.number()
+})).describe('Every balance the opening journal carried (inventory, provisions and every other mapped balance included) — the mirror reverses each.'),
   "invoices": zod.array(zod.object({
   "id": zod.number(),
   "number": zod.string(),
@@ -11065,7 +11143,7 @@ export const reverseMigrationBatchBodyReasonMax = 1000;
 
 export const ReverseMigrationBatchBody = zod.object({
   "reason": zod.string().min(reverseMigrationBatchBodyReasonMin).max(reverseMigrationBatchBodyReasonMax).describe('Why the opening position is withdrawn — the audit record of the reversal.')
-})
+}).describe('Q3 (pack phase-16-17 §14.3): the batch is reversed WHOLE — any other field (asset ids, items, a scope) is refused 422 `migration_partial_reversal_unsupported`, never ignored.')
 
 export const reverseMigrationBatchResponseOneVatPositionOneReturnReferenceMax = 120;
 
@@ -11111,8 +11189,10 @@ export const ReverseMigrationBatchResponse = zod.object({
   "reversed": zod.object({
   "invoices": zod.number(),
   "bills": zod.number(),
-  "deposits": zod.number()
-}).describe('Policy C: the opening rows MARKED reversed (invoices\/bills) or given a superseding reversal record (deposits). Nothing was deleted.')
+  "deposits": zod.number(),
+  "assets": zod.number(),
+  "depreciationEntries": zod.number()
+}).describe('Policy C: the opening rows MARKED reversed (invoices\/bills\/fixed assets) or given a superseding reversal record (deposits); the depreciation posted on the batch\'s assets mirrored. Nothing was deleted.')
 }))
 
 
@@ -11391,7 +11471,10 @@ export const ChangeAssetEstimateResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -11405,6 +11488,7 @@ export const ChangeAssetEstimateResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -11503,7 +11587,10 @@ export const DisposeAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -11517,6 +11604,7 @@ export const DisposeAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -12633,7 +12721,16 @@ export const ListInvoicePaymentsResponseItem = zod.object({
   "amount": zod.number(),
   "paidAt": zod.string(),
   "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.'),
-  "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.')
+  "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.'),
+  "withheld": zod.number().nullish().describe('Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded).'),
+  "cashPaid": zod.number().nullish().describe('Bill payments: the cash that left the bank (amount − withheld).'),
+  "whtPaymentType": zod.string().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): a bill payment a WHT correction reversed — kept in the history, marked; absent\/null otherwise.')
 })
 export const ListInvoicePaymentsResponse = zod.array(ListInvoicePaymentsResponseItem)
 
@@ -13404,24 +13501,31 @@ export const ListExpensesResponse = zod.object({
 
 
 /**
- * @summary Record a payment against a posted bill
+ * @summary Record a payment against a posted bill (a payment to a non-resident withholds tax — Phase 16)
  */
 export const PayBillParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const payBillBodyAmountExclusiveMin = 0;
+export const payBillBodyOneAmountExclusiveMin = 0;
 
-export const payBillBodyIdempotencyKeyMax = 120;
+export const payBillBodyOneIdempotencyKeyMax = 120;
+
+export const payBillBodyTwoWhtNotSubjectNoteMax = 2000;
 
 
 
 export const PayBillBody = zod.object({
-  "amount": zod.number().gt(payBillBodyAmountExclusiveMin),
-  "idempotencyKey": zod.string().max(payBillBodyIdempotencyKeyMax).nullish().describe('D-4 — unique per company; the same key twice records one payment.'),
+  "amount": zod.number().gt(payBillBodyOneAmountExclusiveMin),
+  "idempotencyKey": zod.string().max(payBillBodyOneIdempotencyKeyMax).nullish().describe('D-4 — unique per company; the same key twice records one payment.'),
   "paidAt": zod.string().optional().describe('YYYY-MM-DD; defaults to today.'),
   "bankAccountId": zod.number().describe('D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank\'s own GL cash account — there is no shared cash account and no default. Validated against the tenant\'s own accounts; a missing or unknown id is a 422 (`bank_account_required` \/ `reference_not_found`). Recorded on the payment row as its bank evidence.\n')
-})
+}).and(zod.object({
+  "whtPaymentType": zod.string().nullish(),
+  "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
+  "whtNotSubjectNote": zod.string().max(payBillBodyTwoWhtNotSubjectNoteMax).nullish(),
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1): only when the payment\'s month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant\'s recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.')
+})).describe('A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier\'s declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.\n')
 
 export const PayBillResponse = zod.object({
   "id": zod.number(),
@@ -13522,7 +13626,16 @@ export const ListBillPaymentsResponseItem = zod.object({
   "amount": zod.number(),
   "paidAt": zod.string(),
   "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.'),
-  "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.')
+  "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.'),
+  "withheld": zod.number().nullish().describe('Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded).'),
+  "cashPaid": zod.number().nullish().describe('Bill payments: the cash that left the bank (amount − withheld).'),
+  "whtPaymentType": zod.string().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): a bill payment a WHT correction reversed — kept in the history, marked; absent\/null otherwise.')
 })
 export const ListBillPaymentsResponse = zod.array(ListBillPaymentsResponseItem)
 
@@ -13905,8 +14018,14 @@ export const ListSupplierPaymentsResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }))
 })
 
@@ -13918,6 +14037,10 @@ export const ListSupplierPaymentsResponse = zod.object({
  * D-3: the bank account is required and is never inferred. A closed period is refused (423) with nothing written.
  * @summary B3: pay a supplier — allocated to bills, on account, or both
  */
+export const createSupplierPaymentBodyWhtNotSubjectNoteMax = 2000;
+
+
+
 export const CreateSupplierPaymentBody = zod.object({
   "vendorId": zod.number(),
   "amount": zod.number(),
@@ -13932,7 +14055,11 @@ export const CreateSupplierPaymentBody = zod.object({
   "allocations": zod.array(zod.object({
   "billId": zod.number(),
   "amount": zod.number().describe('A positive amount')
-})).optional()
+})).optional(),
+  "whtPaymentType": zod.string().nullish().describe('Phase 16: a payment to a NON-RESIDENT states its nature (or the supplier\'s declared default applies) — never assumed.'),
+  "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
+  "whtNotSubjectNote": zod.string().max(createSupplierPaymentBodyWhtNotSubjectNoteMax).nullish(),
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1): only when the payment\'s month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant\'s recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.')
 })
 
 export const CreateSupplierPaymentResponse = zod.object({
@@ -13943,8 +14070,14 @@ export const CreateSupplierPaymentResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }).and(zod.object({
   "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
   "advanceCreditedAmount": zod.number(),
@@ -14031,8 +14164,14 @@ export const GetSupplierPaymentResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }).and(zod.object({
   "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
   "advanceCreditedAmount": zod.number(),
@@ -14110,8 +14249,14 @@ export const AllocateSupplierPaymentResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }).and(zod.object({
   "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
   "advanceCreditedAmount": zod.number(),
@@ -14173,8 +14318,11 @@ export const ClassifySupplierPaymentParams = zod.object({
 export const ClassifySupplierPaymentBody = zod.object({
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "note": zod.string().nullish(),
-  "effectiveDate": zod.coerce.date().optional()
-})
+  "effectiveDate": zod.coerce.date().optional(),
+  "whtPaymentType": zod.string().nullish(),
+  "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
+  "whtNotSubjectNote": zod.string().nullish()
+}).describe('Accountant Q2 (pack §14.2): a NON-RESIDENT\'s payment carries a WHT determination that follows what the money is. Identifying pending or not-subject money as an advance reads its nature — goods or a non-Kingdom source is recorded (superseding the old record, which stays); a taxable nature is refused by name (wht_late_withholding_open, open question W-16): nothing was withheld when the money left.')
 
 export const ClassifySupplierPaymentResponse = zod.object({
   "id": zod.number(),
@@ -14184,8 +14332,14 @@ export const ClassifySupplierPaymentResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }).and(zod.object({
   "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
   "advanceCreditedAmount": zod.number(),
@@ -14354,7 +14508,7 @@ export const GetSupplierStatementResponse = zod.object({
   "netPosition": zod.number().describe('payable less every asset. > 0: we owe them; < 0: they owe us. DERIVED.')
 }).describe('🔴 `advanceBalance`, `depositBalance` and `unidentifiedBalance` are exactly SUPPLIER_ADVANCES, SECURITY_DEPOSITS_PAID and UNIDENTIFIED_PAYMENTS. `payable` and `creditBalance` BOTH live in AP(vendor) — a purchase credit note posts its debit straight into AP — so the GL carries their difference; they are shown separately because \"what we owe\" and \"what they owe us on a note\" are different facts.\n'),
   "lines": zod.array(zod.object({
-  "kind": zod.enum(['bill', 'debit_note', 'credit_note', 'payment', 'bill_payment', 'allocation', 'credit_application', 'unallocation', 'refund', 'reclassification']),
+  "kind": zod.enum(['bill', 'debit_note', 'credit_note', 'payment', 'bill_payment', 'allocation', 'credit_application', 'unallocation', 'refund', 'reclassification', 'payment_reversal', 'bill_payment_reversal']),
   "date": zod.coerce.date(),
   "ts": zod.coerce.date().optional(),
   "id": zod.number().optional(),
@@ -14487,6 +14641,6750 @@ export const ApplySupplierCreditNoteResponse = zod.object({
   "amount": zod.number(),
   "reversed": zod.boolean()
 }))
+})
+
+
+/**
+ * @summary What the company owes the State, from the ledger, each with its statutory due date (or the reason it has none).
+ */
+export const GetTaxObligationsResponse = zod.object({
+  "asOf": zod.string(),
+  "obligations": zod.array(zod.object({
+  "kind": zod.enum(['wht', 'zakat', 'income_tax', 'vat']),
+  "reference": zod.string(),
+  "amount": zod.number().describe('What is owed now — never negative. A VAT period that nets to zero or to a credit, or whose payments already cover it, owes 0 and says which (`vatPosition`).'),
+  "dueDate": zod.string().nullable(),
+  "note": zod.string().nullable(),
+  "source": zod.object({
+  "type": zod.enum(['wht_period', 'gl_account', 'vat_return']),
+  "period": zod.string().nullish(),
+  "systemCode": zod.string().optional(),
+  "from": zod.string().optional(),
+  "to": zod.string().optional(),
+  "computationId": zod.number().nullish().describe('Zakat \/ income tax — the approved computation whose fiscal year dates the balance (the row links to it).')
+}),
+  "overdue": zod.boolean(),
+  "vatPosition": zod.union([zod.literal('payable'),zod.literal('settled'),zod.literal('nil'),zod.literal('credit'),zod.literal(null)]).nullish().describe('A VAT period\'s position on its own return (QA-06): `payable` (owed),\n`settled` (VAT payments booked since the period ended cover it),\n`nil` (the return nets to zero) or `credit` (input VAT exceeds output\nVAT — nothing is owed, and the credit is NOT projected as cash).\nNull on every other row.\n'),
+  "returnNet": zod.number().nullish().describe('A VAT period\'s net VAT exactly as its return computes it (negative for a credit) — the return\'s own figure, never re-derived.'),
+  "paidSince": zod.number().nullish().describe('VAT payments booked since a completed VAT period ended (presumed for it); null on every other row.')
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary The WHT rates of Income Tax IR Art. 63(1) as loaded (effective-dated; read-only).
+ */
+export const ListWhtRatesResponseItem = zod.object({
+  "id": zod.number(),
+  "paymentType": zod.enum(['rent', 'royalty', 'management_fee', 'air_tickets_or_air_freight', 'sea_freight', 'intl_telecom', 'dividends', 'technical_consulting', 'loan_returns', 'insurance_premiums', 'other_payments']).describe('A payment nature of Income Tax Implementing Regulations Art. 63(1) as amended by MoF Resolution 25 (in force 12-09-2023).'),
+  "rate": zod.number().describe('A fraction: 0.05 = 5 %.'),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullable(),
+  "formRow": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "legalReference": zod.string()
+})
+export const ListWhtRatesResponse = zod.array(ListWhtRatesResponseItem)
+
+
+/**
+ * A BILL payment states no classification (it is consideration). A SUPPLIER payment states its classification and what of it is allocated to bills, so the preview judges the same class the pay path will (accountant Q2, pack §14.2): a refundable deposit and an erroneous payment are not subject, an unidentified one is pending.
+ * @summary What a payment to this supplier would withhold — the same decision the pay paths take.
+ */
+export const PreviewWhtQueryParams = zod.object({
+  "vendorId": zod.coerce.number(),
+  "amount": zod.coerce.number(),
+  "date": zod.date().optional(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).optional(),
+  "allocatedAmount": zod.coerce.number().optional(),
+  "whtPaymentType": zod.coerce.string().optional(),
+  "whtNotSubjectReason": zod.coerce.string().optional(),
+  "whtNotSubjectNote": zod.coerce.string().optional(),
+  "whtFiledMonthTreatment": zod.enum(['subsequent_period', 'amendment']).optional()
+})
+
+export const PreviewWhtResponse = zod.object({
+  "kind": zod.enum(['no_vendor', 'resident', 'unknown_residency', 'not_subject', 'withheld', 'pending']),
+  "amount": zod.number(),
+  "date": zod.string(),
+  "paymentType": zod.string().nullable(),
+  "rate": zod.number().nullable(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "legalReference": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "withheld": zod.number(),
+  "cashPaid": zod.number().describe('What leaves the bank: amount − withheld.'),
+  "notSubjectReason": zod.string().nullable(),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "monthFiled": zod.boolean().describe('Q1: the payment month\'s Form 06 is recorded filed and this payment withholds — a treatment is required.'),
+  "returnPeriod": zod.string().nullable().describe('The month whose return would carry it; null while a filed month\'s treatment is not stated.')
+})
+
+
+/**
+ * @summary Every WHT month with its status and due date, the opening balance, invariant W1 (GL vs the WHT ledger, exact) and the exception counts.
+ */
+export const GetWhtOverviewResponse = zod.object({
+  "asOf": zod.string(),
+  "months": zod.array(zod.object({
+  "period": zod.string().describe('The RETURN month (Q1): what its Form 06 carries.'),
+  "dueDate": zod.string().describe('The 10th of the following month (IR Art. 63(9)(a)).'),
+  "status": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit']).describe('credit (Q1): a correction left the month\'s return below what was remitted for it — shown, never netted against another month (open W-17).'),
+  "corrections": zod.number().describe('Corrections whose reversal this month\'s return carries.'),
+  "filingStatus": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "filedOn": zod.string().nullable(),
+  "filedTaxWithheld": zod.number().nullable().describe('The tax AS FILED (the latest filing\'s snapshot).'),
+  "base": zod.number(),
+  "withheld": zod.number(),
+  "remitted": zod.number(),
+  "outstanding": zod.number(),
+  "payments": zod.number(),
+  "notSubject": zod.number(),
+  "pending": zod.number().describe('Payments to a non-resident recorded PENDING — purpose not identified, nothing withheld (Q2).'),
+  "finesPaid": zod.number(),
+  "lastPaidAt": zod.string().nullable(),
+  "delayFineEstimate": zod.union([zod.object({
+  "blocks": zod.number(),
+  "daysLate": zod.number(),
+  "amount": zod.number()
+}).describe('A STATUTORY ESTIMATE (Income Tax Law Art. 77(A); IR Art. 68(2)): 1 % of the unpaid tax per full 30 days after the due date — never posted.'),zod.null()])
+})),
+  "opening": zod.object({
+  "balance": zod.number(),
+  "unremitted": zod.number()
+}),
+  "reconciliation": zod.object({
+  "glWhtPayable": zod.number(),
+  "whtLedger": zod.number(),
+  "reconciles": zod.boolean()
+}).describe('Invariant W1 — GL WHT payable against opening + withheld − remitted, EXACT.'),
+  "exceptions": zod.object({
+  "undeclaredResidency": zod.number(),
+  "possiblyMissed": zod.number(),
+  "paymentsWithoutSupplier": zod.number(),
+  "pendingClassification": zod.number().describe('Live PENDING determinations (Q2) — the true count.'),
+  "reliefsExpiringIn30Days": zod.number()
+})
+})
+
+
+/**
+ * @summary The monthly withholding return (ZATCA Form 06) for a month — its lines, the per-beneficiary schedule, the excluded payments and the remittances.
+ */
+export const getWhtReturnPathPeriodRegExp = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])$');
+
+
+export const GetWhtReturnParams = zod.object({
+  "period": zod.coerce.string().regex(getWhtReturnPathPeriodRegExp)
+})
+
+export const GetWhtReturnResponse = zod.object({
+  "period": zod.string(),
+  "dueDate": zod.string(),
+  "status": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit']),
+  "asOf": zod.string(),
+  "lines": zod.array(zod.object({
+  "formRow": zod.string(),
+  "paymentType": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "applicable": zod.boolean(),
+  "paymentTotal": zod.number(),
+  "taxWithheld": zod.number()
+})),
+  "totals": zod.object({
+  "paymentTotal": zod.number(),
+  "taxWithheld": zod.number(),
+  "remitted": zod.number(),
+  "outstanding": zod.number()
+}),
+  "delayFineEstimate": zod.union([zod.object({
+  "blocks": zod.number(),
+  "daysLate": zod.number(),
+  "amount": zod.number()
+}).describe('A STATUTORY ESTIMATE (Income Tax Law Art. 77(A); IR Art. 68(2)): 1 % of the unpaid tax per full 30 days after the due date — never posted.'),zod.null()]),
+  "schedule": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})),
+  "excluded": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})),
+  "pending": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})).describe('Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2).'),
+  "corrected": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})).describe('Q1: rows reported in this month AND reversed within its return (before filing, or by amendment) — shown, out of the totals.'),
+  "adjustments": zod.array(zod.object({
+  "correctionId": zod.number(),
+  "withholdingId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "originalReturnPeriod": zod.string(),
+  "paymentDate": zod.string(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "paymentType": zod.string().nullable(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "baseAmount": zod.number().describe('The reversal\'s effect on THIS return (negative).'),
+  "whtAmount": zod.number().describe('The reversal\'s effect on THIS return (negative).'),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable()
+})).describe('Q1: corrections this month\'s return carries whose original is reported in an earlier, filed month (subsequent period) — negative lines.'),
+  "filing": zod.object({
+  "status": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "latest": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "filings": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+}),
+  "remittances": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string().nullable().describe('YYYY-MM, or null for the migrated opening balance.'),
+  "amount": zod.number(),
+  "fineAmount": zod.number(),
+  "paidAt": zod.string(),
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "reference": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "createdAt": zod.string(),
+  "reversal": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "reversedOn": zod.string(),
+  "journalEntryId": zod.number()
+}),zod.null()])
+})),
+  "unusedFormRows": zod.array(zod.string()).describe('Form 06 rows 07\/08 have no separate band after Resolution 25 (open question W-4).')
+})
+
+
+/**
+ * @summary The annual withholding information for a fiscal year (IR Art. 63(9)(b)) — per beneficiary and nature.
+ */
+export const GetWhtAnnualQueryParams = zod.object({
+  "fiscal_year": zod.coerce.number().optional()
+})
+
+export const GetWhtAnnualResponse = zod.object({
+  "fiscalYear": zod.object({
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "calendar": zod.enum(['gregorian', 'hijri'])
+}),
+  "dueDate": zod.string(),
+  "beneficiaries": zod.array(zod.object({
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "foreignTaxId": zod.string().nullable(),
+  "paymentType": zod.string(),
+  "base": zod.number(),
+  "wht": zod.number(),
+  "payments": zod.number()
+})),
+  "totals": zod.object({
+  "base": zod.number(),
+  "wht": zod.number(),
+  "payments": zod.number()
+})
+})
+
+
+/**
+ * @summary What was paid to a beneficiary and withheld (Income Tax Law Art. 68(B)(2)), optionally for one month.
+ */
+export const GetWhtBeneficiaryStatementParams = zod.object({
+  "vendorId": zod.coerce.number()
+})
+
+export const GetWhtBeneficiaryStatementQueryParams = zod.object({
+  "period": zod.coerce.string().optional()
+})
+
+export const GetWhtBeneficiaryStatementResponse = zod.object({
+  "vendor": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "foreignTaxId": zod.string().nullable(),
+  "residency": zod.string()
+}),
+  "period": zod.string().nullable(),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})),
+  "totals": zod.object({
+  "base": zod.number(),
+  "wht": zod.number()
+})
+})
+
+
+/**
+ * @summary Supplier payments WHT could not judge (residency undeclared) or may have missed (supplier now non-resident, no withholding) — capped at 200 with the true total.
+ */
+export const ListWhtExceptionsQueryParams = zod.object({
+  "kind": zod.enum(['undeclared', 'possibly_missed', 'pending_classification'])
+})
+
+export const ListWhtExceptionsResponse = zod.object({
+  "kind": zod.enum(['undeclared', 'possibly_missed', 'pending_classification']),
+  "total": zod.number().describe('The TRUE count; the list is capped at 200.'),
+  "shown": zod.number(),
+  "items": zod.array(zod.object({
+  "sourceKind": zod.string(),
+  "paymentId": zod.number(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "document": zod.string().nullable(),
+  "paidAt": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number().nullable()
+}))
+})
+
+
+/**
+ * @summary Q1: record that a month's Form 06 was FILED with ZATCA (approver) — or, when it already was, an AMENDMENT of it. The figures are the ledger's at this moment, written by the database.
+ */
+export const fileWhtReturnPathPeriodRegExp = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])$');
+
+
+export const FileWhtReturnParams = zod.object({
+  "period": zod.coerce.string().regex(fileWhtReturnPathPeriodRegExp)
+})
+
+export const fileWhtReturnBodyZatcaReferenceMin = 3;
+export const fileWhtReturnBodyZatcaReferenceMax = 200;
+
+export const fileWhtReturnBodyNotesMax = 2000;
+
+
+
+export const FileWhtReturnBody = zod.object({
+  "filedOn": zod.string().nullish().describe('Defaults to today; after the month ends, never in the future.'),
+  "zatcaReference": zod.string().min(fileWhtReturnBodyZatcaReferenceMin).max(fileWhtReturnBodyZatcaReferenceMax),
+  "notes": zod.string().max(fileWhtReturnBodyNotesMax).nullish()
+})
+
+export const FileWhtReturnResponse = zod.object({
+  "period": zod.string(),
+  "dueDate": zod.string(),
+  "status": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit']),
+  "asOf": zod.string(),
+  "lines": zod.array(zod.object({
+  "formRow": zod.string(),
+  "paymentType": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "applicable": zod.boolean(),
+  "paymentTotal": zod.number(),
+  "taxWithheld": zod.number()
+})),
+  "totals": zod.object({
+  "paymentTotal": zod.number(),
+  "taxWithheld": zod.number(),
+  "remitted": zod.number(),
+  "outstanding": zod.number()
+}),
+  "delayFineEstimate": zod.union([zod.object({
+  "blocks": zod.number(),
+  "daysLate": zod.number(),
+  "amount": zod.number()
+}).describe('A STATUTORY ESTIMATE (Income Tax Law Art. 77(A); IR Art. 68(2)): 1 % of the unpaid tax per full 30 days after the due date — never posted.'),zod.null()]),
+  "schedule": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})),
+  "excluded": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})),
+  "pending": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})).describe('Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2).'),
+  "corrected": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})).describe('Q1: rows reported in this month AND reversed within its return (before filing, or by amendment) — shown, out of the totals.'),
+  "adjustments": zod.array(zod.object({
+  "correctionId": zod.number(),
+  "withholdingId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "originalReturnPeriod": zod.string(),
+  "paymentDate": zod.string(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "paymentType": zod.string().nullable(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "baseAmount": zod.number().describe('The reversal\'s effect on THIS return (negative).'),
+  "whtAmount": zod.number().describe('The reversal\'s effect on THIS return (negative).'),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable()
+})).describe('Q1: corrections this month\'s return carries whose original is reported in an earlier, filed month (subsequent period) — negative lines.'),
+  "filing": zod.object({
+  "status": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "latest": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "filings": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+}),
+  "remittances": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string().nullable().describe('YYYY-MM, or null for the migrated opening balance.'),
+  "amount": zod.number(),
+  "fineAmount": zod.number(),
+  "paidAt": zod.string(),
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "reference": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "createdAt": zod.string(),
+  "reversal": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "reversedOn": zod.string(),
+  "journalEntryId": zod.number()
+}),zod.null()])
+})),
+  "unusedFormRows": zod.array(zod.string()).describe('Form 06 rows 07\/08 have no separate band after Resolution 25 (open question W-4).')
+})
+
+
+/**
+ * @summary Q1: one withholding's lineage — original → reversal → corrected — and the state its month is in (filed, remitted).
+ */
+export const GetWhtWithholdingLineageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetWhtWithholdingLineageResponse = zod.object({
+  "withholding": zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),
+  "state": zod.object({
+  "returnPeriod": zod.string(),
+  "filingStatus": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "latestFiling": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "monthTaxWithheld": zod.number(),
+  "monthRemitted": zod.number(),
+  "monthOutstanding": zod.number(),
+  "monthStatus": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit'])
+}),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "correctedOn": zod.string(),
+  "correctionPeriod": zod.string(),
+  "reversalJournalEntryId": zod.number(),
+  "reversalReturnPeriod": zod.string(),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "originalFilingId": zod.number().nullable().describe('The filing the original\'s month had when it was corrected (the FILED state).'),
+  "remittedAtCorrection": zod.number().describe('What of the original\'s month was remitted when it was corrected (the REMITTED state).'),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "reentry": zod.union([zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),zod.null()]),
+  "corrects": zod.union([zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),zod.null()]),
+  "replayed": zod.boolean().optional()
+}).describe('Q1: one withholding\'s lineage — the original as recorded, the state it is in, its correction and the corrected re-entry (or, for a re-entry, the original it corrects).')
+
+
+/**
+ * @summary Q1: correct a WHT-bearing payment (approver) — reverse it (the original kept) and re-enter the corrected payment through the pay path. One correction per withholding.
+ */
+export const CorrectWhtWithholdingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const correctWhtWithholdingBodyReasonMin = 10;
+export const correctWhtWithholdingBodyReasonMax = 2000;
+
+export const correctWhtWithholdingBodyIdempotencyKeyMax = 200;
+
+export const correctWhtWithholdingBodyReentryOneAmountExclusiveMin = 0;
+
+export const correctWhtWithholdingBodyReentryOneWhtNotSubjectNoteMax = 2000;
+
+
+
+export const CorrectWhtWithholdingBody = zod.object({
+  "reason": zod.string().min(correctWhtWithholdingBodyReasonMin).max(correctWhtWithholdingBodyReasonMax),
+  "date": zod.string().nullish().describe('The correction (reversal) date — defaults to today; never before the payment, never in the future.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish(),
+  "idempotencyKey": zod.string().max(correctWhtWithholdingBodyIdempotencyKeyMax).nullish(),
+  "reentry": zod.union([zod.object({
+  "amount": zod.number().gt(correctWhtWithholdingBodyReentryOneAmountExclusiveMin),
+  "paidAt": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish(),
+  "billId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "classification": zod.union([zod.literal('advance'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullish(),
+  "allocations": zod.array(zod.object({
+  "billId": zod.number(),
+  "amount": zod.number().describe('A positive amount')
+})).optional(),
+  "reference": zod.string().nullish(),
+  "whtPaymentType": zod.string().nullish(),
+  "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
+  "whtNotSubjectNote": zod.string().max(correctWhtWithholdingBodyReentryOneWhtNotSubjectNoteMax).nullish(),
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish()
+}).describe('The corrected payment. A bill payment\'s fields: billId (defaults to the original\'s bill), amount, paidAt, bankAccountId. A supplier payment\'s: vendorId, classification, allocations, reference. The WHT declaration as on any pay path.'),zod.null()]).optional()
+}).describe('Q1 (pack §14.1): reverse a WHT-bearing payment (its mirror entry; the original kept) and, with `reentry`, record the corrected payment through the same pay path. `filedMonthTreatment` is required when a leg falls in a FILED month.')
+
+export const CorrectWhtWithholdingResponse = zod.object({
+  "withholding": zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),
+  "state": zod.object({
+  "returnPeriod": zod.string(),
+  "filingStatus": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "latestFiling": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "monthTaxWithheld": zod.number(),
+  "monthRemitted": zod.number(),
+  "monthOutstanding": zod.number(),
+  "monthStatus": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit'])
+}),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "correctedOn": zod.string(),
+  "correctionPeriod": zod.string(),
+  "reversalJournalEntryId": zod.number(),
+  "reversalReturnPeriod": zod.string(),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "originalFilingId": zod.number().nullable().describe('The filing the original\'s month had when it was corrected (the FILED state).'),
+  "remittedAtCorrection": zod.number().describe('What of the original\'s month was remitted when it was corrected (the REMITTED state).'),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "reentry": zod.union([zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),zod.null()]),
+  "corrects": zod.union([zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),zod.null()]),
+  "replayed": zod.boolean().optional()
+}).describe('Q1: one withholding\'s lineage — the original as recorded, the state it is in, its correction and the corrected re-entry (or, for a re-entry, the original it corrects).')
+
+
+/**
+ * @summary Record a month's WHT paid to ZATCA (approver) — Dr WHT payable (+ Dr tax fines) / Cr the bank.
+ */
+export const RemitWhtParams = zod.object({
+  "period": zod.coerce.string().describe('YYYY-MM, or `opening` for a migrated opening WHT balance')
+})
+
+export const remitWhtBodyReferenceMax = 200;
+
+export const remitWhtBodyNotesMax = 2000;
+
+export const remitWhtBodyIdempotencyKeyMax = 120;
+
+
+
+export const RemitWhtBody = zod.object({
+  "amount": zod.number().nullish().describe('Defaults to everything the month still owes.'),
+  "fineAmount": zod.number().nullish().describe('A delay fine ACTUALLY paid with it (posted to tax fines).'),
+  "paidAt": zod.string().nullish().describe('YYYY-MM-DD; today by default; never in the future.'),
+  "bankAccountId": zod.number(),
+  "reference": zod.string().max(remitWhtBodyReferenceMax).nullish(),
+  "notes": zod.string().max(remitWhtBodyNotesMax).nullish(),
+  "idempotencyKey": zod.string().max(remitWhtBodyIdempotencyKeyMax).nullish()
+})
+
+export const RemitWhtResponse = zod.object({
+  "remittance": zod.object({
+  "id": zod.number(),
+  "period": zod.string().nullable().describe('YYYY-MM, or null for the migrated opening balance.'),
+  "amount": zod.number(),
+  "fineAmount": zod.number(),
+  "paidAt": zod.string(),
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "reference": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "createdAt": zod.string(),
+  "reversal": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "reversedOn": zod.string(),
+  "journalEntryId": zod.number()
+}),zod.null()])
+}),
+  "replayed": zod.boolean().describe('true when an idempotency key returned the original remittance.')
+})
+
+
+/**
+ * @summary Reverse a WHT remittance with its reason (approver) — a mirror entry; refused while a statement line is reconciled to it.
+ */
+export const ReverseWhtRemittanceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const reverseWhtRemittanceBodyReasonMax = 1000;
+
+
+
+export const ReverseWhtRemittanceBody = zod.object({
+  "reason": zod.string().min(1).max(reverseWhtRemittanceBodyReasonMax),
+  "date": zod.string().nullish()
+})
+
+export const ReverseWhtRemittanceResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string().nullable().describe('YYYY-MM, or null for the migrated opening balance.'),
+  "amount": zod.number(),
+  "fineAmount": zod.number(),
+  "paidAt": zod.string(),
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "reference": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "createdAt": zod.string(),
+  "reversal": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "reversedOn": zod.string(),
+  "journalEntryId": zod.number()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Treaty reliefs of this company (pending, approved, revoked).
+ */
+export const ListWhtReliefsQueryParams = zod.object({
+  "vendorId": zod.coerce.number().optional()
+})
+
+export const ListWhtReliefsResponseItem = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "paymentType": zod.string(),
+  "reducedRate": zod.number(),
+  "treatyCountry": zod.string(),
+  "zatcaApprovalReference": zod.string(),
+  "residencyCertificateReference": zod.string(),
+  "validFrom": zod.string(),
+  "validTo": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'revoked']),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "revokedBy": zod.number().nullable(),
+  "revokedAt": zod.string().nullable(),
+  "revokeReason": zod.string().nullable()
+})
+export const ListWhtReliefsResponse = zod.array(ListWhtReliefsResponseItem)
+
+
+/**
+ * @summary Record a treaty relief (pending until an approver approves it) — it needs ZATCA's approval reference.
+ */
+export const createWhtReliefBodyReducedRateMin = 0;
+export const createWhtReliefBodyReducedRateMax = 0.9999;
+
+export const createWhtReliefBodyTreatyCountryMin = 2;
+export const createWhtReliefBodyTreatyCountryMax = 2;
+
+export const createWhtReliefBodyZatcaApprovalReferenceMax = 200;
+
+export const createWhtReliefBodyResidencyCertificateReferenceMax = 200;
+
+export const createWhtReliefBodyNotesMax = 2000;
+
+
+
+export const CreateWhtReliefBody = zod.object({
+  "vendorId": zod.number(),
+  "paymentType": zod.enum(['rent', 'royalty', 'management_fee', 'air_tickets_or_air_freight', 'sea_freight', 'intl_telecom', 'dividends', 'technical_consulting', 'loan_returns', 'insurance_premiums', 'other_payments']).describe('A payment nature of Income Tax Implementing Regulations Art. 63(1) as amended by MoF Resolution 25 (in force 12-09-2023).'),
+  "reducedRate": zod.number().min(createWhtReliefBodyReducedRateMin).max(createWhtReliefBodyReducedRateMax),
+  "treatyCountry": zod.string().min(createWhtReliefBodyTreatyCountryMin).max(createWhtReliefBodyTreatyCountryMax),
+  "zatcaApprovalReference": zod.string().min(1).max(createWhtReliefBodyZatcaApprovalReferenceMax),
+  "residencyCertificateReference": zod.string().min(1).max(createWhtReliefBodyResidencyCertificateReferenceMax),
+  "validFrom": zod.string(),
+  "validTo": zod.string(),
+  "notes": zod.string().max(createWhtReliefBodyNotesMax).nullish()
+})
+
+export const CreateWhtReliefResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "paymentType": zod.string(),
+  "reducedRate": zod.number(),
+  "treatyCountry": zod.string(),
+  "zatcaApprovalReference": zod.string(),
+  "residencyCertificateReference": zod.string(),
+  "validFrom": zod.string(),
+  "validTo": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'revoked']),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "revokedBy": zod.number().nullable(),
+  "revokedAt": zod.string().nullable(),
+  "revokeReason": zod.string().nullable()
+})
+
+
+/**
+ * @summary Delete a PENDING relief (admin); an approved one is revoked instead.
+ */
+export const DeleteWhtReliefParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteWhtReliefResponse = zod.void()
+
+
+/**
+ * @summary Approve a pending treaty relief (approver) — from then on it lowers the rate inside its window.
+ */
+export const ApproveWhtReliefParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveWhtReliefResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "paymentType": zod.string(),
+  "reducedRate": zod.number(),
+  "treatyCountry": zod.string(),
+  "zatcaApprovalReference": zod.string(),
+  "residencyCertificateReference": zod.string(),
+  "validFrom": zod.string(),
+  "validTo": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'revoked']),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "revokedBy": zod.number().nullable(),
+  "revokedAt": zod.string().nullable(),
+  "revokeReason": zod.string().nullable()
+})
+
+
+/**
+ * @summary Revoke a relief with its reason (approver). A revoked relief stays on record.
+ */
+export const RevokeWhtReliefParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const revokeWhtReliefBodyReasonMax = 1000;
+
+
+
+export const RevokeWhtReliefBody = zod.object({
+  "reason": zod.string().min(1).max(revokeWhtReliefBodyReasonMax)
+})
+
+export const RevokeWhtReliefResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "paymentType": zod.string(),
+  "reducedRate": zod.number(),
+  "treatyCountry": zod.string(),
+  "zatcaApprovalReference": zod.string(),
+  "residencyCertificateReference": zod.string(),
+  "validFrom": zod.string(),
+  "validTo": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'revoked']),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "revokedBy": zod.number().nullable(),
+  "revokedAt": zod.string().nullable(),
+  "revokeReason": zod.string().nullable()
+})
+
+
+/**
+ * With `asOf`, each account also carries its amount in the statement of
+ * financial position at that date (this company) — the balance-sheet rows
+ * the Zakat computation reads at its year-end, never a second computation
+ * (QA-04). Without it, `balance` is null.
+ * @summary Every asset and liability posting account with its Zakat-base class (if a person confirmed one) and a suggestion.
+ */
+export const ListZakatClassificationsQueryParams = zod.object({
+  "asOf": zod.coerce.string().optional().describe('YYYY-MM-DD — the date the balances are read at (a fiscal year-end, typically).')
+})
+
+export const ListZakatClassificationsResponseItem = zod.object({
+  "accountId": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "type": zod.enum(['asset', 'liability']),
+  "liquidityClass": zod.string().nullable(),
+  "systemCode": zod.string().nullable(),
+  "isPosting": zod.boolean().describe('False for a header account listed because it carries entries of its own (the CASH header\'s pre-D-3 history, F-14).'),
+  "balance": zod.number().nullable().describe('The account\'s amount in the statement of financial position at `asOf` (assets debit-positive, liabilities credit-positive; a contra account negative); 0 when it carries nothing then; null when no `asOf` was given.'),
+  "zakatReads": zod.number().nullable().describe('What the Zakat computation for a fiscal year ending at `asOf` reads from the account — the balance less that computation\'s OWN accrual (Z-3). It equals `balance` unless the year\'s own Zakat accrual sits in it; an unclassified account blocks a computation only when this is non-zero. Null when no `asOf` was given.'),
+  "classification": zod.union([zod.enum(['equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability', 'noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted']),zod.null()]),
+  "article": zod.string().nullable(),
+  "basisNote": zod.string().nullable(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string().nullable(),
+  "suggestion": zod.union([zod.enum(['equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability', 'noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted']),zod.null()]).describe('Pre-selected from what the account IS — confirmed by a person, never applied by itself.'),
+  "allowed": zod.array(zod.enum(['equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability', 'noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted']))
+})
+export const ListZakatClassificationsResponse = zod.array(ListZakatClassificationsResponseItem)
+
+
+/**
+ * @summary Confirm or change one account's Zakat-base class.
+ */
+export const SetZakatClassificationParams = zod.object({
+  "accountId": zod.coerce.number()
+})
+
+export const setZakatClassificationBodyBasisNoteMax = 2000;
+
+
+
+export const SetZakatClassificationBody = zod.object({
+  "classification": zod.enum(['equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability', 'noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted']),
+  "basisNote": zod.string().max(setZakatClassificationBodyBasisNoteMax).nullish()
+})
+
+export const SetZakatClassificationResponse = zod.object({
+  "accountId": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "type": zod.enum(['asset', 'liability']),
+  "liquidityClass": zod.string().nullable(),
+  "systemCode": zod.string().nullable(),
+  "isPosting": zod.boolean().describe('False for a header account listed because it carries entries of its own (the CASH header\'s pre-D-3 history, F-14).'),
+  "balance": zod.number().nullable().describe('The account\'s amount in the statement of financial position at `asOf` (assets debit-positive, liabilities credit-positive; a contra account negative); 0 when it carries nothing then; null when no `asOf` was given.'),
+  "zakatReads": zod.number().nullable().describe('What the Zakat computation for a fiscal year ending at `asOf` reads from the account — the balance less that computation\'s OWN accrual (Z-3). It equals `balance` unless the year\'s own Zakat accrual sits in it; an unclassified account blocks a computation only when this is non-zero. Null when no `asOf` was given.'),
+  "classification": zod.union([zod.enum(['equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability', 'noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted']),zod.null()]),
+  "article": zod.string().nullable(),
+  "basisNote": zod.string().nullable(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string().nullable(),
+  "suggestion": zod.union([zod.enum(['equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability', 'noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted']),zod.null()]).describe('Pre-selected from what the account IS — confirmed by a person, never applied by itself.'),
+  "allowed": zod.array(zod.enum(['equity', 'provision_as_equity', 'noncurrent_liability', 'current_liability', 'noncurrent_asset_deducted', 'noncurrent_asset_not_deducted', 'current_asset_deducted', 'current_asset_not_deducted']))
+})
+
+
+/**
+ * @summary Withdraw an account's classification — it reads unclassified again.
+ */
+export const ClearZakatClassificationParams = zod.object({
+  "accountId": zod.coerce.number()
+})
+
+export const ClearZakatClassificationResponse = zod.void()
+
+
+/**
+ * @summary Zakat and income-tax computations of this company.
+ */
+export const ListTaxComputationsQueryParams = zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']).optional()
+})
+
+export const ListTaxComputationsResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "approvedAmount": zod.number().nullable(),
+  "dueDate": zod.string().describe('120 days after the fiscal year-end (Zakat Regs Art. 102(1); Income Tax Law Arts 60(b), 69).')
+})
+export const ListTaxComputationsResponse = zod.array(ListTaxComputationsResponseItem)
+
+
+/**
+ * @summary Start a Zakat or income-tax computation for a fiscal year (a draft version 1).
+ */
+export const createTaxComputationBodyNotesMax = 2000;
+
+
+
+export const CreateTaxComputationBody = zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYearLabel": zod.number(),
+  "notes": zod.string().max(createTaxComputationBodyNotesMax).nullish()
+})
+
+export const CreateTaxComputationResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary A computation — its versions, the live working paper of the chosen version, and the frozen snapshot of an approved one.
+ */
+export const GetTaxComputationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetTaxComputationQueryParams = zod.object({
+  "version_id": zod.coerce.number().optional()
+})
+
+export const GetTaxComputationResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Edit a computation's notes (its company, kind and fiscal year are fixed).
+ */
+export const UpdateTaxComputationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateTaxComputationBodyNotesMax = 2000;
+
+
+
+export const UpdateTaxComputationBody = zod.object({
+  "notes": zod.string().max(updateTaxComputationBodyNotesMax).nullish()
+})
+
+export const UpdateTaxComputationResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Delete a computation never approved (admin).
+ */
+export const DeleteTaxComputationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteTaxComputationResponse = zod.void()
+
+
+/**
+ * @summary Start a revision of the approved version (a new draft with its adjustments).
+ */
+export const ReviseTaxComputationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReviseTaxComputationResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Add a tax adjustment to a draft version — its target, effect, amount, reason and article.
+ */
+export const AddTaxAdjustmentParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const addTaxAdjustmentBodyAmountExclusiveMin = 0;
+
+export const addTaxAdjustmentBodyReasonMax = 2000;
+
+export const addTaxAdjustmentBodyLegalReferenceMax = 200;
+
+export const addTaxAdjustmentBodySourceReferenceMax = 200;
+
+
+
+export const AddTaxAdjustmentBody = zod.object({
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number().gt(addTaxAdjustmentBodyAmountExclusiveMin),
+  "reason": zod.string().min(1).max(addTaxAdjustmentBodyReasonMax),
+  "legalReference": zod.string().min(1).max(addTaxAdjustmentBodyLegalReferenceMax),
+  "sourceReference": zod.string().max(addTaxAdjustmentBodySourceReferenceMax).nullish(),
+  "accountId": zod.number().nullish()
+})
+
+export const AddTaxAdjustmentResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Edit a draft version's adjustment.
+ */
+export const UpdateTaxAdjustmentParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number(),
+  "adjustmentId": zod.coerce.number()
+})
+
+export const updateTaxAdjustmentBodyAmountExclusiveMin = 0;
+
+export const updateTaxAdjustmentBodyReasonMax = 2000;
+
+export const updateTaxAdjustmentBodyLegalReferenceMax = 200;
+
+export const updateTaxAdjustmentBodySourceReferenceMax = 200;
+
+
+
+export const UpdateTaxAdjustmentBody = zod.object({
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']).optional(),
+  "effect": zod.enum(['increase', 'decrease']).optional(),
+  "amount": zod.number().gt(updateTaxAdjustmentBodyAmountExclusiveMin).optional(),
+  "reason": zod.string().min(1).max(updateTaxAdjustmentBodyReasonMax).optional(),
+  "legalReference": zod.string().min(1).max(updateTaxAdjustmentBodyLegalReferenceMax).optional(),
+  "sourceReference": zod.string().max(updateTaxAdjustmentBodySourceReferenceMax).nullish(),
+  "accountId": zod.number().nullish()
+})
+
+export const UpdateTaxAdjustmentResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Remove a draft version's adjustment.
+ */
+export const RemoveTaxAdjustmentParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number(),
+  "adjustmentId": zod.coerce.number()
+})
+
+export const RemoveTaxAdjustmentResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Income tax — the losses carried forward available, from audited statutory accounts (Art. 21; IR Art. 11).
+ */
+export const SetTaxLossesParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const setTaxLossesBodyAmountMin = 0;
+
+export const setTaxLossesBodyReferenceMax = 500;
+
+
+
+export const SetTaxLossesBody = zod.object({
+  "amount": zod.number().min(setTaxLossesBodyAmountMin).nullish(),
+  "reference": zod.string().max(setTaxLossesBodyReferenceMax).nullish()
+})
+
+export const SetTaxLossesResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Submit a draft for approval (refused while the working paper is blocked).
+ */
+export const SubmitTaxComputationVersionParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const SubmitTaxComputationVersionResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Approve a version (approver) — freezes its snapshot and posts the accrual difference.
+ */
+export const ApproveTaxComputationVersionParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const ApproveTaxComputationVersionResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Send a submitted version back for correction, with a note.
+ */
+export const SendBackTaxComputationVersionParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const sendBackTaxComputationVersionBodyNoteMax = 1000;
+
+
+
+export const SendBackTaxComputationVersionBody = zod.object({
+  "note": zod.string().max(sendBackTaxComputationVersionBodyNoteMax).nullish()
+})
+
+export const SendBackTaxComputationVersionResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "dueDate": zod.string(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+})),
+  "approvedVersionId": zod.number().nullable(),
+  "openVersionId": zod.number().nullable(),
+  "version": zod.union([zod.object({
+  "id": zod.number(),
+  "versionNo": zod.number(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'superseded']),
+  "basedOnVersionId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "sendBackNote": zod.string().nullable(),
+  "lossCarryforwardAvailable": zod.number().nullable(),
+  "lossCarryforwardReference": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "submittedBy": zod.number().nullable(),
+  "submittedAt": zod.string().nullable(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "supersededAt": zod.string().nullable(),
+  "resultAmount": zod.number().nullable(),
+  "accruedAmount": zod.number().nullable().describe('Signed: what THIS approval posted (the difference from earlier accruals).'),
+  "accrualDate": zod.string().nullable(),
+  "accrualJournalEntryId": zod.number().nullable()
+}),zod.null()]),
+  "live": zod.union([zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "approvedSnapshot": zod.union([zod.object({
+  "frozenAt": zod.string(),
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "fiscalYear": zod.object({
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "startMonth": zod.number(),
+  "label": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+}),
+  "computation": zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']),
+  "blockers": zod.array(zod.object({
+  "code": zod.string(),
+  "message": zod.string(),
+  "accounts": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "amount": zod.number()
+})).optional()
+})),
+  "reconciliation": zod.union([zod.object({
+  "balanceSheetTotalAssets": zod.number(),
+  "assetsRead": zod.number(),
+  "classifiedAssets": zod.number(),
+  "bookNetProfit": zod.number(),
+  "balanceSheetYearResult": zod.number().nullable(),
+  "bookProfitMatchesBalanceSheet": zod.boolean().nullable(),
+  "excludedOwnAccruals": zod.number()
+}).describe('Z1 — Σ the asset rows read = the balance sheet\'s total assets (after this computation\'s own accrual is taken out); Z2 — book net profit = the balance sheet\'s result of the year.'),zod.object({
+  "profitPerIncomeStatement": zod.number(),
+  "zakatAndIncomeTaxAddedBack": zod.number(),
+  "pool": zod.object({
+  "status": zod.string(),
+  "reason": zod.string().nullable()
+}),
+  "excludedOwnAccruals": zod.number(),
+  "ownership": zod.string().nullable()
+})]).describe('The figures the working paper ties to — Zakat (Z1\/Z2 — the balance sheet and the income statement) or income tax (the income statement, the Art. 17 pool status).'),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "target": zod.enum(['adjusted_net_profit', 'zakat_base', 'taxable_income']),
+  "effect": zod.enum(['increase', 'decrease']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "legalReference": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "accountId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "fingerprint": zod.string(),
+  "amount": zod.number().nullable(),
+  "zakat": zod.union([zod.object({
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "zakatClass": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+})),
+  "bookNetProfit": zod.number(),
+  "fiscalYearDays": zod.number(),
+  "calendar": zod.enum(['gregorian', 'hijri']),
+  "result": zod.union([zod.object({
+  "equity": zod.number(),
+  "provisions": zod.number(),
+  "nonCurrentAssets": zod.number(),
+  "nonCurrentDeducted": zod.number(),
+  "nonCurrentNotDeducted": zod.number(),
+  "currentAssets": zod.number(),
+  "currentDeducted": zod.number(),
+  "currentNotDeducted": zod.number(),
+  "nonCurrentLiabilities": zod.number(),
+  "currentLiabilities": zod.number(),
+  "deductions": zod.number(),
+  "nonCurrentLiabilitiesExcluded": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "excluded": zod.number()
+})),
+  "nonCurrentLiabilitiesExcludedTotal": zod.number(),
+  "currentLiabilitiesAddedForDeducted": zod.array(zod.object({
+  "accountId": zod.number().nullable(),
+  "name": zod.string(),
+  "nameAr": zod.string(),
+  "asset": zod.number(),
+  "added": zod.number()
+})),
+  "currentLiabilitiesAddedForDeductedTotal": zod.number(),
+  "currentLiabilitiesExcessOverCurrentAssets": zod.number(),
+  "liabilitiesAddedBeforeCap": zod.number(),
+  "liabilitiesAdded": zod.number(),
+  "bookNetProfit": zod.number(),
+  "netProfitAdjustments": zod.number(),
+  "adjustedNetProfit": zod.number(),
+  "baseAdjustments": zod.number(),
+  "difference": zod.number(),
+  "baseByMethod": zod.number(),
+  "undeductedAssets": zod.number(),
+  "minimumRule": zod.enum(['not_applied', '27(2)', '27(3)', '27(4)']),
+  "baseAfterMinimum": zod.number(),
+  "maximum": zod.number(),
+  "maximumApplied": zod.boolean(),
+  "floorAboveCeiling": zod.boolean(),
+  "zakatBase": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string(),
+  "basis": zod.string()
+}),
+  "zakat": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),zod.null()]),
+  "incomeTax": zod.union([zod.object({
+  "profitBeforeTaxes": zod.number(),
+  "bookDepreciationAddBack": zod.number(),
+  "bookDisposalReversal": zod.number(),
+  "poolDeduction": zod.number(),
+  "poolExcessIncome": zod.number(),
+  "repairsOverCap": zod.number(),
+  "declaredAdjustments": zod.number(),
+  "taxableIncome": zod.number(),
+  "lossCap": zod.number(),
+  "lossUsed": zod.number(),
+  "taxableIncomeAfterLosses": zod.number(),
+  "foreignSharePct": zod.number(),
+  "taxableShare": zod.number(),
+  "rate": zod.object({
+  "numerator": zod.number(),
+  "denominator": zod.number(),
+  "display": zod.string()
+}),
+  "incomeTax": zod.number(),
+  "lossOfTheYear": zod.number(),
+  "steps": zod.array(zod.object({
+  "key": zod.string(),
+  "article": zod.string(),
+  "amount": zod.number()
+}))
+}),zod.null()])
+}),
+  "accrual": zod.object({
+  "previouslyAccrued": zod.number(),
+  "thisApproval": zod.number(),
+  "date": zod.string().nullable(),
+  "basis": zod.string().nullable(),
+  "journalEntryId": zod.number().nullable()
+})
+}).describe('The frozen working paper of an approved version — shown FROM the snapshot; the live recomputation beside it.'),zod.null()]),
+  "ledgerChangedSinceApproval": zod.boolean().nullable()
+})
+
+
+/**
+ * @summary Reject (delete) a version that was never approved.
+ */
+export const RejectTaxComputationVersionParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const RejectTaxComputationVersionResponse = zod.void()
+
+
+/**
+ * @summary The cash position, the forecast with liquidity and funding requirement, and the next 30 days' outflows.
+ */
+export const getTreasuryDashboardQueryWeeksMax = 52;
+
+
+
+export const GetTreasuryDashboardQueryParams = zod.object({
+  "weeks": zod.coerce.number().min(1).max(getTreasuryDashboardQueryWeeksMax).optional()
+})
+
+export const GetTreasuryDashboardResponse = zod.object({
+  "position": zod.object({
+  "asOf": zod.string(),
+  "banks": zod.array(zod.object({
+  "bankAccountId": zod.number(),
+  "name": zod.string(),
+  "bankName": zod.string().nullable(),
+  "currency": zod.string(),
+  "isActive": zod.boolean(),
+  "ledgerBalance": zod.number(),
+  "overdrawn": zod.boolean(),
+  "latestStatement": zod.union([zod.object({
+  "id": zod.number(),
+  "periodTo": zod.string(),
+  "closingBalance": zod.number()
+}),zod.null()]),
+  "reconciledThrough": zod.string().nullable()
+})),
+  "unattributedCash": zod.number().describe('Pre-D-3 history on the Cash and Bank header, attributed to no bank.'),
+  "totalCash": zod.number(),
+  "inTransit": zod.number().describe('Own-account transfers in transit — beside cash, never in it.'),
+  "reconciliation": zod.object({
+  "balanceSheetCash": zod.number(),
+  "reconciles": zod.boolean()
+}),
+  "policy": zod.object({
+  "en": zod.string(),
+  "ar": zod.string()
+})
+}),
+  "forecast": zod.object({
+  "asOf": zod.string(),
+  "horizonWeeks": zod.number(),
+  "horizonEnd": zod.string(),
+  "opening": zod.object({
+  "kind": zod.enum(['actual']),
+  "amount": zod.number()
+}),
+  "buckets": zod.array(zod.object({
+  "index": zod.number(),
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "opening": zod.number(),
+  "inflow": zod.object({
+  "total": zod.number(),
+  "expected": zod.number(),
+  "forecast": zod.number(),
+  "manual": zod.number()
+}),
+  "outflow": zod.object({
+  "total": zod.number(),
+  "committed": zod.number(),
+  "expected": zod.number(),
+  "forecast": zod.number(),
+  "manual": zod.number()
+}),
+  "net": zod.number(),
+  "closing": zod.number()
+})),
+  "rows": zod.array(zod.object({
+  "kind": zod.enum(['committed', 'expected', 'forecast', 'manual']),
+  "category": zod.enum(['receivables', 'payables', 'payment_plans', 'tax', 'payroll', 'recurring', 'assumptions']),
+  "direction": zod.enum(['in', 'out']),
+  "bucket": zod.number(),
+  "date": zod.string().nullable(),
+  "amount": zod.number(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "bucketReason": zod.union([zod.literal('overdue'),zod.literal('undated'),zod.literal(null)]).nullable(),
+  "source": zod.object({
+  "type": zod.string(),
+  "id": zod.union([zod.number(),zod.string()]).nullable(),
+  "reference": zod.string().nullable()
+})
+})),
+  "liquidity": zod.object({
+  "actualCash": zod.number(),
+  "committed": zod.number(),
+  "available": zod.number(),
+  "expectedInflows30": zod.number(),
+  "expectedOutflows30": zod.number(),
+  "overdueReceivables": zod.number(),
+  "overduePayables": zod.number(),
+  "undatedObligations": zod.number(),
+  "lowestClosing": zod.number()
+}),
+  "funding": zod.object({
+  "minimumBalance": zod.number().nullable(),
+  "bufferDeclared": zod.boolean(),
+  "requirement": zod.number(),
+  "firstShortfallBucket": zod.number().nullable(),
+  "peakShortfallBucket": zod.number().nullable(),
+  "recommendation": zod.union([zod.object({
+  "en": zod.string(),
+  "ar": zod.string()
+}),zod.null()])
+}),
+  "excluded": zod.object({
+  "beyondHorizon": zod.object({
+  "inflow": zod.number(),
+  "outflow": zod.number(),
+  "count": zod.number()
+}),
+  "staleAssumptions": zod.number(),
+  "journalEntryRules": zod.number(),
+  "rulesWithoutHistory": zod.number()
+}),
+  "planFlags": zod.array(zod.object({
+  "planId": zod.number(),
+  "covered": zod.number(),
+  "exceedsOutstanding": zod.boolean(),
+  "billReversed": zod.boolean().describe('The plan\'s bill is an opening item the migration reversed (Policy C) — it owes nothing, the plan covers nothing, and it is to be cancelled.')
+})),
+  "notes": zod.array(zod.object({
+  "en": zod.string(),
+  "ar": zod.string()
+}))
+}),
+  "upcomingOutflows": zod.array(zod.object({
+  "kind": zod.enum(['committed', 'expected', 'forecast', 'manual']),
+  "category": zod.enum(['receivables', 'payables', 'payment_plans', 'tax', 'payroll', 'recurring', 'assumptions']),
+  "direction": zod.enum(['in', 'out']),
+  "bucket": zod.number(),
+  "date": zod.string().nullable(),
+  "amount": zod.number(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "bucketReason": zod.union([zod.literal('overdue'),zod.literal('undated'),zod.literal(null)]).nullable(),
+  "source": zod.object({
+  "type": zod.string(),
+  "id": zod.union([zod.number(),zod.string()]).nullable(),
+  "reference": zod.string().nullable()
+})
+})),
+  "upcomingOutflowsTotal": zod.number()
+})
+
+
+/**
+ * @summary Cash as of a date (today or earlier) — per bank from the ledger, the unattributed history, in-transit beside it, and T1 (= balance-sheet cash).
+ */
+export const GetTreasuryPositionQueryParams = zod.object({
+  "as_of": zod.date().optional()
+})
+
+export const GetTreasuryPositionResponse = zod.object({
+  "asOf": zod.string(),
+  "banks": zod.array(zod.object({
+  "bankAccountId": zod.number(),
+  "name": zod.string(),
+  "bankName": zod.string().nullable(),
+  "currency": zod.string(),
+  "isActive": zod.boolean(),
+  "ledgerBalance": zod.number(),
+  "overdrawn": zod.boolean(),
+  "latestStatement": zod.union([zod.object({
+  "id": zod.number(),
+  "periodTo": zod.string(),
+  "closingBalance": zod.number()
+}),zod.null()]),
+  "reconciledThrough": zod.string().nullable()
+})),
+  "unattributedCash": zod.number().describe('Pre-D-3 history on the Cash and Bank header, attributed to no bank.'),
+  "totalCash": zod.number(),
+  "inTransit": zod.number().describe('Own-account transfers in transit — beside cash, never in it.'),
+  "reconciliation": zod.object({
+  "balanceSheetCash": zod.number(),
+  "reconciles": zod.boolean()
+}),
+  "policy": zod.object({
+  "en": zod.string(),
+  "ar": zod.string()
+})
+})
+
+
+/**
+ * @summary The cash forecast — weekly buckets, every row typed and sourced, liquidity and funding requirement.
+ */
+export const getTreasuryForecastQueryWeeksMax = 52;
+
+
+
+export const GetTreasuryForecastQueryParams = zod.object({
+  "weeks": zod.coerce.number().min(1).max(getTreasuryForecastQueryWeeksMax).optional()
+})
+
+export const GetTreasuryForecastResponse = zod.object({
+  "asOf": zod.string(),
+  "horizonWeeks": zod.number(),
+  "horizonEnd": zod.string(),
+  "opening": zod.object({
+  "kind": zod.enum(['actual']),
+  "amount": zod.number()
+}),
+  "buckets": zod.array(zod.object({
+  "index": zod.number(),
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "opening": zod.number(),
+  "inflow": zod.object({
+  "total": zod.number(),
+  "expected": zod.number(),
+  "forecast": zod.number(),
+  "manual": zod.number()
+}),
+  "outflow": zod.object({
+  "total": zod.number(),
+  "committed": zod.number(),
+  "expected": zod.number(),
+  "forecast": zod.number(),
+  "manual": zod.number()
+}),
+  "net": zod.number(),
+  "closing": zod.number()
+})),
+  "rows": zod.array(zod.object({
+  "kind": zod.enum(['committed', 'expected', 'forecast', 'manual']),
+  "category": zod.enum(['receivables', 'payables', 'payment_plans', 'tax', 'payroll', 'recurring', 'assumptions']),
+  "direction": zod.enum(['in', 'out']),
+  "bucket": zod.number(),
+  "date": zod.string().nullable(),
+  "amount": zod.number(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "bucketReason": zod.union([zod.literal('overdue'),zod.literal('undated'),zod.literal(null)]).nullable(),
+  "source": zod.object({
+  "type": zod.string(),
+  "id": zod.union([zod.number(),zod.string()]).nullable(),
+  "reference": zod.string().nullable()
+})
+})),
+  "liquidity": zod.object({
+  "actualCash": zod.number(),
+  "committed": zod.number(),
+  "available": zod.number(),
+  "expectedInflows30": zod.number(),
+  "expectedOutflows30": zod.number(),
+  "overdueReceivables": zod.number(),
+  "overduePayables": zod.number(),
+  "undatedObligations": zod.number(),
+  "lowestClosing": zod.number()
+}),
+  "funding": zod.object({
+  "minimumBalance": zod.number().nullable(),
+  "bufferDeclared": zod.boolean(),
+  "requirement": zod.number(),
+  "firstShortfallBucket": zod.number().nullable(),
+  "peakShortfallBucket": zod.number().nullable(),
+  "recommendation": zod.union([zod.object({
+  "en": zod.string(),
+  "ar": zod.string()
+}),zod.null()])
+}),
+  "excluded": zod.object({
+  "beyondHorizon": zod.object({
+  "inflow": zod.number(),
+  "outflow": zod.number(),
+  "count": zod.number()
+}),
+  "staleAssumptions": zod.number(),
+  "journalEntryRules": zod.number(),
+  "rulesWithoutHistory": zod.number()
+}),
+  "planFlags": zod.array(zod.object({
+  "planId": zod.number(),
+  "covered": zod.number(),
+  "exceedsOutstanding": zod.boolean(),
+  "billReversed": zod.boolean().describe('The plan\'s bill is an opening item the migration reversed (Policy C) — it owes nothing, the plan covers nothing, and it is to be cancelled.')
+})),
+  "notes": zod.array(zod.object({
+  "en": zod.string(),
+  "ar": zod.string()
+}))
+})
+
+
+/**
+ * @summary Payment plans, with what each bill owes now.
+ */
+export const ListPaymentPlansQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "billId": zod.coerce.number().optional()
+})
+
+export const ListPaymentPlansResponseItem = zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorResidency": zod.string().nullable(),
+  "billDueDate": zod.string().nullable(),
+  "billDate": zod.string(),
+  "billOutstanding": zod.number(),
+  "plannedDate": zod.string(),
+  "amount": zod.number(),
+  "bankAccountId": zod.number().nullable(),
+  "bankName": zod.string().nullable(),
+  "priority": zod.enum(['high', 'normal', 'low']),
+  "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
+  "whtPaymentType": zod.string().nullable(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "paidBillPaymentId": zod.number().nullable(),
+  "paidBy": zod.number().nullable(),
+  "paidAt": zod.string().nullable(),
+  "cancelledBy": zod.number().nullable(),
+  "cancelledAt": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "overdue": zod.boolean(),
+  "exceedsOutstanding": zod.boolean(),
+  "billReversed": zod.boolean().describe('The bill is an opening item the migration reversed (Policy C): it owes nothing (billOutstanding 0) and an open plan on it is to be cancelled — it can be neither approved nor paid.')
+})
+export const ListPaymentPlansResponse = zod.array(ListPaymentPlansResponseItem)
+
+
+/**
+ * @summary Plan (part of) a bill's payment on a date — never more than it owes.
+ */
+export const createPaymentPlanBodyAmountExclusiveMin = 0;
+
+export const createPaymentPlanBodyNotesMax = 2000;
+
+
+
+export const CreatePaymentPlanBody = zod.object({
+  "billId": zod.number(),
+  "plannedDate": zod.string(),
+  "amount": zod.number().gt(createPaymentPlanBodyAmountExclusiveMin),
+  "bankAccountId": zod.number().nullish(),
+  "priority": zod.enum(['high', 'normal', 'low']).optional(),
+  "whtPaymentType": zod.string().nullish(),
+  "notes": zod.string().max(createPaymentPlanBodyNotesMax).nullish()
+})
+
+export const CreatePaymentPlanResponse = zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorResidency": zod.string().nullable(),
+  "billDueDate": zod.string().nullable(),
+  "billDate": zod.string(),
+  "billOutstanding": zod.number(),
+  "plannedDate": zod.string(),
+  "amount": zod.number(),
+  "bankAccountId": zod.number().nullable(),
+  "bankName": zod.string().nullable(),
+  "priority": zod.enum(['high', 'normal', 'low']),
+  "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
+  "whtPaymentType": zod.string().nullable(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "paidBillPaymentId": zod.number().nullable(),
+  "paidBy": zod.number().nullable(),
+  "paidAt": zod.string().nullable(),
+  "cancelledBy": zod.number().nullable(),
+  "cancelledAt": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "overdue": zod.boolean(),
+  "exceedsOutstanding": zod.boolean(),
+  "billReversed": zod.boolean().describe('The bill is an opening item the migration reversed (Policy C): it owes nothing (billOutstanding 0) and an open plan on it is to be cancelled — it can be neither approved nor paid.')
+})
+
+
+/**
+ * @summary Edit a plan not yet approved.
+ */
+export const UpdatePaymentPlanParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updatePaymentPlanBodyAmountExclusiveMin = 0;
+
+export const updatePaymentPlanBodyNotesMax = 2000;
+
+
+
+export const UpdatePaymentPlanBody = zod.object({
+  "plannedDate": zod.string().optional(),
+  "amount": zod.number().gt(updatePaymentPlanBodyAmountExclusiveMin).optional(),
+  "bankAccountId": zod.number().nullish(),
+  "priority": zod.enum(['high', 'normal', 'low']).optional(),
+  "whtPaymentType": zod.string().nullish(),
+  "notes": zod.string().max(updatePaymentPlanBodyNotesMax).nullish()
+})
+
+export const UpdatePaymentPlanResponse = zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorResidency": zod.string().nullable(),
+  "billDueDate": zod.string().nullable(),
+  "billDate": zod.string(),
+  "billOutstanding": zod.number(),
+  "plannedDate": zod.string(),
+  "amount": zod.number(),
+  "bankAccountId": zod.number().nullable(),
+  "bankName": zod.string().nullable(),
+  "priority": zod.enum(['high', 'normal', 'low']),
+  "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
+  "whtPaymentType": zod.string().nullable(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "paidBillPaymentId": zod.number().nullable(),
+  "paidBy": zod.number().nullable(),
+  "paidAt": zod.string().nullable(),
+  "cancelledBy": zod.number().nullable(),
+  "cancelledAt": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "overdue": zod.boolean(),
+  "exceedsOutstanding": zod.boolean(),
+  "billReversed": zod.boolean().describe('The bill is an opening item the migration reversed (Policy C): it owes nothing (billOutstanding 0) and an open plan on it is to be cancelled — it can be neither approved nor paid.')
+})
+
+
+/**
+ * @summary Delete a plan not yet approved.
+ */
+export const DeletePaymentPlanParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeletePaymentPlanResponse = zod.void()
+
+
+/**
+ * @summary Approve a plan (approver) — it becomes COMMITTED in the forecast.
+ */
+export const ApprovePaymentPlanParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApprovePaymentPlanResponse = zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorResidency": zod.string().nullable(),
+  "billDueDate": zod.string().nullable(),
+  "billDate": zod.string(),
+  "billOutstanding": zod.number(),
+  "plannedDate": zod.string(),
+  "amount": zod.number(),
+  "bankAccountId": zod.number().nullable(),
+  "bankName": zod.string().nullable(),
+  "priority": zod.enum(['high', 'normal', 'low']),
+  "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
+  "whtPaymentType": zod.string().nullable(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "paidBillPaymentId": zod.number().nullable(),
+  "paidBy": zod.number().nullable(),
+  "paidAt": zod.string().nullable(),
+  "cancelledBy": zod.number().nullable(),
+  "cancelledAt": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "overdue": zod.boolean(),
+  "exceedsOutstanding": zod.boolean(),
+  "billReversed": zod.boolean().describe('The bill is an opening item the migration reversed (Policy C): it owes nothing (billOutstanding 0) and an open plan on it is to be cancelled — it can be neither approved nor paid.')
+})
+
+
+/**
+ * @summary Pay an approved plan through the bill pay path (approver) — one payment, WHT included. Nothing is sent to a bank.
+ */
+export const PayPaymentPlanParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const payPaymentPlanBodyWhtNotSubjectNoteMax = 2000;
+
+
+
+export const PayPaymentPlanBody = zod.object({
+  "paidAt": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish(),
+  "whtPaymentType": zod.string().nullish(),
+  "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
+  "whtNotSubjectNote": zod.string().max(payPaymentPlanBodyWhtNotSubjectNoteMax).nullish(),
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1): only when the payment\'s month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant\'s recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.')
+})
+
+export const PayPaymentPlanResponse = zod.object({
+  "plan": zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorResidency": zod.string().nullable(),
+  "billDueDate": zod.string().nullable(),
+  "billDate": zod.string(),
+  "billOutstanding": zod.number(),
+  "plannedDate": zod.string(),
+  "amount": zod.number(),
+  "bankAccountId": zod.number().nullable(),
+  "bankName": zod.string().nullable(),
+  "priority": zod.enum(['high', 'normal', 'low']),
+  "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
+  "whtPaymentType": zod.string().nullable(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "paidBillPaymentId": zod.number().nullable(),
+  "paidBy": zod.number().nullable(),
+  "paidAt": zod.string().nullable(),
+  "cancelledBy": zod.number().nullable(),
+  "cancelledAt": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "overdue": zod.boolean(),
+  "exceedsOutstanding": zod.boolean(),
+  "billReversed": zod.boolean().describe('The bill is an opening item the migration reversed (Policy C): it owes nothing (billOutstanding 0) and an open plan on it is to be cancelled — it can be neither approved nor paid.')
+}),
+  "payment": zod.object({
+  "billPaymentId": zod.number(),
+  "journalEntryId": zod.number(),
+  "amount": zod.number(),
+  "cashPaid": zod.number(),
+  "withheld": zod.number()
+})
+})
+
+
+/**
+ * @summary Cancel a planned or approved plan, with its reason (approver).
+ */
+export const CancelPaymentPlanParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const cancelPaymentPlanBodyReasonMax = 1000;
+
+
+
+export const CancelPaymentPlanBody = zod.object({
+  "reason": zod.string().min(1).max(cancelPaymentPlanBodyReasonMax)
+})
+
+export const CancelPaymentPlanResponse = zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "billNumber": zod.string().nullable(),
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorResidency": zod.string().nullable(),
+  "billDueDate": zod.string().nullable(),
+  "billDate": zod.string(),
+  "billOutstanding": zod.number(),
+  "plannedDate": zod.string(),
+  "amount": zod.number(),
+  "bankAccountId": zod.number().nullable(),
+  "bankName": zod.string().nullable(),
+  "priority": zod.enum(['high', 'normal', 'low']),
+  "status": zod.enum(['planned', 'approved', 'paid', 'cancelled']),
+  "whtPaymentType": zod.string().nullable(),
+  "whtEstimate": zod.number().nullable().describe('An OPEN plan\'s estimate — `decideWithholding` on the planned date. Null for a paid or cancelled plan (nothing is estimated after the fact), and where no nature can be decided.'),
+  "whtWithheld": zod.number().nullable().describe('A PAID plan\'s withholding as its payment RECORDED it (`wht_withholdings`) — the record, never re-estimated with today\'s supplier, relief or rate. Null otherwise.'),
+  "cashEstimate": zod.number().describe('The amount less the estimate (an open plan) or less the withholding recorded (a paid plan).'),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "approvedBy": zod.number().nullable(),
+  "approvedAt": zod.string().nullable(),
+  "paidBillPaymentId": zod.number().nullable(),
+  "paidBy": zod.number().nullable(),
+  "paidAt": zod.string().nullable(),
+  "cancelledBy": zod.number().nullable(),
+  "cancelledAt": zod.string().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "overdue": zod.boolean(),
+  "exceedsOutstanding": zod.boolean(),
+  "billReversed": zod.boolean().describe('The bill is an opening item the migration reversed (Policy C): it owes nothing (billOutstanding 0) and an open plan on it is to be cancelled — it can be neither approved nor paid.')
+})
+
+
+/**
+ * @summary Manual forecast assumptions (never posted).
+ */
+export const ListForecastAssumptionsResponseItem = zod.object({
+  "id": zod.number(),
+  "entryDate": zod.string(),
+  "direction": zod.enum(['inflow', 'outflow']),
+  "amount": zod.number(),
+  "category": zod.enum(['financing', 'capex', 'tax', 'payroll', 'receipt', 'payment', 'other']),
+  "description": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "updatedBy": zod.number().nullable(),
+  "updatedAt": zod.string().nullable()
+})
+export const ListForecastAssumptionsResponse = zod.array(ListForecastAssumptionsResponseItem)
+
+
+/**
+ * @summary Record a manual assumption — money the books cannot know is coming or going.
+ */
+export const createForecastAssumptionBodyAmountExclusiveMin = 0;
+
+export const createForecastAssumptionBodyDescriptionMax = 500;
+
+export const createForecastAssumptionBodyNotesMax = 2000;
+
+
+
+export const CreateForecastAssumptionBody = zod.object({
+  "entryDate": zod.string(),
+  "direction": zod.enum(['inflow', 'outflow']),
+  "amount": zod.number().gt(createForecastAssumptionBodyAmountExclusiveMin),
+  "category": zod.enum(['financing', 'capex', 'tax', 'payroll', 'receipt', 'payment', 'other']).optional(),
+  "description": zod.string().min(1).max(createForecastAssumptionBodyDescriptionMax),
+  "notes": zod.string().max(createForecastAssumptionBodyNotesMax).nullish()
+})
+
+export const CreateForecastAssumptionResponse = zod.object({
+  "id": zod.number(),
+  "entryDate": zod.string(),
+  "direction": zod.enum(['inflow', 'outflow']),
+  "amount": zod.number(),
+  "category": zod.enum(['financing', 'capex', 'tax', 'payroll', 'receipt', 'payment', 'other']),
+  "description": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "updatedBy": zod.number().nullable(),
+  "updatedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Edit an assumption.
+ */
+export const UpdateForecastAssumptionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateForecastAssumptionBodyAmountExclusiveMin = 0;
+
+export const updateForecastAssumptionBodyDescriptionMax = 500;
+
+export const updateForecastAssumptionBodyNotesMax = 2000;
+
+
+
+export const UpdateForecastAssumptionBody = zod.object({
+  "entryDate": zod.string().optional(),
+  "direction": zod.enum(['inflow', 'outflow']).optional(),
+  "amount": zod.number().gt(updateForecastAssumptionBodyAmountExclusiveMin).optional(),
+  "category": zod.enum(['financing', 'capex', 'tax', 'payroll', 'receipt', 'payment', 'other']).optional(),
+  "description": zod.string().min(1).max(updateForecastAssumptionBodyDescriptionMax).optional(),
+  "notes": zod.string().max(updateForecastAssumptionBodyNotesMax).nullish()
+})
+
+export const UpdateForecastAssumptionResponse = zod.object({
+  "id": zod.number(),
+  "entryDate": zod.string(),
+  "direction": zod.enum(['inflow', 'outflow']),
+  "amount": zod.number(),
+  "category": zod.enum(['financing', 'capex', 'tax', 'payroll', 'receipt', 'payment', 'other']),
+  "description": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string(),
+  "updatedBy": zod.number().nullable(),
+  "updatedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Delete an assumption.
+ */
+export const DeleteForecastAssumptionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteForecastAssumptionResponse = zod.void()
+
+
+/**
+ * @summary The treasury policy — the minimum cash balance and the default horizon.
+ */
+export const GetTreasurySettingsResponse = zod.object({
+  "minimumCashBalance": zod.number().nullable().describe('NULL = not declared — the funding requirement is then measured against zero, and says so.'),
+  "forecastHorizonWeeks": zod.number(),
+  "updatedBy": zod.number().nullable(),
+  "updatedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Set the minimum cash balance (or clear it) and the default horizon (approver).
+ */
+export const updateTreasurySettingsBodyMinimumCashBalanceMin = 0;
+
+export const updateTreasurySettingsBodyForecastHorizonWeeksMax = 52;
+
+
+
+export const UpdateTreasurySettingsBody = zod.object({
+  "minimumCashBalance": zod.number().min(updateTreasurySettingsBodyMinimumCashBalanceMin).nullish(),
+  "forecastHorizonWeeks": zod.number().min(1).max(updateTreasurySettingsBodyForecastHorizonWeeksMax).optional()
+})
+
+export const UpdateTreasurySettingsResponse = zod.object({
+  "minimumCashBalance": zod.number().nullable().describe('NULL = not declared — the funding requirement is then measured against zero, and says so.'),
+  "forecastHorizonWeeks": zod.number(),
+  "updatedBy": zod.number().nullable(),
+  "updatedAt": zod.string().nullable()
 })
 
 

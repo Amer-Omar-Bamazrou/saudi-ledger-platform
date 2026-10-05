@@ -262,23 +262,38 @@ export const reportsService = {
     // merges lines across two windows by account id, never by display name.
     const revenue: { key: string; name: string; nameAr: string; amountH: number }[] = [];
     const expenses: { key: string; name: string; nameAr: string; amountH: number }[] = [];
+    // Phase 16 — SOCPA Zakat Accounting Standard para 6: Zakat is presented on
+    // its OWN line before profit or loss, with income tax (IAS 1.82(d) as
+    // endorsed: "tax expense and Zakat"). Their accounts leave `expenses` for
+    // this section; `totalExpenses` keeps meaning ALL expenses (the summary and
+    // the P&L trend read it so), and the subtotals below carry the split.
+    const zakatAndIncomeTax: { key: string; name: string; nameAr: string; amountH: number }[] = [];
+    const TAX_ON_PROFIT = new Set<string>(["ZAKAT_EXPENSE", "INCOME_TAX_EXPENSE"]);
     for (const a of accounts) {
       // an account appears when it MOVED in the window (as before), even if it nets to zero;
       // the seam also returns accounts whose only lines are before `from` — those did not move.
       if (a.debitH === 0 && a.creditH === 0) continue;
       if (isIncomeType(a.type)) revenue.push({ key: a.key, name: a.name, nameAr: a.nameAr, amountH: a.creditH - a.debitH });
+      else if (a.type === "expense" && a.systemCode && TAX_ON_PROFIT.has(a.systemCode)) zakatAndIncomeTax.push({ key: a.key, name: a.name, nameAr: a.nameAr, amountH: a.debitH - a.creditH });
       else if (a.type === "expense") expenses.push({ key: a.key, name: a.name, nameAr: a.nameAr, amountH: a.debitH - a.creditH });
     }
     const out = (xs: typeof revenue) => xs.map((x) => ({ key: x.key, name: x.name, nameAr: x.nameAr, amount: fromHalalas(x.amountH) })).sort((a, b) => b.amount - a.amount);
     const totalRevenueH = revenue.reduce((s, r) => s + r.amountH, 0);
-    const totalExpensesH = expenses.reduce((s, e) => s + e.amountH, 0);
+    const expensesBeforeTaxH = expenses.reduce((s, e) => s + e.amountH, 0);
+    const zakatAndIncomeTaxH = zakatAndIncomeTax.reduce((s, e) => s + e.amountH, 0);
+    const totalExpensesH = expensesBeforeTaxH + zakatAndIncomeTaxH;
     const netIncomeH = totalRevenueH - totalExpensesH;
 
     return {
       window: { from: from ?? null, to: to ?? null },
       revenue: out(revenue),
       expenses: out(expenses),
+      /** Σ `expenses` — every expense but Zakat and income tax. */
+      expensesBeforeZakatAndIncomeTax: fromHalalas(expensesBeforeTaxH),
+      profitBeforeZakatAndIncomeTax: fromHalalas(totalRevenueH - expensesBeforeTaxH),
+      zakatAndIncomeTax: { items: out(zakatAndIncomeTax), total: fromHalalas(zakatAndIncomeTaxH) },
       totalRevenue: fromHalalas(totalRevenueH),
+      /** ALL expenses, Zakat and income tax included (unchanged meaning). */
       totalExpenses: fromHalalas(totalExpensesH),
       grossProfit: null as number | null,
       expenseAnalysis: "nature" as const,
@@ -1037,13 +1052,33 @@ export const reportsService = {
     return { activities: result, count: result.length, hasPosted: result.filter((r) => r.status === "posted").length, hasDraft: result.filter((r) => r.status === "draft").length };
   },
 
+  /**
+   * The VAT return for a filing period given in MONTHS (YYYY-MM) — the API contract (the spec's pattern).
+   *
+   * 🔴 OB-1 (final audit 2026-10-05): a full date passed here built "2026-07-01-01", and — the document dates being
+   * TEXT — every document dated on the period's FIRST day fell out of the window, silently. A month is a month:
+   * anything else is refused, and a date window goes through `vatReturnBetween`, the one computation both use.
+   */
   async vatReturn(period_from?: string, period_to?: string) {
-    const dateFrom = period_from ? `${period_from}-01` : "1900-01-01";
-    const dateTo = period_to ? `${period_to}-31` : "2099-12-31";
+    for (const [name, v] of [["period_from", period_from], ["period_to", period_to]] as const) {
+      if (v && !/^\d{4}-\d{2}$/.test(v)) throw new BadRequestError(`${name} is a month (YYYY-MM), not ${JSON.stringify(v)}.`);
+    }
+    return this.vatReturnBetween(
+      period_from ? `${period_from}-01` : "1900-01-01",
+      period_to ? `${period_to}-31` : "2099-12-31",
+      period_to ? endOfMonth(period_to) : null,
+    );
+  },
+
+  /** The VAT return over a DATE window, both ends inclusive (YYYY-MM-DD) — the tax obligations' last period and period to date. */
+  async vatReturnBetween(dateFrom: string, dateTo: string, reviewAsOf: string | null = dateTo) {
+    for (const [name, v] of [["dateFrom", dateFrom], ["dateTo", dateTo]] as const) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new BadRequestError(`${name} is a date (YYYY-MM-DD), not ${JSON.stringify(v)}.`);
+    }
     // AP-1: the deposits held at the end of the window that may carry VAT the
     // boxes do not show — a WHO-FINDS-OUT figure beside the return, never a
     // box (advance-payments decision pack §4; the boxes read documents only).
-    const review = await depositReviewService.review({ asOf: period_to ? endOfMonth(period_to) : null });
+    const review = await depositReviewService.review({ asOf: reviewAsOf });
 
     const [invoiceRows, invoiceLines, billRows, billLines, prepaymentRows, reliefRows, billPrepaymentRows, claimedBillRows, claimedBillLines, claimedBillPrepaymentRows] = await Promise.all([
       reportsRepository.invoicesInRange(dateFrom, dateTo),

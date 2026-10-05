@@ -201,8 +201,8 @@ describeMaybe("N1 — company A's reports EXCLUDE company B's books", () => {
   });
 
   it("🔴 VAT return: A's output VAT is 150, not the org's 1,500 — the statutory figure", async () => {
-    const vatA = await inCompany(companyA, () => reportsService.vatReturn(RANGE.from, RANGE.to));
-    const vatB = await inCompany(companyB, () => reportsService.vatReturn(RANGE.from, RANGE.to));
+    const vatA = await inCompany(companyA, () => reportsService.vatReturn(RANGE.from.slice(0, 7), RANGE.to.slice(0, 7)));
+    const vatB = await inCompany(companyB, () => reportsService.vatReturn(RANGE.from.slice(0, 7), RANGE.to.slice(0, 7)));
     const flatA = JSON.stringify(vatA);
     expect(flatA).toContain("150");
     expect(flatA, "company B's output VAT leaked into A's VAT return").not.toContain("1350");

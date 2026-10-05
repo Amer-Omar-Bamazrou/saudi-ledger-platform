@@ -5,16 +5,22 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { MigrationReversalPreviewWouldReverseAssetsItem } from './migrationReversalPreviewWouldReverseAssetsItem';
 import type { MigrationReversalPreviewWouldReverseBanksItem } from './migrationReversalPreviewWouldReverseBanksItem';
 import type { MigrationReversalPreviewWouldReverseBillsItem } from './migrationReversalPreviewWouldReverseBillsItem';
 import type { MigrationReversalPreviewWouldReverseDepositsItem } from './migrationReversalPreviewWouldReverseDepositsItem';
 import type { MigrationReversalPreviewWouldReverseInvoicesItem } from './migrationReversalPreviewWouldReverseInvoicesItem';
 import type { MigrationReversalPreviewWouldReverseKeeps } from './migrationReversalPreviewWouldReverseKeeps';
+import type { MigrationReversalPreviewWouldReverseOpeningBalancesItem } from './migrationReversalPreviewWouldReverseOpeningBalancesItem';
 import type { MigrationReversalPreviewWouldReversePeriodLock } from './migrationReversalPreviewWouldReversePeriodLock';
 
 export type MigrationReversalPreviewWouldReverse = {
   /** @nullable */
   openingJournalEntryId: number | null;
+  /** Q3 (§14.3, Option A): the fixed assets the batch created — marked reversed (out of the register and every run), each POSTED depreciation mirrored as it was dated. No disposal, no gain or loss. */
+  assets: MigrationReversalPreviewWouldReverseAssetsItem[];
+  /** Every balance the opening journal carried (inventory, provisions and every other mapped balance included) — the mirror reverses each. */
+  openingBalances: MigrationReversalPreviewWouldReverseOpeningBalancesItem[];
   invoices: MigrationReversalPreviewWouldReverseInvoicesItem[];
   bills: MigrationReversalPreviewWouldReverseBillsItem[];
   deposits: MigrationReversalPreviewWouldReverseDepositsItem[];

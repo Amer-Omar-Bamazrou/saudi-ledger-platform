@@ -161,6 +161,16 @@ chain, which is a build, not a setting.
 
 ## Block C — the Zakat base itself (design doc §4) 🔴 M17.4 IS HELD ON THIS
 
+**Status (2026-10-04): the hold was re-checked against its REASON and lifted —
+Phase 16 read the 1445H Regulations in Arabic: C1 (Arts 27/28) and C4 (nisab:
+absent) are SETTLED BY TEXT; C2 leaves one residue (contra allowances, Z-2), C3
+the divisor and rounding (Z-1), C5 the split's mechanics (Z-5). The working
+paper is built on fail-closed defaults; the questions to ask now are the
+decision pack's §11 list (Z-1…Z-8, W-1…W-12, I-1, S-1):
+[`phase-16-17-tax-treasury-decision-pack.md`](phase-16-17-tax-treasury-decision-pack.md)
+§11. The text below is kept as the record of what was asked. Current state
+authority: [CLAUDE.md §2](../../CLAUDE.md).**
+
 **Context.** The owner has decided (Q1–Q8) that the platform produces an
 auditable **Zakat Base Working Paper** — not a ZATCA submission — for
 **100%-Saudi/GCC-owned** entities, derived **from the general ledger**. The

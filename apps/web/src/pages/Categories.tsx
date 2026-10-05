@@ -16,21 +16,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Tags, Plus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+// Owner-legible liquidity labels (Finance Hub Q4) — one definition, shared with the Zakat classification.
+import { LIQUIDITY_OPTIONS } from "@/lib/liquidity";
 
 /** M18.1 — the liquidity class is meaningful only on these two account types. */
 const isBalanceSheet = (type: string) => type === "asset" || type === "liability";
-
-/**
- * Owner-legible labels (Finance Hub Q4). "Quick asset" is jargon; "cash within
- * 12 months" is the same fact in words the reader already has. The stored
- * VALUES stay the accounting terms — it is the label that translates.
- */
-const LIQUIDITY_OPTIONS = [
-  { value: "cash",        en: "Cash or bank",                     ar: "نقد أو بنك" },
-  { value: "quick",       en: "Expected as cash within 12 months", ar: "يُتوقع تحصيله نقداً خلال 12 شهراً" },
-  { value: "current",     en: "Used or owed within 12 months",     ar: "يُستخدم أو يُستحق خلال 12 شهراً" },
-  { value: "non_current", en: "Longer than 12 months",             ar: "أطول من 12 شهراً" },
-];
 
 export default function Categories() {
   const queryClient = useQueryClient();

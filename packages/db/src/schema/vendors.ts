@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
+import { WHT_PAYMENT_TYPES_SQL } from "./whtTypes";
 
 export const vendorsTable = pgTable(
   "vendors",
@@ -37,20 +38,26 @@ export const vendorsTable = pgTable(
      * in the Kingdom — so residency is the input every WHT question starts
      * from, and recording it now costs nothing and is not a judgment.
      *
-     * 🔴 WHAT IS DELIBERATELY NOT BUILT: no rate, no automatic withholding, no
-     * deduction at payment, no Form-Q filing. The By-Laws set DIFFERENT rates
-     * by the NATURE of the payment (rent, technical and consulting services,
-     * royalties, management fees, and so on), and classifying a payment's
-     * nature is an accounting judgment this platform must not guess — the
-     * escalation protocol sends it to the accountant, and the board has WHT
-     * awaiting the owner's ranking. `WHT_PAYABLE` and this column are the
-     * structure those answers will land in; until they do, nothing withholds.
+     * Phase 16 (2026-10-04) BUILT WHT on this fact: a payment to a
+     * `non_resident` withholds at the pay paths (services/tax/wht.ts) at the
+     * rate the regulation fixes for the payment's DECLARED nature — the
+     * platform never guesses the nature (pack §2.3).
      *
      * `unknown` is FIRST-CLASS and is the default: a supplier nobody has
      * classified must read as unclassified, never as resident, because
-     * "resident" is the answer that withholds nothing.
+     * "resident" is the answer that withholds nothing. A payment to an
+     * `unknown` supplier withholds nothing and is LISTED as a WHT exception.
      */
     residency: text("residency").notNull().default("unknown"),
+    /**
+     * Phase 16 — the supplier's DECLARED default WHT nature (one of
+     * WHT_PAYMENT_TYPES), set by a person and shown, changeable, in the pay
+     * dialog. NULL = none declared: a payment to a non-resident then has to
+     * state its nature or it is refused (`wht_classification_required`).
+     */
+    whtDefaultPaymentType: text("wht_default_payment_type"),
+    /** Phase 16 — the beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3)). */
+    foreignTaxId: text("foreign_tax_id"),
     isActive: boolean("is_active").notNull().default(true),
     /**
      * Batch 1C (2026-09-19) — the PROVENANCE of a migrated record: which
@@ -68,6 +75,7 @@ export const vendorsTable = pgTable(
   (t) => [
     index("vendors_org_idx").on(t.organizationId),
     check("vendors_residency_chk", sql`residency IN ('resident', 'non_resident', 'unknown')`),
+    check("vendors_wht_default_type_chk", sql`wht_default_payment_type IS NULL OR wht_default_payment_type IN (${WHT_PAYMENT_TYPES_SQL})`),
     uniqueIndex("vendors_source_identity_unq").on(t.organizationId, t.sourceSystem, t.sourceId).where(sql`source_system IS NOT NULL`),
   ],
 );

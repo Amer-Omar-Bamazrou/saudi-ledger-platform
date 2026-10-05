@@ -35,7 +35,17 @@ export interface Vendor {
   /** @nullable */
   notes: string | null;
   isActive: boolean;
-  /** B8: where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). A FACT about the supplier, not a tax rule: no rate is applied and nothing is withheld anywhere in the platform. `unknown` is the default and is first-class, because "resident" is the answer that withholds nothing and must never be assumed. */
+  /** Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed. */
   residency: VendorResidency;
+  /**
+     * The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.
+     * @nullable
+     */
+  whtDefaultPaymentType: string | null;
+  /**
+     * The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3)).
+     * @nullable
+     */
+  foreignTaxId: string | null;
   createdAt: string;
 }

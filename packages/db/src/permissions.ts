@@ -118,6 +118,27 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // migration write. Append-only: no update or delete exists (0110).
   opening_vat_declaration: { read: APPROVE, create: APPROVE },
 
+  /**
+   * Phase 16 (migration 0113) — Saudi tax. Everyone reads (the obligations are
+   * the business's own); a bookkeeper DRAFTS a Zakat or income-tax computation,
+   * its adjustments, the Zakat classification and a treaty relief; an APPROVER
+   * approves a computation (which posts its accrual), approves a treaty relief
+   * (which lowers a rate), remits WHT to ZATCA (`/pay`) and reverses a
+   * remittance. Deleting a never-approved computation is an admin's.
+   */
+  tax: { read: READ_ALL, create: WRITE, update: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
+  /**
+   * Phase 17 (migrations 0114, 0115) — Treasury. A bookkeeper plans payments
+   * and records forecast assumptions, and edits a plan while it is still only
+   * planned; an APPROVER approves a plan, pays it through the bill pay path
+   * (`/pay`) and cancels one with its reason (`/reject`). DELETE — a plan never
+   * approved, a forecast assumption — is admin-only like every delete in this
+   * matrix (0114 had granted it to WRITE; 0115 corrected it). The minimum cash
+   * buffer is an approver's policy (`treasury_settings`).
+   */
+  treasury: { read: READ_ALL, create: WRITE, update: WRITE, approve: APPROVE, delete: ADMIN_ONLY },
+  treasury_settings: { read: READ_ALL, update: APPROVE },
+
   // Read + create only (no update/delete routes today).
   categories: { read: READ_ALL, create: WRITE },
   // payroll: the /:id/approve activation needs approver authority.

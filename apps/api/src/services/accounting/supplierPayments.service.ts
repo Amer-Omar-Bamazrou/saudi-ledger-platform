@@ -44,6 +44,11 @@ import { postJournalEntry } from "./glPosting.js";
 import { checkPeriodOpen } from "./periodLock.js";
 import { assertBankAccount } from "./bankIdentity.js";
 import { billsRepository } from "../../repositories/bills.repository.js";
+import { supplierPaymentReversedSql } from "../../repositories/paymentReversal.js";
+import {
+  decideWithholding, recordWithholding, supplierPaymentWasWithheld, whtDeclarationFrom, whtLine, whtOf,
+  supplierPaymentClassOf, liveWithholdingOfSupplierPayment, assertSinglePurpose, returnPeriodFor, type WhtDecision,
+} from "./wht.js";
 import {
   supplierOnAccountAsset, mayAllocate,
   type SupplierPaymentClassificationKind,
@@ -60,7 +65,12 @@ export const supplierPaymentsService = {
    * Pay a supplier. Allocations are optional: what is not allocated stays on
    * account, classified (`unknown` unless stated), and can be applied later.
    */
-  async create(body: Record<string, unknown>, userId: number | null) {
+  async create(
+    body: Record<string, unknown>,
+    userId: number | null,
+    /** Q1 (pack §14.1): set ONLY by the WHT correction for its corrected RE-ENTRY — never from a request. */
+    opts: { correction?: { id: number; correctionPeriod: string } } = {},
+  ) {
     /**
      * A retried request is the SAME payment, not a second one: the key is
      * looked up first and the original returned, as the customer side does.
@@ -104,6 +114,23 @@ export const supplierPaymentsService = {
     // or unclassified payment may not (see supplierCreditPolicy). The
     // remainder simply sits on its account until somebody classifies it.
 
+    // 🔴 Phase 16 (pack §2.4): a payment to a NON-RESIDENT withholds — decided
+    // before anything is written; `amount` stays what the supplier is credited
+    // with (allocated + on account), and the bank line is the cash that left.
+    // 🔴 Q2 (pack §14.2): what the money WAS is decided first — the allocated
+    // part is consideration; an on-account deposit, erroneous or unidentified
+    // payment is not judged by any nature. One payment carrying both kinds would
+    // need one base split two ways, so it is refused for a non-resident: the
+    // deposit is its own payment.
+    assertSinglePurpose({ residency: vendor!.residency, classification, amount, allocated: allocatedTotal });
+    const paymentClass = supplierPaymentClassOf(classification, amount, allocatedTotal);
+    const declared = whtDeclarationFrom(body);
+    const withholding = await decideWithholding({ vendorId, paymentDate: paidAt, base: amount, paymentClass, declared });
+    // Q1: which month's return carries it — a FILED month is never changed silently (refused before any write)
+    const reported = await returnPeriodFor(withholding, paidAt, declared.filedMonthTreatment, { today: businessToday(), correctionPeriod: opts.correction?.correctionPeriod });
+    const withheld = whtOf(withholding);
+    const cashPaid = round2(amount - withheld);
+
     const asset = supplierOnAccountAsset(classification);
     const lines = [];
     for (const a of allocations) {
@@ -122,7 +149,8 @@ export const supplierPaymentsService = {
         party: { type: "vendor" as const, vendorId },
       });
     }
-    lines.push({ bankAccountId, description: `Payment to ${vendor!.name}`, debitAmount: 0, creditAmount: amount });
+    lines.push({ bankAccountId, description: `Payment to ${vendor!.name}`, debitAmount: 0, creditAmount: cashPaid });
+    lines.push(...whtLine(withholding, `Withholding tax on payment to ${vendor!.name}`));
 
     const reference = typeof body.reference === "string" ? body.reference : null;
     const entry = await postJournalEntry({
@@ -163,8 +191,11 @@ export const supplierPaymentsService = {
         supplierPaymentId: payment!.id, classification, note: (body.classificationNote as string) ?? null, createdBy: userId,
       });
     }
+    await recordWithholding(withholding, { kind: "supplier_payment", supplierPaymentId: payment!.id }, paidAt, entry.id, userId, {
+      returnPeriod: reported.returnPeriod, filedMonthTreatment: reported.filedMonthTreatment, correctionId: opts.correction?.id ?? null,
+    });
 
-    await auditService.created("supplier_payment", payment!.id, payment);
+    await auditService.created("supplier_payment", payment!.id, { ...payment, withholding: withheld > 0 ? { amount: withheld, cashPaid } : null });
     return this.getById(payment!.id);
   },
 
@@ -176,6 +207,7 @@ export const supplierPaymentsService = {
     // 🔴 Locked: what is still on account is read, checked and spent under
     // one row lock, so two concurrent applications cannot both spend it.
     const payment = await this.findOrThrow(id, { lock: true });
+    await this.assertNotReversed(id);
     const cls = payment.classification as SupplierPaymentClassificationKind;
     if (!mayAllocate(cls)) {
       refuse(
@@ -289,6 +321,7 @@ export const supplierPaymentsService = {
 
     // Locked for the same reason as allocate: the on-account balance moves.
     const payment = await this.findOrThrow(alloc.supplierPaymentId!, { lock: true });
+    await this.assertNotReversed(payment.id);
     // The mirror cannot pre-date what it mirrors.
     const allocatedOn = alloc.journalEntryId != null ? await this.entryDate(alloc.journalEntryId) : null;
     if (allocatedOn && date < allocatedOn) refuse("date_before_allocation", `The allocation was posted on ${allocatedOn}; it cannot be reversed on an earlier date.`, "date");
@@ -317,11 +350,24 @@ export const supplierPaymentsService = {
   },
 
   /**
+   * Q1 (pack §14.1): supersede one of a payment's OWN allocations because the
+   * payment itself is reversed — by the payment's mirror entry, which already
+   * carries the AP side (no second entry). Only the WHT correction calls this;
+   * the record is the same superseding row an ordinary reversal writes, so every
+   * reader of "live allocations" (billPosition included) follows it.
+   */
+  async recordAllocationSuperseded(allocationId: number, reason: string, journalEntryId: number, userId: number | null) {
+    await db.insert(supplierPaymentAllocationReversalsTable).values({ allocationId, reason, journalEntryId, createdBy: userId });
+    await auditService.record({ action: "reverse_allocation", entityType: "supplier_payment_allocation", entityId: String(allocationId), before: null, after: { reason, journalEntryId } });
+  },
+
+  /**
    * Reclassify on-account money. When the ACCOUNT changes the balance is moved
    * by ONE entry; when it does not, nothing is posted and the row says so.
    */
-  async classify(id: number, body: { classification?: unknown; note?: unknown; effectiveDate?: unknown }, userId: number | null) {
+  async classify(id: number, body: { classification?: unknown; note?: unknown; effectiveDate?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown }, userId: number | null) {
     const payment = await this.findOrThrow(id, { lock: true });
+    await this.assertNotReversed(id);
     const next = String(body.classification ?? "") as SupplierPaymentClassificationKind;
     if (!["advance", "security_deposit", "erroneous", "unknown"].includes(next)) {
       refuse("classification_unknown", "Classify the payment as an advance, a refundable security deposit, an erroneous payment, or not yet known.", "classification");
@@ -342,6 +388,44 @@ export const supplierPaymentsService = {
     // Only what is still ON ACCOUNT can be reclassified — an amount already
     // applied to a bill has left the asset and is the bill's business now.
     const available = await this.availableOf(id);
+
+    /**
+     * 🔴 Q2 (pack §14.2): a non-resident's payment carries a WHT determination,
+     * and it follows what the money IS. Decided before anything is written:
+     *   · tax WITHHELD as consideration stays with the payment — reclassifying
+     *     the money on account as a deposit, an error or unidentified would
+     *     leave that tax on the return for money that was not consideration,
+     *     so it is corrected instead (reverse and re-enter, §14.1);
+     *   · a PENDING or NOT-SUBJECT record is SUPERSEDED by the new class's
+     *     determination — the old record stays beside it (the lineage);
+     *   · money paid with nothing withheld and identified LATER as taxable
+     *     consideration is refused by name: who bears that tax (recovered from
+     *     the supplier, or borne and grossed up) is open question W-16.
+     */
+    let whtNext: WhtDecision | null = null;
+    let whtSupersedes: number | null = null;
+    const live = next !== current ? await liveWithholdingOfSupplierPayment(id) : null;
+    if (live) {
+      if (live.status === "withheld") {
+        if (available > 0.005 && next !== "advance") {
+          refuse("wht_reclassify_withheld",
+            "Tax was withheld from this payment when it was paid, as consideration for a supply. Reclassifying the money still on account as a deposit, an erroneous or an unidentified payment would leave that withholding on the return for money that was not consideration. Correct the payment instead: on the Withholding tax page, reverse it and re-enter it as what it was, for the cash the supplier actually received.",
+            "classification", 409);
+        }
+      } else {
+        const nextClass = supplierPaymentClassOf(next, Number(payment.amount), await this.inEntryAllocatedOf(payment));
+        if (nextClass !== live.payment_class) {
+          const d = await decideWithholding({ vendorId: payment.vendorId, paymentDate: payment.paidAt, base: Number(payment.amount), paymentClass: nextClass, declared: whtDeclarationFrom(body as Record<string, unknown>) });
+          if (d.kind === "withheld") {
+            refuse("wht_late_withholding_open",
+              `This payment was made with nothing withheld (it was recorded as ${live.status === "pending" ? "not yet identified" : live.not_subject_reason === "refundable_deposit" ? "a refundable deposit" : live.not_subject_reason === "erroneous_payment" ? "an erroneous payment" : "not subject"}). As an advance for ${d.paymentType}, ${whtOf(d).toFixed(2)} would have been withheld at ${(Number(d.rate) * 100).toFixed(2)} % — tax the payer is liable for (Income Tax Law Art. 68(C)). Whether it is recovered from the supplier or borne by the payer (grossed up) is open question W-16 for your adviser, so a reclassification never records it. Nothing was changed. If the supply is goods, or its income has no source in the Kingdom, declare that instead.`,
+              "whtPaymentType", 409);
+          }
+          if (d.kind === "not_subject" || d.kind === "pending") { whtNext = d; whtSupersedes = live.id; }
+          // resident / undeclared: the residency changed since the payment (W-15) — its record is left as it was decided
+        }
+      }
+    }
     let entryId: number | null = null;
     let effectiveDate: string | null = null;
 
@@ -367,13 +451,25 @@ export const supplierPaymentsService = {
       effectiveDate, journalEntryId: entryId, createdBy: userId,
     });
     await db.update(supplierPaymentsTable).set({ classification: next }).where(eq(supplierPaymentsTable.id, id));
-    await auditService.record({ action: "classify", entityType: "supplier_payment", entityId: String(id), before: { classification: current }, after: { classification: next, journalEntryId: entryId } });
+    // after the classification moved: the database derives the class it admits from it (0116)
+    const superseding = whtNext
+      ? await recordWithholding(whtNext, { kind: "supplier_payment", supplierPaymentId: id }, payment.paidAt, payment.journalEntryId, userId, { supersedesWithholdingId: whtSupersedes })
+      : null;
+    await auditService.record({ action: "classify", entityType: "supplier_payment", entityId: String(id), before: { classification: current }, after: { classification: next, journalEntryId: entryId, withholding: superseding ? { id: superseding.id, supersedes: whtSupersedes, status: superseding.status, reason: superseding.notSubjectReason } : null } });
     return this.getById(id);
   },
 
   /** Money coming back from the supplier: the asset falls, the bank rises. */
   async refund(id: number, body: { amount?: unknown; bankAccountId?: unknown; refundedAt?: unknown; reason?: unknown }, userId: number | null) {
     const payment = await this.findOrThrow(id, { lock: true });
+    await this.assertNotReversed(id);
+    // 🔴 Phase 16 (pack §2.4, open W-12): the supplier returns what it RECEIVED;
+    // the part withheld was paid to ZATCA and is a claim on ZATCA, not on the
+    // supplier. Booking a refund here would leave that part sitting on the
+    // supplier's account as an advance it never held — refused by name.
+    if (await supplierPaymentWasWithheld(id)) {
+      refuse("wht_refund_unsupported", "Tax was withheld from this payment, so part of it went to ZATCA, not the supplier. A refund of it is not recorded here until the recovery of the withheld tax is decided (open question W-12) — record it with your adviser.", undefined, 409);
+    }
     // Z-AP1: money the supplier has invoiced (its VAT claimed) comes back only
     // after their credit note against that advance invoice reverses the claim.
     const available = await this.uninvoicedOf(id);
@@ -418,6 +514,16 @@ export const supplierPaymentsService = {
    * transaction — every act that spends or moves what is still on account
    * (allocate, reverse, reclassify, refund) takes it, so they serialise.
    */
+  /**
+   * Q1 (pack §14.1): a payment a WHT correction reversed is history — nothing
+   * on it is allocated, reclassified or refunded again. Refused by name, with
+   * the correction that answers it.
+   */
+  async assertNotReversed(id: number) {
+    const { rows } = await db.execute<{ id: number; corrected_on: string }>(sql`SELECT id, corrected_on::text FROM wht_corrections WHERE supplier_payment_id = ${id} LIMIT 1`);
+    if (rows[0]) refuse("supplier_payment_reversed", `This payment was reversed on ${rows[0].corrected_on} by WHT correction #${rows[0].id}; it is history. Act on its corrected re-entry instead.`, undefined, 409);
+  },
+
   async findOrThrow(id: number, opts: { lock?: boolean } = {}): Promise<SupplierPayment> {
     const q = db.select().from(supplierPaymentsTable).where(eq(supplierPaymentsTable.id, id)).limit(1);
     const [row] = opts.lock ? await q.for("update") : await q;
@@ -441,9 +547,23 @@ export const supplierPaymentsService = {
               - coalesce((SELECT sum(a.amount) FROM supplier_payment_allocations a
                            WHERE a.supplier_payment_id = p.id
                              AND NOT EXISTS (SELECT 1 FROM supplier_payment_allocation_reversals r WHERE r.allocation_id = a.id)), 0)
-              - coalesce((SELECT sum(f.amount) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0))::text v
+              - coalesce((SELECT sum(f.amount) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0)
+              -- Q1: a payment a WHT correction reversed holds nothing on account
+              - CASE WHEN ${supplierPaymentReversedSql("p")} THEN p.amount ELSE 0 END)::text v
          FROM supplier_payments p WHERE p.id = ${id}`).then((r) => r.rows);
     return round2(Number(row?.v ?? 0));
+  },
+
+  /**
+   * Q2: what the payment's OWN entry allocated to bills (live or not — the
+   * entry did it). With the amount, it decides the payment's class for WHT
+   * exactly as the database's admit derives it (0116).
+   */
+  async inEntryAllocatedOf(payment: Pick<SupplierPayment, "id" | "journalEntryId">): Promise<number> {
+    const { rows } = await db.execute<{ v: string }>(sql`
+      SELECT coalesce(sum(a.amount), 0)::text v FROM supplier_payment_allocations a
+       WHERE a.supplier_payment_id = ${payment.id} AND a.journal_entry_id = ${payment.journalEntryId}`);
+    return round2(Number(rows[0]?.v ?? 0));
   },
 
   /** Z-AP1: what is on account AND not invoiced by the supplier — the only part a plain allocation or refund may spend. */
@@ -470,6 +590,7 @@ export const supplierPaymentsService = {
       classification: payment.classification, source: payment.source,
       journalEntryId: payment.journalEntryId,
       availableAmount: await this.availableOf(id),
+      reversal: (await this.reversalsOf([id])).get(id) ?? null,
       // Z-AP1: the supplier's advance invoices against this payment, and what they leave.
       ...(await (async () => {
         const { supplierAdvanceInvoicesService } = await import("./supplierAdvanceInvoices.service.js");
@@ -505,15 +626,28 @@ export const supplierPaymentsService = {
       ))
       .orderBy(supplierPaymentsTable.id);
     const out = [];
+    const reversals = await this.reversalsOf(rows.map((r) => r.id));
     for (const r of rows) {
       out.push({
         id: r.id, vendorId: r.vendorId, amount: Number(r.amount), paidAt: r.paidAt,
         reference: r.reference, classification: r.classification, source: r.source,
         availableAmount: await this.availableOf(r.id),
         journalEntryId: r.journalEntryId,
+        reversal: reversals.get(r.id) ?? null,
       });
     }
     return { items: out };
+  },
+
+  /** Q1 (pack §14.1): the WHT corrections that reversed these payments — one read for a list. */
+  async reversalsOf(ids: number[]) {
+    const out = new Map<number, { correctionId: number; correctedOn: string; reason: string; reversalJournalEntryId: number }>();
+    if (ids.length === 0) return out;
+    const { rows } = await db.execute<{ supplier_payment_id: number; id: number; corrected_on: string; reason: string; reversal_journal_entry_id: number }>(sql`
+      SELECT supplier_payment_id, id, corrected_on::text, reason, reversal_journal_entry_id FROM wht_corrections
+       WHERE supplier_payment_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`);
+    for (const r of rows) out.set(Number(r.supplier_payment_id), { correctionId: r.id, correctedOn: r.corrected_on, reason: r.reason, reversalJournalEntryId: r.reversal_journal_entry_id });
+    return out;
   },
 
   // ── internals ────────────────────────────────────────────────────────────

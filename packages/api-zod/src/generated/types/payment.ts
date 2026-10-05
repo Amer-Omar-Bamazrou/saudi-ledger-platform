@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { PaymentReversalRef } from './paymentReversalRef';
 
 export interface Payment {
   /** The allocation id (D-4 rows) or the legacy invoice_payments row id — two id spaces; key a list on `${paymentId ?? 'legacy'}-${id}`. */
@@ -18,4 +19,18 @@ export interface Payment {
      * @nullable
      */
   paymentId: number | null;
+  /**
+     * Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded).
+     * @nullable
+     */
+  withheld?: number | null;
+  /**
+     * Bill payments: the cash that left the bank (amount − withheld).
+     * @nullable
+     */
+  cashPaid?: number | null;
+  /** @nullable */
+  whtPaymentType?: string | null;
+  /** Q1 (pack §14.1): a bill payment a WHT correction reversed — kept in the history, marked; absent/null otherwise. */
+  reversal?: PaymentReversalRef | null;
 }

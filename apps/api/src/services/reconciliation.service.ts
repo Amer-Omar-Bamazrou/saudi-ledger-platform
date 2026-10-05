@@ -12,7 +12,7 @@
  *
  *  2. SETTLE (`settle`) — the human's acceptance. ONE act: the row leaves the
  *     holding area AND the payment is recorded — through the EXISTING pay path
- *     (`invoicesService.pay` / `billsService.pay`), which posts Dr Cash/Cr AR
+ *     (`invoicesService.pay` / `payBill`), which posts Dr Cash/Cr AR
  *     (or Dr AP/Cr Cash) through M13's chart. No parallel posting path: this
  *     service never touches the GL itself. The transaction becomes
  *     `kind: settlement` — excluded from income/expense/VAT/Zakat/budget
@@ -24,15 +24,16 @@
  * either way (open document, amount within outstanding — enforced in the pay
  * path, shared with every other payment).
  */
-import { BadRequestError, BankAccountRequiredError, ConflictError, NotFoundError } from "../lib/errors";
+import { BadRequestError, BankAccountRequiredError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { auditService } from "./audit.service";
-import { billsService } from "./bills.service";
 import { invoicesService } from "./invoices.service";
 import { billsRepository } from "../repositories/bills.repository";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { transactionsRepository } from "../repositories/transactions.repository";
 import type { transactionsTable } from "@workspace/db";
-import { round2 } from "../lib/money";
+import { fromHalalas, round2, toHalalas } from "../lib/money";
+import { payBill } from "./bills.payment";
+import { baseForCash, decideWithholding } from "./accounting/wht";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { bankReconciliationService } from "./accounting/bankReconciliation.service";
 import { bankReconciliationRepository } from "../repositories/bankReconciliation.repository";
@@ -225,7 +226,36 @@ export const reconciliationService = {
       if (tx.type !== "debit") {
         throw new BadRequestError("Only a debit (money out) can pay a vendor bill.");
       }
-      await billsService.pay(billId!, { amount, paidAt: tx.date, bankAccountId: tx.bankAccountId }, userId);
+      // 🔴 WHT-1 (final audit 2026-10-05): the statement line is the CASH that left the bank. Where the canonical
+      // decision withholds (a non-resident supplier's consideration), the bill is settled by the GROSS whose cash is
+      // this line — the pay path's own arithmetic, inverted (wht.ts `baseForCash`) — never by the cash itself, which
+      // understated what was settled, the tax and the bank movement all three. No second engine: the decision and the
+      // rounding are the pay path's; the pay path re-decides on the gross, and the cash it moves must equal the line.
+      const [billRow] = await billsRepository.findById(billId!);
+      if (!billRow) throw new NotFoundError("Bill not found");
+      let gross = amount;
+      const decision = await decideWithholding({ vendorId: billRow.vendorId, paymentDate: tx.date, base: amount, currency: billRow.currency, paymentClass: "bill_payment", declared: {} });
+      if (decision.kind === "withheld") {
+        const outstandingH = toHalalas(await billsRepository.outstandingOf(billId!));
+        const baseH = baseForCash(toHalalas(amount), decision.rate, outstandingH);
+        if (baseH == null) {
+          throw new BusinessRuleError(422, {
+            code: "settlement_wht_gross_ambiguous",
+            error: `Statement line ${tx.id} paid ${amount.toFixed(2)}, net of withholding tax at ${(Number(decision.rate) * 100).toFixed(2)} %; two gross amounts a halala apart give that cash. Pay the bill from its pay dialog (the withholding is shown there), then reconcile this line to that payment.`,
+            field: "billId",
+          });
+        }
+        gross = fromHalalas(baseH!);
+      }
+      const paid = await payBill(billId!, { amount: gross, paidAt: tx.date, bankAccountId: tx.bankAccountId }, userId);
+      if (toHalalas(paid.cashPaid) !== toHalalas(amount)) {
+        // the invariant this path exists for: the books move exactly the cash the bank moved — or nothing is written
+        throw new BusinessRuleError(409, {
+          code: "settlement_cash_mismatch",
+          error: `Settling bill ${billRow.billNumber ?? billId} from statement line ${tx.id} would move ${paid.cashPaid.toFixed(2)} of cash for a line of ${amount.toFixed(2)}. Nothing was recorded — pay the bill from its pay dialog, then reconcile the line to that payment.`,
+          field: "billId",
+        });
+      }
     }
 
     // The row itself: accepted out of the holding area, classified as a

@@ -81,9 +81,7 @@ describeMaybe("Z-AP1 — supplier advance tax invoice: claimed once (real rows)"
       WHERE e.organization_id = $1 AND c.system_code = $2 AND e.status IN ('posted','reversed')`, [orgId, code])).rows[0].v);
   /** The return's purchase side for one month. */
   const purchases = async (month: string) => {
-    const [y, m] = month.split("-").map(Number);
-    const last = new Date(Date.UTC(y!, m!, 0)).getUTCDate();
-    const r = await inTenant(() => reportsService.vatReturn(`${month}-01`, `${month}-${String(last).padStart(2, "0")}`));
+    const r = await inTenant(() => reportsService.vatReturn(month, month));
     return { base: Number(r.purchasesSection.box9_standardRatedPurchases), vat: Number(r.purchasesSection.box13_recoverableInputVat) };
   };
   const pay = (amount: number, paidAt: string) =>

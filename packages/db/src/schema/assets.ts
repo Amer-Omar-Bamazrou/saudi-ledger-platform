@@ -26,7 +26,7 @@
  * tenant_isolation with the N1 company arm) and none is ever hard-deleted
  * once an asset has entered the books (Art. 66 retention).
  */
-import { pgTable, serial, text, timestamp, integer, numeric, uuid, index, jsonb, date, unique, boolean, smallint } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric, uuid, index, jsonb, date, unique, boolean, smallint, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { categoriesTable } from "./categories";
 import { organizationsTable } from "./organizations";
@@ -47,7 +47,15 @@ const tenantColumns = {
 
 export const DEPRECIATION_METHODS = ["straight_line", "declining_balance", "units_of_production"] as const;
 export type DepreciationMethod = (typeof DEPRECIATION_METHODS)[number];
-export const ASSET_STATUSES = ["draft", "in_service", "disposed", "cancelled"] as const;
+/**
+ * `reversed` (accountant Q3, 2026-10-05; decision pack phase-16-17 §14.3): a
+ * MIGRATED asset whose migration batch was reversed — it never existed in these
+ * books. Out of the register, out of every depreciation run (the database
+ * refuses to post its schedule), its posted depreciation mirrored, its row kept
+ * with the batch and the reversal as provenance. Terminal, like `disposed`, but
+ * NOT a disposal: no proceeds, no gain or loss.
+ */
+export const ASSET_STATUSES = ["draft", "in_service", "disposed", "cancelled", "reversed"] as const;
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
 export const ASSET_SOURCES = ["manual", "bill", "transaction", "migration"] as const;
 export type AssetSource = (typeof ASSET_SOURCES)[number];
@@ -132,6 +140,11 @@ export const fixedAssetsTable = pgTable(
     transactionId: integer("transaction_id"),
     migrationBatchId: integer("migration_batch_id"),
     sourceReference: text("source_reference"),
+    /** Q3 (§14.3): the batch reversal that took a migrated asset out of the books — set once, by that batch only (the 0118 trigger). */
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedByMigrationBatchId: integer("reversed_by_migration_batch_id"),
+    /** Q3: a REPLACEMENT batch's asset points back at the reversed asset it replaces (matched by source id) — the lineage. */
+    replacesAssetId: integer("replaces_asset_id").references((): AnyPgColumn => fixedAssetsTable.id, { onDelete: "restrict" }),
     // ── state ──
     status: text("status").notNull().default("draft"),
     capitalisationJournalEntryId: integer("capitalisation_journal_entry_id").references(() => journalEntriesTable.id, { onDelete: "restrict" }),

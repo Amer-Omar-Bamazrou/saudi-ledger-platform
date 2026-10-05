@@ -12,4 +12,6 @@ export type ApprovalPendingRowStatus = typeof ApprovalPendingRowStatus[keyof typ
 export const ApprovalPendingRowStatus = {
   draft: 'draft',
   submitted: 'submitted',
+  pending: 'pending',
+  planned: 'planned',
 } as const;

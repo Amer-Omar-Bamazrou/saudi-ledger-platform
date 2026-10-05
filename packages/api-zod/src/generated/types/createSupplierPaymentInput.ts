@@ -5,6 +5,8 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateSupplierPaymentInputWhtFiledMonthTreatment } from './createSupplierPaymentInputWhtFiledMonthTreatment';
+import type { CreateSupplierPaymentInputWhtNotSubjectReason } from './createSupplierPaymentInputWhtNotSubjectReason';
 import type { SupplierPaymentAllocationInput } from './supplierPaymentAllocationInput';
 import type { SupplierPaymentClassification } from './supplierPaymentClassification';
 
@@ -22,4 +24,21 @@ export interface CreateSupplierPaymentInput {
   /** A retried request with the same key returns the ORIGINAL payment rather than paying twice. */
   idempotencyKey?: string | null;
   allocations?: SupplierPaymentAllocationInput[];
+  /**
+     * Phase 16: a payment to a NON-RESIDENT states its nature (or the supplier's declared default applies) — never assumed.
+     * @nullable
+     */
+  whtPaymentType?: string | null;
+  /** @nullable */
+  whtNotSubjectReason?: CreateSupplierPaymentInputWhtNotSubjectReason;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  whtNotSubjectNote?: string | null;
+  /**
+     * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+     * @nullable
+     */
+  whtFiledMonthTreatment?: CreateSupplierPaymentInputWhtFiledMonthTreatment;
 }

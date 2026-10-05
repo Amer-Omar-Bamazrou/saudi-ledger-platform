@@ -35,8 +35,14 @@ export function PaymentHistory({ entity, id }: { entity: "invoices" | "bills"; i
                   · {t("aggregate of earlier payments (dates not recorded)", "إجمالي دفعات سابقة (التواريخ غير مسجلة)")}
                 </span>
               )}
+              {/* Q1 (pack §14.1): a payment a WHT correction reversed stays in the history — marked, never removed */}
+              {p.reversal && (
+                <span className="ms-1" data-testid={`payment-reversed-${p.id}`}>
+                  · {t("reversed by a WHT correction", "معكوسة بتصحيح ضريبة الاستقطاع")}
+                </span>
+              )}
             </span>
-            <span className="font-mono">{fmtNum(p.amount)}</span>
+            <span className={`font-mono ${p.reversal ? "line-through" : ""}`}>{fmtNum(p.amount)}</span>
           </div>
         ))}
       </div>

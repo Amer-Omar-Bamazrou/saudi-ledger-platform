@@ -227,11 +227,18 @@ describeMaybe("Batch 1C — the migration API over HTTP: roles and the generated
     expect(GetMigrationReversalPreviewResponse.parse(preview.body).blockers).toEqual([]);
     expect((await api("POST", `/migration/batches/${id}/reverse`, { reason: "accountant cannot reverse" })).status).toBe(403);
     await loginAs("admin");
+    // Q3 (pack phase-16-17 §14.3): a batch is reversed WHOLE. A request naming a scope is refused BY NAME, read off the
+    // raw body (the contract would strip the field and silently reverse everything) — and nothing moved: the preview
+    // still answers, which it does only for a committed batch.
+    const partial = await api("POST", `/migration/batches/${id}/reverse`, { reason: "withdraw only one of the assets", assetIds: [1] });
+    expect(partial.status).toBe(422);
+    expect((partial.body as { code?: string }).code).toBe("migration_partial_reversal_unsupported");
+    expect((await api("GET", `/migration/batches/${id}/reversal-preview`)).status).toBe(200);
     const reversed = await api("POST", `/migration/batches/${id}/reverse`, { reason: "walked over HTTP; withdrawing the opening position" });
     expect(reversed.status, JSON.stringify(reversed.body)).toBe(200);
     const r = ReverseMigrationBatchResponse.parse(reversed.body);
     expect(r.status).toBe("reversed");
-    expect(r.reversed).toEqual({ invoices: 1, bills: 0, deposits: 1 }); // Policy C: marked, not removed
+    expect(r.reversed).toEqual({ invoices: 1, bills: 0, deposits: 1, assets: 0, depreciationEntries: 0 }); // Policy C: marked, not removed
     expect(r).not.toHaveProperty("removed");
     // The reversed opening invoice still exists, reads as reversed, and is out of the live list.
     const listAfter = ListInvoicesResponse.parse((await api("GET", "/invoices")).body);

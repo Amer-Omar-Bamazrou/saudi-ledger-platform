@@ -7,7 +7,12 @@
  */
 
 /**
- * Matches the URL segment its actions post to (`/{entity}/{id}/approve` …).
+ * The four documents match the URL segment their actions post to
+ * (`/{entity}/{id}/approve` …). Phase 16/17 (QA-15): a SUBMITTED tax
+ * computation version (`/tax/computations/{parentId}/versions/{id}/…`),
+ * a PENDING treaty relief (`/tax/wht/reliefs/{id}/…`) and a PLANNED
+ * payment plan (`/treasury/payment-plans/{id}/…`) — each acted on
+ * through its own route and permission.
  */
 export type ApprovalPendingRowEntity = typeof ApprovalPendingRowEntity[keyof typeof ApprovalPendingRowEntity];
 
@@ -17,4 +22,7 @@ export const ApprovalPendingRowEntity = {
   bills: 'bills',
   'journal-entries': 'journal-entries',
   payroll: 'payroll',
+  'tax-computations': 'tax-computations',
+  'wht-reliefs': 'wht-reliefs',
+  'payment-plans': 'payment-plans',
 } as const;

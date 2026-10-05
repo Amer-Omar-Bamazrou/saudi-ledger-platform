@@ -32,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Scale, Info, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { articleRef, poolLimitLabel } from "@/lib/taxLabels";
 import { Link } from "wouter";
 import type { IncomeTaxPoolReport, IncomeTaxPoolGroupYear, IncomeTaxPoolDeclaration } from "@workspace/api-client-react";
 
@@ -149,7 +150,7 @@ export default function IncomeTaxPool() {
           </p>
           <ul className="space-y-1 text-xs">
             {data.frameLimits.map((f) => (
-              <li key={f.article} className="flex gap-2"><span className="font-mono shrink-0" dir="ltr">{f.article}</span><span className="text-muted-foreground">{f.limit}</span></li>
+              <li key={f.article} className="flex gap-2"><span className="font-mono shrink-0" dir={lang === "ar" ? undefined : "ltr"} title={f.article}>{articleRef(f.article, lang)}</span><span className="text-muted-foreground">{poolLimitLabel(f.article, f.limit, lang)}</span></li>
             ))}
           </ul>
         </CardContent>

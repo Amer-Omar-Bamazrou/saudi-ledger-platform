@@ -71,15 +71,7 @@ export const BLOCKERS = {
       "نفس تسجيل المنشأة. التوقيع مع مزوّد مرخَّص من ساما يتطلب سجلًا تجاريًا — المحادثات مفيدة بدونه، أما التوقيع فلا.",
     ownerAction: true,
   },
-  advisorBlockC: {
-    name: "Advisor Block C — the Zakat base computation",
-    nameAr: "الكتلة C لدى المستشار — احتساب وعاء الزكاة",
-    clearedBy:
-      "An accountant answering the tax-content questions. The MECHANISM is decided; the tax content has never been checked against the Zakat Collection Regulations.",
-    clearedByAr:
-      "إجابة محاسب معتمد على أسئلة المحتوى الضريبي. الآلية محسومة؛ أما المحتوى الضريبي فلم يُراجع مقابل لائحة جباية الزكاة.",
-    ownerAction: true,
-  },
+
   advisorBlockE: {
     name: "Advisor Block E — the chart-of-accounts restructure",
     nameAr: "الكتلة E لدى المستشار — إعادة هيكلة دليل الحسابات",
@@ -338,56 +330,11 @@ export const COMING_SOON: readonly ComingSoonEntry[] = [
     capabilityLiveAr:
       "🔴 بناء المستندات مكتمل ومتحقَّق منه مقابل البيئة التجريبية الحيّة للهيئة. ما لم يحدث قط، في أي بيئة، هو الإرسال عبر المسار الفعلي.",
   },
-  {
-    slug: "zakat-calculation",
-    title: "Zakat calculation",
-    titleAr: "احتساب الزكاة",
-    summary: "The Zakat working paper: the base, the adjustments, and the amount due.",
-    summaryAr: "ورقة عمل الزكاة: الوعاء، والتسويات، والمبلغ المستحق.",
-    blocker: "advisorBlockC",
-    whenCleared: "🔴 Ask the minimum-base question FIRST — it is the only one that changes architecture rather than arithmetic. If a rule ties the base to adjusted net profit, the income statement becomes a computed INPUT with its own adjustments and audit trail.",
-    whenClearedAr: "🔴 يُطرح سؤال الحد الأدنى للوعاء أولًا — فهو الوحيد الذي يغيّر البنية لا الحساب. فإن ربطت القاعدةُ الوعاءَ بصافي الربح المعدَّل، تصبح قائمة الدخل مُدخلًا محسوبًا له تسوياته وسجل تدقيقه.",
-  },
-  {
-    slug: "zakat-base",
-    title: "Zakat base",
-    titleAr: "وعاء الزكاة",
-    summary: "What counts toward the base, what is deducted, and why each line is treated as it is.",
-    summaryAr: "ما يدخل في الوعاء، وما يُخصم منه، وسبب معالجة كل بند على نحوه.",
-    blocker: "advisorBlockC",
-    whenCleared: "Open with the advisor: exact base composition and qualifying provisions, the Gregorian divisor (354 vs 354.367) and rounding, and whether nisab has any role in corporate Zakat.",
-    whenClearedAr: "مفتوح مع المستشار: تركيب الوعاء بدقة والمخصصات المؤهلة، والمقسوم الميلادي والتقريب، ودور النصاب في زكاة الشركات إن وُجد.",
-  },
-  {
-    slug: "zakat-reports",
-    title: "Zakat reports",
-    titleAr: "تقارير الزكاة",
-    summary: "The Zakat position over time, and the filing history.",
-    summaryAr: "مركز الزكاة عبر الزمن، وسجل الإقرارات.",
-    blocker: "advisorBlockC",
-    whenCleared: "Follows the calculation — a report on a figure nobody has verified would spread an unverified number, not explain it.",
-    whenClearedAr: "يأتي بعد الاحتساب — تقرير عن رقم غير متحقَّق منه ينشر الخطأ ولا يشرحه.",
-  },
-  {
-    slug: "zakat-settings",
-    title: "Zakat settings",
-    titleAr: "إعدادات الزكاة",
-    summary: "The fiscal basis, the ownership declaration, and the treatment choices the calculation depends on.",
-    summaryAr: "الأساس المالي، وإقرار الملكية، وخيارات المعالجة التي يعتمد عليها الاحتساب.",
-    blocker: "advisorBlockC",
-    whenCleared: "Also open: whether declining mixed or foreign ownership is the right posture for a first version.",
-    whenClearedAr: "ومفتوح أيضًا: هل رفض الملكية المختلطة أو الأجنبية هو الموقف الصحيح للإصدار الأول.",
-  },
-  {
-    slug: "withholding-tax",
-    title: "Withholding tax",
-    titleAr: "ضريبة الاستقطاع",
-    summary: "Withholding on payments to non-residents: the rates, the amounts withheld, and the return.",
-    summaryAr: "الاستقطاع على المدفوعات لغير المقيمين: النسب، والمبالغ المستقطعة، والإقرار.",
-    blocker: "build",
-    whenCleared: "Zero code today. 🔴 Scope the tax content with the advisor before building — the same mistake as Zakat is available here for free.",
-    whenClearedAr: "لا توجد شيفرة اليوم. 🔴 يُحدَّد المحتوى الضريبي مع المستشار قبل البناء — الخطأ نفسه الذي وقع في الزكاة متاح هنا بلا عناء.",
-  },
+
+
+
+
+
 
   // ── REPORTS ──────────────────────────────────────────────────────────────
   {

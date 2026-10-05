@@ -17,15 +17,29 @@ import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 
 import type { CreateVendorInput, PartyTotals, VendorWithBalance } from "@workspace/api-client-react";
+import { whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
 
 
 /**
  * B8 (2026-09-22): `residency` starts as `unknown` and STAYS there unless
  * somebody says otherwise. It is a fact about the supplier, and "resident" is
  * the answer that withholds nothing — so it must never be the silent default.
- * Nothing in the platform withholds on it yet; see the schema's note.
+ * Phase 16: a payment to a NON-resident withholds at the pay paths, at the rate
+ * of the payment's declared nature (`whtDefaultPaymentType` is the supplier's
+ * declared default, changeable on each payment). `country` starts as "SA" —
+ * the column's own default, which this form used to apply invisibly — shown so
+ * it can be changed.
  */
-const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", iban: "", paymentTermsDays: "30", residency: "unknown" as "unknown" | "resident" | "non_resident" };
+const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", iban: "", paymentTermsDays: "30", residency: "unknown" as "unknown" | "resident" | "non_resident", country: "SA", whtDefaultPaymentType: "", foreignTaxId: "" };
+
+/** A blank optional field is an ABSENCE — sent as null, never "" (the rule `e2e/form-optional-blank.spec.ts` guards). */
+const orNull = (s: string) => (s.trim() === "" ? null : s);
+const createBody = (f: typeof emptyForm): CreateVendorInput => ({
+  name: f.name,
+  nameAr: orNull(f.nameAr), taxNumber: orNull(f.taxNumber), crNumber: orNull(f.crNumber), phone: orNull(f.phone), email: orNull(f.email),
+  address: orNull(f.address), city: orNull(f.city), iban: orNull(f.iban), paymentTermsDays: orNull(f.paymentTermsDays),
+  residency: f.residency, country: orNull(f.country), whtDefaultPaymentType: orNull(f.whtDefaultPaymentType), foreignTaxId: orNull(f.foreignTaxId),
+});
 
 export default function Vendors() {
   const [search, setSearch] = useState("");
@@ -69,7 +83,7 @@ export default function Vendors() {
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Vendor", "مورد جديد")}</Button></DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{t("New Vendor", "مورد جديد")}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 mt-2">
               {[[("name"),(t("Vendor Name *", "اسم المورد *"))],[("nameAr"),("اسم المورد")],[("taxNumber"),(t("VAT Number", "رقم ضريبة القيمة المضافة"))],[("crNumber"),(t("CR Number", "رقم السجل التجاري"))],[("phone"),(t("Phone", "الهاتف"))],[("email"),("Email")],[("address"),(t("Address", "العنوان"))],[("city"),(t("City", "المدينة"))],[("iban"),("IBAN")],[("paymentTermsDays"),(t("Payment Terms (days)", "شروط الدفع (أيام)"))]].map(([k,l])=>(
@@ -79,22 +93,47 @@ export default function Vendors() {
                 </div>
               ))}
               <div className="col-span-2">
+                <Label className="text-xs text-muted-foreground">{t("Country", "الدولة")}</Label>
+                <Input value={form.country} onChange={e=>setForm(p=>({...p,country:e.target.value}))} className="mt-1 h-8 text-sm" dir="ltr" data-testid="vendor-country" />
+              </div>
+              <div className="col-span-2" data-testid="vendor-residency">
                 <Label className="text-xs text-muted-foreground">{t("Residency (for withholding tax)", "الإقامة (لأغراض ضريبة الاستقطاع)")}</Label>
                 <Select value={form.residency} onValueChange={(v)=>setForm(p=>({...p,residency:v as typeof p.residency}))}>
                   <SelectTrigger className="mt-1 h-8 text-sm" data-testid="vendor-residency-select"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="unknown">{t("Not stated", "غير محدد")}</SelectItem>
+                    <SelectItem value="unknown">{t("Not declared", "غير مُصرَّح")}</SelectItem>
                     <SelectItem value="resident">{t("Resident in Saudi Arabia", "مقيم في السعودية")}</SelectItem>
                     <SelectItem value="non_resident">{t("Non-resident", "غير مقيم")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  {t("Recorded only. Nothing is withheld and no rate is applied — the rate depends on what the payment is for, which is an accountant's decision.",
-                     "يُسجَّل فقط. لا يُستقطع شيء ولا تُطبَّق نسبة — فالنسبة تعتمد على طبيعة الدفعة، وهذا قرار المحاسب.")}
+                  {t("A payment to a NON-RESIDENT supplier has tax withheld from it, at the rate the regulations fix for the payment's declared nature (Income Tax Law Art. 68). \"Not declared\" withholds nothing, and each payment to the supplier is listed as a withholding-tax exception until its residency is declared. It is never assumed.",
+                     "تُستقطع الضريبة من أي دفعة لمورد غير مقيم، بالنسبة التي تحددها اللائحة لطبيعة الدفعة المُصرَّح بها (نظام ضريبة الدخل المادة 68). و«غير مُصرَّح» لا يُستقطع منه شيء، وتُدرج كل دفعة للمورد ضمن استثناءات ضريبة الاستقطاع إلى أن يُصرَّح بإقامته. ولا تُفترض أبدًا.")}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs text-muted-foreground">{t("Default nature of its payments (withholding tax)", "الطبيعة الافتراضية لمدفوعاته (ضريبة الاستقطاع)")}</Label>
+                <Select value={form.whtDefaultPaymentType || "none"} onValueChange={(v)=>setForm(p=>({...p,whtDefaultPaymentType:v==="none"?"":v}))}>
+                  <SelectTrigger className="mt-1 h-8 text-sm" data-testid="vendor-wht-default"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none" className="text-xs">{t("None — declared on each payment", "لا شيء — تُصرَّح في كل دفعة")}</SelectItem>
+                    {WHT_TYPES.map(code => <SelectItem key={code} value={code} className="text-xs">{whtTypeLabel(code, t)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {t("Used only for a non-resident supplier: preselected in the pay dialog and changeable on each payment. Without it, each payment states its nature — it is never assumed.",
+                     "تُستخدم لمورد غير مقيم فقط: تُختار مسبقًا في نافذة الدفع ويمكن تغييرها في كل دفعة. ومن دونها تذكر كل دفعة طبيعتها — فلا تُفترض أبدًا.")}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs text-muted-foreground">{t("Registration number in its country", "رقم التسجيل في بلده")}</Label>
+                <Input value={form.foreignTaxId} onChange={e=>setForm(p=>({...p,foreignTaxId:e.target.value}))} className="mt-1 h-8 text-sm font-mono" dir="ltr" data-testid="vendor-foreign-tax-id" />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {t("Reported on the annual withholding-tax return (Income Tax Law Art. 68(B)(3)).", "يُذكر في الإقرار السنوي لضريبة الاستقطاع (نظام ضريبة الدخل المادة 68(ب)(3)).")}
                 </p>
               </div>
             </div>
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate(form)} disabled={!form.name || createMut.isPending}>
+            <Button className="w-full mt-4" onClick={()=>createMut.mutate(createBody(form))} disabled={!form.name || createMut.isPending}>
               {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Vendor", "إنشاء مورد")}
             </Button>
           </DialogContent>

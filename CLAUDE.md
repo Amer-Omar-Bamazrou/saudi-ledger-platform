@@ -54,7 +54,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-10-01.** Full as-built narrative for everything below:
+**Last updated: 2026-10-05.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED**; A4/A5 as invariants (§4); follow-ups built ([`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17). Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
@@ -62,9 +62,10 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
 **2026-10-01** — 🔴 **PHASES 14+15 BUILT** (`docs/product/phase-14-15-*` pack).
+**2026-10-05** — 🔴 **PHASES 16+17 BUILT; Q1–Q3 + FINAL AUDIT FIXES; PR OPEN** ([`pack`](docs/product/phase-16-17-tax-treasury-decision-pack.md) §12–§15).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
-**2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
+**2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -74,7 +75,7 @@ When in doubt, favor evolving the existing system over replacing it.
 | **Phase 1** — onboarding & multi-company (M11) | ✅ Complete | [`phase-1`](docs/history/phase-1-onboarding-m11.md) |
 | **Phase 2** — ZATCA / Fatoora (M12) | 🟡 Closed except M12.7 + M12.9 — blocked on a real Saudi taxpayer registration | [`phase-2`](docs/history/phase-2-zatca-m12.md), [`m12-status`](docs/zatca/m12-status.md) |
 | **M13–M16** — chart of accounts, ingestion repair, VAT source switch, transfers, bank reconciliation | ✅ Complete | [`design-transaction-accounting`](docs/product/design-transaction-accounting.md) |
-| **M17** — Zakat scope + fiscal calendar | 🟡 M17.0–M17.2 built; **M17.3/M17.4 HELD on C10** (the tax content is unverified) | [`design-zakat-module`](docs/product/design-zakat-module.md) |
+| **M17** — Zakat scope + fiscal calendar | ✅ Built in Phase 16 (C10 read; Z-1…Z-8 open) | [`design-zakat-module`](docs/product/design-zakat-module.md) |
 | **M19.6 / M19.7 → A** — receivables bridge, the GL owns cash | ✅ Complete | [`design-analytics`](docs/product/design-analytics.md) §6.1 |
 | **M20** — fiscal periods in reports (F1–F13, F3-dual, F7-cmp) | ✅ Complete | [`design-fiscal-periods`](docs/product/design-fiscal-periods.md) §8 |
 | **M21** — quotations & purchase orders (M21.1–M21.3) | ✅ Complete | [`design-quotations-purchase-orders`](docs/product/design-quotations-purchase-orders.md) |
@@ -435,7 +436,7 @@ doing the thing it governs rather than only once you know its name.
   `tests/bill-position-reader-sweep.test.ts`). Posted rows are append-only AT THE DATABASE.
 - **🔴 A PURCHASE-SIDE NOTE IS THE SUPPLIER’S DOCUMENT (B7)** — no ICV, QR, chain or outbox; a `bills` row
   posted mirrored by `documentSign()` on the SUPPLIER’S issue date (Art. 40(6)). Applying it posts NOTHING.
-- **🔴 WHT (B8) is a residency fact only** — no rate is applied and nothing withholds.
+- **🔴 `WHT_PAYABLE` has three writers (Phase 16, Q1)** — a withholding, a remittance, a correction's mirror; any other line refused at COMMIT.
 - **🔴 A COMMITTED MIGRATION'S ACCOUNTING ROWS ARE NEVER DELETED (Batch 1C,
   accountant A4/A5, 2026-09-20).** A reversal mirrors the opening journal and
   MARKS the opening invoices/bills/deposits reversed (columns + trigger, never
@@ -517,7 +518,6 @@ which holds every closed item with its full reasoning.
 
 **Every remaining path runs through a door the OWNER holds**: entity ·
 advisor · mail provider · R1 design · deployment + Groq.
-🔴 **Withholding tax (LEGAL exposure) awaits the OWNER'S RANKING** — costed in [`erpnext-comparison-2026-09-03.md`](docs/history/erpnext-comparison-2026-09-03.md).
 **Fixed assets BUILT** ([`pack`](docs/product/fixed-assets-decision-pack.md)); the VAT-return wiring remains and needs the accountant.
 
 ### Blocking, by their own nature
@@ -563,7 +563,7 @@ the order is not the severity order.**
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
 | **1** | **Password recovery — break-glass ✅ SHIPPED** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
-| **2** | 🔴 **The generic journal reverse accepts an entry an invoice or payment OWNS** — the document reads live while its entry is cancelled (guarded: transfers, statement lines; bills + VAT claims since 13B-1). | posts + hides. | Phase 12 pack §7 #8. |
+| **2** | 🔴 **The generic journal reverse accepts an entry an invoice or payment OWNS** — the document reads live while its entry is cancelled (guarded: transfers, statement lines, bills, VAT claims; mirrors + migration rows since 2026-10-05). | posts + hides. | Phase 12 pack §7 #8. |
 | **3** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — legal, not code. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
 | **4** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
 

@@ -29,6 +29,14 @@ import Categorize from '@/pages/Categorize';
 import Upload from '@/pages/Upload';
 import VatReport from '@/pages/VatReport';
 import ZakatReport from '@/pages/ZakatReport';
+// Phase 16 (2026-10-04): Saudi tax — the Zakat classification, income tax, one computation, withholding tax, the obligations calendar.
+import ZakatClassification from '@/pages/ZakatClassification';
+import IncomeTax from '@/pages/IncomeTax';
+import TaxComputationDetail from '@/pages/TaxComputationDetail';
+import WithholdingTax from '@/pages/WithholdingTax';
+import TaxObligations from '@/pages/TaxObligations';
+// Phase 17 (2026-10-04): Treasury — the cash position, liquidity, the forecast, payment scheduling, funding.
+import Treasury from '@/pages/Treasury';
 import Categories from '@/pages/Categories';
 import Customers from '@/pages/Customers';
 import CustomerDetail from '@/pages/CustomerDetail';
@@ -271,6 +279,12 @@ function Router() {
               <Route path="/cash-flow" component={CashFlow} />
               <Route path="/vat" component={VatReport} />
               <Route path="/zakat" component={ZakatReport} />
+              {/* Phase 16 — Saudi tax */}
+              <Route path="/zakat/classification" component={ZakatClassification} />
+              <Route path="/tax/income-tax" component={IncomeTax} />
+              <Route path="/tax/computations/:id" component={TaxComputationDetail} />
+              <Route path="/tax/withholding" component={WithholdingTax} />
+              <Route path="/tax/obligations" component={TaxObligations} />
               {/* HR & Payroll */}
               <Route path="/employees" component={Employees} />
               <Route path="/payroll" component={Payroll} />
@@ -295,6 +309,8 @@ function Router() {
               <Route path="/bank-reconciliations" component={BankReconciliations} />
               <Route path="/bank-transfers" component={BankTransfers} />
               <Route path="/cash-position" component={CashPosition} />
+              {/* Phase 17 — Treasury */}
+              <Route path="/treasury" component={Treasury} />
               {/* Planning */}
               <Route path="/budgets" component={Budgets} />
               <Route path="/budgets/:id" component={BudgetDetail} />

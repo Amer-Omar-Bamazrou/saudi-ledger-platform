@@ -147,7 +147,13 @@ export const supplierStatementService = {
       lines,
       gl: { agrees: glAgrees, components: glTie },
       reconciliation: {
-        agrees: Math.abs(difference) < 0.01,
+        /**
+         * 🔴 The net AND each component (2026-10-05). Net-only, a defect that overstated payable and on-account by
+         * the same amount — every reversed allocation did — cancelled out and read as "agrees" while every running
+         * balance on the page was wrong. A check that compares one figure certifies only that figure.
+         */
+        agrees: Math.abs(difference) < 0.01
+          && Math.abs(pos.payable - payable) < 0.01 && Math.abs(pos.creditBalance - credit) < 0.01 && Math.abs(positionOnAccount - onAccount) < 0.01,
         fromPosition: pos.netPosition,
         fromEvents: round2(payable - credit - onAccount),
         difference,

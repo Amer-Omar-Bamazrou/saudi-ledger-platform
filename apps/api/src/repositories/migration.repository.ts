@@ -233,6 +233,17 @@ export const migrationRepository = {
   journalLines(journalEntryId: number) {
     return db.select().from(journalEntryLinesTable).where(eq(journalEntryLinesTable.journalEntryId, journalEntryId)).orderBy(asc(journalEntryLinesTable.id));
   },
+  /** Q3: every balance an opening journal carried, by account — inventory, provisions and the rest included (the reversal's lineage). */
+  async openingBalances(journalEntryId: number) {
+    const { rows } = await db.execute<{ account_id: number; account_name: string; account_type: string; system_code: string | null; debit: string; credit: string }>(sql`
+      SELECT l.account_id, c.name AS account_name, c.type AS account_type, c.system_code,
+             sum(l.debit_amount)::text AS debit, sum(l.credit_amount)::text AS credit
+        FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id
+       WHERE l.journal_entry_id = ${journalEntryId}
+       GROUP BY l.account_id, c.name, c.type, c.system_code
+       ORDER BY c.type, c.name`);
+    return rows;
+  },
   markJournalReversed(id: number) {
     return db.update(journalEntriesTable).set({ status: "reversed" }).where(eq(journalEntriesTable.id, id)).returning();
   },
@@ -332,16 +343,22 @@ export const migrationRepository = {
        * correction is still a touch) and ANY note, plus the legacy counter.
        * billPosition's applied figure is read too, so the message names what
        * is live.
+       *
+       * 🔴 Phase 17: an OPEN payment plan (planned or approved) is a pending
+       * act on the bill — reversing the bill from under it would leave a
+       * plan to pay history. It is named here so it is cancelled first.
        */
       const b = await db.execute(sql`
         SELECT b.bill_number AS n,
                (SELECT count(*) FROM supplier_payment_allocations a WHERE a.bill_id = b.id) AS allocs,
                (SELECT count(*) FROM bills c WHERE c.credit_note_against_bill_id = b.id) AS notes,
+               (SELECT count(*) FROM scheduled_payments sp WHERE sp.bill_id = b.id AND sp.status IN ('planned', 'approved')) AS plans,
                coalesce(b.paid_amount::numeric, 0) AS paid,
                ${billLiveAppliedSql("b")} AS applied
           FROM bills b WHERE b.id IN (${list(billIds)})`);
-      for (const r of b.rows as { n: string; allocs: string; notes: string; paid: string; applied: string }[]) {
+      for (const r of b.rows as { n: string; allocs: string; notes: string; plans: string; paid: string; applied: string }[]) {
         if (Number(r.allocs) > 0 || Number(r.notes) > 0 || Number(r.paid) > 0) out.push(`bill ${r.n} (allocations ${r.allocs}, supplier notes ${r.notes}, paid ${r.paid}, applied ${r.applied})`);
+        if (Number(r.plans) > 0) out.push(`bill ${r.n} has ${r.plans} open payment plan(s) — cancel them in Treasury first`);
       }
     }
     if (paymentIds.length > 0) {

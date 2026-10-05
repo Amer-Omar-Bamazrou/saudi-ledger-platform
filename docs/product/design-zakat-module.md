@@ -1,5 +1,12 @@
 # Zakat module — DECISION RECORD and build order
 
+**Status (2026-10-04): the Zakat working paper is BUILT as Phase 16B — the C10
+items were read in the Arabic primary text (C1, C4 settled; C2/C3/C5 residues
+open as Z-1…Z-8), and owner decision Q4 is CORRECTED by that text (Arts 23(3),
+27, 28 make net profit an input). Record:
+[`phase-16-17-tax-treasury-decision-pack.md`](phase-16-17-tax-treasury-decision-pack.md)
+§0, §3. Current state authority: [CLAUDE.md §2](../../CLAUDE.md).**
+
 **Decided 2026-08-15 with the owner, by interview (Q1–Q8).** This file records
 **what was decided, what follows from it, and what is still unverified.** It is
 the spec-level source of truth for the Zakat module; per-milestone as-built

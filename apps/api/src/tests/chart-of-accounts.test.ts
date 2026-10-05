@@ -357,7 +357,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       // the only variable, so it keeps working as fixtures change, and it fails
       // for exactly one reason — a tax report started reading the ledger.
       const before = {
-        vat: await inTenant(() => reportsService.vatReturn("2026-01-01", "2026-12-31")),
+        vat: await inTenant(() => reportsService.vatReturn("2026-01", "2026-12")),
         cash: await inTenant(() => reportsService.cashFlow("2026-01-01", "2026-12-31")),
       };
 
@@ -375,7 +375,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       );
 
       const after = {
-        vat: await inTenant(() => reportsService.vatReturn("2026-01-01", "2026-12-31")),
+        vat: await inTenant(() => reportsService.vatReturn("2026-01", "2026-12")),
         cash: await inTenant(() => reportsService.cashFlow("2026-01-01", "2026-12-31")),
       };
 

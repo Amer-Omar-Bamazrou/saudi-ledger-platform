@@ -14,11 +14,12 @@
  * writing a second copy that can disagree. (One writer per effect, applied to a
  * predicate.)
  *
- * 🔴 What this module does NOT do: it does not gate anything server-side today,
- * because there is nothing server-side to gate — the Zakat computation does not
- * exist yet (M17.4 is held on advisor Block C). Adding a guard around an
- * endpoint that does not exist would be theatre. The obligation is recorded in
- * the design doc and in `M17_4_MUST_GATE` below so it cannot be quietly missed.
+ * 🔴 Phase 16 (2026-10-04) built the computation, and the obligation below is
+ * MET: `services/tax/taxComputations.service.ts` (`zakatInputs`) calls
+ * `zakatScopeFor` and turns anything not `eligible` into a named blocker
+ * (`zakat_ownership_not_declared` / `zakat_not_eligible`), so no Zakat figure is
+ * computed or approved for it (422 `tax_computation_blocked`) — over the API as
+ * well as on the page.
  */
 
 export const OWNERSHIP_TYPES = ["SAUDI_GCC", "FOREIGN", "MIXED"] as const;
@@ -54,13 +55,10 @@ export function zakatScopeFor(ownershipType: string | null | undefined): ZakatSc
 }
 
 /*
- * 🔴 M17.4 OBLIGATION — when the Zakat worksheet endpoint is built, it must
- * call `zakatScopeFor` and refuse anything that is not `eligible`, with a
- * 409/422 naming the reason rather than a silent empty worksheet. A tenant who
- * is out of scope must not be able to produce a Zakat figure by calling the API
- * directly, however clearly the UI says otherwise.
- *
- * Left as a comment, not an exported constant: a string nothing imports is a
- * shape with no consumer, which is the failure mode M17.0 was spent removing.
- * The obligation is also recorded in docs/product/design-zakat-module.md §3.
+ * 🔴 THE M17.4 OBLIGATION — MET in Phase 16: the Zakat computation calls
+ * `zakatScopeFor` and refuses anything that is not `eligible`, naming the
+ * reason (a blocker, then 422 on approval) rather than a silent empty
+ * worksheet; a tenant out of scope cannot produce a Zakat figure through the
+ * API either (phase16-zakat-income-tax.test.ts, "scope"). Decision record:
+ * docs/product/phase-16-17-tax-treasury-decision-pack.md §3.4.
  */
