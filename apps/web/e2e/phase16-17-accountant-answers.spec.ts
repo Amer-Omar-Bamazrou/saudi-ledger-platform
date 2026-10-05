@@ -9,7 +9,9 @@
  *     the reason on the return's excluded list); money not yet identified is previewed and recorded PENDING;
  *   · Q1 — a withheld bill payment entered at the wrong amount is corrected from the return by clicking:
  *     the original is reversed (kept, struck through, out of the totals), the re-entry withholds on the right
- *     amount, and the lineage reads both ways.
+ *     amount, and the lineage reads both ways;
+ *   · TR-1 (final audit 2026-10-05) — a plan paid into a FILED month from the Treasury screen carries the treatment the
+ *     person chose there (the dialog used to drop it, so every such payment was refused).
  *
  * 🔴 On its OWN tenant (`E2E_ANSWERS`), not the shared smoke tenant: a WHT payment changes its month's return
  * LINES, and phase16-tax asserts its own figure on that line — run in the shared tenant, this spec's consulting
@@ -141,5 +143,33 @@ test.describe.serial("Phase 16 + 17 — the accountant's answers, by clicking", 
     expect(Number(bill.outstanding ?? 0)).toBe(2_000);
     // the error took 9,500 and its reversal returned it; the corrected payment took 7,600 (8,000 less 400 withheld)
     expect(await totalCash(), "net of the error and its correction, the bank paid exactly the corrected cash").toBe(cashBefore - 7_600);
+  });
+
+  test("🔴 TR-1 — a plan paid into a FILED month: the treatment chosen on the Treasury screen travels with the payment (it was dropped, so every such payment was refused)", async ({ page }) => {
+    // the previous month, recorded FILED (an API act — the walk under test is the payment)
+    const d = new Date(`${TODAY}T00:00:00Z`); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 1);
+    const PREV = d.toISOString().slice(0, 7);
+    await json(api.post(`/api/tax/wht/returns/${PREV}/file`, { data: { filedOn: TODAY, zatcaReference: `E2E-TR1-${STAMP}` } }), "file the previous month");
+    const b = await json<{ id: number }>(api.post("/api/bills", { data: {
+      supplierDocumentKind: "tax_invoice", vendorReference: `TR1-${STAMP}`, billNumber: `E2E-TR1-${STAMP}`, date: `${PREV}-01`, dueDate: `${PREV}-28`, vendorId: consultingVendor,
+      items: [{ description: "Consulting services", quantity: 1, unitPrice: 2000, vatRate: 0 }],
+    } }), "bill");
+    await json(api.post(`/api/bills/${b.id}/approve`, { data: {} }), "approve the bill");
+    const planned = new Date(`${TODAY}T00:00:00Z`); planned.setUTCDate(planned.getUTCDate() + 5);
+    const plan = await json<{ id: number }>(api.post("/api/treasury/payment-plans", { data: { billId: b.id, amount: 2000, plannedDate: planned.toISOString().slice(0, 10) } }), "plan");
+    await json(api.post(`/api/treasury/payment-plans/${plan.id}/approve`, { data: {} }), "approve the plan");
+    await page.goto("/treasury?tab=plans");
+    await page.getByTestId(`treasury-plan-pay-${plan.id}`).click();
+    const form = page.getByTestId(`treasury-plan-pay-form-${plan.id}`);
+    await form.getByTestId("treasury-plan-pay-date").fill(`${PREV}-15`);
+    // the screen asks how the filed month's withholding is reported — chosen, never preselected
+    await expect(form.getByTestId("wht-filed-month")).toBeVisible();
+    await form.getByTestId("wht-treatment-subsequent").check();
+    await form.getByTestId("treasury-plan-pay-bank").click();
+    await page.getByRole("option").first().click();
+    await form.getByTestId("treasury-plan-pay-submit").click();
+    await expect(page.getByTestId(`treasury-plan-status-${plan.id}`)).toContainText("Paid");
+    const pays = await json<Array<{ withheld?: number | null; cashPaid?: number | null }>>(api.get(`/api/bills/${b.id}/payments`), "payments");
+    expect(pays.map((x) => [x.withheld, x.cashPaid]), "paid once, 5 % withheld").toEqual([[100, 1900]]);
   });
 });

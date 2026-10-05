@@ -1100,6 +1100,9 @@ function PlanPayPanel({ p, onClose, onTab }: { p: PaymentPlan; onClose: () => vo
         data.whtNotSubjectReason = decl.value.whtNotSubjectReason;
         data.whtNotSubjectNote = decl.value.whtNotSubjectNote ?? null;
       } else data.whtPaymentType = decl.value.whtPaymentType ?? null;
+      // TR-1 (final audit 2026-10-05): a FILED month's treatment, chosen on the screen, travels with the payment — as the
+      // bill's pay dialog sends it — or every plan paid into a filed month is refused (409 wht_month_filed)
+      if (decl.value.whtFiledMonthTreatment) data.whtFiledMonthTreatment = decl.value.whtFiledMonthTreatment;
     }
     pay.mutate({ id: p.id, data });
   };
