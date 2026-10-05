@@ -12,18 +12,19 @@
  * because this is an unauthenticated endpoint that can create a user.
  */
 import { Router } from "express";
-import rateLimit from "express-rate-limit";
+import { preSessionLimiter } from "../lib/rateLimit";
 import { invitationsService } from "../services/invitations.service";
 
 const router = Router();
 
-const acceptRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many attempts. Please try again in a few minutes." },
-});
+/**
+ * 🔴 On the SHARED store since 2026-10-05. It was built without a `store:`
+ * and so counted in process memory — C1 moved three limiters and missed this
+ * one, so N instances allowed N×20. The token is 256 random bits; this is
+ * defence in depth against guessing, and a bound on unauthenticated user
+ * creation.
+ */
+const acceptRateLimiter = preSessionLimiter({ name: "invite", dimension: "ip", windowMs: 15 * 60 * 1000, limit: 20 });
 
 /** GET /api/invitations/:token — preview (org name, invited email, role). */
 router.get("/:token", acceptRateLimiter, async (req, res) => {

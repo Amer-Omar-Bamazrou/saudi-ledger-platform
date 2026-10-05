@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { tOutside } from "@/contexts/LanguageContext";
+import { limiterUnavailableMessage, rateLimitMessage, rateLimitedSeconds } from "@/lib/rateLimit";
 
 export type OrganizationRole = "admin" | "accountant" | "bookkeeper" | "viewer";
 
@@ -84,6 +85,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
+    // A refused login (the per-IP or per-account limit) reads the same in both
+    // languages as every other rate limit — and says nothing about the account.
+    const wait = rateLimitedSeconds(res.status, data);
+    if (wait !== null) throw new Error(rateLimitMessage(wait));
+    const down = limiterUnavailableMessage(res.status, data);
+    if (down !== null) throw new Error(down);
     if (!res.ok) throw new Error(data.error ?? tOutside("Login failed", "فشل تسجيل الدخول"));
 
     setUser(data.user);

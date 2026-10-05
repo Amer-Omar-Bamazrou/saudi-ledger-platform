@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { tOutside } from "@/contexts/LanguageContext";
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
-import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache, QueryCache } from '@tanstack/react-query';
 import { ApiError } from '@/lib/api';
+import { notifyRateLimited, rateLimitedSecondsOf } from '@/lib/rateLimit';
 import { openingVatRefusalTitle, refusalOf } from '@/lib/openingVatRefusals';
 import { toast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
@@ -139,11 +140,34 @@ import NotFound from '@/pages/not-found';
  * login redirect, and a toast on top of a redirect is noise.
  */
 const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Rate limiting (2026-10-05): a 429 is not retried — the retry would be
+      // refused by the same window and spend the budget it is waiting on. Every
+      // other failure keeps React Query's default of three.
+      retry: (failureCount, error) => rateLimitedSecondsOf(error) === null && failureCount < 3,
+    },
+  },
+  // A page whose READS were refused gets one sentence saying why and for how
+  // long — otherwise it would render empty with no explanation at all.
+  queryCache: new QueryCache({
+    onError: (error) => {
+      const wait = rateLimitedSecondsOf(error);
+      if (wait !== null) notifyRateLimited(wait);
+    },
+  }),
   mutationCache: new MutationCache({
     onError: (error, _vars, _ctx, mutation) => {
       if (mutation.options.onError) return; // the form handles it itself
       const status = error instanceof ApiError ? error.status : 0;
       if (status === 401) return;
+      // The rate limit, from either client — titled as what it is, not as a
+      // save that failed for some reason of its own.
+      const wait = rateLimitedSecondsOf(error);
+      if (wait !== null) {
+        notifyRateLimited(wait);
+        return;
+      }
       // Phase 13A: only a supplier's ADVANCE tax invoice is refused for its
       // evidence (it only claims VAT) — it stays a draft; say that, keyed on
       // the structured code (the Approvals page lands here).

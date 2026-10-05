@@ -3,6 +3,7 @@ import { requireAuth } from "../lib/auth";
 import { resolveTenant } from "../lib/tenant";
 import { requireAnyPermission, requirePermission } from "../lib/rbac";
 import { requirePlatformOperator } from "../lib/operator";
+import { requestBudget } from "../lib/requestBudget";
 
 // Route modules
 import health from "./health.js";
@@ -74,29 +75,38 @@ router.use("/invitations", invitations);
 // ── All remaining routes require a valid session ─────────────────────────────
 router.use(requireAuth);
 
+// ── The REQUEST BUDGET (rate limiting, 2026-10-05; lib/requestBudget.ts) ──────
+// Every authenticated request is counted per user, per organization and per
+// endpoint class. It runs at the three pre-tenant mounts below and again right
+// after `resolveTenant` (a request is counted once), always BEFORE permission
+// checks, validation, idempotency and the tenant transaction — so a 429 has
+// executed nothing. `tests/rate-limit-budget.test.ts` proves every mount below
+// this line is counted and the public ones above it are not.
+
 // ── Cross-organization endpoints (NOT tenant-scoped) ──────────────────────────
 // Listing/switching organizations is inherently cross-org, so these run on the
 // base connection BEFORE resolveTenant narrows the request to a single tenant.
-router.use("/orgs", orgs);
+router.use("/orgs", requestBudget, orgs);
 
 // ── Onboarding / verification status (NOT tenant-scoped, NOT gated) ────────────
 // Mounted before resolveTenant so a not-yet-approved org can still see its
 // verification status (and later upload documents / resubmit). The verification
 // gate lives in resolveTenant, so anything mounted here is reachable while pending.
-router.use("/onboarding", onboarding);
+router.use("/onboarding", requestBudget, onboarding);
 
 // ── Platform-operator verification review (cross-tenant, operator-only) ────────
 // Mounted before resolveTenant and guarded by requirePlatformOperator. Operators
 // hold NO org membership, so resolveTenant would 403 them from every business
 // route regardless; this surface returns ONLY verification metadata (never a
 // tenant's financial data). Operator status is granted solely via the seed/CLI.
-router.use("/operator", requirePlatformOperator, operator);
+router.use("/operator", requestBudget, requirePlatformOperator, operator);
 
 // ── Tenant context + RLS-scoped transaction for every business request ────────
 // resolveTenant also enforces the VERIFICATION GATE: a non-approved org gets a
 // 403 here (before the tenant transaction opens), so every business route below
 // is fail-closed for unverified organizations.
 router.use(resolveTenant);
+router.use(requestBudget);
 
 // ── Centralized permission-based authorization (RBAC, M5) ─────────────────────
 // Every business route is gated by requirePermission(resource): it reads the

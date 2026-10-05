@@ -114,6 +114,12 @@ export const OPERATOR_JOB_RULES: Readonly<Record<string, OperatorJobRule>> = {
       "triggering a tenant's quarterly review would forge the cadence the run claims to " +
       "represent (AI-5's (org, period) row is the CLAIM that a period was reviewed).",
   },
+  "rate-limit-sweep": {
+    operatorRunnable: false,
+    reason:
+      "Infrastructure housekeeping: deletes EXPIRED rate-limit counters, which changes no " +
+      "limiter's answer. Nothing an operator decides, and no surface offers it.",
+  },
 };
 
 /** The job names an operator may trigger. The route's allowlist. */

@@ -3,8 +3,8 @@
  */
 import { Router } from "express";
 import { decoyHash, hashPassword, MAX_PASSWORD, needsRehash, verifyPassword } from "../lib/password";
-import rateLimit from "express-rate-limit";
-import { PostgresRateLimitStore } from "../lib/rateLimitStore";
+import { loginEmailOf, preSessionLimiter } from "../lib/rateLimit";
+import { resetAllRateLimitStores } from "../lib/rateLimitStore";
 // 🔴 The OWNER connection, named deliberately rather than inherited.
 // Identity layer: `users` and `organization_memberships` are OUTSIDE RLS (§4) and this runs BEFORE tenant resolution, so there is no tenant handle to use.
 // The `db` proxy now REFUSES a query outside a tenant transaction rather than
@@ -35,14 +35,38 @@ function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
  * With MemoryStore, two instances behind a load balancer enforced 20 attempts
  * while both believed they were enforcing 10.
  */
-const authLimiterStore = new PostgresRateLimitStore("auth");
-const authRateLimiter = rateLimit({
-  store: authLimiterStore,
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many attempts. Please try again in a few minutes." },
+const authRateLimiter = preSessionLimiter({ name: "auth", dimension: "ip", windowMs: 15 * 60 * 1000, limit: 10 });
+
+/**
+ * 🔴 The ACCOUNT dimension (2026-10-05). The IP limit alone stops one machine;
+ * it does not stop many. A botnet of N addresses gets 10·N guesses per quarter
+ * hour at ONE account — and an IPv6 client used to be N addresses by itself.
+ * This counts FAILED password checks per account, from every IP together.
+ *
+ *   - 60 failures per hour. One IP under the limit above can fail at most 50
+ *     times in any 60 minutes (five 15-minute windows can touch an hour), so
+ *     a single address can NEVER lock an account out — locking needs a
+ *     distributed effort, and that effort is exactly what this exists to cap
+ *     (60/hour ≈ 1,440 guesses a day, against unbounded before).
+ *   - A success REFUNDS its hit (`countFailuresOnly`): the owner logging in
+ *     does not spend the budget an attacker is draining.
+ *   - Keyed on the email AS TYPED (trimmed, case-folded), whether or not an
+ *     account exists — so a 429 here says nothing about existence, and the
+ *     refusal is the same body as the IP limit's.
+ *   - Shared with change-password (below): both verify the same password.
+ *
+ * The trade, stated: a distributed attacker CAN keep one known account's
+ * logins refused for as long as they keep failing at it. The design record
+ * names the follow-up that removes it (a device cookie exempting a browser
+ * that has logged in before) — a change to authentication, not to limiting.
+ */
+const ACCOUNT_LIMIT = { windowMs: 60 * 60 * 1000, limit: 60 } as const;
+const loginAccountLimiter = preSessionLimiter({
+  name: "auth-account", dimension: "account", ...ACCOUNT_LIMIT, countFailuresOnly: true, accountOf: loginEmailOf,
+});
+const changePasswordAccountLimiter = preSessionLimiter({
+  name: "auth-account", dimension: "account", ...ACCOUNT_LIMIT, countFailuresOnly: true,
+  accountOf: (req) => req.session.userEmail ?? null,
 });
 
 /**
@@ -50,15 +74,7 @@ const authRateLimiter = rateLimit({
  * so it gets its own STRICTER limiter than the credential endpoints: creating
  * organizations is expensive and abusable. IP-keyed, 5 per hour.
  */
-const signupLimiterStore = new PostgresRateLimitStore("signup");
-const signupRateLimiter = rateLimit({
-  store: signupLimiterStore,
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many signup attempts. Please try again later." },
-});
+const signupRateLimiter = preSessionLimiter({ name: "signup", dimension: "ip", windowMs: 60 * 60 * 1000, limit: 5 });
 
 /**
  * User-administration endpoints (list/create/update/reset-password). These were
@@ -66,15 +82,7 @@ const signupRateLimiter = rateLimit({
  * practical mass-takeover primitive (`users.id` is a serial integer, so an
  * attacker could walk every id). Rate-limited independently of login/signup.
  */
-const userAdminLimiterStore = new PostgresRateLimitStore("user-admin");
-const userAdminRateLimiter = rateLimit({
-  store: userAdminLimiterStore,
-  windowMs: 15 * 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests. Please try again in a few minutes." },
-});
+const userAdminRateLimiter = preSessionLimiter({ name: "user-admin", dimension: "ip", windowMs: 15 * 60 * 1000, limit: 60 });
 
 /**
  * TEST-ONLY: clear the in-memory rate-limit buckets.
@@ -95,13 +103,12 @@ const userAdminRateLimiter = rateLimit({
  *
  * 🔴 ASYNC since C1 moved the stores to Postgres: callers MUST await it, or
  * the reset races the first request and the suite sees a stale bucket.
+ *
+ * Resets EVERY limiter in this process (the request budget, invitations and
+ * onboarding upload included), and only this process's namespace.
  */
 export async function __resetRateLimitsForTests(): Promise<void> {
-  await Promise.all([
-    authLimiterStore.resetAll(),
-    signupLimiterStore.resetAll(),
-    userAdminLimiterStore.resetAll(),
-  ]);
+  await resetAllRateLimitStores();
 }
 
 // Fixed decoy hash used to keep login timing constant when the email is unknown
@@ -182,7 +189,7 @@ router.post("/signup", refuseSignupInDemo, signupRateLimiter, async (req, res) =
 });
 
 /** POST /auth/login */
-router.post("/login", authRateLimiter, async (req, res) => {
+router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -331,7 +338,7 @@ router.patch("/users/:id", userAdminRateLimiter, requireAuth, async (req, res) =
 });
 
 /** POST /auth/change-password — logged-in user changes their own password */
-router.post("/change-password", authRateLimiter, requireAuth, async (req, res) => {
+router.post("/change-password", authRateLimiter, requireAuth, changePasswordAccountLimiter, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {

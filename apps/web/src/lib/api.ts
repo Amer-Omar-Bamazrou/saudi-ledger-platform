@@ -8,6 +8,7 @@ const API = `${BASE}/api`;
  * bare "access denied".
  */
 import { emitPeriodClosed } from "./periodClosed";
+import { limiterUnavailableMessage, rateLimitMessage, rateLimitedSeconds } from "./rateLimit";
 import { tOutside } from "@/contexts/LanguageContext";
 
 export class ApiError extends Error {
@@ -15,7 +16,10 @@ export class ApiError extends Error {
   readonly code?: string;
   readonly body: any;
   constructor(status: number, body: any) {
-    super(body?.error ?? `Request failed (${status})`);
+    // The rate limit speaks the reader's language: every surface that prints
+    // `message` (a form's inline error, an export's refusal) then does too.
+    const wait = rateLimitedSeconds(status, body);
+    super(wait !== null ? rateLimitMessage(wait) : limiterUnavailableMessage(status, body) ?? body?.error ?? `Request failed (${status})`);
     this.name = "ApiError";
     this.status = status;
     this.code = body?.code;

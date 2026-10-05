@@ -17,6 +17,7 @@ import { recurringGenerationService } from "../services/recurring/generation.ser
 import { alarmsService } from "../services/alerting/alarms.service";
 import { demoResetJob } from "../services/demo/demoResetJob.service";
 import { findingsScheduleService } from "../services/findings.schedule.service";
+import { sweepExpiredRateLimits } from "../lib/rateLimitStore";
 
 export const JOB_OUTBOX = "einvoice-outbox";
 export const JOB_ARCHIVE = "einvoice-archive";
@@ -27,6 +28,7 @@ export const JOB_RECURRING = "recurring-documents";
 export const JOB_ALARMS = "platform-alarms";
 export const JOB_DEMO_RESET = "demo-reset";
 export const JOB_SCHEDULED_FINDINGS = "scheduled-findings";
+export const JOB_RATE_LIMIT_SWEEP = "rate-limit-sweep";
 
 let scheduler: JobScheduler | null = null;
 
@@ -133,6 +135,16 @@ export function buildScheduler(): JobScheduler {
       name: JOB_SCHEDULED_FINDINGS,
       intervalMs: 60 * 60_000,
       runOnce: () => findingsScheduleService.runOnce(),
+    },
+    {
+      // Rate limiting (2026-10-05): deletes expired rate-limit counters. An
+      // expired row changes no limiter's answer, but a key that never returns
+      // (an IP, an email typed at the login form) was never deleted by
+      // anything — unbounded growth an anonymous caller could drive. Ten
+      // minutes is shorter than every window but the hour-long ones.
+      name: JOB_RATE_LIMIT_SWEEP,
+      intervalMs: 10 * 60_000,
+      runOnce: () => sweepExpiredRateLimits(),
     },
   ];
 
