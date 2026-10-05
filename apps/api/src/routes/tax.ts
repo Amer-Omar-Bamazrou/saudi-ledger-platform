@@ -21,6 +21,11 @@ router.get("/wht/annual", taxController.annual);
 router.get("/wht/beneficiaries/:vendorId", taxController.beneficiary);
 router.get("/wht/exceptions", taxController.exceptions);
 router.post("/wht/periods/:period/pay", taxController.remit);
+// Q1 (pack §14.1): a month's Form 06 recorded FILED, or amended (`…/file` → approve)
+router.post("/wht/returns/:period/file", taxController.fileReturn);
+// Q1: one withholding's lineage (original → reversal → corrected), and its correction (`…/reverse` → approve)
+router.get("/wht/withholdings/:id", taxController.withholdingLineage);
+router.post("/wht/withholdings/:id/reverse", taxController.correctWithholding);
 router.post("/wht/remittances/:id/reverse", taxController.reverseRemittance);
 router.get("/wht/reliefs", taxController.reliefs);
 router.post("/wht/reliefs", taxController.createRelief);

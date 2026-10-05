@@ -5,7 +5,9 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { WhtAdjustment } from './whtAdjustment';
 import type { WhtDelayFine } from './whtDelayFine';
+import type { WhtFilingState } from './whtFilingState';
 import type { WhtMonthlyReturnStatus } from './whtMonthlyReturnStatus';
 import type { WhtMonthlyReturnTotals } from './whtMonthlyReturnTotals';
 import type { WhtRemittance } from './whtRemittance';
@@ -24,6 +26,11 @@ export interface WhtMonthlyReturn {
   excluded: WhtWithholding[];
   /** Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2). */
   pending: WhtWithholding[];
+  /** Q1: rows reported in this month AND reversed within its return (before filing, or by amendment) — shown, out of the totals. */
+  corrected: WhtWithholding[];
+  /** Q1: corrections this month's return carries whose original is reported in an earlier, filed month (subsequent period) — negative lines. */
+  adjustments: WhtAdjustment[];
+  filing: WhtFilingState;
   remittances: WhtRemittance[];
   /** Form 06 rows 07/08 have no separate band after Resolution 25 (open question W-4). */
   unusedFormRows: string[];

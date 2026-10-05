@@ -146,6 +146,7 @@ export default function SupplierPayments() {
                     <td className="py-2 pe-3" data-testid={`available-${p.id}`}><Money v={p.availableAmount} /></td>
                     <td className="py-2 pe-3">
                       <Badge variant="outline" className="text-[10px]" data-testid={`classification-${p.id}`}>{classLabel(p.classification, t)}</Badge>
+                      {p.reversal && <Badge variant="outline" className="text-[10px] ms-1" data-testid={`reversed-${p.id}`}>{t("Reversed (WHT correction)", "معكوسة (تصحيح ضريبة الاستقطاع)")}</Badge>}
                     </td>
                     <td className="py-2">
                       <Button size="sm" variant="ghost" onClick={() => setDetailId(p.id)} data-testid={`open-supplier-payment-${p.id}`}>{t("Open", "فتح")}</Button>
@@ -388,6 +389,7 @@ function PaymentDetailDialog({ payment, banks, vendorName, vendor, t, onDone, on
           {t("on account", "على الحساب")}: <span data-testid="detail-available"><Money v={payment.availableAmount} /></span>
           {" · "}
           <span data-testid="detail-classification">{classLabel(payment.classification, t)}</span>
+          {payment.reversal && <span data-testid="detail-reversed">{" · "}{t("Reversed", "معكوسة")} {payment.reversal.correctedOn} ({t("WHT correction", "تصحيح ضريبة الاستقطاع")}: {payment.reversal.reason})</span>}
         </DialogDescription>
       </DialogHeader>
 

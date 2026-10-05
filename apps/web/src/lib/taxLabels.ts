@@ -68,7 +68,25 @@ export const residencyLabel = (code: string | null | undefined, t: T) =>
   code === "resident" ? t("Resident", "مقيم") : code === "non_resident" ? t("Non-resident", "غير مقيم") : t("Not declared", "غير مُصرَّح");
 
 export const whtMonthStatusLabel = (s: string, t: T) =>
-  ({ nil: t("Nothing withheld", "لا استقطاع"), open: t("Month open", "الشهر جارٍ"), due: t("Due", "مستحق"), overdue: t("Overdue", "متأخر"), remitted: t("Remitted", "مُسدَّد") } as Record<string, string>)[s] ?? s;
+  ({
+    nil: t("Nothing withheld", "لا استقطاع"), open: t("Month open", "الشهر جارٍ"), due: t("Due", "مستحق"), overdue: t("Overdue", "متأخر"), remitted: t("Remitted", "مُسدَّد"),
+    // Q1: a correction left the month's return below what was remitted for it
+    credit: t("Credit — remitted more than the return now carries", "رصيد دائن — المسدَّد يزيد على ما يحمله الإقرار الآن"),
+  } as Record<string, string>)[s] ?? s;
+
+/** Q1 (pack §14.1): a month's Form 06 filing state — recorded by a person; the platform does not file. */
+export const whtFilingStatusLabel = (s: string | null | undefined, t: T) =>
+  ({
+    unfiled: t("Not filed", "غير مُقدَّم"),
+    filed: t("Filed", "مُقدَّم"),
+    amended: t("Amended", "مُعدَّل"),
+    amendment_due: t("Amendment due — the ledger differs from what was filed", "تعديل مستحق — الدفاتر تختلف عمّا قُدِّم"),
+  } as Record<string, string>)[s ?? ""] ?? "—";
+export const whtTreatmentLabel = (s: string | null | undefined, t: T) =>
+  ({
+    subsequent_period: t("Reported in a later, unfiled return", "يُقرَّر في إقرار لاحق غير مُقدَّم"),
+    amendment: t("By amending the filed return", "بتعديل الإقرار المُقدَّم"),
+  } as Record<string, string>)[s ?? ""] ?? "—";
 
 /** The eight Zakat-base classes (1445H Regulations). */
 export const ZAKAT_CLASS_LABEL: Record<string, [string, string]> = {

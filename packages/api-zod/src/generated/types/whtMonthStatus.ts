@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * credit (Q1): a correction left the month's return below what was remitted for it — shown, never netted against another month (open W-17).
+ */
 export type WhtMonthStatus = typeof WhtMonthStatus[keyof typeof WhtMonthStatus];
 
 
@@ -15,4 +18,5 @@ export const WhtMonthStatus = {
   due: 'due',
   overdue: 'overdue',
   remitted: 'remitted',
+  credit: 'credit',
 } as const;

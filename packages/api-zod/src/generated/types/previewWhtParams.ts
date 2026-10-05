@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PreviewWhtClassification } from './previewWhtClassification';
+import type { PreviewWhtWhtFiledMonthTreatment } from './previewWhtWhtFiledMonthTreatment';
 
 export type PreviewWhtParams = {
 vendorId: number;
@@ -16,4 +17,5 @@ allocatedAmount?: number;
 whtPaymentType?: string;
 whtNotSubjectReason?: string;
 whtNotSubjectNote?: string;
+whtFiledMonthTreatment?: PreviewWhtWhtFiledMonthTreatment;
 };

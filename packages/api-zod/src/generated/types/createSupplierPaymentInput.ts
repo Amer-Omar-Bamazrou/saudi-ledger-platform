@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateSupplierPaymentInputWhtFiledMonthTreatment } from './createSupplierPaymentInputWhtFiledMonthTreatment';
 import type { CreateSupplierPaymentInputWhtNotSubjectReason } from './createSupplierPaymentInputWhtNotSubjectReason';
 import type { SupplierPaymentAllocationInput } from './supplierPaymentAllocationInput';
 import type { SupplierPaymentClassification } from './supplierPaymentClassification';
@@ -35,4 +36,9 @@ export interface CreateSupplierPaymentInput {
      * @nullable
      */
   whtNotSubjectNote?: string | null;
+  /**
+     * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+     * @nullable
+     */
+  whtFiledMonthTreatment?: CreateSupplierPaymentInputWhtFiledMonthTreatment;
 }

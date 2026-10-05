@@ -673,7 +673,9 @@ nothing interpretive):
 | W-12 | A refund of an advance from which WHT was withheld — how is the withheld part recovered? | Refused |
 | I-1 | Mixed income tax: is the 25 % loss cap applied before or after the non-Saudi share? | Mixed with losses refused |
 | S-1 | Are Qawaem's XBRL line-item lists a binding mapping software must produce? | Nothing labelled statutory |
-| W-13 (QA-08) | How is a WHT-bearing payment entered in error corrected — in its own month or the next; before and after the month is remitted and its Form 06 filed? | No correction exists (D-11) |
+| W-13 (QA-08) | How is a WHT-bearing payment entered in error corrected — in its own month or the next; before and after the month is remitted and its Form 06 filed? | **ANSWERED 2026-10-05 (Q1) — built §14.1**: reversal + re-entry; unfiled → its own month; filed → the person's stated treatment |
+| W-13b | For a correction of a FILED Form 06 month: when does ZATCA require amending that month and when may a later month carry it — and does remittance change the answer? | Both offered; the person states which; recorded on the correction (§14.1) |
+| W-17 | A month left in credit by a correction (tax remitted exceeds what its return now carries): refund claim, or offset against a later month? | Shown as `credit`; never netted, never remitted again, never refunded by the product (§14.1) |
 | W-14 (QA-09) | Is a refundable security deposit, an erroneous payment or an unidentified payment to a non-resident subject to WHT when paid? If it was withheld, how is its return recorded (W-12)? | **ANSWERED 2026-10-05 (Q2) — built §14.2**: not subject; unidentified = pending |
 | W-16 | Money paid to a non-resident with nothing withheld (unidentified, or a deposit) and identified LATER as taxable consideration: is the tax recovered from the supplier or borne by the payer (grossed up — W-2), and in which month's return? | Refused by name (`wht_late_withholding_open`), the exposure stated; the payment stays pending (§14.2) |
 | W-18 | Should every non-resident payment carry an explicit Art. 5 source determination, rather than a presumption a person rebuts by declaring `not_kingdom_source`? | The presumption, labelled `presumed` on every determination (§14.2) |
@@ -863,7 +865,7 @@ a technical design each — record
 | D-08 | LOW | The spec types WHT natures as `string`, not the enum | The server validates; generated types are wider than the rule |
 | D-09 | LOW | The direct cash flow shows a supplier payment gross of WHT (the counterpart method); the WHT shows on the tax line when withheld (+) and remitted (−) | The Phase 14 model; totals reconcile |
 | D-10 | INFO | The engine approves from `draft` (no forced submit) | Platform-wide approval semantics |
-| D-11 | HIGH | **No correction path for a WHT-bearing payment**: the generic reverse refuses a withholding-owned entry (right, for W1) and payments have no reversal — a wrong nature, rate, amount, bank, date or supplier is permanent on the return (QA-08) | A tax correction model (same month vs next; before vs after remittance) is the accountant's — §11 |
+| D-11 | HIGH | **No correction path for a WHT-bearing payment**: the generic reverse refuses a withholding-owned entry (right, for W1) and payments have no reversal — a wrong nature, rate, amount, bank, date or supplier is permanent on the return (QA-08) | **Closed 2026-10-05 → §14.1** (accountant Q1) |
 | D-12 | HIGH | **Every non-resident payment withholds whatever its classification** — a refundable deposit, an erroneous or unidentified payment too — and its refund is then refused for any amount (W-12): the money cannot be recovered in the product (QA-09) | **Closed 2026-10-05 → §14.2** (accountant Q2) |
 | D-13 | HIGH | (pre-existing, Batch 1C × FA-D) A migration reversal leaves the batch's fixed assets in service; a replacement adds a second copy and every depreciation run depreciates both (register ≠ GL; feeds Zakat and income tax) (QA-14) | Mark reversed vs refuse the reversal is an A4/A5 decision — §11; the FA follow-up note understated it |
 | D-14 | MEDIUM | The approvals inbox never shows a submitted computation, a pending relief or a planned payment (QA-15) | **Closed 2026-10-04 → F-26** |
@@ -875,6 +877,7 @@ a technical design each — record
 | D-20 | LOW | The forecast's overdue bucket counts overdue receivables as inflow — the lowest closing assumes they are collected | A treasury judgment — §11 |
 | D-21 | INFO | (pre-existing) the invoice pay dialog also hard-codes today (no WHT effect); the sidebar shows "VIEWER" for an org admin; an operator can approve with no documents | Outside Phase 16/17 |
 | D-22 | INFO | A bookkeeper may classify Zakat accounts and add adjustments (the `tax` WRITE grant); the approver sees both on the paper before approving | The platform's maker/checker split |
+| D-23 | LOW | (Q1) A payment plan paid by a bill payment that a WHT correction later reversed still reads `paid`; the reversal shows on the bill's payment history and the correction, and the bill owes again (the forecast follows billPosition) | The plan is a schedule, closed by its payment; reopening it is a product decision |
 
 The pre-existing `batch-1c-migration-staging` 30-second timeout seen once in a
 loaded full run was diagnosed (every test in that file ran 10–17× slower under
@@ -900,7 +903,125 @@ guessed). Labels as in the header table.
 
 ### 14.1 Q1 — correcting a WHT-bearing payment (D-11 / W-13)
 
-*Recorded in the Q1 commit — see below.*
+**The answer (accountant, 2026-10-05).** Correct through reversal and
+re-entry; keep the original transaction permanently in the audit trail; link
+the original, the reversal and the corrected transaction; never mutate a
+posted or remitted WHT transaction directly. Before monthly filing the
+correction is reflected in the applicable filing; after filing, the
+accountant recommends a subsequent-period correction rather than a
+retroactive change to the filed return.
+
+**Checked against the text — and the branch the text does not settle.** S2
+Art. 63(9)(a) fixes the monthly statement and payment; S7 (ZATCA's Form 06
+user manual) is the filing route, and ZATCA's portal supports amending a
+filed return. The sources of §1 do **not** say when a WHT correction must be
+an amendment of the filed month and when a later month may carry it, nor how
+an over-remitted month is recovered. So the product does not hard-code
+"after filing = next period": it records **whether the month is filed** and
+makes the person **state the treatment** for a filed month — `subsequent_period`
+(the accountant's recommendation, offered first, never preselected) or
+`amendment` — and records the choice on the correction. **OPEN W-13b**
+(below). **REQUIRED** (the record and its retention, 63(9)(c)) · **PRODUCT**
+(the mechanism).
+
+**The four states, held explicitly** (the instruction's a–d):
+
+| State | Where it lives | What it does |
+|---|---|---|
+| posted, unfiled | `wht_withholdings.return_period` with no filing for that month | a correction is reported in that same month's return (`reversal_return_period` = the original's) |
+| FILED | `wht_return_filings` — a person records Form 06 filed (date, ZATCA reference); the snapshot of the return is written **by the database** from the ledger, never typed (append-only) | a correction or a payment dated in it is refused (409 `wht_month_filed`) until the treatment is stated |
+| remitted | `wht_remittances` (unchanged) | allowed; the month's remitted amount at the moment of correction is recorded on the correction **by the database**; a month left below what was remitted reads `credit` and is never netted elsewhere nor remitted again (OPEN W-17) |
+| amended / corrected | a correction row per corrected withholding; an `amendment` filing amending the latest | the original row reads "corrected — reported in M"; a filed month whose ledger figure no longer equals the filed snapshot reads `amendment_due` until an amendment is recorded, then `amended` |
+
+**The mechanism (migration 0117; `services/tax/whtCorrection.service.ts`).**
+One act, one transaction, approver authority (`POST
+/tax/wht/withholdings/:id/reverse`):
+
+1. **The original stays.** The withholding row and the payment are
+   append-only and untouched; the payment's entry is marked `reversed` beside
+   its mirror (the `JE_IN_BOOKS` rule) — and only because a correction exists
+   (`journal_entries_tax_reversal_guard` admits it for nothing else).
+2. **The reversal** — the mirror of the payment's own entry through the ONE
+   mirror writer (`journalEntriesService.reverse`, owner `wht_withholding`,
+   with a pre-flip hook so the record exists before the original is marked),
+   and the `wht_corrections` row: reason (≥ 10 chars), date, who, the mirror,
+   the month whose return carries it, the treatment, and the original's state
+   (its filing; what of its month was remitted — both written by the database).
+   One correction per withholding (unique index); a double-click waits on an
+   advisory lock and is answered by name; a retried request with its
+   idempotency key is replayed.
+3. **The subledger side** — a bill payment leaves `bills.paid_amount` (the
+   counter is Σ live bill payments, so `billPosition` is untouched); a
+   supplier payment's own allocations are superseded by the same mirror, and
+   the payment then holds nothing on account (`repositories/paymentReversal`,
+   the one predicate every on-account reader imports).
+4. **The corrected transaction** — optional — a NEW payment through the
+   existing pay path (`payBill` / `supplierPaymentsService.create`): wrong
+   rate, amount, supplier (another bill), date or category are all just the
+   corrected facts. Its withholding names the correction (`correction_id`) and
+   the correction names it — original → reversal → corrected, both ways.
+
+**WHT_PAYABLE gets its third writer** — a correction's reversal — and W1
+becomes GL = opening + Σ withheld − Σ corrected − Σ remitted + Σ remittance
+reversals, still exact by construction (`wht_payable_line_owned` owns the
+mirror and checks its amount). **One definition of a month's return**,
+`wht_return_tax()` / `wht_return_base()` (Σ withholdings whose return month it
+is − Σ corrections whose reversal it carries), read by the remittance cap, the
+filing snapshot and — pinned by tests — every report.
+
+**Refused, never approximated:** a payment acted on since (a later allocation,
+a refund, a moved balance, an advance invoice); a cash line reconciled to the
+bank (undo the reconciliation first); a correction or re-entry dated in a
+closed period (423, nothing written); a correction of a record a
+reclassification superseded; a second correction.
+
+**What it found in the code it relied on.** Probing the supplier-payment leg
+on real rows showed the Phase 11 **supplier statement double-counted every
+reversed allocation**: the allocation's event was filtered out AND its
+unallocation added, so payable and on-account were each overstated by the
+amount while the net — the only figure the self-check compared — agreed. The
+as-of AP ageing replays the same events, so it aged such a bill at more than
+it owed. Fixed in this commit (a superseded allocation stays in the history,
+answered by its unallocation, as the customer statement already did), and the
+self-check now compares every component. Regression test with a mutation.
+
+**What this does NOT decide — named, not guessed:**
+
+- **W-13b (NEW) — subsequent period vs amendment.** Which ZATCA requires (or
+  permits) for a correction of a filed Form 06 month, and whether the answer
+  differs before and after remittance. The product records the person's
+  choice; it does not choose.
+- **W-17 (NEW) — a month left in credit** (a correction reduced tax already
+  remitted): refund claim, or offset against a later month? Shown as
+  `credit`; never netted, never refunded by the product.
+- A payment plan (Phase 17) paid by a corrected bill payment still reads
+  `paid`; its payment's reversal is on the bill and on the correction (LOW,
+  §13.3 D-23).
+
+**Tests** (`phase16-wht-correction`, 14; `phase16-wht-correction-http`, 4):
+wrong rate · wrong amount · wrong supplier · wrong payment date · wrong WHT
+category · unfiled (same month) · filed → subsequent period (refused without a
+treatment, nothing written; the filed return untouched; September carries
+−old +new) · filed → amendment (amendment due, then amended; the original
+filing preserved) · remitted (the state recorded; the month in credit; no
+further remittance) · already corrected · double-click (replay) · concurrent
+(one winner, the loser named) · period lock (nothing written) · a supplier
+payment (statement and GL tie agree on every component; a touched payment
+refused) · the statement after an ordinary allocation reversal and the as-of
+AP ageing · the database keeps the record (no edit, no delete, no generic
+reverse of the mirror, a filed month not written silently) · isolation ·
+over HTTP: correct and file are an approver's acts (viewer and bookkeeper 403,
+nothing written), the lineage is a read, a body too short is a 400, a filed
+month is a 409 naming both choices, another organisation gets 404.
+
+**Mutations, each proven red then restored:** M5 the service ignoring the
+filing — the database refused (`wht_month_filed`); M6 the service AND the
+database gate — red on the figure (the filed May return rewritten); M7 the
+bill payment's counter not reduced — red; M8 the statement filtering
+superseded allocations again — red; M9 no advisory lock — the race loser
+answered with the wrong code (one correction still, by the unique index); M10
+the return definition ignoring corrections — two tests red, one of them the
+remittance cap admitting an over-remittance.
 
 ### 14.2 Q2 — WHT scope: the determination is category-aware (D-12 / W-14)
 

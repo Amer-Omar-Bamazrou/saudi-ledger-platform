@@ -303,8 +303,8 @@ describeMaybe("Phase 16 — withholding tax on real rows", () => {
     const w = (await pool.query(`SELECT * FROM wht_withholdings WHERE company_id = $1 AND status = 'withheld' ORDER BY id LIMIT 1`, [coA])).rows[0];
     const ins = (cols: Record<string, unknown>) => pool.query(
       // payment_class / nature_basis: the provenance every new row states (0116) — so the row reaches the CHECK under attack
-      `INSERT INTO wht_withholdings (organization_id, company_id, source_kind, bill_payment_id, vendor_id, bill_id, payment_date, period, status, payment_type, base_amount, rate, statutory_rate, rate_id, wht_amount, journal_entry_id, payment_class, nature_basis)
-       VALUES ($1,$2,'bill_payment',$3,$4,$5,$6,$7,'withheld',$8,$9,$10,$11,$12,$13,$14,'bill_payment','declared')`,
+      `INSERT INTO wht_withholdings (organization_id, company_id, source_kind, bill_payment_id, vendor_id, bill_id, payment_date, period, status, payment_type, base_amount, rate, statutory_rate, rate_id, wht_amount, journal_entry_id, payment_class, nature_basis, return_period)
+       VALUES ($1,$2,'bill_payment',$3,$4,$5,$6,$7,'withheld',$8,$9,$10,$11,$12,$13,$14,'bill_payment','declared',$7)`,
       [w.organization_id, w.company_id, cols.bill_payment_id ?? w.bill_payment_id, w.vendor_id, w.bill_id, w.payment_date, w.period, w.payment_type, w.base_amount, cols.rate ?? w.rate, w.statutory_rate, w.rate_id, cols.wht_amount ?? w.wht_amount, w.journal_entry_id]);
     expect((await refusal(ins({ wht_amount: Number(w.wht_amount) + 1 }))).constraint).toBe("wht_withholdings_amount_chk");
     // the same payment cannot be withheld twice

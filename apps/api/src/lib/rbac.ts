@@ -56,7 +56,9 @@ const ACTIVATION_ACTIONS = new Set(["approve"]);
 // `unallocate` (Phase A) posts the correcting entry — the same authority.
 // `override` / `unmatch` (Phase D) decide reconciliation identity — a review decision, same reasoning as `settle`.
 // 2026-09-22: `bad-debt-relief` writes off a receivable and reduces Output Tax — an approver's act, like `pay`.
-const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge|allocate|apply|unallocate|override|unmatch|bad-debt-relief)\/?$/i;
+// 2026-10-05 (Q1, pack §14.1): `file` records that a WHT month's Form 06 was FILED (or amended) — it decides how every
+// later correction of that month is reported, so it is an approver's act, like the remittance (`pay`) it accompanies.
+const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge|allocate|apply|unallocate|override|unmatch|bad-debt-relief|file)\/?$/i;
 
 /** Resolve the permission action for a request (method + activation-route override). */
 function resolveAction(req: Request): PermissionAction | undefined {

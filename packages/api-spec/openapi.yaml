@@ -6435,6 +6435,7 @@ paths:
         - { in: query, name: whtPaymentType, schema: { type: string } }
         - { in: query, name: whtNotSubjectReason, schema: { type: string } }
         - { in: query, name: whtNotSubjectNote, schema: { type: string } }
+        - { in: query, name: whtFiledMonthTreatment, schema: { type: string, enum: [subsequent_period, amendment] } }
       responses:
         "200":
           description: The decision
@@ -6518,6 +6519,70 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WhtExceptions" }
+
+  /tax/wht/returns/{period}/file:
+    parameters:
+      - { in: path, name: period, required: true, schema: { type: string, pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$" } }
+    post:
+      operationId: fileWhtReturn
+      tags: [tax]
+      summary: "Q1: record that a month's Form 06 was FILED with ZATCA (approver) — or, when it already was, an AMENDMENT of it. The figures are the ledger's at this moment, written by the database."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FileWhtReturnInput" }
+      responses:
+        "200":
+          description: The month's return with its filing state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtMonthlyReturn" }
+        "422":
+          description: Filed before the month ended, in the future, or with no ZATCA reference
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /tax/wht/withholdings/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: getWhtWithholdingLineage
+      tags: [tax]
+      summary: "Q1: one withholding's lineage — original → reversal → corrected — and the state its month is in (filed, remitted)."
+      responses:
+        "200":
+          description: The lineage
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtLineage" }
+        "404": { description: Not this company's withholding }
+
+  /tax/wht/withholdings/{id}/reverse:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: correctWhtWithholding
+      tags: [tax]
+      summary: "Q1: correct a WHT-bearing payment (approver) — reverse it (the original kept) and re-enter the corrected payment through the pay path. One correction per withholding."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CorrectWhtWithholdingInput" }
+      responses:
+        "200":
+          description: The lineage after the correction (replayed when the idempotency key was already used)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtLineage" }
+        "409":
+          description: "Already corrected; the month is filed and no treatment was stated; the payment was acted on since; reconciled to the bank"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "423": { description: The correction or re-entry date is in a closed period }
 
   /tax/wht/periods/{period}/pay:
     parameters:
@@ -7189,7 +7254,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [bill, debit_note, credit_note, payment, bill_payment, allocation, credit_application, unallocation, refund, reclassification]
+          enum: [bill, debit_note, credit_note, payment, bill_payment, allocation, credit_application, unallocation, refund, reclassification, payment_reversal, bill_payment_reversal]
         date: { type: string, format: date }
         ts: { type: string, format: date-time }
         id: { type: integer }
@@ -7360,6 +7425,10 @@ components:
         whtPaymentType: { type: ["string", "null"], description: "Phase 16: a payment to a NON-RESIDENT states its nature (or the supplier's declared default applies) — never assumed." }
         whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
         whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
+        whtFiledMonthTreatment:
+          type: ["string", "null"]
+          enum: [subsequent_period, amendment, null]
+          description: "Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed."
 
     AllocateSupplierPaymentInput:
       type: object
@@ -7414,8 +7483,13 @@ components:
         reference: { type: string, nullable: true }
         classification: { $ref: "#/components/schemas/SupplierPaymentClassification" }
         source: { type: string, nullable: true }
-        availableAmount: { type: number, description: Derived on every read — the payment less live allocations less refunds }
+        availableAmount: { type: number, description: Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it) }
         journalEntryId: { type: integer, nullable: true }
+        reversal:
+          description: "Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise."
+          oneOf:
+            - $ref: "#/components/schemas/PaymentReversalRef"
+            - { type: "null" }
 
     SupplierPaymentAllocation:
       type: object
@@ -11641,6 +11715,20 @@ components:
         withheld: { type: ["number", "null"], description: "Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded)." }
         cashPaid: { type: ["number", "null"], description: "Bill payments: the cash that left the bank (amount − withheld)." }
         whtPaymentType: { type: ["string", "null"] }
+        reversal:
+          description: "Q1 (pack §14.1): a bill payment a WHT correction reversed — kept in the history, marked; absent/null otherwise."
+          oneOf:
+            - $ref: "#/components/schemas/PaymentReversalRef"
+            - { type: "null" }
+
+    PaymentReversalRef:
+      type: object
+      required: [correctionId, correctedOn, reason, reversalJournalEntryId]
+      properties:
+        correctionId: { type: integer }
+        correctedOn: { type: string }
+        reason: { type: string }
+        reversalJournalEntryId: { type: integer }
 
     PaymentAllocationInput:
       type: object
@@ -12055,6 +12143,10 @@ components:
             whtPaymentType: { type: ["string", "null"] }
             whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
             whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
+            whtFiledMonthTreatment:
+              type: ["string", "null"]
+              enum: [subsequent_period, amendment, null]
+              description: "Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed."
 
     InvoiceLineInput:
       type: object
@@ -14544,7 +14636,7 @@ components:
 
     WhtPreview:
       type: object
-      required: [kind, amount, date, paymentType, rate, statutoryRate, treatyReliefId, legalReference, formRow, withheld, cashPaid, notSubjectReason, determination]
+      required: [kind, amount, date, paymentType, rate, statutoryRate, treatyReliefId, legalReference, formRow, withheld, cashPaid, notSubjectReason, determination, monthFiled, returnPeriod]
       properties:
         kind: { type: string, enum: [no_vendor, resident, unknown_residency, not_subject, withheld, pending] }
         amount: { type: number }
@@ -14559,6 +14651,8 @@ components:
         cashPaid: { type: number, description: "What leaves the bank: amount − withheld." }
         notSubjectReason: { type: ["string", "null"] }
         determination: { $ref: "#/components/schemas/WhtDetermination" }
+        monthFiled: { type: boolean, description: "Q1: the payment month's Form 06 is recorded filed and this payment withholds — a treatment is required." }
+        returnPeriod: { type: ["string", "null"], description: "The month whose return would carry it; null while a filed month's treatment is not stated." }
 
     WhtDelayFine:
       type: object
@@ -14571,11 +14665,18 @@ components:
 
     WhtMonth:
       type: object
-      required: [period, dueDate, status, base, withheld, remitted, outstanding, payments, notSubject, pending, finesPaid, lastPaidAt, delayFineEstimate]
+      required: [period, dueDate, status, base, withheld, remitted, outstanding, payments, notSubject, pending, corrections, finesPaid, lastPaidAt, delayFineEstimate, filingStatus, filedOn, filedTaxWithheld]
       properties:
-        period: { type: string }
+        period: { type: string, description: "The RETURN month (Q1): what its Form 06 carries." }
         dueDate: { type: string, description: "The 10th of the following month (IR Art. 63(9)(a))." }
-        status: { type: string, enum: [nil, open, due, overdue, remitted] }
+        status:
+          type: string
+          enum: [nil, open, due, overdue, remitted, credit]
+          description: "credit (Q1): a correction left the month's return below what was remitted for it — shown, never netted against another month (open W-17)."
+        corrections: { type: integer, description: "Corrections whose reversal this month's return carries." }
+        filingStatus: { $ref: "#/components/schemas/WhtFilingStatus" }
+        filedOn: { type: ["string", "null"] }
+        filedTaxWithheld: { type: ["number", "null"], description: "The tax AS FILED (the latest filing's snapshot)." }
         base: { type: number }
         withheld: { type: number }
         remitted: { type: number }
@@ -14626,7 +14727,8 @@ components:
       type: object
       required: [id, sourceKind, billPaymentId, supplierPaymentId, vendorId, vendorName, vendorNameAr, vendorCountry, vendorAddress, vendorForeignTaxId,
                  billId, document, paymentDate, period, status, paymentType, formRow, notSubjectReason, notSubjectNote, baseAmount, rate, statutoryRate,
-                 treatyReliefId, treatyApprovalReference, whtAmount, cashPaid, journalEntryId, paymentClass, natureBasis, supersedesWithholdingId, determination]
+                 treatyReliefId, treatyApprovalReference, whtAmount, cashPaid, journalEntryId, paymentClass, natureBasis, supersedesWithholdingId, determination,
+                 returnPeriod, filedMonthTreatment, reentryOfCorrectionId, correction]
       properties:
         id: { type: integer }
         sourceKind: { type: string, enum: [bill_payment, supplier_payment] }
@@ -14659,6 +14761,172 @@ components:
         natureBasis: { type: ["string", "null"] }
         supersedesWithholdingId: { type: ["integer", "null"], description: "The pending or not-subject record a reclassification replaced (it stays, beside this one)." }
         determination: { $ref: "#/components/schemas/WhtDetermination" }
+        returnPeriod: { type: string, description: "Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one." }
+        filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        reentryOfCorrectionId: { type: ["integer", "null"], description: "Q1: this payment RE-ENTERS that correction (the corrected transaction)." }
+        correction:
+          description: "Q1: this withholding's own correction (the reversal and its re-entry), or null."
+          oneOf:
+            - $ref: "#/components/schemas/WhtCorrectionRef"
+            - { type: "null" }
+
+    WhtCorrectionRef:
+      type: object
+      required: [id, correctedOn, reason, reversalReturnPeriod, filedMonthTreatment, reversalJournalEntryId, correctedWithholdingId, correctedBillPaymentId, correctedSupplierPaymentId]
+      properties:
+        id: { type: integer }
+        correctedOn: { type: string }
+        reason: { type: string }
+        reversalReturnPeriod: { type: string, description: "The month whose return carries the reversal." }
+        filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        reversalJournalEntryId: { type: integer }
+        correctedWithholdingId: { type: ["integer", "null"] }
+        correctedBillPaymentId: { type: ["integer", "null"] }
+        correctedSupplierPaymentId: { type: ["integer", "null"] }
+
+    WhtAdjustment:
+      type: object
+      required: [correctionId, withholdingId, correctedOn, reason, filedMonthTreatment, originalReturnPeriod, paymentDate, vendorId, vendorName, vendorNameAr, paymentType, status, baseAmount, whtAmount, reversalJournalEntryId, correctedWithholdingId]
+      properties:
+        correctionId: { type: integer }
+        withholdingId: { type: integer }
+        correctedOn: { type: string }
+        reason: { type: string }
+        filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        originalReturnPeriod: { type: string }
+        paymentDate: { type: string }
+        vendorId: { type: integer }
+        vendorName: { type: string }
+        vendorNameAr: { type: ["string", "null"] }
+        paymentType: { type: ["string", "null"] }
+        status: { type: string, enum: [withheld, not_subject, pending] }
+        baseAmount: { type: number, description: "The reversal's effect on THIS return (negative)." }
+        whtAmount: { type: number, description: "The reversal's effect on THIS return (negative)." }
+        reversalJournalEntryId: { type: integer }
+        correctedWithholdingId: { type: ["integer", "null"] }
+
+    WhtFilingStatus:
+      type: string
+      enum: [unfiled, filed, amended, amendment_due]
+      description: "Q1: amendment_due — the ledger's figure for the month no longer equals what was last filed (a correction chose to amend it)."
+
+    WhtFiling:
+      type: object
+      required: [id, period, kind, amendsFilingId, filedOn, zatcaReference, taxWithheld, paymentTotal, notes, createdBy, createdAt]
+      properties:
+        id: { type: integer }
+        period: { type: string }
+        kind: { type: string, enum: [original, amendment] }
+        amendsFilingId: { type: ["integer", "null"] }
+        filedOn: { type: string }
+        zatcaReference: { type: string }
+        taxWithheld: { type: number, description: "The return AS FILED — written by the database from the ledger at that moment." }
+        paymentTotal: { type: number }
+        notes: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+
+    WhtFilingState:
+      type: object
+      required: [status, latest, filings]
+      properties:
+        status: { $ref: "#/components/schemas/WhtFilingStatus" }
+        latest:
+          oneOf:
+            - $ref: "#/components/schemas/WhtFiling"
+            - { type: "null" }
+        filings: { type: array, items: { $ref: "#/components/schemas/WhtFiling" } }
+
+    FileWhtReturnInput:
+      type: object
+      required: [zatcaReference]
+      properties:
+        filedOn: { type: ["string", "null"], description: "Defaults to today; after the month ends, never in the future." }
+        zatcaReference: { type: string, minLength: 3, maxLength: 200 }
+        notes: { type: ["string", "null"], maxLength: 2000 }
+
+    CorrectWhtWithholdingInput:
+      type: object
+      required: [reason]
+      description: >-
+        Q1 (pack §14.1): reverse a WHT-bearing payment (its mirror entry; the original kept) and, with `reentry`, record the
+        corrected payment through the same pay path. `filedMonthTreatment` is required when a leg falls in a FILED month.
+      properties:
+        reason: { type: string, minLength: 10, maxLength: 2000 }
+        date: { type: ["string", "null"], description: "The correction (reversal) date — defaults to today; never before the payment, never in the future." }
+        filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        idempotencyKey: { type: ["string", "null"], maxLength: 200 }
+        reentry:
+          oneOf:
+            - $ref: "#/components/schemas/WhtReentryInput"
+            - { type: "null" }
+
+    WhtReentryInput:
+      type: object
+      required: [amount]
+      description: "The corrected payment. A bill payment's fields: billId (defaults to the original's bill), amount, paidAt, bankAccountId. A supplier payment's: vendorId, classification, allocations, reference. The WHT declaration as on any pay path."
+      properties:
+        amount: { type: number, exclusiveMinimum: 0 }
+        paidAt: { type: ["string", "null"] }
+        bankAccountId: { type: ["integer", "null"] }
+        billId: { type: ["integer", "null"] }
+        vendorId: { type: ["integer", "null"] }
+        classification: { type: ["string", "null"], enum: [advance, security_deposit, erroneous, unknown, null] }
+        allocations: { type: array, items: { $ref: "#/components/schemas/SupplierPaymentAllocationInput" } }
+        reference: { type: ["string", "null"] }
+        whtPaymentType: { type: ["string", "null"] }
+        whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
+        whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
+        whtFiledMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+
+    WhtLineage:
+      type: object
+      required: [withholding, state, correction, reentry, corrects]
+      description: "Q1: one withholding's lineage — the original as recorded, the state it is in, its correction and the corrected re-entry (or, for a re-entry, the original it corrects)."
+      properties:
+        withholding: { $ref: "#/components/schemas/WhtWithholding" }
+        state:
+          type: object
+          required: [returnPeriod, filingStatus, latestFiling, monthTaxWithheld, monthRemitted, monthOutstanding, monthStatus]
+          properties:
+            returnPeriod: { type: string }
+            filingStatus: { $ref: "#/components/schemas/WhtFilingStatus" }
+            latestFiling:
+              oneOf:
+                - $ref: "#/components/schemas/WhtFiling"
+                - { type: "null" }
+            monthTaxWithheld: { type: number }
+            monthRemitted: { type: number }
+            monthOutstanding: { type: number }
+            monthStatus: { type: string, enum: [nil, open, due, overdue, remitted, credit] }
+        correction:
+          oneOf:
+            - type: object
+              required: [id, reason, correctedOn, correctionPeriod, reversalJournalEntryId, reversalReturnPeriod, filedMonthTreatment, originalFilingId, remittedAtCorrection, correctedBillPaymentId, correctedSupplierPaymentId, createdBy, createdAt]
+              properties:
+                id: { type: integer }
+                reason: { type: string }
+                correctedOn: { type: string }
+                correctionPeriod: { type: string }
+                reversalJournalEntryId: { type: integer }
+                reversalReturnPeriod: { type: string }
+                filedMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+                originalFilingId: { type: ["integer", "null"], description: "The filing the original's month had when it was corrected (the FILED state)." }
+                remittedAtCorrection: { type: number, description: "What of the original's month was remitted when it was corrected (the REMITTED state)." }
+                correctedBillPaymentId: { type: ["integer", "null"] }
+                correctedSupplierPaymentId: { type: ["integer", "null"] }
+                createdBy: { type: ["integer", "null"] }
+                createdAt: { type: string }
+            - { type: "null" }
+        reentry:
+          oneOf:
+            - $ref: "#/components/schemas/WhtWithholding"
+            - { type: "null" }
+        corrects:
+          oneOf:
+            - $ref: "#/components/schemas/WhtWithholding"
+            - { type: "null" }
+        replayed: { type: boolean }
 
     WhtRemittance:
       type: object
@@ -14700,11 +14968,11 @@ components:
 
     WhtMonthlyReturn:
       type: object
-      required: [period, dueDate, status, asOf, lines, totals, delayFineEstimate, schedule, excluded, pending, remittances, unusedFormRows]
+      required: [period, dueDate, status, asOf, lines, totals, delayFineEstimate, schedule, excluded, pending, corrected, adjustments, filing, remittances, unusedFormRows]
       properties:
         period: { type: string }
         dueDate: { type: string }
-        status: { type: string, enum: [nil, open, due, overdue, remitted] }
+        status: { type: string, enum: [nil, open, due, overdue, remitted, credit] }
         asOf: { type: string }
         lines:
           type: array
@@ -14731,6 +14999,15 @@ components:
           type: array
           description: "Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2)."
           items: { $ref: "#/components/schemas/WhtWithholding" }
+        corrected:
+          type: array
+          description: "Q1: rows reported in this month AND reversed within its return (before filing, or by amendment) — shown, out of the totals."
+          items: { $ref: "#/components/schemas/WhtWithholding" }
+        adjustments:
+          type: array
+          description: "Q1: corrections this month's return carries whose original is reported in an earlier, filed month (subsequent period) — negative lines."
+          items: { $ref: "#/components/schemas/WhtAdjustment" }
+        filing: { $ref: "#/components/schemas/WhtFilingState" }
         remittances:
           type: array
           items: { $ref: "#/components/schemas/WhtRemittance" }
@@ -15630,6 +15907,10 @@ components:
         whtPaymentType: { type: ["string", "null"] }
         whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
         whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
+        whtFiledMonthTreatment:
+          type: ["string", "null"]
+          enum: [subsequent_period, amendment, null]
+          description: "Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed."
 
     PaymentPlanPaid:
       type: object

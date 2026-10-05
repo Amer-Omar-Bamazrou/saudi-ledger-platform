@@ -34,6 +34,7 @@ import { pool } from "@workspace/db";
 import { INVOICE_NOT_REVERSED_TEXT, BILL_NOT_REVERSED_TEXT, PAYMENT_NOT_REVERSED_TEXT } from "../repositories/openingReversal";
 import { INVOICE_ISSUED_OR_OPENING_TEXT } from "../repositories/receivableInBooks";
 import { BILL_AP_CONTRIBUTION_TEXT } from "../repositories/billPosition";
+import { SUPPLIER_PAYMENT_REVERSED_TEXT } from "../repositories/paymentReversal";
 import { SUPPLIER_ON_ACCOUNT_ASSET, SUPPLIER_ON_ACCOUNT_CODES } from "../services/accounting/supplierCreditPolicy";
 
 /**
@@ -253,6 +254,8 @@ async function main() {
                               WHERE a.supplier_payment_id = p.id
                                 AND NOT EXISTS (SELECT 1 FROM supplier_payment_allocation_reversals r WHERE r.allocation_id = a.id)), 0)
                  - coalesce((SELECT sum(f.amount::numeric) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0)
+                 -- Q1: a payment a WHT correction reversed holds nothing on account (its mirror took it back)
+                 - CASE WHEN ${SUPPLIER_PAYMENT_REVERSED_TEXT("p")} THEN p.amount::numeric ELSE 0 END
                  -- Z-AP1: the VAT the supplier's advance invoice CLAIMED has left the
                  -- advance for Input VAT; what is still open (not credited, not yet
                  -- deducted by a final bill) is off the asset in the GL.

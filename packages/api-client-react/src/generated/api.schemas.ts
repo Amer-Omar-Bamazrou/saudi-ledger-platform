@@ -36,6 +36,8 @@ export const SupplierStatementLineKind = {
   unallocation: 'unallocation',
   refund: 'refund',
   reclassification: 'reclassification',
+  payment_reversal: 'payment_reversal',
+  bill_payment_reversal: 'bill_payment_reversal',
 } as const;
 
 export interface SupplierStatementLine {
@@ -199,6 +201,18 @@ export const CreateSupplierPaymentInputWhtNotSubjectReason = {
   not_kingdom_source: 'not_kingdom_source',
 } as const;
 
+/**
+ * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+ * @nullable
+ */
+export type CreateSupplierPaymentInputWhtFiledMonthTreatment = typeof CreateSupplierPaymentInputWhtFiledMonthTreatment[keyof typeof CreateSupplierPaymentInputWhtFiledMonthTreatment] | null;
+
+
+export const CreateSupplierPaymentInputWhtFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
+} as const;
+
 export interface CreateSupplierPaymentInput {
   vendorId: number;
   amount: number;
@@ -225,6 +239,11 @@ export interface CreateSupplierPaymentInput {
      * @nullable
      */
   whtNotSubjectNote?: string | null;
+  /**
+     * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+     * @nullable
+     */
+  whtFiledMonthTreatment?: CreateSupplierPaymentInputWhtFiledMonthTreatment;
 }
 
 export interface AllocateSupplierPaymentInput {
@@ -268,6 +287,13 @@ export interface ReverseSupplierAllocationInput {
   date?: string;
 }
 
+export interface PaymentReversalRef {
+  correctionId: number;
+  correctedOn: string;
+  reason: string;
+  reversalJournalEntryId: number;
+}
+
 export interface SupplierPayment {
   id: number;
   vendorId: number;
@@ -276,9 +302,11 @@ export interface SupplierPayment {
   reference?: string | null;
   classification: SupplierPaymentClassification;
   source?: string | null;
-  /** Derived on every read — the payment less live allocations less refunds */
+  /** Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it) */
   availableAmount: number;
   journalEntryId?: number | null;
+  /** Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise. */
+  reversal?: PaymentReversalRef | null;
 }
 
 export interface SupplierPaymentAllocation {
@@ -5090,6 +5118,8 @@ export interface Payment {
   cashPaid?: number | null;
   /** @nullable */
   whtPaymentType?: string | null;
+  /** Q1 (pack §14.1): a bill payment a WHT correction reversed — kept in the history, marked; absent/null otherwise. */
+  reversal?: PaymentReversalRef | null;
 }
 
 export interface PaymentAllocationInput {
@@ -5753,6 +5783,18 @@ export const BillPaymentInputWhtNotSubjectReason = {
 } as const;
 
 /**
+ * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+ * @nullable
+ */
+export type BillPaymentInputWhtFiledMonthTreatment = typeof BillPaymentInputWhtFiledMonthTreatment[keyof typeof BillPaymentInputWhtFiledMonthTreatment] | null;
+
+
+export const BillPaymentInputWhtFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
+} as const;
+
+/**
  * A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier's declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.
  */
 export type BillPaymentInput = PaymentInput & ({
@@ -5765,6 +5807,11 @@ export type BillPaymentInput = PaymentInput & ({
      * @nullable
      */
   whtNotSubjectNote?: string | null;
+  /**
+     * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+     * @nullable
+     */
+  whtFiledMonthTreatment?: BillPaymentInputWhtFiledMonthTreatment;
 });
 
 export interface InvoiceLineInput {
@@ -9752,6 +9799,13 @@ export interface WhtPreview {
   /** @nullable */
   notSubjectReason: string | null;
   determination: WhtDetermination;
+  /** Q1: the payment month's Form 06 is recorded filed and this payment withholds — a treatment is required. */
+  monthFiled: boolean;
+  /**
+     * The month whose return would carry it; null while a filed month's treatment is not stated.
+     * @nullable
+     */
+  returnPeriod: string | null;
 }
 
 /**
@@ -9763,6 +9817,9 @@ export interface WhtDelayFine {
   amount: number;
 }
 
+/**
+ * credit (Q1): a correction left the month's return below what was remitted for it — shown, never netted against another month (open W-17).
+ */
 export type WhtMonthStatus = typeof WhtMonthStatus[keyof typeof WhtMonthStatus];
 
 
@@ -9772,13 +9829,39 @@ export const WhtMonthStatus = {
   due: 'due',
   overdue: 'overdue',
   remitted: 'remitted',
+  credit: 'credit',
+} as const;
+
+/**
+ * Q1: amendment_due — the ledger's figure for the month no longer equals what was last filed (a correction chose to amend it).
+ */
+export type WhtFilingStatus = typeof WhtFilingStatus[keyof typeof WhtFilingStatus];
+
+
+export const WhtFilingStatus = {
+  unfiled: 'unfiled',
+  filed: 'filed',
+  amended: 'amended',
+  amendment_due: 'amendment_due',
 } as const;
 
 export interface WhtMonth {
+  /** The RETURN month (Q1): what its Form 06 carries. */
   period: string;
   /** The 10th of the following month (IR Art. 63(9)(a)). */
   dueDate: string;
+  /** credit (Q1): a correction left the month's return below what was remitted for it — shown, never netted against another month (open W-17). */
   status: WhtMonthStatus;
+  /** Corrections whose reversal this month's return carries. */
+  corrections: number;
+  filingStatus: WhtFilingStatus;
+  /** @nullable */
+  filedOn: string | null;
+  /**
+     * The tax AS FILED (the latest filing's snapshot).
+     * @nullable
+     */
+  filedTaxWithheld: number | null;
   base: number;
   withheld: number;
   remitted: number;
@@ -9842,6 +9925,45 @@ export const WhtWithholdingStatus = {
   pending: 'pending',
 } as const;
 
+/**
+ * @nullable
+ */
+export type WhtWithholdingFiledMonthTreatment = typeof WhtWithholdingFiledMonthTreatment[keyof typeof WhtWithholdingFiledMonthTreatment] | null;
+
+
+export const WhtWithholdingFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
+} as const;
+
+/**
+ * @nullable
+ */
+export type WhtCorrectionRefFiledMonthTreatment = typeof WhtCorrectionRefFiledMonthTreatment[keyof typeof WhtCorrectionRefFiledMonthTreatment] | null;
+
+
+export const WhtCorrectionRefFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
+} as const;
+
+export interface WhtCorrectionRef {
+  id: number;
+  correctedOn: string;
+  reason: string;
+  /** The month whose return carries the reversal. */
+  reversalReturnPeriod: string;
+  /** @nullable */
+  filedMonthTreatment: WhtCorrectionRefFiledMonthTreatment;
+  reversalJournalEntryId: number;
+  /** @nullable */
+  correctedWithholdingId: number | null;
+  /** @nullable */
+  correctedBillPaymentId: number | null;
+  /** @nullable */
+  correctedSupplierPaymentId: number | null;
+}
+
 export interface WhtWithholding {
   id: number;
   sourceKind: WhtWithholdingSourceKind;
@@ -9898,6 +10020,284 @@ export interface WhtWithholding {
      */
   supersedesWithholdingId: number | null;
   determination: WhtDetermination;
+  /** Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one. */
+  returnPeriod: string;
+  /** @nullable */
+  filedMonthTreatment: WhtWithholdingFiledMonthTreatment;
+  /**
+     * Q1: this payment RE-ENTERS that correction (the corrected transaction).
+     * @nullable
+     */
+  reentryOfCorrectionId: number | null;
+  /** Q1: this withholding's own correction (the reversal and its re-entry), or null. */
+  correction: WhtCorrectionRef | null;
+}
+
+/**
+ * @nullable
+ */
+export type WhtAdjustmentFiledMonthTreatment = typeof WhtAdjustmentFiledMonthTreatment[keyof typeof WhtAdjustmentFiledMonthTreatment] | null;
+
+
+export const WhtAdjustmentFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
+} as const;
+
+export type WhtAdjustmentStatus = typeof WhtAdjustmentStatus[keyof typeof WhtAdjustmentStatus];
+
+
+export const WhtAdjustmentStatus = {
+  withheld: 'withheld',
+  not_subject: 'not_subject',
+  pending: 'pending',
+} as const;
+
+export interface WhtAdjustment {
+  correctionId: number;
+  withholdingId: number;
+  correctedOn: string;
+  reason: string;
+  /** @nullable */
+  filedMonthTreatment: WhtAdjustmentFiledMonthTreatment;
+  originalReturnPeriod: string;
+  paymentDate: string;
+  vendorId: number;
+  vendorName: string;
+  /** @nullable */
+  vendorNameAr: string | null;
+  /** @nullable */
+  paymentType: string | null;
+  status: WhtAdjustmentStatus;
+  /** The reversal's effect on THIS return (negative). */
+  baseAmount: number;
+  /** The reversal's effect on THIS return (negative). */
+  whtAmount: number;
+  reversalJournalEntryId: number;
+  /** @nullable */
+  correctedWithholdingId: number | null;
+}
+
+export type WhtFilingKind = typeof WhtFilingKind[keyof typeof WhtFilingKind];
+
+
+export const WhtFilingKind = {
+  original: 'original',
+  amendment: 'amendment',
+} as const;
+
+export interface WhtFiling {
+  id: number;
+  period: string;
+  kind: WhtFilingKind;
+  /** @nullable */
+  amendsFilingId: number | null;
+  filedOn: string;
+  zatcaReference: string;
+  /** The return AS FILED — written by the database from the ledger at that moment. */
+  taxWithheld: number;
+  paymentTotal: number;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+}
+
+export interface WhtFilingState {
+  status: WhtFilingStatus;
+  latest: WhtFiling | null;
+  filings: WhtFiling[];
+}
+
+export interface FileWhtReturnInput {
+  /**
+     * Defaults to today; after the month ends, never in the future.
+     * @nullable
+     */
+  filedOn?: string | null;
+  /**
+     * @minLength 3
+     * @maxLength 200
+     */
+  zatcaReference: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+/**
+ * @nullable
+ */
+export type CorrectWhtWithholdingInputFiledMonthTreatment = typeof CorrectWhtWithholdingInputFiledMonthTreatment[keyof typeof CorrectWhtWithholdingInputFiledMonthTreatment] | null;
+
+
+export const CorrectWhtWithholdingInputFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
+} as const;
+
+/**
+ * @nullable
+ */
+export type WhtReentryInputClassification = typeof WhtReentryInputClassification[keyof typeof WhtReentryInputClassification] | null;
+
+
+export const WhtReentryInputClassification = {
+  advance: 'advance',
+  security_deposit: 'security_deposit',
+  erroneous: 'erroneous',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * @nullable
+ */
+export type WhtReentryInputWhtNotSubjectReason = typeof WhtReentryInputWhtNotSubjectReason[keyof typeof WhtReentryInputWhtNotSubjectReason] | null;
+
+
+export const WhtReentryInputWhtNotSubjectReason = {
+  goods: 'goods',
+  not_kingdom_source: 'not_kingdom_source',
+} as const;
+
+/**
+ * @nullable
+ */
+export type WhtReentryInputWhtFiledMonthTreatment = typeof WhtReentryInputWhtFiledMonthTreatment[keyof typeof WhtReentryInputWhtFiledMonthTreatment] | null;
+
+
+export const WhtReentryInputWhtFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
+} as const;
+
+/**
+ * The corrected payment. A bill payment's fields: billId (defaults to the original's bill), amount, paidAt, bankAccountId. A supplier payment's: vendorId, classification, allocations, reference. The WHT declaration as on any pay path.
+ */
+export interface WhtReentryInput {
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  bankAccountId?: number | null;
+  /** @nullable */
+  billId?: number | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  classification?: WhtReentryInputClassification;
+  allocations?: SupplierPaymentAllocationInput[];
+  /** @nullable */
+  reference?: string | null;
+  /** @nullable */
+  whtPaymentType?: string | null;
+  /** @nullable */
+  whtNotSubjectReason?: WhtReentryInputWhtNotSubjectReason;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  whtNotSubjectNote?: string | null;
+  /** @nullable */
+  whtFiledMonthTreatment?: WhtReentryInputWhtFiledMonthTreatment;
+}
+
+/**
+ * Q1 (pack §14.1): reverse a WHT-bearing payment (its mirror entry; the original kept) and, with `reentry`, record the corrected payment through the same pay path. `filedMonthTreatment` is required when a leg falls in a FILED month.
+ */
+export interface CorrectWhtWithholdingInput {
+  /**
+     * @minLength 10
+     * @maxLength 2000
+     */
+  reason: string;
+  /**
+     * The correction (reversal) date — defaults to today; never before the payment, never in the future.
+     * @nullable
+     */
+  date?: string | null;
+  /** @nullable */
+  filedMonthTreatment?: CorrectWhtWithholdingInputFiledMonthTreatment;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  idempotencyKey?: string | null;
+  reentry?: WhtReentryInput | null;
+}
+
+export type WhtLineageStateMonthStatus = typeof WhtLineageStateMonthStatus[keyof typeof WhtLineageStateMonthStatus];
+
+
+export const WhtLineageStateMonthStatus = {
+  nil: 'nil',
+  open: 'open',
+  due: 'due',
+  overdue: 'overdue',
+  remitted: 'remitted',
+  credit: 'credit',
+} as const;
+
+export type WhtLineageState = {
+  returnPeriod: string;
+  filingStatus: WhtFilingStatus;
+  latestFiling: WhtFiling | null;
+  monthTaxWithheld: number;
+  monthRemitted: number;
+  monthOutstanding: number;
+  monthStatus: WhtLineageStateMonthStatus;
+};
+
+/**
+ * @nullable
+ */
+export type WhtLineageCorrectionFiledMonthTreatment = typeof WhtLineageCorrectionFiledMonthTreatment[keyof typeof WhtLineageCorrectionFiledMonthTreatment] | null;
+
+
+export const WhtLineageCorrectionFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
+} as const;
+
+export type WhtLineageCorrection = {
+  id: number;
+  reason: string;
+  correctedOn: string;
+  correctionPeriod: string;
+  reversalJournalEntryId: number;
+  reversalReturnPeriod: string;
+  /** @nullable */
+  filedMonthTreatment: WhtLineageCorrectionFiledMonthTreatment;
+  /**
+     * The filing the original's month had when it was corrected (the FILED state).
+     * @nullable
+     */
+  originalFilingId: number | null;
+  /** What of the original's month was remitted when it was corrected (the REMITTED state). */
+  remittedAtCorrection: number;
+  /** @nullable */
+  correctedBillPaymentId: number | null;
+  /** @nullable */
+  correctedSupplierPaymentId: number | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+} | null;
+
+/**
+ * Q1: one withholding's lineage — the original as recorded, the state it is in, its correction and the corrected re-entry (or, for a re-entry, the original it corrects).
+ */
+export interface WhtLineage {
+  withholding: WhtWithholding;
+  state: WhtLineageState;
+  correction: WhtLineageCorrection;
+  reentry: WhtWithholding | null;
+  corrects: WhtWithholding | null;
+  replayed?: boolean;
 }
 
 export type WhtRemittanceReversal = {
@@ -9947,6 +10347,7 @@ export const WhtMonthlyReturnStatus = {
   due: 'due',
   overdue: 'overdue',
   remitted: 'remitted',
+  credit: 'credit',
 } as const;
 
 export type WhtMonthlyReturnTotals = {
@@ -9968,6 +10369,11 @@ export interface WhtMonthlyReturn {
   excluded: WhtWithholding[];
   /** Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2). */
   pending: WhtWithholding[];
+  /** Q1: rows reported in this month AND reversed within its return (before filing, or by amendment) — shown, out of the totals. */
+  corrected: WhtWithholding[];
+  /** Q1: corrections this month's return carries whose original is reported in an earlier, filed month (subsequent period) — negative lines. */
+  adjustments: WhtAdjustment[];
+  filing: WhtFilingState;
   remittances: WhtRemittance[];
   /** Form 06 rows 07/08 have no separate band after Resolution 25 (open question W-4). */
   unusedFormRows: string[];
@@ -11228,6 +11634,18 @@ export const PayPaymentPlanInputWhtNotSubjectReason = {
   not_kingdom_source: 'not_kingdom_source',
 } as const;
 
+/**
+ * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+ * @nullable
+ */
+export type PayPaymentPlanInputWhtFiledMonthTreatment = typeof PayPaymentPlanInputWhtFiledMonthTreatment[keyof typeof PayPaymentPlanInputWhtFiledMonthTreatment] | null;
+
+
+export const PayPaymentPlanInputWhtFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
+} as const;
+
 export interface PayPaymentPlanInput {
   /** @nullable */
   paidAt?: string | null;
@@ -11242,6 +11660,11 @@ export interface PayPaymentPlanInput {
      * @nullable
      */
   whtNotSubjectNote?: string | null;
+  /**
+     * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+     * @nullable
+     */
+  whtFiledMonthTreatment?: PayPaymentPlanInputWhtFiledMonthTreatment;
 }
 
 export type PaymentPlanPaidPayment = {
@@ -12394,6 +12817,7 @@ allocatedAmount?: number;
 whtPaymentType?: string;
 whtNotSubjectReason?: string;
 whtNotSubjectNote?: string;
+whtFiledMonthTreatment?: PreviewWhtWhtFiledMonthTreatment;
 };
 
 export type PreviewWhtClassification = typeof PreviewWhtClassification[keyof typeof PreviewWhtClassification];
@@ -12404,6 +12828,14 @@ export const PreviewWhtClassification = {
   security_deposit: 'security_deposit',
   erroneous: 'erroneous',
   unknown: 'unknown',
+} as const;
+
+export type PreviewWhtWhtFiledMonthTreatment = typeof PreviewWhtWhtFiledMonthTreatment[keyof typeof PreviewWhtWhtFiledMonthTreatment];
+
+
+export const PreviewWhtWhtFiledMonthTreatment = {
+  subsequent_period: 'subsequent_period',
+  amendment: 'amendment',
 } as const;
 
 export type GetWhtAnnualParams = {

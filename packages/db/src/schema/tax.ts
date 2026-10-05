@@ -176,6 +176,18 @@ export const whtWithholdingsTable = pgTable(
      * a withholding (a tax nobody withheld at payment is open question W-16).
      */
     supersedesWithholdingId: integer("supersedes_withholding_id").references((): AnyPgColumn => whtWithholdingsTable.id, { onDelete: "restrict" }),
+    /**
+     * Accountant Q1 (2026-10-05; pack §14.1): the month whose RETURN carries
+     * this withholding. `period` is a fact (the payment month, by CHECK); the
+     * return month equals it unless that month's Form 06 is recorded FILED and
+     * the person chose the subsequent-period treatment — then it is a later,
+     * unfiled month. Set at insert; the admit refuses any other value.
+     */
+    returnPeriod: text("return_period").notNull(),
+    /** subsequent_period | amendment — stated only when the payment month's return is filed (0117 admit). */
+    filedMonthTreatment: text("filed_month_treatment"),
+    /** The correction this withholding RE-ENTERS (the corrected transaction of original → reversal → corrected). */
+    correctionId: integer("correction_id").references((): AnyPgColumn => whtCorrectionsTable.id, { onDelete: "restrict" }),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -184,6 +196,8 @@ export const whtWithholdingsTable = pgTable(
     // one ORIGINAL determination per supplier payment; each later one supersedes exactly one before it
     uniqueIndex("wht_withholdings_supplier_payment_unq").on(t.supplierPaymentId).where(sql`supplier_payment_id is not null and supersedes_withholding_id is null`),
     uniqueIndex("wht_withholdings_supersedes_unq").on(t.supersedesWithholdingId).where(sql`supersedes_withholding_id is not null`),
+    uniqueIndex("wht_withholdings_correction_unq").on(t.correctionId).where(sql`correction_id is not null`),
+    index("wht_withholdings_return_period_idx").on(t.companyId, t.returnPeriod),
     index("wht_withholdings_period_idx").on(t.companyId, t.period),
     index("wht_withholdings_vendor_idx").on(t.companyId, t.vendorId, t.paymentDate),
     index("wht_withholdings_entry_idx").on(t.journalEntryId),
@@ -204,6 +218,9 @@ export const whtWithholdingsTable = pgTable(
     check("wht_withholdings_pending_chk", sql`${t.status} <> 'pending' or (${t.rate} = 0 and ${t.whtAmount} = 0 and ${t.paymentType} is null and ${t.notSubjectReason} is null and ${t.rateId} is null and ${t.statutoryRate} is null and ${t.treatyReliefId} is null)`),
     check("wht_withholdings_class_chk", sql`${t.paymentClass} is null or ${t.paymentClass} in (${WHT_PAYMENT_CLASSES_SQL})`),
     check("wht_withholdings_basis_chk", sql`${t.natureBasis} is null or ${t.natureBasis} in (${WHT_NATURE_BASES_SQL})`),
+    // a return month is the payment month or later — a correction never attributes tax to an EARLIER return
+    check("wht_withholdings_return_period_chk", sql`${t.returnPeriod} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and ${t.returnPeriod} >= ${t.period}`),
+    check("wht_withholdings_filed_treatment_chk", sql`${t.filedMonthTreatment} is null or ${t.filedMonthTreatment} in ('subsequent_period', 'amendment')`),
     check("wht_withholdings_note_chk", sql`${t.notSubjectReason} is distinct from 'not_kingdom_source' or length(btrim(coalesce(${t.notSubjectNote}, ''))) >= 10`),
     check("wht_withholdings_treaty_chk", sql`${t.treatyReliefId} is null or ${t.rate} <= ${t.statutoryRate}`),
   ],
@@ -280,6 +297,113 @@ export const whtRemittanceReversalsTable = pgTable(
     uniqueIndex("wht_remittance_reversals_one_unq").on(t.remittanceId),
     index("wht_remittance_reversals_entry_idx").on(t.journalEntryId),
     check("wht_remittance_reversals_reason_chk", sql`length(btrim(${t.reason})) >= 3`),
+  ],
+);
+
+/**
+ * Accountant Q1 (2026-10-05; pack §14.1) — the RECORD that a month's Form 06
+ * was FILED with ZATCA, and of each amendment of it. The platform does not
+ * file (§2.5, LIMITATION); a person records that they did. The snapshot is the
+ * return AS FILED — the admit refuses a figure the WHT ledger does not show at
+ * that moment — so a later correction is measured against what was filed, and
+ * a filed return is never rewritten silently. Append-only.
+ */
+export const whtReturnFilingsTable = pgTable(
+  "wht_return_filings",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .default(sql`(nullif(current_setting('app.current_org_id', true), ''))::uuid`)
+      .references(() => organizationsTable.id),
+    companyId: uuid("company_id")
+      .notNull()
+      .default(sql`(nullif(current_setting('app.current_company_id', true), ''))::uuid`)
+      .references(() => companiesTable.id),
+    period: text("period").notNull(),
+    /** original | amendment */
+    kind: text("kind").notNull(),
+    amendsFilingId: integer("amends_filing_id").references((): AnyPgColumn => whtReturnFilingsTable.id, { onDelete: "restrict" }),
+    filedOn: date("filed_on").notNull(),
+    zatcaReference: text("zatca_reference").notNull(),
+    /** The return's totals as filed — equal to the WHT ledger's at insert (admit). May be negative (a month carrying a correction). */
+    taxWithheld: numeric("tax_withheld", { precision: 15, scale: 2 }).notNull(),
+    paymentTotal: numeric("payment_total", { precision: 15, scale: 2 }).notNull(),
+    notes: text("notes"),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("wht_return_filings_one_original_unq").on(t.companyId, t.period).where(sql`kind = 'original'`),
+    index("wht_return_filings_period_idx").on(t.companyId, t.period),
+    check("wht_return_filings_period_chk", sql`${t.period} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+    check("wht_return_filings_kind_chk", sql`${t.kind} in ('original', 'amendment') and ((${t.kind} = 'original') = (${t.amendsFilingId} is null))`),
+    check("wht_return_filings_reference_chk", sql`length(btrim(${t.zatcaReference})) >= 3`),
+    // Form 06 is filed in the month AFTER the WHT month (IR Art. 63(9)(a)): never before that month begins
+    check("wht_return_filings_after_month_chk", sql`${t.filedOn} >= (to_date(${t.period} || '-01', 'YYYY-MM-DD') + interval '1 month')::date`),
+  ],
+);
+
+/**
+ * Accountant Q1 (2026-10-05; pack §14.1) — the CORRECTION of a posted
+ * withholding: original → reversal → corrected. The original withholding and
+ * its payment stay exactly as they were; this record holds the reversal (the
+ * mirror of the payment's entry, its date, why, who), the month whose return
+ * carries it (`reversal_return_period` — the original's month while unfiled;
+ * after filing, the person's choice: a later month or an amendment), the state
+ * the original was in (its filing, what of its month was remitted) and the
+ * corrected re-entry once it exists. One per withholding (no double
+ * correction); append-only except the one-time link to the re-entry.
+ */
+export const whtCorrectionsTable = pgTable(
+  "wht_corrections",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .default(sql`(nullif(current_setting('app.current_org_id', true), ''))::uuid`)
+      .references(() => organizationsTable.id),
+    companyId: uuid("company_id")
+      .notNull()
+      .default(sql`(nullif(current_setting('app.current_company_id', true), ''))::uuid`)
+      .references(() => companiesTable.id),
+    withholdingId: integer("withholding_id").notNull().references((): AnyPgColumn => whtWithholdingsTable.id, { onDelete: "restrict" }),
+    sourceKind: text("source_kind").notNull(),
+    billPaymentId: integer("bill_payment_id").references(() => billPaymentsTable.id, { onDelete: "restrict" }),
+    supplierPaymentId: integer("supplier_payment_id").references(() => supplierPaymentsTable.id, { onDelete: "restrict" }),
+    reason: text("reason").notNull(),
+    /** The date the reversal is posted (the mirror entry's date). */
+    correctedOn: date("corrected_on").notNull(),
+    /** YYYY-MM of `corrected_on` (CHECK). */
+    correctionPeriod: text("correction_period").notNull(),
+    reversalJournalEntryId: integer("reversal_journal_entry_id").notNull().references(() => journalEntriesTable.id, { onDelete: "restrict" }),
+    /** The month whose return carries the reversal (admit-checked). */
+    reversalReturnPeriod: text("reversal_return_period").notNull(),
+    /** subsequent_period | amendment — only when the original's return month was filed and it withheld tax. */
+    filedMonthTreatment: text("filed_month_treatment"),
+    /** The original's state when corrected: its return month's latest filing, and what of that month was remitted. */
+    originalFilingId: integer("original_filing_id").references(() => whtReturnFilingsTable.id, { onDelete: "restrict" }),
+    remittedAtCorrection: numeric("remitted_at_correction", { precision: 15, scale: 2 }).notNull(),
+    /** The corrected re-entry (null for a reversal with no re-entry). Set once, after the re-entry is written. */
+    correctedBillPaymentId: integer("corrected_bill_payment_id").references(() => billPaymentsTable.id, { onDelete: "restrict" }),
+    correctedSupplierPaymentId: integer("corrected_supplier_payment_id").references(() => supplierPaymentsTable.id, { onDelete: "restrict" }),
+    idempotencyKey: text("idempotency_key"),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("wht_corrections_withholding_unq").on(t.withholdingId),
+    uniqueIndex("wht_corrections_entry_unq").on(t.reversalJournalEntryId),
+    uniqueIndex("wht_corrections_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key is not null`),
+    index("wht_corrections_return_period_idx").on(t.companyId, t.reversalReturnPeriod),
+    index("wht_corrections_bill_payment_idx").on(t.billPaymentId),
+    index("wht_corrections_supplier_payment_idx").on(t.supplierPaymentId),
+    check("wht_corrections_source_chk", sql`(${t.sourceKind} = 'bill_payment' and ${t.billPaymentId} is not null and ${t.supplierPaymentId} is null)
+      or (${t.sourceKind} = 'supplier_payment' and ${t.supplierPaymentId} is not null and ${t.billPaymentId} is null)`),
+    check("wht_corrections_reason_chk", sql`length(btrim(${t.reason})) >= 10`),
+    check("wht_corrections_period_chk", sql`${t.correctionPeriod} = to_char(${t.correctedOn}, 'YYYY-MM') and ${t.reversalReturnPeriod} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+    check("wht_corrections_treatment_chk", sql`${t.filedMonthTreatment} is null or ${t.filedMonthTreatment} in ('subsequent_period', 'amendment')`),
+    check("wht_corrections_reentry_chk", sql`${t.correctedBillPaymentId} is null or ${t.correctedSupplierPaymentId} is null`),
   ],
 );
 
@@ -454,6 +578,8 @@ export type WhtRate = typeof whtRatesTable.$inferSelect;
 export type VendorWhtTreatyRelief = typeof vendorWhtTreatyReliefsTable.$inferSelect;
 export type WhtWithholding = typeof whtWithholdingsTable.$inferSelect;
 export type WhtRemittance = typeof whtRemittancesTable.$inferSelect;
+export type WhtReturnFiling = typeof whtReturnFilingsTable.$inferSelect;
+export type WhtCorrection = typeof whtCorrectionsTable.$inferSelect;
 export type ZakatAccountClassification = typeof zakatAccountClassificationsTable.$inferSelect;
 export type TaxComputation = typeof taxComputationsTable.$inferSelect;
 export type TaxComputationVersion = typeof taxComputationVersionsTable.$inferSelect;

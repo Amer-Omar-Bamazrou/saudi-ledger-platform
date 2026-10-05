@@ -45,7 +45,7 @@
  */
 import { and, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 import {
-  db, vendorsTable, whtRatesTable, vendorWhtTreatyReliefsTable, whtWithholdingsTable,
+  db, vendorsTable, whtRatesTable, vendorWhtTreatyReliefsTable, whtWithholdingsTable, whtReturnFilingsTable,
   WHT_PAYMENT_TYPES, WHT_DECLARABLE_NOT_SUBJECT_REASONS,
   type WhtPaymentType, type WhtNotSubjectReason, type WhtPaymentClass, type WhtNatureBasis,
 } from "@workspace/db";
@@ -60,12 +60,69 @@ export interface WhtDeclaration {
   paymentType?: string | null;
   notSubjectReason?: string | null;
   notSubjectNote?: string | null;
+  /** Q1 (pack §14.1): only when the payment's month is recorded FILED — where its tax is reported. */
+  filedMonthTreatment?: string | null;
 }
 
 /** Read the WHT fields of a pay request — the same names on every pay path. */
 export function whtDeclarationFrom(body: Record<string, unknown> | null | undefined): WhtDeclaration {
   const s = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
-  return { paymentType: s(body?.whtPaymentType), notSubjectReason: s(body?.whtNotSubjectReason), notSubjectNote: s(body?.whtNotSubjectNote) };
+  return {
+    paymentType: s(body?.whtPaymentType), notSubjectReason: s(body?.whtNotSubjectReason), notSubjectNote: s(body?.whtNotSubjectNote),
+    filedMonthTreatment: s(body?.whtFiledMonthTreatment),
+  };
+}
+
+export const WHT_FILED_MONTH_TREATMENTS = ["subsequent_period", "amendment"] as const;
+export type WhtFiledMonthTreatment = (typeof WHT_FILED_MONTH_TREATMENTS)[number];
+
+/** The latest filing recorded for a month of THIS company, or null — the "is it filed" fact every Q1 rule reads. */
+export async function latestFilingOf(period: string) {
+  const [f] = await db.select().from(whtReturnFilingsTable)
+    .where(and(companyScoped(whtReturnFilingsTable.companyId), eq(whtReturnFilingsTable.period, period)))
+    .orderBy(desc(whtReturnFilingsTable.id)).limit(1);
+  return f ?? null;
+}
+
+/**
+ * 🔴 Q1 (pack §14.1): WHICH MONTH'S RETURN carries a withholding. Its own
+ * payment month — unless that month's Form 06 is recorded FILED and it
+ * withholds tax: then the person states the treatment, and a filed return is
+ * never changed silently.
+ *   · `subsequent_period` (the accountant's recommendation) — reported in a
+ *     later, unfiled month: the correction's month for a re-entry, otherwise
+ *     the month of `today` (a late-entered payment);
+ *   · `amendment` — reported in its own month, which then shows the filed
+ *     return differs and is to be amended (ZATCA supports amendment).
+ * Neither stated → 409 `wht_month_filed`, nothing written. The database
+ * admits the same rule only (0117).
+ */
+export async function returnPeriodFor(
+  d: WhtDecision, paymentDate: string, treatment: string | null | undefined,
+  ctx: { today: string; correctionPeriod?: string | null },
+): Promise<{ returnPeriod: string; filedMonthTreatment: WhtFiledMonthTreatment | null; monthFiled: boolean }> {
+  const period = paymentDate.slice(0, 7);
+  const filed = d.kind === "withheld" ? await latestFilingOf(period) : null;
+  // not filed (or nothing withheld): its own month's return carries it — a stated treatment does not apply and is not stored
+  if (!filed) return { returnPeriod: period, filedMonthTreatment: null, monthFiled: false };
+  if (!treatment) {
+    refuse(409, "wht_month_filed",
+      `${period}'s withholding return (Form 06) is recorded as FILED on ${filed.filedOn} (${filed.zatcaReference}). A withholding dated in it would change a filed return, so say where it is reported: in a later, unfiled return (subsequent period — the accountant's recommendation), or by amending ${period}'s return (amendment).`,
+      "whtFiledMonthTreatment");
+  }
+  if (!(WHT_FILED_MONTH_TREATMENTS as readonly string[]).includes(treatment!)) {
+    refuse(400, "wht_filed_month_treatment_unknown", "The treatment of a filed month is subsequent_period or amendment.", "whtFiledMonthTreatment");
+  }
+  if (treatment === "amendment") return { returnPeriod: period, filedMonthTreatment: "amendment", monthFiled: true };
+  const target = (ctx.correctionPeriod ?? ctx.today).slice(0, 7);
+  if (target <= period) {
+    refuse(422, "wht_subsequent_period_unavailable", `A subsequent-period report goes in a month after ${period}; ${target} is not later. Date the correction in a later month, or amend ${period}'s return instead.`, "whtFiledMonthTreatment");
+  }
+  const targetFiled = await latestFilingOf(target);
+  if (targetFiled) {
+    refuse(409, "wht_subsequent_period_unavailable", `${target}'s return is recorded as filed too; a subsequent-period report goes in a month whose return is not yet filed. Amend ${period}'s return instead, or record the correction in an unfiled month.`, "whtFiledMonthTreatment");
+  }
+  return { returnPeriod: target, filedMonthTreatment: "subsequent_period", monthFiled: true };
 }
 
 const ON_ACCOUNT_CLASSES = ["advance", "security_deposit", "erroneous", "unknown"] as const;
@@ -375,7 +432,14 @@ export async function recordWithholding(
   paymentDate: string,
   journalEntryId: number,
   userId: number | null,
-  opts: { supersedesWithholdingId?: number | null } = {},
+  opts: {
+    supersedesWithholdingId?: number | null;
+    /** Q1: the return month (`returnPeriodFor`); the payment month when absent. */
+    returnPeriod?: string | null;
+    filedMonthTreatment?: WhtFiledMonthTreatment | null;
+    /** Q1: the correction this payment RE-ENTERS. */
+    correctionId?: number | null;
+  } = {},
 ) {
   if (d.kind !== "withheld" && d.kind !== "not_subject" && d.kind !== "pending") return null;
   const [row] = await db.insert(whtWithholdingsTable).values({
@@ -400,6 +464,9 @@ export async function recordWithholding(
     paymentClass: d.paymentClass,
     natureBasis: d.natureBasis,
     supersedesWithholdingId: opts.supersedesWithholdingId ?? null,
+    returnPeriod: opts.returnPeriod ?? paymentDate.slice(0, 7),
+    filedMonthTreatment: opts.filedMonthTreatment ?? null,
+    correctionId: opts.correctionId ?? null,
     createdBy: userId,
   }).returning();
   return row!;

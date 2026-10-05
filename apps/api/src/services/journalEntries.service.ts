@@ -54,13 +54,15 @@ function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): strin
       return `This entry is supplier advance credit note ${documentRef}'s own posting. A supplier's note is the supplier's document; its entry cannot be reversed from here.`;
     // Phase 16 (migration 0113)
     case "wht_withholding":
-      return `This entry is a supplier payment that withheld tax (${documentRef}). It cannot be reversed from here: the withholding is a record for ZATCA and is kept with the payment.`;
+      return `This entry is a supplier payment that withheld tax (${documentRef}). It cannot be reversed from here: correct it on the Withholding tax page (reverse and re-enter), which keeps the original record beside the correction.`;
     case "wht_remittance":
       return `This entry is a withholding-tax remittance to ZATCA. Reverse the remittance on the Withholding tax page, with its reason, instead.`;
     case "wht_remittance_reversal":
       return `This entry reverses a withholding-tax remittance; it is itself the correction and is not reversed again.`;
     case "tax_accrual":
       return `This entry is a Zakat or income-tax computation's accrual. Change it by revising and approving the computation, which posts the difference.`;
+    case "wht_correction":
+      return `This entry reverses a payment that withheld tax, as part of its correction; it is itself the correction and is not reversed again.`;
   }
 }
 
@@ -341,7 +343,19 @@ export const journalEntriesService = {
    * closed one is refused LOUDLY with the structured 423 the UI already
    * explains, rather than silently moved.
    */
-  async reverse(id: number, body: { reason?: unknown; date?: unknown } = {}, owner: { document?: "bank_transfer" | "statement_line" } = {}) {
+  async reverse(
+    id: number,
+    body: { reason?: unknown; date?: unknown } = {},
+    owner: {
+      document?: "bank_transfer" | "statement_line" | "wht_withholding";
+      /**
+       * Q1 (pack §14.1): the owning record's own writer runs here — after the mirror exists, BEFORE the original is
+       * marked reversed — so a database guard that admits the status change only beside the owner's record
+       * (`journal_entries_tax_reversal_guard`, 0117) sees it. (Never read from a request.)
+       */
+      beforeFlip?: (reversalId: number) => Promise<void>;
+    } = {},
+  ) {
     const [original] = await journalEntriesRepository.findById(id);
     if (!original) throw new NotFoundError("Not found");
     // 🔴 Phase 12C: an entry a DOCUMENT owns is reversed through that document,
@@ -419,6 +433,7 @@ export const journalEntriesService = {
     await journalEntriesRepository.copyBankAttributions(
       lines.map((l, i) => ({ originalLineId: l.id, mirrorLineId: mirrorLines[i]!.id, journalEntryId: reversal.id })),
     );
+    if (owner.beforeFlip) await owner.beforeFlip(reversal.id);
     await journalEntriesRepository.updateEntry(id, { status: "reversed" });
     const reversalLines = await journalEntriesRepository.linesByEntry(reversal.id);
     const reversalOut = buildJEOut(reversal, reversalLines);

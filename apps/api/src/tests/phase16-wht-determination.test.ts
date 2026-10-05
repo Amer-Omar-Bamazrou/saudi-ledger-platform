@@ -308,8 +308,8 @@ describeMaybe("Q2 — the WHT determination: recipient + source + what the money
     const [w] = await whtRowOfPayment(p.id);
     const rate = (await rowsOf(`SELECT id, rate::text FROM wht_rates WHERE payment_type = 'royalty' ORDER BY effective_from DESC LIMIT 1`, []))[0];
     const ins = (cols: Record<string, unknown>, q: (text: string, args: unknown[]) => Promise<unknown> = (t, a) => pool.query(t, a)) => q(
-      `INSERT INTO wht_withholdings (organization_id, company_id, source_kind, supplier_payment_id, vendor_id, payment_date, period, status, payment_type, base_amount, rate, statutory_rate, rate_id, wht_amount, journal_entry_id, payment_class, nature_basis, supersedes_withholding_id, not_subject_reason)
-       VALUES ($1,$2,'supplier_payment',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+      `INSERT INTO wht_withholdings (organization_id, company_id, source_kind, supplier_payment_id, vendor_id, payment_date, period, status, payment_type, base_amount, rate, statutory_rate, rate_id, wht_amount, journal_entry_id, payment_class, nature_basis, supersedes_withholding_id, not_subject_reason, return_period)
+       VALUES ($1,$2,'supplier_payment',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$6)`,
       [w.organization_id, w.company_id, p.id, w.vendor_id, w.payment_date, w.period, cols.status ?? "withheld", cols.payment_type === undefined ? "royalty" : cols.payment_type, w.base_amount,
         cols.rate ?? rate.rate, cols.statutory_rate === undefined ? rate.rate : cols.statutory_rate, cols.rate_id === undefined ? rate.id : cols.rate_id, cols.wht_amount ?? (Number(w.base_amount) * Number(rate.rate)).toFixed(2), w.journal_entry_id,
         cols.payment_class === undefined ? "security_deposit" : cols.payment_class, cols.nature_basis === undefined ? "supplier_default" : cols.nature_basis, cols.supersedes ?? w.id,

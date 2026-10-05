@@ -26,8 +26,9 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useGuarded } from "@/lib/singleSubmit";
 import { ReportExportButtons } from "@/components/reports/ReportExport";
 import { BankPicker } from "@/components/payments/shared";
-import { legalRef, notSubjectLabel, whtMonthStatusLabel, whtTypeLabel, whtNatureBasisLabel, WHT_TYPES } from "@/lib/taxLabels";
+import { legalRef, notSubjectLabel, whtMonthStatusLabel, whtTypeLabel, whtNatureBasisLabel, whtFilingStatusLabel, whtTreatmentLabel, WHT_TYPES } from "@/lib/taxLabels";
 import { WhtDeterminationLines } from "@/components/payments/WhtFields";
+import { WhtFilingCard, WhtCorrectionPanel, WhtLineageView } from "@/components/tax/WhtCorrection";
 import { businessToday } from "@workspace/shared";
 
 const money = (x: number | null | undefined) => (x == null ? "—" : fmtNum(x));
@@ -119,13 +120,14 @@ export default function WithholdingTax() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm" data-testid="wht-months-table">
                     <thead><tr className="border-b border-border text-xs text-muted-foreground">
-                      {[t("Month", "الشهر"), t("Due", "الاستحقاق"), t("Status", "الحالة"), t("Paid to suppliers", "المدفوع للموردين"), t("Withheld", "المستقطع"), t("Remitted", "المُسدَّد"), t("Outstanding", "المتبقي"), t("Delay-fine estimate", "تقدير غرامة التأخير"), ""].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>)}
+                      {[t("Month", "الشهر"), t("Due", "الاستحقاق"), t("Status", "الحالة"), t("Form 06", "النموذج 06"), t("Paid to suppliers", "المدفوع للموردين"), t("Withheld", "المستقطع"), t("Remitted", "المُسدَّد"), t("Outstanding", "المتبقي"), t("Delay-fine estimate", "تقدير غرامة التأخير"), ""].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>)}
                     </tr></thead>
                     <tbody>{months.map((m) => (
                       <tr key={m.period} className="border-b border-border/50" data-testid={`wht-month-${m.period}`}>
                         <td className="py-2 pe-3 font-mono" dir="ltr">{m.period}</td>
                         <td className="py-2 pe-3">{fmtDate(m.dueDate)}</td>
                         <td className="py-2 pe-3" data-testid={`wht-month-status-${m.period}`}>{whtMonthStatusLabel(m.status, t)}</td>
+                        <td className="py-2 pe-3 text-xs" data-testid={`wht-month-filing-${m.period}`}>{whtFilingStatusLabel(m.filingStatus, t)}</td>
                         <td className="py-2 pe-3 text-end font-mono" dir="ltr">{money(m.base)}</td>
                         <td className="py-2 pe-3 text-end font-mono" dir="ltr">{money(m.withheld)}</td>
                         <td className="py-2 pe-3 text-end font-mono" dir="ltr">{money(m.remitted)}</td>
@@ -162,6 +164,10 @@ function MonthReturn({ period, months, onPeriod, onChanged }: { period: string; 
   const [reference, setReference] = useState("");
   const [reverseId, setReverseId] = useState<number | null>(null);
   const [reason, setReason] = useState("");
+  // Q1: the row being corrected, and the row whose lineage is open
+  const [correctingId, setCorrectingId] = useState<number | null>(null);
+  const [lineageId, setLineageId] = useState<number | null>(null);
+  useEffect(() => { setCorrectingId(null); setLineageId(null); }, [period]);
   // One idempotency key per remittance the person means: a retried or duplicated request replays the
   // first instead of paying ZATCA twice (the server honours it — audit A-3). A new key per month and
   // after each recorded remittance.
@@ -190,6 +196,7 @@ function MonthReturn({ period, months, onPeriod, onChanged }: { period: string; 
             {t("Due", "الاستحقاق")} {fmtDate(d.dueDate)} · {whtMonthStatusLabel(d.status, t)} · {t("withheld", "المستقطع")} <span className="font-mono" dir="ltr">{money(d.totals.taxWithheld)}</span> · {t("remitted", "المُسدَّد")} <span className="font-mono" dir="ltr">{money(d.totals.remitted)}</span> · {t("outstanding", "المتبقي")} <span className="font-mono font-semibold" dir="ltr" data-testid="wht-return-outstanding">{money(d.totals.outstanding)}</span>
             {d.delayFineEstimate && <> · {t("delay-fine estimate", "تقدير غرامة التأخير")} <span className="font-mono" dir="ltr">{money(d.delayFineEstimate.amount)}</span></>}
           </p>
+          <WhtFilingCard period={period} filing={d.filing} liveTax={d.totals.taxWithheld} onDone={() => { onChanged(); qc.invalidateQueries({ queryKey: getGetWhtReturnQueryKey(period) }); }} />
           <Card className="border-border"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Return lines (ZATCA Form 06)", "بنود الإقرار (النموذج 06)")}</CardTitle></CardHeader><CardContent>
             <div className="overflow-x-auto"><table className="w-full text-sm" data-testid="wht-return-lines">
               <thead><tr className="border-b border-border text-xs text-muted-foreground">{[t("Row", "البند"), t("Payment", "الدفعة"), t("Payment total", "إجمالي المدفوع"), t("Tax withheld", "الضريبة المستقطعة")].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
@@ -205,7 +212,7 @@ function MonthReturn({ period, months, onPeriod, onChanged }: { period: string; 
           <Card className="border-border"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Schedule of beneficiaries", "جدول المستفيدين")}</CardTitle></CardHeader><CardContent>
             {d.schedule.length === 0 ? <p className="text-sm text-muted-foreground">{t("No payment withheld in this month.", "لا استقطاع في هذا الشهر.")}</p> : (
               <div className="overflow-x-auto"><table className="w-full text-sm" data-testid="wht-schedule">
-                <thead><tr className="border-b border-border text-xs text-muted-foreground">{[t("Date", "التاريخ"), t("Beneficiary", "المستفيد"), t("Country", "الدولة"), t("Nature", "النوع"), t("Base", "المبلغ"), t("Rate", "النسبة"), t("WHT", "الضريبة"), t("Cash paid", "النقد المدفوع"), t("Document", "المستند"), t("Why", "السبب")].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
+                <thead><tr className="border-b border-border text-xs text-muted-foreground">{[t("Date", "التاريخ"), t("Beneficiary", "المستفيد"), t("Country", "الدولة"), t("Nature", "النوع"), t("Base", "المبلغ"), t("Rate", "النسبة"), t("WHT", "الضريبة"), t("Cash paid", "النقد المدفوع"), t("Document", "المستند"), t("Why", "السبب"), ""].map((h, i) => <th key={`${h}-${i}`} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
                 <tbody>{d.schedule.map((w) => (
                   <tr key={w.id} className="border-b border-border/50" data-testid={`wht-schedule-row-${w.id}`}>
                     <td className="py-1.5 pe-3 whitespace-nowrap">{fmtDate(w.paymentDate)}</td><td className="py-1.5 pe-3">{n(w.vendorName, w.vendorNameAr)}</td><td className="py-1.5 pe-3">{w.vendorCountry ?? "—"}</td>
@@ -214,21 +221,53 @@ function MonthReturn({ period, months, onPeriod, onChanged }: { period: string; 
                     <td className="py-1.5 pe-3 text-end font-mono" dir="ltr">{money(w.whtAmount)}</td><td className="py-1.5 pe-3 text-end font-mono" dir="ltr">{money(w.cashPaid)}</td>
                     <td className="py-1.5 pe-3 font-mono text-xs" dir="ltr">{w.document ?? "—"}</td>
                     <td className="py-1.5 pe-3 text-xs min-w-48"><details data-testid={`wht-why-${w.id}`}><summary className="cursor-pointer text-primary">{t("Determination", "التحديد")}</summary><WhtDeterminationLines d={w.determination} testId={`wht-determination-${w.id}`} /></details></td>
+                    <td className="py-1.5 pe-3 text-xs whitespace-nowrap">
+                      {w.correction
+                        ? <span data-testid={`wht-corrected-later-${w.id}`}>{t("Corrected — reported in", "صُحِّحت — تُقرَّر في")} <span className="font-mono" dir="ltr">{w.correction.reversalReturnPeriod}</span></span>
+                        : <Button size="sm" variant="outline" className="h-7" onClick={() => setCorrectingId(w.id)} data-testid={`wht-correct-${w.id}`}>{t("Correct", "تصحيح")}</Button>}
+                      <Button size="sm" variant="ghost" className="h-7" onClick={() => setLineageId(lineageId === w.id ? null : w.id)} data-testid={`wht-history-${w.id}`}>{t("History", "السجل")}</Button>
+                    </td>
                   </tr>
                 ))}</tbody>
               </table></div>
             )}
+            {lineageId != null && <div className="mt-2"><WhtLineageView id={lineageId} /></div>}
+            {correctingId != null && (() => {
+              const row = [...d.schedule, ...d.excluded, ...d.pending].find((x) => x.id === correctingId);
+              return row ? <WhtCorrectionPanel row={row} monthFilingStatus={d.filing.status} onCancel={() => setCorrectingId(null)}
+                onDone={() => { setCorrectingId(null); onChanged(); qc.invalidateQueries({ queryKey: getGetWhtReturnQueryKey(period) }); }} /> : null;
+            })()}
             {d.excluded.length > 0 && (
               <div className="mt-3" data-testid="wht-excluded">
                 <p className="text-xs font-medium mb-1">{t("Payments to non-residents NOT subject, with the reason recorded", "مدفوعات لغير مقيمين غير خاضعة، مع السبب المسجَّل")}</p>
-                <ul className="text-xs space-y-0.5">{d.excluded.map((w) => <li key={w.id} data-testid={`wht-excluded-${w.id}`}>{fmtDate(w.paymentDate)} · {n(w.vendorName, w.vendorNameAr)} · <span className="font-mono" dir="ltr">{money(w.baseAmount)}</span> · {notSubjectLabel(w.notSubjectReason, t)}{w.notSubjectNote ? ` — ${w.notSubjectNote}` : ""}{w.paymentType ? ` · ${whtTypeLabel(w.paymentType, t)}` : ""}</li>)}</ul>
+                <ul className="text-xs space-y-0.5">{d.excluded.map((w) => <li key={w.id} data-testid={`wht-excluded-${w.id}`}>{fmtDate(w.paymentDate)} · {n(w.vendorName, w.vendorNameAr)} · <span className="font-mono" dir="ltr">{money(w.baseAmount)}</span> · {notSubjectLabel(w.notSubjectReason, t)}{w.notSubjectNote ? ` — ${w.notSubjectNote}` : ""}{w.paymentType ? ` · ${whtTypeLabel(w.paymentType, t)}` : ""}{" "}
+                  {!w.correction && <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setCorrectingId(w.id)} data-testid={`wht-correct-${w.id}`}>{t("Correct", "تصحيح")}</Button>}</li>)}</ul>
               </div>
             )}
             {d.pending.length > 0 && (
               <div className="mt-3" data-testid="wht-pending">
                 <p className="text-xs font-medium mb-1">{t("Payments to non-residents PENDING classification — nothing withheld or claimed until their purpose is identified", "مدفوعات لغير مقيمين بانتظار التصنيف — لا استقطاع ولا مطالبة حتى يُحدَّد غرضها")}</p>
-                <ul className="text-xs space-y-0.5">{d.pending.map((w) => <li key={w.id} data-testid={`wht-pending-${w.id}`}>{fmtDate(w.paymentDate)} · {n(w.vendorName, w.vendorNameAr)} · <span className="font-mono" dir="ltr">{money(w.baseAmount)}</span> · {w.document ?? "—"}</li>)}</ul>
+                <ul className="text-xs space-y-0.5">{d.pending.map((w) => <li key={w.id} data-testid={`wht-pending-${w.id}`}>{fmtDate(w.paymentDate)} · {n(w.vendorName, w.vendorNameAr)} · <span className="font-mono" dir="ltr">{money(w.baseAmount)}</span> · {w.document ?? "—"}{" "}
+                  {!w.correction && <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setCorrectingId(w.id)} data-testid={`wht-correct-${w.id}`}>{t("Correct", "تصحيح")}</Button>}</li>)}</ul>
                 <p className="text-[11px] text-muted-foreground mt-1">{t("Classify each on the supplier payment: a deposit or an erroneous payment is not subject; identified as an advance, its nature decides.", "صنّف كلًّا منها في دفعة المورد: التأمين أو الدفعة الخاطئة غير خاضعين؛ وإذا حُدِّدت كدفعة مقدمة فطبيعتها هي الفيصل.")}</p>
+              </div>
+            )}
+            {d.corrected.length > 0 && (
+              <div className="mt-3" data-testid="wht-corrected">
+                <p className="text-xs font-medium mb-1">{t("Corrected in this return — reversed, kept on record, out of the totals", "صُحِّحت في هذا الإقرار — معكوسة، محفوظة في السجل، خارج المجاميع")}</p>
+                <ul className="text-xs space-y-0.5">{d.corrected.map((w) => (
+                  <li key={w.id} data-testid={`wht-corrected-${w.id}`}><span className="line-through">{fmtDate(w.paymentDate)} · {n(w.vendorName, w.vendorNameAr)} · <span className="font-mono" dir="ltr">{money(w.baseAmount)}</span> · {w.status === "withheld" ? `${whtTypeLabel(w.paymentType, t)} ${money(w.whtAmount)}` : notSubjectLabel(w.notSubjectReason, t)}</span>
+                    {w.correction ? ` — ${fmtDate(w.correction.correctedOn)}: ${w.correction.reason}${w.correction.filedMonthTreatment ? ` (${whtTreatmentLabel(w.correction.filedMonthTreatment, t)})` : ""}` : ""}{" "}
+                    <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setLineageId(lineageId === w.id ? null : w.id)} data-testid={`wht-history-${w.id}`}>{t("History", "السجل")}</Button></li>
+                ))}</ul>
+              </div>
+            )}
+            {d.adjustments.length > 0 && (
+              <div className="mt-3" data-testid="wht-adjustments">
+                <p className="text-xs font-medium mb-1">{t("Corrections of earlier, filed months reported in this return (subsequent period)", "تصحيحات لأشهر سابقة مُقدَّمة تُقرَّر في هذا الإقرار (فترة لاحقة)")}</p>
+                <ul className="text-xs space-y-0.5">{d.adjustments.map((a) => (
+                  <li key={a.correctionId} data-testid={`wht-adjustment-${a.correctionId}`}>{fmtDate(a.correctedOn)} · {n(a.vendorName, a.vendorNameAr)} · {t("from", "من")} <span className="font-mono" dir="ltr">{a.originalReturnPeriod}</span> · {whtTypeLabel(a.paymentType, t)} · <span className="font-mono" dir="ltr">{money(a.whtAmount)}</span> — {a.reason}</li>
+                ))}</ul>
               </div>
             )}
           </CardContent></Card>

@@ -34,6 +34,8 @@ export type WhtDeclarationValue = {
   whtPaymentType?: string;
   whtNotSubjectReason?: "goods" | "not_kingdom_source";
   whtNotSubjectNote?: string;
+  /** Q1 (pack §14.1): only when the payment's month is recorded FILED — chosen by the person, never preselected. */
+  whtFiledMonthTreatment?: "subsequent_period" | "amendment";
 };
 
 type WhtFieldsProps = {
@@ -83,6 +85,8 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
   const [nature, setNature] = useState<string>(defaultType ?? "");
   const [reason, setReason] = useState<"" | "goods" | "not_kingdom_source">("");
   const [note, setNote] = useState("");
+  // Q1: where a FILED month's withholding is reported — asked only when the server says the month is filed
+  const [treatment, setTreatment] = useState<"" | "subsequent_period" | "amendment">("");
 
   // A different supplier (or its record arriving) starts the declaration again, from ITS declared default.
   useEffect(() => {
@@ -90,6 +94,7 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
     setNature(defaultType ?? "");
     setReason("");
     setNote("");
+    setTreatment("");
   }, [vendorId, defaultType]);
 
   const isNonResident = residency === "non_resident";
@@ -97,22 +102,7 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
   const onAccount = classification != null && amount - (allocatedAmount ?? 0) > 0.005;
   const classDecides = onAccount && classification !== "advance";
   const trimmedNote = note.trim();
-  const ready = classDecides || !(isNonResident && mode === "not_subject" && !reason);
-
-  // Report the declaration up whenever it changes; the parent's callback identity is not a change.
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-  useEffect(() => {
-    const declaration: WhtDeclarationValue = !isNonResident || classDecides
-      ? {}
-      : mode === "withhold"
-        ? (nature ? { whtPaymentType: nature } : {})
-        : {
-            ...(reason ? { whtNotSubjectReason: reason } : {}),
-            ...(reason === "not_kingdom_source" && trimmedNote ? { whtNotSubjectNote: trimmedNote } : {}),
-          };
-    onChangeRef.current(declaration, ready);
-  }, [isNonResident, classDecides, mode, nature, reason, trimmedNote, ready]);
+  const declarationReady = classDecides || !(isNonResident && mode === "not_subject" && !reason);
 
   const debouncedAmount = useDebounced(amount);
   const debouncedNote = useDebounced(trimmedNote);
@@ -127,11 +117,31 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
           ...(reason ? { whtNotSubjectReason: reason } : {}),
           ...(reason === "not_kingdom_source" && debouncedNote ? { whtNotSubjectNote: debouncedNote } : {}),
         }),
+    ...(treatment ? { whtFiledMonthTreatment: treatment } : {}),
   };
-  const previewEnabled = isNonResident && vendorId != null && debouncedAmount > 0 && ready;
+  const previewEnabled = isNonResident && vendorId != null && debouncedAmount > 0 && declarationReady;
   const preview = usePreviewWht(params, {
     query: { queryKey: getPreviewWhtQueryKey(params), enabled: previewEnabled, retry: false },
   });
+  // Q1: a filed month needs the person's treatment before the payment can be recorded
+  const monthFiled = preview.data?.monthFiled === true;
+  const ready = declarationReady && !(monthFiled && !treatment);
+
+  // Report the declaration up whenever it changes; the parent's callback identity is not a change.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  useEffect(() => {
+    const base: WhtDeclarationValue = !isNonResident || classDecides
+      ? {}
+      : mode === "withhold"
+        ? (nature ? { whtPaymentType: nature } : {})
+        : {
+            ...(reason ? { whtNotSubjectReason: reason } : {}),
+            ...(reason === "not_kingdom_source" && trimmedNote ? { whtNotSubjectNote: trimmedNote } : {}),
+          };
+    const declaration: WhtDeclarationValue = monthFiled && treatment ? { ...base, whtFiledMonthTreatment: treatment } : base;
+    onChangeRef.current(declaration, ready);
+  }, [isNonResident, classDecides, mode, nature, reason, trimmedNote, ready, monthFiled, treatment]);
 
   if (residency === "unknown") {
     return (
@@ -221,7 +231,7 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
       </>)}
 
       <div className="rounded bg-secondary/30 p-2 text-xs space-y-1" data-testid="wht-preview" aria-live="polite">
-        {!ready ? (
+        {!declarationReady ? (
           <p className="text-muted-foreground">{t("Choose why it is not subject.", "اختر سبب عدم الخضوع.")}</p>
         ) : !(debouncedAmount > 0) ? (
           <p className="text-muted-foreground">{t("Enter the amount to see the withholding.", "أدخل المبلغ لعرض الاستقطاع.")}</p>
@@ -268,6 +278,18 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
               <span className="font-mono" dir="ltr" data-testid="wht-preview-cash">{fmtNum(p.cashPaid)}</span>
             </div>
             <WhtDeterminationLines d={p.determination} />
+            {p.monthFiled && (
+              <div className="mt-2 rounded border border-border p-2 space-y-1" data-testid="wht-filed-month">
+                <p className="font-medium">{t("This payment's month is recorded as FILED (Form 06). A filed return is not rewritten silently — say where this withholding is reported:", "شهر هذه الدفعة مُسجَّل بأنه مُقدَّم (النموذج 06). لا يُعاد كتابة إقرار مُقدَّم بصمت — حدّد أين يُقرَّر هذا الاستقطاع:")}</p>
+                <div className="flex flex-col gap-1" role="radiogroup" aria-label={t("Filed month treatment", "معالجة الشهر المُقدَّم")}>
+                  <label className="flex items-center gap-2"><input type="radio" name="wht-filed-treatment" className="accent-primary" checked={treatment === "subsequent_period"} onChange={() => setTreatment("subsequent_period")} data-testid="wht-treatment-subsequent" />
+                    {t("In a later, unfiled return (subsequent period — recommended by the accountant)", "في إقرار لاحق غير مُقدَّم (فترة لاحقة — يوصي بها المحاسب)")}</label>
+                  <label className="flex items-center gap-2"><input type="radio" name="wht-filed-treatment" className="accent-primary" checked={treatment === "amendment"} onChange={() => setTreatment("amendment")} data-testid="wht-treatment-amendment" />
+                    {t("By amending the filed return (the month will read 'amendment due')", "بتعديل الإقرار المُقدَّم (سيظهر الشهر «تعديل مستحق»)")}</label>
+                </div>
+                {p.returnPeriod && <p className="text-muted-foreground">{t("Reported in the return of", "يُقرَّر في إقرار")} <span className="font-mono" dir="ltr">{p.returnPeriod}</span></p>}
+              </div>
+            )}
           </>
         )}
       </div>

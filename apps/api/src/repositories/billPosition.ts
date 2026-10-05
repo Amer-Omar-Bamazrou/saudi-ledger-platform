@@ -22,7 +22,10 @@
  *
  * Two facts, each with ONE writer, are read together; neither is folded into
  * the other:
- *   · `bills.paid_amount`            — written only by `billsService.pay`;
+ *   · `bills.paid_amount`            — written by the pay path (`payBill`) and
+ *                                      reduced only by a WHT correction's
+ *                                      reversal of a bill payment (Q1) — both
+ *                                      through `billsRepository`;
  *   · live `supplier_payment_allocations` — written only by the AP subledger
  *     services, and "live" means no superseding reversal row.
  *

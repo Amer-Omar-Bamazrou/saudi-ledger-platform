@@ -207,6 +207,7 @@ export const paymentPlansService = {
       amount: Number(before.amount), paidAt, bankAccountId,
       whtPaymentType: declaresAtPayment ? (body.whtPaymentType ?? undefined) : (before.whtPaymentType ?? undefined),
       whtNotSubjectReason: body.whtNotSubjectReason, whtNotSubjectNote: body.whtNotSubjectNote,
+      whtFiledMonthTreatment: body.whtFiledMonthTreatment,
     }, userId);
     const [after] = await treasuryRepository.updatePlan(id, { status: "paid", paidBillPaymentId: result.billPaymentId, paidBy: userId, paidAt: new Date() });
     await auditService.record({ action: "pay", entityType: "scheduled_payment", entityId: id, before, after: { ...after, payment: { billPaymentId: result.billPaymentId, journalEntryId: result.journalEntryId, cashPaid: result.cashPaid, withheld: result.withheld } } });

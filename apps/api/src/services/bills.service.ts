@@ -462,7 +462,7 @@ export const billsService = {
    * (`bills.payment.ts`), then read the bill back through the one definition,
    * so the response carries what it owes NOW.
    */
-  async pay(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown }, userId: number | null) {
+  async pay(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown }, userId: number | null) {
     await payBill(id, body, userId);
     return billsService.getById(id);
   },
@@ -474,8 +474,11 @@ export const billsService = {
     const rows = await paymentsRepository.listForBill(id);
     // Phase 16: what each payment withheld (one read for the whole list, never per row)
     const wht = new Map((await taxRepository.withholdingsForBillPayments(rows.map((p) => p.id))).map((w) => [w.billPaymentId, w]));
+    // Q1 (pack §14.1): a payment reversed by a WHT correction stays in the history, marked — never deleted, never edited
+    const corrections = new Map((await taxRepository.correctionsForBillPayments(rows.map((p) => p.id))).map((c) => [c.billPaymentId, c]));
     return rows.map((p) => {
       const w = wht.get(p.id);
+      const c = corrections.get(p.id);
       return {
         id: p.id,
         amount: Number(p.amount),
@@ -486,6 +489,7 @@ export const billsService = {
         withheld: w ? Number(w.whtAmount) : null,
         cashPaid: w ? round2(Number(p.amount) - Number(w.whtAmount)) : null,
         whtPaymentType: w?.paymentType ?? null,
+        reversal: c ? { correctionId: c.id, correctedOn: c.correctedOn, reason: c.reason, reversalJournalEntryId: c.reversalJournalEntryId } : null,
       };
     });
   },

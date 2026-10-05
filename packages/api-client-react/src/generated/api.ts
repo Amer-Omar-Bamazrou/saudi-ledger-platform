@@ -90,6 +90,7 @@ import type {
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
   CorrectMigratedOpenItemInput,
+  CorrectWhtWithholdingInput,
   CreateAdvanceCreditNoteInput,
   CreateAdvanceInvoiceInput,
   CreateAssetCategoryInput,
@@ -135,6 +136,7 @@ import type {
   ErrorResponse,
   ExpensesPage,
   ExportReportParams,
+  FileWhtReturnInput,
   FinancialSummary,
   Finding,
   FindingsPage,
@@ -386,6 +388,7 @@ import type {
   WhtAnnualReturn,
   WhtBeneficiaryStatement,
   WhtExceptions,
+  WhtLineage,
   WhtMonthlyReturn,
   WhtOverview,
   WhtPreview,
@@ -23017,6 +23020,227 @@ export function useListWhtExceptions<TData = Awaited<ReturnType<typeof listWhtEx
 
 
 
+
+export const getFileWhtReturnUrl = (period: string,) => {
+
+
+
+
+  return `/api/tax/wht/returns/${period}/file`
+}
+
+/**
+ * @summary Q1: record that a month's Form 06 was FILED with ZATCA (approver) — or, when it already was, an AMENDMENT of it. The figures are the ledger's at this moment, written by the database.
+ */
+export const fileWhtReturn = async (period: string,
+    fileWhtReturnInput: FileWhtReturnInput, options?: RequestInit): Promise<WhtMonthlyReturn> => {
+
+  return customFetch<WhtMonthlyReturn>(getFileWhtReturnUrl(period),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(fileWhtReturnInput)
+  }
+);}
+
+
+
+
+
+export const getFileWhtReturnMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fileWhtReturn>>, TError,{period: string;data: BodyType<FileWhtReturnInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof fileWhtReturn>>, TError,{period: string;data: BodyType<FileWhtReturnInput>}, TContext> => {
+
+const mutationKey = ['fileWhtReturn'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof fileWhtReturn>>, {period: string;data: BodyType<FileWhtReturnInput>}> = (props) => {
+          const {period,data} = props ?? {};
+
+          return  fileWhtReturn(period,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FileWhtReturnMutationResult = NonNullable<Awaited<ReturnType<typeof fileWhtReturn>>>
+    export type FileWhtReturnMutationBody = BodyType<FileWhtReturnInput>
+    export type FileWhtReturnMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Q1: record that a month's Form 06 was FILED with ZATCA (approver) — or, when it already was, an AMENDMENT of it. The figures are the ledger's at this moment, written by the database.
+ */
+export const useFileWhtReturn = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fileWhtReturn>>, TError,{period: string;data: BodyType<FileWhtReturnInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof fileWhtReturn>>,
+        TError,
+        {period: string;data: BodyType<FileWhtReturnInput>},
+        TContext
+      > => {
+      return useMutation(getFileWhtReturnMutationOptions(options));
+    }
+
+export const getGetWhtWithholdingLineageUrl = (id: number,) => {
+
+
+
+
+  return `/api/tax/wht/withholdings/${id}`
+}
+
+/**
+ * @summary Q1: one withholding's lineage — original → reversal → corrected — and the state its month is in (filed, remitted).
+ */
+export const getWhtWithholdingLineage = async (id: number, options?: RequestInit): Promise<WhtLineage> => {
+
+  return customFetch<WhtLineage>(getGetWhtWithholdingLineageUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWhtWithholdingLineageQueryKey = (id: number,) => {
+    return [
+    `/api/tax/wht/withholdings/${id}`
+    ] as const;
+    }
+
+
+export const getGetWhtWithholdingLineageQueryOptions = <TData = Awaited<ReturnType<typeof getWhtWithholdingLineage>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWhtWithholdingLineage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWhtWithholdingLineageQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWhtWithholdingLineage>>> = ({ signal }) => getWhtWithholdingLineage(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWhtWithholdingLineage>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWhtWithholdingLineageQueryResult = NonNullable<Awaited<ReturnType<typeof getWhtWithholdingLineage>>>
+export type GetWhtWithholdingLineageQueryError = ErrorType<void>
+
+
+/**
+ * @summary Q1: one withholding's lineage — original → reversal → corrected — and the state its month is in (filed, remitted).
+ */
+
+export function useGetWhtWithholdingLineage<TData = Awaited<ReturnType<typeof getWhtWithholdingLineage>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWhtWithholdingLineage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWhtWithholdingLineageQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCorrectWhtWithholdingUrl = (id: number,) => {
+
+
+
+
+  return `/api/tax/wht/withholdings/${id}/reverse`
+}
+
+/**
+ * @summary Q1: correct a WHT-bearing payment (approver) — reverse it (the original kept) and re-enter the corrected payment through the pay path. One correction per withholding.
+ */
+export const correctWhtWithholding = async (id: number,
+    correctWhtWithholdingInput: CorrectWhtWithholdingInput, options?: RequestInit): Promise<WhtLineage> => {
+
+  return customFetch<WhtLineage>(getCorrectWhtWithholdingUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(correctWhtWithholdingInput)
+  }
+);}
+
+
+
+
+
+export const getCorrectWhtWithholdingMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof correctWhtWithholding>>, TError,{id: number;data: BodyType<CorrectWhtWithholdingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof correctWhtWithholding>>, TError,{id: number;data: BodyType<CorrectWhtWithholdingInput>}, TContext> => {
+
+const mutationKey = ['correctWhtWithholding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof correctWhtWithholding>>, {id: number;data: BodyType<CorrectWhtWithholdingInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  correctWhtWithholding(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CorrectWhtWithholdingMutationResult = NonNullable<Awaited<ReturnType<typeof correctWhtWithholding>>>
+    export type CorrectWhtWithholdingMutationBody = BodyType<CorrectWhtWithholdingInput>
+    export type CorrectWhtWithholdingMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Q1: correct a WHT-bearing payment (approver) — reverse it (the original kept) and re-enter the corrected payment through the pay path. One correction per withholding.
+ */
+export const useCorrectWhtWithholding = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof correctWhtWithholding>>, TError,{id: number;data: BodyType<CorrectWhtWithholdingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof correctWhtWithholding>>,
+        TError,
+        {id: number;data: BodyType<CorrectWhtWithholdingInput>},
+        TContext
+      > => {
+      return useMutation(getCorrectWhtWithholdingMutationOptions(options));
+    }
 
 export const getRemitWhtUrl = (period: string,) => {
 

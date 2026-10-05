@@ -25,7 +25,11 @@ import { journalEntriesRepository } from "../../repositories/journalEntries.repo
 import { vendorsRepository } from "../../repositories/vendors.repository";
 import { postJournalEntry } from "../accounting/glPosting";
 import { assertBankAccount } from "../accounting/bankIdentity";
-import { decideWithholding, whtDeclarationFrom, determinationOf, describeDetermination, supplierPaymentClassOf, assertSinglePurpose } from "../accounting/wht";
+import {
+  decideWithholding, whtDeclarationFrom, determinationOf, describeDetermination, supplierPaymentClassOf, assertSinglePurpose,
+  latestFilingOf, returnPeriodFor,
+} from "../accounting/wht";
+import type { AdjustmentRow } from "../../repositories/tax.repository";
 import { auditService } from "../audit.service";
 import { addDays } from "./taxComputations.service";
 
@@ -55,10 +59,13 @@ export function delayFineEstimate(unpaid: number, dueDate: string, asOf: string)
   return { blocks, daysLate, amount: fromHalalas(amountH) };
 }
 
-type PeriodStatus = "nil" | "open" | "due" | "overdue" | "remitted";
+type PeriodStatus = "nil" | "open" | "due" | "overdue" | "remitted" | "credit";
 function statusOf(period: string, withheld: number, outstanding: number, today: string): PeriodStatus {
   if (withheld === 0 && outstanding === 0) return "nil";
-  if (outstanding <= 0) return "remitted";
+  // Q1: a correction can leave a month's return BELOW what was remitted for it (or a negative return) — a credit,
+  // shown, never netted against another month and never refunded by the product (open W-17, pack §14.1)
+  if (outstanding < 0) return "credit";
+  if (outstanding === 0) return "remitted";
   if (today.slice(0, 7) <= period) return "open";
   return today <= whtDueDate(period) ? "due" : "overdue";
 }
@@ -75,6 +82,14 @@ const rowOut = (w: WithholdingRow) => ({
   baseAmount: Number(w.base_amount), rate: Number(w.rate), statutoryRate: w.statutory_rate == null ? null : Number(w.statutory_rate),
   treatyReliefId: w.treaty_relief_id, treatyApprovalReference: w.treaty_approval_reference,
   whtAmount: Number(w.wht_amount), cashPaid: round2(Number(w.base_amount) - Number(w.wht_amount)), journalEntryId: w.journal_entry_id,
+  // Q1: the month whose return carries it, the filed-month treatment it was entered with, the correction it re-enters,
+  // and its own correction (original → reversal → corrected)
+  returnPeriod: w.return_period, filedMonthTreatment: w.filed_month_treatment as "subsequent_period" | "amendment" | null, reentryOfCorrectionId: w.correction_id,
+  correction: w.corr_id == null ? null : {
+    id: w.corr_id, correctedOn: w.corr_corrected_on!, reason: w.corr_reason!, reversalReturnPeriod: w.corr_reversal_return_period!,
+    filedMonthTreatment: w.corr_filed_month_treatment as "subsequent_period" | "amendment" | null, reversalJournalEntryId: w.corr_reversal_entry_id!,
+    correctedWithholdingId: w.corr_corrected_withholding_id, correctedBillPaymentId: w.corr_corrected_bill_payment_id, correctedSupplierPaymentId: w.corr_corrected_supplier_payment_id,
+  },
   // Q2: the provenance frozen with the record, and the determination it adds up to — the one description (accounting/wht)
   paymentClass: w.payment_class, natureBasis: w.nature_basis, supersedesWithholdingId: w.supersedes_withholding_id,
   determination: describeDetermination({
@@ -82,6 +97,36 @@ const rowOut = (w: WithholdingRow) => ({
     paymentType: w.payment_type, paymentClass: w.payment_class, natureBasis: w.nature_basis,
   }),
 });
+
+/** A correction a month's return carries whose original is reported in another month — a negative line (Q1). */
+const adjustmentOut = (a: AdjustmentRow) => ({
+  correctionId: a.correction_id, withholdingId: a.withholding_id, correctedOn: a.corrected_on, reason: a.reason,
+  filedMonthTreatment: a.filed_month_treatment as "subsequent_period" | "amendment" | null, originalReturnPeriod: a.original_return_period,
+  paymentDate: a.payment_date, vendorId: a.vendor_id, vendorName: a.vendor_name, vendorNameAr: a.vendor_name_ar,
+  paymentType: a.payment_type, status: a.status as "withheld" | "not_subject" | "pending",
+  // the reversal's effect on THIS return: minus what the original reported
+  baseAmount: a.status === "withheld" ? -Number(a.base_amount) : 0, whtAmount: a.status === "withheld" ? -Number(a.wht_amount) : 0,
+  reversalJournalEntryId: a.reversal_journal_entry_id, correctedWithholdingId: a.corrected_withholding_id,
+});
+
+type FilingRow = Awaited<ReturnType<typeof taxRepository.filings>>[number];
+const filingOut = (f: FilingRow) => ({
+  id: f.id, period: f.period, kind: f.kind as "original" | "amendment", amendsFilingId: f.amendsFilingId ?? null, filedOn: f.filedOn,
+  zatcaReference: f.zatcaReference, taxWithheld: Number(f.taxWithheld), paymentTotal: Number(f.paymentTotal), notes: f.notes ?? null,
+  createdBy: f.createdBy ?? null, createdAt: f.createdAt.toISOString(),
+});
+
+/**
+ * Q1 (pack §14.1): a month's filing state, from its latest filing and its LIVE return figures:
+ *   unfiled · filed · amended (the latest is an amendment matching the ledger) ·
+ *   amendment_due (the ledger now differs from what was last filed — a correction chose to amend it, or a payment was
+ *   entered into it with that treatment). Never a silent rewrite: the filed snapshot stays beside the live figure.
+ */
+function filingState(latest: { kind: string; taxWithheld: number; paymentTotal: number } | null, live: { tax: number; base: number }) {
+  if (!latest) return "unfiled" as const;
+  if (toHalalas(latest.taxWithheld) !== toHalalas(live.tax) || toHalalas(latest.paymentTotal) !== toHalalas(live.base)) return "amendment_due" as const;
+  return latest.kind === "amendment" ? ("amended" as const) : ("filed" as const);
+}
 
 function remittanceOut(r: Awaited<ReturnType<typeof taxRepository.remittances>>[number]) {
   return {
@@ -109,6 +154,7 @@ export const whtService = {
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("amount must be a positive amount.");
     const date = typeof q.date === "string" && q.date ? q.date : businessToday();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new BadRequestError("date must be YYYY-MM-DD.");
+    const declared = whtDeclarationFrom(q as Record<string, unknown>);
     // Q2: a SUPPLIER payment states its classification (and what of it is allocated to bills); a bill payment states
     // neither — the same class the pay path will derive, so the dialog's answer is the server's
     let paymentClass: ReturnType<typeof supplierPaymentClassOf> | "bill_payment" = "bill_payment";
@@ -119,8 +165,13 @@ export const whtService = {
       assertSinglePurpose({ residency: vendor?.residency, classification: q.classification, amount, allocated });
       paymentClass = supplierPaymentClassOf(q.classification, amount, allocated);
     }
-    const d = await decideWithholding({ vendorId, paymentDate: date, base: amount, paymentClass, declared: whtDeclarationFrom(q as Record<string, unknown>) });
+    const d = await decideWithholding({ vendorId, paymentDate: date, base: amount, paymentClass, declared });
     const withheld = d.kind === "withheld" ? fromHalalas(d.whtH) : 0;
+    // Q1: a withholding dated in a FILED month needs the person's treatment — the dialog asks before the server refuses
+    const monthFiled = d.kind === "withheld" && (await latestFilingOf(date.slice(0, 7))) != null;
+    const reported = monthFiled && declared.filedMonthTreatment
+      ? await returnPeriodFor(d, date, declared.filedMonthTreatment, { today: businessToday() })
+      : null;
     return {
       kind: d.kind, amount, date,
       paymentType: d.kind === "withheld" ? d.paymentType : null,
@@ -132,6 +183,8 @@ export const whtService = {
       withheld, cashPaid: round2(amount - withheld),
       notSubjectReason: d.kind === "not_subject" ? d.reason : null,
       determination: determinationOf(d),
+      monthFiled,
+      returnPeriod: monthFiled ? (reported?.returnPeriod ?? null) : date.slice(0, 7),
     };
   },
 
@@ -151,10 +204,12 @@ export const whtService = {
       const outstanding = round2(withheld - remitted);
       const due = whtDueDate(p.period);
       const status = statusOf(p.period, withheld, outstanding, today);
+      const latest = p.filing_id == null ? null : { kind: p.filing_kind!, taxWithheld: Number(p.filed_tax), paymentTotal: Number(p.filed_base) };
       return {
         period: p.period, dueDate: due, status, base: Number(p.base), withheld, remitted, outstanding,
-        payments: p.payments, notSubject: p.not_subject, pending: p.pending, finesPaid: Number(p.fines_paid), lastPaidAt: p.last_paid_at,
+        payments: p.payments, notSubject: p.not_subject, pending: p.pending, corrections: p.corrections, finesPaid: Number(p.fines_paid), lastPaidAt: p.last_paid_at,
         delayFineEstimate: status === "overdue" ? delayFineEstimate(outstanding, due, today) : null,
+        filingStatus: filingState(latest, { tax: withheld, base: Number(p.base) }), filedOn: p.filed_on, filedTaxWithheld: latest ? latest.taxWithheld : null,
       };
     });
     const withheldTotalH = months.reduce((s, m) => s + toHalalas(m.withheld), 0);
@@ -182,27 +237,40 @@ export const whtService = {
     };
   },
 
-  /** The monthly return (Form 06): rows by form line, the per-beneficiary schedule, the excluded payments, remittances, status. */
+  /**
+   * The monthly return (Form 06): rows by form line, the per-beneficiary schedule, the excluded payments, remittances,
+   * status — and since Q1 (pack §14.1) the corrections: a row reversed WITHIN this return is listed as corrected and
+   * leaves the totals; a correction of another month's row carried here is an adjustment line (negative); the filing
+   * record and the live figure sit side by side. Totals = `wht_return_tax/base()` — pinned by a test.
+   */
   async monthlyReturn(period: string) {
     if (!PERIOD.test(period)) throw new BadRequestError("period must be YYYY-MM.");
     const today = businessToday();
-    const [rows, remittances, rates] = await Promise.all([taxRepository.withholdings({ period }), taxRepository.remittances(period), taxRepository.rates()]);
-    const withheld = rows.filter((r) => r.status === "withheld");
-    const excluded = rows.filter((r) => r.status === "not_subject");
-    const pending = rows.filter((r) => r.status === "pending");
+    const [rows, remittances, rates, adjustmentRows, filings] = await Promise.all([
+      taxRepository.withholdings({ returnPeriod: period }), taxRepository.remittances(period), taxRepository.rates(),
+      taxRepository.adjustments(period), taxRepository.filings(period),
+    ]);
+    const correctedHere = rows.filter((r) => r.corr_id != null && r.corr_reversal_return_period === period);
+    const live = rows.filter((r) => !(r.corr_id != null && r.corr_reversal_return_period === period));
+    const withheld = live.filter((r) => r.status === "withheld");
+    const excluded = live.filter((r) => r.status === "not_subject");
+    const pending = live.filter((r) => r.status === "pending");
+    const adjustments = adjustmentRows.map(adjustmentOut);
+    const adjWithheld = adjustmentRows.filter((a) => a.status === "withheld");
     // Form rows in the regulation's order; rows 07/08 have no separate band after Res. 25 (W-4) and carry nothing
     const lineTypes = WHT_PAYMENT_TYPES.map((t) => ({ t, row: rates.find((r) => r.paymentType === t)?.formRow ?? "", nameEn: rates.find((r) => r.paymentType === t)?.nameEn ?? t, nameAr: rates.find((r) => r.paymentType === t)?.nameAr ?? t }))
       .sort((a, b) => a.row.localeCompare(b.row));
     const lines = lineTypes.map((l) => {
       const mine = withheld.filter((w) => w.payment_type === l.t);
+      const adj = adjWithheld.filter((a) => a.payment_type === l.t);
       return {
-        formRow: l.row, paymentType: l.t, nameEn: l.nameEn, nameAr: l.nameAr, applicable: mine.length > 0,
-        paymentTotal: fromHalalas(mine.reduce((s, w) => s + toHalalas(w.base_amount), 0)),
-        taxWithheld: fromHalalas(mine.reduce((s, w) => s + toHalalas(w.wht_amount), 0)),
+        formRow: l.row, paymentType: l.t, nameEn: l.nameEn, nameAr: l.nameAr, applicable: mine.length > 0 || adj.length > 0,
+        paymentTotal: fromHalalas(mine.reduce((s, w) => s + toHalalas(w.base_amount), 0) - adj.reduce((s, a) => s + toHalalas(a.base_amount), 0)),
+        taxWithheld: fromHalalas(mine.reduce((s, w) => s + toHalalas(w.wht_amount), 0) - adj.reduce((s, a) => s + toHalalas(a.wht_amount), 0)),
       };
     });
-    const totalBaseH = withheld.reduce((s, w) => s + toHalalas(w.base_amount), 0);
-    const totalWhtH = withheld.reduce((s, w) => s + toHalalas(w.wht_amount), 0);
+    const totalBaseH = withheld.reduce((s, w) => s + toHalalas(w.base_amount), 0) - adjWithheld.reduce((s, a) => s + toHalalas(a.base_amount), 0);
+    const totalWhtH = withheld.reduce((s, w) => s + toHalalas(w.wht_amount), 0) - adjWithheld.reduce((s, a) => s + toHalalas(a.wht_amount), 0);
     const remitted = remittances.filter((r) => r.reversal_id == null);
     const remittedH = remitted.reduce((s, r) => s + toHalalas(r.amount), 0);
     const outstanding = fromHalalas(totalWhtH - remittedH);
@@ -216,6 +284,16 @@ export const whtService = {
       schedule: withheld.map(rowOut),
       excluded: excluded.map(rowOut),
       pending: pending.map(rowOut),
+      corrected: correctedHere.map(rowOut),
+      adjustments,
+      filing: (() => {
+        const out = filings.map(filingOut);
+        const latest = out[out.length - 1] ?? null;
+        return {
+          status: filingState(latest, { tax: fromHalalas(totalWhtH), base: fromHalalas(totalBaseH) }),
+          latest, filings: out,
+        };
+      })(),
       remittances: remittances.map(remittanceOut),
       unusedFormRows: ["07", "08"],
     };
@@ -231,7 +309,8 @@ export const whtService = {
     if (label != null && !Number.isInteger(label)) throw new BadRequestError("fiscal_year must be a year number.");
     const settings = { fiscalYearStart: company.fiscalYearStart!, calendar } as const;
     const fy = label != null ? resolveFiscalYear(settings, label) : fiscalYearContaining(settings, businessToday());
-    const rows = (await taxRepository.withholdings({ from: fy.startDate, to: fy.endDate })).filter((r) => r.status === "withheld");
+    // Q1: the live facts — a corrected payment's truth is its re-entry (dated in its own year)
+    const rows = (await taxRepository.withholdings({ from: fy.startDate, to: fy.endDate, excludeCorrected: true })).filter((r) => r.status === "withheld");
     const byKey = new Map<string, { vendorId: number; vendorName: string; vendorNameAr: string | null; country: string | null; address: string | null; foreignTaxId: string | null; paymentType: string; base: number; wht: number; payments: number }>();
     for (const r of rows) {
       const k = `${r.vendor_id}:${r.payment_type}`;
@@ -260,7 +339,7 @@ export const whtService = {
     if (period != null && period !== "" && !PERIOD.test(period)) throw new BadRequestError("period must be YYYY-MM.");
     const [vendor] = await vendorsRepository.findById(vendorId);
     if (!vendor) throw new NotFoundError("Supplier not found.");
-    const rows = (await taxRepository.withholdings({ vendorId, period: period || undefined })).filter((r) => r.status === "withheld");
+    const rows = (await taxRepository.withholdings({ vendorId, period: period || undefined, excludeCorrected: true })).filter((r) => r.status === "withheld");
     return {
       vendor: { id: vendor.id, name: vendor.name, nameAr: vendor.nameAr ?? null, country: vendor.country ?? null, foreignTaxId: vendor.foreignTaxId ?? null, residency: vendor.residency },
       period: period || null,
@@ -363,6 +442,34 @@ export const whtService = {
     }
     await auditService.record({ action: "reverse", entityType: "wht_remittance", entityId: id, before: r, after: row });
     return remittanceOut((await taxRepository.remittances(r.period)).find((x) => x.id === id)!);
+  },
+
+  // ── Q1: the filing record (pack §14.1) ──────────────────────────────────
+  /**
+   * Record that a month's Form 06 was FILED with ZATCA — or an AMENDMENT of it.
+   * The platform does not file (§2.5); a person records that they did. The
+   * figures are the ledger's own at this moment (written by the database, not
+   * typed), so a later correction is measured against what was filed. The first
+   * filing of a month is the original; every later one amends the latest.
+   */
+  async fileReturn(period: string, body: Record<string, unknown>, userId: number | null) {
+    if (!PERIOD.test(period)) throw new BadRequestError("period must be YYYY-MM.");
+    const today = businessToday();
+    const filedOn = typeof body.filedOn === "string" && body.filedOn ? body.filedOn : today;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(filedOn)) throw new BadRequestError("filedOn is a YYYY-MM-DD date.");
+    if (filedOn > today) refuse(422, "date_in_future", "A filing records a return already filed: it is never dated in the future.", "filedOn");
+    if (filedOn.slice(0, 7) <= period) refuse(422, "wht_filed_before_month_end", `${period}'s Form 06 is filed in the following month (IR Art. 63(9)(a)); ${filedOn} is not after ${period}.`, "filedOn");
+    const zatcaReference = typeof body.zatcaReference === "string" ? body.zatcaReference.trim() : "";
+    if (zatcaReference.length < 3) refuse(422, "zatca_reference_required", "Record ZATCA's reference for the filed return (the acknowledgement on the portal).", "zatcaReference");
+    const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
+    const prior = await latestFilingOf(period);
+    const [row] = await taxRepository.insertFiling({
+      period, kind: prior ? "amendment" : "original", amendsFilingId: prior?.id ?? null, filedOn, zatcaReference, notes,
+      // the snapshot is written by the database (the ledger's return at this moment); these are placeholders it overwrites
+      taxWithheld: "0", paymentTotal: "0", createdBy: userId,
+    });
+    await auditService.created("wht_return_filing", row!.id, row);
+    return this.monthlyReturn(period);
   },
 
   // ── treaty reliefs (pack §2.3) ───────────────────────────────────────────

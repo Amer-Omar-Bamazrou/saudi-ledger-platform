@@ -1,10 +1,12 @@
 import type { Request, Response } from "express";
 import {
   RemitWhtBody, ReverseWhtRemittanceBody, CreateWhtReliefBody, RevokeWhtReliefBody, SetZakatClassificationBody,
+  FileWhtReturnBody, CorrectWhtWithholdingBody,
   CreateTaxComputationBody, UpdateTaxComputationBody, AddTaxAdjustmentBody, UpdateTaxAdjustmentBody, SetTaxLossesBody,
   SendBackTaxComputationVersionBody,
 } from "@workspace/api-zod";
 import { whtService } from "../services/tax/wht.service";
+import { whtCorrectionService } from "../services/tax/whtCorrection.service";
 import { taxComputationsService } from "../services/tax/taxComputations.service";
 import { zakatClassificationService } from "../services/tax/zakatClassification.service";
 import { taxObligationsService } from "../services/tax/taxObligations.service";
@@ -38,6 +40,14 @@ export const taxController = {
   async exceptions(req: Request, res: Response) { res.json(await whtService.exceptions(q(req).kind)); },
   async remit(req: Request, res: Response) {
     res.json(await whtService.remit(String(req.params.period), parseOr400(RemitWhtBody.safeParse(req.body)) as Record<string, unknown>, userOf(req)));
+  },
+  // Q1 (pack §14.1)
+  async fileReturn(req: Request, res: Response) {
+    res.json(await whtService.fileReturn(String(req.params.period), parseOr400(FileWhtReturnBody.safeParse(req.body)) as Record<string, unknown>, userOf(req)));
+  },
+  async withholdingLineage(req: Request, res: Response) { res.json(await whtCorrectionService.lineage(intParam(req.params.id, "id"))); },
+  async correctWithholding(req: Request, res: Response) {
+    res.json(await whtCorrectionService.correct(intParam(req.params.id, "id"), parseOr400(CorrectWhtWithholdingBody.safeParse(req.body)) as Record<string, unknown>, userOf(req)));
   },
   async reverseRemittance(req: Request, res: Response) {
     res.json(await whtService.reverseRemittance(intParam(req.params.id, "id"), parseOr400(ReverseWhtRemittanceBody.safeParse(req.body)), userOf(req)));

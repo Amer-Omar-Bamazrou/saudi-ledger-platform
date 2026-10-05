@@ -44,9 +44,10 @@ import { postJournalEntry } from "./glPosting.js";
 import { checkPeriodOpen } from "./periodLock.js";
 import { assertBankAccount } from "./bankIdentity.js";
 import { billsRepository } from "../../repositories/bills.repository.js";
+import { supplierPaymentReversedSql } from "../../repositories/paymentReversal.js";
 import {
   decideWithholding, recordWithholding, supplierPaymentWasWithheld, whtDeclarationFrom, whtLine, whtOf,
-  supplierPaymentClassOf, liveWithholdingOfSupplierPayment, assertSinglePurpose, type WhtDecision,
+  supplierPaymentClassOf, liveWithholdingOfSupplierPayment, assertSinglePurpose, returnPeriodFor, type WhtDecision,
 } from "./wht.js";
 import {
   supplierOnAccountAsset, mayAllocate,
@@ -64,7 +65,12 @@ export const supplierPaymentsService = {
    * Pay a supplier. Allocations are optional: what is not allocated stays on
    * account, classified (`unknown` unless stated), and can be applied later.
    */
-  async create(body: Record<string, unknown>, userId: number | null) {
+  async create(
+    body: Record<string, unknown>,
+    userId: number | null,
+    /** Q1 (pack §14.1): set ONLY by the WHT correction for its corrected RE-ENTRY — never from a request. */
+    opts: { correction?: { id: number; correctionPeriod: string } } = {},
+  ) {
     /**
      * A retried request is the SAME payment, not a second one: the key is
      * looked up first and the original returned, as the customer side does.
@@ -118,7 +124,10 @@ export const supplierPaymentsService = {
     // deposit is its own payment.
     assertSinglePurpose({ residency: vendor!.residency, classification, amount, allocated: allocatedTotal });
     const paymentClass = supplierPaymentClassOf(classification, amount, allocatedTotal);
-    const withholding = await decideWithholding({ vendorId, paymentDate: paidAt, base: amount, paymentClass, declared: whtDeclarationFrom(body) });
+    const declared = whtDeclarationFrom(body);
+    const withholding = await decideWithholding({ vendorId, paymentDate: paidAt, base: amount, paymentClass, declared });
+    // Q1: which month's return carries it — a FILED month is never changed silently (refused before any write)
+    const reported = await returnPeriodFor(withholding, paidAt, declared.filedMonthTreatment, { today: businessToday(), correctionPeriod: opts.correction?.correctionPeriod });
     const withheld = whtOf(withholding);
     const cashPaid = round2(amount - withheld);
 
@@ -182,7 +191,9 @@ export const supplierPaymentsService = {
         supplierPaymentId: payment!.id, classification, note: (body.classificationNote as string) ?? null, createdBy: userId,
       });
     }
-    await recordWithholding(withholding, { kind: "supplier_payment", supplierPaymentId: payment!.id }, paidAt, entry.id, userId);
+    await recordWithholding(withholding, { kind: "supplier_payment", supplierPaymentId: payment!.id }, paidAt, entry.id, userId, {
+      returnPeriod: reported.returnPeriod, filedMonthTreatment: reported.filedMonthTreatment, correctionId: opts.correction?.id ?? null,
+    });
 
     await auditService.created("supplier_payment", payment!.id, { ...payment, withholding: withheld > 0 ? { amount: withheld, cashPaid } : null });
     return this.getById(payment!.id);
@@ -196,6 +207,7 @@ export const supplierPaymentsService = {
     // 🔴 Locked: what is still on account is read, checked and spent under
     // one row lock, so two concurrent applications cannot both spend it.
     const payment = await this.findOrThrow(id, { lock: true });
+    await this.assertNotReversed(id);
     const cls = payment.classification as SupplierPaymentClassificationKind;
     if (!mayAllocate(cls)) {
       refuse(
@@ -309,6 +321,7 @@ export const supplierPaymentsService = {
 
     // Locked for the same reason as allocate: the on-account balance moves.
     const payment = await this.findOrThrow(alloc.supplierPaymentId!, { lock: true });
+    await this.assertNotReversed(payment.id);
     // The mirror cannot pre-date what it mirrors.
     const allocatedOn = alloc.journalEntryId != null ? await this.entryDate(alloc.journalEntryId) : null;
     if (allocatedOn && date < allocatedOn) refuse("date_before_allocation", `The allocation was posted on ${allocatedOn}; it cannot be reversed on an earlier date.`, "date");
@@ -337,11 +350,24 @@ export const supplierPaymentsService = {
   },
 
   /**
+   * Q1 (pack §14.1): supersede one of a payment's OWN allocations because the
+   * payment itself is reversed — by the payment's mirror entry, which already
+   * carries the AP side (no second entry). Only the WHT correction calls this;
+   * the record is the same superseding row an ordinary reversal writes, so every
+   * reader of "live allocations" (billPosition included) follows it.
+   */
+  async recordAllocationSuperseded(allocationId: number, reason: string, journalEntryId: number, userId: number | null) {
+    await db.insert(supplierPaymentAllocationReversalsTable).values({ allocationId, reason, journalEntryId, createdBy: userId });
+    await auditService.record({ action: "reverse_allocation", entityType: "supplier_payment_allocation", entityId: String(allocationId), before: null, after: { reason, journalEntryId } });
+  },
+
+  /**
    * Reclassify on-account money. When the ACCOUNT changes the balance is moved
    * by ONE entry; when it does not, nothing is posted and the row says so.
    */
   async classify(id: number, body: { classification?: unknown; note?: unknown; effectiveDate?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown }, userId: number | null) {
     const payment = await this.findOrThrow(id, { lock: true });
+    await this.assertNotReversed(id);
     const next = String(body.classification ?? "") as SupplierPaymentClassificationKind;
     if (!["advance", "security_deposit", "erroneous", "unknown"].includes(next)) {
       refuse("classification_unknown", "Classify the payment as an advance, a refundable security deposit, an erroneous payment, or not yet known.", "classification");
@@ -436,6 +462,7 @@ export const supplierPaymentsService = {
   /** Money coming back from the supplier: the asset falls, the bank rises. */
   async refund(id: number, body: { amount?: unknown; bankAccountId?: unknown; refundedAt?: unknown; reason?: unknown }, userId: number | null) {
     const payment = await this.findOrThrow(id, { lock: true });
+    await this.assertNotReversed(id);
     // 🔴 Phase 16 (pack §2.4, open W-12): the supplier returns what it RECEIVED;
     // the part withheld was paid to ZATCA and is a claim on ZATCA, not on the
     // supplier. Booking a refund here would leave that part sitting on the
@@ -487,6 +514,16 @@ export const supplierPaymentsService = {
    * transaction — every act that spends or moves what is still on account
    * (allocate, reverse, reclassify, refund) takes it, so they serialise.
    */
+  /**
+   * Q1 (pack §14.1): a payment a WHT correction reversed is history — nothing
+   * on it is allocated, reclassified or refunded again. Refused by name, with
+   * the correction that answers it.
+   */
+  async assertNotReversed(id: number) {
+    const { rows } = await db.execute<{ id: number; corrected_on: string }>(sql`SELECT id, corrected_on::text FROM wht_corrections WHERE supplier_payment_id = ${id} LIMIT 1`);
+    if (rows[0]) refuse("supplier_payment_reversed", `This payment was reversed on ${rows[0].corrected_on} by WHT correction #${rows[0].id}; it is history. Act on its corrected re-entry instead.`, undefined, 409);
+  },
+
   async findOrThrow(id: number, opts: { lock?: boolean } = {}): Promise<SupplierPayment> {
     const q = db.select().from(supplierPaymentsTable).where(eq(supplierPaymentsTable.id, id)).limit(1);
     const [row] = opts.lock ? await q.for("update") : await q;
@@ -510,7 +547,9 @@ export const supplierPaymentsService = {
               - coalesce((SELECT sum(a.amount) FROM supplier_payment_allocations a
                            WHERE a.supplier_payment_id = p.id
                              AND NOT EXISTS (SELECT 1 FROM supplier_payment_allocation_reversals r WHERE r.allocation_id = a.id)), 0)
-              - coalesce((SELECT sum(f.amount) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0))::text v
+              - coalesce((SELECT sum(f.amount) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0)
+              -- Q1: a payment a WHT correction reversed holds nothing on account
+              - CASE WHEN ${supplierPaymentReversedSql("p")} THEN p.amount ELSE 0 END)::text v
          FROM supplier_payments p WHERE p.id = ${id}`).then((r) => r.rows);
     return round2(Number(row?.v ?? 0));
   },
@@ -551,6 +590,7 @@ export const supplierPaymentsService = {
       classification: payment.classification, source: payment.source,
       journalEntryId: payment.journalEntryId,
       availableAmount: await this.availableOf(id),
+      reversal: (await this.reversalsOf([id])).get(id) ?? null,
       // Z-AP1: the supplier's advance invoices against this payment, and what they leave.
       ...(await (async () => {
         const { supplierAdvanceInvoicesService } = await import("./supplierAdvanceInvoices.service.js");
@@ -586,15 +626,28 @@ export const supplierPaymentsService = {
       ))
       .orderBy(supplierPaymentsTable.id);
     const out = [];
+    const reversals = await this.reversalsOf(rows.map((r) => r.id));
     for (const r of rows) {
       out.push({
         id: r.id, vendorId: r.vendorId, amount: Number(r.amount), paidAt: r.paidAt,
         reference: r.reference, classification: r.classification, source: r.source,
         availableAmount: await this.availableOf(r.id),
         journalEntryId: r.journalEntryId,
+        reversal: reversals.get(r.id) ?? null,
       });
     }
     return { items: out };
+  },
+
+  /** Q1 (pack §14.1): the WHT corrections that reversed these payments — one read for a list. */
+  async reversalsOf(ids: number[]) {
+    const out = new Map<number, { correctionId: number; correctedOn: string; reason: string; reversalJournalEntryId: number }>();
+    if (ids.length === 0) return out;
+    const { rows } = await db.execute<{ supplier_payment_id: number; id: number; corrected_on: string; reason: string; reversal_journal_entry_id: number }>(sql`
+      SELECT supplier_payment_id, id, corrected_on::text, reason, reversal_journal_entry_id FROM wht_corrections
+       WHERE supplier_payment_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`);
+    for (const r of rows) out.set(Number(r.supplier_payment_id), { correctionId: r.id, correctedOn: r.corrected_on, reason: r.reason, reversalJournalEntryId: r.reversal_journal_entry_id });
+    return out;
   },
 
   // ── internals ────────────────────────────────────────────────────────────

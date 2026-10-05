@@ -6,13 +6,26 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { WhtDelayFine } from './whtDelayFine';
+import type { WhtFilingStatus } from './whtFilingStatus';
 import type { WhtMonthStatus } from './whtMonthStatus';
 
 export interface WhtMonth {
+  /** The RETURN month (Q1): what its Form 06 carries. */
   period: string;
   /** The 10th of the following month (IR Art. 63(9)(a)). */
   dueDate: string;
+  /** credit (Q1): a correction left the month's return below what was remitted for it — shown, never netted against another month (open W-17). */
   status: WhtMonthStatus;
+  /** Corrections whose reversal this month's return carries. */
+  corrections: number;
+  filingStatus: WhtFilingStatus;
+  /** @nullable */
+  filedOn: string | null;
+  /**
+     * The tax AS FILED (the latest filing's snapshot).
+     * @nullable
+     */
+  filedTaxWithheld: number | null;
   base: number;
   withheld: number;
   remitted: number;

@@ -12670,7 +12670,13 @@ export const ListInvoicePaymentsResponseItem = zod.object({
   "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.'),
   "withheld": zod.number().nullish().describe('Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded).'),
   "cashPaid": zod.number().nullish().describe('Bill payments: the cash that left the bank (amount − withheld).'),
-  "whtPaymentType": zod.string().nullish()
+  "whtPaymentType": zod.string().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): a bill payment a WHT correction reversed — kept in the history, marked; absent\/null otherwise.')
 })
 export const ListInvoicePaymentsResponse = zod.array(ListInvoicePaymentsResponseItem)
 
@@ -13463,7 +13469,8 @@ export const PayBillBody = zod.object({
 }).and(zod.object({
   "whtPaymentType": zod.string().nullish(),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
-  "whtNotSubjectNote": zod.string().max(payBillBodyTwoWhtNotSubjectNoteMax).nullish()
+  "whtNotSubjectNote": zod.string().max(payBillBodyTwoWhtNotSubjectNoteMax).nullish(),
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1): only when the payment\'s month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant\'s recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.')
 })).describe('A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier\'s declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.\n')
 
 export const PayBillResponse = zod.object({
@@ -13568,7 +13575,13 @@ export const ListBillPaymentsResponseItem = zod.object({
   "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.'),
   "withheld": zod.number().nullish().describe('Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded).'),
   "cashPaid": zod.number().nullish().describe('Bill payments: the cash that left the bank (amount − withheld).'),
-  "whtPaymentType": zod.string().nullish()
+  "whtPaymentType": zod.string().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): a bill payment a WHT correction reversed — kept in the history, marked; absent\/null otherwise.')
 })
 export const ListBillPaymentsResponse = zod.array(ListBillPaymentsResponseItem)
 
@@ -13951,8 +13964,14 @@ export const ListSupplierPaymentsResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }))
 })
 
@@ -13985,7 +14004,8 @@ export const CreateSupplierPaymentBody = zod.object({
 })).optional(),
   "whtPaymentType": zod.string().nullish().describe('Phase 16: a payment to a NON-RESIDENT states its nature (or the supplier\'s declared default applies) — never assumed.'),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
-  "whtNotSubjectNote": zod.string().max(createSupplierPaymentBodyWhtNotSubjectNoteMax).nullish()
+  "whtNotSubjectNote": zod.string().max(createSupplierPaymentBodyWhtNotSubjectNoteMax).nullish(),
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1): only when the payment\'s month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant\'s recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.')
 })
 
 export const CreateSupplierPaymentResponse = zod.object({
@@ -13996,8 +14016,14 @@ export const CreateSupplierPaymentResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }).and(zod.object({
   "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
   "advanceCreditedAmount": zod.number(),
@@ -14084,8 +14110,14 @@ export const GetSupplierPaymentResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }).and(zod.object({
   "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
   "advanceCreditedAmount": zod.number(),
@@ -14163,8 +14195,14 @@ export const AllocateSupplierPaymentResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }).and(zod.object({
   "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
   "advanceCreditedAmount": zod.number(),
@@ -14240,8 +14278,14 @@ export const ClassifySupplierPaymentResponse = zod.object({
   "reference": zod.string().nullish(),
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "source": zod.string().nullish(),
-  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds'),
-  "journalEntryId": zod.number().nullish()
+  "availableAmount": zod.number().describe('Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it)'),
+  "journalEntryId": zod.number().nullish(),
+  "reversal": zod.union([zod.object({
+  "correctionId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalJournalEntryId": zod.number()
+}),zod.null()]).optional().describe('Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise.')
 }).and(zod.object({
   "advanceInvoicedAmount": zod.number().describe('Z-AP1: approved supplier advance invoices against this payment'),
   "advanceCreditedAmount": zod.number(),
@@ -14410,7 +14454,7 @@ export const GetSupplierStatementResponse = zod.object({
   "netPosition": zod.number().describe('payable less every asset. > 0: we owe them; < 0: they owe us. DERIVED.')
 }).describe('🔴 `advanceBalance`, `depositBalance` and `unidentifiedBalance` are exactly SUPPLIER_ADVANCES, SECURITY_DEPOSITS_PAID and UNIDENTIFIED_PAYMENTS. `payable` and `creditBalance` BOTH live in AP(vendor) — a purchase credit note posts its debit straight into AP — so the GL carries their difference; they are shown separately because \"what we owe\" and \"what they owe us on a note\" are different facts.\n'),
   "lines": zod.array(zod.object({
-  "kind": zod.enum(['bill', 'debit_note', 'credit_note', 'payment', 'bill_payment', 'allocation', 'credit_application', 'unallocation', 'refund', 'reclassification']),
+  "kind": zod.enum(['bill', 'debit_note', 'credit_note', 'payment', 'bill_payment', 'allocation', 'credit_application', 'unallocation', 'refund', 'reclassification', 'payment_reversal', 'bill_payment_reversal']),
   "date": zod.coerce.date(),
   "ts": zod.coerce.date().optional(),
   "id": zod.number().optional(),
@@ -14603,7 +14647,8 @@ export const PreviewWhtQueryParams = zod.object({
   "allocatedAmount": zod.coerce.number().optional(),
   "whtPaymentType": zod.coerce.string().optional(),
   "whtNotSubjectReason": zod.coerce.string().optional(),
-  "whtNotSubjectNote": zod.coerce.string().optional()
+  "whtNotSubjectNote": zod.coerce.string().optional(),
+  "whtFiledMonthTreatment": zod.enum(['subsequent_period', 'amendment']).optional()
 })
 
 export const PreviewWhtResponse = zod.object({
@@ -14627,7 +14672,9 @@ export const PreviewWhtResponse = zod.object({
   "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
   "paymentType": zod.string().nullable(),
   "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
-}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "monthFiled": zod.boolean().describe('Q1: the payment month\'s Form 06 is recorded filed and this payment withholds — a treatment is required.'),
+  "returnPeriod": zod.string().nullable().describe('The month whose return would carry it; null while a filed month\'s treatment is not stated.')
 })
 
 
@@ -14637,9 +14684,13 @@ export const PreviewWhtResponse = zod.object({
 export const GetWhtOverviewResponse = zod.object({
   "asOf": zod.string(),
   "months": zod.array(zod.object({
-  "period": zod.string(),
+  "period": zod.string().describe('The RETURN month (Q1): what its Form 06 carries.'),
   "dueDate": zod.string().describe('The 10th of the following month (IR Art. 63(9)(a)).'),
-  "status": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted']),
+  "status": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit']).describe('credit (Q1): a correction left the month\'s return below what was remitted for it — shown, never netted against another month (open W-17).'),
+  "corrections": zod.number().describe('Corrections whose reversal this month\'s return carries.'),
+  "filingStatus": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "filedOn": zod.string().nullable(),
+  "filedTaxWithheld": zod.number().nullable().describe('The tax AS FILED (the latest filing\'s snapshot).'),
   "base": zod.number(),
   "withheld": zod.number(),
   "remitted": zod.number(),
@@ -14687,7 +14738,7 @@ export const GetWhtReturnParams = zod.object({
 export const GetWhtReturnResponse = zod.object({
   "period": zod.string(),
   "dueDate": zod.string(),
-  "status": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted']),
+  "status": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit']),
   "asOf": zod.string(),
   "lines": zod.array(zod.object({
   "formRow": zod.string(),
@@ -14748,7 +14799,21 @@ export const GetWhtReturnResponse = zod.object({
   "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
   "paymentType": zod.string().nullable(),
   "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
-}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
 })),
   "excluded": zod.array(zod.object({
   "id": zod.number(),
@@ -14789,7 +14854,21 @@ export const GetWhtReturnResponse = zod.object({
   "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
   "paymentType": zod.string().nullable(),
   "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
-}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
 })),
   "pending": zod.array(zod.object({
   "id": zod.number(),
@@ -14830,8 +14909,124 @@ export const GetWhtReturnResponse = zod.object({
   "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
   "paymentType": zod.string().nullable(),
   "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
-}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
 })).describe('Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2).'),
+  "corrected": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})).describe('Q1: rows reported in this month AND reversed within its return (before filing, or by amendment) — shown, out of the totals.'),
+  "adjustments": zod.array(zod.object({
+  "correctionId": zod.number(),
+  "withholdingId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "originalReturnPeriod": zod.string(),
+  "paymentDate": zod.string(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "paymentType": zod.string().nullable(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "baseAmount": zod.number().describe('The reversal\'s effect on THIS return (negative).'),
+  "whtAmount": zod.number().describe('The reversal\'s effect on THIS return (negative).'),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable()
+})).describe('Q1: corrections this month\'s return carries whose original is reported in an earlier, filed month (subsequent period) — negative lines.'),
+  "filing": zod.object({
+  "status": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "latest": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "filings": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+}),
   "remittances": zod.array(zod.object({
   "id": zod.number(),
   "period": zod.string().nullable().describe('YYYY-MM, or null for the migrated opening balance.'),
@@ -14950,7 +15145,21 @@ export const GetWhtBeneficiaryStatementResponse = zod.object({
   "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
   "paymentType": zod.string().nullable(),
   "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
-}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
 })),
   "totals": zod.object({
   "base": zod.number(),
@@ -14981,6 +15190,805 @@ export const ListWhtExceptionsResponse = zod.object({
   "journalEntryId": zod.number().nullable()
 }))
 })
+
+
+/**
+ * @summary Q1: record that a month's Form 06 was FILED with ZATCA (approver) — or, when it already was, an AMENDMENT of it. The figures are the ledger's at this moment, written by the database.
+ */
+export const fileWhtReturnPathPeriodRegExp = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])$');
+
+
+export const FileWhtReturnParams = zod.object({
+  "period": zod.coerce.string().regex(fileWhtReturnPathPeriodRegExp)
+})
+
+export const fileWhtReturnBodyZatcaReferenceMin = 3;
+export const fileWhtReturnBodyZatcaReferenceMax = 200;
+
+export const fileWhtReturnBodyNotesMax = 2000;
+
+
+
+export const FileWhtReturnBody = zod.object({
+  "filedOn": zod.string().nullish().describe('Defaults to today; after the month ends, never in the future.'),
+  "zatcaReference": zod.string().min(fileWhtReturnBodyZatcaReferenceMin).max(fileWhtReturnBodyZatcaReferenceMax),
+  "notes": zod.string().max(fileWhtReturnBodyNotesMax).nullish()
+})
+
+export const FileWhtReturnResponse = zod.object({
+  "period": zod.string(),
+  "dueDate": zod.string(),
+  "status": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit']),
+  "asOf": zod.string(),
+  "lines": zod.array(zod.object({
+  "formRow": zod.string(),
+  "paymentType": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "applicable": zod.boolean(),
+  "paymentTotal": zod.number(),
+  "taxWithheld": zod.number()
+})),
+  "totals": zod.object({
+  "paymentTotal": zod.number(),
+  "taxWithheld": zod.number(),
+  "remitted": zod.number(),
+  "outstanding": zod.number()
+}),
+  "delayFineEstimate": zod.union([zod.object({
+  "blocks": zod.number(),
+  "daysLate": zod.number(),
+  "amount": zod.number()
+}).describe('A STATUTORY ESTIMATE (Income Tax Law Art. 77(A); IR Art. 68(2)): 1 % of the unpaid tax per full 30 days after the due date — never posted.'),zod.null()]),
+  "schedule": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})),
+  "excluded": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})),
+  "pending": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})).describe('Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2).'),
+  "corrected": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+})).describe('Q1: rows reported in this month AND reversed within its return (before filing, or by amendment) — shown, out of the totals.'),
+  "adjustments": zod.array(zod.object({
+  "correctionId": zod.number(),
+  "withholdingId": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "originalReturnPeriod": zod.string(),
+  "paymentDate": zod.string(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "paymentType": zod.string().nullable(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "baseAmount": zod.number().describe('The reversal\'s effect on THIS return (negative).'),
+  "whtAmount": zod.number().describe('The reversal\'s effect on THIS return (negative).'),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable()
+})).describe('Q1: corrections this month\'s return carries whose original is reported in an earlier, filed month (subsequent period) — negative lines.'),
+  "filing": zod.object({
+  "status": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "latest": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "filings": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+}),
+  "remittances": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string().nullable().describe('YYYY-MM, or null for the migrated opening balance.'),
+  "amount": zod.number(),
+  "fineAmount": zod.number(),
+  "paidAt": zod.string(),
+  "bankAccountId": zod.number(),
+  "bankName": zod.string(),
+  "reference": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "journalEntryId": zod.number(),
+  "createdAt": zod.string(),
+  "reversal": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "reversedOn": zod.string(),
+  "journalEntryId": zod.number()
+}),zod.null()])
+})),
+  "unusedFormRows": zod.array(zod.string()).describe('Form 06 rows 07\/08 have no separate band after Resolution 25 (open question W-4).')
+})
+
+
+/**
+ * @summary Q1: one withholding's lineage — original → reversal → corrected — and the state its month is in (filed, remitted).
+ */
+export const GetWhtWithholdingLineageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetWhtWithholdingLineageResponse = zod.object({
+  "withholding": zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),
+  "state": zod.object({
+  "returnPeriod": zod.string(),
+  "filingStatus": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "latestFiling": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "monthTaxWithheld": zod.number(),
+  "monthRemitted": zod.number(),
+  "monthOutstanding": zod.number(),
+  "monthStatus": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit'])
+}),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "correctedOn": zod.string(),
+  "correctionPeriod": zod.string(),
+  "reversalJournalEntryId": zod.number(),
+  "reversalReturnPeriod": zod.string(),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "originalFilingId": zod.number().nullable().describe('The filing the original\'s month had when it was corrected (the FILED state).'),
+  "remittedAtCorrection": zod.number().describe('What of the original\'s month was remitted when it was corrected (the REMITTED state).'),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "reentry": zod.union([zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),zod.null()]),
+  "corrects": zod.union([zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),zod.null()]),
+  "replayed": zod.boolean().optional()
+}).describe('Q1: one withholding\'s lineage — the original as recorded, the state it is in, its correction and the corrected re-entry (or, for a re-entry, the original it corrects).')
+
+
+/**
+ * @summary Q1: correct a WHT-bearing payment (approver) — reverse it (the original kept) and re-enter the corrected payment through the pay path. One correction per withholding.
+ */
+export const CorrectWhtWithholdingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const correctWhtWithholdingBodyReasonMin = 10;
+export const correctWhtWithholdingBodyReasonMax = 2000;
+
+export const correctWhtWithholdingBodyIdempotencyKeyMax = 200;
+
+export const correctWhtWithholdingBodyReentryOneAmountExclusiveMin = 0;
+
+export const correctWhtWithholdingBodyReentryOneWhtNotSubjectNoteMax = 2000;
+
+
+
+export const CorrectWhtWithholdingBody = zod.object({
+  "reason": zod.string().min(correctWhtWithholdingBodyReasonMin).max(correctWhtWithholdingBodyReasonMax),
+  "date": zod.string().nullish().describe('The correction (reversal) date — defaults to today; never before the payment, never in the future.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish(),
+  "idempotencyKey": zod.string().max(correctWhtWithholdingBodyIdempotencyKeyMax).nullish(),
+  "reentry": zod.union([zod.object({
+  "amount": zod.number().gt(correctWhtWithholdingBodyReentryOneAmountExclusiveMin),
+  "paidAt": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish(),
+  "billId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "classification": zod.union([zod.literal('advance'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullish(),
+  "allocations": zod.array(zod.object({
+  "billId": zod.number(),
+  "amount": zod.number().describe('A positive amount')
+})).optional(),
+  "reference": zod.string().nullish(),
+  "whtPaymentType": zod.string().nullish(),
+  "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
+  "whtNotSubjectNote": zod.string().max(correctWhtWithholdingBodyReentryOneWhtNotSubjectNoteMax).nullish(),
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish()
+}).describe('The corrected payment. A bill payment\'s fields: billId (defaults to the original\'s bill), amount, paidAt, bankAccountId. A supplier payment\'s: vendorId, classification, allocations, reference. The WHT declaration as on any pay path.'),zod.null()]).optional()
+}).describe('Q1 (pack §14.1): reverse a WHT-bearing payment (its mirror entry; the original kept) and, with `reentry`, record the corrected payment through the same pay path. `filedMonthTreatment` is required when a leg falls in a FILED month.')
+
+export const CorrectWhtWithholdingResponse = zod.object({
+  "withholding": zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),
+  "state": zod.object({
+  "returnPeriod": zod.string(),
+  "filingStatus": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']).describe('Q1: amendment_due — the ledger\'s figure for the month no longer equals what was last filed (a correction chose to amend it).'),
+  "latestFiling": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsFilingId": zod.number().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "taxWithheld": zod.number().describe('The return AS FILED — written by the database from the ledger at that moment.'),
+  "paymentTotal": zod.number(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "monthTaxWithheld": zod.number(),
+  "monthRemitted": zod.number(),
+  "monthOutstanding": zod.number(),
+  "monthStatus": zod.enum(['nil', 'open', 'due', 'overdue', 'remitted', 'credit'])
+}),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "reason": zod.string(),
+  "correctedOn": zod.string(),
+  "correctionPeriod": zod.string(),
+  "reversalJournalEntryId": zod.number(),
+  "reversalReturnPeriod": zod.string(),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "originalFilingId": zod.number().nullable().describe('The filing the original\'s month had when it was corrected (the FILED state).'),
+  "remittedAtCorrection": zod.number().describe('What of the original\'s month was remitted when it was corrected (the REMITTED state).'),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "reentry": zod.union([zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),zod.null()]),
+  "corrects": zod.union([zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.'),
+  "returnPeriod": zod.string().describe('Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reentryOfCorrectionId": zod.number().nullable().describe('Q1: this payment RE-ENTERS that correction (the corrected transaction).'),
+  "correction": zod.union([zod.object({
+  "id": zod.number(),
+  "correctedOn": zod.string(),
+  "reason": zod.string(),
+  "reversalReturnPeriod": zod.string().describe('The month whose return carries the reversal.'),
+  "filedMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullable(),
+  "reversalJournalEntryId": zod.number(),
+  "correctedWithholdingId": zod.number().nullable(),
+  "correctedBillPaymentId": zod.number().nullable(),
+  "correctedSupplierPaymentId": zod.number().nullable()
+}),zod.null()]).describe('Q1: this withholding\'s own correction (the reversal and its re-entry), or null.')
+}),zod.null()]),
+  "replayed": zod.boolean().optional()
+}).describe('Q1: one withholding\'s lineage — the original as recorded, the state it is in, its correction and the corrected re-entry (or, for a re-entry, the original it corrects).')
 
 
 /**
@@ -20086,7 +21094,8 @@ export const PayPaymentPlanBody = zod.object({
   "bankAccountId": zod.number().nullish(),
   "whtPaymentType": zod.string().nullish(),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
-  "whtNotSubjectNote": zod.string().max(payPaymentPlanBodyWhtNotSubjectNoteMax).nullish()
+  "whtNotSubjectNote": zod.string().max(payPaymentPlanBodyWhtNotSubjectNoteMax).nullish(),
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1): only when the payment\'s month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant\'s recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.')
 })
 
 export const PayPaymentPlanResponse = zod.object({

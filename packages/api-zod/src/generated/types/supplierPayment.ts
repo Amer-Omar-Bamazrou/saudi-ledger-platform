@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { PaymentReversalRef } from './paymentReversalRef';
 import type { SupplierPaymentClassification } from './supplierPaymentClassification';
 
 export interface SupplierPayment {
@@ -15,7 +16,9 @@ export interface SupplierPayment {
   reference?: string | null;
   classification: SupplierPaymentClassification;
   source?: string | null;
-  /** Derived on every read — the payment less live allocations less refunds */
+  /** Derived on every read — the payment less live allocations less refunds (0 once a WHT correction reversed it) */
   availableAmount: number;
   journalEntryId?: number | null;
+  /** Q1 (pack §14.1): reversed by a WHT correction — the payment stays, marked; null otherwise. */
+  reversal?: PaymentReversalRef | null;
 }

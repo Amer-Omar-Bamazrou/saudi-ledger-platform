@@ -169,6 +169,20 @@ export const billsRepository = {
   },
 
   /**
+   * Q1 (pack §14.1): a bill payment a WHT correction REVERSED leaves the legacy
+   * counter — `paid_amount` stays "Σ live bill payments", so `billPosition` reads
+   * the bill as owing it again with no change to the one definition. The second
+   * writer of the counter, beside the pay path; one statement, under the bill's
+   * row lock the caller already holds. Refuses (no row) rather than go negative.
+   */
+  async reverseBillPayment(id: number, amount: number) {
+    const { rows } = await db.execute<{ id: number }>(sql`
+      UPDATE bills SET paid_amount = (coalesce(paid_amount::numeric, 0) - ${amount}::numeric)
+       WHERE id = ${id} AND coalesce(paid_amount::numeric, 0) - ${amount}::numeric >= 0 RETURNING id`);
+    return rows.length === 1;
+  },
+
+  /**
    * 🔴 Phase 13A — the bill row, locked FOR UPDATE. Every write to a posted
    * document's held input VAT (a credit note reducing it, the evidence entry
    * claiming it) takes this lock first, so the two serialise and the second

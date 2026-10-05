@@ -5,7 +5,9 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { WhtCorrectionRef } from './whtCorrectionRef';
 import type { WhtDetermination } from './whtDetermination';
+import type { WhtWithholdingFiledMonthTreatment } from './whtWithholdingFiledMonthTreatment';
 import type { WhtWithholdingSourceKind } from './whtWithholdingSourceKind';
 import type { WhtWithholdingStatus } from './whtWithholdingStatus';
 
@@ -65,4 +67,15 @@ export interface WhtWithholding {
      */
   supersedesWithholdingId: number | null;
   determination: WhtDetermination;
+  /** Q1: the month whose return carries it — the payment month unless that month was filed and the person chose a later one. */
+  returnPeriod: string;
+  /** @nullable */
+  filedMonthTreatment: WhtWithholdingFiledMonthTreatment;
+  /**
+     * Q1: this payment RE-ENTERS that correction (the corrected transaction).
+     * @nullable
+     */
+  reentryOfCorrectionId: number | null;
+  /** Q1: this withholding's own correction (the reversal and its re-entry), or null. */
+  correction: WhtCorrectionRef | null;
 }

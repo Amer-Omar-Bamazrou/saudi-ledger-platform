@@ -1069,6 +1069,8 @@ function BillPaymentWithholdings({ billId }: { billId: number | null }) {
           <span>· {t("cash paid", "نقد مدفوع")} <span className="font-mono" dir="ltr">{p.cashPaid != null ? fmtNum(p.cashPaid) : "—"}</span></span>
           {/* a WITHHELD record always names its nature; one without is the not-subject record */}
           <span>· {p.whtPaymentType ? whtTypeLabel(p.whtPaymentType, t) : t("not subject to withholding", "غير خاضعة للاستقطاع")}</span>
+          {/* Q1 (pack §14.1): reversed by a WHT correction — the payment stays in the history, marked */}
+          {p.reversal && <span data-testid={`bill-payment-reversed-${p.id}`}>· {t("reversed", "معكوسة")} <DualDate date={p.reversal.correctedOn} inline /> ({t("WHT correction", "تصحيح ضريبة الاستقطاع")}: {p.reversal.reason})</span>}
         </p>
       ))}
     </div>

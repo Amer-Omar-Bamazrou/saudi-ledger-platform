@@ -30,4 +30,11 @@ export interface WhtPreview {
   /** @nullable */
   notSubjectReason: string | null;
   determination: WhtDetermination;
+  /** Q1: the payment month's Form 06 is recorded filed and this payment withholds — a treatment is required. */
+  monthFiled: boolean;
+  /**
+     * The month whose return would carry it; null while a filed month's treatment is not stated.
+     * @nullable
+     */
+  returnPeriod: string | null;
 }

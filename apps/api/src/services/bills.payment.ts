@@ -21,7 +21,7 @@ import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
-import { decideWithholding, recordWithholding, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
+import { decideWithholding, recordWithholding, returnPeriodFor, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
 import { billsRepository } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { businessToday } from "@workspace/shared";
@@ -40,8 +40,13 @@ export interface BillPaymentResult {
 
 export async function payBill(
   id: number,
-  body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown },
+  body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown },
   userId: number | null,
+  /**
+   * Q1 (pack §14.1): set ONLY by the WHT correction when this payment is the corrected RE-ENTRY — never from a
+   * request. Its withholding names the correction, and a subsequent-period report lands in the correction's month.
+   */
+  opts: { correction?: { id: number; correctionPeriod: string } } = {},
 ): Promise<BillPaymentResult> {
     const { amount, paidAt } = body;
 
@@ -108,11 +113,14 @@ export async function payBill(
     // 🔴 Phase 16: decided BEFORE anything is written — a payment to a
     // non-resident whose nature is not declared is refused here, in words,
     // with nothing posted (wht.ts).
+    const declared = whtDeclarationFrom(body as Record<string, unknown>);
     const withholding = await decideWithholding({
       vendorId: existing.vendorId, paymentDate: payDate, base: paid, currency: existing.currency,
       paymentClass: "bill_payment", // settling a bill is consideration: judged by its nature (Q2)
-      declared: whtDeclarationFrom(body as Record<string, unknown>),
+      declared,
     });
+    // Q1: which month's return carries it — a FILED month is never changed silently (refused here, before any write)
+    const reported = await returnPeriodFor(withholding, payDate, declared.filedMonthTreatment, { today: businessToday(), correctionPeriod: opts.correction?.correctionPeriod });
     const withheld = whtOf(withholding);
     const cashPaid = fromHalalas(toHalalas(paid) - toHalalas(withheld));
 
@@ -143,7 +151,9 @@ export async function payBill(
     // Phase 12B: the payment names its entry, so its cash line can be reconciled to the bank's statement line.
     await paymentsRepository.setBillPaymentEntry(payment.id, payEntry.id);
     // Phase 16: the withholding names the payment and its entry (after both exist — the database checks they are its own).
-    await recordWithholding(withholding, { kind: "bill_payment", billPaymentId: payment.id, billId: id }, payDate, payEntry.id, userId);
+    await recordWithholding(withholding, { kind: "bill_payment", billPaymentId: payment.id, billId: id }, payDate, payEntry.id, userId, {
+      returnPeriod: reported.returnPeriod, filedMonthTreatment: reported.filedMonthTreatment, correctionId: opts.correction?.id ?? null,
+    });
     await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: { ...bill, withholding: withheld > 0 ? { amount: withheld, cashPaid } : null } });
     return { billPaymentId: payment.id, journalEntryId: payEntry.id, amount: paid, cashPaid, withheld, withholding };
 }

@@ -15,4 +15,5 @@ export const WhtMonthlyReturnStatus = {
   due: 'due',
   overdue: 'overdue',
   remitted: 'remitted',
+  credit: 'credit',
 } as const;

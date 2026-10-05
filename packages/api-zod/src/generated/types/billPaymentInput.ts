@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { BillPaymentInputWhtFiledMonthTreatment } from './billPaymentInputWhtFiledMonthTreatment';
 import type { BillPaymentInputWhtNotSubjectReason } from './billPaymentInputWhtNotSubjectReason';
 import type { PaymentInput } from './paymentInput';
 
@@ -21,4 +22,9 @@ export type BillPaymentInput = PaymentInput & ({
      * @nullable
      */
   whtNotSubjectNote?: string | null;
+  /**
+     * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+     * @nullable
+     */
+  whtFiledMonthTreatment?: BillPaymentInputWhtFiledMonthTreatment;
 });
