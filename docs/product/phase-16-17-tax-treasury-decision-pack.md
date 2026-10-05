@@ -1249,9 +1249,14 @@ TR-2, MG-3) — not fixed, by instruction.
 
 **Tests:** `phase16-17-audit-fixes` (13, real rows) and
 `phase16-17-audit-fixes-vat` (4, pinned date, day 1 / middle / last day /
-prior period / current period, quarterly and monthly); five earlier suites
-moved from full dates to the month contract they always declared;
-`phase16-17-accountant-answers` gains the TR-1 walk.
+prior period / current period, quarterly and monthly); seven callers moved
+from full dates to the month contract they always declared (six API suites and
+one browser spec — two of them found only by CI on `be6617fe`: the first sweep
+matched LITERAL full dates, not variables, so its "none left" was a negative
+from an unvalidated probe; every caller was then checked by the value its
+argument holds); `d3-cash-cutover` plants its orphan reversal with triggers
+off, as the legacy data 0119 now refuses to write; `phase16-17-accountant-answers`
+gains the TR-1 walk.
 
 **Mutations, each proven red then restored (source by hash, the database by
 its definition):** OB-M1 the obligation on the month API with dates, unvalidated (the original bug) · OB-M2b both period validations removed
