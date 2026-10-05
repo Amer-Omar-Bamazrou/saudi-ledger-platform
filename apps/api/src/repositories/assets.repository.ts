@@ -130,6 +130,15 @@ export const assetsRepository = {
       .where(and(eq(fixedAssetsTable.migrationBatchId, batchId), eq(fixedAssetsTable.source, "migration")))
       .orderBy(asc(fixedAssetsTable.id));
   },
+  /**
+   * MG-1 (final audit 2026-10-05): lock a migration batch's register rows FOR UPDATE, in id order — taken by the batch
+   * reversal BEFORE it reads what was depreciated. A depreciation posting reads its asset FOR SHARE at the database
+   * (0119 `depreciation_refused_out_of_books`), so the two serialise: one committed first is seen and mirrored; one
+   * arriving after waits, then finds the asset reversed and is refused. Never a reversed asset with an unmirrored charge.
+   */
+  async lockAssetsOfMigrationBatch(batchId: number) {
+    await db.execute(sql`SELECT id FROM fixed_assets WHERE migration_batch_id = ${batchId} AND source = 'migration' ORDER BY id FOR UPDATE`);
+  },
   /** Q3: the POSTED depreciation of these assets, with each entry's date and status (a reversed entry is already netted). */
   async postedDepreciationOf(assetIds: number[]) {
     if (assetIds.length === 0) return [];

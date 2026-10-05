@@ -197,6 +197,27 @@ export function whtHalalas(baseH: number, rate: string | number): number {
   return Math.round((baseH * rateBasisPoints(rate)) / 10000);
 }
 
+/**
+ * WHT-1 (final audit 2026-10-05) — the BASE whose cash, net of the tax, is `cashH`: the exact inverse of the pay path's
+ * own arithmetic (cash = base − whtHalalas(base, rate)), for a bank line that records what LEFT the bank. Nothing new is
+ * decided here — the rate is the decision's, the rounding is `whtHalalas`; this only finds the halala base it maps from.
+ *
+ * Cash rises by 0 or 1 halala per halala of base, so every cash has a base, and where the tax steps up a halala TWO
+ * bases give the same cash. Then the caller's preferred base (the bill's outstanding — paid in full, net) decides; with
+ * none, the answer is ambiguous and null is returned, so the caller refuses rather than guess a halala.
+ */
+export function baseForCash(cashH: number, rate: string | number, preferBaseH?: number | null): number | null {
+  if (!Number.isSafeInteger(cashH) || cashH <= 0) return null;
+  const bp = rateBasisPoints(rate);
+  if (bp === 0) return cashH;
+  const approx = Math.floor((cashH * 10000) / (10000 - bp));
+  const hits: number[] = [];
+  for (let b = approx - 5; b <= approx + 5; b++) if (b > 0 && b - whtHalalas(b, rate) === cashH) hits.push(b);
+  if (hits.length === 1) return hits[0]!;
+  if (hits.length > 1 && preferBaseH != null && hits.includes(preferBaseH)) return preferBaseH;
+  return null;
+}
+
 /** The `wht_rates` row in force for a nature on a date — the regulation's, never a literal. */
 export async function rateInForce(paymentType: WhtPaymentType, onDate: string) {
   const [r] = await db.select().from(whtRatesTable)

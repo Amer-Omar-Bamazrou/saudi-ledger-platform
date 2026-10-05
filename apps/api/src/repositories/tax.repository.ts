@@ -573,6 +573,25 @@ export const taxRepository = {
     return new Map(rows.map((r) => [r.code, Number(r.v)]));
   },
 
+  /**
+   * IT-1 (final audit 2026-10-05): the REGISTER's depreciation posted, inside a window, to a category's own expense
+   * account that is NOT the system `DEPRECIATION_EXPENSE` (the system account's movement is read by system code beside
+   * this). Only genuine depreciation: the lines of an entry the asset register posted (`asset_depreciation_schedule
+   * .journal_entry_id`) or of that entry's mirror, on THAT asset's category expense account — never the account's other
+   * movement, so an ordinary expense that shares a custom account is not added back. Debit-positive, entries in the books.
+   */
+  async registerDepreciationOffSystemAccount(from: string, to: string): Promise<number> {
+    const { rows } = await db.execute<{ v: string }>(sql`
+      SELECT coalesce(sum(l.debit_amount - l.credit_amount), 0)::text AS v
+        FROM journal_entry_lines l JOIN journal_entries e ON e.id = l.journal_entry_id JOIN categories c ON c.id = l.account_id
+       WHERE e.company_id = ${CO} AND e.status IN ('posted', 'reversed')
+         AND e.date::date >= ${from}::date AND e.date::date <= ${to}::date
+         AND c.system_code IS DISTINCT FROM 'DEPRECIATION_EXPENSE'
+         AND EXISTS (SELECT 1 FROM asset_depreciation_schedule s JOIN fixed_assets a ON a.id = s.asset_id JOIN asset_categories k ON k.id = a.category_id
+                      WHERE s.journal_entry_id IN (e.id, e.reversal_of) AND k.depreciation_expense_account_id = l.account_id)`);
+    return Number(rows[0]?.v ?? 0);
+  },
+
   /** Per account, the net movement of the listed entries up to a date (debit-positive) — what to take OUT of the inputs (Z-3). */
   async entryEffects(entryIds: number[], upTo: string) {
     if (entryIds.length === 0) return [];

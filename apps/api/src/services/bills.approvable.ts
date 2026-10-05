@@ -30,6 +30,8 @@ import { captureService } from "./capture/capture.service";
 import { blockedAccount, vatEvidenceService } from "./purchaseEvidence/vatEvidence.service";
 import { describeHold, inputVatTreatment, type VatEvidenceVerdict } from "./purchaseEvidence/vatEvidence";
 import { payBill } from "./bills.payment";
+import { decideWithholding } from "./accounting/wht";
+import { businessToday } from "@workspace/shared";
 import { buildBillOut, toNum, type BillOut } from "./bills.presenter";
 import { supplierAdvanceInvoicesService } from "./accounting/supplierAdvanceInvoices.service";
 import { inputVatLedgerService, treatmentForBucket } from "./accounting/inputVatLedger.service";
@@ -156,6 +158,31 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
 
   if (total <= 0) {
     throw new BusinessRuleError(400, { error: "Bill total must be greater than zero to post.", code: "ZERO_TOTAL" });
+  }
+
+  // 🔴 WHT-2 (final audit 2026-10-05): an EXPENSE's approval also PAYS it (below), and nothing on the way lets a person
+  // declare or preview a withholding. So the canonical decision judges that payment FIRST — before anything is written —
+  // and a payment it would withhold on, or could not judge without a declaration, is refused by name: such a supplier
+  // is paid from the bill's pay dialog, where the withholding is stated and shown. (Resident, undeclared-residency and
+  // supplier-less payments withhold nothing and proceed exactly as before.)
+  if (bill.recordedAsExpense) {
+    const refuseExpense = (why: string): never => {
+      throw new BusinessRuleError(422, {
+        code: "expense_wht_requires_bill_payment",
+        error: `This expense is paid to a NON-RESIDENT supplier, so its payment is judged for withholding tax — ${why}. An expense cannot declare or show a withholding: record it as a bill and pay it from the bill's pay dialog. Nothing was recorded.`,
+        field: "vendorId",
+      });
+    };
+    try {
+      const decision = await decideWithholding({
+        vendorId: bill.vendorId, paymentDate: bill.expensePaidAt ?? businessToday(), base: total, currency: bill.currency,
+        paymentClass: "bill_payment", declared: {},
+      });
+      if (decision.kind === "withheld") refuseExpense(`the supplier's declared nature would withhold ${(Number(decision.rate) * 100).toFixed(2)} %`);
+    } catch (e) {
+      if (e instanceof BusinessRuleError && (e.payload as { code?: string } | undefined)?.code === "wht_classification_required") refuseExpense("its nature is not declared, and the rate depends on it");
+      throw e;
+    }
   }
 
   // ── totals reconciliation ──

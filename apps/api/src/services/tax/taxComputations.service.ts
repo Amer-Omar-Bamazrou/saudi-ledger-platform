@@ -191,7 +191,10 @@ async function incomeTaxInputs(c: TaxComputation, v: TaxComputationVersion, adju
     blockers.push({ code: "income_tax_no_books", message: `The income statement for ${c.fiscalYearStart} – ${c.fiscalYearEnd} has no movement at all. Taxable income read from an empty year would be a confident zero — record the year first.` });
   }
   const profitBeforeTaxesH = toHalalas(is.netIncome) + toHalalas(taxesInPl);
-  const bookDepreciationH = toHalalas(mv.get(SYSTEM_ACCOUNTS.DEPRECIATION_EXPENSE) ?? 0);
+  // IT-1 (final audit 2026-10-05): book depreciation is added back WHEREVER the register posted it — the system account,
+  // and a category's own expense account (the category API accepts any expense account); never other expenses there.
+  const bookDepreciationH = toHalalas(mv.get(SYSTEM_ACCOUNTS.DEPRECIATION_EXPENSE) ?? 0)
+    + toHalalas(await taxRepository.registerDepreciationOffSystemAccount(c.fiscalYearStart, c.fiscalYearEnd));
   const bookDisposalResultH = -toHalalas(mv.get(SYSTEM_ACCOUNTS.ASSET_DISPOSAL_GAIN_LOSS) ?? 0);
 
   // Art. 17 — the pool the register computes (FA-1), for this fiscal year

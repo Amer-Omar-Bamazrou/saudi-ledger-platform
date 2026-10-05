@@ -335,6 +335,9 @@ export const whtReturnFilingsTable = pgTable(
   },
   (t) => [
     uniqueIndex("wht_return_filings_one_original_unq").on(t.companyId, t.period).where(sql`kind = 'original'`),
+    // SEC-4 (final audit 2026-10-05): a ZATCA acknowledgement names ONE filing — the same reference again is the same
+    // filing replayed, never an amendment (append-only: a false amendment could never be removed)
+    uniqueIndex("wht_return_filings_reference_unq").on(t.companyId, t.period, t.zatcaReference),
     index("wht_return_filings_period_idx").on(t.companyId, t.period),
     check("wht_return_filings_period_chk", sql`${t.period} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
     check("wht_return_filings_kind_chk", sql`${t.kind} in ('original', 'amendment') and ((${t.kind} = 'original') = (${t.amendsFilingId} is null))`),

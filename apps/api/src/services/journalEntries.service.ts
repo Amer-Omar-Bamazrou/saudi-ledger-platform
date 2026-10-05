@@ -372,6 +372,24 @@ export const journalEntriesService = {
     if (documentOwner && owner.document !== documentOwner) {
       throw new ConflictError(ownedEntryRefusal(documentOwner, original.reference ?? original.entryNumber));
     }
+    // 🔴 MG-2 (final audit 2026-10-05) — after the owner check, so an owned entry keeps its owner's own words: a MIRROR is never itself reversed — reversing it re-posts what its original
+    // undid while that original still reads `reversed` (a migration reversal's mirror re-imposed a withdrawn opening
+    // position, a Q3 depreciation mirror re-depreciated a reversed asset). And a migration's OWN entries — its opening
+    // journal, a dated opening correction, its reversal — are withdrawn only by the migration workspace, whose reversal
+    // marks every row it created. Refused here in words; the database refuses the same mirror (0119
+    // `journal_entries_mirror_admit`), so no path can say it.
+    if (original.reversalOf != null) {
+      throw new BusinessRuleError(409, {
+        code: "journal_mirror_not_reversible",
+        error: `Entry ${original.entryNumber} is itself the reversal of another entry; reversing it would re-post what that reversal undid. Record what is still needed as a new entry instead.`,
+      });
+    }
+    if (original.source === "opening" || original.source === "opening_correction" || original.source === "opening_reversal") {
+      throw new BusinessRuleError(409, {
+        code: "journal_migration_owned",
+        error: `Entry ${original.entryNumber} belongs to a migration batch. An opening position is withdrawn by reversing its batch in the migration workspace (which marks every row it created), and one item is changed by a dated correction there — never by reversing the journal alone.`,
+      });
+    }
     // 🔴 Phase 12C: a statement line reconciled to this entry would go on
     // "reconciling" money the books now cancel. Refused in words here; the
     // trigger on journal_entries (migration 0101) is the boundary.

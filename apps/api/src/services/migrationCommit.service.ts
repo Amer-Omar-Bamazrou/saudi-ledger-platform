@@ -576,6 +576,9 @@ export const migrationCommitService = {
     if (batch.status !== "committed") refuse(409, { code: "migration_not_committed", error: `Migration batch ${batchId} is ${batch.status}; only a committed migration is reversed.` });
     const reason = body.reason?.trim();
     if (!reason || reason.length < 10) throw new BadRequestError("reason is required (at least 10 characters) — it is the audit record of why the opening position was withdrawn.");
+    // MG-1: the batch's assets are locked BEFORE what was depreciated is read — a concurrent depreciation either
+    // committed already (and is mirrored below) or waits for this reversal and is then refused (asset out of the books)
+    await assetsRepository.lockAssetsOfMigrationBatch(batch.id);
     const preview = await this.reversalPreview(batchId);
     if (preview.blockers.length > 0) {
       refuse(422, { code: "migration_reversal_blocked", error: `The migration cannot be reversed while: ${preview.blockers.join("; ")}. Unwind those first, or post dated correction journals instead.` });

@@ -129,6 +129,12 @@ const TAX_TREASURY_TRIGGER_STATUS: Record<string, 409 | 422> = {
   treasury_settings_tenant: 422,
   treasury_settings_identity: 409,
   treasury_no_truncate: 409,
+  // the final audit's fixes (0119, 2026-10-05): MG-2 — a mirror is never reversed, a migration's entries belong to its
+  // workspace; MG-1 — an asset out of the books (reversed with its batch, disposed, cancelled) is never depreciated
+  journal_mirror_not_reversible: 409,
+  journal_migration_owned: 409,
+  journal_reversal_tenant: 422,
+  depreciation_asset_out_of_books: 409,
 };
 /** The 0113/0114 unique indexes two concurrent requests can collide on. */
 const TAX_TREASURY_UNIQUE_MESSAGE: Record<string, string> = {
@@ -141,6 +147,8 @@ const TAX_TREASURY_UNIQUE_MESSAGE: Record<string, string> = {
   wht_corrections_withholding_unq: "This withholding was corrected by another request a moment ago; that correction is the record.",
   wht_corrections_idempotency_unq: "This correction is already being recorded — reload to see it.",
   wht_return_filings_one_original_unq: "This month's filing was recorded at the same moment — reload to see it.",
+  // SEC-4 (0119): a ZATCA acknowledgement names ONE filing of a month — the same reference again is the same filing
+  wht_return_filings_reference_unq: "That ZATCA reference is already recorded for this month's return — it is the same filing, not an amendment. Reload to see it.",
   zakat_account_classifications_account_unq: "This account was classified at the same moment — reload to see its class.",
   scheduled_payments_payment_unq: "This plan was paid at the same moment — reload to see it.",
   treasury_settings_company_unq: "The treasury settings were saved at the same moment — reload and try again.",

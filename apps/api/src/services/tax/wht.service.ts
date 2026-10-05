@@ -462,6 +462,16 @@ export const whtService = {
     const zatcaReference = typeof body.zatcaReference === "string" ? body.zatcaReference.trim() : "";
     if (zatcaReference.length < 3) refuse(422, "zatca_reference_required", "Record ZATCA's reference for the filed return (the acknowledgement on the portal).", "zatcaReference");
     const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
+    // 🔴 SEC-4 (final audit 2026-10-05): a ZATCA acknowledgement names ONE filing. The same reference again is that
+    // filing REPLAYED (a retry, a second tab) — answered with the recorded return, nothing written — never a new
+    // "amendment": filings are append-only, so a false amendment could never be removed. The same reference on another
+    // date is a contradiction, refused by name. A genuine amendment carries its own acknowledgement. The database holds
+    // the rule too (`wht_return_filings_reference_unq`), so two concurrent replays cannot both land.
+    const sameReference = (await taxRepository.filings(period)).find((f) => f.zatcaReference === zatcaReference);
+    if (sameReference) {
+      if (sameReference.filedOn === filedOn) return this.monthlyReturn(period);
+      refuse(409, "wht_filing_reference_reused", `ZATCA reference ${zatcaReference} is already recorded for ${period}'s return, filed on ${sameReference.filedOn}. An amendment carries its own acknowledgement reference — record that one.`, "zatcaReference");
+    }
     const prior = await latestFilingOf(period);
     const [row] = await taxRepository.insertFiling({
       period, kind: prior ? "amendment" : "original", amendsFilingId: prior?.id ?? null, filedOn, zatcaReference, notes,
