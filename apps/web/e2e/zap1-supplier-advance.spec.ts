@@ -46,7 +46,7 @@ test.afterAll(async () => { await api.dispose(); });
 
 test.describe.serial("Z-AP1 — the supplier's advance tax invoice", () => {
   test("🔴 recording the supplier's advance invoice claims its VAT in the invoice's month — once", async ({ page }) => {
-    const feb0 = await inputVat("2026-02-01", "2026-02-28");
+    const feb0 = await inputVat("2026-02", "2026-02");
     await page.goto("/supplier-payments");
     await expect(page.getByTestId("page-supplier-payments")).toBeVisible();
     await page.getByTestId(`open-supplier-payment-${paymentId}`).click();
@@ -57,13 +57,13 @@ test.describe.serial("Z-AP1 — the supplier's advance tax invoice", () => {
     await section.getByTestId("advance-invoice-date").fill("2026-02-05");
     await section.getByTestId("advance-invoice-submit").click();
     await expect.poll(async () => (await (await api.get(`/api/supplier-payments/${paymentId}`)).json()).advanceOpenAmount).toBe(11_500);
-    expect(await inputVat("2026-02-01", "2026-02-28") - feb0, "February claims the advance's 1,500").toBeCloseTo(1_500, 2);
+    expect(await inputVat("2026-02", "2026-02") - feb0, "February claims the advance's 1,500").toBeCloseTo(1_500, 2);
     const detail = await (await api.get(`/api/supplier-payments/${paymentId}`)).json();
     expect(detail).toMatchObject({ uninvoicedAmount: 0, advanceOpenVat: 1_500 });
   });
 
   test("🔴 the final bill, created by clicking with the advance ticked, claims ONLY the rest", async ({ page }) => {
-    const mar0 = await inputVat("2026-03-01", "2026-03-31");
+    const mar0 = await inputVat("2026-03", "2026-03");
     await page.goto("/bills");
     await page.getByRole("button", { name: /New Bill/i }).first().click();
     await page.getByTestId("bill-vendor").click();
@@ -91,7 +91,7 @@ test.describe.serial("Z-AP1 — the supplier's advance tax invoice", () => {
     const bill = ((await (await api.get(`/api/supplier-payments/${paymentId}`)).json()).allocations as Array<{ billId: number; billNumber: string }>).find((a) => a.billNumber === BILL_NO)!;
     const full = await (await api.get(`/api/bills/${bill.billId}`)).json();
     expect(full).toMatchObject({ prepaidAmount: 11_500, amountDue: 23_000 });
-    expect(await inputVat("2026-03-01", "2026-03-31") - mar0, "March claims 4,500 − 1,500, never 4,500").toBeCloseTo(3_000, 2);
+    expect(await inputVat("2026-03", "2026-03") - mar0, "March claims 4,500 − 1,500, never 4,500").toBeCloseTo(3_000, 2);
     expect((await (await api.get(`/api/supplier-payments/${paymentId}`)).json()).advanceOpenAmount).toBe(0);
   });
 
