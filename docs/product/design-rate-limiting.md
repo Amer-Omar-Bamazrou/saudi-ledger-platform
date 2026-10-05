@@ -228,7 +228,8 @@ burst; a 429 is never retried by React Query.
 2. **Edge protection is a deployment item.** Volumetric floods of cheap,
    anonymous endpoints belong at the proxy/CDN/WAF; a database counter there
    would amplify the flood. Nothing is deployed yet (CLAUDE.md §5, deployment-time).
-3. **`TRUST_PROXY_HOPS`** must still be confirmed in the real deployment (C1).
+3. **`TRUST_PROXY_HOPS`** must still be confirmed in the real deployment (C1) —
+   see the final review below.
 4. **Fixed windows** allow up to twice a budget across a boundary; the general
    budget's 10-second burst bucket bounds the worst case.
 5. **No concurrency cap.** A rate limit bounds requests per window, not
@@ -256,14 +257,61 @@ English text to Arabic readers — now localized by code; (4) a full-form
 IPv4-mapped IPv6 address fell into the `::/56` bucket — now keyed as its IPv4
 client.
 
+### Final pre-merge review (2026-10-05) — the limitations, decided
+
+1. **Targeted lockout — an ACCEPTED authentication limitation, not a blocker.**
+   It needs a distributed attacker who knows the address (a single IP can send
+   at most 50 failures in any hour; the limit is 60); it denies NEW sign-ins
+   only — sessions already open keep working (`rate-limit-login.test.ts`); it
+   ends within the hour after the failures stop; and it exposes nothing. The
+   alternative it replaced was unbounded distributed guessing. The remedy
+   (a device cookie exempting a known browser) is an authentication change, for
+   when real tenants exist; no operator control clears a lockout today.
+2. **`TRUST_PROXY_HOPS` — a DEPLOYMENT requirement, and the review found one
+   defect around it.** The schema is safe (an integer 0–10, default 0 = trust
+   no proxy: a client cannot choose its key with a header). Behind a proxy that
+   default is wrong in the SAFE direction — every client collapses into one IP
+   bucket (login: 10 per 15 minutes for everyone) — and the only planned
+   deployment (Railway, `demo-deployment-runbook.md`) did not set it. 🔴 On
+   `main`, express-rate-limit's own key generator logged
+   `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` in exactly that case; this change's
+   custom key generator (needed for the /56 IPv6 key) had silently dropped it —
+   proven by a probe on both key generators. **Fixed:** the check is restored in
+   the pre-session key path (`forwardedForIgnored`, logged once per process as
+   `rate_limit.xff_untrusted`), and the runbook now names the variable. The
+   request budget is keyed on users and organizations, so it is unaffected.
+3. **AI and OTP limits — safe for the platform as it is.** No model call is
+   possible in production today: `AI_PROVIDER` defaults to `none`, and boot
+   REFUSES `groq` in production without the signed-Enterprise attestation; with
+   no provider `/ask` answers 503 before any call. The OTP exchange is
+   admin-only, refused in demo mode, and 10 per hour against a one-time password
+   ZATCA validates. 🔴 **Before the AI layer is lit:** the AI limit counts
+   REQUESTS, and one `/llm/compare` fans out to 50 model calls and one
+   `/findings/run` to up to 50 — a call-based budget (on `ai_usage`, which
+   already meters) or a smaller fan-out is part of lighting it (C6, R1).
+4. **The uncounted 403 paths in `resolveTenant` — not a bypass; ACCEPTED.**
+   No membership, or an organization not yet approved: the request is refused
+   before any business handler, write or class-limited work, at the cost of one
+   indexed lookup (`organization_memberships (user_id, organization_id)`).
+   Counting it would cost one counter write — the same — so a budget there
+   would add a statement, not remove one. Such a user's reachable surfaces
+   (`/onboarding`, `/orgs`) ARE counted, and making more such sessions costs
+   signups (5 per hour per IP). A request that falls through a pre-tenant mount
+   can only reach a 404: no business mount shares those prefixes.
+5. **The login 500 for an email containing a NUL byte — a separate,
+   pre-existing issue** (the handler's own lookup is refused by Postgres; its
+   body is unchanged by this work). Rate limiting does not depend on it: the
+   attempt is counted under its digest either way, and a 500 counts as a
+   failure, never as a refunded success.
+
 ## 11. Verification record (2026-10-05, local; CI is the authority)
 
 - `pnpm run verify` — typecheck, API 228 files passed / 1 skipped (the storage-
   credentialed `documents` suite, skipped locally as before), DB 10/10, the
   live-ZATCA file, web 15/15, build: green. No pre-existing suite meets a
   production budget.
-- New tests: `rate-limit-policy` (15), `rate-limit-budget` (15),
-  `rate-limit-login` (10), web `lib/rateLimit` (6), browser
+- New tests: `rate-limit-policy` (16), `rate-limit-budget` (15),
+  `rate-limit-login` (11), web `lib/rateLimit` (6), browser
   `e2e/rate-limit.spec.ts` (5); with the route smoke crawl, RTL and banking
   specs, 118 browser tests green, and every 429 in that run was a planted one.
 - **28 mutations, all killed** — 23 API (mount removed, keys collapsed, the
@@ -274,7 +322,9 @@ client.
   rejecting refund, limiters back in memory, no window reset, a sweep of live
   rows, a bare 500 on store failure, the operator mount unbudgeted), 2 web, 1
   database (`SET LOGGED`), 2 browser (login text unlocalized, no toast for
-  refused reads). Each restored and verified by hash or definition.
+  refused reads). Each restored and verified by hash or definition. The final
+  review added 3 more for the restored untrusted-proxy signal (not called;
+  blind to `trust proxy`; logged every request) — all killed: **31 in all**.
 - A fresh database migrated 0000→0120 holds `rate_limit_hits` identical to the
   tested one (UNLOGGED, columns, indexes, grants).
 - Observed, not changed (outside rate limiting): the login handler answers 500

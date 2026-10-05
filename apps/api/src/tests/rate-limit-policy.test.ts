@@ -7,7 +7,7 @@
  * key and classify with, including the BYPASSES each one exists to close.
  */
 import { describe, expect, it } from "vitest";
-import { accountKeyOf, clientIpKey, rateLimitedBody, retryAfterSecondsFrom } from "../lib/rateLimit";
+import { accountKeyOf, clientIpKey, forwardedForIgnored, rateLimitedBody, retryAfterSecondsFrom } from "../lib/rateLimit";
 import { BUDGET_POLICY, CLASS_RULES, classesOf, normalizedApiPath } from "../lib/requestBudget";
 
 describe("the client IP key", () => {
@@ -49,6 +49,16 @@ describe("the client IP key", () => {
     expect(clientIpKey(undefined)).toBe("ip:unknown");
     expect(clientIpKey("")).toBe("ip:unknown");
     expect(clientIpKey("not-an-ip")).toBe("ip:unknown");
+  });
+});
+
+describe("the untrusted-proxy signal (C1)", () => {
+  const req = (xff: string | undefined, trustProxy: unknown) =>
+    ({ headers: xff === undefined ? {} : { "x-forwarded-for": xff }, app: { get: () => trustProxy } }) as never;
+  it("fires only when the header arrives AND no proxy is trusted", () => {
+    expect(forwardedForIgnored(req("203.0.113.9", false))).toBe(true);
+    expect(forwardedForIgnored(req("203.0.113.9", 1)), "TRUST_PROXY_HOPS set: the header is read, not ignored").toBe(false);
+    expect(forwardedForIgnored(req(undefined, false)), "no header: nothing to say").toBe(false);
   });
 });
 

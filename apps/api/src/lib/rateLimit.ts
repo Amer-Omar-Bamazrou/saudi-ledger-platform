@@ -27,6 +27,7 @@ import { createHash } from "node:crypto";
 import { isIPv4, isIPv6 } from "node:net";
 import rateLimit from "express-rate-limit";
 import { PostgresRateLimitStore } from "./rateLimitStore";
+import { logger } from "./logger";
 
 export const RATE_LIMITED = "rate_limited" as const;
 
@@ -68,6 +69,37 @@ export function clientIpKey(ip: string | undefined): string {
     return `ip:${n[6]! >> 8}.${n[6]! & 0xff}.${n[7]! >> 8}.${n[7]! & 0xff}`;
   }
   return `ip6:${n[0]!.toString(16)}:${n[1]!.toString(16)}:${n[2]!.toString(16)}:${(n[3]! & 0xff00).toString(16)}::/56`;
+}
+
+/**
+ * True when a request carries `X-Forwarded-For` but this process trusts no
+ * proxy (`TRUST_PROXY_HOPS=0`). Behind a real proxy that is the C1
+ * misconfiguration: `req.ip` is the PROXY's address, so every client shares
+ * ONE bucket of each IP limit (10 logins per 15 minutes for everyone).
+ */
+export function forwardedForIgnored(req: Pick<Request, "headers" | "app">): boolean {
+  return req.headers["x-forwarded-for"] !== undefined && !req.app.get("trust proxy");
+}
+
+/**
+ * 🔴 express-rate-limit's OWN key generator makes this check
+ * (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`); a CUSTOM key generator — which the
+ * /56 IPv6 key needs — silently drops it, and with it the only runtime signal
+ * of a collapsed limiter (final review, 2026-10-05; the deployment runbook did
+ * not set the variable). Restored here, logged once per process. A direct
+ * deployment can be made to log it once by any client sending the header,
+ * exactly as the library could — the line says "if a proxy is in front".
+ */
+let forwardedForWarned = false;
+function warnIfForwardedForIgnored(req: Request): void {
+  if (forwardedForWarned || !forwardedForIgnored(req)) return;
+  forwardedForWarned = true;
+  logger.error(
+    { event: "rate_limit.xff_untrusted" },
+    "X-Forwarded-For arrived but TRUST_PROXY_HOPS is 0. If a proxy is in front of this process, every client " +
+      "behind it shares ONE rate-limit bucket (login, signup, invitations, uploads): set TRUST_PROXY_HOPS to the " +
+      "number of proxies that rewrite the header (CLAUDE.md §5, C1).",
+  );
 }
 
 /** An IPv6 address as its eight 16-bit groups (the first 56 bits are the key above). */
@@ -168,8 +200,11 @@ interface PreSessionLimiterSpec {
  */
 export function preSessionLimiter(spec: PreSessionLimiterSpec): RequestHandler & { store: PostgresRateLimitStore } {
   const store = new PostgresRateLimitStore(spec.name);
-  const keyOf = (req: Request): string =>
-    spec.dimension === "account" ? accountKeyOf(spec.accountOf!(req)!) : clientIpKey(req.ip);
+  const keyOf = (req: Request): string => {
+    if (spec.dimension === "account") return accountKeyOf(spec.accountOf!(req)!);
+    warnIfForwardedForIgnored(req);
+    return clientIpKey(req.ip);
+  };
   const handler = rateLimit({
     store,
     windowMs: spec.windowMs,

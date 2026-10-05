@@ -19,6 +19,7 @@ import { primePermissionCache } from "../lib/rbac";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { PostgresRateLimitStore } from "../lib/rateLimitStore";
 import { accountKeyOf, clientIpKey } from "../lib/rateLimit";
+import { logger } from "../lib/logger";
 import { budgetKey, budgetStore } from "../lib/requestBudget";
 
 const url = process.env.DATABASE_URL;
@@ -123,6 +124,9 @@ describeMaybe("rate limits before a session: login per IP and per account, invit
   });
 
   it("🔴 the IP limit: ten attempts, then 429 — and rotating X-Forwarded-For, the User-Agent or the email does not buy an eleventh", async () => {
+    // The header arrives while no proxy is trusted (TRUST_PROXY_HOPS=0 here): the C1
+    // misconfiguration signal must be logged — ONCE, however many requests carry it.
+    const errorLog = vi.spyOn(logger, "error");
     const anon = client();
     for (let i = 0; i < 10; i++) {
       const r = await anon("POST", "/auth/login", { email: email(`nobody-${i}`), password: "wrong-password" },
@@ -134,6 +138,19 @@ describeMaybe("rate limits before a session: login per IP and per account, invit
     expect(over.json.retryAfterSeconds).toBeLessThanOrEqual(15 * 60);
     expect(over.headers.get("ratelimit-limit")).toBe("10");
     expect(await hitsOf(keyIn("auth", LOOPBACK)), "every attempt landed in the ONE loopback bucket").toBe(11);
+    const xffWarnings = errorLog.mock.calls.filter(([fields]) => (fields as { event?: string })?.event === "rate_limit.xff_untrusted");
+    errorLog.mockRestore();
+    expect(xffWarnings.length, "the untrusted-proxy signal, once per process (express-rate-limit's own check, restored)").toBe(1);
+  });
+
+  it("an account under lockout keeps its EXISTING sessions — only new sign-ins are refused", async () => {
+    const signedIn = client();
+    expect((await signedIn("POST", "/auth/login", { email: email("victim"), password: PASSWORD })).status).toBe(200);
+    await plant(acct(email("victim")), 60);
+    expect429(await client()("POST", "/auth/login", { email: email("victim"), password: PASSWORD }));
+    // the session minted before the lockout is untouched by it
+    expect((await signedIn("GET", "/auth/me")).status).toBe(200);
+    expect((await signedIn("GET", "/onboarding/status")).status).toBe(200);
   });
 
   it("🔴 the ACCOUNT limit refuses even the CORRECT password, and signs nobody in", async () => {
