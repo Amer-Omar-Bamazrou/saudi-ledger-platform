@@ -6031,7 +6031,7 @@ export const listAssetsQueryOffsetMin = 0;
 export const ListAssetsQueryParams = zod.object({
   "limit": zod.coerce.number().min(1).max(listAssetsQueryLimitMax).default(listAssetsQueryLimitDefault),
   "offset": zod.coerce.number().min(listAssetsQueryOffsetMin).default(listAssetsQueryOffsetDefault),
-  "status": zod.enum(['draft', 'in_service', 'disposed']).optional(),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'reversed']).optional(),
   "category_id": zod.coerce.number().optional()
 })
 
@@ -6069,7 +6069,10 @@ export const ListAssetsResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6191,7 +6194,10 @@ export const CreateAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6205,6 +6211,7 @@ export const CreateAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -6291,7 +6298,10 @@ export const GetAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6305,6 +6315,7 @@ export const GetAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -6447,7 +6458,10 @@ export const UpdateAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6461,6 +6475,7 @@ export const UpdateAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -6555,7 +6570,10 @@ export const CancelAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -6569,6 +6587,7 @@ export const CancelAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -11050,6 +11069,31 @@ export const GetMigrationReversalPreviewResponse = zod.object({
   "blockers": zod.array(zod.string()),
   "wouldReverse": zod.object({
   "openingJournalEntryId": zod.number().nullable(),
+  "assets": zod.array(zod.object({
+  "id": zod.number(),
+  "assetNumber": zod.string(),
+  "name": zod.string(),
+  "status": zod.string(),
+  "sourceReference": zod.string().nullable(),
+  "cost": zod.number(),
+  "openingAccumulatedDepreciation": zod.number(),
+  "depreciation": zod.array(zod.object({
+  "scheduleId": zod.number(),
+  "period": zod.string(),
+  "amount": zod.number(),
+  "journalEntryId": zod.number(),
+  "entryDate": zod.string(),
+  "alreadyReversed": zod.boolean()
+}))
+})).describe('Q3 (§14.3, Option A): the fixed assets the batch created — marked reversed (out of the register and every run), each POSTED depreciation mirrored as it was dated. No disposal, no gain or loss.'),
+  "openingBalances": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountType": zod.string(),
+  "systemCode": zod.string().nullable(),
+  "debit": zod.number(),
+  "credit": zod.number()
+})).describe('Every balance the opening journal carried (inventory, provisions and every other mapped balance included) — the mirror reverses each.'),
   "invoices": zod.array(zod.object({
   "id": zod.number(),
   "number": zod.string(),
@@ -11099,7 +11143,7 @@ export const reverseMigrationBatchBodyReasonMax = 1000;
 
 export const ReverseMigrationBatchBody = zod.object({
   "reason": zod.string().min(reverseMigrationBatchBodyReasonMin).max(reverseMigrationBatchBodyReasonMax).describe('Why the opening position is withdrawn — the audit record of the reversal.')
-})
+}).describe('Q3 (pack phase-16-17 §14.3): the batch is reversed WHOLE — any other field (asset ids, items, a scope) is refused 422 `migration_partial_reversal_unsupported`, never ignored.')
 
 export const reverseMigrationBatchResponseOneVatPositionOneReturnReferenceMax = 120;
 
@@ -11145,8 +11189,10 @@ export const ReverseMigrationBatchResponse = zod.object({
   "reversed": zod.object({
   "invoices": zod.number(),
   "bills": zod.number(),
-  "deposits": zod.number()
-}).describe('Policy C: the opening rows MARKED reversed (invoices\/bills) or given a superseding reversal record (deposits). Nothing was deleted.')
+  "deposits": zod.number(),
+  "assets": zod.number(),
+  "depreciationEntries": zod.number()
+}).describe('Policy C: the opening rows MARKED reversed (invoices\/bills\/fixed assets) or given a superseding reversal record (deposits); the depreciation posted on the batch\'s assets mirrored. Nothing was deleted.')
 }))
 
 
@@ -11425,7 +11471,10 @@ export const ChangeAssetEstimateResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -11439,6 +11488,7 @@ export const ChangeAssetEstimateResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),
@@ -11537,7 +11587,10 @@ export const DisposeAssetResponse = zod.object({
   "transactionId": zod.number().nullable(),
   "migrationBatchId": zod.number().nullable(),
   "sourceReference": zod.string().nullable(),
-  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled']),
+  "reversedAt": zod.string().nullable().describe('Q3: when this migrated asset\'s batch was reversed (status reversed).'),
+  "reversedByMigrationBatchId": zod.number().nullable().describe('Q3: the reversed batch — always this asset\'s own migrationBatchId.'),
+  "replacesAssetId": zod.number().nullable().describe('Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).'),
+  "status": zod.enum(['draft', 'in_service', 'disposed', 'cancelled', 'reversed']).describe('reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.'),
   "fullyDepreciated": zod.boolean().describe('DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet.'),
   "capitalisationJournalEntryId": zod.number().nullable(),
   "notes": zod.string().nullable(),
@@ -11551,6 +11604,7 @@ export const DisposeAssetResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 }).and(zod.object({
+  "replacedByAssetId": zod.number().nullable().describe('Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.'),
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "assetId": zod.number(),

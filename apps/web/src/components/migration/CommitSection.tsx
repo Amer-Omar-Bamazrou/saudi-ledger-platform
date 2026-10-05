@@ -139,6 +139,22 @@ export function CommitSection({ batch, companyName }: { batch: MigrationBatchDet
                   ) : (
                     <p className="text-xs text-positive">{t("Nothing blocks a reversal today.", "لا شيء يمنع العكس اليوم.")}</p>
                   )}
+                  {/* Q3 (pack phase-16-17 §14.3): the batch's fixed assets and every opening balance — reversed with it */}
+                  {preview.wouldReverse.assets.length > 0 && (
+                    <div className="text-xs mt-2" data-testid="reversal-assets">
+                      <p className="font-medium">{t(`Fixed assets marked reversed (out of the register and every depreciation run; no disposal, no gain or loss): ${preview.wouldReverse.assets.length}`, `أصول ثابتة تُوسم معكوسة (خارج السجل وكل تشغيل إهلاك؛ بلا استبعاد ولا ربح أو خسارة): ${preview.wouldReverse.assets.length}`)}</p>
+                      <ul className="list-disc ps-4 text-muted-foreground">{preview.wouldReverse.assets.map((a) => (
+                        <li key={a.id} data-testid={`reversal-asset-${a.assetNumber}`}><span className="font-mono" dir="ltr">{a.assetNumber}</span> {a.name} · {t("cost", "التكلفة")} <span className="font-mono" dir="ltr">{fmtNum(a.cost)}</span>
+                          {a.depreciation.length > 0 && <> · {t(`${a.depreciation.filter((d) => !d.alreadyReversed).length} posted depreciation period(s) reversed as they were dated`, `${a.depreciation.filter((d) => !d.alreadyReversed).length} فترة إهلاك مرحَّلة تُعكس بتواريخها`)}</>}</li>
+                      ))}</ul>
+                    </div>
+                  )}
+                  {preview.wouldReverse.openingBalances.length > 0 && (
+                    <details className="text-xs mt-2" data-testid="reversal-opening-balances">
+                      <summary className="cursor-pointer text-primary">{t(`Every opening balance the mirror reverses (${preview.wouldReverse.openingBalances.length} account(s) — inventory and provisions included)`, `كل رصيد افتتاحي يعكسه القيد العاكس (${preview.wouldReverse.openingBalances.length} حساب — بما فيها المخزون والمخصصات)`)}</summary>
+                      <ul className="ps-4 text-muted-foreground">{preview.wouldReverse.openingBalances.map((l) => <li key={l.accountId}>{l.accountName} · <span className="font-mono" dir="ltr">{l.debit > 0 ? `Dr ${fmtNum(l.debit)}` : `Cr ${fmtNum(l.credit)}`}</span></li>)}</ul>
+                    </details>
+                  )}
                   <p className="text-xs text-muted-foreground mt-2">{t(`Would reverse: ${preview.wouldReverse.invoices.length} opening receivable(s), ${preview.wouldReverse.bills.length} opening bill(s), ${preview.wouldReverse.deposits.length} deposit(s), ${preview.wouldReverse.banks.length} bank opening(s)${preview.wouldReverse.periodLock ? `, the lock on ${preview.wouldReverse.periodLock.period}` : ""}. Keeps: ${preview.wouldReverse.keeps.customers} customer(s), ${preview.wouldReverse.keeps.vendors} supplier(s), ${preview.wouldReverse.keeps.accountsCreated} created account(s).`,
                     `سيعكس: ${preview.wouldReverse.invoices.length} ذمة مدينة افتتاحية، ${preview.wouldReverse.bills.length} فاتورة افتتاحية، ${preview.wouldReverse.deposits.length} دفعة مقدمة، ${preview.wouldReverse.banks.length} رصيد بنكي افتتاحي${preview.wouldReverse.periodLock ? `، وقفل ${preview.wouldReverse.periodLock.period}` : ""}. يحتفظ بـ: ${preview.wouldReverse.keeps.customers} عميل، ${preview.wouldReverse.keeps.vendors} مورّد، ${preview.wouldReverse.keeps.accountsCreated} حساب منشأ.`)}</p>
                 </div>

@@ -116,6 +116,14 @@ async function main() {
     UNION ALL
     SELECT a.organization_id::text, a.id, a.disposal_date::text FROM fixed_assets a
      WHERE a.status = 'disposed' AND NOT EXISTS (SELECT 1 FROM asset_disposals d WHERE d.asset_id = a.id)`));
+  // Q3 (2026-10-05; pack phase-16-17 §14.3): a REVERSED migrated asset never existed in these books — every depreciation entry posted on it is mirrored (status 'reversed'), and its batch is reversed too.
+  fail("asset_reversed_unwound — a reversed migrated asset with a posted depreciation entry not mirrored, or whose batch is not reversed", await q(`
+    SELECT a.organization_id::text AS org, a.id, a.asset_number, s.period
+      FROM fixed_assets a JOIN asset_depreciation_schedule s ON s.asset_id = a.id JOIN journal_entries e ON e.id = s.journal_entry_id
+     WHERE a.status = 'reversed' AND e.status = 'posted'
+    UNION ALL
+    SELECT a.organization_id::text, a.id, a.asset_number, NULL FROM fixed_assets a JOIN migration_batches b ON b.id = a.reversed_by_migration_batch_id
+     WHERE a.status = 'reversed' AND b.status <> 'reversed'`));
   fail("asset_no_depreciation_after_disposal — a posted schedule row later than the disposal month (IAS 16.55)", await q(`
     SELECT s.organization_id::text AS org, s.asset_id, s.period, d.date::text AS disposed_on
       FROM asset_depreciation_schedule s JOIN asset_disposals d ON d.asset_id = s.asset_id

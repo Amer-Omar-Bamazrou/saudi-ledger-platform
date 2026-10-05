@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Q3 (pack phase-16-17 §14.3): the batch is reversed WHOLE — any other field (asset ids, items, a scope) is refused 422 `migration_partial_reversal_unsupported`, never ignored.
+ */
 export interface ReverseMigrationBatchInput {
   /**
      * Why the opening position is withdrawn — the audit record of the reversal.

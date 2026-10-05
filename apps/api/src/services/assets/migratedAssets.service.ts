@@ -163,6 +163,10 @@ export const migratedAssetsService = {
     const assets = await migrationRepository.migrationAssets(batch.id);
     if (assets.length === 0) return [];
     const categories = (await assetsRepository.categories(true)).map((c) => c.category);
+    // Q3 (§14.3): a REPLACEMENT batch's asset names the reversed asset it replaces, matched by source id — the lineage;
+    // the database admits only a reversed migrated asset of this company, and only one LIVE asset per source id
+    const replaced = new Map((batch.replacesBatchId != null ? await migrationRepository.migrationAssets(batch.replacesBatchId) : [])
+      .filter((r) => r.resolvedAssetId != null).map((r) => [r.sourceId, r.resolvedAssetId!]));
     const created: { id: number; assetNumber: string; sourceId: string; periods: number }[] = [];
     for (const a of assets) {
       const category = categories.find((c) => c.name.trim().toLowerCase() === a.categoryName.trim().toLowerCase());
@@ -179,10 +183,16 @@ export const migratedAssetsService = {
         vatInputTaxAmount: a.vatInputTaxAmount ?? "0", vatInitialRecoveryPct: a.vatInitialRecoveryPct ?? "100",
         vatCapitalAssetClass: category.vatCapitalAssetClass, vatNonDeductibleReason: a.vatNonDeductibleReason,
         incomeTaxGroup: category.incomeTaxGroup,
-        source: "migration", migrationBatchId: batch.id, sourceReference: a.sourceId,
+        source: "migration", migrationBatchId: batch.id, sourceReference: a.sourceId, replacesAssetId: replaced.get(a.sourceId) ?? null,
         status: "draft",
         notes: `Fixed asset migrated from ${a.sourceSystem} (${a.sourceId}) at the opening date ${batch.openingDate}; original cost ${fmt(num(a.cost))}, accumulated ${fmt(num(a.openingAccumulatedDepreciation))} over ${a.openingPeriodsBooked} period(s).`,
       });
+      // every asset that ever existed carries its 'created' event — the audit spine the ledger sweep checks
+      // (`asset_state_evidence`; fixed-assets pack, "Ledger invariants"); a migrated asset is no exception
+      await recordAssetEvent(row!.id, "created", batch.openingDate, {
+        assetNumber, name: a.name, cost: num(a.cost), categoryId: category.id, incomeTaxGroup: category.incomeTaxGroup, vatCapitalAssetClass: category.vatCapitalAssetClass,
+        migrated: true, batchId: batch.id, sourceId: a.sourceId, replacesAssetId: replaced.get(a.sourceId) ?? null,
+      }, { documentRef: `migration:${batch.id}`, userId });
       // the schedule RESUMES the month after the opening date, over the remaining life
       const rows = generateStraightLineSchedule({
         cost: num(a.cost), residualValue: num(a.residualValue), usefulLifeMonths: a.usefulLifeMonths,

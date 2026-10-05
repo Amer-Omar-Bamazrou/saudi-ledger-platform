@@ -67,6 +67,22 @@ export interface Asset {
   migrationBatchId: number | null;
   /** @nullable */
   sourceReference: string | null;
+  /**
+     * Q3: when this migrated asset's batch was reversed (status reversed).
+     * @nullable
+     */
+  reversedAt: string | null;
+  /**
+     * Q3: the reversed batch — always this asset's own migrationBatchId.
+     * @nullable
+     */
+  reversedByMigrationBatchId: number | null;
+  /**
+     * Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).
+     * @nullable
+     */
+  replacesAssetId: number | null;
+  /** reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal. */
   status: AssetStatus;
   /** DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet. */
   fullyDepreciated: boolean;

@@ -144,6 +144,22 @@ export default function AssetDetail() {
         </CardContent></Card>
       )}
 
+      {/* Q3 (pack phase-16-17 §14.3): reversed with its migration — out of the books, never a disposal; the lineage both ways */}
+      {asset.status === "reversed" && (
+        <Card className="border-border bg-card"><CardContent className="pt-4">
+          <p className="text-sm" data-testid="reversed-notice">
+            {t(`This asset came with migration batch ${asset.reversedByMigrationBatchId}, which was reversed: it is out of the books. It was not disposed of — no proceeds, no gain or loss — and every depreciation posted on it was reversed on its own date. Its rows are kept as history.`,
+               `جاء هذا الأصل مع دفعة الترحيل ${asset.reversedByMigrationBatchId} التي عُكست: فهو خارج الدفاتر. لم يُستبعد — لا متحصلات ولا ربح أو خسارة — وكل إهلاك رُحّل عليه عُكس بتاريخه. وتبقى سجلاته تاريخًا.`)}
+            {asset.replacedByAssetId != null && <> {" "}<Link href={`/assets/${asset.replacedByAssetId}`} className="text-primary underline" data-testid="replaced-by-link">{t("Its replacement", "الأصل البديل")}</Link></>}
+          </p>
+        </CardContent></Card>
+      )}
+      {asset.replacesAssetId != null && (
+        <p className="text-xs text-muted-foreground" data-testid="replaces-link">
+          {t("Replaces the reversed migrated asset", "يحل محل الأصل المرحَّل المعكوس")} <Link href={`/assets/${asset.replacesAssetId}`} className="text-primary underline">#{asset.replacesAssetId}</Link>
+        </p>
+      )}
+
       {asset.status === "draft" && (
         <Card className="border-border bg-card"><CardContent className="pt-4">
           <p className="text-sm" data-testid="draft-notice">

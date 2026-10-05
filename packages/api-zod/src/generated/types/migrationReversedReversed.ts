@@ -7,10 +7,12 @@
  */
 
 /**
- * Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted.
+ * Policy C: the opening rows MARKED reversed (invoices/bills/fixed assets) or given a superseding reversal record (deposits); the depreciation posted on the batch's assets mirrored. Nothing was deleted.
  */
 export type MigrationReversedReversed = {
   invoices: number;
   bills: number;
   deposits: number;
+  assets: number;
+  depreciationEntries: number;
 };

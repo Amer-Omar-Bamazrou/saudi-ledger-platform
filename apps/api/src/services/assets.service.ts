@@ -106,6 +106,8 @@ export function toAssetView(a: FixedAsset, categoryName: string | null, figures:
     incomeTaxGroup: a.incomeTaxGroup, incomeTaxRatePct: INCOME_TAX_GROUPS[a.incomeTaxGroup as 1 | 2 | 3 | 4 | 5].ratePct,
     source: a.source, billId: a.billId ?? null, transactionId: a.transactionId ?? null, migrationBatchId: a.migrationBatchId ?? null, sourceReference: a.sourceReference ?? null,
     status: a.status, fullyDepreciated, capitalisationJournalEntryId: a.capitalisationJournalEntryId ?? null, notes: a.notes ?? null,
+    // Q3 lineage (pack phase-16-17 §14.3): reversed with its migration, and what a replacement replaces
+    reversedAt: a.reversedAt ? a.reversedAt.toISOString() : null, reversedByMigrationBatchId: a.reversedByMigrationBatchId ?? null, replacesAssetId: a.replacesAssetId ?? null,
     // DERIVED, never stored (pack §13): from the posted schedule rows and the opening position
     accumulatedDepreciation: figures.accumulatedDepreciation,
     carryingAmount: figures.carryingAmount,
@@ -239,7 +241,7 @@ export const assetsService = {
       try { plannedSchedule = plannedScheduleOf(asset); } catch (e) { if (!(e instanceof BusinessRuleError)) throw e; plannedSchedule = null; }
     }
     // FA-C: the terminal record, when it exists.
-    const disposalRow = await assetsRepository.disposalOf(id);
+    const [disposalRow, replacedBy] = await Promise.all([assetsRepository.disposalOf(id), assetsRepository.replacementOf(id)]);
     const disposal = disposalRow
       ? {
           id: disposalRow.id, date: disposalRow.date, kind: disposalRow.kind, proceeds: num(disposalRow.proceeds),
@@ -249,7 +251,7 @@ export const assetsService = {
           journalEntryId: disposalRow.journalEntryId!, invoiceId: disposalRow.invoiceId ?? null, reason: disposalRow.reason ?? null,
         }
       : null;
-    return { ...toAssetView(asset, categoryName, figures), schedule: schedule.map(toScheduleView), plannedSchedule, events: events.map(toEventView), disposal };
+    return { ...toAssetView(asset, categoryName, figures), schedule: schedule.map(toScheduleView), plannedSchedule, events: events.map(toEventView), disposal, replacedByAssetId: replacedBy?.id ?? null };
   },
 
   /** A DRAFT: the register row with its facts; nothing posts, nothing moves (the zero-movement standard). */

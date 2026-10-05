@@ -541,7 +541,7 @@ The migration workspace walk gained the whole leg: the chart now carries asset b
 
 ### 23.5 What this did not do
 
-A migrated asset's DISPOSAL inside the same batch's reversal (the batch reversal mirrors the opening journal; the register rows it created are not yet reversed with it — recorded here as the next FA-D follow-up); assets under construction; the Art. 52 use-history rows for a partially exempt tenant (FA-F); the pool report's opening balances for a migrated tenant (FA-F reads the register, which now holds them).
+A migrated asset's DISPOSAL inside the same batch's reversal (the batch reversal mirrors the opening journal; the register rows it created are not yet reversed with it — recorded here as the next FA-D follow-up; *closed 2026-10-05 by the accountant's Q3 — the batch's assets are marked reversed with it, and a disposed one blocks the reversal: [phase-16-17 pack §14.3](phase-16-17-tax-treasury-decision-pack.md)*); assets under construction; the Art. 52 use-history rows for a partially exempt tenant (FA-F); the pool report's opening balances for a migrated tenant (FA-F reads the register, which now holds them).
 
 **A gap this phase EXPOSED, not caused (recorded, not fixed here).** The mapper
 regression was caught by a unit test, not by the compiler: `apps/web`'s

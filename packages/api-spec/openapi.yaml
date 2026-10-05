@@ -2997,7 +2997,7 @@ paths:
         - in: query
           name: offset
           schema: { type: integer, minimum: 0, default: 0 }
-        - { in: query, name: status, schema: { type: string, enum: [draft, in_service, disposed] } }
+        - { in: query, name: status, schema: { type: string, enum: [draft, in_service, disposed, reversed] } }
         - { in: query, name: category_id, schema: { type: integer } }
       responses:
         "200":
@@ -4765,7 +4765,7 @@ paths:
         "409":
           description: "`migration_not_committed`"
         "422":
-          description: "`migration_reversal_blocked` — the blockers are named; unwind them first, or post dated correction journals instead"
+          description: "`migration_reversal_blocked` — the blockers are named (Q3: a disposed migrated asset; depreciation posted in a month closed since); unwind them first, or post dated correction journals instead. `migration_partial_reversal_unsupported` — a request naming anything to scope the reversal: a batch is reversed whole."
 
   /migration/open-items/{itemId}/correct:
     post:
@@ -5239,6 +5239,8 @@ paths:
               schema: { $ref: "#/components/schemas/AssetVatUseRecord" }
         "422":
           description: The basis is unknown, the percentage is not a share, or the window is outside the adjustment period
+        "409":
+          description: "`asset_reversed` — the asset was reversed with its migration batch (Q3): out of the books, no adjustment period to state a use for"
         "404":
           description: Asset not found
 
@@ -12613,6 +12615,7 @@ components:
                  acquisitionDate, availableForUseDate, disposalDate, cost, residualValue, usefulLifeMonths, depreciationMethod,
                  openingAccumulatedDepreciation, openingPeriodsBooked, vatInputTaxAmount, vatInitialRecoveryPct, vatCapitalAssetClass, vatAdjustmentPeriodYears, vatNonDeductibleReason,
                  incomeTaxGroup, incomeTaxRatePct, source, billId, transactionId, migrationBatchId, sourceReference, status, fullyDepreciated, capitalisationJournalEntryId, notes,
+                 reversedAt, reversedByMigrationBatchId, replacesAssetId,
                  accumulatedDepreciation, carryingAmount, depreciableAmount, postedPeriods, plannedPeriods, lastPostedPeriod, nextPeriod, createdAt, updatedAt]
       properties:
         id: { type: integer }
@@ -12647,7 +12650,13 @@ components:
         transactionId: { type: ["integer", "null"] }
         migrationBatchId: { type: ["integer", "null"] }
         sourceReference: { type: ["string", "null"] }
-        status: { type: string, enum: [draft, in_service, disposed, cancelled] }
+        reversedAt: { type: ["string", "null"], description: "Q3: when this migrated asset's batch was reversed (status reversed)." }
+        reversedByMigrationBatchId: { type: ["integer", "null"], description: "Q3: the reversed batch — always this asset's own migrationBatchId." }
+        replacesAssetId: { type: ["integer", "null"], description: "Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id)." }
+        status:
+          type: string
+          enum: [draft, in_service, disposed, cancelled, reversed]
+          description: "reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal."
         fullyDepreciated: { type: boolean, description: "DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet." }
         capitalisationJournalEntryId: { type: ["integer", "null"] }
         notes: { type: ["string", "null"] }
@@ -12703,8 +12712,9 @@ components:
       allOf:
         - { $ref: "#/components/schemas/Asset" }
         - type: object
-          required: [schedule, plannedSchedule, events, disposal]
+          required: [schedule, plannedSchedule, events, disposal, replacedByAssetId]
           properties:
+            replacedByAssetId: { type: ["integer", "null"], description: "Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one." }
             schedule:
               type: array
               items: { $ref: "#/components/schemas/AssetScheduleRow" }
@@ -14504,6 +14514,7 @@ components:
       required: [reason]
       properties:
         reason: { type: string, minLength: 10, maxLength: 1000, description: "Why the opening position is withdrawn — the audit record of the reversal." }
+      description: "Q3 (pack phase-16-17 §14.3): the batch is reversed WHOLE — any other field (asset ids, items, a scope) is refused 422 `migration_partial_reversal_unsupported`, never ignored."
 
     MigrationReversalPreview:
       type: object
@@ -14515,9 +14526,48 @@ components:
           items: { type: string }
         wouldReverse:
           type: object
-          required: [openingJournalEntryId, invoices, bills, deposits, banks, periodLock, keeps]
+          required: [openingJournalEntryId, invoices, bills, deposits, banks, periodLock, keeps, assets, openingBalances]
           properties:
             openingJournalEntryId: { type: ["integer", "null"] }
+            assets:
+              type: array
+              description: "Q3 (§14.3, Option A): the fixed assets the batch created — marked reversed (out of the register and every run), each POSTED depreciation mirrored as it was dated. No disposal, no gain or loss."
+              items:
+                type: object
+                required: [id, assetNumber, name, status, sourceReference, cost, openingAccumulatedDepreciation, depreciation]
+                properties:
+                  id: { type: integer }
+                  assetNumber: { type: string }
+                  name: { type: string }
+                  status: { type: string }
+                  sourceReference: { type: ["string", "null"] }
+                  cost: { type: number }
+                  openingAccumulatedDepreciation: { type: number }
+                  depreciation:
+                    type: array
+                    items:
+                      type: object
+                      required: [scheduleId, period, amount, journalEntryId, entryDate, alreadyReversed]
+                      properties:
+                        scheduleId: { type: integer }
+                        period: { type: string }
+                        amount: { type: number }
+                        journalEntryId: { type: integer }
+                        entryDate: { type: string }
+                        alreadyReversed: { type: boolean }
+            openingBalances:
+              type: array
+              description: "Every balance the opening journal carried (inventory, provisions and every other mapped balance included) — the mirror reverses each."
+              items:
+                type: object
+                required: [accountId, accountName, accountType, systemCode, debit, credit]
+                properties:
+                  accountId: { type: integer }
+                  accountName: { type: string }
+                  accountType: { type: string }
+                  systemCode: { type: ["string", "null"] }
+                  debit: { type: number }
+                  credit: { type: number }
             invoices:
               type: array
               items:
@@ -14581,12 +14631,14 @@ components:
             reversalJournalEntryId: { type: integer }
             reversed:
               type: object
-              description: "Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted."
-              required: [invoices, bills, deposits]
+              description: "Policy C: the opening rows MARKED reversed (invoices/bills/fixed assets) or given a superseding reversal record (deposits); the depreciation posted on the batch's assets mirrored. Nothing was deleted."
+              required: [invoices, bills, deposits, assets, depreciationEntries]
               properties:
                 invoices: { type: integer }
                 bills: { type: integer }
                 deposits: { type: integer }
+                assets: { type: integer }
+                depreciationEntries: { type: integer }
 
     # ── Phase 16 — Saudi tax ─────────────────────────────────────────────────
 

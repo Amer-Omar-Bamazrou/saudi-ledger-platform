@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.
+ */
 export type AssetStatus = typeof AssetStatus[keyof typeof AssetStatus];
 
 
@@ -14,4 +17,5 @@ export const AssetStatus = {
   in_service: 'in_service',
   disposed: 'disposed',
   cancelled: 'cancelled',
+  reversed: 'reversed',
 } as const;

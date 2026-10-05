@@ -6479,6 +6479,9 @@ export const AssetSource = {
   migration: 'migration',
 } as const;
 
+/**
+ * reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal.
+ */
 export type AssetStatus = typeof AssetStatus[keyof typeof AssetStatus];
 
 
@@ -6487,6 +6490,7 @@ export const AssetStatus = {
   in_service: 'in_service',
   disposed: 'disposed',
   cancelled: 'cancelled',
+  reversed: 'reversed',
 } as const;
 
 export interface Asset {
@@ -6546,6 +6550,22 @@ export interface Asset {
   migrationBatchId: number | null;
   /** @nullable */
   sourceReference: string | null;
+  /**
+     * Q3: when this migrated asset's batch was reversed (status reversed).
+     * @nullable
+     */
+  reversedAt: string | null;
+  /**
+     * Q3: the reversed batch — always this asset's own migrationBatchId.
+     * @nullable
+     */
+  reversedByMigrationBatchId: number | null;
+  /**
+     * Q3 lineage: the reversed migrated asset this one replaces (a replacement batch, matched by source id).
+     * @nullable
+     */
+  replacesAssetId: number | null;
+  /** reversed (Q3): a migrated asset whose migration batch was reversed — out of the books; never a disposal. */
   status: AssetStatus;
   /** DERIVED (IAS 16.55): in service with accumulated = cost − residual; still on the balance sheet. */
   fullyDepreciated: boolean;
@@ -6671,6 +6691,11 @@ export interface AssetDisposalRecordRead {
 }
 
 export type AssetDetail = Asset & ({
+  /**
+     * Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.
+     * @nullable
+     */
+  replacedByAssetId: number | null;
   schedule: AssetScheduleRow[];
   /**
      * A DRAFT's preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.
@@ -9569,6 +9594,9 @@ export interface OpeningVatDeclaration {
   evidence: OpeningVatEvidence[];
 }
 
+/**
+ * Q3 (pack phase-16-17 §14.3): the batch is reversed WHOLE — any other field (asset ids, items, a scope) is refused 422 `migration_partial_reversal_unsupported`, never ignored.
+ */
 export interface ReverseMigrationBatchInput {
   /**
      * Why the opening position is withdrawn — the audit record of the reversal.
@@ -9577,6 +9605,37 @@ export interface ReverseMigrationBatchInput {
      */
   reason: string;
 }
+
+export type MigrationReversalPreviewWouldReverseAssetsItemDepreciationItem = {
+  scheduleId: number;
+  period: string;
+  amount: number;
+  journalEntryId: number;
+  entryDate: string;
+  alreadyReversed: boolean;
+};
+
+export type MigrationReversalPreviewWouldReverseAssetsItem = {
+  id: number;
+  assetNumber: string;
+  name: string;
+  status: string;
+  /** @nullable */
+  sourceReference: string | null;
+  cost: number;
+  openingAccumulatedDepreciation: number;
+  depreciation: MigrationReversalPreviewWouldReverseAssetsItemDepreciationItem[];
+};
+
+export type MigrationReversalPreviewWouldReverseOpeningBalancesItem = {
+  accountId: number;
+  accountName: string;
+  accountType: string;
+  /** @nullable */
+  systemCode: string | null;
+  debit: number;
+  credit: number;
+};
 
 export type MigrationReversalPreviewWouldReverseInvoicesItem = {
   id: number;
@@ -9621,6 +9680,10 @@ export type MigrationReversalPreviewWouldReverseKeeps = {
 export type MigrationReversalPreviewWouldReverse = {
   /** @nullable */
   openingJournalEntryId: number | null;
+  /** Q3 (§14.3, Option A): the fixed assets the batch created — marked reversed (out of the register and every run), each POSTED depreciation mirrored as it was dated. No disposal, no gain or loss. */
+  assets: MigrationReversalPreviewWouldReverseAssetsItem[];
+  /** Every balance the opening journal carried (inventory, provisions and every other mapped balance included) — the mirror reverses each. */
+  openingBalances: MigrationReversalPreviewWouldReverseOpeningBalancesItem[];
   invoices: MigrationReversalPreviewWouldReverseInvoicesItem[];
   bills: MigrationReversalPreviewWouldReverseBillsItem[];
   deposits: MigrationReversalPreviewWouldReverseDepositsItem[];
@@ -9636,17 +9699,19 @@ export interface MigrationReversalPreview {
 }
 
 /**
- * Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted.
+ * Policy C: the opening rows MARKED reversed (invoices/bills/fixed assets) or given a superseding reversal record (deposits); the depreciation posted on the batch's assets mirrored. Nothing was deleted.
  */
 export type MigrationReversedReversed = {
   invoices: number;
   bills: number;
   deposits: number;
+  assets: number;
+  depreciationEntries: number;
 };
 
 export type MigrationReversed = MigrationBatch & {
   reversalJournalEntryId: number;
-  /** Policy C: the opening rows MARKED reversed (invoices/bills) or given a superseding reversal record (deposits). Nothing was deleted. */
+  /** Policy C: the opening rows MARKED reversed (invoices/bills/fixed assets) or given a superseding reversal record (deposits); the depreciation posted on the batch's assets mirrored. Nothing was deleted. */
   reversed: MigrationReversedReversed;
 };
 
@@ -12440,6 +12505,7 @@ export const ListAssetsStatus = {
   draft: 'draft',
   in_service: 'in_service',
   disposed: 'disposed',
+  reversed: 'reversed',
 } as const;
 
 export type ListAssets200 = {

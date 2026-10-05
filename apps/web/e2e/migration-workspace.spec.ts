@@ -330,6 +330,14 @@ test.describe.serial("the migration, end to end", () => {
     await expect(page.getByTestId("reversal-preview")).toContainText("BLOCKED");
     await expect(page.getByTestId("reversal-preview")).toContainText("INV-1003");
     await expect(page.getByTestId("open-reverse")).toBeDisabled();
+    // Q3 (pack phase-16-17 §14.3): the preview names the batch's fixed asset — marked reversed WITH it, never
+    // disposed of — and lists every opening balance the mirror would reverse (six accounts on this chart)
+    await expect(page.getByTestId(`reversal-asset-MIG-${batchId}-FA-1`)).toContainText("Packing machine");
+    await expect(page.getByTestId("reversal-assets")).toContainText("no disposal, no gain or loss");
+    const balances = page.getByTestId("reversal-opening-balances");
+    await expect(balances).toContainText("(6 account(s)");
+    await balances.locator("summary").click();
+    await expect(balances.getByRole("listitem")).toHaveCount(6);
   });
 
   test("🔴 migration follow-ups (2026-09-22): the identity badges; INV-1002 8,000 → 7,000 through the dialog (the original stays, a replacement OPEN number, retained earnings on the other side); the collected item is refused by name; the identity recorded ONCE unlocks a credit note through Fatoora and is then never changed", async ({ page }) => {

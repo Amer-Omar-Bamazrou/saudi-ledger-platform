@@ -12,6 +12,11 @@ import type { AssetPlannedRow } from './assetPlannedRow';
 import type { AssetScheduleRow } from './assetScheduleRow';
 
 export type AssetDetail = Asset & ({
+  /**
+     * Q3 lineage, derived: the asset of a replacement batch that replaces this reversed one.
+     * @nullable
+     */
+  replacedByAssetId: number | null;
   schedule: AssetScheduleRow[];
   /**
      * A DRAFT's preview from its facts (null when it cannot be generated yet — no available-for-use date, or an unsupported method); once capitalised the stored `schedule` is the schedule.

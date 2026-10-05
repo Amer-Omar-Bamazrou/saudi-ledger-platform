@@ -81,6 +81,18 @@ export const E2E_S1 = {
   bookkeeperState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "s1-bookkeeper.json"),
 };
 
+/**
+ * Q3 (2026-10-05; pack phase-16-17 §14.3): a migrated fixed asset is REVERSED with its batch and a replacement
+ * names it — the migration tenant above ends blocked (a collected receivable) and S1 stays committed, so a FOURTH
+ * tenant whose spec commits, depreciates, reverses (by clicking) and replaces its migration through the API.
+ */
+export const E2E_Q3 = {
+  slug: "e2e-q3-asset-reversal",
+  adminEmail: "e2e-q3-admin@smoke.local",
+  password: process.env.E2E_PASSWORD ?? "e2e-smoke-password-2026",
+  adminState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "q3-admin.json"),
+};
+
 export const E2E = {
   slug: "e2e-smoke",
   email: "e2e@smoke.local",
@@ -152,7 +164,7 @@ export default async function globalSetup(): Promise<void> {
    */
   const { rows: orgRows } = await db.query<{ id: string }>(
     `SELECT id FROM organizations WHERE slug = ANY($1::text[])`,
-    [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug]],
+    [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_Q3.slug]],
   );
 
   if (orgRows.length > 0) {
@@ -182,13 +194,13 @@ export default async function globalSetup(): Promise<void> {
         // information_schema, not from input, and are quoted.
         await db.query(`DELETE FROM "${table_name}" WHERE organization_id = ANY($1::uuid[])`, [ids]);
       }
-      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail]]);
-      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug]]);
+      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_Q3.adminEmail]]);
+      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_Q3.slug]]);
     } finally {
       await db.query(`SET session_replication_role = DEFAULT`);
     }
   } else {
-    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail]]);
+    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_Q3.adminEmail]]);
   }
 
   // ── The identity layer: the only rows written directly ─────────────────────
@@ -234,6 +246,11 @@ export default async function globalSetup(): Promise<void> {
     const uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,$2,'${hash}','viewer', true) RETURNING id`, [email, name])).rows[0].id as number;
     await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,$3,'active')`, [s1OrgId, uid, role]);
   }
+  // ── The Q3 tenant: identity only; its spec commits, reverses and replaces its migration ──
+  const q3OrgId = (await db.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('E2E Q3 Asset Reversal Org', $1, 'approved') RETURNING id`, [E2E_Q3.slug])).rows[0].id as string;
+  await db.query(`INSERT INTO companies (organization_id, name, name_ar, fiscal_year_start, fiscal_calendar) VALUES ($1,'E2E Q3 Co','شركة عكس الأصول',1,'gregorian')`, [q3OrgId]);
+  const q3Uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,'E2E Q3 Admin','${hash}','viewer', true) RETURNING id`, [E2E_Q3.adminEmail])).rows[0].id as number;
+  await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,'admin','active')`, [q3OrgId, q3Uid]);
   // The suite now logs three users in per run (Batch 1C added a second tenant);
   // the login limiter is 10 per 15 minutes per IP, so a few local re-runs would
   // start answering 429 for reasons that are not regressions. This is the
@@ -525,6 +542,15 @@ export default async function globalSetup(): Promise<void> {
     await s1.storageState({ path: state });
     await s1.dispose();
   }
+
+  // The Q3 tenant: one session, one bank account and the asset category its migrated asset names.
+  const q3 = await request.newContext({ baseURL: API });
+  const q3Login = await q3.post("/api/auth/login", { data: { email: E2E_Q3.adminEmail, password: E2E_Q3.password } });
+  if (!q3Login.ok()) throw new Error(`e2e Q3 login failed: ${q3Login.status()}`);
+  await api(q3, "POST", "/bank-accounts", { name: "Q3 Main", bankName: "Riyad Bank", currency: "SAR" });
+  await api(q3, "POST", "/asset-categories", { name: "Q3 machinery", nameAr: "آلات", defaultUsefulLifeMonths: 48, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" });
+  await q3.storageState({ path: E2E_Q3.adminState });
+  await q3.dispose();
 
   writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id, budgetId: budget.id, taxComputationId: taxComputation.id } satisfies SeededIds, null, 2));
 }

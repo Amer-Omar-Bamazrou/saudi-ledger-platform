@@ -679,7 +679,8 @@ nothing interpretive):
 | W-14 (QA-09) | Is a refundable security deposit, an erroneous payment or an unidentified payment to a non-resident subject to WHT when paid? If it was withheld, how is its return recorded (W-12)? | **ANSWERED 2026-10-05 (Q2) — built §14.2**: not subject; unidentified = pending |
 | W-16 | Money paid to a non-resident with nothing withheld (unidentified, or a deposit) and identified LATER as taxable consideration: is the tax recovered from the supplier or borne by the payer (grossed up — W-2), and in which month's return? | Refused by name (`wht_late_withholding_open`), the exposure stated; the payment stays pending (§14.2) |
 | W-18 | Should every non-resident payment carry an explicit Art. 5 source determination, rather than a presumption a person rebuts by declaring `not_kingdom_source`? | The presumption, labelled `presumed` on every determination (§14.2) |
-| A-6 (QA-14) | On a migration batch reversal, are its migrated fixed assets marked reversed (out of the register and depreciation), or is the reversal refused while they are in service? | Neither — they stay in service (D-13) |
+| A-6 (QA-14) | On a migration batch reversal, are its migrated fixed assets marked reversed (out of the register and depreciation), or is the reversal refused while they are in service? | **ANSWERED 2026-10-05 (Q3) — built §14.3**: marked reversed, depreciation since the cutover mirrored, no disposal; whole batch only |
+| A-7 | A migrated asset DISPOSED of after the cutover: how is its disposal (entry, sale invoice, Art. 52(8) nominal supply) unwound when its batch is reversed? | The reversal is refused by name while it stands (§14.3) |
 | W-8b | Nil WHT months: is a nil Form 06 required (ZATCA's pages read are silent; secondary sites say yes by analogy to VAT — unverified), and if so listed from which month (first withholding, go-live, fiscal year)? | Only months with records are LISTED; any month can be OPENED by its URL (D-16) |
 | W-15 | Should residency be effective-dated, so a payment is judged by the residency in force when it was made? | Current residency judges every payment |
 | T-1 | Should the forecast count overdue receivables as cash coming in (it does, in the overdue bucket)? A product judgment — no regulation governs an internal forecast | Counted, labelled as overdue (D-20) |
@@ -867,7 +868,7 @@ a technical design each — record
 | D-10 | INFO | The engine approves from `draft` (no forced submit) | Platform-wide approval semantics |
 | D-11 | HIGH | **No correction path for a WHT-bearing payment**: the generic reverse refuses a withholding-owned entry (right, for W1) and payments have no reversal — a wrong nature, rate, amount, bank, date or supplier is permanent on the return (QA-08) | **Closed 2026-10-05 → §14.1** (accountant Q1) |
 | D-12 | HIGH | **Every non-resident payment withholds whatever its classification** — a refundable deposit, an erroneous or unidentified payment too — and its refund is then refused for any amount (W-12): the money cannot be recovered in the product (QA-09) | **Closed 2026-10-05 → §14.2** (accountant Q2) |
-| D-13 | HIGH | (pre-existing, Batch 1C × FA-D) A migration reversal leaves the batch's fixed assets in service; a replacement adds a second copy and every depreciation run depreciates both (register ≠ GL; feeds Zakat and income tax) (QA-14) | Mark reversed vs refuse the reversal is an A4/A5 decision — §11; the FA follow-up note understated it |
+| D-13 | HIGH | (pre-existing, Batch 1C × FA-D) A migration reversal leaves the batch's fixed assets in service; a replacement adds a second copy and every depreciation run depreciates both (register ≠ GL; feeds Zakat and income tax) (QA-14) | **Closed 2026-10-05 → §14.3** (accountant Q3, Option A) |
 | D-14 | MEDIUM | The approvals inbox never shows a submitted computation, a pending relief or a planned payment (QA-15) | **Closed 2026-10-04 → F-26** |
 | D-15 | LOW | When the last completed VAT period nets ≤ 0 there is no VAT row, so D-01's note never shows (QA-06) | **Closed 2026-10-04 → F-27** |
 | D-16 | LOW | Nil WHT months are not listed (W-8's default) (QA-10) | A nil month can now be OPENED by its URL (F-31); whether a nil form is required, and from which month, is open — §11 W-8b |
@@ -1134,4 +1135,84 @@ M4 a declared nature overriding a not-Kingdom-source declaration — red.
 
 ### 14.3 Q3 — migration reversal and migrated assets (D-13 / A-6)
 
-*Recorded in the Q3 commit — see below.*
+**The answer (accountant, 2026-10-05) — Option A.** When a migration batch is
+reversed, the fixed assets it created are marked reversed/inactive: out of the
+active register, depreciation stopped, lineage kept. The same principle holds
+for every opening item the batch created — receivables, payables, inventory,
+provisions and the rest. NOT a disposal sale, no disposal gain or loss; the
+asset is not left active, depreciation does not continue, and a replacement
+migration never creates a second ACTIVE copy. A partial reversal is refused
+unless it can be made deterministic; depreciation and reversal journals are
+never duplicated; no reversal crosses companies.
+
+**Checked against the record.** The answer is Policy C (1C pack §16.12,
+accountant A4/A5) carried to the asset register: a committed migration's rows
+are never deleted — the opening journal is MIRRORED and the rows it created
+are MARKED; a replacement is new rows with provenance to the old. A disposal
+(IAS 16.67–.71) is an event of the ASSET — it leaves the entity, and the
+difference is a gain or loss; a reversed migration is the withdrawal of an
+opening position these books recorded, so the disposal path is the wrong tool
+by construction. No return is engaged: the opening position is not a VAT,
+Zakat or income-tax filing, and a tax computation already saved is a versioned
+snapshot (§5) the reversal does not rewrite — the next computation reads the
+restored books. **REQUIRED** (the accountant's answer) · **PRODUCT** (the
+mechanism below).
+
+**As built (migration 0118; `migrationCommitService.reverse`).**
+
+| # | Element | Rule | Where enforced |
+|---|---|---|---|
+| 1 | Whole batch | a request naming anything to scope the reversal (asset ids, items, a scope) is refused `migration_partial_reversal_unsupported` (422) — a balanced opening position has no deterministic part; read from the RAW body (the contract strips unknown keys, which would silently widen a partial request to the whole) | service `assertWholeBatchReversal` + the controller before parsing |
+| 2 | The preview names it all | every asset with each POSTED depreciation entry; every balance the opening journal carried (inventory, provisions and every other line) | `reversalPreview` (`wouldReverse.assets`, `.openingBalances`); the commit page lists both |
+| 3 | Blockers, named | a migrated asset DISPOSED of since (its disposal posted proceeds and a gain or loss, and no path reverses a disposal — A-7 below); a depreciation entry in a month closed since (its mirror is dated as it was — reopen the month deliberately; never re-dated, §4 period locks) | preview → 422 `migration_reversal_blocked` |
+| 4 | Depreciation unwound | each depreciation entry posted on a batch asset since the cutover is mirrored on its OWN date, through the one journal reverse — no second posting path; the opening mirror (dated the opening date) already removed cost and opening accumulated depreciation | `journalEntriesService.reverse` |
+| 5 | The asset MARKED | `status = reversed`, `reversed_at`, `reversed_by_migration_batch_id`; an event `reversed` naming both mirrors and the entries unwound; schedule, events and rows kept as history; carrying amount 0. No disposal record, no gain/loss line | DB: `refuse_capitalised_asset_fact_change` admits `in_service → reversed` only from its own COMMITTED batch and changing nothing else (`asset_reversal_marker`), then freezes the row (`asset_frozen`); nothing is born reversed (`fixed_assets_birth_admit`); CHECKs `fixed_assets_state_chk`, `fixed_assets_reversed_marker_chk` |
+| 6 | Out of every run | the run selects assets in service; the act refuses `asset_not_in_service`; the DATABASE refuses planting or posting a schedule row of an asset reversed, disposed or cancelled | trigger `depreciation_refused_out_of_books` (`depreciation_asset_out_of_books`) |
+| 7 | Out of every reader | register, movement, income-tax pool and VAT Art. 52 read `in_service`/`disposed`; the reconciliation's register charge excludes a reversed asset (its charge was mirrored), so `FA_EXPENSE` ties; a VAT use record on a reversed asset is refused (`asset_reversed`) | `assets.repository`; `vatCapitalAssetService.declareUse` |
+| 8 | Replacement, one live copy | a replacement batch's asset names the reversed asset it replaces, by source id (`replaces_asset_id`; admitted only for a reversed migrated asset of the same company — `asset_replacement_link`); ONE live migrated asset per company and source id | unique index `fixed_assets_migrated_source_live_unq`; lineage both ways in the API (`replacesAssetId`, `replacedByAssetId`) and on the asset page |
+| 9 | Every other opening item | receivables, payables and deposits: Policy C unchanged (marked; numbers occupied). Inventory, provisions and every other balance have NO subledger in this product (search shape: `packages/db/src/schema` for invent\|provision\|stock — none; the seeded chart has an `Inventory` ACCOUNT): they are lines of the opening journal, reversed by its mirror, each listed in the preview | the mirror; `migrationRepository.openingBalances` |
+| 10 | Once, and only once | the batch row is locked (`FOR UPDATE`); a reversed batch answers itself, writing nothing; a concurrent second caller waits and gets that answer | `findBatchForUpdate` |
+| 11 | Permissions, isolation | reverse is ADMIN only (accountant reads the preview — 403 on reverse); company-scoped by RLS — another company or organization gets 404 | rbac; RLS company arm |
+| 12 | The sweep | `asset_reversed_unwound` — a reversed asset with a posted depreciation entry not mirrored, or whose batch is not reversed | `scripts/ledgerInvariants.ts` |
+
+**Found on the way, fixed:** a migrated asset never recorded the `created`
+event the fixed-assets pack requires of EVERY asset ("Ledger invariants",
+`asset_state_evidence`), so the sweep flagged every migrated asset — an alarm
+that always fires hides the one that matters. The materialisation now records
+it (FA-D's test had encoded the gap: `["capitalised"]`).
+
+**Open — not decided by the build:**
+- **A-7 (NEW) — a migrated asset disposed of after the cutover.** The answer
+  covers an asset that is still in service. One that was sold, scrapped or
+  withdrawn carries a disposal entry, possibly a sale invoice and an Art. 52(8)
+  nominal supply; unwinding those is a tax question, not a register one. The
+  build REFUSES the reversal by name while such an asset stands — never
+  approximates it.
+- An Art. 52 use record already declared on a batch asset stays as history
+  (a declaration, no entry); the report no longer shows the asset.
+
+**Tests** (`phase16-17-migration-asset-reversal`, 12, real rows; three
+companies of one organization and a second organization): one asset (no
+depreciation) · two assets with two months of depreciation BEFORE the reversal
+· the run and the act AFTER it (the database refusing a planted and a posted
+row) · a replacement migration (lineage both ways; one live asset per source,
+a planted duplicate refused by the index; the replacement depreciates and the
+register ties) · AR, AP, inventory and provision opening balances (zero at
+every date) · unrelated post-migration activity intact (a machine bought on a
+bill, its depreciation untouched) · repeated and CONCURRENT reversal (one
+mirror each) · a locked month and a disposed asset (named blockers) · a
+partial request refused (service; HTTP in `batch-1c-migration-http`, where
+the accountant's 403 is) · cross-company and cross-organization 404 · the
+balance sheet line by line EQUAL to a never-migrated control company's at four
+dates (and different by exactly the migrated position before) · asset register
+↔ GL and depreciation register ↔ expense, equal to the control's · the sweep
+clean, and seeing a planted unmirrored depreciation.
+
+**Mutations, each proven red then restored (source by hash, the database by
+its definition):** M11 the depreciation unwind removed · M12 the marking
+removed · M13 the service's whole-batch check removed · M13b the controller's
+raw-body check removed (HTTP suite red) · M14 the register charge counting
+reversed assets · M15 the out-of-books trigger dropped · M16 the one-live-copy
+index dropped · M17 the closed-month blocker removed · M18 the replacement link
+dropped · M19 the sweep's invariant neutered · M20 a reversed asset no longer
+frozen · M21 the disposed-asset blocker removed.

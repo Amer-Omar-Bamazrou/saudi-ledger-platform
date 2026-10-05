@@ -233,6 +233,17 @@ export const migrationRepository = {
   journalLines(journalEntryId: number) {
     return db.select().from(journalEntryLinesTable).where(eq(journalEntryLinesTable.journalEntryId, journalEntryId)).orderBy(asc(journalEntryLinesTable.id));
   },
+  /** Q3: every balance an opening journal carried, by account — inventory, provisions and the rest included (the reversal's lineage). */
+  async openingBalances(journalEntryId: number) {
+    const { rows } = await db.execute<{ account_id: number; account_name: string; account_type: string; system_code: string | null; debit: string; credit: string }>(sql`
+      SELECT l.account_id, c.name AS account_name, c.type AS account_type, c.system_code,
+             sum(l.debit_amount)::text AS debit, sum(l.credit_amount)::text AS credit
+        FROM journal_entry_lines l JOIN categories c ON c.id = l.account_id
+       WHERE l.journal_entry_id = ${journalEntryId}
+       GROUP BY l.account_id, c.name, c.type, c.system_code
+       ORDER BY c.type, c.name`);
+    return rows;
+  },
   markJournalReversed(id: number) {
     return db.update(journalEntriesTable).set({ status: "reversed" }).where(eq(journalEntriesTable.id, id)).returning();
   },

@@ -5,7 +5,7 @@ import {
   ReverseMigrationBatchBody, CorrectMigratedOpenItemBody, RecordMigratedOpenItemIdentityBody,
 } from "@workspace/api-zod";
 import { migrationCorrectionService } from "../services/migrationCorrection.service";
-import { migrationCommitService } from "../services/migrationCommit.service";
+import { migrationCommitService, assertWholeBatchReversal } from "../services/migrationCommit.service";
 import { migrationService } from "../services/migration.service";
 import { migrationStagingService } from "../services/migrationStaging.service";
 import { migrationValidationService } from "../services/migrationValidation.service";
@@ -107,6 +107,8 @@ export const migrationController = {
     res.json(await migrationCommitService.reversalPreview(requireIdParam(req)));
   },
   async reverse(req: Request, res: Response) {
+    // Q3: read the RAW body first — the schema would strip a partial-reversal field and reverse the whole batch silently
+    assertWholeBatchReversal(req.body);
     const body = parseOr400(ReverseMigrationBatchBody.safeParse(req.body));
     res.json(await migrationCommitService.reverse(requireIdParam(req), body, req.session?.userId ?? null));
   },

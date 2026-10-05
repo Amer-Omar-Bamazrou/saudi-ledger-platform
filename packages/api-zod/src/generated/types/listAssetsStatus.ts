@@ -13,4 +13,5 @@ export const ListAssetsStatus = {
   draft: 'draft',
   in_service: 'in_service',
   disposed: 'disposed',
+  reversed: 'reversed',
 } as const;
