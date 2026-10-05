@@ -10,5 +10,7 @@ export type WhtOverviewExceptions = {
   undeclaredResidency: number;
   possiblyMissed: number;
   paymentsWithoutSupplier: number;
+  /** Live PENDING determinations (Q2) — the true count. */
+  pendingClassification: number;
   reliefsExpiringIn30Days: number;
 };

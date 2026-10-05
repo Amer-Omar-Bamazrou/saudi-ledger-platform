@@ -26,7 +26,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useGuarded } from "@/lib/singleSubmit";
 import { ReportExportButtons } from "@/components/reports/ReportExport";
 import { BankPicker } from "@/components/payments/shared";
-import { legalRef, notSubjectLabel, whtMonthStatusLabel, whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
+import { legalRef, notSubjectLabel, whtMonthStatusLabel, whtTypeLabel, whtNatureBasisLabel, WHT_TYPES } from "@/lib/taxLabels";
+import { WhtDeterminationLines } from "@/components/payments/WhtFields";
 import { businessToday } from "@workspace/shared";
 
 const money = (x: number | null | undefined) => (x == null ? "—" : fmtNum(x));
@@ -72,7 +73,7 @@ export default function WithholdingTax() {
       </div>
 
       {ov.data && (
-        <div className="grid gap-3 sm:grid-cols-3" data-testid="wht-summary">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="wht-summary">
           <Card className="border-border"><CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">{t("WHT payable in the ledger", "ضريبة الاستقطاع المستحقة في الدفاتر")}</p>
             <p className="text-xl font-semibold font-mono" dir="ltr" data-testid="wht-gl">{money(ov.data.reconciliation.glWhtPayable)}</p>
@@ -91,6 +92,11 @@ export default function WithholdingTax() {
             <p className="text-xs text-muted-foreground">{t("Possibly missed withholding", "استقطاع ربما فات")}</p>
             <p className="text-xl font-semibold" data-testid="wht-missed-count">{ov.data.exceptions.possiblyMissed}</p>
             <p className="text-xs text-muted-foreground mt-1">{t("paid to suppliers now declared non-resident, with no withholding", "دُفعت لموردين صُرِّح الآن بأنهم غير مقيمين دون استقطاع")}</p>
+          </CardContent></Card>
+          <Card className="border-border"><CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">{t("Pending classification", "بانتظار التصنيف")}</p>
+            <p className="text-xl font-semibold" data-testid="wht-pending-count">{ov.data.exceptions.pendingClassification}</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("paid to non-residents for a purpose not yet identified — nothing withheld", "دُفعت لغير مقيمين لغرض لم يُحدَّد بعد — دون استقطاع")}</p>
           </CardContent></Card>
         </div>
       )}
@@ -199,14 +205,15 @@ function MonthReturn({ period, months, onPeriod, onChanged }: { period: string; 
           <Card className="border-border"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Schedule of beneficiaries", "جدول المستفيدين")}</CardTitle></CardHeader><CardContent>
             {d.schedule.length === 0 ? <p className="text-sm text-muted-foreground">{t("No payment withheld in this month.", "لا استقطاع في هذا الشهر.")}</p> : (
               <div className="overflow-x-auto"><table className="w-full text-sm" data-testid="wht-schedule">
-                <thead><tr className="border-b border-border text-xs text-muted-foreground">{[t("Date", "التاريخ"), t("Beneficiary", "المستفيد"), t("Country", "الدولة"), t("Nature", "النوع"), t("Base", "المبلغ"), t("Rate", "النسبة"), t("WHT", "الضريبة"), t("Cash paid", "النقد المدفوع"), t("Document", "المستند")].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
+                <thead><tr className="border-b border-border text-xs text-muted-foreground">{[t("Date", "التاريخ"), t("Beneficiary", "المستفيد"), t("Country", "الدولة"), t("Nature", "النوع"), t("Base", "المبلغ"), t("Rate", "النسبة"), t("WHT", "الضريبة"), t("Cash paid", "النقد المدفوع"), t("Document", "المستند"), t("Why", "السبب")].map((h) => <th key={h} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
                 <tbody>{d.schedule.map((w) => (
                   <tr key={w.id} className="border-b border-border/50" data-testid={`wht-schedule-row-${w.id}`}>
                     <td className="py-1.5 pe-3 whitespace-nowrap">{fmtDate(w.paymentDate)}</td><td className="py-1.5 pe-3">{n(w.vendorName, w.vendorNameAr)}</td><td className="py-1.5 pe-3">{w.vendorCountry ?? "—"}</td>
-                    <td className="py-1.5 pe-3">{whtTypeLabel(w.paymentType, t)}</td><td className="py-1.5 pe-3 text-end font-mono" dir="ltr">{money(w.baseAmount)}</td>
+                    <td className="py-1.5 pe-3">{whtTypeLabel(w.paymentType, t)}{w.natureBasis && <span className="block text-[11px] text-muted-foreground">{whtNatureBasisLabel(w.natureBasis, t)}</span>}</td><td className="py-1.5 pe-3 text-end font-mono" dir="ltr">{money(w.baseAmount)}</td>
                     <td className="py-1.5 pe-3 text-end font-mono" dir="ltr">{pct(w.rate)}{w.treatyReliefId ? ` (${t("treaty", "اتفاقية")})` : ""}</td>
                     <td className="py-1.5 pe-3 text-end font-mono" dir="ltr">{money(w.whtAmount)}</td><td className="py-1.5 pe-3 text-end font-mono" dir="ltr">{money(w.cashPaid)}</td>
                     <td className="py-1.5 pe-3 font-mono text-xs" dir="ltr">{w.document ?? "—"}</td>
+                    <td className="py-1.5 pe-3 text-xs min-w-48"><details data-testid={`wht-why-${w.id}`}><summary className="cursor-pointer text-primary">{t("Determination", "التحديد")}</summary><WhtDeterminationLines d={w.determination} testId={`wht-determination-${w.id}`} /></details></td>
                   </tr>
                 ))}</tbody>
               </table></div>
@@ -214,7 +221,14 @@ function MonthReturn({ period, months, onPeriod, onChanged }: { period: string; 
             {d.excluded.length > 0 && (
               <div className="mt-3" data-testid="wht-excluded">
                 <p className="text-xs font-medium mb-1">{t("Payments to non-residents NOT subject, with the reason recorded", "مدفوعات لغير مقيمين غير خاضعة، مع السبب المسجَّل")}</p>
-                <ul className="text-xs space-y-0.5">{d.excluded.map((w) => <li key={w.id}>{fmtDate(w.paymentDate)} · {n(w.vendorName, w.vendorNameAr)} · <span className="font-mono" dir="ltr">{money(w.baseAmount)}</span> · {notSubjectLabel(w.notSubjectReason, t)}{w.notSubjectNote ? ` — ${w.notSubjectNote}` : ""}</li>)}</ul>
+                <ul className="text-xs space-y-0.5">{d.excluded.map((w) => <li key={w.id} data-testid={`wht-excluded-${w.id}`}>{fmtDate(w.paymentDate)} · {n(w.vendorName, w.vendorNameAr)} · <span className="font-mono" dir="ltr">{money(w.baseAmount)}</span> · {notSubjectLabel(w.notSubjectReason, t)}{w.notSubjectNote ? ` — ${w.notSubjectNote}` : ""}{w.paymentType ? ` · ${whtTypeLabel(w.paymentType, t)}` : ""}</li>)}</ul>
+              </div>
+            )}
+            {d.pending.length > 0 && (
+              <div className="mt-3" data-testid="wht-pending">
+                <p className="text-xs font-medium mb-1">{t("Payments to non-residents PENDING classification — nothing withheld or claimed until their purpose is identified", "مدفوعات لغير مقيمين بانتظار التصنيف — لا استقطاع ولا مطالبة حتى يُحدَّد غرضها")}</p>
+                <ul className="text-xs space-y-0.5">{d.pending.map((w) => <li key={w.id} data-testid={`wht-pending-${w.id}`}>{fmtDate(w.paymentDate)} · {n(w.vendorName, w.vendorNameAr)} · <span className="font-mono" dir="ltr">{money(w.baseAmount)}</span> · {w.document ?? "—"}</li>)}</ul>
+                <p className="text-[11px] text-muted-foreground mt-1">{t("Classify each on the supplier payment: a deposit or an erroneous payment is not subject; identified as an advance, its nature decides.", "صنّف كلًّا منها في دفعة المورد: التأمين أو الدفعة الخاطئة غير خاضعين؛ وإذا حُدِّدت كدفعة مقدمة فطبيعتها هي الفيصل.")}</p>
               </div>
             )}
           </CardContent></Card>
@@ -295,7 +309,7 @@ function Annual() {
 
 function Exceptions() {
   const { t } = useLanguage();
-  const [kind, setKind] = useState<"undeclared" | "possibly_missed">("undeclared");
+  const [kind, setKind] = useState<"undeclared" | "possibly_missed" | "pending_classification">("undeclared");
   const x = useListWhtExceptions({ kind }, { query: { queryKey: getListWhtExceptionsQueryKey({ kind }) } });
   return (
     <Card className="border-border"><CardContent className="pt-4 space-y-3" data-testid="wht-exceptions">
@@ -304,9 +318,12 @@ function Exceptions() {
         <SelectContent>
           <SelectItem value="undeclared">{t("Paid to a supplier whose residency is not declared", "دُفع لمورد لم يُصرَّح بإقامته")}</SelectItem>
           <SelectItem value="possibly_missed">{t("Paid to a non-resident with no withholding", "دُفع لغير مقيم دون استقطاع")}</SelectItem>
+          <SelectItem value="pending_classification">{t("Paid to a non-resident, purpose not identified (pending)", "دُفع لغير مقيم لغرض غير محدد (معلّق)")}</SelectItem>
         </SelectContent>
       </Select>
-      <p className="text-xs text-muted-foreground">{kind === "undeclared"
+      <p className="text-xs text-muted-foreground">{kind === "pending_classification"
+        ? t("Nothing was withheld from these payments because their purpose is not identified (accountant Q2). Classify each on the supplier payment; if it turns out to be taxable consideration, the payer is liable for the tax not withheld (Art. 68(C)) — take it to your adviser.", "لم يُستقطع شيء من هذه المدفوعات لأن غرضها غير محدد. صنّف كلًّا منها في دفعة المورد؛ فإن تبيّن أنها مقابل خاضع، فالدافع مسؤول عن الضريبة غير المستقطعة (المادة 68(ج)) — راجع مستشارك.")
+        : kind === "undeclared"
         ? t("No withholding was judged: declare each supplier's residency. If it is non-resident, the payer is liable for the tax it did not withhold (Art. 68(C)).", "لم يُحكم بأي استقطاع: صرِّح بإقامة كل مورد. فإن كان غير مقيم، فالدافع مسؤول عن الضريبة التي لم يستقطعها (المادة 68(ج)).")
         : t("The supplier is now declared non-resident, and these payments carry no withholding record — declared after paying, or paid before Phase 16. Review each with your adviser.", "صُرِّح الآن بأن المورد غير مقيم، وهذه المدفوعات بلا سجل استقطاع — صُرِّح بعد الدفع أو دُفعت قبل المرحلة 16. راجع كلًّا منها مع مستشارك.")}</p>
       {x.data && (

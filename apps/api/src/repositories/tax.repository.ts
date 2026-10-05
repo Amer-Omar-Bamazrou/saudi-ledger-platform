@@ -37,7 +37,15 @@ export type WithholdingRow = {
   payment_date: string; period: string; status: string; payment_type: string | null; not_subject_reason: string | null; not_subject_note: string | null;
   base_amount: string; rate: string; statutory_rate: string | null; treaty_relief_id: number | null; treaty_approval_reference: string | null;
   wht_amount: string; journal_entry_id: number; form_row: string | null; created_at: string;
+  payment_class: string | null; nature_basis: string | null; supersedes_withholding_id: number | null;
 };
+
+/**
+ * Q2 (0116): a reclassification SUPERSEDES a payment's pending or not-subject
+ * record; the replaced row stays (lineage) but is no longer the payment's
+ * determination. Every list reads the live ones — one predicate, here.
+ */
+const LIVE_W = (alias: string) => sql.raw(`NOT EXISTS (SELECT 1 FROM wht_withholdings sup WHERE sup.supersedes_withholding_id = ${alias}.id)`);
 
 export const taxRepository = {
   // ── rates ────────────────────────────────────────────────────────────────
@@ -54,14 +62,15 @@ export const taxRepository = {
              v.foreign_tax_id AS vendor_foreign_tax_id, w.bill_id, b.bill_number, sp.reference AS supplier_payment_reference,
              w.payment_date::text AS payment_date, w.period, w.status, w.payment_type, w.not_subject_reason, w.not_subject_note,
              w.base_amount::text, w.rate::text, w.statutory_rate::text, w.treaty_relief_id, rel.zatca_approval_reference AS treaty_approval_reference,
-             w.wht_amount::text, w.journal_entry_id, rt.form_row, w.created_at::text AS created_at
+             w.wht_amount::text, w.journal_entry_id, rt.form_row, w.created_at::text AS created_at,
+             w.payment_class, w.nature_basis, w.supersedes_withholding_id
         FROM wht_withholdings w
         JOIN vendors v ON v.id = w.vendor_id
         LEFT JOIN bills b ON b.id = w.bill_id
         LEFT JOIN supplier_payments sp ON sp.id = w.supplier_payment_id
         LEFT JOIN wht_rates rt ON rt.id = w.rate_id
         LEFT JOIN vendor_wht_treaty_reliefs rel ON rel.id = w.treaty_relief_id
-       WHERE w.company_id = ${CO}
+       WHERE w.company_id = ${CO} AND ${LIVE_W("w")}
          ${f.period ? sql`AND w.period = ${f.period}` : sql``}
          ${f.from ? sql`AND w.payment_date >= ${f.from}::date` : sql``}
          ${f.to ? sql`AND w.payment_date <= ${f.to}::date` : sql``}
@@ -73,14 +82,15 @@ export const taxRepository = {
   /** Per WHT month: withheld, base, count, remitted (live), and the dates — one row per month that has either. */
   async periods() {
     const { rows } = await db.execute<{
-      period: string; withheld: string; base: string; payments: number; not_subject: number; remitted: string; fines_paid: string; last_paid_at: string | null;
+      period: string; withheld: string; base: string; payments: number; not_subject: number; pending: number; remitted: string; fines_paid: string; last_paid_at: string | null;
     }>(sql`
       WITH w AS (
         SELECT period, sum(wht_amount) FILTER (WHERE status = 'withheld') AS withheld,
                sum(base_amount) FILTER (WHERE status = 'withheld') AS base,
                count(*) FILTER (WHERE status = 'withheld') AS payments,
-               count(*) FILTER (WHERE status = 'not_subject') AS not_subject
-          FROM wht_withholdings WHERE company_id = ${CO} GROUP BY period),
+               count(*) FILTER (WHERE status = 'not_subject') AS not_subject,
+               count(*) FILTER (WHERE status = 'pending') AS pending
+          FROM wht_withholdings w WHERE company_id = ${CO} AND ${LIVE_W("w")} GROUP BY period),
       r AS (
         SELECT r.period, sum(r.amount) AS remitted, sum(r.fine_amount) AS fines_paid, max(r.paid_at)::text AS last_paid_at
           FROM wht_remittances r
@@ -89,7 +99,7 @@ export const taxRepository = {
          GROUP BY r.period)
       SELECT coalesce(w.period, r.period) AS period,
              coalesce(w.withheld, 0)::text AS withheld, coalesce(w.base, 0)::text AS base,
-             coalesce(w.payments, 0)::int AS payments, coalesce(w.not_subject, 0)::int AS not_subject,
+             coalesce(w.payments, 0)::int AS payments, coalesce(w.not_subject, 0)::int AS not_subject, coalesce(w.pending, 0)::int AS pending,
              coalesce(r.remitted, 0)::text AS remitted, coalesce(r.fines_paid, 0)::text AS fines_paid, r.last_paid_at
         FROM w FULL JOIN r ON r.period = w.period
        ORDER BY 1 DESC`);
@@ -198,6 +208,25 @@ export const taxRepository = {
       SELECT p.*, v.name AS vendor_name, (count(*) OVER ())::int AS total
         FROM p JOIN vendors v ON v.id = p.vendor_id
        ORDER BY p.paid_at DESC, p.payment_id DESC
+       LIMIT 200`);
+    return rows;
+  },
+  /**
+   * Q2: payments to a non-resident recorded PENDING — money whose purpose
+   * nobody has identified, so nothing was withheld or claimed for it. Listed
+   * (capped at 200, with the true total) until a classification supersedes it.
+   */
+  async pendingClassification() {
+    const { rows } = await db.execute<{
+      source_kind: string; payment_id: number; vendor_id: number; vendor_name: string; document: string | null;
+      paid_at: string; amount: string; journal_entry_id: number | null; total: number;
+    }>(sql`
+      SELECT w.source_kind, w.supplier_payment_id AS payment_id, w.vendor_id, v.name AS vendor_name,
+             coalesce(sp.reference, 'SPAY-' || sp.id::text) AS document, w.payment_date::text AS paid_at,
+             w.base_amount::text AS amount, w.journal_entry_id, (count(*) OVER ())::int AS total
+        FROM wht_withholdings w JOIN vendors v ON v.id = w.vendor_id JOIN supplier_payments sp ON sp.id = w.supplier_payment_id
+       WHERE w.company_id = ${CO} AND w.status = 'pending' AND ${LIVE_W("w")}
+       ORDER BY w.payment_date DESC, w.id DESC
        LIMIT 200`);
     return rows;
   },

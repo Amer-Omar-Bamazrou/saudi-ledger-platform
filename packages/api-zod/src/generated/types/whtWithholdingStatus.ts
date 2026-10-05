@@ -12,4 +12,5 @@ export type WhtWithholdingStatus = typeof WhtWithholdingStatus[keyof typeof WhtW
 export const WhtWithholdingStatus = {
   withheld: 'withheld',
   not_subject: 'not_subject',
+  pending: 'pending',
 } as const;

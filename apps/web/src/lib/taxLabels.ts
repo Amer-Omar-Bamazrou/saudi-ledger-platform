@@ -25,7 +25,44 @@ export const whtTypeLabel = (code: string | null | undefined, t: T) => (code && 
 export const notSubjectLabel = (code: string | null | undefined, t: T) =>
   code === "goods" ? t("Payment for goods (IR Art. 63(7))", "دفعة مقابل سلع (المادة 63(7))")
     : code === "not_kingdom_source" ? t("Not from a source in the Kingdom (Art. 5)", "ليست من مصدر في المملكة (المادة 5)")
-      : "—";
+      : code === "refundable_deposit" ? t("Refundable deposit — not consideration for a supply", "تأمين مسترد — ليس مقابلًا لتوريد")
+        : code === "erroneous_payment" ? t("Erroneous payment — not consideration for anything", "دفعة خاطئة — ليست مقابلًا لأي شيء")
+          : "—";
+
+/**
+ * Accountant Q2 (pack §14.2): the WHT determination's four dimensions, keyed by the server's codes. Display only —
+ * every value is the server's (`WhtDetermination`); nothing here decides.
+ */
+export const whtOutcomeLabel = (code: string | null | undefined, t: T) =>
+  ({
+    taxable_wht: t("Withheld at the statutory rate", "مستقطعة بالنسبة النظامية"),
+    exempt_relief: t("Treaty relief applied", "طُبِّق إعفاء الاتفاقية"),
+    not_wht: t("Not subject to withholding", "غير خاضعة للاستقطاع"),
+    pending_classification: t("Pending — not yet classified", "معلّقة — لم تُصنَّف بعد"),
+  } as Record<string, string>)[code ?? ""] ?? "—";
+export const whtRecipientLabel = (code: string | null | undefined, t: T) =>
+  ({ non_resident: t("Non-resident", "غير مقيم"), resident: t("Resident", "مقيم"), unknown: t("Residency not declared", "الإقامة غير مُصرَّح بها"), no_supplier: t("No supplier record", "لا سجل للمورد") } as Record<string, string>)[code ?? ""] ?? "—";
+export const whtSourceLabel = (code: string | null | undefined, t: T) =>
+  ({
+    presumed: t("In the Kingdom — not declared otherwise (Art. 5)", "داخل المملكة — لم يُصرَّح بخلاف ذلك (المادة 5)"),
+    declared_not_kingdom_source: t("Declared not from a source in the Kingdom (Art. 5)", "مُصرَّح بأنها ليست من مصدر في المملكة (المادة 5)"),
+    not_assessed: t("Not assessed — not consideration for a supply", "لم يُقيَّم — ليس مقابلًا لتوريد"),
+  } as Record<string, string>)[code ?? ""] ?? "—";
+export const whtPaymentClassLabel = (code: string | null | undefined, t: T) =>
+  ({
+    bill_payment: t("Payment of a bill", "سداد فاتورة"),
+    advance: t("Advance (consideration)", "دفعة مقدمة (مقابل)"),
+    allocated: t("Allocated to bills (consideration)", "مخصصة لفواتير (مقابل)"),
+    security_deposit: t("Refundable deposit", "تأمين مسترد"),
+    erroneous: t("Erroneous payment", "دفعة خاطئة"),
+    unknown: t("Not identified", "غير محددة"),
+  } as Record<string, string>)[code ?? ""] ?? t("Not recorded (before this record existed)", "غير مسجَّل (قبل وجود هذا السجل)");
+export const whtNatureBasisLabel = (code: string | null | undefined, t: T) =>
+  ({
+    declared: t("declared on the payment", "مُصرَّح بها على الدفعة"),
+    supplier_default: t("the supplier's declared default", "الطبيعة الافتراضية المُصرَّح بها للمورد"),
+    payment_class: t("from what the money was", "من طبيعة المبلغ"),
+  } as Record<string, string>)[code ?? ""] ?? "—";
 
 export const residencyLabel = (code: string | null | undefined, t: T) =>
   code === "resident" ? t("Resident", "مقيم") : code === "non_resident" ? t("Non-resident", "غير مقيم") : t("Not declared", "غير مُصرَّح");

@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { WhtDetermination } from './whtDetermination';
 import type { WhtWithholdingSourceKind } from './whtWithholdingSourceKind';
 import type { WhtWithholdingStatus } from './whtWithholdingStatus';
 
@@ -51,4 +52,17 @@ export interface WhtWithholding {
   whtAmount: number;
   cashPaid: number;
   journalEntryId: number;
+  /**
+     * Frozen at the decision (Q2); null on a record written before migration 0116.
+     * @nullable
+     */
+  paymentClass: string | null;
+  /** @nullable */
+  natureBasis: string | null;
+  /**
+     * The pending or not-subject record a reclassification replaced (it stays, beside this one).
+     * @nullable
+     */
+  supersedesWithholdingId: number | null;
+  determination: WhtDetermination;
 }

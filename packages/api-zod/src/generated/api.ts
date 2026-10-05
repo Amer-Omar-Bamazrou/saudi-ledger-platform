@@ -14226,8 +14226,11 @@ export const ClassifySupplierPaymentParams = zod.object({
 export const ClassifySupplierPaymentBody = zod.object({
   "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).describe('What money paid to a supplier IS. The three accounts behind these have different EXITS: an advance leaves by being applied to a bill, a security deposit by being returned or forfeited, an unidentified or erroneous payment by being identified.\n'),
   "note": zod.string().nullish(),
-  "effectiveDate": zod.coerce.date().optional()
-})
+  "effectiveDate": zod.coerce.date().optional(),
+  "whtPaymentType": zod.string().nullish(),
+  "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
+  "whtNotSubjectNote": zod.string().nullish()
+}).describe('Accountant Q2 (pack §14.2): a NON-RESIDENT\'s payment carries a WHT determination that follows what the money is. Identifying pending or not-subject money as an advance reads its nature — goods or a non-Kingdom source is recorded (superseding the old record, which stays); a taxable nature is refused by name (wht_late_withholding_open, open question W-16): nothing was withheld when the money left.')
 
 export const ClassifySupplierPaymentResponse = zod.object({
   "id": zod.number(),
@@ -14589,19 +14592,22 @@ export const ListWhtRatesResponse = zod.array(ListWhtRatesResponseItem)
 
 
 /**
+ * A BILL payment states no classification (it is consideration). A SUPPLIER payment states its classification and what of it is allocated to bills, so the preview judges the same class the pay path will (accountant Q2, pack §14.2): a refundable deposit and an erroneous payment are not subject, an unidentified one is pending.
  * @summary What a payment to this supplier would withhold — the same decision the pay paths take.
  */
 export const PreviewWhtQueryParams = zod.object({
   "vendorId": zod.coerce.number(),
   "amount": zod.coerce.number(),
   "date": zod.date().optional(),
+  "classification": zod.enum(['advance', 'security_deposit', 'erroneous', 'unknown']).optional(),
+  "allocatedAmount": zod.coerce.number().optional(),
   "whtPaymentType": zod.coerce.string().optional(),
   "whtNotSubjectReason": zod.coerce.string().optional(),
   "whtNotSubjectNote": zod.coerce.string().optional()
 })
 
 export const PreviewWhtResponse = zod.object({
-  "kind": zod.enum(['no_vendor', 'resident', 'unknown_residency', 'not_subject', 'withheld']),
+  "kind": zod.enum(['no_vendor', 'resident', 'unknown_residency', 'not_subject', 'withheld', 'pending']),
   "amount": zod.number(),
   "date": zod.string(),
   "paymentType": zod.string().nullable(),
@@ -14612,7 +14618,16 @@ export const PreviewWhtResponse = zod.object({
   "formRow": zod.string().nullable(),
   "withheld": zod.number(),
   "cashPaid": zod.number().describe('What leaves the bank: amount − withheld.'),
-  "notSubjectReason": zod.string().nullable()
+  "notSubjectReason": zod.string().nullable(),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
 })
 
 
@@ -14631,6 +14646,7 @@ export const GetWhtOverviewResponse = zod.object({
   "outstanding": zod.number(),
   "payments": zod.number(),
   "notSubject": zod.number(),
+  "pending": zod.number().describe('Payments to a non-resident recorded PENDING — purpose not identified, nothing withheld (Q2).'),
   "finesPaid": zod.number(),
   "lastPaidAt": zod.string().nullable(),
   "delayFineEstimate": zod.union([zod.object({
@@ -14652,6 +14668,7 @@ export const GetWhtOverviewResponse = zod.object({
   "undeclaredResidency": zod.number(),
   "possiblyMissed": zod.number(),
   "paymentsWithoutSupplier": zod.number(),
+  "pendingClassification": zod.number().describe('Live PENDING determinations (Q2) — the true count.'),
   "reliefsExpiringIn30Days": zod.number()
 })
 })
@@ -14707,7 +14724,7 @@ export const GetWhtReturnResponse = zod.object({
   "document": zod.string().nullable(),
   "paymentDate": zod.string(),
   "period": zod.string(),
-  "status": zod.enum(['withheld', 'not_subject']),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
   "paymentType": zod.string().nullable(),
   "formRow": zod.string().nullable(),
   "notSubjectReason": zod.string().nullable(),
@@ -14719,7 +14736,19 @@ export const GetWhtReturnResponse = zod.object({
   "treatyApprovalReference": zod.string().nullable(),
   "whtAmount": zod.number(),
   "cashPaid": zod.number(),
-  "journalEntryId": zod.number()
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
 })),
   "excluded": zod.array(zod.object({
   "id": zod.number(),
@@ -14736,7 +14765,7 @@ export const GetWhtReturnResponse = zod.object({
   "document": zod.string().nullable(),
   "paymentDate": zod.string(),
   "period": zod.string(),
-  "status": zod.enum(['withheld', 'not_subject']),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
   "paymentType": zod.string().nullable(),
   "formRow": zod.string().nullable(),
   "notSubjectReason": zod.string().nullable(),
@@ -14748,8 +14777,61 @@ export const GetWhtReturnResponse = zod.object({
   "treatyApprovalReference": zod.string().nullable(),
   "whtAmount": zod.number(),
   "cashPaid": zod.number(),
-  "journalEntryId": zod.number()
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
 })),
+  "pending": zod.array(zod.object({
+  "id": zod.number(),
+  "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "billPaymentId": zod.number().nullable(),
+  "supplierPaymentId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "vendorNameAr": zod.string().nullable(),
+  "vendorCountry": zod.string().nullable(),
+  "vendorAddress": zod.string().nullable(),
+  "vendorForeignTaxId": zod.string().nullable(),
+  "billId": zod.number().nullable(),
+  "document": zod.string().nullable(),
+  "paymentDate": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
+  "paymentType": zod.string().nullable(),
+  "formRow": zod.string().nullable(),
+  "notSubjectReason": zod.string().nullable(),
+  "notSubjectNote": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "rate": zod.number(),
+  "statutoryRate": zod.number().nullable(),
+  "treatyReliefId": zod.number().nullable(),
+  "treatyApprovalReference": zod.string().nullable(),
+  "whtAmount": zod.number(),
+  "cashPaid": zod.number(),
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
+})).describe('Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2).'),
   "remittances": zod.array(zod.object({
   "id": zod.number(),
   "period": zod.string().nullable().describe('YYYY-MM, or null for the migrated opening balance.'),
@@ -14844,7 +14926,7 @@ export const GetWhtBeneficiaryStatementResponse = zod.object({
   "document": zod.string().nullable(),
   "paymentDate": zod.string(),
   "period": zod.string(),
-  "status": zod.enum(['withheld', 'not_subject']),
+  "status": zod.enum(['withheld', 'not_subject', 'pending']),
   "paymentType": zod.string().nullable(),
   "formRow": zod.string().nullable(),
   "notSubjectReason": zod.string().nullable(),
@@ -14856,7 +14938,19 @@ export const GetWhtBeneficiaryStatementResponse = zod.object({
   "treatyApprovalReference": zod.string().nullable(),
   "whtAmount": zod.number(),
   "cashPaid": zod.number(),
-  "journalEntryId": zod.number()
+  "journalEntryId": zod.number(),
+  "paymentClass": zod.string().nullable().describe('Frozen at the decision (Q2); null on a record written before migration 0116.'),
+  "natureBasis": zod.string().nullable(),
+  "supersedesWithholdingId": zod.number().nullable().describe('The pending or not-subject record a reclassification replaced (it stays, beside this one).'),
+  "determination": zod.object({
+  "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
+  "reasonCode": zod.string().describe('statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier'),
+  "recipient": zod.enum(['non_resident', 'resident', 'unknown', 'no_supplier']),
+  "kingdomSource": zod.enum(['presumed', 'declared_not_kingdom_source', 'not_assessed']).describe('A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.'),
+  "paymentClass": zod.union([zod.literal('bill_payment'),zod.literal('advance'),zod.literal('allocated'),zod.literal('security_deposit'),zod.literal('erroneous'),zod.literal('unknown'),zod.literal(null)]).nullable().describe('What the money was; null on a record written before migration 0116.'),
+  "paymentType": zod.string().nullable(),
+  "natureBasis": zod.union([zod.literal('declared'),zod.literal('supplier_default'),zod.literal('payment_class'),zod.literal(null)]).nullable()
+}).describe('The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.')
 })),
   "totals": zod.object({
   "base": zod.number(),
@@ -14869,11 +14963,11 @@ export const GetWhtBeneficiaryStatementResponse = zod.object({
  * @summary Supplier payments WHT could not judge (residency undeclared) or may have missed (supplier now non-resident, no withholding) — capped at 200 with the true total.
  */
 export const ListWhtExceptionsQueryParams = zod.object({
-  "kind": zod.enum(['undeclared', 'possibly_missed'])
+  "kind": zod.enum(['undeclared', 'possibly_missed', 'pending_classification'])
 })
 
 export const ListWhtExceptionsResponse = zod.object({
-  "kind": zod.enum(['undeclared', 'possibly_missed']),
+  "kind": zod.enum(['undeclared', 'possibly_missed', 'pending_classification']),
   "total": zod.number().describe('The TRUE count; the list is capped at 200.'),
   "shown": zod.number(),
   "items": zod.array(zod.object({

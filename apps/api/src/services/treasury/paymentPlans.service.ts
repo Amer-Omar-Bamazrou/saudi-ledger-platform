@@ -53,7 +53,7 @@ async function planOut(p: PlanRow) {
   let whtEstimate: number | null = null;
   if (open && p.vendor_residency === "non_resident" && amount > 0) {
     try {
-      const d = await decideWithholding({ vendorId: p.vendor_id, paymentDate: p.planned_date < today ? today : p.planned_date, base: amount, declared: { paymentType: p.wht_payment_type } });
+      const d = await decideWithholding({ vendorId: p.vendor_id, paymentDate: p.planned_date < today ? today : p.planned_date, base: amount, paymentClass: "bill_payment", declared: { paymentType: p.wht_payment_type } });
       whtEstimate = d.kind === "withheld" ? fromHalalas(d.whtH) : d.kind === "not_subject" ? 0 : null;
     } catch {
       whtEstimate = null; // undecidable until the payment states its nature — said so on the page, never a guessed rate

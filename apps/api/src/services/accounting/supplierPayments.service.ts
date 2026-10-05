@@ -44,7 +44,10 @@ import { postJournalEntry } from "./glPosting.js";
 import { checkPeriodOpen } from "./periodLock.js";
 import { assertBankAccount } from "./bankIdentity.js";
 import { billsRepository } from "../../repositories/bills.repository.js";
-import { decideWithholding, recordWithholding, supplierPaymentWasWithheld, whtDeclarationFrom, whtLine, whtOf } from "./wht.js";
+import {
+  decideWithholding, recordWithholding, supplierPaymentWasWithheld, whtDeclarationFrom, whtLine, whtOf,
+  supplierPaymentClassOf, liveWithholdingOfSupplierPayment, assertSinglePurpose, type WhtDecision,
+} from "./wht.js";
 import {
   supplierOnAccountAsset, mayAllocate,
   type SupplierPaymentClassificationKind,
@@ -108,7 +111,14 @@ export const supplierPaymentsService = {
     // 🔴 Phase 16 (pack §2.4): a payment to a NON-RESIDENT withholds — decided
     // before anything is written; `amount` stays what the supplier is credited
     // with (allocated + on account), and the bank line is the cash that left.
-    const withholding = await decideWithholding({ vendorId, paymentDate: paidAt, base: amount, declared: whtDeclarationFrom(body) });
+    // 🔴 Q2 (pack §14.2): what the money WAS is decided first — the allocated
+    // part is consideration; an on-account deposit, erroneous or unidentified
+    // payment is not judged by any nature. One payment carrying both kinds would
+    // need one base split two ways, so it is refused for a non-resident: the
+    // deposit is its own payment.
+    assertSinglePurpose({ residency: vendor!.residency, classification, amount, allocated: allocatedTotal });
+    const paymentClass = supplierPaymentClassOf(classification, amount, allocatedTotal);
+    const withholding = await decideWithholding({ vendorId, paymentDate: paidAt, base: amount, paymentClass, declared: whtDeclarationFrom(body) });
     const withheld = whtOf(withholding);
     const cashPaid = round2(amount - withheld);
 
@@ -330,7 +340,7 @@ export const supplierPaymentsService = {
    * Reclassify on-account money. When the ACCOUNT changes the balance is moved
    * by ONE entry; when it does not, nothing is posted and the row says so.
    */
-  async classify(id: number, body: { classification?: unknown; note?: unknown; effectiveDate?: unknown }, userId: number | null) {
+  async classify(id: number, body: { classification?: unknown; note?: unknown; effectiveDate?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown }, userId: number | null) {
     const payment = await this.findOrThrow(id, { lock: true });
     const next = String(body.classification ?? "") as SupplierPaymentClassificationKind;
     if (!["advance", "security_deposit", "erroneous", "unknown"].includes(next)) {
@@ -352,6 +362,44 @@ export const supplierPaymentsService = {
     // Only what is still ON ACCOUNT can be reclassified — an amount already
     // applied to a bill has left the asset and is the bill's business now.
     const available = await this.availableOf(id);
+
+    /**
+     * 🔴 Q2 (pack §14.2): a non-resident's payment carries a WHT determination,
+     * and it follows what the money IS. Decided before anything is written:
+     *   · tax WITHHELD as consideration stays with the payment — reclassifying
+     *     the money on account as a deposit, an error or unidentified would
+     *     leave that tax on the return for money that was not consideration,
+     *     so it is corrected instead (reverse and re-enter, §14.1);
+     *   · a PENDING or NOT-SUBJECT record is SUPERSEDED by the new class's
+     *     determination — the old record stays beside it (the lineage);
+     *   · money paid with nothing withheld and identified LATER as taxable
+     *     consideration is refused by name: who bears that tax (recovered from
+     *     the supplier, or borne and grossed up) is open question W-16.
+     */
+    let whtNext: WhtDecision | null = null;
+    let whtSupersedes: number | null = null;
+    const live = next !== current ? await liveWithholdingOfSupplierPayment(id) : null;
+    if (live) {
+      if (live.status === "withheld") {
+        if (available > 0.005 && next !== "advance") {
+          refuse("wht_reclassify_withheld",
+            "Tax was withheld from this payment when it was paid, as consideration for a supply. Reclassifying the money still on account as a deposit, an erroneous or an unidentified payment would leave that withholding on the return for money that was not consideration. Correct the payment instead: on the Withholding tax page, reverse it and re-enter it as what it was, for the cash the supplier actually received.",
+            "classification", 409);
+        }
+      } else {
+        const nextClass = supplierPaymentClassOf(next, Number(payment.amount), await this.inEntryAllocatedOf(payment));
+        if (nextClass !== live.payment_class) {
+          const d = await decideWithholding({ vendorId: payment.vendorId, paymentDate: payment.paidAt, base: Number(payment.amount), paymentClass: nextClass, declared: whtDeclarationFrom(body as Record<string, unknown>) });
+          if (d.kind === "withheld") {
+            refuse("wht_late_withholding_open",
+              `This payment was made with nothing withheld (it was recorded as ${live.status === "pending" ? "not yet identified" : live.not_subject_reason === "refundable_deposit" ? "a refundable deposit" : live.not_subject_reason === "erroneous_payment" ? "an erroneous payment" : "not subject"}). As an advance for ${d.paymentType}, ${whtOf(d).toFixed(2)} would have been withheld at ${(Number(d.rate) * 100).toFixed(2)} % — tax the payer is liable for (Income Tax Law Art. 68(C)). Whether it is recovered from the supplier or borne by the payer (grossed up) is open question W-16 for your adviser, so a reclassification never records it. Nothing was changed. If the supply is goods, or its income has no source in the Kingdom, declare that instead.`,
+              "whtPaymentType", 409);
+          }
+          if (d.kind === "not_subject" || d.kind === "pending") { whtNext = d; whtSupersedes = live.id; }
+          // resident / undeclared: the residency changed since the payment (W-15) — its record is left as it was decided
+        }
+      }
+    }
     let entryId: number | null = null;
     let effectiveDate: string | null = null;
 
@@ -377,7 +425,11 @@ export const supplierPaymentsService = {
       effectiveDate, journalEntryId: entryId, createdBy: userId,
     });
     await db.update(supplierPaymentsTable).set({ classification: next }).where(eq(supplierPaymentsTable.id, id));
-    await auditService.record({ action: "classify", entityType: "supplier_payment", entityId: String(id), before: { classification: current }, after: { classification: next, journalEntryId: entryId } });
+    // after the classification moved: the database derives the class it admits from it (0116)
+    const superseding = whtNext
+      ? await recordWithholding(whtNext, { kind: "supplier_payment", supplierPaymentId: id }, payment.paidAt, payment.journalEntryId, userId, { supersedesWithholdingId: whtSupersedes })
+      : null;
+    await auditService.record({ action: "classify", entityType: "supplier_payment", entityId: String(id), before: { classification: current }, after: { classification: next, journalEntryId: entryId, withholding: superseding ? { id: superseding.id, supersedes: whtSupersedes, status: superseding.status, reason: superseding.notSubjectReason } : null } });
     return this.getById(id);
   },
 
@@ -461,6 +513,18 @@ export const supplierPaymentsService = {
               - coalesce((SELECT sum(f.amount) FROM supplier_refunds f WHERE f.supplier_payment_id = p.id), 0))::text v
          FROM supplier_payments p WHERE p.id = ${id}`).then((r) => r.rows);
     return round2(Number(row?.v ?? 0));
+  },
+
+  /**
+   * Q2: what the payment's OWN entry allocated to bills (live or not — the
+   * entry did it). With the amount, it decides the payment's class for WHT
+   * exactly as the database's admit derives it (0116).
+   */
+  async inEntryAllocatedOf(payment: Pick<SupplierPayment, "id" | "journalEntryId">): Promise<number> {
+    const { rows } = await db.execute<{ v: string }>(sql`
+      SELECT coalesce(sum(a.amount), 0)::text v FROM supplier_payment_allocations a
+       WHERE a.supplier_payment_id = ${payment.id} AND a.journal_entry_id = ${payment.journalEntryId}`);
+    return round2(Number(rows[0]?.v ?? 0));
   },
 
   /** Z-AP1: what is on account AND not invoiced by the supplier — the only part a plain allocation or refund may spend. */

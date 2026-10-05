@@ -6422,10 +6422,16 @@ paths:
       operationId: previewWht
       tags: [tax]
       summary: What a payment to this supplier would withhold — the same decision the pay paths take.
+      description: >-
+        A BILL payment states no classification (it is consideration). A SUPPLIER payment states its classification and
+        what of it is allocated to bills, so the preview judges the same class the pay path will (accountant Q2, pack §14.2):
+        a refundable deposit and an erroneous payment are not subject, an unidentified one is pending.
       parameters:
         - { in: query, name: vendorId, required: true, schema: { type: integer } }
         - { in: query, name: amount, required: true, schema: { type: number } }
         - { in: query, name: date, schema: { type: string, format: date } }
+        - { in: query, name: classification, schema: { type: string, enum: [advance, security_deposit, erroneous, unknown] } }
+        - { in: query, name: allocatedAmount, schema: { type: number } }
         - { in: query, name: whtPaymentType, schema: { type: string } }
         - { in: query, name: whtNotSubjectReason, schema: { type: string } }
         - { in: query, name: whtNotSubjectNote, schema: { type: string } }
@@ -6505,7 +6511,7 @@ paths:
       tags: [tax]
       summary: Supplier payments WHT could not judge (residency undeclared) or may have missed (supplier now non-resident, no withholding) — capped at 200 with the true total.
       parameters:
-        - { in: query, name: kind, required: true, schema: { type: string, enum: [undeclared, possibly_missed] } }
+        - { in: query, name: kind, required: true, schema: { type: string, enum: [undeclared, possibly_missed, pending_classification] } }
       responses:
         "200":
           description: The exceptions
@@ -7368,10 +7374,18 @@ components:
     ClassifySupplierPaymentInput:
       type: object
       required: [classification]
+      description: >-
+        Accountant Q2 (pack §14.2): a NON-RESIDENT's payment carries a WHT determination that follows what the money is.
+        Identifying pending or not-subject money as an advance reads its nature — goods or a non-Kingdom source is
+        recorded (superseding the old record, which stays); a taxable nature is refused by name (wht_late_withholding_open,
+        open question W-16): nothing was withheld when the money left.
       properties:
         classification: { $ref: "#/components/schemas/SupplierPaymentClassification" }
         note: { type: string, nullable: true }
         effectiveDate: { type: string, format: date }
+        whtPaymentType: { type: string, nullable: true }
+        whtNotSubjectReason: { type: string, nullable: true, enum: [goods, not_kingdom_source, null] }
+        whtNotSubjectNote: { type: string, nullable: true }
 
     RefundSupplierPaymentInput:
       type: object
@@ -14503,11 +14517,36 @@ components:
         nameAr: { type: string }
         legalReference: { type: string }
 
+    WhtDetermination:
+      type: object
+      description: >-
+        The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a
+        recorded payment alike. Nothing here is computed by the client.
+      required: [outcome, reasonCode, recipient, kingdomSource, paymentClass, paymentType, natureBasis]
+      properties:
+        outcome: { type: string, enum: [taxable_wht, exempt_relief, not_wht, pending_classification] }
+        reasonCode:
+          type: string
+          description: "statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier"
+        recipient: { type: string, enum: [non_resident, resident, unknown, no_supplier] }
+        kingdomSource:
+          type: string
+          enum: [presumed, declared_not_kingdom_source, not_assessed]
+          description: "A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration."
+        paymentClass:
+          type: ["string", "null"]
+          enum: [bill_payment, advance, allocated, security_deposit, erroneous, unknown, null]
+          description: "What the money was; null on a record written before migration 0116."
+        paymentType: { type: ["string", "null"] }
+        natureBasis:
+          type: ["string", "null"]
+          enum: [declared, supplier_default, payment_class, null]
+
     WhtPreview:
       type: object
-      required: [kind, amount, date, paymentType, rate, statutoryRate, treatyReliefId, legalReference, formRow, withheld, cashPaid, notSubjectReason]
+      required: [kind, amount, date, paymentType, rate, statutoryRate, treatyReliefId, legalReference, formRow, withheld, cashPaid, notSubjectReason, determination]
       properties:
-        kind: { type: string, enum: [no_vendor, resident, unknown_residency, not_subject, withheld] }
+        kind: { type: string, enum: [no_vendor, resident, unknown_residency, not_subject, withheld, pending] }
         amount: { type: number }
         date: { type: string }
         paymentType: { type: ["string", "null"] }
@@ -14519,6 +14558,7 @@ components:
         withheld: { type: number }
         cashPaid: { type: number, description: "What leaves the bank: amount − withheld." }
         notSubjectReason: { type: ["string", "null"] }
+        determination: { $ref: "#/components/schemas/WhtDetermination" }
 
     WhtDelayFine:
       type: object
@@ -14531,7 +14571,7 @@ components:
 
     WhtMonth:
       type: object
-      required: [period, dueDate, status, base, withheld, remitted, outstanding, payments, notSubject, finesPaid, lastPaidAt, delayFineEstimate]
+      required: [period, dueDate, status, base, withheld, remitted, outstanding, payments, notSubject, pending, finesPaid, lastPaidAt, delayFineEstimate]
       properties:
         period: { type: string }
         dueDate: { type: string, description: "The 10th of the following month (IR Art. 63(9)(a))." }
@@ -14542,6 +14582,7 @@ components:
         outstanding: { type: number }
         payments: { type: integer }
         notSubject: { type: integer }
+        pending: { type: integer, description: "Payments to a non-resident recorded PENDING — purpose not identified, nothing withheld (Q2)." }
         finesPaid: { type: number }
         lastPaidAt: { type: ["string", "null"] }
         delayFineEstimate:
@@ -14573,18 +14614,19 @@ components:
             reconciles: { type: boolean }
         exceptions:
           type: object
-          required: [undeclaredResidency, possiblyMissed, paymentsWithoutSupplier, reliefsExpiringIn30Days]
+          required: [undeclaredResidency, possiblyMissed, paymentsWithoutSupplier, pendingClassification, reliefsExpiringIn30Days]
           properties:
             undeclaredResidency: { type: integer }
             possiblyMissed: { type: integer }
             paymentsWithoutSupplier: { type: integer }
+            pendingClassification: { type: integer, description: "Live PENDING determinations (Q2) — the true count." }
             reliefsExpiringIn30Days: { type: integer }
 
     WhtWithholding:
       type: object
       required: [id, sourceKind, billPaymentId, supplierPaymentId, vendorId, vendorName, vendorNameAr, vendorCountry, vendorAddress, vendorForeignTaxId,
                  billId, document, paymentDate, period, status, paymentType, formRow, notSubjectReason, notSubjectNote, baseAmount, rate, statutoryRate,
-                 treatyReliefId, treatyApprovalReference, whtAmount, cashPaid, journalEntryId]
+                 treatyReliefId, treatyApprovalReference, whtAmount, cashPaid, journalEntryId, paymentClass, natureBasis, supersedesWithholdingId, determination]
       properties:
         id: { type: integer }
         sourceKind: { type: string, enum: [bill_payment, supplier_payment] }
@@ -14600,7 +14642,7 @@ components:
         document: { type: ["string", "null"] }
         paymentDate: { type: string }
         period: { type: string }
-        status: { type: string, enum: [withheld, not_subject] }
+        status: { type: string, enum: [withheld, not_subject, pending] }
         paymentType: { type: ["string", "null"] }
         formRow: { type: ["string", "null"] }
         notSubjectReason: { type: ["string", "null"] }
@@ -14613,6 +14655,10 @@ components:
         whtAmount: { type: number }
         cashPaid: { type: number }
         journalEntryId: { type: integer }
+        paymentClass: { type: ["string", "null"], description: "Frozen at the decision (Q2); null on a record written before migration 0116." }
+        natureBasis: { type: ["string", "null"] }
+        supersedesWithholdingId: { type: ["integer", "null"], description: "The pending or not-subject record a reclassification replaced (it stays, beside this one)." }
+        determination: { $ref: "#/components/schemas/WhtDetermination" }
 
     WhtRemittance:
       type: object
@@ -14654,7 +14700,7 @@ components:
 
     WhtMonthlyReturn:
       type: object
-      required: [period, dueDate, status, asOf, lines, totals, delayFineEstimate, schedule, excluded, remittances, unusedFormRows]
+      required: [period, dueDate, status, asOf, lines, totals, delayFineEstimate, schedule, excluded, pending, remittances, unusedFormRows]
       properties:
         period: { type: string }
         dueDate: { type: string }
@@ -14680,6 +14726,10 @@ components:
           items: { $ref: "#/components/schemas/WhtWithholding" }
         excluded:
           type: array
+          items: { $ref: "#/components/schemas/WhtWithholding" }
+        pending:
+          type: array
+          description: "Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2)."
           items: { $ref: "#/components/schemas/WhtWithholding" }
         remittances:
           type: array
@@ -14755,7 +14805,7 @@ components:
       type: object
       required: [kind, total, shown, items]
       properties:
-        kind: { type: string, enum: [undeclared, possibly_missed] }
+        kind: { type: string, enum: [undeclared, possibly_missed, pending_classification] }
         total: { type: integer, description: "The TRUE count; the list is capped at 200." }
         shown: { type: integer }
         items:

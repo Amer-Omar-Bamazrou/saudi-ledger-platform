@@ -22,6 +22,8 @@ export interface WhtMonthlyReturn {
   delayFineEstimate: WhtDelayFine | null;
   schedule: WhtWithholding[];
   excluded: WhtWithholding[];
+  /** Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2). */
+  pending: WhtWithholding[];
   remittances: WhtRemittance[];
   /** Form 06 rows 07/08 have no separate band after Resolution 25 (open question W-4). */
   unusedFormRows: string[];

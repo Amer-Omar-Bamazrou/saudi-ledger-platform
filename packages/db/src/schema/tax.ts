@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, smallint, numeric, uuid, date, jsonb, index, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, smallint, numeric, uuid, date, jsonb, index, uniqueIndex, check, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { categoriesTable } from "./categories";
 import { organizationsTable } from "./organizations";
@@ -9,7 +9,7 @@ import { billPaymentsTable } from "./payments";
 import { supplierPaymentsTable } from "./supplierPayments";
 import { bankAccountsTable } from "./bankAccounts";
 import { journalEntriesTable } from "./journalEntries";
-import { WHT_PAYMENT_TYPES_SQL } from "./whtTypes";
+import { WHT_PAYMENT_TYPES_SQL, WHT_NOT_SUBJECT_REASONS_SQL, WHT_PAYMENT_CLASSES_SQL, WHT_NATURE_BASES_SQL } from "./whtTypes";
 
 /**
  * Phase 16 — Saudi tax expansion (docs/product/phase-16-17-tax-treasury-decision-pack.md).
@@ -29,9 +29,8 @@ import { WHT_PAYMENT_TYPES_SQL } from "./whtTypes";
 // The payment natures (IR Art. 63(1), Res. 25) — the ONE definition is ./whtTypes.
 const WHT_TYPES_SQL = WHT_PAYMENT_TYPES_SQL;
 
-/** Why a payment to a non-resident carries no WHT (pack §2.3) — each recorded, never silent. */
-export const WHT_NOT_SUBJECT_REASONS = ["goods", "not_kingdom_source"] as const;
-export type WhtNotSubjectReason = (typeof WHT_NOT_SUBJECT_REASONS)[number];
+// Why a payment to a non-resident carries no WHT (pack §2.3, §14.2) — the ONE definition is ./whtTypes
+// (`WHT_NOT_SUBJECT_REASONS`); the CHECK below is built from it.
 
 /**
  * 🔴 GLOBAL REFERENCE — the regulation's rates, effective-dated. No
@@ -141,7 +140,11 @@ export const whtWithholdingsTable = pgTable(
     paymentDate: date("payment_date").notNull(),
     /** YYYY-MM of `payment_date` (CHECK) — the WHT month the return and the remittance name. */
     period: text("period").notNull(),
-    /** withheld | not_subject */
+    /**
+     * withheld | not_subject | pending. `pending` (accountant Q2, 2026-10-05):
+     * money on account whose purpose nobody has identified — nothing withheld,
+     * no tax claimed for it, listed until it is classified (pack §14.2).
+     */
     status: text("status").notNull(),
     paymentType: text("payment_type"),
     notSubjectReason: text("not_subject_reason"),
@@ -157,26 +160,50 @@ export const whtWithholdingsTable = pgTable(
     whtAmount: numeric("wht_amount", { precision: 15, scale: 2 }).notNull(),
     /** The pay path's entry (Dr AP or on-account / Cr bank / Cr WHT_PAYABLE). */
     journalEntryId: integer("journal_entry_id").notNull().references(() => journalEntriesTable.id, { onDelete: "restrict" }),
+    /**
+     * Q2 provenance, frozen at the decision (NULL only on rows written before
+     * migration 0116 — the admit trigger requires both on every new row): what
+     * the money was (`WHT_PAYMENT_CLASSES`) and how its nature was established
+     * (`WHT_NATURE_BASES`). A later change to the supplier's default nature or
+     * the payment's classification never rewrites them.
+     */
+    paymentClass: text("payment_class"),
+    natureBasis: text("nature_basis"),
+    /**
+     * A RECLASSIFICATION's record: the pending or not-subject determination this
+     * one replaces after the payment was classified (deposit → advance, unknown →
+     * erroneous …). The replaced row stays, beside this one — the lineage. Never
+     * a withholding (a tax nobody withheld at payment is open question W-16).
+     */
+    supersedesWithholdingId: integer("supersedes_withholding_id").references((): AnyPgColumn => whtWithholdingsTable.id, { onDelete: "restrict" }),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     uniqueIndex("wht_withholdings_bill_payment_unq").on(t.billPaymentId).where(sql`bill_payment_id is not null`),
-    uniqueIndex("wht_withholdings_supplier_payment_unq").on(t.supplierPaymentId).where(sql`supplier_payment_id is not null`),
+    // one ORIGINAL determination per supplier payment; each later one supersedes exactly one before it
+    uniqueIndex("wht_withholdings_supplier_payment_unq").on(t.supplierPaymentId).where(sql`supplier_payment_id is not null and supersedes_withholding_id is null`),
+    uniqueIndex("wht_withholdings_supersedes_unq").on(t.supersedesWithholdingId).where(sql`supersedes_withholding_id is not null`),
     index("wht_withholdings_period_idx").on(t.companyId, t.period),
     index("wht_withholdings_vendor_idx").on(t.companyId, t.vendorId, t.paymentDate),
     index("wht_withholdings_entry_idx").on(t.journalEntryId),
     check("wht_withholdings_source_chk", sql`(${t.sourceKind} = 'bill_payment' and ${t.billPaymentId} is not null and ${t.supplierPaymentId} is null)
       or (${t.sourceKind} = 'supplier_payment' and ${t.supplierPaymentId} is not null and ${t.billPaymentId} is null)`),
     check("wht_withholdings_period_chk", sql`${t.period} = to_char(${t.paymentDate}, 'YYYY-MM')`),
-    check("wht_withholdings_status_chk", sql`${t.status} in ('withheld', 'not_subject')`),
+    check("wht_withholdings_status_chk", sql`${t.status} in ('withheld', 'not_subject', 'pending')`),
     check("wht_withholdings_type_chk", sql`${t.paymentType} is null or ${t.paymentType} in (${WHT_TYPES_SQL})`),
     check("wht_withholdings_base_chk", sql`${t.baseAmount} > 0`),
     check("wht_withholdings_rate_chk", sql`${t.rate} >= 0 and ${t.rate} < 1`),
     // 🔴 THE ARITHMETIC: the tax IS the base times the rate, rounded once (half away from zero = half-up for a positive base).
     check("wht_withholdings_amount_chk", sql`${t.whtAmount} = round(${t.baseAmount} * ${t.rate}, 2)`),
     check("wht_withholdings_withheld_chk", sql`${t.status} <> 'withheld' or (${t.paymentType} is not null and ${t.rateId} is not null and ${t.statutoryRate} is not null and ${t.notSubjectReason} is null)`),
-    check("wht_withholdings_not_subject_chk", sql`${t.status} <> 'not_subject' or (${t.rate} = 0 and ${t.notSubjectReason} in ('goods', 'not_kingdom_source') and ${t.rateId} is null and ${t.treatyReliefId} is null)`),
+    check("wht_withholdings_not_subject_chk", sql`${t.status} <> 'not_subject' or (${t.rate} = 0 and ${t.notSubjectReason} in (${WHT_NOT_SUBJECT_REASONS_SQL}) and ${t.rateId} is null and ${t.treatyReliefId} is null)`),
+    // a deposit or an erroneous payment is not consideration: no nature applies to it
+    check("wht_withholdings_class_reason_chk", sql`${t.notSubjectReason} is null or ${t.notSubjectReason} not in ('refundable_deposit', 'erroneous_payment') or ${t.paymentType} is null`),
+    // 🔴 PENDING claims nothing: no nature, no rate, no tax, no relief
+    check("wht_withholdings_pending_chk", sql`${t.status} <> 'pending' or (${t.rate} = 0 and ${t.whtAmount} = 0 and ${t.paymentType} is null and ${t.notSubjectReason} is null and ${t.rateId} is null and ${t.statutoryRate} is null and ${t.treatyReliefId} is null)`),
+    check("wht_withholdings_class_chk", sql`${t.paymentClass} is null or ${t.paymentClass} in (${WHT_PAYMENT_CLASSES_SQL})`),
+    check("wht_withholdings_basis_chk", sql`${t.natureBasis} is null or ${t.natureBasis} in (${WHT_NATURE_BASES_SQL})`),
     check("wht_withholdings_note_chk", sql`${t.notSubjectReason} is distinct from 'not_kingdom_source' or length(btrim(coalesce(${t.notSubjectNote}, ''))) >= 10`),
     check("wht_withholdings_treaty_chk", sql`${t.treatyReliefId} is null or ${t.rate} <= ${t.statutoryRate}`),
   ],

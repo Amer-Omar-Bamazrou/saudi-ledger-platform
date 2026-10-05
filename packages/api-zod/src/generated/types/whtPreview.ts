@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { WhtDetermination } from './whtDetermination';
 import type { WhtPreviewKind } from './whtPreviewKind';
 
 export interface WhtPreview {
@@ -28,4 +29,5 @@ export interface WhtPreview {
   cashPaid: number;
   /** @nullable */
   notSubjectReason: string | null;
+  determination: WhtDetermination;
 }

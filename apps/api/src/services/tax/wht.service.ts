@@ -25,7 +25,7 @@ import { journalEntriesRepository } from "../../repositories/journalEntries.repo
 import { vendorsRepository } from "../../repositories/vendors.repository";
 import { postJournalEntry } from "../accounting/glPosting";
 import { assertBankAccount } from "../accounting/bankIdentity";
-import { decideWithholding, whtDeclarationFrom } from "../accounting/wht";
+import { decideWithholding, whtDeclarationFrom, determinationOf, describeDetermination, supplierPaymentClassOf, assertSinglePurpose } from "../accounting/wht";
 import { auditService } from "../audit.service";
 import { addDays } from "./taxComputations.service";
 
@@ -70,11 +70,17 @@ const rowOut = (w: WithholdingRow) => ({
   vendorCountry: w.vendor_country, vendorAddress: [w.vendor_address, w.vendor_city].filter(Boolean).join(", ") || null,
   vendorForeignTaxId: w.vendor_foreign_tax_id,
   billId: w.bill_id, document: w.bill_number ?? w.supplier_payment_reference ?? (w.supplier_payment_id != null ? `SPAY-${w.supplier_payment_id}` : null),
-  paymentDate: w.payment_date, period: w.period, status: w.status as "withheld" | "not_subject",
+  paymentDate: w.payment_date, period: w.period, status: w.status as "withheld" | "not_subject" | "pending",
   paymentType: w.payment_type, formRow: w.form_row, notSubjectReason: w.not_subject_reason, notSubjectNote: w.not_subject_note,
   baseAmount: Number(w.base_amount), rate: Number(w.rate), statutoryRate: w.statutory_rate == null ? null : Number(w.statutory_rate),
   treatyReliefId: w.treaty_relief_id, treatyApprovalReference: w.treaty_approval_reference,
   whtAmount: Number(w.wht_amount), cashPaid: round2(Number(w.base_amount) - Number(w.wht_amount)), journalEntryId: w.journal_entry_id,
+  // Q2: the provenance frozen with the record, and the determination it adds up to — the one description (accounting/wht)
+  paymentClass: w.payment_class, natureBasis: w.nature_basis, supersedesWithholdingId: w.supersedes_withholding_id,
+  determination: describeDetermination({
+    status: w.status as "withheld" | "not_subject" | "pending", treatyReliefId: w.treaty_relief_id, notSubjectReason: w.not_subject_reason,
+    paymentType: w.payment_type, paymentClass: w.payment_class, natureBasis: w.nature_basis,
+  }),
 });
 
 function remittanceOut(r: Awaited<ReturnType<typeof taxRepository.remittances>>[number]) {
@@ -103,7 +109,17 @@ export const whtService = {
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("amount must be a positive amount.");
     const date = typeof q.date === "string" && q.date ? q.date : businessToday();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new BadRequestError("date must be YYYY-MM-DD.");
-    const d = await decideWithholding({ vendorId, paymentDate: date, base: amount, declared: whtDeclarationFrom(q as Record<string, unknown>) });
+    // Q2: a SUPPLIER payment states its classification (and what of it is allocated to bills); a bill payment states
+    // neither — the same class the pay path will derive, so the dialog's answer is the server's
+    let paymentClass: ReturnType<typeof supplierPaymentClassOf> | "bill_payment" = "bill_payment";
+    if (typeof q.classification === "string" && q.classification) {
+      const allocated = q.allocatedAmount == null || q.allocatedAmount === "" ? 0 : Number(q.allocatedAmount);
+      if (!Number.isFinite(allocated) || allocated < 0 || allocated > amount + 0.005) throw new BadRequestError("allocatedAmount must be between 0 and the amount.");
+      const [vendor] = await vendorsRepository.findById(vendorId);
+      assertSinglePurpose({ residency: vendor?.residency, classification: q.classification, amount, allocated });
+      paymentClass = supplierPaymentClassOf(q.classification, amount, allocated);
+    }
+    const d = await decideWithholding({ vendorId, paymentDate: date, base: amount, paymentClass, declared: whtDeclarationFrom(q as Record<string, unknown>) });
     const withheld = d.kind === "withheld" ? fromHalalas(d.whtH) : 0;
     return {
       kind: d.kind, amount, date,
@@ -115,6 +131,7 @@ export const whtService = {
       formRow: d.kind === "withheld" ? d.formRow : null,
       withheld, cashPaid: round2(amount - withheld),
       notSubjectReason: d.kind === "not_subject" ? d.reason : null,
+      determination: determinationOf(d),
     };
   },
 
@@ -124,10 +141,10 @@ export const whtService = {
    */
   async overview() {
     const today = businessToday();
-    const [periods, opening, openingUnremitted, gl, undeclared, missed, noVendor, reliefs] = await Promise.all([
+    const [periods, opening, openingUnremitted, gl, undeclared, missed, noVendor, reliefs, pending] = await Promise.all([
       taxRepository.periods(), taxRepository.openingBalance(), taxRepository.unremitted(null), taxRepository.glPayable(),
       taxRepository.exceptions("undeclared"), taxRepository.exceptions("possibly_missed"), taxRepository.paymentsWithoutVendor(),
-      taxRepository.reliefs(),
+      taxRepository.reliefs(), taxRepository.pendingClassification(),
     ]);
     const months = periods.map((p) => {
       const withheld = Number(p.withheld), remitted = Number(p.remitted);
@@ -136,7 +153,7 @@ export const whtService = {
       const status = statusOf(p.period, withheld, outstanding, today);
       return {
         period: p.period, dueDate: due, status, base: Number(p.base), withheld, remitted, outstanding,
-        payments: p.payments, notSubject: p.not_subject, finesPaid: Number(p.fines_paid), lastPaidAt: p.last_paid_at,
+        payments: p.payments, notSubject: p.not_subject, pending: p.pending, finesPaid: Number(p.fines_paid), lastPaidAt: p.last_paid_at,
         delayFineEstimate: status === "overdue" ? delayFineEstimate(outstanding, due, today) : null,
       };
     });
@@ -159,6 +176,7 @@ export const whtService = {
         undeclaredResidency: undeclared[0]?.total ?? 0,
         possiblyMissed: missed[0]?.total ?? 0,
         paymentsWithoutSupplier: noVendor,
+        pendingClassification: pending[0]?.total ?? 0,
         reliefsExpiringIn30Days: reliefs.filter((r) => r.status === "approved" && r.validTo >= today && r.validTo <= addDays(today, 30)).length,
       },
     };
@@ -171,6 +189,7 @@ export const whtService = {
     const [rows, remittances, rates] = await Promise.all([taxRepository.withholdings({ period }), taxRepository.remittances(period), taxRepository.rates()]);
     const withheld = rows.filter((r) => r.status === "withheld");
     const excluded = rows.filter((r) => r.status === "not_subject");
+    const pending = rows.filter((r) => r.status === "pending");
     // Form rows in the regulation's order; rows 07/08 have no separate band after Res. 25 (W-4) and carry nothing
     const lineTypes = WHT_PAYMENT_TYPES.map((t) => ({ t, row: rates.find((r) => r.paymentType === t)?.formRow ?? "", nameEn: rates.find((r) => r.paymentType === t)?.nameEn ?? t, nameAr: rates.find((r) => r.paymentType === t)?.nameAr ?? t }))
       .sort((a, b) => a.row.localeCompare(b.row));
@@ -196,6 +215,7 @@ export const whtService = {
       delayFineEstimate: status === "overdue" ? delayFineEstimate(outstanding, due, today) : null,
       schedule: withheld.map(rowOut),
       excluded: excluded.map(rowOut),
+      pending: pending.map(rowOut),
       remittances: remittances.map(remittanceOut),
       unusedFormRows: ["07", "08"],
     };
@@ -253,8 +273,8 @@ export const whtService = {
   },
 
   async exceptions(kind: unknown) {
-    if (kind !== "undeclared" && kind !== "possibly_missed") throw new BadRequestError("kind must be undeclared or possibly_missed.");
-    const rows = await taxRepository.exceptions(kind);
+    if (kind !== "undeclared" && kind !== "possibly_missed" && kind !== "pending_classification") throw new BadRequestError("kind must be undeclared, possibly_missed or pending_classification.");
+    const rows = kind === "pending_classification" ? await taxRepository.pendingClassification() : await taxRepository.exceptions(kind);
     return {
       kind, total: rows[0]?.total ?? 0, shown: rows.length,
       items: rows.map((r) => ({ sourceKind: r.source_kind, paymentId: r.payment_id, vendorId: r.vendor_id, vendorName: r.vendor_name, document: r.document, paidAt: r.paid_at, amount: Number(r.amount), journalEntryId: r.journal_entry_id })),

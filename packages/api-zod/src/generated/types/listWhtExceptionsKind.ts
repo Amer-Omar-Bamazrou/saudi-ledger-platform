@@ -12,4 +12,5 @@ export type ListWhtExceptionsKind = typeof ListWhtExceptionsKind[keyof typeof Li
 export const ListWhtExceptionsKind = {
   undeclared: 'undeclared',
   possibly_missed: 'possibly_missed',
+  pending_classification: 'pending_classification',
 } as const;

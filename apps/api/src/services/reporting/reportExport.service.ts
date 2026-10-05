@@ -339,7 +339,14 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
       const period = q.period ?? "";
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new BadRequestError("period (YYYY-MM) is required to export a WHT return.");
       const r = await whtService.monthlyReturn(period);
-      const reason = (x: string | null) => (x === "goods" ? pick(L("Payment for goods (IR Art. 63(7))", "دفعة مقابل سلع (المادة 63(7))"), lang) : x === "not_kingdom_source" ? pick(L("Not from a source in the Kingdom (Art. 5)", "ليست من مصدر في المملكة (المادة 5)"), lang) : "—");
+      const REASONS: Record<string, ReturnType<typeof L>> = {
+        goods: L("Payment for goods (IR Art. 63(7))", "دفعة مقابل سلع (المادة 63(7))"),
+        not_kingdom_source: L("Not from a source in the Kingdom (Art. 5)", "ليست من مصدر في المملكة (المادة 5)"),
+        // Q2 (pack §14.2): not consideration for a supply — no nature applies
+        refundable_deposit: L("Refundable deposit — not consideration for a supply", "تأمين مسترد — ليس مقابلًا لتوريد"),
+        erroneous_payment: L("Erroneous payment — not consideration for anything", "دفعة خاطئة — ليست مقابلًا لأي شيء"),
+      };
+      const reason = (x: string | null) => (x && REASONS[x] ? pick(REASONS[x]!, lang) : "—");
       return {
         report: "wht-return",
         title: L("Withholding tax return (Form 06)", "إقرار ضريبة الاستقطاع (النموذج 06)"),
@@ -363,6 +370,11 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
             title: L("Payments to non-residents not subject, with the reason", "مدفوعات لغير مقيمين غير خاضعة، مع السبب"),
             columns: [col("Date", "التاريخ", "date"), col("Beneficiary", "المستفيد", "text"), col("Reason", "السبب", "text"), col("Amount", "المبلغ", "money")],
             rows: r.excluded.map((w) => ({ kind: "row" as const, cells: [w.paymentDate, nameIn({ name: w.vendorName, nameAr: w.vendorNameAr }, lang), reason(w.notSubjectReason), w.baseAmount] })),
+          }] : []),
+          ...(r.pending.length ? [{
+            title: L("Payments to non-residents pending classification — nothing withheld or claimed", "مدفوعات لغير مقيمين بانتظار التصنيف — لا استقطاع ولا مطالبة"),
+            columns: [col("Date", "التاريخ", "date"), col("Beneficiary", "المستفيد", "text"), col("Document", "المستند", "text"), col("Amount", "المبلغ", "money")],
+            rows: r.pending.map((w) => ({ kind: "row" as const, cells: [w.paymentDate, nameIn({ name: w.vendorName, nameAr: w.vendorNameAr }, lang), w.document ?? "—", w.baseAmount] })),
           }] : []),
         ],
         notes: [

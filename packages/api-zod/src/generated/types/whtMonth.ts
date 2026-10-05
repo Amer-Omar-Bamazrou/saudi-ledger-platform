@@ -19,6 +19,8 @@ export interface WhtMonth {
   outstanding: number;
   payments: number;
   notSubject: number;
+  /** Payments to a non-resident recorded PENDING — purpose not identified, nothing withheld (Q2). */
+  pending: number;
   finesPaid: number;
   /** @nullable */
   lastPaidAt: string | null;

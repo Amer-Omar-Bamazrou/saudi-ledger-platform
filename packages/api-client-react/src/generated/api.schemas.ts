@@ -233,10 +233,24 @@ export interface AllocateSupplierPaymentInput {
   allocations: SupplierPaymentAllocationInput[];
 }
 
+export type ClassifySupplierPaymentInputWhtNotSubjectReason = typeof ClassifySupplierPaymentInputWhtNotSubjectReason[keyof typeof ClassifySupplierPaymentInputWhtNotSubjectReason] | null;
+
+
+export const ClassifySupplierPaymentInputWhtNotSubjectReason = {
+  goods: 'goods',
+  not_kingdom_source: 'not_kingdom_source',
+} as const;
+
+/**
+ * Accountant Q2 (pack §14.2): a NON-RESIDENT's payment carries a WHT determination that follows what the money is. Identifying pending or not-subject money as an advance reads its nature — goods or a non-Kingdom source is recorded (superseding the old record, which stays); a taxable nature is refused by name (wht_late_withholding_open, open question W-16): nothing was withheld when the money left.
+ */
 export interface ClassifySupplierPaymentInput {
   classification: SupplierPaymentClassification;
   note?: string | null;
   effectiveDate?: string;
+  whtPaymentType?: string | null;
+  whtNotSubjectReason?: ClassifySupplierPaymentInputWhtNotSubjectReason;
+  whtNotSubjectNote?: string | null;
 }
 
 export interface RefundSupplierPaymentInput {
@@ -9623,6 +9637,87 @@ export interface WhtRate {
   legalReference: string;
 }
 
+export type WhtDeterminationOutcome = typeof WhtDeterminationOutcome[keyof typeof WhtDeterminationOutcome];
+
+
+export const WhtDeterminationOutcome = {
+  taxable_wht: 'taxable_wht',
+  exempt_relief: 'exempt_relief',
+  not_wht: 'not_wht',
+  pending_classification: 'pending_classification',
+} as const;
+
+export type WhtDeterminationRecipient = typeof WhtDeterminationRecipient[keyof typeof WhtDeterminationRecipient];
+
+
+export const WhtDeterminationRecipient = {
+  non_resident: 'non_resident',
+  resident: 'resident',
+  unknown: 'unknown',
+  no_supplier: 'no_supplier',
+} as const;
+
+/**
+ * A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration.
+ */
+export type WhtDeterminationKingdomSource = typeof WhtDeterminationKingdomSource[keyof typeof WhtDeterminationKingdomSource];
+
+
+export const WhtDeterminationKingdomSource = {
+  presumed: 'presumed',
+  declared_not_kingdom_source: 'declared_not_kingdom_source',
+  not_assessed: 'not_assessed',
+} as const;
+
+/**
+ * What the money was; null on a record written before migration 0116.
+ * @nullable
+ */
+export type WhtDeterminationPaymentClass = typeof WhtDeterminationPaymentClass[keyof typeof WhtDeterminationPaymentClass] | null;
+
+
+export const WhtDeterminationPaymentClass = {
+  bill_payment: 'bill_payment',
+  advance: 'advance',
+  allocated: 'allocated',
+  security_deposit: 'security_deposit',
+  erroneous: 'erroneous',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * @nullable
+ */
+export type WhtDeterminationNatureBasis = typeof WhtDeterminationNatureBasis[keyof typeof WhtDeterminationNatureBasis] | null;
+
+
+export const WhtDeterminationNatureBasis = {
+  declared: 'declared',
+  supplier_default: 'supplier_default',
+  payment_class: 'payment_class',
+} as const;
+
+/**
+ * The WHT determination in its four dimensions (accountant Q2, pack §14.2) — one description for a preview and for a recorded payment alike. Nothing here is computed by the client.
+ */
+export interface WhtDetermination {
+  outcome: WhtDeterminationOutcome;
+  /** statutory_rate · treaty_relief · goods · not_kingdom_source · refundable_deposit · erroneous_payment · payment_unidentified · resident_recipient · residency_undeclared · no_supplier */
+  reasonCode: string;
+  recipient: WhtDeterminationRecipient;
+  /** A source in the Kingdom is PRESUMED for consideration unless a person declares otherwise with the reason (Art. 5); never assessed for money that was not consideration. */
+  kingdomSource: WhtDeterminationKingdomSource;
+  /**
+     * What the money was; null on a record written before migration 0116.
+     * @nullable
+     */
+  paymentClass: WhtDeterminationPaymentClass;
+  /** @nullable */
+  paymentType: string | null;
+  /** @nullable */
+  natureBasis: WhtDeterminationNatureBasis;
+}
+
 export type WhtPreviewKind = typeof WhtPreviewKind[keyof typeof WhtPreviewKind];
 
 
@@ -9632,6 +9727,7 @@ export const WhtPreviewKind = {
   unknown_residency: 'unknown_residency',
   not_subject: 'not_subject',
   withheld: 'withheld',
+  pending: 'pending',
 } as const;
 
 export interface WhtPreview {
@@ -9655,6 +9751,7 @@ export interface WhtPreview {
   cashPaid: number;
   /** @nullable */
   notSubjectReason: string | null;
+  determination: WhtDetermination;
 }
 
 /**
@@ -9688,6 +9785,8 @@ export interface WhtMonth {
   outstanding: number;
   payments: number;
   notSubject: number;
+  /** Payments to a non-resident recorded PENDING — purpose not identified, nothing withheld (Q2). */
+  pending: number;
   finesPaid: number;
   /** @nullable */
   lastPaidAt: string | null;
@@ -9712,6 +9811,8 @@ export type WhtOverviewExceptions = {
   undeclaredResidency: number;
   possiblyMissed: number;
   paymentsWithoutSupplier: number;
+  /** Live PENDING determinations (Q2) — the true count. */
+  pendingClassification: number;
   reliefsExpiringIn30Days: number;
 };
 
@@ -9738,6 +9839,7 @@ export type WhtWithholdingStatus = typeof WhtWithholdingStatus[keyof typeof WhtW
 export const WhtWithholdingStatus = {
   withheld: 'withheld',
   not_subject: 'not_subject',
+  pending: 'pending',
 } as const;
 
 export interface WhtWithholding {
@@ -9783,6 +9885,19 @@ export interface WhtWithholding {
   whtAmount: number;
   cashPaid: number;
   journalEntryId: number;
+  /**
+     * Frozen at the decision (Q2); null on a record written before migration 0116.
+     * @nullable
+     */
+  paymentClass: string | null;
+  /** @nullable */
+  natureBasis: string | null;
+  /**
+     * The pending or not-subject record a reclassification replaced (it stays, beside this one).
+     * @nullable
+     */
+  supersedesWithholdingId: number | null;
+  determination: WhtDetermination;
 }
 
 export type WhtRemittanceReversal = {
@@ -9851,6 +9966,8 @@ export interface WhtMonthlyReturn {
   delayFineEstimate: WhtDelayFine | null;
   schedule: WhtWithholding[];
   excluded: WhtWithholding[];
+  /** Payments to a non-resident whose purpose is not identified — nothing withheld or claimed until classified (Q2). */
+  pending: WhtWithholding[];
   remittances: WhtRemittance[];
   /** Form 06 rows 07/08 have no separate band after Resolution 25 (open question W-4). */
   unusedFormRows: string[];
@@ -9932,6 +10049,7 @@ export type WhtExceptionsKind = typeof WhtExceptionsKind[keyof typeof WhtExcepti
 export const WhtExceptionsKind = {
   undeclared: 'undeclared',
   possibly_missed: 'possibly_missed',
+  pending_classification: 'pending_classification',
 } as const;
 
 export type WhtExceptionsItemsItem = {
@@ -12271,10 +12389,22 @@ export type PreviewWhtParams = {
 vendorId: number;
 amount: number;
 date?: string;
+classification?: PreviewWhtClassification;
+allocatedAmount?: number;
 whtPaymentType?: string;
 whtNotSubjectReason?: string;
 whtNotSubjectNote?: string;
 };
+
+export type PreviewWhtClassification = typeof PreviewWhtClassification[keyof typeof PreviewWhtClassification];
+
+
+export const PreviewWhtClassification = {
+  advance: 'advance',
+  security_deposit: 'security_deposit',
+  erroneous: 'erroneous',
+  unknown: 'unknown',
+} as const;
 
 export type GetWhtAnnualParams = {
 fiscal_year?: number;
@@ -12294,6 +12424,7 @@ export type ListWhtExceptionsKind = typeof ListWhtExceptionsKind[keyof typeof Li
 export const ListWhtExceptionsKind = {
   undeclared: 'undeclared',
   possibly_missed: 'possibly_missed',
+  pending_classification: 'pending_classification',
 } as const;
 
 export type ListWhtReliefsParams = {

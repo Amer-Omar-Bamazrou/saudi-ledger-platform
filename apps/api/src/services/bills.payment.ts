@@ -110,6 +110,7 @@ export async function payBill(
     // with nothing posted (wht.ts).
     const withholding = await decideWithholding({
       vendorId: existing.vendorId, paymentDate: payDate, base: paid, currency: existing.currency,
+      paymentClass: "bill_payment", // settling a bill is consideration: judged by its nature (Q2)
       declared: whtDeclarationFrom(body as Record<string, unknown>),
     });
     const withheld = whtOf(withholding);

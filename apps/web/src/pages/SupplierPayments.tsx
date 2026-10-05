@@ -162,6 +162,7 @@ export default function SupplierPayments() {
         {detail && (
           <PaymentDetailDialog
             payment={detail} banks={banks} vendorName={vendorName} t={t}
+            vendor={vendors.find((x) => x.id === detail.vendorId)}
             /*
              * 🔴 A successful act CLOSES the dialog and returns to the list,
              * where the refreshed row shows what changed (found by the browser
@@ -291,10 +292,13 @@ function NewPaymentDialog({ vendors, banks, t, lang, onDone }: {
         </div>
       </div>
 
-      {/* Phase 16: a non-resident supplier's payment declares its WHT; the figures are the server's preview. */}
+      {/* Phase 16: a non-resident supplier's payment declares its WHT; the figures are the server's preview.
+          Q2 (pack §14.2): what the money IS, and how much of it settles bills, decide whether a nature is asked at all. */}
       {vendorId && (
         <WhtFields vendorId={vendor?.id ?? null} residency={vendor?.residency} defaultType={vendor?.whtDefaultPaymentType}
           amount={Number(amount) || 0} date={paidAt}
+          classification={classification as SupplierPaymentClassification}
+          allocatedAmount={Object.values(allocations).reduce((s, v) => s + (Number(v) > 0 ? Number(v) : 0), 0)}
           onChange={(declaration, ready) => setWht({ declaration, ready })} />
       )}
 
@@ -333,8 +337,10 @@ function NewPaymentDialog({ vendors, banks, t, lang, onDone }: {
 
 // ── one payment ────────────────────────────────────────────────────────────
 
-function PaymentDetailDialog({ payment, banks, vendorName, t, onDone, onToast }: {
+function PaymentDetailDialog({ payment, banks, vendorName, vendor, t, onDone, onToast }: {
   payment: SupplierPaymentDetail; banks: BankOption[];
+  /** The supplier record — its residency decides whether a reclassification carries a WHT declaration (Q2). */
+  vendor?: Vendor;
   vendorName: (id: number) => string;
   t: (en: string, ar: string) => string;
   onDone: () => void;
@@ -342,6 +348,10 @@ function PaymentDetailDialog({ payment, banks, vendorName, t, onDone, onToast }:
 }) {
   const [allocations, setAllocations] = useState<Record<number, string>>({});
   const [classification, setClassification] = useState<string>(payment.classification);
+  // Q2: identifying a NON-RESIDENT's money as an advance reads its nature — goods or a non-Kingdom source is recorded;
+  // a taxable nature is refused by the server in words (nothing was withheld when the money left — open W-16)
+  const [classWht, setClassWht] = useState<{ declaration: WhtDeclarationValue; ready: boolean }>({ declaration: {}, ready: true });
+  const identifyingAsAdvance = vendor?.residency === "non_resident" && classification === "advance" && payment.classification !== "advance";
   const [refundAmount, setRefundAmount] = useState("");
   const [reason, setReason] = useState("");
   const [refundReason, setRefundReason] = useState("");
@@ -396,10 +406,24 @@ function PaymentDetailDialog({ payment, banks, vendorName, t, onDone, onToast }:
               </SelectContent>
             </Select>
             <Button
-              size="sm" variant="secondary" data-testid="detail-classify"
-              onClick={() => post.mutate(() => classifySupplierPayment(payment.id, { classification: classification as SupplierPaymentClassification }))}
+              size="sm" variant="secondary" data-testid="detail-classify" disabled={identifyingAsAdvance && !classWht.ready}
+              onClick={() => post.mutate(() => classifySupplierPayment(payment.id, {
+                classification: classification as SupplierPaymentClassification,
+                ...(identifyingAsAdvance ? classWht.declaration : {}),
+              }))}
             >{t("Save", "حفظ")}</Button>
           </div>
+          {identifyingAsAdvance && (
+            <div data-testid="detail-classify-wht">
+              <p className="text-xs text-muted-foreground">
+                {t("Nothing was withheld when this money left. As an advance it is consideration for a supply: state why it is not subject (goods, or income with no source in the Kingdom). If its nature is taxable, the server refuses the change — who bears that tax is a question for your adviser.",
+                   "لم يُستقطع شيء عند خروج هذا المبلغ. وبصفته دفعة مقدمة فهو مقابل لتوريد: اذكر سبب عدم خضوعه (سلع، أو دخل ليس من مصدر في المملكة). وإن كانت طبيعته خاضعة فسيرفض الخادم التغيير — ومن يتحمل تلك الضريبة سؤال لمستشارك.")}
+              </p>
+              <WhtFields vendorId={payment.vendorId} residency={vendor?.residency} defaultType={vendor?.whtDefaultPaymentType}
+                amount={payment.amount} date={payment.paidAt} classification="advance" allocatedAmount={0}
+                onChange={(declaration, ready) => setClassWht({ declaration, ready })} />
+            </div>
+          )}
         </section>
 
         {payment.classification === "advance" && (

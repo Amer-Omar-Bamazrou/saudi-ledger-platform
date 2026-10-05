@@ -5,11 +5,14 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { PreviewWhtClassification } from './previewWhtClassification';
 
 export type PreviewWhtParams = {
 vendorId: number;
 amount: number;
 date?: Date;
+classification?: PreviewWhtClassification;
+allocatedAmount?: number;
 whtPaymentType?: string;
 whtNotSubjectReason?: string;
 whtNotSubjectNote?: string;

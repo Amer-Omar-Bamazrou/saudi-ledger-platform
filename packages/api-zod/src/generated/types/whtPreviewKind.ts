@@ -15,4 +15,5 @@ export const WhtPreviewKind = {
   unknown_residency: 'unknown_residency',
   not_subject: 'not_subject',
   withheld: 'withheld',
+  pending: 'pending',
 } as const;

@@ -5,10 +5,17 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { ClassifySupplierPaymentInputWhtNotSubjectReason } from './classifySupplierPaymentInputWhtNotSubjectReason';
 import type { SupplierPaymentClassification } from './supplierPaymentClassification';
 
+/**
+ * Accountant Q2 (pack §14.2): a NON-RESIDENT's payment carries a WHT determination that follows what the money is. Identifying pending or not-subject money as an advance reads its nature — goods or a non-Kingdom source is recorded (superseding the old record, which stays); a taxable nature is refused by name (wht_late_withholding_open, open question W-16): nothing was withheld when the money left.
+ */
 export interface ClassifySupplierPaymentInput {
   classification: SupplierPaymentClassification;
   note?: string | null;
   effectiveDate?: Date;
+  whtPaymentType?: string | null;
+  whtNotSubjectReason?: ClassifySupplierPaymentInputWhtNotSubjectReason;
+  whtNotSubjectNote?: string | null;
 }

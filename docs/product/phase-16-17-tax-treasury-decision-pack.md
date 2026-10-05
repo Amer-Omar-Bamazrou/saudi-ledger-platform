@@ -1,9 +1,9 @@
 # Phase 16 + Phase 17 — Saudi Tax Expansion; Treasury
 
-**Status (2026-10-04): decisions written BEFORE the code, from the research in
+**Status (2026-10-05): decisions written BEFORE the code, from the research in
 §1; built on branch `feat/phase16-17-tax-treasury` (from `main` @ `447106a6`)
-— as built §12, the joint audit §13. The PR stays OPEN for the owner's review;
-nothing is merged.**
+— as built §12, the joint audit §13, the accountant's answers to the three
+HIGH items §14. The PR stays OPEN for the owner's review; nothing is merged.**
 Current state authority: [CLAUDE.md §2](../../CLAUDE.md).
 
 Every rule below carries exactly one label (the escalation protocol §6, in the
@@ -674,7 +674,9 @@ nothing interpretive):
 | I-1 | Mixed income tax: is the 25 % loss cap applied before or after the non-Saudi share? | Mixed with losses refused |
 | S-1 | Are Qawaem's XBRL line-item lists a binding mapping software must produce? | Nothing labelled statutory |
 | W-13 (QA-08) | How is a WHT-bearing payment entered in error corrected — in its own month or the next; before and after the month is remitted and its Form 06 filed? | No correction exists (D-11) |
-| W-14 (QA-09) | Is a refundable security deposit, an erroneous payment or an unidentified payment to a non-resident subject to WHT when paid? If it was withheld, how is its return recorded (W-12)? | Withheld at the supplier's default nature; refund refused (D-12) |
+| W-14 (QA-09) | Is a refundable security deposit, an erroneous payment or an unidentified payment to a non-resident subject to WHT when paid? If it was withheld, how is its return recorded (W-12)? | **ANSWERED 2026-10-05 (Q2) — built §14.2**: not subject; unidentified = pending |
+| W-16 | Money paid to a non-resident with nothing withheld (unidentified, or a deposit) and identified LATER as taxable consideration: is the tax recovered from the supplier or borne by the payer (grossed up — W-2), and in which month's return? | Refused by name (`wht_late_withholding_open`), the exposure stated; the payment stays pending (§14.2) |
+| W-18 | Should every non-resident payment carry an explicit Art. 5 source determination, rather than a presumption a person rebuts by declaring `not_kingdom_source`? | The presumption, labelled `presumed` on every determination (§14.2) |
 | A-6 (QA-14) | On a migration batch reversal, are its migrated fixed assets marked reversed (out of the register and depreciation), or is the reversal refused while they are in service? | Neither — they stay in service (D-13) |
 | W-8b | Nil WHT months: is a nil Form 06 required (ZATCA's pages read are silent; secondary sites say yes by analogy to VAT — unverified), and if so listed from which month (first withholding, go-live, fiscal year)? | Only months with records are LISTED; any month can be OPENED by its URL (D-16) |
 | W-15 | Should residency be effective-dated, so a payment is judged by the residency in force when it was made? | Current residency judges every payment |
@@ -862,7 +864,7 @@ a technical design each — record
 | D-09 | LOW | The direct cash flow shows a supplier payment gross of WHT (the counterpart method); the WHT shows on the tax line when withheld (+) and remitted (−) | The Phase 14 model; totals reconcile |
 | D-10 | INFO | The engine approves from `draft` (no forced submit) | Platform-wide approval semantics |
 | D-11 | HIGH | **No correction path for a WHT-bearing payment**: the generic reverse refuses a withholding-owned entry (right, for W1) and payments have no reversal — a wrong nature, rate, amount, bank, date or supplier is permanent on the return (QA-08) | A tax correction model (same month vs next; before vs after remittance) is the accountant's — §11 |
-| D-12 | HIGH | **Every non-resident payment withholds whatever its classification** — a refundable deposit, an erroneous or unidentified payment too — and its refund is then refused for any amount (W-12): the money cannot be recovered in the product (QA-09) | Whether such a payment is subject at all is a regulatory question — §11 |
+| D-12 | HIGH | **Every non-resident payment withholds whatever its classification** — a refundable deposit, an erroneous or unidentified payment too — and its refund is then refused for any amount (W-12): the money cannot be recovered in the product (QA-09) | **Closed 2026-10-05 → §14.2** (accountant Q2) |
 | D-13 | HIGH | (pre-existing, Batch 1C × FA-D) A migration reversal leaves the batch's fixed assets in service; a replacement adds a second copy and every depreciation run depreciates both (register ≠ GL; feeds Zakat and income tax) (QA-14) | Mark reversed vs refuse the reversal is an A4/A5 decision — §11; the FA follow-up note understated it |
 | D-14 | MEDIUM | The approvals inbox never shows a submitted computation, a pending relief or a planned payment (QA-15) | **Closed 2026-10-04 → F-26** |
 | D-15 | LOW | When the last completed VAT period nets ≤ 0 there is no VAT row, so D-01's note never shows (QA-06) | **Closed 2026-10-04 → F-27** |
@@ -878,3 +880,137 @@ The pre-existing `batch-1c-migration-staging` 30-second timeout seen once in a
 loaded full run was diagnosed (every test in that file ran 10–17× slower under
 the load; 7.5 s alone) and did not recur in the following full runs — a harness
 bound, not a regression (`docs/test-suite-notes.md` #5).
+
+
+---
+
+## 14. The accountant's answers to the three HIGH items (2026-10-05) — as decided, as built
+
+**Status (2026-10-05): answered by the accountant/adviser; built on
+`feat/phase16-17-tax-treasury`; the PR stays OPEN.** Current state
+authority: [CLAUDE.md §2](../../CLAUDE.md).
+
+The three items §13.3 left decision-gated — D-11 (W-13), D-12 (W-14) and D-13
+(A-6) — were answered as Q1, Q2 and Q3. Each answer is recorded as the
+accountant gave it, then checked against the sources of §1 before it was
+built: where the answer and the text agree the build follows both; where the
+text is silent the build implements the product control and names the
+regulatory branch it does NOT decide (escalation protocol §6 — nothing is
+guessed). Labels as in the header table.
+
+### 14.1 Q1 — correcting a WHT-bearing payment (D-11 / W-13)
+
+*Recorded in the Q1 commit — see below.*
+
+### 14.2 Q2 — WHT scope: the determination is category-aware (D-12 / W-14)
+
+**The answer (accountant, 2026-10-05).** WHT is not triggered merely because
+the supplier is non-resident; the nature/category of the payment decides. A
+refundable deposit: no WHT. An erroneous payment: no WHT. An unidentified
+payment: pending identification, never withheld automatically. Genuine
+services, royalties and the other taxable categories: WHT at the applicable
+category's rate. A nature is required for a non-resident payment where needed;
+an exemption or inapplicable treatment is kept with its audit trail.
+
+**Checked against the text.** S1 Art. 68(أ) obliges a resident payer to
+withhold from "an amount paid to a non-resident from a source in the Kingdom",
+at the rate S2 Art. 63(1) fixes for the payment's NATURE (rent, royalty,
+management fees, technical/consulting services, … "other payments" — 63(7):
+services not listed). A refundable deposit is money the supplier holds and
+owes back, and an erroneous payment is not consideration for anything: neither
+is an amount paid FOR a supply of any 63(1) nature — the pack's own §2.3
+reading of 63(7). The answer and the text agree. **REQUIRED** (the four
+conditions) · **PRODUCT** (the mechanism below).
+
+**The guardrail, made structural.** Neither "non-resident = WHT" nor "a
+taxable nature = WHT" is expressible. The determination has four dimensions,
+read in order, none deciding alone (`services/accounting/wht.ts`
+`decideWithholding` — the one engine; the preview and a plan's estimate call
+it too):
+
+| # | Dimension | Rule | Where enforced |
+|---|---|---|---|
+| 1 | Recipient | only a supplier declared **non-resident** is judged; resident → not WHT; undeclared → listed (the existing §2.3 exception), never assumed | engine; DB admit `wht_withholding_residency` (0113) |
+| 2 | Source | in the Kingdom **unless a person declares otherwise** with the reason (`not_kingdom_source`, Art. 5) — a rebuttable presumption, shown as one (`kingdomSource: presumed`); a declared non-Kingdom source keeps the nature it has and is not WHT | engine; DB CHECK `wht_withholdings_note_chk` |
+| 3 | What the money WAS | **consideration** (a bill payment, an advance, a supplier payment wholly allocated to bills) is judged by its nature; a **refundable deposit** → not WHT `refundable_deposit`; an **erroneous** payment → not WHT `erroneous_payment`; money whose purpose is **not identified** → `pending`: nothing withheld, nothing claimed, listed | engine (the class gate runs BEFORE a nature is read); DB admit `wht_withholding_class` (0116) derives the class from the supplier payment's own classification and allocations and admits only the determination that class allows |
+| 4 | Rate | the `wht_rates` row in force on the payment date for the declared nature, or an approved treaty relief covering it — unchanged | engine; DB admit `wht_withholding_rate` / `_relief` (0113) |
+
+The supplier's declared default nature applies to **consideration only** —
+never to a deposit, an erroneous or an unidentified payment (that was D-12:
+every on-account class withheld at the default nature).
+
+**Outcomes** (`WhtDetermination`, the one description a preview and a posted
+record share): `taxable_wht` (the statutory rate) · `exempt_relief` (an
+approved treaty relief applied — the only relief the existing system supports
+in law, §2.3) · `not_wht` (goods; not a Kingdom source; refundable deposit;
+erroneous payment; a resident recipient) · `pending_classification` (purpose
+not identified; residency undeclared). No category and no rate was added: the
+eleven natures and their rates are §2.2's, unchanged.
+
+**Provenance frozen with the record (migration 0116).** Every new
+`wht_withholdings` row states `payment_class` (what the money was) and
+`nature_basis` (declared on the payment · the supplier's default · from the
+class); the admit refuses a row without them. With the rate row, the relief
+row and the nature already stored, a later change to the supplier's default
+nature, its residency, a relief's revocation or the rate schedule rewrites
+nothing posted (rows written before 0116 keep NULL provenance — what was
+decided then is not re-derived).
+
+**Reclassification keeps the lineage.** A non-resident's pending or
+not-subject record is **superseded** when the payment is classified (a
+deposit, an erroneous payment, an advance for goods …): a new record names
+the one it replaces (`supersedes_withholding_id`, one per record), and the
+replaced row stays. Readers show the live one. A record that WITHHELD tax is
+never superseded — it is corrected (§14.1).
+
+**One payment, one purpose.** A payment to a non-resident that settles bills
+AND leaves a deposit, an erroneous or an unidentified amount on account would
+need its one base split between a withheld and a not-subject part; it is
+refused (`wht_mixed_payment_unsupported`) and recorded as two payments.
+
+**What this does NOT decide — named, not guessed:**
+
+- 🔴 **W-16 (NEW) — tax on money paid with nothing withheld, identified LATER
+  as taxable consideration** (an unidentified payment or a deposit that turns
+  out to be an advance for a royalty). Art. 68(C) makes the payer liable; the
+  booking — recovered from the supplier, or borne by the payer and grossed up
+  (the W-2 question) — is the adviser's. The build refuses that
+  reclassification by name (`wht_late_withholding_open`, 409, stating the
+  exposure at the payment date's rate) and records nothing; the payment stays
+  pending and listed. The database refuses a superseding WITHHOLDING
+  (`wht_late_withholding`) for any path.
+- **W-18 (NEW) — the source presumption.** Should every non-resident payment
+  carry an explicit Art. 5 source determination rather than a presumption
+  rebuttable by declaration? The build keeps §2.3's presumption, labels it as
+  one on every determination, and records the declaration when made.
+- W-5 (a non-resident's Saudi PE) stays open: no PE status is modelled, and
+  the determination says `recipient: non_resident` without a PE claim.
+- W-12 (recovery of tax withheld on an advance later refunded) is narrowed,
+  not closed: a deposit or an erroneous payment no longer withholds, so its
+  refund is no longer refused; a refund of money that DID bear WHT is still
+  refused (`wht_refund_unsupported`) — its route is the correction of §14.1.
+
+**Tests** (`phase16-wht-determination`, 16, real rows through the product's
+pay paths): non-resident + taxable service · + royalty (supplier default) · +
+goods · refundable deposit (default nature royalty — withholds nothing,
+refunded in full) · erroneous payment · unidentified (pending, listed; a
+nature on it refused) · pending → taxable advance refused (W-16, the exposure
+named, nothing changed) · pending → goods / deposit superseded, lineage kept ·
+a withheld advance is never reclassified away · one payment, one purpose ·
+nature never bypasses recipient or source · treaty relief at 0 % and at a
+reduced rate (`exempt_relief`) · history frozen after the default nature,
+residency and a relief change · GL ↔ ledger ↔ return (W1, W4) · the preview
+judges what the pay path will · the database refuses the same rows (with a
+planted positive) · isolation (presence, absence, movement).
+
+**Mutations, each proven red then restored (source by hash, the database
+function by `pg_get_functiondef` hash):** M1 the supplier-payment path
+judging every payment as an advance — three tests red, the database refusing
+`wht_withholding_class`; M2 the database gate reverted to 0113 AND M1 — red on
+the FIGURE (the bank paid 17,000 for a 20,000 deposit: 3,000 withheld, the
+D-12 defect); M3 the database gate reverted alone — the raw-insert test red;
+M4 a declared nature overriding a not-Kingdom-source declaration — red.
+
+### 14.3 Q3 — migration reversal and migrated assets (D-13 / A-6)
+
+*Recorded in the Q3 commit — see below.*

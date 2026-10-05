@@ -18,14 +18,16 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { usePreviewWht, getPreviewWhtQueryKey, type PreviewWhtParams } from "@workspace/api-client-react";
+import { usePreviewWht, getPreviewWhtQueryKey, type PreviewWhtParams, type WhtDetermination } from "@workspace/api-client-react";
 import { fmtNum } from "@/lib/api";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { refusalOf } from "@/lib/openingVatRefusals";
-import { legalRef, notSubjectLabel, whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
+import {
+  legalRef, notSubjectLabel, whtTypeLabel, WHT_TYPES, whtOutcomeLabel, whtRecipientLabel, whtSourceLabel, whtPaymentClassLabel, whtNatureBasisLabel,
+} from "@/lib/taxLabels";
 
 /** The WHT fields of a pay request — the same names on both pay paths (`whtDeclarationFrom`). Absent = not stated. */
 export type WhtDeclarationValue = {
@@ -46,6 +48,13 @@ type WhtFieldsProps = {
   amount: number;
   /** The payment date (YYYY-MM-DD) — the rate in force is the date's. */
   date: string;
+  /**
+   * Accountant Q2 (pack §14.2): a SUPPLIER payment states what its money on account IS, and how much of it settles
+   * bills. A refundable deposit or an erroneous payment is not subject and an unidentified one is pending — no nature is
+   * asked for them. Absent for a bill payment (consideration). The server judges the same class the pay path will.
+   */
+  classification?: "advance" | "security_deposit" | "erroneous" | "unknown";
+  allocatedAmount?: number;
   /**
    * The declaration, and whether it says what the screen shows. `ready` is
    * false only while "Not subject" is chosen without a reason: sent as it
@@ -68,7 +77,7 @@ function useDebounced<T extends string | number>(value: T, ms = 300): T {
 /** A rate the server sent (a fraction) as a percentage — display only. */
 const pct = (r: number) => `${Number((r * 100).toFixed(2))}%`;
 
-export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supplier", amount, date, onChange }: WhtFieldsProps) {
+export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supplier", amount, date, classification, allocatedAmount, onChange }: WhtFieldsProps) {
   const { t, lang } = useLanguage();
   const [mode, setMode] = useState<"withhold" | "not_subject">("withhold");
   const [nature, setNature] = useState<string>(defaultType ?? "");
@@ -84,14 +93,17 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
   }, [vendorId, defaultType]);
 
   const isNonResident = residency === "non_resident";
+  // Q2: money on account that is not consideration is judged by its class — no nature is declared for it
+  const onAccount = classification != null && amount - (allocatedAmount ?? 0) > 0.005;
+  const classDecides = onAccount && classification !== "advance";
   const trimmedNote = note.trim();
-  const ready = !(isNonResident && mode === "not_subject" && !reason);
+  const ready = classDecides || !(isNonResident && mode === "not_subject" && !reason);
 
   // Report the declaration up whenever it changes; the parent's callback identity is not a change.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   useEffect(() => {
-    const declaration: WhtDeclarationValue = !isNonResident
+    const declaration: WhtDeclarationValue = !isNonResident || classDecides
       ? {}
       : mode === "withhold"
         ? (nature ? { whtPaymentType: nature } : {})
@@ -100,7 +112,7 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
             ...(reason === "not_kingdom_source" && trimmedNote ? { whtNotSubjectNote: trimmedNote } : {}),
           };
     onChangeRef.current(declaration, ready);
-  }, [isNonResident, mode, nature, reason, trimmedNote, ready]);
+  }, [isNonResident, classDecides, mode, nature, reason, trimmedNote, ready]);
 
   const debouncedAmount = useDebounced(amount);
   const debouncedNote = useDebounced(trimmedNote);
@@ -108,7 +120,8 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
     vendorId: vendorId ?? 0,
     amount: debouncedAmount,
     date,
-    ...(mode === "withhold"
+    ...(classification ? { classification, allocatedAmount: allocatedAmount ?? 0 } : {}),
+    ...(classDecides ? {} : mode === "withhold"
       ? (nature ? { whtPaymentType: nature } : {})
       : {
           ...(reason ? { whtNotSubjectReason: reason } : {}),
@@ -147,6 +160,15 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
            "هذا المورد مُصرَّح بأنه غير مقيم، لذا تُستقطع الضريبة من هذه الدفعة (نظام ضريبة الدخل المادة 68): يُقيَّد للمورد كامل المبلغ، ويدفع البنك المبلغ ناقصًا الضريبة، وتُستحق الضريبة للهيئة بحلول العاشر من الشهر التالي. والنسبة هي ما تحدده اللائحة للطبيعة التي تصرّح بها. ولا يُدعم تحمّل الضريبة عن المورد (تغطيتها).")}
       </p>
 
+      {classDecides ? (
+        <p className="text-xs rounded bg-secondary/30 p-2" data-testid="wht-class-decides">
+          {classification === "unknown"
+            ? t("This money's purpose is not identified, so its withholding cannot be judged yet: it is recorded PENDING — nothing withheld, nothing claimed — and listed until you classify it.",
+                "لم تُحدَّد طبيعة هذا المبلغ، لذا لا يمكن الحكم على استقطاعه بعد: يُسجَّل معلّقًا — لا استقطاع ولا مطالبة — ويُدرج إلى أن تصنّفه.")
+            : t("This money is not consideration for a supply, so no nature applies and nothing is withheld; it is recorded not subject, with that reason.",
+                "هذا المبلغ ليس مقابلًا لتوريد، لذا لا تنطبق عليه طبيعة ولا يُستقطع منه شيء؛ ويُسجَّل غير خاضع مع هذا السبب.")}
+        </p>
+      ) : (<>
       <div className="flex flex-wrap gap-x-4 gap-y-1" role="radiogroup" aria-label={t("Withholding on this payment", "الاستقطاع على هذه الدفعة")}>
         <label className="flex items-center gap-2 text-xs">
           <input type="radio" name="wht-mode" className="accent-primary" checked={mode === "withhold"}
@@ -196,6 +218,7 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
           )}
         </div>
       )}
+      </>)}
 
       <div className="rounded bg-secondary/30 p-2 text-xs space-y-1" data-testid="wht-preview" aria-live="polite">
         {!ready ? (
@@ -223,6 +246,9 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
             {p.kind === "withheld" && p.legalReference && (
               <p className="text-muted-foreground" data-testid="wht-preview-legal">{t("Legal basis", "السند النظامي")}: <span dir={lang === "ar" ? undefined : "ltr"} title={p.legalReference}>{legalRef(p.legalReference, lang)}</span></p>
             )}
+            {p.kind === "pending" && (
+              <p className="text-muted-foreground" data-testid="wht-preview-pending">{t("Pending — nothing is withheld until the payment is classified.", "معلّقة — لا يُستقطع شيء حتى تُصنَّف الدفعة.")}</p>
+            )}
             {p.kind === "not_subject" && (
               <p className="text-muted-foreground">
                 {t("Not subject — nothing is withheld. The payment is recorded with its reason in the return's excluded list", "غير خاضعة — لا يُستقطع شيء. تُسجَّل الدفعة مع سببها في قائمة المستبعدات في الإقرار")}
@@ -241,9 +267,34 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
               <span>{t("Cash that leaves the bank", "النقد الخارج من البنك")}</span>
               <span className="font-mono" dir="ltr" data-testid="wht-preview-cash">{fmtNum(p.cashPaid)}</span>
             </div>
+            <WhtDeterminationLines d={p.determination} />
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The WHT determination in its four dimensions — the server's `WhtDetermination`, in words (accountant Q2, pack
+ * §14.2). Shared by the pay dialogs' preview and the return's schedule, so a posted payment and an unposted one are
+ * explained the same way. Display only.
+ */
+export function WhtDeterminationLines({ d, testId = "wht-determination" }: { d: WhtDetermination; testId?: string }) {
+  const { t } = useLanguage();
+  const row = (label: string, value: string, key: string) => (
+    <div className="flex flex-wrap justify-between gap-x-3" data-testid={`${testId}-${key}`}>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-end">{value}</span>
+    </div>
+  );
+  return (
+    <div className="mt-1 border-t border-border/60 pt-1 space-y-0.5" data-testid={testId}>
+      {row(t("Recipient", "المستفيد"), whtRecipientLabel(d.recipient, t), "recipient")}
+      {row(t("Source in the Kingdom", "المصدر في المملكة"), whtSourceLabel(d.kingdomSource, t), "source")}
+      {row(t("What the money was", "طبيعة المبلغ"), whtPaymentClassLabel(d.paymentClass, t), "class")}
+      {d.paymentType && row(t("Nature", "طبيعة الدفعة"), `${whtTypeLabel(d.paymentType, t)}${d.natureBasis ? ` — ${whtNatureBasisLabel(d.natureBasis, t)}` : ""}`, "nature")}
+      {row(t("Outcome", "النتيجة"), whtOutcomeLabel(d.outcome, t), "outcome")}
     </div>
   );
 }

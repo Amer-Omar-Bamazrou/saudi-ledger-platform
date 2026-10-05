@@ -22538,6 +22538,7 @@ export const getPreviewWhtUrl = (params: PreviewWhtParams,) => {
 }
 
 /**
+ * A BILL payment states no classification (it is consideration). A SUPPLIER payment states its classification and what of it is allocated to bills, so the preview judges the same class the pay path will (accountant Q2, pack §14.2): a refundable deposit and an erroneous payment are not subject, an unidentified one is pending.
  * @summary What a payment to this supplier would withhold — the same decision the pay paths take.
  */
 export const previewWht = async (params: PreviewWhtParams, options?: RequestInit): Promise<WhtPreview> => {
