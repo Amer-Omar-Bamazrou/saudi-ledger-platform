@@ -140,7 +140,8 @@ export const taxObligationsService = {
       // 🔴 Listed while unpaid — and kept AFTER its due date, flagged overdue (audit 2026-10-04: it used to
       // vanish from the calendar, and from Treasury, the day it became overdue — the case most worth seeing).
       // Earlier periods are not projected (payments name no period); the row says so.
-      const ret = await reportsService.vatReturn(last.from, last.to);
+      // OB-1: the period's DATES, through the date-window return (never a full date into the month API)
+      const ret = await reportsService.vatReturnBetween(last.from, last.to);
       // VAT payments booked since the period ended are presumed to be for it (labelled)
       const paidSince = await taxRepository.movementBySystemCode(["VAT_PAYMENT"], addDays(last.to, 1), today);
       const lastNet = round2(Number(ret.netVatDue));
@@ -160,7 +161,7 @@ export const taxObligationsService = {
         overdue: lastPos.owed > 0 && lastDue < today,
         vatPosition: lastPos.position, returnNet: lastNet, paidSince: paid,
       });
-      const toDate = await reportsService.vatReturn(current.from, today);
+      const toDate = await reportsService.vatReturnBetween(current.from, today);
       const curNet = round2(Number(toDate.netVatDue));
       const curPos = vatPositionOf(curNet, 0);
       out.push({

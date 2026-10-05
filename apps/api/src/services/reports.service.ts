@@ -1052,13 +1052,33 @@ export const reportsService = {
     return { activities: result, count: result.length, hasPosted: result.filter((r) => r.status === "posted").length, hasDraft: result.filter((r) => r.status === "draft").length };
   },
 
+  /**
+   * The VAT return for a filing period given in MONTHS (YYYY-MM) — the API contract (the spec's pattern).
+   *
+   * 🔴 OB-1 (final audit 2026-10-05): a full date passed here built "2026-07-01-01", and — the document dates being
+   * TEXT — every document dated on the period's FIRST day fell out of the window, silently. A month is a month:
+   * anything else is refused, and a date window goes through `vatReturnBetween`, the one computation both use.
+   */
   async vatReturn(period_from?: string, period_to?: string) {
-    const dateFrom = period_from ? `${period_from}-01` : "1900-01-01";
-    const dateTo = period_to ? `${period_to}-31` : "2099-12-31";
+    for (const [name, v] of [["period_from", period_from], ["period_to", period_to]] as const) {
+      if (v && !/^\d{4}-\d{2}$/.test(v)) throw new BadRequestError(`${name} is a month (YYYY-MM), not ${JSON.stringify(v)}.`);
+    }
+    return this.vatReturnBetween(
+      period_from ? `${period_from}-01` : "1900-01-01",
+      period_to ? `${period_to}-31` : "2099-12-31",
+      period_to ? endOfMonth(period_to) : null,
+    );
+  },
+
+  /** The VAT return over a DATE window, both ends inclusive (YYYY-MM-DD) — the tax obligations' last period and period to date. */
+  async vatReturnBetween(dateFrom: string, dateTo: string, reviewAsOf: string | null = dateTo) {
+    for (const [name, v] of [["dateFrom", dateFrom], ["dateTo", dateTo]] as const) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new BadRequestError(`${name} is a date (YYYY-MM-DD), not ${JSON.stringify(v)}.`);
+    }
     // AP-1: the deposits held at the end of the window that may carry VAT the
     // boxes do not show — a WHO-FINDS-OUT figure beside the return, never a
     // box (advance-payments decision pack §4; the boxes read documents only).
-    const review = await depositReviewService.review({ asOf: period_to ? endOfMonth(period_to) : null });
+    const review = await depositReviewService.review({ asOf: reviewAsOf });
 
     const [invoiceRows, invoiceLines, billRows, billLines, prepaymentRows, reliefRows, billPrepaymentRows, claimedBillRows, claimedBillLines, claimedBillPrepaymentRows] = await Promise.all([
       reportsRepository.invoicesInRange(dateFrom, dateTo),

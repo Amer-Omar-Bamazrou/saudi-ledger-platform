@@ -134,7 +134,7 @@ describeMaybe("Phase 16 — every VAT period has its row and its position; a cre
 
   it("🔴 a period that nets to a CREDIT owes 0 and says credit; returnNet is the return's own (negative) figure; Treasury projects no cash for it", async () => {
     const q3 = (await vatRows(co.credit)).find((o) => o.reference === Q3)!;
-    const ret = await inCo(co.credit, () => reportsService.vatReturn("2026-07-01", "2026-09-30"));
+    const ret = await inCo(co.credit, () => reportsService.vatReturn("2026-07", "2026-09"));
     expect(Number(ret.netVatDue), "the fixture is a credit").toBe(-1_500);
     expect([q3.amount, q3.vatPosition, q3.returnNet, q3.overdue]).toEqual([0, "credit", Number(ret.netVatDue), false]);
     expect(q3.note).toMatch(/credit .* not projected as cash/);

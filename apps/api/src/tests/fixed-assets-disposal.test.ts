@@ -157,7 +157,7 @@ describeMaybe("FA-C — disposal (real rows)", () => {
     expect(await gl("ASSET_DISPOSAL_GAIN_LOSS")).toBe(disposalBefore + 90_000 - 95_000); // debit − credit = −5,000 ⇒ a 5,000 credit balance: the gain
     expect(await gl("VAT_OUTPUT")).toBe(vatBefore - 14_250);
     // it IS a taxable supply: the VAT return files the proceeds in box 1 and its VAT in box 6
-    const vatReturn = await inTenant(() => reportsService.vatReturn("2026-04-01", "2026-06-30"));
+    const vatReturn = await inTenant(() => reportsService.vatReturn("2026-04", "2026-06"));
     expect(vatReturn.salesSection.box1_standardRatedDomesticSales).toBe(95_000);
     expect(vatReturn.salesSection.box6_vatOnStandardRatedSales).toBe(14_250);
     // terminal: a second sale and a scrap are both refused, and the row cannot be edited
