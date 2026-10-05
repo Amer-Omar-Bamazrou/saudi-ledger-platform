@@ -2,7 +2,7 @@
  * Q3 — A MIGRATED FIXED ASSET IS REVERSED WITH ITS BATCH, BY CLICKING (2026-10-05).
  * Record: docs/product/phase-16-17-tax-treasury-decision-pack.md §14.3 (accountant Q3, Option A).
  *
- * The tenant (`E2E_Q3`, identity + a bank + an asset category from global-setup) is this spec's own. The
+ * The tenant (`E2E_ANSWERS`, identity + a bank + an asset category from global-setup) is the accountant-answers specs' own. The
  * migration is committed and its first month depreciated through the API; then, in the browser:
  *   · the commit page's reversal preview names the asset and the depreciation it will unwind;
  *   · Reverse is CLICKED — the batch reads reversed;
@@ -12,9 +12,9 @@
  *   · the reversed page in Arabic, right to left.
  */
 import { test, expect, request as pwRequest, type APIRequestContext } from "@playwright/test";
-import { E2E_Q3 } from "./global-setup";
+import { E2E_ANSWERS } from "./global-setup";
 
-test.use({ storageState: E2E_Q3.adminState });
+test.use({ storageState: E2E_ANSWERS.adminState });
 
 let api: APIRequestContext;
 let batchId = 0, assetId = 0, replacementAssetId = 0;
@@ -38,7 +38,7 @@ const migrate = async () => {
   ] } }), "chart");
   const chart = await json<{ rows: { id: number; sourceCode: string }[] }>(api.get(`/api/migration/batches/${b.id}/chart`), "chart read");
   const row = (code: string) => chart.rows.find((r) => r.sourceCode === code)!.id;
-  const bank = list(await json<{ id: number; name: string }[] | { items: { id: number; name: string }[] }>(api.get("/api/bank-accounts"), "banks")).find((x) => x.name === "Q3 Main")!;
+  const bank = list(await json<{ id: number; name: string }[] | { items: { id: number; name: string }[] }>(api.get("/api/bank-accounts"), "banks")).find((x) => x.name === "Answers Main")!;
   const cat = list(await json<{ name: string; costAccountId: number }[] | { items: { name: string; costAccountId: number }[] }>(api.get("/api/asset-categories"), "categories")).find((c) => c.name === "Q3 machinery")!;
   const decide = (code: string, body: Record<string, unknown>) => json(api.patch(`/api/migration/batches/${b.id}/chart/${row(code)}`, { data: body }), `decide ${code}`);
   await decide("1100", { decision: "map_to_bank", targetBankAccountId: bank.id });
@@ -56,7 +56,7 @@ const migrate = async () => {
 };
 
 test.beforeAll(async () => {
-  api = await pwRequest.newContext({ baseURL: "http://localhost:5173", storageState: E2E_Q3.adminState });
+  api = await pwRequest.newContext({ baseURL: "http://localhost:5173", storageState: E2E_ANSWERS.adminState });
   ({ batchId, assetId } = await migrate());
   // the first month the product depreciates: (30,000 − 6,000) / 24 = 1,000
   const run = await json<{ posted: { assetId: number; amount: number }[] }>(api.post("/api/assets/depreciation-runs", { data: { period: "2026-07" } }), "run July");

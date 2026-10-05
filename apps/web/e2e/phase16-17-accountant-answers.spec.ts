@@ -1,7 +1,7 @@
 /**
  * PHASE 16 + 17 — THE ACCOUNTANT'S ANSWERS Q1 AND Q2, WALKED BY CLICKING (2026-10-05).
  * Record: docs/product/phase-16-17-tax-treasury-decision-pack.md §14.1–§14.2.
- * (Q3's browser leg is in migration-workspace.spec.ts: the reversal preview names the batch's fixed asset.)
+ * (Q3's browser legs: phase16-17-q3-asset-reversal.spec.ts on this tenant, and migration-workspace's preview.)
  *
  * What only a browser can show:
  *   · Q2 — the supplier-payment dialog asks WHAT THE MONEY IS before any nature: a refundable deposit to a
@@ -11,23 +11,23 @@
  *     the original is reversed (kept, struck through, out of the totals), the re-entry withholds on the right
  *     amount, and the lineage reads both ways.
  *
- * 🔴 The suite shares one tenant whose statements are asserted later (statement-figures: total assets > 0), so
- * every payment that takes cash is FUNDED first by an entry of exactly that cash (the gap-closure pattern), and
- * the spec asserts the tenant's cash is unchanged by it.
+ * 🔴 On its OWN tenant (`E2E_ANSWERS`), not the shared smoke tenant: a WHT payment changes its month's return
+ * LINES, and phase16-tax asserts its own figure on that line — run in the shared tenant, this spec's consulting
+ * payment turned that line from 500.00 into 900.00 (CI 37311565856). Owning the tenant also lets every cash
+ * movement be asserted exactly (the bank moves by what the payment takes) instead of funded away.
  */
 import { test, expect, request as pwRequest, type APIRequestContext } from "@playwright/test";
-import { readFileSync } from "node:fs";
 import { businessToday } from "@workspace/shared";
-import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
+import { E2E_ANSWERS } from "./global-setup";
 
-test.use({ storageState: E2E.storageState });
+test.use({ storageState: E2E_ANSWERS.adminState });
 
 const TODAY = businessToday();
 const PERIOD = TODAY.slice(0, 7);
 const STAMP = Date.now();
 
 let api: APIRequestContext;
-let royaltyVendor = 0, consultingVendor = 0, billId = 0;
+let royaltyVendor = 0, consultingVendor = 0, billId = 0, bankId = 0;
 
 const json = async <T,>(p: Promise<{ ok(): boolean; status(): number; text(): Promise<string> }>, what: string): Promise<T> => {
   const r = await p;
@@ -35,30 +35,14 @@ const json = async <T,>(p: Promise<{ ok(): boolean; status(): number; text(): Pr
   if (!r.ok()) throw new Error(`${what} → ${r.status()} ${text.slice(0, 300)}`);
   return (text ? JSON.parse(text) : undefined) as T;
 };
-const seeded = () => JSON.parse(readFileSync(SEEDED_IDS_PATH, "utf8")) as SeededIds;
-/** An entry of exactly the cash a payment takes — the bank against retained earnings — so the shared tenant's cash is left as it was. */
-const fundBank = async (amount: number, why: string) => {
-  const { bankId } = seeded();
-  const cats = await json<Array<{ id: number; name: string; systemCode: string | null; bankAccountId?: number | null }> | { items: Array<{ id: number; name: string; systemCode: string | null; bankAccountId?: number | null }> }>(api.get("/api/categories?limit=500"), "chart");
-  const all = Array.isArray(cats) ? cats : cats.items;
-  const leaf = all.find((c) => c.bankAccountId === bankId);
-  const equity = all.find((c) => c.systemCode === "RETAINED_EARNINGS");
-  expect(leaf && equity, "the seeded bank's GL account and retained earnings").toBeTruthy();
-  const je = await json<{ id: number }>(api.post("/api/journal-entries", { data: {
-    date: TODAY, description: `E2E accountant answers: funds ${why}, so the shared tenant's cash is left as it was`,
-    lines: [
-      { accountId: leaf!.id, accountName: leaf!.name, debitAmount: amount, creditAmount: 0 },
-      { accountId: equity!.id, accountName: equity!.name, debitAmount: 0, creditAmount: amount },
-    ],
-  } }), "funding entry");
-  await json(api.post(`/api/journal-entries/${je.id}/approve`, { data: {} }), "approve the funding entry");
-};
 const totalCash = async () => (await json<{ totalCash: number }>(api.get("/api/treasury/position"), "position")).totalCash;
 type ReturnRow = { id: number; vendorId: number; billId: number | null; baseAmount: number; whtAmount: number; notSubjectReason: string | null; status: string };
 const monthReturn = () => json<{ schedule: ReturnRow[]; excluded: ReturnRow[]; pending: ReturnRow[]; corrected: ReturnRow[] }>(api.get(`/api/tax/wht/returns/${PERIOD}`), "return");
 
 test.beforeAll(async () => {
-  api = await pwRequest.newContext({ baseURL: "http://localhost:5173", storageState: E2E.storageState });
+  api = await pwRequest.newContext({ baseURL: "http://localhost:5173", storageState: E2E_ANSWERS.adminState });
+  const banks = await json<{ id: number; name: string }[] | { items: { id: number; name: string }[] }>(api.get("/api/bank-accounts"), "banks");
+  bankId = (Array.isArray(banks) ? banks : banks.items).find((b) => b.name === "Answers Main")!.id;
   // two NON-RESIDENT suppliers (declared, never inferred): one whose default nature withholds 15 % (royalty), one 5 % (technical consulting)
   royaltyVendor = (await json<{ id: number }>(api.post("/api/vendors", { data: { name: `E2E Q2 Licensor ${STAMP}`, residency: "non_resident", country: "GB", whtDefaultPaymentType: "royalty", foreignTaxId: `GB-Q2-${STAMP}` } }), "royalty vendor")).id;
   consultingVendor = (await json<{ id: number }>(api.post("/api/vendors", { data: { name: `E2E Q1 Consultant ${STAMP}`, residency: "non_resident", country: "GB", whtDefaultPaymentType: "technical_consulting", foreignTaxId: `GB-Q1-${STAMP}` } }), "consulting vendor")).id;
@@ -96,10 +80,9 @@ test.describe.serial("Phase 16 + 17 — the accountant's answers, by clicking", 
     await expect(dialog.getByTestId("wht-preview-withheld")).toHaveText(/(^|\s)0\.00$/); // the page formats money ("SAR 0.00")
     await expect(dialog.getByTestId("wht-preview-cash")).toHaveText(/(^|\s)3,000\.00$/);
     const cashBefore = await totalCash();
-    await fundBank(3_000, "the refundable deposit");
     await dialog.getByTestId("sp-submit").click();
     await expect(dialog).toBeHidden();
-    expect(await totalCash(), "the deposit took exactly the cash it was funded with").toBe(cashBefore);
+    expect(await totalCash(), "the whole deposit left the bank — nothing withheld").toBe(cashBefore - 3_000);
     const ret = await monthReturn();
     expect(ret.excluded.filter((r) => r.vendorId === royaltyVendor).map((r) => [r.baseAmount, r.notSubjectReason])).toEqual([[3_000, "refundable_deposit"]]);
     expect(ret.schedule.filter((r) => r.vendorId === royaltyVendor), "nothing withheld on a deposit").toEqual([]);
@@ -113,10 +96,9 @@ test.describe.serial("Phase 16 + 17 — the accountant's answers, by clicking", 
     await expect(dialog.getByTestId("wht-class-decides")).toContainText("recorded PENDING");
     await expect(dialog.getByTestId("wht-preview-pending")).toBeVisible();
     const cashBefore = await totalCash();
-    await fundBank(1_000, "the unidentified payment");
     await dialog.getByTestId("sp-submit").click();
     await expect(dialog).toBeHidden();
-    expect(await totalCash()).toBe(cashBefore);
+    expect(await totalCash(), "the whole amount left the bank — nothing withheld while pending").toBe(cashBefore - 1_000);
     const ret = await monthReturn();
     expect(ret.pending.filter((r) => r.vendorId === royaltyVendor).map((r) => r.baseAmount)).toEqual([1_000]);
     await page.goto(`/tax/withholding?tab=return&period=${PERIOD}`);
@@ -124,7 +106,6 @@ test.describe.serial("Phase 16 + 17 — the accountant's answers, by clicking", 
   });
 
   test("🔴 Q1 — a withheld bill payment at the WRONG AMOUNT is corrected from the return: reversed (kept, struck through, out of the totals), re-entered at 8,000 with 400 withheld, the lineage both ways", async ({ page }) => {
-    const { bankId } = seeded();
     const cashBefore = await totalCash();
     // the error: 10,000 paid, 500 withheld (5 %) — it should have been 8,000
     await json(api.post(`/api/bills/${billId}/pay`, { data: { amount: 10_000, paidAt: TODAY, bankAccountId: bankId } }), "pay the bill at the wrong amount");
@@ -139,8 +120,6 @@ test.describe.serial("Phase 16 + 17 — the accountant's answers, by clicking", 
     await panel.getByTestId("wht-correct-amount").fill("8000");
     // the re-entry's withholding is the SERVER's preview, on the corrected amount
     await expect(panel.getByTestId("wht-preview-withheld")).toContainText("400.00");
-    // the reversal returns the 9,500 the error took; the re-entry takes 7,600 — funded
-    await fundBank(7_600, "the corrected payment (8,000 less 400 withheld)");
     await panel.getByTestId("wht-correct-submit").click();
     await expect(panel).toBeHidden();
 
@@ -160,6 +139,7 @@ test.describe.serial("Phase 16 + 17 — the accountant's answers, by clicking", 
     // the bill owes what the corrected payment left; the shared tenant's cash is where it was
     const bill = await json<{ outstanding?: number | string }>(api.get(`/api/bills/${billId}`), "bill");
     expect(Number(bill.outstanding ?? 0)).toBe(2_000);
-    expect(await totalCash(), "the error's cash came back with its reversal; the re-entry took exactly what was funded").toBe(cashBefore);
+    // the error took 9,500 and its reversal returned it; the corrected payment took 7,600 (8,000 less 400 withheld)
+    expect(await totalCash(), "net of the error and its correction, the bank paid exactly the corrected cash").toBe(cashBefore - 7_600);
   });
 });

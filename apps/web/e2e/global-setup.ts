@@ -82,15 +82,16 @@ export const E2E_S1 = {
 };
 
 /**
- * Q3 (2026-10-05; pack phase-16-17 §14.3): a migrated fixed asset is REVERSED with its batch and a replacement
- * names it — the migration tenant above ends blocked (a collected receivable) and S1 stays committed, so a FOURTH
- * tenant whose spec commits, depreciates, reverses (by clicking) and replaces its migration through the API.
+ * The accountant's answers Q1–Q3 (2026-10-05; pack phase-16-17 §14): a FOURTH tenant, owned by the two specs that
+ * walk them. Q3 reverses a migration (the migration tenant above ends blocked and S1 stays committed); Q1/Q2 make
+ * WHT payments — which, in the shared smoke tenant, changed the month's return lines another spec asserts on
+ * (CI 37311565856: phase16-tax's consulting line read 900.00, not its own 500.00). Nothing else reads this tenant.
  */
-export const E2E_Q3 = {
-  slug: "e2e-q3-asset-reversal",
-  adminEmail: "e2e-q3-admin@smoke.local",
+export const E2E_ANSWERS = {
+  slug: "e2e-accountant-answers",
+  adminEmail: "e2e-answers-admin@smoke.local",
   password: process.env.E2E_PASSWORD ?? "e2e-smoke-password-2026",
-  adminState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "q3-admin.json"),
+  adminState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "answers-admin.json"),
 };
 
 export const E2E = {
@@ -164,7 +165,7 @@ export default async function globalSetup(): Promise<void> {
    */
   const { rows: orgRows } = await db.query<{ id: string }>(
     `SELECT id FROM organizations WHERE slug = ANY($1::text[])`,
-    [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_Q3.slug]],
+    [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_ANSWERS.slug]],
   );
 
   if (orgRows.length > 0) {
@@ -194,13 +195,13 @@ export default async function globalSetup(): Promise<void> {
         // information_schema, not from input, and are quoted.
         await db.query(`DELETE FROM "${table_name}" WHERE organization_id = ANY($1::uuid[])`, [ids]);
       }
-      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_Q3.adminEmail]]);
-      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_Q3.slug]]);
+      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_ANSWERS.adminEmail]]);
+      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_ANSWERS.slug]]);
     } finally {
       await db.query(`SET session_replication_role = DEFAULT`);
     }
   } else {
-    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_Q3.adminEmail]]);
+    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_ANSWERS.adminEmail]]);
   }
 
   // ── The identity layer: the only rows written directly ─────────────────────
@@ -246,10 +247,10 @@ export default async function globalSetup(): Promise<void> {
     const uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,$2,'${hash}','viewer', true) RETURNING id`, [email, name])).rows[0].id as number;
     await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,$3,'active')`, [s1OrgId, uid, role]);
   }
-  // ── The Q3 tenant: identity only; its spec commits, reverses and replaces its migration ──
-  const q3OrgId = (await db.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('E2E Q3 Asset Reversal Org', $1, 'approved') RETURNING id`, [E2E_Q3.slug])).rows[0].id as string;
-  await db.query(`INSERT INTO companies (organization_id, name, name_ar, fiscal_year_start, fiscal_calendar) VALUES ($1,'E2E Q3 Co','شركة عكس الأصول',1,'gregorian')`, [q3OrgId]);
-  const q3Uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,'E2E Q3 Admin','${hash}','viewer', true) RETURNING id`, [E2E_Q3.adminEmail])).rows[0].id as number;
+  // ── The accountant-answers tenant: identity only; its specs make WHT payments and commit/reverse/replace a migration ──
+  const q3OrgId = (await db.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('E2E Accountant Answers Org', $1, 'approved') RETURNING id`, [E2E_ANSWERS.slug])).rows[0].id as string;
+  await db.query(`INSERT INTO companies (organization_id, name, name_ar, fiscal_year_start, fiscal_calendar) VALUES ($1,'E2E Answers Co','شركة إجابات المحاسب',1,'gregorian')`, [q3OrgId]);
+  const q3Uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,'E2E Answers Admin','${hash}','viewer', true) RETURNING id`, [E2E_ANSWERS.adminEmail])).rows[0].id as number;
   await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,'admin','active')`, [q3OrgId, q3Uid]);
   // The suite now logs three users in per run (Batch 1C added a second tenant);
   // the login limiter is 10 per 15 minutes per IP, so a few local re-runs would
@@ -543,13 +544,13 @@ export default async function globalSetup(): Promise<void> {
     await s1.dispose();
   }
 
-  // The Q3 tenant: one session, one bank account and the asset category its migrated asset names.
+  // The accountant-answers tenant: one session, one bank account and the asset category Q3's migrated asset names.
   const q3 = await request.newContext({ baseURL: API });
-  const q3Login = await q3.post("/api/auth/login", { data: { email: E2E_Q3.adminEmail, password: E2E_Q3.password } });
-  if (!q3Login.ok()) throw new Error(`e2e Q3 login failed: ${q3Login.status()}`);
-  await api(q3, "POST", "/bank-accounts", { name: "Q3 Main", bankName: "Riyad Bank", currency: "SAR" });
+  const q3Login = await q3.post("/api/auth/login", { data: { email: E2E_ANSWERS.adminEmail, password: E2E_ANSWERS.password } });
+  if (!q3Login.ok()) throw new Error(`e2e accountant-answers login failed: ${q3Login.status()}`);
+  await api(q3, "POST", "/bank-accounts", { name: "Answers Main", bankName: "Riyad Bank", currency: "SAR" });
   await api(q3, "POST", "/asset-categories", { name: "Q3 machinery", nameAr: "آلات", defaultUsefulLifeMonths: 48, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" });
-  await q3.storageState({ path: E2E_Q3.adminState });
+  await q3.storageState({ path: E2E_ANSWERS.adminState });
   await q3.dispose();
 
   writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id, budgetId: budget.id, taxComputationId: taxComputation.id } satisfies SeededIds, null, 2));
