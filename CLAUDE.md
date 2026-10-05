@@ -54,7 +54,7 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-10-04.** Full as-built narrative for everything below:
+**Last updated: 2026-10-05.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED**; A4/A5 as invariants (§4); follow-ups built ([`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17). Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
@@ -62,7 +62,7 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
 **2026-10-01** — 🔴 **PHASES 14+15 BUILT** (`docs/product/phase-14-15-*` pack).
-**2026-10-04** — 🔴 **PHASES 16+17 BUILT, PR OPEN** ([`pack`](docs/product/phase-16-17-tax-treasury-decision-pack.md) §12–§13).
+**2026-10-05** — 🔴 **PHASES 16+17 BUILT; ACCOUNTANT Q1–Q3 APPLIED; PR OPEN** ([`pack`](docs/product/phase-16-17-tax-treasury-decision-pack.md) §12–§14).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); four customer-money liabilities; Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
@@ -436,7 +436,7 @@ doing the thing it governs rather than only once you know its name.
   `tests/bill-position-reader-sweep.test.ts`). Posted rows are append-only AT THE DATABASE.
 - **🔴 A PURCHASE-SIDE NOTE IS THE SUPPLIER’S DOCUMENT (B7)** — no ICV, QR, chain or outbox; a `bills` row
   posted mirrored by `documentSign()` on the SUPPLIER’S issue date (Art. 40(6)). Applying it posts NOTHING.
-- **🔴 `WHT_PAYABLE` has two writers (Phase 16)** — a withholding and a remittance; any other line refused at COMMIT.
+- **🔴 `WHT_PAYABLE` has three writers (Phase 16, Q1)** — a withholding, a remittance, a correction's mirror; any other line refused at COMMIT.
 - **🔴 A COMMITTED MIGRATION'S ACCOUNTING ROWS ARE NEVER DELETED (Batch 1C,
   accountant A4/A5, 2026-09-20).** A reversal mirrors the opening journal and
   MARKS the opening invoices/bills/deposits reversed (columns + trigger, never
