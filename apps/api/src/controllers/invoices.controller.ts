@@ -30,6 +30,28 @@ function parseOr400<T>(result: { success: true; data: T } | { success: false; er
   throw new BadRequestError(result.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; "));
 }
 
+/**
+ * 🔴 G31 (owner amendment E): the seller's name and VAT number are NEVER
+ * accepted from a request — they are the company's, read at issue. The spec no
+ * longer declares them, and the generated schema would STRIP them silently,
+ * which tells a caller who sent one nothing; so a body that names either is
+ * refused, by name, before it is parsed. `null` is not a value and passes.
+ */
+function refuseSellerIdentity(body: unknown): void {
+  if (!body || typeof body !== "object") return;
+  const named = (["sellerName", "sellerVatNumber"] as const).filter(
+    (k) => (body as Record<string, unknown>)[k] !== undefined && (body as Record<string, unknown>)[k] !== null,
+  );
+  if (named.length === 0) return;
+  throw new BusinessRuleError(400, {
+    code: "seller_identity_not_settable",
+    error:
+      "The seller's name and VAT number come from your company's registration and are fixed on the invoice when it is issued; " +
+      "they cannot be set per invoice. To invoice as a different registered entity, add it as a separate company.",
+    field: named[0],
+  });
+}
+
 /** 1..200, default 50. A page the caller cannot turn into "everything". */
 function clampPage(raw: string | undefined): number {
   const n = Number(raw);
@@ -103,6 +125,7 @@ export const invoicesController = {
      *
      * One extra click on a legal document is not a cost worth arguing about.
      */
+    refuseSellerIdentity(req.body);
     const body = parseOr400(CreateInvoiceBody.safeParse(req.body));
     const out = await invoicesService.create(body, req.session?.userId ?? null);
     res.status(201).json(out);
@@ -123,6 +146,7 @@ export const invoicesController = {
     res.json(await invoicesService.approve(requireIdParam(req), req.session?.userId ?? null));
   },
   async update(req: Request, res: Response) {
+    refuseSellerIdentity(req.body);
     const body = parseOr400(UpdateInvoiceBody.safeParse(req.body));
     res.json(await invoicesService.update(requireIdParam(req), body));
   },

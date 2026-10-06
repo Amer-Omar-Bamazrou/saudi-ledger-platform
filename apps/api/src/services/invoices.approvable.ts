@@ -26,6 +26,7 @@ import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { generateZatcaQr, computeInvoiceHash, LEGACY_GENESIS_HASH } from "./accounting/zatca";
 import { invoicesRepository } from "../repositories/invoices.repository";
+import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { paymentsRepository, invoiceSettlementRepository } from "../repositories/payments.repository";
 import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME, depositLiabilityAccount } from "./accounting/customerCreditPolicy";
@@ -208,10 +209,17 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   // invoice can never be issued carrying a placeholder VAT number.
   // M12.1a: resolved from THIS INVOICE'S company, not "the first company in the
   // org" — otherwise a multi-company org stamps the wrong legal entity.
-  const { sellerName, sellerVatNumber } = await requireIssuanceSeller(inv.companyId, {
-    sellerName: inv.sellerName,
-    sellerVatNumber: inv.sellerVatNumber,
-  });
+  // 🔴 G31: from the company record ONLY — nothing on the draft is consulted,
+  // so neither a client-sent value nor a stale create-time copy can win.
+  const { sellerName, sellerVatNumber } = await requireIssuanceSeller(inv.companyId);
+
+  // 🔴 G30: the payment details this invoice will PRINT, captured now, from
+  // the company's default bank, locked until this transaction commits. The
+  // issued document prints this capture and never reads bank_accounts again,
+  // so a later IBAN edit cannot change what an issued invoice tells the
+  // customer. Notes and advance tax invoices print no bank details (the money
+  // has already moved), so they capture none.
+  const bank = inv.documentType === "invoice" ? await bankAccountsRepository.lockDefaultForIssue(inv.companyId) : null;
 
   // M12.1a: the real issuance instant. `inv.date` is the ACCOUNTING date (what
   // the ledger and reports use); ZATCA needs date+time and the 24-hour
@@ -265,6 +273,10 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
     qrCode,
     sellerName,
     sellerVatNumber,
+    issuedBankAccountId: bank?.id ?? null,
+    issuedBankName: bank?.bankName ?? null,
+    issuedBankIban: bank ? bank.iban : null,
+    issuedBankAccountName: bank?.name ?? null,
     issuedAt,
     icv,
     zatcaUuid,

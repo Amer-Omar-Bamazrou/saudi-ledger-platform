@@ -218,6 +218,19 @@ export const invoicesRepository = {
     return db.select().from(invoicesTable).where(eq(invoicesTable.id, id)).limit(1);
   },
 
+  /**
+   * G30 — how many issued invoices print a bank account's details (their
+   * capture names it). Any status, reversed or not: an issued document's
+   * provenance does not lapse when the document is settled or reversed.
+   */
+  async countIssuedNamingBank(bankAccountId: number): Promise<number> {
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(invoicesTable)
+      .where(eq(invoicesTable.issuedBankAccountId, bankAccountId));
+    return Number(row?.n ?? 0);
+  },
+
   itemsByInvoice(id: number) {
     return db.select().from(invoiceItemsTable).where(eq(invoiceItemsTable.invoiceId, id));
   },

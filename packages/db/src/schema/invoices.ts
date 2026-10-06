@@ -7,6 +7,7 @@ import { customersTable } from "./customers";
 import { productsTable } from "./products";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
+import { bankAccountsTable } from "./bankAccounts";
 
 export const invoicesTable = pgTable(
   "invoices",
@@ -74,8 +75,25 @@ export const invoicesTable = pgTable(
     invoiceHash: text("invoice_hash"),   // legacy homegrown hash — not ZATCA's
     previousHash: text("previous_hash"), // legacy homegrown chain link
     qrCode: text("qr_code"),            // Base64 TLV QR, ZATCA Phase 1 tags 1-5 only
-    sellerName: text("seller_name"),     // Denormalized for QR (changes over time)
-    sellerVatNumber: text("seller_vat_number"), // Denormalized for QR
+    // G31 (2026-10-07): the seller identity this document was ISSUED under —
+    // the company record read at issue, NULL on a draft, never client-set, and
+    // frozen once issued (migration 0121 enforces both at the database).
+    sellerName: text("seller_name"),
+    sellerVatNumber: text("seller_vat_number"),
+    /**
+     * G30 (2026-10-07): the payment details an issued INVOICE prints, captured
+     * at issue from the company's default bank account, with the account they
+     * came from. The issued document prints these and never reads
+     * `bank_accounts` again; the bank accounts stay the source for documents
+     * not yet issued. All four NULL on drafts, on notes and advance tax
+     * invoices (which print no bank details), when no default bank existed at
+     * issue, and on invoices issued before 0121 (not backfilled — owner
+     * decision pending). Frozen once issued (migration 0121).
+     */
+    issuedBankAccountId: integer("issued_bank_account_id").references(() => bankAccountsTable.id),
+    issuedBankName: text("issued_bank_name"),
+    issuedBankIban: text("issued_bank_iban"),
+    issuedBankAccountName: text("issued_bank_account_name"),
 
     // ── ZATCA PHASE 2 identity (M12.1a) ──────────────────────────────────────
     // Identity of the document itself, as opposed to transmission state (which

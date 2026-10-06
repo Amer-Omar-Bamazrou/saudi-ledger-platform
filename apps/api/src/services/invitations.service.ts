@@ -225,6 +225,24 @@ export const invitationsService = {
           "This invitation was sent to a different email address. Sign out and accept it as that user.",
         );
       }
+      // 🔴 G01: a platform operator is a member of nothing (M11.3) — joining a
+      // tenant would put the one cross-tenant account inside a tenant admin's
+      // reach. Refused HERE, before the token is claimed, so the invitation is
+      // left pending rather than spent on a membership the database would
+      // refuse anyway (migration 0121). The operator is the one told; the
+      // inviting admin learns nothing new.
+      if (await userAdminRepository.isPlatformOperator(actor.id)) {
+        await securityAuditService.record({
+          action: "account.operator_target_refused",
+          actorUserId: actor.id, actorEmail: actor.email,
+          organizationId: invitation.organizationId, targetUserId: actor.id,
+          metadata: { attempted: "invite.accept", invitationId: invitation.id },
+          ipAddress: ctx.ipAddress,
+        });
+        throw new ForbiddenError(
+          "Platform operator accounts cannot join an organization. Accept this invitation with a separate, non-operator account.",
+        );
+      }
       userId = actor.id;
       userName = actor.name;
     } else if (existingUser) {

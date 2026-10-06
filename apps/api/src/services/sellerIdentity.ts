@@ -12,22 +12,30 @@
  * hash — a documented production blocker. Two duplicated copies also meant the
  * values could silently drift apart.
  *
- * ── The rule now ─────────────────────────────────────────────────────────────
- * Seller identity comes from THE INVOICE'S OWN COMPANY, with an explicit
- * per-invoice override still honored (some tenants invoice under a specific
- * registered entity). There is NO placeholder fallback: if no VAT registration
- * number can be resolved, issuance FAILS CLOSED with an actionable error rather
- * than minting a legally-invalid invoice. That is what makes the blocker
- * impossible to reintroduce — there is no longer any value to fall back TO.
+ * ── The rule now (G31, 2026-10-07 — owner amendment E) ─────────────────────
+ * Seller identity comes from THE INVOICE'S OWN COMPANY, read AT ISSUE, and is
+ * fixed on the document from then on. It is NEVER accepted from a request:
+ * the per-invoice "override" that used to win here let any WRITE role stamp a
+ * VAT number the company does not hold onto a tax invoice, while an onboarded
+ * company's signed XML carried the real one — the artifacts disagreed. The
+ * same precedence made an honest draft STALE: a draft stamped before the
+ * company corrected its VAT kept the old number through approval. A tenant
+ * that invoices as another registered entity does so as another COMPANY (its
+ * own VAT, its own EGS unit and certificate), never as an override.
+ *
+ * Drafts carry no seller identity at all: a draft is not a legal document,
+ * and a copy taken at create time could only ever be a stale second source.
+ * There is NO placeholder fallback: if no VAT registration number can be
+ * resolved, issuance FAILS CLOSED with an actionable error rather than
+ * minting a legally-invalid invoice. The database holds the same rule
+ * (migration 0121): an issuing write must carry the company's own name and
+ * VAT, and an issued document's seller identity cannot change.
  *
  * M12.1a sharpened "the active company" to "the invoice's company". M11.6 read
  * the org's FIRST-CREATED company regardless of which company the invoice
  * belonged to — identical for a single-company org, but the wrong legal entity
  * (and, under ZATCA Phase 2, the wrong signing certificate) as soon as an org
- * has two. Both the draft-stamping and issuance paths were affected.
- *
- * Draft creation is deliberately lenient (a draft has no QR/hash and is not a
- * legal document); only ISSUANCE requires a VAT number.
+ * has two.
  */
 import { BusinessRuleError } from "../lib/errors";
 import { companiesRepository } from "../repositories/companies.repository";
@@ -37,34 +45,10 @@ export interface SellerIdentity {
   sellerVatNumber: string;
 }
 
-export interface SellerOverride {
-  sellerName?: string | null;
-  sellerVatNumber?: string | null;
-}
-
-/**
- * Resolve the seller as stamped on a DRAFT at create time. Returns whatever is
- * known (override → company); may be null when the company is not yet
- * configured, because a draft is not yet a legal document.
- */
-export async function resolveDraftSeller(
-  override: SellerOverride = {},
-): Promise<{ sellerName: string | null; sellerVatNumber: string | null }> {
-  // M12.1a: the company THIS REQUEST is operating as — the same GUC that
-  // supplies the `company_id` default on the row we are about to insert. Using
-  // `findActive()` ("first created company") stamped a draft with a different
-  // company's identity than its own `company_id`, and because issuance honors
-  // the stamped values as an override, that wrong identity survived approval.
-  const company = await companiesRepository.findCurrent();
-  return {
-    sellerName: override.sellerName ?? company?.name ?? null,
-    sellerVatNumber: override.sellerVatNumber ?? company?.vatNumber ?? null,
-  };
-}
-
 /**
  * Resolve the seller for ISSUANCE (approval) — where the ZATCA QR and the hash
- * chain are minted. Fails closed if the tenant has no VAT registration number.
+ * chain are minted. Fails closed if the company has no VAT registration number
+ * or legal name.
  *
  * ── M12.1a bug fix ──────────────────────────────────────────────────────────
  * This used to call `companiesRepository.findActive()` — the organization's
@@ -74,20 +58,18 @@ export async function resolveDraftSeller(
  * invoice, and under ZATCA Phase 2 it would sign with the wrong company's
  * certificate — a compliance failure, not just a display bug.
  *
- * The company is now an explicit, required argument: the caller passes the
+ * The company is an explicit, required argument: the caller passes the
  * invoice's own `companyId`, so the seller can never drift from the document.
+ * There is deliberately no second argument (G31): nothing stamped on the
+ * draft, and nothing a client sent, can stand in for the company record.
  *
  * @param companyId the invoice's `companyId` — NOT "the active company".
- * @param override  seller fields already stamped on the invoice, if any.
  */
-export async function requireIssuanceSeller(
-  companyId: string,
-  override: SellerOverride = {},
-): Promise<SellerIdentity> {
+export async function requireIssuanceSeller(companyId: string): Promise<SellerIdentity> {
   const company = await companiesRepository.findById(companyId);
 
-  const sellerVatNumber = override.sellerVatNumber ?? company?.vatNumber ?? null;
-  const sellerName = override.sellerName ?? company?.name ?? null;
+  const sellerVatNumber = company?.vatNumber ?? null;
+  const sellerName = company?.name ?? null;
 
   if (!sellerVatNumber) {
     throw new BusinessRuleError(400, {

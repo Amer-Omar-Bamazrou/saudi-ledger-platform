@@ -53,7 +53,6 @@ import { advanceInvoicesRepository, type AdvanceFigures } from "../repositories/
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { checkPeriodOpen } from "./accounting/periodLock";
-import { resolveDraftSeller } from "./sellerIdentity";
 import { auditService } from "./audit.service";
 import { buildInvoiceOut, type PrepaymentOut } from "./invoices.presenter";
 import { isNoteType } from "./creditNotes";
@@ -306,7 +305,6 @@ export const advanceInvoicesService = {
     const { taxable, vat } = splitGross(gross, rate);
     const [cust] = await customersRepository.findById(payment.customerId!);
     const invoiceNumber = await invoicesRepository.allocateInvoiceNumber(date);
-    const draftSeller = await resolveDraftSeller({});
     const description = body.description?.trim() || `Advance payment received ${payment.paidAt} (receipt RCPT-${payment.id})`;
     const descriptionAr = body.descriptionAr?.trim() || null;
 
@@ -326,8 +324,6 @@ export const advanceInvoicesService = {
       notes: body.notes?.trim() || null,
       idempotencyKey,
       createdBy: userId ?? null,
-      sellerName: draftSeller.sellerName,
-      sellerVatNumber: draftSeller.sellerVatNumber,
     } as Parameters<typeof invoicesRepository.insert>[0]);
     await invoicesRepository.insertItems([
       {
@@ -469,7 +465,6 @@ export const advanceInvoicesService = {
     const split = Math.abs(gross - num(adv.total)) < TOL ? { taxable: num(adv.subtotal), vat: num(adv.vatAmount) } : splitGross(gross, rate);
     const [cust] = await customersRepository.findById(adv.customerId!);
     const invoiceNumber = await invoicesRepository.allocateInvoiceNumber(date);
-    const draftSeller = await resolveDraftSeller({});
     const [note] = await invoicesRepository.insert({
       invoiceNumber,
       date,
@@ -487,8 +482,6 @@ export const advanceInvoicesService = {
       notes: body.notes?.trim() || null,
       idempotencyKey,
       createdBy: userId ?? null,
-      sellerName: draftSeller.sellerName,
-      sellerVatNumber: draftSeller.sellerVatNumber,
     } as Parameters<typeof invoicesRepository.insert>[0]);
     await invoicesRepository.insertItems([
       {

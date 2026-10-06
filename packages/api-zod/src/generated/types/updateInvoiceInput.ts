@@ -27,10 +27,6 @@ export interface UpdateInvoiceInput {
   termsAndConditions?: string | null;
   /** @nullable */
   reviewNote?: string | null;
-  /** @nullable */
-  sellerName?: string | null;
-  /** @nullable */
-  sellerVatNumber?: string | null;
   /** @minItems 1 */
   items?: InvoiceLineInput[];
 }

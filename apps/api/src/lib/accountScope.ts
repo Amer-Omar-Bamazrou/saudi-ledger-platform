@@ -42,9 +42,23 @@
  * locked out. That gap is real, pre-existing, and recorded rather than papered
  * over here; the answer is an operator-level or self-service reset, not a
  * weaker boundary on this one.
+ *
+ * 🔴 G01 (2026-10-07) — A FOOTHOLD THAT IS NOT A MEMBERSHIP.
+ * Confinement counted memberships only, and a platform operator holds NONE by
+ * design (M11.3) — so the one account with cross-tenant authority passed the
+ * rule vacuously, for every tenant admin: an empty footprint is "inside" every
+ * set. Operator status is a foothold outside every tenant, so an operator
+ * account is confined to no tenant and administrable by none. The refusal is
+ * concealed in BOTH dispositions — a tenant admin is never entitled to learn
+ * which account is an operator — and it is recorded, because a probe of the
+ * operator account is a fact the security trail must carry. The database
+ * holds the premise too (migration 0121: no membership row may name an
+ * operator), so this check and the constraint fail independently.
  */
 import { ConflictError, NotFoundError } from "./errors";
 import { membersRepository } from "../repositories/members.repository";
+import { operatorsRepository } from "../repositories/operators.repository";
+import { securityAuditService } from "../services/securityAudit.service";
 
 /**
  * How a refusal is worded — the two callers have different disclosure duties,
@@ -62,8 +76,18 @@ import { membersRepository } from "../repositories/members.repository";
  */
 export type ConfinementDisclosure = "conceal" | "explain";
 
+/** Who is asking, for the security trail when the target is an operator. */
+export interface ConfinementActor {
+  actorUserId: number;
+  actorEmail?: string | null;
+  ipAddress?: string | null;
+  /** The act that was attempted, e.g. "membership.assign". */
+  attempted: string;
+}
+
 /**
- * Refuse unless `targetUserId`'s every membership lies within `actorOrgIds`.
+ * Refuse unless `targetUserId`'s every membership lies within `actorOrgIds`
+ * AND the account holds no platform-operator status.
  *
  * `actorOrgIds` is the set of organizations the ACTOR administers, resolved by
  * the caller — the two surfaces qualify that set differently (the user-admin
@@ -74,7 +98,19 @@ export async function assertAccountConfinedTo(
   targetUserId: number,
   actorOrgIds: string[],
   disclosure: ConfinementDisclosure,
+  actor?: ConfinementActor,
 ): Promise<void> {
+  if (await operatorsRepository.isOperator(targetUserId)) {
+    await securityAuditService.record({
+      action: "account.operator_target_refused",
+      actorUserId: actor?.actorUserId ?? null,
+      actorEmail: actor?.actorEmail,
+      targetUserId,
+      ipAddress: actor?.ipAddress,
+      metadata: { attempted: actor?.attempted ?? null },
+    });
+    throw new NotFoundError("User not found.");
+  }
   const foreign = await membersRepository.foreignMembershipOrgIds(targetUserId, actorOrgIds);
   if (foreign.length === 0) return;
 

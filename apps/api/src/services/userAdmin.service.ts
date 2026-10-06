@@ -79,11 +79,23 @@ async function requireAdminScope(actorUserId: number): Promise<string[]> {
  *      and deactivation are acts on a platform-wide account, so they need the
  *      condition the actor cannot manufacture. See lib/accountScope.ts.
  */
-async function assertTargetAdministrable(targetUserId: number, orgIds: string[]): Promise<void> {
+async function assertTargetAdministrable(
+  targetUserId: number,
+  orgIds: string[],
+  actor: { actorUserId: number; ctx: ActorContext; attempted: string },
+): Promise<void> {
   if (!(await userAdminRepository.isMemberOfAny(targetUserId, orgIds))) {
     throw new NotFoundError("User not found.");
   }
-  await assertAccountConfinedTo(targetUserId, orgIds, "explain");
+  // G01: refuses a platform-operator target too (concealed, recorded) — the
+  // database also refuses an operator's membership, so condition 1 above can
+  // no longer be manufactured for one; this is the second, independent layer.
+  await assertAccountConfinedTo(targetUserId, orgIds, "explain", {
+    actorUserId: actor.actorUserId,
+    actorEmail: actor.ctx.actorEmail,
+    ipAddress: actor.ctx.ipAddress,
+    attempted: actor.attempted,
+  });
 }
 
 export const userAdminService = {
@@ -139,7 +151,7 @@ export const userAdminService = {
     ctx: ActorContext = {},
   ) {
     const orgIds = await requireAdminScope(actorUserId);
-    await assertTargetAdministrable(targetUserId, orgIds);
+    await assertTargetAdministrable(targetUserId, orgIds, { actorUserId, ctx, attempted: "user.update" });
 
     const updates: { role?: UserRoleValue; isActive?: boolean; name?: string } = {};
     if (changes.role !== undefined) {
@@ -189,7 +201,7 @@ export const userAdminService = {
     ctx: ActorContext = {},
   ) {
     const orgIds = await requireAdminScope(actorUserId);
-    await assertTargetAdministrable(targetUserId, orgIds);
+    await assertTargetAdministrable(targetUserId, orgIds, { actorUserId, ctx, attempted: "user.password_reset" });
 
     assertPasswordAcceptable(newPassword, "newPassword");
     const passwordHash = await hashPassword(newPassword, "newPassword");
