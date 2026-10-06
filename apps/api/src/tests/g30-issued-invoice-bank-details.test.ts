@@ -324,4 +324,62 @@ describeMaybe("G30 — an issued invoice keeps the bank details in force when it
     // …and the other tenant cannot read this tenant's invoice at all.
     await expect(tenant(otherOrgId, otherCompanyId)(() => invoicesService.getById(firstInvoiceId))).rejects.toMatchObject({ statusCode: 404 });
   });
+
+  /**
+   * 🔴 REGRESSION (owner review of PR #192, 2026-10-07): the snapshot is
+   * compared with the company's default bank ONLY by the issuing write. A
+   * historical invoice must never be re-validated against TODAY's default —
+   * a later default change, an IBAN edit or a deactivation of the bank it
+   * names are all legitimate, and an ordinary later update of that invoice
+   * (here: recording its payment) must still succeed with the snapshot intact.
+   */
+  it("🔴 REGRESSION: a historical invoice stays valid and unchanged after the default moves, its bank is edited and deactivated, and it is paid", async () => {
+    const a = await api("bookkeeper", "POST", "/bank-accounts", { name: "Reg A", bankName: "Al Rajhi", currency: "SAR", iban: IBAN_1, isDefault: true, balance: 0, openingBalance: 0 });
+    const b = await api("bookkeeper", "POST", "/bank-accounts", { name: "Reg B", bankName: "SNB", currency: "SAR", iban: IBAN_3, balance: 0, openingBalance: 0 });
+    expect([a.status, b.status]).toEqual([201, 201]);
+    const SNAP_A = { issued_bank_account_id: a.body.id, issued_bank_name: "Al Rajhi", issued_bank_iban: IBAN_1, issued_bank_account_name: "Reg A" };
+    const SNAP_B = { issued_bank_account_id: b.body.id, issued_bank_name: "SNB", issued_bank_iban: IBAN_3, issued_bank_account_name: "Reg B" };
+    const snapshot = async (id: number) =>
+      (await pool.query(`SELECT issued_bank_account_id, issued_bank_name, issued_bank_iban, issued_bank_account_name FROM invoices WHERE id = $1`, [id])).rows[0];
+    const printed = { A: { bankName: "Al Rajhi", iban: IBAN_1, accountName: "Reg A" }, B: { bankName: "SNB", iban: IBAN_3, accountName: "Reg B" } };
+
+    // 1. issue an invoice using Bank A
+    const first = await issue("G30-REG-1");
+    expect(await snapshot(first)).toEqual(SNAP_A);
+
+    // 2. change the company default to Bank B; 3. issue a second invoice
+    expect((await api("bookkeeper", "PATCH", `/bank-accounts/${b.body.id}`, { isDefault: true })).status).toBe(200);
+    const second = await issue("G30-REG-2");
+    expect(await snapshot(second)).toEqual(SNAP_B);
+
+    // Amendment A: an ordinary later UPDATE of the first invoice — its
+    // payment — succeeds although today's default is Bank B, and leaves the
+    // Bank A snapshot untouched.
+    const paid = await api("admin", "POST", `/invoices/${first}/pay`, { amount: 1150, paidAt: "2026-10-02", bankAccountId: b.body.id });
+    expect(paid.status, JSON.stringify(paid.body)).toBe(200);
+    const after = (await pool.query(`SELECT status, paid_amount FROM invoices WHERE id = $1`, [first])).rows[0];
+    expect(after.status).toBe("paid");
+    expect(Number(after.paid_amount)).toBe(1150);
+    expect(await snapshot(first), "a payment does not touch the snapshot").toEqual(SNAP_A);
+
+    // Amendment A: edit Bank A's IBAN, then deactivate Bank A.
+    expect((await api("bookkeeper", "PATCH", `/bank-accounts/${a.body.id}`, { iban: IBAN_2 })).status).toBe(200);
+    expect((await api("bookkeeper", "PATCH", `/bank-accounts/${a.body.id}`, { isActive: false })).status).toBe(200);
+    const liveA = (await pool.query(`SELECT iban, is_active, is_default FROM bank_accounts WHERE id = $1`, [a.body.id])).rows[0];
+    expect(liveA, "the bank account itself DID change (movement)").toEqual({ iban: IBAN_2, is_active: false, is_default: false });
+
+    // 4.–7. both invoices remain valid documents and each renders its own
+    // issue-time bank, in both languages; neither is refused because the
+    // current default differs from what it printed.
+    for (const lang of ["ar", "en"] as const) {
+      const m1 = await model(first, lang);
+      const m2 = await model(second, lang);
+      expect(m1.bankDetails, `${lang}: the first invoice still prints Bank A as issued`).toEqual(printed.A);
+      expect(m2.bankDetails, `${lang}: the second invoice prints Bank B`).toEqual(printed.B);
+      expect(renderInvoiceHtml(m1)).toContain(IBAN_1);
+      expect(renderInvoiceHtml(m1)).not.toContain(IBAN_2);
+    }
+    expect(await snapshot(first)).toEqual(SNAP_A);
+    expect(await snapshot(second)).toEqual(SNAP_B);
+  });
 });
