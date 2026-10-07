@@ -1,8 +1,10 @@
-import { uniqueIndex, pgTable, serial, text, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { uniqueIndex, pgTable, serial, text, timestamp, integer, numeric, uuid, index, foreignKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
+import { customersTable } from "./customers";
+import { vendorsTable } from "./vendors";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
 // Forward-reference users table (avoid circular import — use integer FK directly)
@@ -96,7 +98,9 @@ export const journalEntryLinesTable = pgTable(
       .default(sql`app_default_company_id()`)
       .references(() => companiesTable.id),
     journalEntryId: integer("journal_entry_id").notNull().references(() => journalEntriesTable.id, { onDelete: "cascade" }),
-    accountId: integer("account_id").references(() => categoriesTable.id, { onDelete: "restrict" }),
+    // 🔴 G04 (0122): no single-column key — the account is referenced WITH the
+    // organization (`journal_entry_lines_account_tenant_fk` below).
+    accountId: integer("account_id"),
     accountName: text("account_name").notNull(),   // denormalized for history
     /**
      * 🔴 N3 (2026-09-03): THE PARTY DIMENSION. A control-account line (AR/AP)
@@ -120,6 +124,19 @@ export const journalEntryLinesTable = pgTable(
     // Phase 14 D14-15: the seam joins entries → lines by entry id; the org-led
     // index above cannot serve a probe on journal_entry_id alone.
     index("journal_entry_lines_entry_idx").on(t.journalEntryId),
+    /**
+     * 🔴 G04 (2026-10-07, migration 0122): A LINE NAMES ONLY ITS OWN
+     * ORGANIZATION'S ACCOUNT, CUSTOMER AND VENDOR. Postgres checks a foreign key
+     * OUTSIDE row-level security, so the plain `account_id → categories.id`
+     * accepted another tenant's account (written, approved and posted) and failed
+     * a missing one as a raw 23503. Keyed WITH the organization, the database
+     * itself compares the tenant, for every writer — and a foreign id and a
+     * missing id are the same failure. Accounts, customers and vendors stay
+     * organization-level: every company of the organization references them.
+     */
+    foreignKey({ name: "journal_entry_lines_account_tenant_fk", columns: [t.organizationId, t.accountId], foreignColumns: [categoriesTable.organizationId, categoriesTable.id] }).onDelete("restrict"),
+    foreignKey({ name: "journal_entry_lines_customer_tenant_fk", columns: [t.organizationId, t.customerId], foreignColumns: [customersTable.organizationId, customersTable.id] }).onDelete("restrict"),
+    foreignKey({ name: "journal_entry_lines_vendor_tenant_fk", columns: [t.organizationId, t.vendorId], foreignColumns: [vendorsTable.organizationId, vendorsTable.id] }).onDelete("restrict"),
   ],
 );
 

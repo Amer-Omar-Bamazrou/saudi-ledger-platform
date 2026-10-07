@@ -23,6 +23,7 @@
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { BusinessRuleError } from "../lib/errors";
+import { assertLineReferencesOwned } from "./accounting/tenantReferences";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import { buildJEOut, type JournalEntryOut } from "./journalEntries.presenter";
 import type { Approvable, ApprovalState } from "./approval";
@@ -53,6 +54,15 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
     // exact 2-dp strings, so the sum is compared under the GL tolerance only
     // to absorb float addition, never to admit a real halala.
     const storedLines = await journalEntriesRepository.linesByEntry(je.id);
+    /**
+     * 🔴 G04 (2026-10-07): approval POSTS without the seam — it flips `status`
+     * on lines written at create — so it re-proves, on the STORED lines, that
+     * every account, customer and vendor is this organization's. It used to
+     * re-check headers through an RLS-scoped lookup, which cannot see another
+     * tenant's account and so refused nothing about it. Approval is not a
+     * bypass of the create path's rule, whatever wrote the draft.
+     */
+    await assertLineReferencesOwned(storedLines);
     /**
      * 🔴 D-3 (2026-09-17): approval only flips `status` — it inserts no line,
      * so the DB trigger that refuses a header line never fires here. A draft

@@ -1,5 +1,5 @@
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
-import { pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -323,7 +323,8 @@ export const invoiceItemsTable = pgTable(
       .default(sql`app_default_company_id()`)
       .references(() => companiesTable.id),
     invoiceId: integer("invoice_id").notNull().references(() => invoicesTable.id, { onDelete: "cascade" }),
-    productId: integer("product_id").references(() => productsTable.id, { onDelete: "set null" }),
+    // 🔴 G04 (0122): referenced WITH the organization — `invoice_items_product_tenant_fk` below.
+    productId: integer("product_id"),
     description: text("description").notNull(),
     /**
      * 🔴 L1 (2026-09-03): the sentinel default DIED with the form field. It
@@ -364,7 +365,15 @@ export const invoiceItemsTable = pgTable(
     unitCode: text("unit_code").notNull().default("PCE"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("invoice_items_org_invoice_idx").on(t.organizationId, t.invoiceId)],
+  (t) => [
+    index("invoice_items_org_invoice_idx").on(t.organizationId, t.invoiceId),
+    // 🔴 G04 (0122): a line names only its own organization's product (products
+    // are organization-level: every company of it may use one). Deleting a
+    // product clears ONLY product_id — the migration writes the column list
+    // `ON DELETE SET NULL (product_id)`, which drizzle cannot express; a plain
+    // SET NULL would null organization_id too and the delete would fail.
+    foreignKey({ name: "invoice_items_product_tenant_fk", columns: [t.organizationId, t.productId], foreignColumns: [productsTable.organizationId, productsTable.id] }).onDelete("set null"),
+  ],
 );
 
 export const insertInvoiceSchema = createInsertSchema(invoicesTable).omit({ id: true, createdAt: true });

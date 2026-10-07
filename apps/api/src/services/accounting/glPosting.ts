@@ -21,6 +21,7 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { checkPeriodOpen } from "./periodLock";
 import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
 import { BusinessRuleError } from "../../lib/errors";
+import { assertLineReferencesOwned } from "./tenantReferences";
 
 /**
  * One posting line. It MUST identify its account in exactly one of two ways.
@@ -335,6 +336,22 @@ export async function postJournalEntry(opts: {
   // The accountId arm is looked up once for two rules: the party rule (N3)
   // and, since D-3, the non-posting rule — a header named by id is refused
   // the same way a header named by code is.
+  /**
+   * 🔴 G04 (2026-10-07): THE SEAM TRUSTS NO CALLER. Every account named by id
+   * and every party is proven THIS organization's before anything is read or
+   * written — the lookup below used to refuse only the rows RLS let it SEE
+   * (`if (row && …)`), so another tenant's account id passed every rule and
+   * POSTED, and a missing one failed the foreign key as a raw 500. One 422
+   * `reference_not_found` for both; the database refuses the same lines (0122).
+   * (A system code and a bank resolve inside the tenant and fail closed.)
+   */
+  await assertLineReferencesOwned(
+    lines.map((l) => ({
+      accountId: l.accountId ?? null,
+      customerId: l.party?.type === "customer" ? l.party.customerId : null,
+      vendorId: l.party?.type === "vendor" ? l.party.vendorId : null,
+    })),
+  );
   const idLines = lines.filter((l) => l.accountId != null);
   if (idLines.length > 0) {
     const rows = await db

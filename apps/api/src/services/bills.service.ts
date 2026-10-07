@@ -99,6 +99,7 @@ async function assertVendorExists(vendorId: unknown): Promise<void> {
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
+import { assertAssetOwnedByCompany } from "./accounting/tenantReferences";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { billApprovable, type BillApproveOptions } from "./bills.approvable";
@@ -200,6 +201,11 @@ export const billsService = {
     // the same rule resolveExpenseLine applies at posting, checked at entry so
     // a wrong choice is refused when it is made, not when it is approved.
     if (billData.expenseAccountId != null) await assertExpenseAccount(billData.expenseAccountId);
+    // 🔴 G04 (2026-10-07): the asset a bill capitalises is THIS company's. The
+    // column had no foreign key: another tenant's asset, the other company's,
+    // and a missing id were all stored (approval later answered 404). Refused
+    // here, named; 0122's key refuses it beneath every writer.
+    if (billData.capitalisesAssetId != null) await assertAssetOwnedByCompany(billData.capitalisesAssetId, "capitalisesAssetId");
     // 🔴 H2 — item amounts validated (see invoices.create).
     (items as any[]).forEach((it, i) => {
       assertAmount(it.quantity, `item ${i + 1} quantity`, { min: 0, allowZero: true });
@@ -340,6 +346,7 @@ export const billsService = {
       "supplierDocumentKind", "recordedAsExpense", "expensePaidFromBankAccountId", "expensePaidAt",
     ]);
     assertSupplierDocumentKind(values.supplierDocumentKind);
+    if (values.capitalisesAssetId != null) await assertAssetOwnedByCompany(values.capitalisesAssetId, "capitalisesAssetId"); // G04 — see create
     // An expense is judged on the draft as it will STAND (a partial PATCH keeps the stored fields).
     if (values.recordedAsExpense !== undefined || values.expensePaidFromBankAccountId !== undefined || values.expensePaidAt !== undefined) {
       const merged: Record<string, any> = {

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, uuid, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, uuid, index, uniqueIndex, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -85,6 +85,9 @@ export const customersTable = pgTable(
   (t) => [
     index("customers_org_idx").on(t.organizationId),
     uniqueIndex("customers_source_identity_unq").on(t.organizationId, t.sourceSystem, t.sourceId).where(sql`source_system IS NOT NULL`),
+    // 🔴 G04 (0122): the TARGET of a tenant-keyed foreign key — a reference to
+    // this row carries the organization, so another tenant's id cannot be named.
+    unique("customers_org_id_unq").on(t.organizationId, t.id),
   ],
 );
 

@@ -1,5 +1,5 @@
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
-import { uniqueIndex, pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index, jsonb } from "drizzle-orm/pg-core";
+import { uniqueIndex, pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index, jsonb, foreignKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -8,6 +8,7 @@ import { categoriesTable } from "./categories";
 import { productsTable } from "./products";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
+import { fixedAssetsTable } from "./assets";
 
 export const billsTable = pgTable(
   "bills",
@@ -92,8 +93,12 @@ export const billsTable = pgTable(
      * draft bill; at approval the debit line becomes the asset category's
      * COST account and the asset is capitalised on that entry (one writer,
      * one effect — fixed-assets pack §3 A1, §21). NULL = an ordinary expense
-     * bill. No FK to fixed_assets here: the register is the newer table and
-     * the link is read forward (fixed_assets.bill_id carries the other side).
+     * bill.
+     *
+     * 🔴 G04 (0122): it had NO foreign key, so another tenant's asset, the
+     * same organization's other company's, and a nonexistent id were all
+     * stored. `bills_capitalises_asset_tenant_fk` below names the asset WITH
+     * the bill's organization and company: a bill buys its own company's asset.
      */
     capitalisesAssetId: integer("capitalises_asset_id"),
     notes: text("notes"),
@@ -177,6 +182,7 @@ export const billsTable = pgTable(
     index("bills_company_vendor_ref_idx").on(t.companyId, t.vendorId, t.vendorReference),
     // Phase 13A: the awaiting-evidence list.
     index("bills_company_evidence_idx").on(t.companyId, t.vatEvidenceStatus),
+    foreignKey({ name: "bills_capitalises_asset_tenant_fk", columns: [t.organizationId, t.companyId, t.capitalisesAssetId], foreignColumns: [fixedAssetsTable.organizationId, fixedAssetsTable.companyId, fixedAssetsTable.id] }).onDelete("restrict"),
   ],
 );
 

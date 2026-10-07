@@ -158,9 +158,26 @@ const TAX_TREASURY_UNIQUE_MESSAGE: Record<string, string> = {
   journal_entries_company_number_unq: "Another entry was recorded at the same moment — reload and try again.",
 };
 
+/**
+ * G04 (0122) — the tenant-keyed references. A write naming a row outside its
+ * organization (or a row that does not exist — the SAME failure, by
+ * construction) is refused by the key. The service layers refuse first, in
+ * words; this is the answer for any writer that reaches the database anyway,
+ * so a 23503 is never a raw 500 and never an existence oracle. The message is
+ * fixed, not the database sentence: that one names the key values.
+ */
+const TENANT_REFERENCE_KEYS: Record<string, { field: string; error: string }> = {
+  journal_entry_lines_account_tenant_fk: { field: "lines", error: "A journal line names an account that does not exist for this organization." },
+  journal_entry_lines_customer_tenant_fk: { field: "lines", error: "A journal line names a customer that does not exist for this organization." },
+  journal_entry_lines_vendor_tenant_fk: { field: "lines", error: "A journal line names a vendor that does not exist for this organization." },
+  invoice_items_product_tenant_fk: { field: "items", error: "An invoice line names a product that does not exist for this organization." },
+  fixed_assets_custodian_member_fk: { field: "custodianUserId", error: "The custodian must be a member of this organization." },
+  bills_capitalises_asset_tenant_fk: { field: "capitalisesAssetId", error: "The asset to capitalise does not exist for this company." },
+};
+
 export interface DbRefusal {
   status: 409 | 422;
-  body: { code: string; error: string; constraint?: string };
+  body: { code: string; error: string; constraint?: string; field?: string };
 }
 
 /**
@@ -181,6 +198,12 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   if (pgCode === "23514" && constraint) {
     const status = BUDGET_TRIGGER_STATUS[constraint] ?? TAX_TREASURY_TRIGGER_STATUS[constraint];
     if (status) return { status, body: { code: constraint, error: pgMessage } };
+  }
+  // The REFERENCING side only ("insert or update on table …"): a DELETE blocked
+  // by the same key is a different refusal, and stays unmapped.
+  if (pgCode === "23503" && constraint && /^insert or update on table/.test(pgMessage)) {
+    const ref = TENANT_REFERENCE_KEYS[constraint];
+    if (ref) return { status: 422, body: { code: "reference_not_found", error: ref.error, field: ref.field } };
   }
   if (pgCode === "23505" && constraint) {
     const budget = BUDGET_UNIQUE_MESSAGE[constraint];
