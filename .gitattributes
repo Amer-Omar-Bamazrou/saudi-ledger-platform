@@ -1,0 +1,4 @@
+# Migrations are checked out with LF on every platform: drizzle stores the sha256 of
+# each file as read, and plpgsql keeps a function body's bytes, so a CRLF checkout
+# migrates to different hashes and \r-bearing trigger definitions than CI does.
+*.sql text eol=lf
