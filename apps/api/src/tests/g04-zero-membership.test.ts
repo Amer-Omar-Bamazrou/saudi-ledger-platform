@@ -194,12 +194,14 @@ describeMaybe("Zero-membership accounts — born with a membership, attached onl
   });
 
   it("the operator-target attempt is still RECORDED in the security trail", async () => {
-    const before = Number((await pool.query(`SELECT count(*)::int AS n FROM security_audit_logs WHERE action = 'account.operator_target_refused' AND target_user_id = $1`, [uid.op])).rows[0].n);
+    // `id` is a random uuid, so the attempt's record is the one whose id was not there before it.
+    const records = async () => (await pool.query(
+      `SELECT id, actor_user_id, metadata FROM security_audit_logs WHERE action = 'account.operator_target_refused' AND target_user_id = $1`, [uid.op])).rows;
+    const before = new Set((await records()).map((r) => r.id));
     await attach("adminB", org.b, uid.op, "viewer");
-    const rows = (await pool.query(
-      `SELECT actor_user_id, metadata FROM security_audit_logs WHERE action = 'account.operator_target_refused' AND target_user_id = $1 ORDER BY id DESC`, [uid.op])).rows;
-    expect(rows.length).toBe(before + 1);
-    expect(rows[0]).toMatchObject({ actor_user_id: uid.adminB, metadata: { attempted: "membership.assign" } });
+    const fresh = (await records()).filter((r) => !before.has(r.id));
+    expect(fresh).toHaveLength(1);
+    expect(fresh[0]).toMatchObject({ actor_user_id: uid.adminB, metadata: { attempted: "membership.assign" } });
   });
 
   it("🔴 the zero-membership account (the leftover's state): neither org may attach it or reset its password", async () => {
