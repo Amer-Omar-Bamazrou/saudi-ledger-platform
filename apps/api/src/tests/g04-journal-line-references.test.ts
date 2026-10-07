@@ -360,11 +360,15 @@ describeMaybe("G04 — a journal line references only its own organization's acc
     expect(r.status).toBe(201);
     const lineId = (await pool.query(`SELECT id FROM journal_entry_lines WHERE journal_entry_id = $1 AND debit_amount > 0`, [r.body.id])).rows[0].id;
     await plantLineReference(lineId, "account_id", acct.yExpense);
-    const a = await api("x", "POST", `/journal-entries/${r.body.id}/approve`, {});
-    expect(a.status, JSON.stringify(a.body)).toBe(422);
-    expect(a.body.code).toBe("reference_not_found");
-    expect((await pool.query(`SELECT status, posted_at FROM journal_entries WHERE id = $1`, [r.body.id])).rows[0]).toEqual({ status: "draft", posted_at: null });
-    await api("x", "DELETE", `/journal-entries/${r.body.id}`);
+    try {
+      const a = await api("x", "POST", `/journal-entries/${r.body.id}/approve`, {});
+      expect(a.status, JSON.stringify(a.body)).toBe(422);
+      expect(a.body.code).toBe("reference_not_found");
+      expect(a.body.field, "refused by APPROVAL itself, naming the line").toMatch(/^lines\[\d+\]\.accountId$/);
+      expect((await pool.query(`SELECT status, posted_at FROM journal_entries WHERE id = $1`, [r.body.id])).rows[0]).toEqual({ status: "draft", posted_at: null });
+    } finally {
+      await pool.query(`DELETE FROM journal_entries WHERE id = $1 AND status = 'draft'`, [r.body.id]);
+    }
   });
 
   it("🔴 APPROVAL refuses a planted foreign CUSTOMER on a stored AR line the same way", async () => {
@@ -374,11 +378,15 @@ describeMaybe("G04 — a journal line references only its own organization's acc
     expect(r.status).toBe(201);
     const lineId = (await pool.query(`SELECT id FROM journal_entry_lines WHERE journal_entry_id = $1 AND customer_id IS NOT NULL`, [r.body.id])).rows[0].id;
     await plantLineReference(lineId, "customer_id", party.yCustomer);
-    const a = await api("x", "POST", `/journal-entries/${r.body.id}/approve`, {});
-    expect(a.status).toBe(422);
-    expect(a.body.code).toBe("reference_not_found");
-    expect((await pool.query(`SELECT status FROM journal_entries WHERE id = $1`, [r.body.id])).rows[0].status).toBe("draft");
-    await api("x", "DELETE", `/journal-entries/${r.body.id}`);
+    try {
+      const a = await api("x", "POST", `/journal-entries/${r.body.id}/approve`, {});
+      expect(a.status).toBe(422);
+      expect(a.body.code).toBe("reference_not_found");
+      expect(a.body.field).toMatch(/^lines\[\d+\]\.customerId$/);
+      expect((await pool.query(`SELECT status FROM journal_entries WHERE id = $1`, [r.body.id])).rows[0].status).toBe("draft");
+    } finally {
+      await pool.query(`DELETE FROM journal_entries WHERE id = $1 AND status = 'draft'`, [r.body.id]);
+    }
   });
 
   it("🔴 REVERSAL is not a bypass: a posted entry whose stored line names another tenant's account is refused — no mirror, the original untouched", async () => {
@@ -391,6 +399,7 @@ describeMaybe("G04 — a journal line references only its own organization's acc
       const rev = await api("x", "POST", `/journal-entries/${r.body.id}/reverse`, { date: "2026-10-02" });
       expect(rev.status, JSON.stringify(rev.body)).toBe(422);
       expect(rev.body.code).toBe("reference_not_found");
+      expect(rev.body.field, "refused by the REVERSAL itself (the database fallback names only \"lines\")").toMatch(/^lines\[\d+\]\.accountId$/);
       expect(await counts(), "no mirror entry, no mirror line").toEqual(before);
       expect((await pool.query(`SELECT status FROM journal_entries WHERE id = $1`, [r.body.id])).rows[0].status).toBe("posted");
       expect(Number((await pool.query(`SELECT count(*)::int AS n FROM journal_entries WHERE reversal_of = $1`, [r.body.id])).rows[0].n)).toBe(0);

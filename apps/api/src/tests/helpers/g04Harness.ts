@@ -8,7 +8,8 @@
  * = replica`) because posted rows are append-only at the database — which also
  * sets the foreign keys aside, so a cleanup that deleted only SOME tables would
  * leave children pointing at nothing (how the local database came to hold
- * ~9.5k such rows; docs/test-suite-notes.md #9). Deleting every org-scoped
+ * ~9.5k such rows; docs/test-suite-notes.md, "A replica-mode cleanup that
+ * deletes SOME tables leaves orphans"). Deleting every org-scoped
  * table is the shape that cannot orphan a row of the suite's own tenants.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */

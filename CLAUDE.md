@@ -335,6 +335,7 @@ doing the thing it governs rather than only once you know its name.
   `organization_id` (NOT NULL, RLS `tenant_isolation` policy off the
   `app.current_org_id` GUC); every query filters by tenant. RLS is enforced at
   runtime via per-request transactions on a non-owner role.
+- **🔴 A TENANT→TENANT FOREIGN KEY CARRIES `organization_id`** (G04, 0122) — writers prove ownership explicitly, never by RLS visibility; foreign ≡ missing ≡ 422 `reference_not_found`. Ratchet: `tests/tenant-foreign-key-ratchet.test.ts`.
 - **🔴 `organizations`, `users`, `organization_memberships` are OUTSIDE RLS.**
   Business-layer code (`services/`, `repositories/`) must not read them — a
   forgotten filter there is a silent cross-tenant leak nothing catches. The
@@ -357,6 +358,7 @@ doing the thing it governs rather than only once you know its name.
   (`requirePermission`, admin-of-THIS-org, `requirePlatformOperator`) over any
   ambient global role.
 - **🔴 A PLATFORM OPERATOR IS A MEMBER OF NO ORGANIZATION** — the database refuses the membership and the grant either way (0121); confinement treats operator status as foreign to every tenant.
+- **🔴 AN ACCOUNT IS BORN WITH ITS FIRST MEMBERSHIP** — it joins another org only by invitation → acceptance (`POST /orgs/:id/members` never creates one); operators hold none.
 - **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** (findings file, "RANK 1 FIXED".)
 - **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
 - **🔴 MONEY ROUNDING GOES THROUGH `lib/money.ts` — ONE SEAM** (N2). `round2` to compute, `money2` to store; never a bare `.toFixed(2)` on an unrounded float (it rounds DIFFERENTLY), never a local `round2`. Headers that must equal their stored lines accumulate ROUNDED addends, and `postJournalEntry` checks balance on the rounded lines it persists.
