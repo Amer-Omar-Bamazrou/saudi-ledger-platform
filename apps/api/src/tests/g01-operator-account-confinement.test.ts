@@ -40,6 +40,7 @@ import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool } from "@workspace/db";
 import { __resetRateLimitsForTests } from "../routes/auth";
+import { assertAccountConfinedTo } from "../lib/accountScope";
 import { membersService } from "../services/members.service";
 import { userAdminService } from "../services/userAdmin.service";
 
@@ -287,5 +288,83 @@ describeMaybe("G01 — a tenant admin cannot gain control of a platform-operator
     expect(await login("othermember", r.body.temporaryPassword)).toBe(200);
     // The operator-to-operator refusal is unchanged.
     expect((await api("op", "POST", "/operator/users/reset-password", { email: email("op") })).status).toBe(403);
+  });
+
+  // ── The confinement layer's OWN operator check ─────────────────────────────
+  // Since G04 every production caller refuses an operator BEFORE confinement:
+  // user administration at "in scope" (an operator holds no membership, and
+  // 0121 forbids one), assignment at its own operator check. So nothing above
+  // can tell whether `assertAccountConfinedTo` still checks operator status.
+  // These two hold it directly: without the check, a recorded refusal becomes an
+  // unrecorded one, and — once the database's premise is broken — a refusal
+  // becomes a takeover.
+  // `security_audit_logs.id` is a random uuid, so a step's records are the ids
+  // that were not there before it — never "the newest by id".
+  const operatorRecords = async (userId: number) =>
+    (await pool.query(
+      `SELECT id, actor_user_id, metadata FROM security_audit_logs WHERE action = 'account.operator_target_refused' AND target_user_id = $1`,
+      [userId],
+    )).rows as Array<{ id: string; actor_user_id: number | null; metadata: { attempted: string | null } }>;
+  const recordsSince = async (userId: number, before: Array<{ id: string }>) => {
+    const seen = new Set(before.map((r) => r.id));
+    return (await operatorRecords(userId)).filter((r) => !seen.has(r.id));
+  };
+
+  it("🔴 CONFINEMENT LAYER (direct): an operator target is refused in both dispositions, concealed, and RECORDED — an account with no membership is refused WITHOUT that record", async () => {
+    const orphan = await user("orphan", null, "viewer");
+    const before = await operatorRecords(ids.op);
+    for (const disclosure of ["conceal", "explain"] as const) {
+      const actor = { actorUserId: ids.admin, attempted: `g01.direct.${disclosure}` };
+      const op = await assertAccountConfinedTo(ids.op, [tenantOrg], disclosure, actor).then(() => null, (e) => e);
+      const none = await assertAccountConfinedTo(orphan, [tenantOrg], disclosure, actor).then(() => null, (e) => e);
+      expect(op, `${disclosure}: the operator must be refused`).toMatchObject({ statusCode: 404 });
+      expect(none, `${disclosure}: CONTROL — an account with no membership is refused too`).toMatchObject({ statusCode: 404 });
+      expect(op.message, `${disclosure}: concealed exactly like an account with no membership`).toBe(none.message);
+    }
+    const fresh = await recordsSince(ids.op, before);
+    expect(fresh.map((r) => r.metadata.attempted).sort(), "each refused operator attempt is recorded, once").toEqual(["g01.direct.conceal", "g01.direct.explain"]);
+    expect(fresh.map((r) => r.actor_user_id)).toEqual([ids.admin, ids.admin]);
+    // The record is about OPERATOR STATUS, not about refusal in general.
+    expect(await operatorRecords(orphan)).toEqual([]);
+  });
+
+  it("🔴 INDEPENDENT OF 0121: with an operator membership PLANTED below the trigger, reset and deactivation are still refused and recorded — the same shape on an ordinary account is administrable (control)", async () => {
+    const plant = async (userId: number) => {
+      const c = await pool.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SET LOCAL session_replication_role = replica"); // below the 0121 trigger: the premise broken on purpose
+        await c.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'viewer','active')`, [userId, tenantOrg]);
+        await c.query("COMMIT");
+      } catch (err) {
+        await c.query("ROLLBACK");
+        throw err;
+      } finally {
+        c.release();
+      }
+    };
+    const control = await user("plain", null, "viewer");
+    await plant(control);
+    await plant(ids.op);
+    try {
+      expect(await membershipCount(ids.op), "the premise is broken: the operator holds a membership in the admin's org").toBe(1);
+      const hashBefore = await passwordHashOf(ids.op);
+      const before = await operatorRecords(ids.op);
+      // Every other layer now lets this target through; only confinement's operator check refuses it.
+      const reset = await api("admin", "POST", `/auth/users/${ids.op}/reset-password`, { newPassword: "Owned-by-tenant-123!" });
+      expect(reset.status).toBe(404);
+      const patch = await api("admin", "PATCH", `/auth/users/${ids.op}`, { isActive: false });
+      expect(patch.status).toBe(404);
+      expect(await passwordHashOf(ids.op), "the operator's password is untouched").toBe(hashBefore);
+      expect((await pool.query(`SELECT is_active FROM users WHERE id = $1`, [ids.op])).rows[0].is_active).toBe(true);
+      const fresh = await recordsSince(ids.op, before);
+      expect(fresh.map((r) => r.metadata.attempted).sort(), "both attempts recorded, once each").toEqual(["user.password_reset", "user.update"]);
+      expect(fresh.map((r) => r.actor_user_id)).toEqual([ids.admin, ids.admin]);
+      // CONTROL: the identical planted shape on an ordinary account passes every layer.
+      expect((await api("admin", "POST", `/auth/users/${control}/reset-password`, { newPassword: "Reset-by-admin-123!" })).status).toBe(200);
+    } finally {
+      await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [ids.op]);
+    }
+    expect(await membershipCount(ids.op)).toBe(0);
   });
 });
