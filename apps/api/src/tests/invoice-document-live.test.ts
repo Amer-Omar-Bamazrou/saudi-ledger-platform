@@ -181,16 +181,15 @@ describeMaybe("L1 — the invoice document, from real rows", () => {
     expect(facts.totalLines).toBe(2);
   });
 
-  it("the full render: PDF/A markers present, sentinel absent — through the DECOMPRESSED bytes (skips without Chromium)", async () => {
+  it("the full render: PDF/A markers present, sentinel absent — through the DECOMPRESSED bytes (skips without Chromium)", async (ctx) => {
     const model = await inTenant(() => buildInvoiceDocModel(invoiceId, "ar"));
     let pdf: Uint8Array;
     try {
       pdf = await renderInvoicePdf(model);
     } catch (err) {
-      if (err instanceof RendererUnavailableError) {
-        console.warn("[invoice-document-live] no Chromium executable — render assertions SKIPPED (CI's e2e job covers the endpoint).");
-        return;
-      }
+      // Reported SKIPPED, never passed: a render that did not happen is not
+      // a render that was checked (CI's e2e job covers the endpoint).
+      if (err instanceof RendererUnavailableError) ctx.skip("no Chromium executable — render assertions did not run");
       throw err;
     }
     expect(Buffer.from(pdf.subarray(0, 5)).toString()).toBe("%PDF-");

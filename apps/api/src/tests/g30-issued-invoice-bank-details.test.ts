@@ -183,22 +183,22 @@ describeMaybe("G30 — an issued invoice keeps the bank details in force when it
     }
   });
 
-  it("DIRECT API EXPORT: the issued invoice still exports as a PDF in both languages after the bank change (skips without Chromium)", async () => {
+  it("DIRECT API EXPORT: the issued invoice still exports as a PDF in both languages after the bank change (skips without Chromium)", async (ctx) => {
     // The PDF is a pure function of the model asserted above (model → HTML →
     // Chromium → PDF/A-3B). Chromium subsets fonts, so the IBAN is not
     // greppable in the bytes (invoice-document-live.test.ts records the same
     // limit); the HTML above is the asserted artifact, this is the endpoint.
     // CI's API job has no Chromium: the endpoint then answers its NAMED 503,
-    // which is the only refusal skipped here — CI's e2e job downloads the PDF
+    // which is the only refusal accepted here — and the test then reports
+    // SKIPPED, never passed (owner, 2026-10-07: a check that did not run must
+    // not be counted as one that did). CI's e2e job downloads the PDF
     // (g30-issued-invoice-bank.spec.ts, invoice-document.spec.ts).
     for (const lang of ["ar", "en"]) {
       const res = await fetch(`${base}/invoices/${firstInvoiceId}/document?lang=${lang}`, { headers: { cookie: jar.bookkeeper } });
       if (res.status === 503) {
         const body = (await res.json()) as { code?: string };
         expect(body.code, "a 503 here may only be the named renderer refusal").toBe("pdf_renderer_unavailable");
-        // eslint-disable-next-line no-console
-        console.warn("[g30] no Chromium executable — export assertions SKIPPED (CI's e2e job covers the download).");
-        return;
+        ctx.skip("no Chromium executable — the PDF export did not run (CI's e2e job covers the download)");
       }
       expect(res.status, `${lang} export`).toBe(200);
       expect(res.headers.get("content-type")).toContain("application/pdf");
