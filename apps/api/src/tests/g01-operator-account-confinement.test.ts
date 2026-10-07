@@ -150,24 +150,28 @@ describeMaybe("G01 — a tenant admin cannot gain control of a platform-operator
     expect((await api("op", "GET", "/operator/applications")).status).toBe(200);
     expect(await membershipCount(ids.op)).toBe(0);
     expect((await api("admin", "GET", `/orgs/${tenantOrg}/members`)).status).toBe(200);
-    // The assignment surface WORKS for an ordinary account the admin may take:
-    // a fresh account with no membership is assignable (201), so the refusals
-    // below are about the operator, not a broken route.
-    const fresh = await user("fresh", null, "viewer");
-    expect((await api("admin", "POST", `/orgs/${tenantOrg}/members`, { userId: fresh, role: "viewer" })).status).toBe(201);
+    // The assignment surface WORKS for an account the admin may act on:
+    // re-activating an EXISTING (inactive) member of the org answers 201, so the
+    // refusals below are about the operator, not a broken route. (G04: it used to
+    // attach a fresh no-membership account — the very path that let ANY tenant
+    // admin take a new hire over; assignment now never creates a membership.)
+    const lapsed = await user("lapsed", tenantOrg, "viewer");
+    await pool.query(`UPDATE organization_memberships SET status = 'inactive' WHERE user_id = $1 AND organization_id = $2`, [lapsed, tenantOrg]);
+    expect((await api("admin", "POST", `/orgs/${tenantOrg}/members`, { userId: lapsed, role: "viewer" })).status).toBe(201);
   });
 
   it("🔴 the tenant admin CANNOT attach the operator to their organization — refused exactly like a nonexistent id", async () => {
     const attempt = await api("admin", "POST", `/orgs/${tenantOrg}/members`, { userId: ids.op, role: "admin" });
     const nonexistent = await api("admin", "POST", `/orgs/${tenantOrg}/members`, { userId: 2_000_000_000, role: "admin" });
-    expect(attempt.status, "operator target must be refused").toBe(404);
+    // G04: every non-member gets ONE 422 invitation_required (it was 404 here).
+    expect(attempt.status, "operator target must be refused").toBe(422);
     expect(attempt.body, "the refusal must not distinguish an operator from a missing id").toEqual(nonexistent.body);
     expect(await membershipCount(ids.op)).toBe(0);
   });
 
   it("🔴 CROSS-ORG: another organization's admin cannot attach the operator either", async () => {
     const attempt = await api("otheradmin", "POST", `/orgs/${otherOrg}/members`, { userId: ids.op, role: "viewer" });
-    expect(attempt.status).toBe(404);
+    expect(attempt.status).toBe(422); // G04: the one refusal for every non-member (was 404)
     expect(await membershipCount(ids.op)).toBe(0);
   });
 
@@ -203,7 +207,7 @@ describeMaybe("G01 — a tenant admin cannot gain control of a platform-operator
   });
 
   it("🔴 SERVICE LAYER (direct invocation, no HTTP): assignment and reset refuse an operator target", async () => {
-    await expect(membersService.assign(ids.admin, tenantOrg, ids.op, "admin")).rejects.toMatchObject({ statusCode: 404 });
+    await expect(membersService.assign(ids.admin, tenantOrg, ids.op, "admin")).rejects.toMatchObject({ statusCode: 422 }); // G04 (was 404)
     await expect(userAdminService.resetPassword(ids.admin, ids.op, "Owned-by-tenant-123!")).rejects.toMatchObject({ statusCode: 404 });
     expect(await membershipCount(ids.op)).toBe(0);
   });

@@ -60,6 +60,8 @@ describeMaybe("securityAuditService — records + org-scoped, authorized reads",
     target = await mkUser("secaudit-test-target@test.local");
     await pool.query(`INSERT INTO organization_memberships (user_id,organization_id,role,status) VALUES ($1,$2,'admin','active')`, [adminA, orgA]);
     await pool.query(`INSERT INTO organization_memberships (user_id,organization_id,role,status) VALUES ($1,$2,'admin','active')`, [adminB, orgB]);
+    // G04: assignment acts on an EXISTING member (a new person joins by invitation).
+    await pool.query(`INSERT INTO organization_memberships (user_id,organization_id,role,status) VALUES ($1,$2,'viewer','inactive')`, [target, orgA]);
   });
 
   afterAll(async () => {

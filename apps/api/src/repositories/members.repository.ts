@@ -176,6 +176,16 @@ export const membersRepository = {
     return rows.map((r) => r.organizationId);
   },
 
+  /** G04: does the account hold ANY membership, of any status, anywhere? (Confinement must not be vacuous.) */
+  async hasAnyMembership(userId: number): Promise<boolean> {
+    const [m] = await db
+      .select({ id: organizationMembershipsTable.id })
+      .from(organizationMembershipsTable)
+      .where(eq(organizationMembershipsTable.userId, userId))
+      .limit(1);
+    return !!m;
+  },
+
   async userExists(userId: number): Promise<boolean> {
     const [u] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     return !!u;

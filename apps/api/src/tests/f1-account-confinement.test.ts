@@ -51,7 +51,7 @@ const TAKEOVER_PW = "AttackerOwnsYou123!";
 const ATTACKER_EMAIL = "f1test-attacker@test.local";
 const VICTIM_EMAIL = "f1test-victim@test.local";
 const COLLEAGUE_EMAIL = "f1test-colleague@test.local";
-const UNPLACED_EMAIL = "f1test-unplaced@test.local";
+const LAPSED_EMAIL = "f1test-lapsed@test.local";
 
 describeMaybe("F1 — an org admin cannot take over an account that reaches another tenant", () => {
   let server: http.Server;
@@ -60,7 +60,7 @@ describeMaybe("F1 — an org admin cannot take over an account that reaches anot
   let victimOrg = "";
   let victimUserId = 0;
   let colleagueUserId = 0;
-  let unplacedUserId = 0;
+  let lapsedUserId = 0;
 
   const ORG_FILTER = `(SELECT id FROM organizations WHERE slug LIKE 'f1test%')`;
   const USER_FILTER = `(SELECT id FROM users WHERE email LIKE 'f1test-%')`;
@@ -155,8 +155,11 @@ describeMaybe("F1 — an org admin cannot take over an account that reaches anot
     colleagueUserId = await mkUser(COLLEAGUE_EMAIL, "Real Colleague");
     await mkMembership(colleagueUserId, attackerOrg, "bookkeeper");
 
-    // An account with NO memberships at all (M10.6's provisioning case).
-    unplacedUserId = await mkUser(UNPLACED_EMAIL, "Unplaced Account");
+    // An EXISTING member of the attacker's own org whose membership lapsed
+    // (G04: replaces the no-membership account this file used to attach — the
+    // path that let any tenant admin take a new hire over).
+    lapsedUserId = await mkUser(LAPSED_EMAIL, "Lapsed Member");
+    await mkMembership(lapsedUserId, attackerOrg, "bookkeeper", "inactive");
 
     const app = (await import("../app")).default;
     server = http.createServer(app);
@@ -174,14 +177,16 @@ describeMaybe("F1 — an org admin cannot take over an account that reaches anot
 
   // ── A. The forged scope: step 1 of the chain ──────────────────────────────
   describe("A — the membership that made the scope forgeable", () => {
-    it("HIGH: CANNOT graft a foreign account into their own org (404, concealed)", async () => {
+    it("HIGH: CANNOT graft a foreign account into their own org (422 invitation_required, the same for everyone)", async () => {
       const r = await api("attacker", "POST", `/orgs/${attackerOrg}/members`, {
         userId: victimUserId,
         role: "viewer",
       });
-      // 404 and not 409/403: a distinct answer would confirm the id belongs to
-      // someone, which is the enumeration oracle M11.5.1 removed.
-      expect(r.status).toBe(404);
+      // The ONE answer every non-member gets (G04; it was a concealed 404): a
+      // distinct answer would confirm the id belongs to someone, which is the
+      // enumeration oracle M11.5.1 removed.
+      expect(r.status).toBe(422);
+      expect(r.body?.code).toBe("invitation_required");
       expect(await membershipCount(victimUserId, attackerOrg)).toBe(0);
     });
 
@@ -190,8 +195,9 @@ describeMaybe("F1 — an org admin cannot take over an account that reaches anot
         userId: 2_000_000_000,
         role: "viewer",
       });
-      expect(r.status).toBe(404);
-      expect(r.body?.error).toBe("User not found.");
+      const victim = await api("attacker", "POST", `/orgs/${attackerOrg}/members`, { userId: victimUserId, role: "viewer" });
+      expect(r.status).toBe(422); // G04 (was 404 "User not found.")
+      expect(r.body, "byte-identical to the real account's refusal").toEqual(victim.body);
     });
 
     it("step 2 is therefore out of reach: reset-password on the victim is 404", async () => {
@@ -275,13 +281,15 @@ describeMaybe("F1 — an org admin cannot take over an account that reaches anot
 
   // ── C. Anti-vacuity: the confined cases still work. ───────────────────────
   describe("C — anti-vacuity: this is a boundary, not an outage", () => {
-    it("CAN assign an account with no memberships (M10.6's provisioning case)", async () => {
+    it("CAN re-activate an existing member of their own org (201)", async () => {
       const r = await api("attacker", "POST", `/orgs/${attackerOrg}/members`, {
-        userId: unplacedUserId,
+        userId: lapsedUserId,
         role: "bookkeeper",
       });
       expect(r.status).toBe(201);
-      expect(await membershipCount(unplacedUserId, attackerOrg)).toBe(1);
+      expect(await membershipCount(lapsedUserId, attackerOrg)).toBe(1);
+      const row = await pool.query(`SELECT status FROM organization_memberships WHERE user_id = $1 AND organization_id = $2`, [lapsedUserId, attackerOrg]);
+      expect(row.rows[0].status).toBe("active");
     });
 
     it("CAN reset the password of a colleague confined to their own org", async () => {

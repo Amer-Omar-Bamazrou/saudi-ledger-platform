@@ -106,16 +106,36 @@ export const userAdminService = {
   },
 
   /**
-   * Create a global user account. The caller must administer an organization;
-   * the new account has NO membership until one is assigned via
-   * `/orgs/:orgId/members`, so it grants no access on its own.
+   * Create a user account AND its first membership — ONE transaction, or
+   * neither row (🔴 G04 zero-membership, 2026-10-07).
+   *
+   * It used to create the account with NO membership, to be assigned by a
+   * second call. In between, the account was vacuously "confined" to every
+   * organization, so ANOTHER organization's admin could attach it, reset its
+   * password and sign in as the person (proven) — and the provisioning org
+   * could then no longer assign its own hire.
+   *
+   * The organization comes from the request and is PROVEN here, never trusted:
+   * it must be one the actor actively ADMINISTERS and that is verification-
+   * approved (the set `requireAdminScope` returns). Every other value —
+   * another org, a pending one, one where the actor is not admin, an unknown or
+   * malformed id — gets ONE refusal, so the answer says nothing about which
+   * organizations exist. `role` is the MEMBERSHIP role (and, as before, the
+   * vestigial global `users.role`, which gates nothing).
    */
   async create(
     actorUserId: number,
-    input: { email?: unknown; name?: unknown; password?: unknown; role?: unknown },
+    input: { email?: unknown; name?: unknown; password?: unknown; role?: unknown; organizationId?: unknown },
     ctx: ActorContext = {},
   ) {
-    await requireAdminScope(actorUserId);
+    const orgIds = await requireAdminScope(actorUserId);
+    const organizationId = typeof input.organizationId === "string" ? input.organizationId.trim() : "";
+    if (!organizationId) {
+      throw new BadRequestError("organizationId is required — the organization the new account joins.");
+    }
+    if (!orgIds.includes(organizationId)) {
+      throw new ForbiddenError("You can add an account only to a verified organization you administer.");
+    }
 
     const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
     const name = typeof input.name === "string" ? input.name.trim() : "";
@@ -134,13 +154,21 @@ export const userAdminService = {
     }
 
     const passwordHash = await hashPassword(password);
-    const [user] = await userAdminRepository.insert({ email, name, passwordHash, role, isActive: true });
+    const { user, membership } = await userAdminRepository.createWithFirstMembership(
+      { email, name, passwordHash, role, isActive: true },
+      { organizationId, role },
+    );
     await securityAuditService.record({
       action: "user.created",
-      actorUserId, actorEmail: ctx.actorEmail, targetUserId: user.id,
+      actorUserId, actorEmail: ctx.actorEmail, targetUserId: user.id, organizationId,
       metadata: { email: user.email, role: user.role }, ipAddress: ctx.ipAddress,
     });
-    return safeUser(user);
+    await securityAuditService.record({
+      action: "membership.assigned",
+      actorUserId, actorEmail: ctx.actorEmail, organizationId, targetUserId: user.id,
+      metadata: { role: membership.role, status: membership.status, provisioned: true }, ipAddress: ctx.ipAddress,
+    });
+    return { ...safeUser(user), organizationId, membershipRole: membership.role };
   },
 
   /** Change a user's global role / active flag / name — scoped to the actor's orgs. */

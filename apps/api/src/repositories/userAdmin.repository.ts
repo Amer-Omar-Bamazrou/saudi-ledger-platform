@@ -127,8 +127,27 @@ export const userAdminRepository = {
     return row;
   },
 
-  insert(values: typeof usersTable.$inferInsert) {
-    return db.insert(usersTable).values(values).returning();
+  /**
+   * 🔴 G04 zero-membership (2026-10-07): AN ACCOUNT IS BORN WITH ITS FIRST
+   * MEMBERSHIP — both rows in ONE transaction, or neither. There is no other
+   * way to create an account here: the bare `insert` this replaced created one
+   * with NO membership, and in the window before a second call assigned it the
+   * account was vacuously "confined" to every organization — any other
+   * organization's admin could attach it, reset its password and sign in as
+   * the person. The caller authorizes `organizationId` first (the service).
+   */
+  createWithFirstMembership(
+    values: typeof usersTable.$inferInsert,
+    membership: { organizationId: string; role: string },
+  ) {
+    return db.transaction(async (tx) => {
+      const [user] = await tx.insert(usersTable).values(values).returning();
+      const [m] = await tx
+        .insert(organizationMembershipsTable)
+        .values({ userId: user!.id, organizationId: membership.organizationId, role: membership.role, status: "active" })
+        .returning();
+      return { user: user!, membership: m! };
+    });
   },
 
   update(userId: number, values: Partial<typeof usersTable.$inferInsert>) {

@@ -82,7 +82,10 @@ export default function UserManagement() {
   });
   const roleByUser = new Map((membersData?.members ?? []).map((m) => [m.userId, m.role]));
 
-  // Assign / change a user's membership role in the active org (upsert).
+  // Change an EXISTING member's role in the active org, or re-activate them. It
+  // never adds a new person (G04): the server answers 422 invitation_required
+  // for anyone who is not already a member, and the toast shows its sentence,
+  // which names the next step — an invitation.
   const assignMut = useMutation({
     mutationFn: ({ userId, role }: { userId: number; role: string }) =>
       apiFetch(`/orgs/${activeOrgId}/members`, { method: "POST", body: JSON.stringify({ userId, role }) }),
@@ -93,17 +96,14 @@ export default function UserManagement() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
-  // Create a user (global identity) THEN give them a membership in the active org
-  // with the chosen role — otherwise a created user has no membership and is
-  // denied on every business route (the M10.1 provisioning gap).
+  // Create the account WITH its membership in the active org, in ONE request —
+  // one transaction on the server (G04). It used to be two calls, and between
+  // them the new account had no membership: any other organization's admin
+  // could attach it and take it over. The server proves this admin
+  // administers `organizationId`; the body alone decides nothing.
   const createMut = useMutation({
-    mutationFn: async (body: typeof emptyNewUser) => {
-      const user = await apiFetch<User>("/auth/register", { method: "POST", body: JSON.stringify(body) });
-      if (activeOrgId) {
-        await apiFetch(`/orgs/${activeOrgId}/members`, { method: "POST", body: JSON.stringify({ userId: user.id, role: body.role }) });
-      }
-      return user;
-    },
+    mutationFn: (body: typeof emptyNewUser) =>
+      apiFetch<User>("/auth/register", { method: "POST", body: JSON.stringify({ ...body, organizationId: activeOrgId }) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
       qc.invalidateQueries({ queryKey: ["members", activeOrgId] });
@@ -244,7 +244,7 @@ export default function UserManagement() {
               <Button
                 className="w-full mt-2"
                 onClick={() => createMut.mutate(newUser)}
-                disabled={!newUser.name || !newUser.email || !newUser.password || createMut.isPending}
+                disabled={!activeOrgId || !newUser.name || !newUser.email || !newUser.password || createMut.isPending}
               >
                 {createMut.isPending ? t("Creating…", "جارٍ الإنشاء…") : t("Create user", "إنشاء مستخدم")}
               </Button>

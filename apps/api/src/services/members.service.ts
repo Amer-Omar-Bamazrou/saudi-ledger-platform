@@ -21,7 +21,9 @@
  */
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { membersRepository } from "../repositories/members.repository";
-import { assertAccountConfinedTo } from "../lib/accountScope";
+import { assertAccountConfinedTo, recordOperatorTargetRefused } from "../lib/accountScope";
+import { operatorsRepository } from "../repositories/operators.repository";
+import { BusinessRuleError } from "../lib/errors";
 import { securityAuditService } from "./securityAudit.service";
 
 /** Actor context for the security-audit trail, threaded from the identity route. */
@@ -41,13 +43,42 @@ async function assertOrgAdmin(actorUserId: number, orgId: string): Promise<void>
   }
 }
 
+/**
+ * 🔴 G04 zero-membership (2026-10-07): the ONE answer for "this account is not
+ * already a member of this organization" — an unknown id, a platform operator,
+ * another organization's member and an account with no membership at all get
+ * it byte-for-byte, so the response never says whether an account exists.
+ * The next step it names is the only one there is.
+ */
+function invitationRequired(): BusinessRuleError {
+  return new BusinessRuleError(422, {
+    code: "invitation_required",
+    error:
+      "This changes the role of someone who is already a member of this organization. To add someone, " +
+      "send them an invitation — an account joins an organization only by accepting one.",
+    field: "userId",
+  });
+}
+
 export const membersService = {
   async list(actorUserId: number, orgId: string) {
     await assertOrgAdmin(actorUserId, orgId);
     return { members: await membersRepository.listMembers(orgId) };
   },
 
-  /** Assign (or re-activate) a role for an existing user in this org. */
+  /**
+   * Change the role of — or re-activate — an EXISTING member of this org.
+   *
+   * 🔴 G04 zero-membership (2026-10-07): this NEVER creates a membership. It
+   * used to attach any account that existed, and an account with no membership
+   * (the window between `/auth/register` and its second call) was vacuously
+   * "confined" to every organization — so another organization's admin could
+   * attach someone else's new hire, reset its password and sign in as the
+   * person (proven). Provisioning is now atomic with the first membership, and
+   * an existing account joins another organization only by invitation →
+   * acceptance → membership. Everyone who is not already a member here gets
+   * one identical 422 `invitation_required`.
+   */
   async assign(
     actorUserId: number,
     orgId: string,
@@ -61,28 +92,24 @@ export const membersService = {
         `userId (number) and role (${VALID_MEMBERSHIP_ROLES.join(" | ")}) are required.`,
       );
     }
-    if (!(await membersRepository.userExists(userId))) throw new NotFoundError("User not found.");
+    const actorCtx = { actorUserId, actorEmail: ctx.actorEmail, ipAddress: ctx.ipAddress, attempted: "membership.assign" };
+    // G01: an operator holds no membership, so the check below refuses it —
+    // identically; the attempt is still recorded first.
+    if (await operatorsRepository.isOperator(userId)) {
+      await recordOperatorTargetRefused(userId, actorCtx);
+      throw invitationRequired();
+    }
+    const [existing] = await membersRepository.findMembership(userId, orgId);
+    if (!existing) throw invitationRequired();
 
-    // 🔴 F1 — the act that made the M11.5.1 scope forgeable.
-    // Creating a membership here is the ONLY way one admin can make a stranger's
-    // account "theirs", and `userAdminService` trusted exactly that fact to
-    // decide who may have their password reset. So the boundary belongs here as
-    // well as there: an account that already belongs to an organization this
-    // actor does not administer is not one they may quietly graft into their
-    // own. The consented path for such a person is an INVITATION (M11.7) —
-    // token to their address, accepted by them.
-    // Concealed (404, identical to a nonexistent id): the actor supplied a raw
-    // user id, and a distinct refusal would confirm that the id belongs to
-    // someone — the cross-tenant enumeration M11.5.1 removed.
-    // G01: this is also where a platform-operator target is refused (concealed
-    // and recorded) — an operator holds no membership, so confinement alone
-    // used to pass it vacuously.
-    await assertAccountConfinedTo(userId, await membersRepository.administeredOrgIds(actorUserId), "conceal", {
-      actorUserId,
-      actorEmail: ctx.actorEmail,
-      ipAddress: ctx.ipAddress,
-      attempted: "membership.assign",
-    });
+    // 🔴 F1 — this act once made the M11.5.1 scope forgeable: it created a
+    // membership for any account that existed, and `userAdminService` trusted
+    // membership to decide who may have their password reset. Since G04 it
+    // creates none (above). Re-activating an existing member still passes
+    // confinement: an account that also belongs to an organization this actor
+    // does not administer is not theirs to re-activate here — that is the
+    // other organization's decision (concealed, 404, as before).
+    await assertAccountConfinedTo(userId, await membersRepository.administeredOrgIds(actorUserId), "conceal", actorCtx);
 
     const [membership] = await membersRepository.upsert(userId, orgId, role as MembershipRole);
     await securityAuditService.record({
