@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, uuid, index, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, uuid, index, uniqueIndex, unique, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -77,6 +77,9 @@ export const vendorsTable = pgTable(
     check("vendors_residency_chk", sql`residency IN ('resident', 'non_resident', 'unknown')`),
     check("vendors_wht_default_type_chk", sql`wht_default_payment_type IS NULL OR wht_default_payment_type IN (${WHT_PAYMENT_TYPES_SQL})`),
     uniqueIndex("vendors_source_identity_unq").on(t.organizationId, t.sourceSystem, t.sourceId).where(sql`source_system IS NOT NULL`),
+    // 🔴 G04 (0122): the TARGET of a tenant-keyed foreign key — a reference to
+    // this row carries the organization, so another tenant's id cannot be named.
+    unique("vendors_org_id_unq").on(t.organizationId, t.id),
   ],
 );
 

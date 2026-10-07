@@ -212,8 +212,9 @@ export const invitationsService = {
     const invitation = await this._loadValid(token);
     const email = invitation.email;
 
-    let userId: number;
-    let userName: string;
+    // Who accepts: an existing account (signed in as itself) or a new one —
+    // created INSIDE the acceptance's transaction, never before it.
+    let account: { userId: number } | { email: string; name: string; passwordHash: string };
 
     const existingUser = await invitationsRepository.findUserByEmail(email);
 
@@ -243,8 +244,11 @@ export const invitationsService = {
           "Platform operator accounts cannot join an organization. Accept this invitation with a separate, non-operator account.",
         );
       }
-      userId = actor.id;
-      userName = actor.name;
+      // Already a member? Don't silently re-grant or change their role.
+      if (await membersRepository.activeRole(actor.id, invitation.organizationId)) {
+        throw new ConflictError("You are already a member of this organization.");
+      }
+      account = { userId: actor.id };
     } else if (existingUser) {
       // An account exists but nobody is signed in — do NOT create a session from
       // a link alone; require them to authenticate first.
@@ -258,26 +262,24 @@ export const invitationsService = {
       if (!name) throw new BadRequestError("Your full name is required.");
       assertPasswordAcceptable(password);
       const passwordHash = await hashPassword(password);
-      // Invariant 1: global role is NON-PRIVILEGED. Authority comes from the
-      // membership created below.
-      const [created] = await userAdminRepository.insert({
-        email, name, passwordHash, role: "viewer", isActive: true,
-      });
-      userId = created.id;
-      userName = created.name;
+      // Invariant 1: global role is NON-PRIVILEGED (the repository writes
+      // "viewer"). Authority comes from the membership.
+      account = { email, name, passwordHash };
     }
 
-    // Already a member? Don't silently re-grant or change their role.
-    if (await membersRepository.activeRole(userId, invitation.organizationId)) {
-      throw new ConflictError("You are already a member of this organization.");
-    }
-
-    // Invariant 4: claim atomically BEFORE granting the membership, so a raced
-    // double-accept cannot produce two memberships.
-    const [claimed] = await invitationsRepository.claim(invitation.id, userId);
-    if (!claimed) throw new ConflictError("This invitation is no longer valid.");
-
-    await membersRepository.upsert(userId, invitation.organizationId, invitation.role);
+    // Invariant 4 + 🔴 G04: the account (if new), the conditional claim and the
+    // membership commit TOGETHER. A raced double-accept still cannot produce two
+    // memberships (the claim is conditional), and no failure can leave a new
+    // account behind with no membership — the zero-membership state any tenant
+    // admin could attach and take over.
+    const accepted = await invitationsRepository.acceptAtomically({
+      invitationId: invitation.id,
+      organizationId: invitation.organizationId,
+      role: invitation.role,
+      account,
+    });
+    if (!accepted) throw new ConflictError("This invitation is no longer valid.");
+    const { userId, name: userName } = accepted;
 
     await securityAuditService.record({
       action: "invite.accepted",

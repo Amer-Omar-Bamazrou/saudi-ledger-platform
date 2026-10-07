@@ -49,7 +49,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
     try {
       await client.query("BEGIN");
       const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
-      for (const t of ["asset_tax_pool_declarations", "asset_disposals", "asset_events", "asset_depreciation_schedule", "fixed_assets", "asset_categories", "bill_items", "bills", "journal_entry_lines", "journal_entries", "period_locks", "audit_logs", "organization_memberships", "vendors", "bank_accounts", "categories", "companies"]) {
+      for (const t of ["asset_tax_pool_declarations", "asset_disposals", "asset_events", "asset_depreciation_schedule", "bill_items", "bills", "fixed_assets", "asset_categories", "journal_entry_lines", "journal_entries", "period_locks", "audit_logs", "organization_memberships", "vendors", "bank_accounts", "categories", "companies"]) {
         await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await client.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
@@ -304,7 +304,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
       try {
         await client.query("BEGIN");
         const org = `(SELECT id FROM organizations WHERE slug = '${otherSlug}')`;
-        for (const t of ["asset_tax_pool_declarations", "asset_events", "asset_depreciation_schedule", "fixed_assets", "asset_categories", "bill_items", "bills", "journal_entry_lines", "journal_entries", "audit_logs", "organization_memberships", "vendors", "bank_accounts", "categories", "companies"]) {
+        for (const t of ["asset_tax_pool_declarations", "asset_events", "asset_depreciation_schedule", "bill_items", "bills", "fixed_assets", "asset_categories", "journal_entry_lines", "journal_entries", "audit_logs", "organization_memberships", "vendors", "bank_accounts", "categories", "companies"]) {
           await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
         }
         await client.query(`DELETE FROM organizations WHERE slug = '${otherSlug}'`);

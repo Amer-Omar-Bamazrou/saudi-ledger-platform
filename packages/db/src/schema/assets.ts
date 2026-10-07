@@ -26,13 +26,14 @@
  * tenant_isolation with the N1 company arm) and none is ever hard-deleted
  * once an asset has entered the books (Art. 66 retention).
  */
-import { pgTable, serial, text, timestamp, integer, numeric, uuid, index, jsonb, date, unique, boolean, smallint, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric, uuid, index, jsonb, date, unique, boolean, smallint, foreignKey, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { categoriesTable } from "./categories";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
 import { journalEntriesTable } from "./journalEntries";
 import { usersTable } from "./users";
+import { organizationMembershipsTable } from "./memberships";
 
 const tenantColumns = {
   organizationId: uuid("organization_id")
@@ -112,7 +113,10 @@ export const fixedAssetsTable = pgTable(
     categoryId: integer("category_id").notNull().references(() => assetCategoriesTable.id, { onDelete: "restrict" }),
     location: text("location"),
     department: text("department"),
-    custodianUserId: integer("custodian_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+    // 🔴 G04 (0122): referenced as a MEMBERSHIP of the asset's organization —
+    // `fixed_assets_custodian_member_fk` below (the plain key to users is gone:
+    // a membership's user exists by its own key).
+    custodianUserId: integer("custodian_user_id"),
     // ── dates ──
     /** The VAT Art. 52 adjustment clock (52(2), (5)) and the Art. 17 half-year convention both key on it. */
     acquisitionDate: date("acquisition_date", { mode: "string" }).notNull(),
@@ -156,6 +160,18 @@ export const fixedAssetsTable = pgTable(
     index("fixed_assets_org_idx").on(t.organizationId, t.companyId),
     index("fixed_assets_category_idx").on(t.categoryId),
     unique("fixed_assets_company_number_unq").on(t.companyId, t.assetNumber),
+    // 🔴 G04 (0122): the target of `bills_capitalises_asset_tenant_fk` — a bill
+    // names an asset of its own organization AND company.
+    unique("fixed_assets_org_company_id_unq").on(t.organizationId, t.companyId, t.id),
+    /**
+     * 🔴 G04 (0122): THE CUSTODIAN HOLDS A MEMBERSHIP IN THE ASSET'S
+     * ORGANIZATION. `users` is a platform-wide identity with no tenant key, so
+     * the plain key accepted any user on the platform (and its 201-vs-500 told
+     * a tenant which user ids exist). Any membership STATUS satisfies it:
+     * whether an inactive member may remain custodian is an OPEN owner decision,
+     * and removal (status inactive) invalidates no existing asset.
+     */
+    foreignKey({ name: "fixed_assets_custodian_member_fk", columns: [t.custodianUserId, t.organizationId], foreignColumns: [organizationMembershipsTable.userId, organizationMembershipsTable.organizationId] }).onDelete("set null"),
   ],
 );
 

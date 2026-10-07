@@ -139,34 +139,40 @@ export async function seedAdminUser(organizationId: string): Promise<SeededAdmin
     return { created: false, skipped: "SEED_ADMIN_PASSWORD must be at least 8 characters" };
   }
 
-  // (1) Ensure the admin user row exists; capture its id either way.
-  let created = false;
-  let [user] = await ownerDb
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(eq(usersTable.email, email))
-    .limit(1);
+  // 🔴 G04 zero-membership (2026-10-07): the account and its membership are
+  // written in ONE transaction — an account never exists, even for a moment or
+  // after a crash between the two writes, without the membership it was made
+  // for (an account with none is what any tenant admin could take over).
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  return ownerDb.transaction(async (tx) => {
+    // (1) Ensure the admin user row exists; capture its id either way.
+    let created = false;
+    let [user] = await tx
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, email))
+      .limit(1);
 
-  if (!user) {
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    [user] = await ownerDb
-      .insert(usersTable)
-      .values({ email, name, passwordHash, role: "admin", isActive: true })
-      .returning({ id: usersTable.id });
-    created = true;
-  }
+    if (!user) {
+      [user] = await tx
+        .insert(usersTable)
+        .values({ email, name, passwordHash, role: "admin", isActive: true })
+        .returning({ id: usersTable.id });
+      created = true;
+    }
 
-  // (2) Ensure an active admin membership in the default org. Idempotent via the
-  //     unique (user_id, organization_id) constraint — re-running never dupes.
-  const inserted = await ownerDb
-    .insert(organizationMembershipsTable)
-    .values({ userId: user!.id, organizationId, role: "admin", status: "active" })
-    .onConflictDoNothing({
-      target: [organizationMembershipsTable.userId, organizationMembershipsTable.organizationId],
-    })
-    .returning({ id: organizationMembershipsTable.id });
+    // (2) Ensure an active admin membership in the default org. Idempotent via the
+    //     unique (user_id, organization_id) constraint — re-running never dupes.
+    const inserted = await tx
+      .insert(organizationMembershipsTable)
+      .values({ userId: user!.id, organizationId, role: "admin", status: "active" })
+      .onConflictDoNothing({
+        target: [organizationMembershipsTable.userId, organizationMembershipsTable.organizationId],
+      })
+      .returning({ id: organizationMembershipsTable.id });
 
-  return { created, membershipCreated: inserted.length > 0, email };
+    return { created, membershipCreated: inserted.length > 0, email };
+  });
 }
 
 export interface SeededOperator {
@@ -208,31 +214,37 @@ export async function seedPlatformOperator(): Promise<SeededOperator> {
     return { created: false, skipped: "SEED_OPERATOR_PASSWORD must be at least 8 characters" };
   }
 
-  // (1) Ensure the operator user exists (global identity, NO membership).
-  let created = false;
-  let [user] = await ownerDb
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(eq(usersTable.email, email))
-    .limit(1);
+  // 🔴 G04 zero-membership (2026-10-07): the operator is the one account that
+  // holds NO membership by design — so its account and its operator grant are
+  // written in ONE transaction. A crash between the two would otherwise leave
+  // an ordinary account with no membership and no operator status.
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  return ownerDb.transaction(async (tx) => {
+    // (1) Ensure the operator user exists (global identity, NO membership).
+    let created = false;
+    let [user] = await tx
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, email))
+      .limit(1);
 
-  if (!user) {
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    [user] = await ownerDb
-      .insert(usersTable)
-      .values({ email, name, passwordHash, role: "viewer", isActive: true })
-      .returning({ id: usersTable.id });
-    created = true;
-  }
+    if (!user) {
+      [user] = await tx
+        .insert(usersTable)
+        .values({ email, name, passwordHash, role: "viewer", isActive: true })
+        .returning({ id: usersTable.id });
+      created = true;
+    }
 
-  // (2) Grant operator status. Idempotent on the unique user_id.
-  const inserted = await ownerDb
-    .insert(platformOperatorsTable)
-    .values({ userId: user!.id })
-    .onConflictDoNothing({ target: platformOperatorsTable.userId })
-    .returning({ id: platformOperatorsTable.id });
+    // (2) Grant operator status. Idempotent on the unique user_id.
+    const inserted = await tx
+      .insert(platformOperatorsTable)
+      .values({ userId: user!.id })
+      .onConflictDoNothing({ target: platformOperatorsTable.userId })
+      .returning({ id: platformOperatorsTable.id });
 
-  return { created, operatorGranted: inserted.length > 0, email };
+    return { created, operatorGranted: inserted.length > 0, email };
+  });
 }
 
 // Run directly: `pnpm --filter @workspace/db run seed`

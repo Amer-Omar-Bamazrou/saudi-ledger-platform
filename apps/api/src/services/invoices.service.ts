@@ -24,6 +24,7 @@ import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
+import { assertProductsOwned } from "./accounting/tenantReferences";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { invoiceApprovable } from "./invoices.approvable";
@@ -190,6 +191,10 @@ export const invoicesService = {
     assertDateString(invData.date, "date");
     if (invData.dueDate != null) assertDateString(invData.dueDate, "dueDate");
     await assertCustomerExists(invData.customerId);
+    // 🔴 G04 (2026-10-07): a line's product is this organization's — another
+    // tenant's product id used to be written (the key is checked outside RLS)
+    // and a missing one was a raw 500. One 422 for both; 0122 beneath.
+    await assertProductsOwned(items as Array<{ productId?: unknown }>);
     // ── Audit fix (Tier 1, finding 2): HEADER = Σ ROUNDED LINES, exactly. ──
     // Pre-fix, per-line VAT was stored ROUNDED while the header accumulated the
     // UNROUNDED values and rounded once at the end — so header VAT could differ
@@ -458,6 +463,7 @@ export const invoicesService = {
           field: "items",
         });
       }
+      await assertProductsOwned(items as Array<{ productId?: unknown }>); // G04 — the draft edit writes lines too
       let subtotal = 0;
       let vatTotal = 0;
       prepared = (items as any[]).map((it, i) => {

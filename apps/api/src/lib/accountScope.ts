@@ -54,6 +54,16 @@
  * operator account is a fact the security trail must carry. The database
  * holds the premise too (migration 0121: no membership row may name an
  * operator), so this check and the constraint fail independently.
+ *
+ * 🔴 G04 zero-membership (2026-10-07) — THE REST OF THE SAME CLASS. An account
+ * with NO membership at all — one `/auth/register` had just created, before a
+ * second call assigned it — passed confinement vacuously in exactly the way
+ * the operator did, so any tenant admin could attach it and take it over
+ * (proven). Confinement now requires a non-empty footprint: an account that
+ * belongs to no organization is administrable by NO tenant admin. Creation
+ * is atomic with the first membership, and `POST /orgs/:id/members` never
+ * creates one (an existing account joins only by accepting an invitation),
+ * so no caller has a legitimate need to act on such an account.
  */
 import { ConflictError, NotFoundError } from "./errors";
 import { membersRepository } from "../repositories/members.repository";
@@ -94,6 +104,22 @@ export interface ConfinementActor {
  * surface requires the org to be verification-approved; membership management
  * does not), and that difference is deliberate, so it is not decided here.
  */
+/**
+ * Record an attempt on a platform-operator account (G01). Shared so a caller
+ * that refuses BEFORE confinement — membership assignment answers every
+ * non-member identically — still leaves the trail entry.
+ */
+export async function recordOperatorTargetRefused(targetUserId: number, actor?: ConfinementActor): Promise<void> {
+  await securityAuditService.record({
+    action: "account.operator_target_refused",
+    actorUserId: actor?.actorUserId ?? null,
+    actorEmail: actor?.actorEmail,
+    targetUserId,
+    ipAddress: actor?.ipAddress,
+    metadata: { attempted: actor?.attempted ?? null },
+  });
+}
+
 export async function assertAccountConfinedTo(
   targetUserId: number,
   actorOrgIds: string[],
@@ -101,14 +127,13 @@ export async function assertAccountConfinedTo(
   actor?: ConfinementActor,
 ): Promise<void> {
   if (await operatorsRepository.isOperator(targetUserId)) {
-    await securityAuditService.record({
-      action: "account.operator_target_refused",
-      actorUserId: actor?.actorUserId ?? null,
-      actorEmail: actor?.actorEmail,
-      targetUserId,
-      ipAddress: actor?.ipAddress,
-      metadata: { attempted: actor?.attempted ?? null },
-    });
+    await recordOperatorTargetRefused(targetUserId, actor);
+    throw new NotFoundError("User not found.");
+  }
+  // 🔴 G04: NOT VACUOUS — an empty footprint is inside every set, so an
+  // account with no membership is nobody's to administer (concealed: the
+  // actor may know nothing about it).
+  if (!(await membersRepository.hasAnyMembership(targetUserId))) {
     throw new NotFoundError("User not found.");
   }
   const foreign = await membersRepository.foreignMembershipOrgIds(targetUserId, actorOrgIds);

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -31,7 +31,12 @@ export const productsTable = pgTable(
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("products_org_idx").on(t.organizationId)],
+  (t) => [
+    index("products_org_idx").on(t.organizationId),
+    // 🔴 G04 (0122): the TARGET of a tenant-keyed foreign key — a reference to
+    // this row carries the organization, so another tenant's id cannot be named.
+    unique("products_org_id_unq").on(t.organizationId, t.id),
+  ],
 );
 
 export const insertProductSchema = createInsertSchema(productsTable)

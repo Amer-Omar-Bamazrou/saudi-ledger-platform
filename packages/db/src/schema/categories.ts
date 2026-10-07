@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, uuid, varchar, index, uniqueIndex, integer, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, uuid, varchar, index, uniqueIndex, unique, integer, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -154,6 +154,9 @@ export const categoriesTable = pgTable(
     // that back-fills every pre-M13 organization.
     uniqueIndex("categories_org_system_code_unq").on(t.organizationId, t.systemCode),
     uniqueIndex("categories_org_account_code_unq").on(t.organizationId, t.accountCode).where(sql`account_code IS NOT NULL`),
+    // 🔴 G04 (0122): the TARGET of a tenant-keyed foreign key — a reference to
+    // this row carries the organization, so another tenant's id cannot be named.
+    unique("categories_org_id_unq").on(t.organizationId, t.id),
   ],
 );
 

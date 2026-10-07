@@ -95,3 +95,19 @@ or journal entries without triggers off therefore fails with
 - **Do NOT** backfill a suite's documents with `input_vat_backfill_gate()`
   unscoped: in a shared database it would reconstruct other suites' documents
   mid-cleanup. Pass the suite's organisation (`phase13b3-backfill.test.ts`).
+
+## 🔴 A replica-mode cleanup that deletes SOME tables leaves orphans — OPEN GAP, logged not fixed (G04, 2026-10-07)
+
+61 test files clean up with `SET LOCAL session_replication_role = replica`, because posted rows are append-only at the database. That setting turns off the triggers AND the foreign keys. A cleanup that deletes a suite's organizations, companies or bills without deleting every child row leaves the children pointing at nothing, and nothing ever notices.
+
+**Measured on the local dev database:** 9,502 rows violate 38 existing foreign keys, left behind by 229 deleted test organizations. They are in journal entries and lines, payments, bill payments, allocations, input-VAT events and balances, counters and categories.
+
+**Why it matters:**
+- Postgres never re-checks existing rows, so the database looks valid until a migration VALIDATEs a key.
+- Migration 0122 refuses to apply there: 8 journal lines name an account and 4 a customer, all of a deleted test organization (`docs/security-g04-tenant-keys.md` §6).
+- CI is unaffected (a fresh database per run).
+
+**Proposed fix (not built):**
+1. **One cleanup helper:** it deletes EVERY table that carries `organization_id` for the suite's organizations, in one transaction, before the organizations themselves. `src/tests/helpers/g04Harness.ts` already does this.
+2. **Migrate suites to it** as they are touched.
+3. **A CI step after the API tests:** count the rows violating ANY foreign key and fail above zero. Only a fresh database makes that count meaningful, and CI has one, so a leaky cleanup fails the run that introduced it.

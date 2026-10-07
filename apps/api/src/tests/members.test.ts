@@ -54,13 +54,16 @@ describeMaybe("membersService — provisioning + explicit cross-org authorizatio
     bookkeeper = await mkUser("members-test-bk@test.local");
     await pool.query(`INSERT INTO organization_memberships (user_id,organization_id,role,status) VALUES ($1,$2,'admin','active')`, [adminA, orgA]);
     await pool.query(`INSERT INTO organization_memberships (user_id,organization_id,role,status) VALUES ($1,$2,'admin','active')`, [adminB, orgB]);
+    // G04: assignment acts on an EXISTING member (a new person joins by
+    // invitation), so the bookkeeper starts as a lapsed member of org A.
+    await pool.query(`INSERT INTO organization_memberships (user_id,organization_id,role,status) VALUES ($1,$2,'viewer','inactive')`, [bookkeeper, orgA]);
   });
 
   afterAll(async () => {
     await cleanup();
   });
 
-  it("an org admin can provision a bookkeeper in their own org", async () => {
+  it("an org admin can re-activate an existing member of their own org as a bookkeeper", async () => {
     const out = await membersService.assign(adminA, orgA, bookkeeper, "bookkeeper");
     expect(out).toMatchObject({ userId: bookkeeper, organizationId: orgA, role: "bookkeeper", status: "active" });
 
@@ -89,6 +92,7 @@ describeMaybe("membersService — provisioning + explicit cross-org authorizatio
 
   it("validates role and target user", async () => {
     await expect(membersService.assign(adminA, orgA, bookkeeper, "superuser")).rejects.toMatchObject({ statusCode: 400 });
-    await expect(membersService.assign(adminA, orgA, 99999999, "viewer")).rejects.toMatchObject({ statusCode: 404 });
+    // G04: a non-member — here a nonexistent id — gets the one 422 invitation_required (was 404).
+    await expect(membersService.assign(adminA, orgA, 99999999, "viewer")).rejects.toMatchObject({ statusCode: 422 });
   });
 });

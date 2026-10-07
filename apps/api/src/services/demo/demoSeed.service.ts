@@ -152,35 +152,40 @@ async function ensureIdentity(
       .returning();
   }
 
-  let [user] = await ownerDb
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(eq(usersTable.email, adminEmail))
-    .limit(1);
+  // 🔴 G04 zero-membership (2026-10-07): the account and its membership in ONE
+  // transaction — never an account without the membership it was made for.
+  const passwordHash = await hashPassword(adminPassword);
+  const user = await ownerDb.transaction(async (tx) => {
+    let [u] = await tx
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, adminEmail))
+      .limit(1);
 
-  if (!user) {
-    const passwordHash = await hashPassword(adminPassword);
-    [user] = await ownerDb
-      .insert(usersTable)
-      .values({ email: adminEmail, name: adminName, passwordHash, role: "admin", isActive: true })
-      .returning({ id: usersTable.id });
-  }
+    if (!u) {
+      [u] = await tx
+        .insert(usersTable)
+        .values({ email: adminEmail, name: adminName, passwordHash, role: "admin", isActive: true })
+        .returning({ id: usersTable.id });
+    }
 
-  // 🔴 ADMIN, not viewer (owner's decision): the reviewer is trusted, the
-  // weekly reset makes any mess temporary, and a half-hidden product is a worse
-  // review than a fully clickable one. The authority that matters is still
-  // refused at the route — capture and signup are off for every role.
-  await ownerDb
-    .insert(organizationMembershipsTable)
-    .values({
-      userId: user!.id,
-      organizationId: org!.id,
-      role: "admin",
-      status: "active",
-    })
-    .onConflictDoNothing({
-      target: [organizationMembershipsTable.userId, organizationMembershipsTable.organizationId],
-    });
+    // 🔴 ADMIN, not viewer (owner's decision): the reviewer is trusted, the
+    // weekly reset makes any mess temporary, and a half-hidden product is a worse
+    // review than a fully clickable one. The authority that matters is still
+    // refused at the route — capture and signup are off for every role.
+    await tx
+      .insert(organizationMembershipsTable)
+      .values({
+        userId: u!.id,
+        organizationId: org!.id,
+        role: "admin",
+        status: "active",
+      })
+      .onConflictDoNothing({
+        target: [organizationMembershipsTable.userId, organizationMembershipsTable.organizationId],
+      });
+    return u!;
+  });
 
   return { organizationId: org!.id, companyId: company!.id, userId: user!.id };
 }

@@ -17,6 +17,7 @@ import { BadRequestError } from "../lib/errors";
 import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
+import { assertLineReferencesOwned } from "./accounting/tenantReferences";
 import { round2, money2 } from "../lib/money";
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
@@ -198,7 +199,17 @@ export const journalEntriesService = {
      *     value that satisfies every check while meaning nothing;
      *   - ids are resolved tenant-scoped, so another org's id and a missing
      *     id are the same refusal.
+     *
+     * 🔴 G04 (2026-10-07): and FIRST, every account, customer and vendor a line
+     * names is proven THIS organization's. The lookup below runs under RLS and
+     * the rules after it act only on the rows it FINDS — another tenant's
+     * account was invisible to it, so no rule ran, and the foreign key (checked
+     * outside RLS) stored the line: approved and posted on another tenant's
+     * account. One 422 `reference_not_found` for a foreign id and a missing
+     * one (services/accounting/tenantReferences.ts); the database refuses the
+     * same reference beneath every writer (0122).
      */
+    await assertLineReferencesOwned(parsedLines);
     const accountRows = await categoriesRepository.findByIds([
       ...new Set(parsedLines.map((l) => l.accountId).filter((id): id is number => id != null)),
     ]);
@@ -408,6 +419,10 @@ export const journalEntriesService = {
     await checkPeriodOpen(date);
 
     const lines = await journalEntriesRepository.linesByEntry(id);
+    // 🔴 G04: the mirror COPIES each stored line's account and party, so it is
+    // only written when every one of them is this organization's — a reversal
+    // is not a way to re-post a reference no other path may write.
+    await assertLineReferencesOwned(lines);
     const now = new Date();
     const [reversal] = await journalEntriesRepository.insertEntry({
       entryNumber: `${original.entryNumber}-REV`,
