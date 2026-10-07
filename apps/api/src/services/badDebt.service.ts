@@ -63,7 +63,6 @@ import { invoicesRepository } from "../repositories/invoices.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { postJournalEntry } from "./accounting/glPosting";
-import { resolveDraftSeller } from "./sellerIdentity";
 import { auditService } from "./audit.service";
 import { buildInvoiceOut } from "./invoices.presenter";
 import { splitGross } from "./advanceInvoices.service";
@@ -283,7 +282,6 @@ export const badDebtService = {
     const split = splitGross(gross, rate);
     const [cust] = await customersRepository.findById(recovered.customerId!);
     const invoiceNumber = await invoicesRepository.allocateInvoiceNumber(date);
-    const draftSeller = await resolveDraftSeller({});
     const [doc] = await invoicesRepository.insert({
       invoiceNumber,
       date,
@@ -301,8 +299,6 @@ export const badDebtService = {
       notes: body.notes?.trim() || null,
       idempotencyKey,
       createdBy: userId ?? null,
-      sellerName: draftSeller.sellerName,
-      sellerVatNumber: draftSeller.sellerVatNumber,
     } as Parameters<typeof invoicesRepository.insert>[0]);
     await invoicesRepository.insertItems([
       {

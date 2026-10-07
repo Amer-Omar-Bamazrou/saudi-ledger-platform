@@ -5851,6 +5851,13 @@ export const InvoiceHeaderInputDocumentType = {
   debit_note: 'debit_note',
 } as const;
 
+/**
+ * The seller's name and VAT number are NOT inputs (G31): they come from
+ * the invoice's company record, read when the invoice is issued, and are
+ * fixed on it from then on. A create or update body that names
+ * `sellerName` or `sellerVatNumber` is refused with 400
+ * `seller_identity_not_settable`.
+ */
 export interface InvoiceHeaderInput {
   /**
      * One key per New-Invoice dialog open. A double-click / retry / resend with the same key returns the first invoice instead of creating a duplicate.
@@ -5872,10 +5879,6 @@ export interface InvoiceHeaderInput {
   notes?: string | null;
   /** @nullable */
   termsAndConditions?: string | null;
-  /** @nullable */
-  sellerName?: string | null;
-  /** @nullable */
-  sellerVatNumber?: string | null;
   documentType?: InvoiceHeaderInputDocumentType;
   /**
      * Required for a credit or debit note; refused on an invoice (400 note_fields_on_invoice).
@@ -5924,10 +5927,6 @@ export interface UpdateInvoiceInput {
   termsAndConditions?: string | null;
   /** @nullable */
   reviewNote?: string | null;
-  /** @nullable */
-  sellerName?: string | null;
-  /** @nullable */
-  sellerVatNumber?: string | null;
   /** @minItems 1 */
   items?: InvoiceLineInput[];
 }

@@ -150,7 +150,7 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
     expect(tx.json.points.find((p: { month: string }) => p.month === "2026-03").revenue).toBe(Number(X_SALE));
   });
 
-  it("🔴 the wire format: a CSV attachment with a UTF-8 BOM; Arabic names when lang=ar; a PDF that IS a PDF", async () => {
+  it("🔴 the wire format: a CSV attachment with a UTF-8 BOM; Arabic names when lang=ar", async () => {
     const csv = await asX("GET", TB_CSV);
     expect(csv.headers.get("content-type")).toMatch(/^text\/csv/);
     expect(csv.headers.get("content-disposition")).toMatch(/^attachment; filename="[A-Za-z0-9._-]+\.csv"$/);
@@ -158,14 +158,21 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
     const ar = await asX("GET", `${TB_CSV}&lang=ar`);
     expect(ar.text).toMatch(/[؀-ۿ]/);
     expect(ar.text).toContain(X_SALE);
+  }, 120_000);
+
+  // Split out of the CSV test above (2026-10-07) so that a run with no
+  // renderer reports THIS check as SKIPPED instead of counting it as passed,
+  // while the CSV assertions still run and count everywhere.
+  it("🔴 the wire format: a PDF that IS a PDF (skips without Chromium)", async (ctx) => {
     const pdf = await asX("GET", "/reports/export/trial-balance?format=pdf&date_from=2026-01-01&date_to=2026-12-31");
-    // 503 is the renderer's honest refusal when Chromium is absent; anything else must be a real PDF
-    if (pdf.status === 503) expect(pdf.json?.code).toBe("pdf_renderer_unavailable");
-    else {
-      expect(pdf.status).toBe(200);
-      expect(pdf.headers.get("content-type")).toMatch(/^application\/pdf/);
-      expect(pdf.buf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+    // 503 is the renderer's honest refusal when Chromium is absent — named, then skipped; anything else must be a real PDF
+    if (pdf.status === 503) {
+      expect(pdf.json?.code).toBe("pdf_renderer_unavailable");
+      ctx.skip("no Chromium executable — the PDF export did not run");
     }
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers.get("content-type")).toMatch(/^application\/pdf/);
+    expect(pdf.buf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
   }, 120_000);
 
   it("🔴 CSV formula injection: a user-named account or entry that a spreadsheet would EVALUATE is exported neutralised; a negative amount the export wrote is not touched", async () => {

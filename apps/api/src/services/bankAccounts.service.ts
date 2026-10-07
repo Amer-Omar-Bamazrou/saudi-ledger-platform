@@ -18,6 +18,7 @@ const BANK_FIELDS = [
 ] as const;
 import { auditService } from "./audit.service";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
+import { invoicesRepository } from "../repositories/invoices.repository";
 import type { bankAccountsTable } from "@workspace/db";
 
 type BankAccount = typeof bankAccountsTable.$inferSelect;
@@ -119,6 +120,15 @@ export const bankAccountsService = {
     if (lines > 0) {
       throw new ConflictError(
         `This bank account's GL cash account carries ${lines} ledger line(s). A bank account with posting history cannot be deleted — mark it inactive instead.`,
+      );
+    }
+    // 🔴 G30: an issued invoice records the bank its payment details came
+    // from, so the account is part of that document's provenance — the same
+    // answer as posting history: deactivate, do not delete.
+    const issued = await invoicesRepository.countIssuedNamingBank(id);
+    if (issued > 0) {
+      throw new ConflictError(
+        `This bank account's details are printed on ${issued} issued invoice(s). A bank account named on an issued document cannot be deleted — mark it inactive instead.`,
       );
     }
     await bankAccountsRepository.remove(id);

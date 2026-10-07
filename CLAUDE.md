@@ -356,6 +356,7 @@ doing the thing it governs rather than only once you know its name.
   `organization_memberships` role governs. Prefer explicit, scoped authz
   (`requirePermission`, admin-of-THIS-org, `requirePlatformOperator`) over any
   ambient global role.
+- **🔴 A PLATFORM OPERATOR IS A MEMBER OF NO ORGANIZATION** — the database refuses the membership and the grant either way (0121); confinement treats operator status as foreign to every tenant.
 - **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** (findings file, "RANK 1 FIXED".)
 - **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
 - **🔴 MONEY ROUNDING GOES THROUGH `lib/money.ts` — ONE SEAM** (N2). `round2` to compute, `money2` to store; never a bare `.toFixed(2)` on an unrounded float (it rounds DIFFERENTLY), never a local `round2`. Headers that must equal their stored lines accumulate ROUNDED addends, and `postJournalEntry` checks balance on the rounded lines it persists.
@@ -470,6 +471,7 @@ doing the thing it governs rather than only once you know its name.
   outage stops invoicing rather than minting an unreachable invoice and a
   permanent ICV gap. Companies with no active credential are skipped silently
   and issue as before. Revisit diagnosability before a real taxpayer (queue C5).
+- **🔴 AN ISSUED INVOICE'S SELLER IDENTITY AND PRINTED BANK DETAILS ARE FIXED AT ISSUE** (0121) — from the company record and the default bank, never from a request, never re-read live.
 - **The chain needs two mechanisms:** allocation serialised by
   `lockCompanySequence` (the lock covers the ICV read AND the chain-head read),
   and ordering by **`icv DESC NULLS LAST, id DESC`** — never row id.
@@ -605,7 +607,7 @@ seed grants, git-history secret scanning (findings file, "THE THREE COVERAGE GAP
 
 🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1; known-issues
 file, "N1 — SAME-ORG CROSS-COMPANY").** Operating: the company-blind
-repository list in `tests/cross-company-isolation.test.ts` (10) is pinned
+repository list in `tests/cross-company-isolation.test.ts` (7) is pinned
 and can only SHRINK.
 
 Still unaudited: **runtime-order test vacuity** (only execution reveals it).

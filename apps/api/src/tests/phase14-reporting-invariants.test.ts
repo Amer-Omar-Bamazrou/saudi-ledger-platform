@@ -414,13 +414,19 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
     expect(b.body.toString("utf8")).toContain("9000.00");
     expect(b.body.toString("utf8")).not.toContain("3000.00");
     await expect(inA(() => exportReport("no-such-report", {}, "csv", "en"))).rejects.toMatchObject({ statusCode: 400 });
-    // PDF: rendered where a Chromium exists; otherwise the named 503, never a broken file
+  });
+
+  // Split out of the export test above (2026-10-07) so that a run with no
+  // renderer reports THIS check as SKIPPED instead of counting it as passed.
+  it("🔴 exports: the balance-sheet PDF is rendered — or the named 503 and the check is SKIPPED, never a broken file", async (ctx) => {
+    let pdf: Awaited<ReturnType<typeof exportReport>>;
     try {
-      const pdf = await inA(() => exportReport("balance-sheet", { as_of: FY.to }, "pdf", "ar"));
-      expect(pdf.body.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+      pdf = await inA(() => exportReport("balance-sheet", { as_of: FY.to }, "pdf", "ar"));
     } catch (err) {
       expect(err).toBeInstanceOf(RendererUnavailableError);
+      return ctx.skip("no Chromium executable — the PDF export did not run");
     }
+    expect(pdf.body.subarray(0, 5).toString("latin1")).toBe("%PDF-");
   });
 
   // ═══ the accounting review (2026-10-01): each test FAILS on the code it was written against ═══

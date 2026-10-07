@@ -87,4 +87,23 @@ export const bankAccountsRepository = {
   remove(id: number) {
     return db.delete(bankAccountsTable).where(eq(bankAccountsTable.id, id));
   },
+  /**
+   * G30 — the bank whose details an invoice prints, read AT ISSUE: the
+   * company's default, chosen exactly as the document model used to choose it
+   * at render time (first default by name). Locked FOR SHARE, so an edit of
+   * that bank (or moving the default off it) waits for the issuing
+   * transaction to commit — the capture is one row version, never a torn mix
+   * of an old bank name and a new IBAN, and the database's issuing check
+   * (migration 0121) sees the same row the capture was taken from.
+   */
+  async lockDefaultForIssue(companyId: string) {
+    const [row] = await db
+      .select()
+      .from(bankAccountsTable)
+      .where(and(eq(bankAccountsTable.companyId, companyId), eq(bankAccountsTable.isDefault, true)))
+      .orderBy(bankAccountsTable.name)
+      .limit(1)
+      .for("share");
+    return row ?? null;
+  },
 };

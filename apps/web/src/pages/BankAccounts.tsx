@@ -37,7 +37,9 @@ export default function BankAccounts() {
   // only says which one. Same PATCH the route already accepted.
   const setDefaultMut = useMutation({
     mutationFn: (id: number) => apiFetch(`/bank-accounts/${id}`, { method: "PATCH", body: JSON.stringify({ isDefault: true }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-accounts"] }); toast({ title: t("This account will now appear on invoices", "سيظهر هذا الحساب على الفواتير الآن") }); },
+    // G30: the choice governs invoices issued FROM NOW ON — an issued invoice
+    // keeps the bank details it was issued with, so the copy says so.
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-accounts"] }); toast({ title: t("Invoices you issue from now on will show this account", "ستظهر بيانات هذا الحساب على الفواتير التي تصدرها من الآن") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
   const invoiceAccount = accounts.find(a => a.isDefault);
@@ -86,8 +88,8 @@ export default function BankAccounts() {
 
       <p className="text-sm text-muted-foreground" data-testid="invoice-bank-account">
         {invoiceAccount
-          ? t(`Invoices show the bank details of: ${invoiceAccount.name} (${invoiceAccount.bankName}).`, `تعرض الفواتير بيانات الحساب: ${invoiceAccount.name} (${invoiceAccount.bankName}).`)
-          : t("No account is set to appear on invoices — issued invoices will carry no bank details until you choose one below.", "لم يُحدَّد حساب للظهور على الفواتير — ستصدر الفواتير بدون بيانات بنكية حتى تختار حسابًا أدناه.")}
+          ? t(`Invoices you issue show the bank details of: ${invoiceAccount.name} (${invoiceAccount.bankName}). An invoice already issued keeps the details it was issued with.`, `تعرض الفواتير التي تصدرها بيانات الحساب: ${invoiceAccount.name} (${invoiceAccount.bankName}). وتحتفظ الفاتورة الصادرة بالبيانات التي صدرت بها.`)
+          : t("No account is set to appear on invoices — invoices you issue will carry no bank details until you choose one below.", "لم يُحدَّد حساب للظهور على الفواتير — ستصدر الفواتير بدون بيانات بنكية حتى تختار حسابًا أدناه.")}
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

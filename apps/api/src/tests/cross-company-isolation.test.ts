@@ -260,8 +260,13 @@ describeMaybe("same-org cross-company isolation", () => {
   // the removal is the ratchet's requirement, not an audit of every query.
   // Phase 15 (2026-10-01): `budgets` LEFT — the rebuilt repository carries
   // companyScoped() on every query (an org-wide connection reads nothing; P9).
+  // 🔴 G30 (2026-10-07): `bankAccounts` LEFT — its NEW issuing read
+  // (`lockDefaultForIssue`, the bank an invoice prints) filters by the
+  // invoice's company explicitly. Its OLDER readers (list, findById, the
+  // ledger figures) still rely on RLS's company arm (0065) alone; as with
+  // `bills`, the removal is the detector's requirement, not an audit of them.
   const NO_COMPANY_FILTER = [
-    "assets", "bankAccounts", "categorize",
+    "assets", "categorize",
     "employees", "journalEntries", "payroll",
     "transactions", "vendors",
   ];

@@ -27,7 +27,6 @@ import { assertBankAccount } from "./accounting/bankIdentity";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { invoiceApprovable } from "./invoices.approvable";
-import { resolveDraftSeller } from "./sellerIdentity";
 import { buildInvoiceOut } from "./invoices.presenter";
 import { invoicesRepository, DEFAULT_PAGE, type InvoiceListFilter } from "../repositories/invoices.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
@@ -160,9 +159,12 @@ export const invoicesService = {
     // 🔴 H1 — ALLOWLIST the header. Totals are computed below; status is forced
     // to "draft"; hash/QR/ICV/ZATCA identity are minted at approval. A client
     // may set only descriptive fields and the note references (validated below).
+    // 🔴 G31: the seller's name and VAT number are NOT here — they are the
+    // company's, read at issue (sellerIdentity.ts); a body naming them is
+    // refused by the controller before it reaches this allowlist.
     const invData = pick<Record<string, unknown>>(body, [
       "invoiceNumber", "date", "dueDate", "customerId", "currency", "discount",
-      "notes", "termsAndConditions", "sellerName", "sellerVatNumber",
+      "notes", "termsAndConditions",
       "documentType", "originalInvoiceId", "noteReason", "idempotencyKey",
       // FA-C: the fixed asset this invoice SELLS (its revenue line credits the
       // disposal gain/loss account, and approval derecognises the asset).
@@ -323,16 +325,10 @@ export const invoicesService = {
       });
     }
 
-    // Persist a DRAFT — deliberately NO invoiceHash/previousHash/qrCode and NO GL
-    // posting here; those are minted only at approval. Seller identity is
-    // captured now (denormalized for the QR built at approval).
-    // Stamp the seller from the active company (an explicit per-invoice override
-    // still wins). Lenient here — a draft is not a legal document; issuance
-    // (approval) is where a missing VAT number fails closed.
-    const draftSeller = await resolveDraftSeller({
-      sellerName: invData.sellerName,
-      sellerVatNumber: invData.sellerVatNumber,
-    });
+    // Persist a DRAFT — deliberately NO invoiceHash/previousHash/qrCode, NO
+    // seller identity and NO GL posting here; all are minted only at approval
+    // (G31: the seller is read from the company record AT ISSUE, so a draft
+    // created before the company corrects its VAT cannot carry the old one).
 
     // 🔴 IDEMPOTENT CREATE (QA fix, 2026-09-04). A double-click / retry /
     // slow-network resend carries the same `idempotencyKey`. PRE-CHECK by key
@@ -359,8 +355,6 @@ export const invoicesService = {
       total: String(total.toFixed(2)),
       status: "draft",
       createdBy: userId ?? null,
-      sellerName: draftSeller.sellerName,
-      sellerVatNumber: draftSeller.sellerVatNumber,
     } as Parameters<typeof invoicesRepository.insert>[0]);
 
     if (preparedItems.length > 0) {
@@ -408,7 +402,7 @@ export const invoicesService = {
     // identity and paid state are minted by approval/pay and NEVER by a client.
     const values = pick<typeof import("@workspace/db").invoicesTable.$inferInsert>(data, [
       "invoiceNumber", "date", "dueDate", "customerId", "currency",
-      "notes", "termsAndConditions", "reviewNote", "sellerName", "sellerVatNumber",
+      "notes", "termsAndConditions", "reviewNote",
       "disposesAssetId",
     ]);
     if (values.date !== undefined) {

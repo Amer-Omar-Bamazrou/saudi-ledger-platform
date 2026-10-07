@@ -8319,12 +8319,10 @@ export const CreateInvoiceBody = zod.object({
   "discount": zod.number().min(createInvoiceBodyOneDiscountMin).optional(),
   "notes": zod.string().nullish(),
   "termsAndConditions": zod.string().nullish(),
-  "sellerName": zod.string().nullish(),
-  "sellerVatNumber": zod.string().nullish(),
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note']).optional(),
   "originalInvoiceId": zod.number().nullish().describe('Required for a credit or debit note; refused on an invoice (400 note_fields_on_invoice).'),
   "noteReason": zod.string().nullish()
-}).and(zod.object({
+}).describe('The seller\'s name and VAT number are NOT inputs (G31): they come from\nthe invoice\'s company record, read when the invoice is issued, and are\nfixed on it from then on. A create or update body that names\n`sellerName` or `sellerVatNumber` is refused with 400\n`seller_identity_not_settable`.\n').and(zod.object({
   "items": zod.array(zod.object({
   "description": zod.string().min(1),
   "descriptionAr": zod.string().nullish(),
@@ -8541,8 +8539,6 @@ export const UpdateInvoiceBody = zod.object({
   "notes": zod.string().nullish(),
   "termsAndConditions": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
-  "sellerName": zod.string().nullish(),
-  "sellerVatNumber": zod.string().nullish(),
   "items": zod.array(zod.object({
   "description": zod.string().min(1),
   "descriptionAr": zod.string().nullish(),

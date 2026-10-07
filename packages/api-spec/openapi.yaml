@@ -12172,6 +12172,12 @@ components:
 
     InvoiceHeaderInput:
       type: object
+      description: |
+        The seller's name and VAT number are NOT inputs (G31): they come from
+        the invoice's company record, read when the invoice is issued, and are
+        fixed on it from then on. A create or update body that names
+        `sellerName` or `sellerVatNumber` is refused with 400
+        `seller_identity_not_settable`.
       properties:
         idempotencyKey:
           type: ["string", "null"]
@@ -12186,8 +12192,6 @@ components:
         discount: { type: number, minimum: 0 }
         notes: { type: ["string", "null"] }
         termsAndConditions: { type: ["string", "null"] }
-        sellerName: { type: ["string", "null"] }
-        sellerVatNumber: { type: ["string", "null"] }
         documentType:
           type: string
           enum: [invoice, credit_note, debit_note]
@@ -12232,8 +12236,6 @@ components:
         notes: { type: ["string", "null"] }
         termsAndConditions: { type: ["string", "null"] }
         reviewNote: { type: ["string", "null"] }
-        sellerName: { type: ["string", "null"] }
-        sellerVatNumber: { type: ["string", "null"] }
         items:
           type: array
           minItems: 1

@@ -14,7 +14,8 @@
  *   - setting a default clears the previous one (movement, both directions);
  *   - across three accounts exactly one is default after any sequence;
  *   - another tenant's default is untouched (presence, absence, movement);
- *   - the invoice document model picks the NEW default.
+ *   - the NEXT invoice issued prints the new default; an invoice already
+ *     issued keeps the bank it was issued with (G30, 2026-10-07).
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
@@ -108,7 +109,11 @@ describeMaybe("one default bank account, set by the tenant, printed on the invoi
     expect(theirs.isDefault).toBe(true);
   });
 
-  it("🔴 the invoice document model prints the CURRENT default's details, and follows a change", async () => {
+  // 🔴 G30 (2026-10-07): this test used to assert that an ISSUED invoice
+  // "follows a change" of the default bank — which was the defect: an issued
+  // document's payment details moved with a later edit. The tenant's choice
+  // now governs the NEXT invoice issued; an issued one keeps what it printed.
+  it("🔴 an invoice prints the default IN FORCE AT ITS ISSUE; a change governs the next invoice, not the issued one", async () => {
     const inv = await inTenant(() =>
       invoicesService.create({ invoiceNumber: "BD-INV-1", date: "2026-08-01", customerId, items: [{ description: "S", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId),
     );
@@ -119,7 +124,14 @@ describeMaybe("one default bank account, set by the tenant, printed on the invoi
 
     const payroll = (await pool.query(`SELECT id FROM bank_accounts WHERE organization_id = $1 AND name = 'Payroll'`, [orgId])).rows[0].id;
     await inTenant(() => bankAccountsService.update(payroll, { isDefault: true }));
-    const second = await inTenant(() => buildInvoiceDocModel(inv.id, "en"));
-    expect(second.bankDetails?.accountName, "the document follows the tenant's choice").toBe("Payroll");
+    const again = await inTenant(() => buildInvoiceDocModel(inv.id, "en"));
+    expect(again.bankDetails?.accountName, "the issued invoice keeps the bank it was issued with").toBe("Main");
+
+    const next = await inTenant(() =>
+      invoicesService.create({ invoiceNumber: "BD-INV-2", date: "2026-08-01", customerId, items: [{ description: "S", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId),
+    );
+    await inTenant(() => invoicesService.approve(next.id, userId));
+    const second = await inTenant(() => buildInvoiceDocModel(next.id, "en"));
+    expect(second.bankDetails?.accountName, "the next invoice follows the tenant's choice").toBe("Payroll");
   });
 });

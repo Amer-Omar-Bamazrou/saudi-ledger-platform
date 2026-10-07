@@ -74,7 +74,15 @@ export const membersService = {
     // Concealed (404, identical to a nonexistent id): the actor supplied a raw
     // user id, and a distinct refusal would confirm that the id belongs to
     // someone — the cross-tenant enumeration M11.5.1 removed.
-    await assertAccountConfinedTo(userId, await membersRepository.administeredOrgIds(actorUserId), "conceal");
+    // G01: this is also where a platform-operator target is refused (concealed
+    // and recorded) — an operator holds no membership, so confinement alone
+    // used to pass it vacuously.
+    await assertAccountConfinedTo(userId, await membersRepository.administeredOrgIds(actorUserId), "conceal", {
+      actorUserId,
+      actorEmail: ctx.actorEmail,
+      ipAddress: ctx.ipAddress,
+      attempted: "membership.assign",
+    });
 
     const [membership] = await membersRepository.upsert(userId, orgId, role as MembershipRole);
     await securityAuditService.record({

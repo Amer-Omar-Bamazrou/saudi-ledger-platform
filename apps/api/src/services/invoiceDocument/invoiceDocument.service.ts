@@ -36,7 +36,6 @@ import QRCode from "qrcode";
 import { invoicesRepository } from "../../repositories/invoices.repository";
 import { customersRepository } from "../../repositories/customers.repository";
 import { companiesRepository } from "../../repositories/companies.repository";
-import { bankAccountsRepository } from "../../repositories/bankAccounts.repository";
 import { paymentsRepository } from "../../repositories/payments.repository";
 import { advanceInvoicesRepository } from "../../repositories/advanceInvoices.repository";
 import { einvoiceDocumentsRepository } from "../../repositories/einvoiceDocuments.repository";
@@ -102,14 +101,11 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
   const items = await invoicesRepository.itemsByInvoice(invoiceId);
   const company = await companiesRepository.findCurrent();
   const customer = inv.customerId != null ? (await customersRepository.findById(inv.customerId))[0] : undefined;
-  // Bank details invite payment: on an invoice with an amount due; never on a note or an advance tax invoice (the money already arrived).
-  const banks = inv.documentType === "invoice" ? await bankAccountsRepository.list() : [];
   // AP-2: the receipt an advance tax invoice declares VAT for, and the advance invoice(s) a final invoice adjusts.
   const advanceReceipt = inv.advancePaymentId != null ? (await paymentsRepository.findPaymentById(inv.advancePaymentId))[0] ?? null : null;
   const prepayments = inv.documentType === "invoice"
     ? (await advanceInvoicesRepository.prepaymentsOfInvoice(invoiceId)).map(({ row, advance }) => ({ invoiceNumber: advance.invoiceNumber, date: advance.date, amount: String(row.amount), taxableAmount: String(row.taxableAmount), taxAmount: String(row.taxAmount) }))
     : [];
-  const defaultBank = banks.find((b) => b.isDefault) ?? null;
   const original =
     inv.originalInvoiceId != null ? (await invoicesRepository.findById(inv.originalInvoiceId))[0] : undefined;
 
@@ -135,13 +131,16 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
     dateHijri: hijriOf(inv.date),
     dueDate: inv.dueDate || null,
     seller: {
-      // The issued document's seller identity is the SNAPSHOT stamped at
-      // approval (schema/invoices.ts:58 — a company rename must not mutate an
-      // already-stamped artifact); the live company fills what the snapshot
-      // does not carry.
-      name: inv.sellerName ?? company?.name ?? "",
+      // 🔴 G31: the issued document's seller name and VAT number are the
+      // identity stamped AT ISSUE from the company record — never the live
+      // company (a later VAT correction or rename must not rewrite an issued
+      // tax invoice). Only issued documents reach here, and issuance always
+      // stamps both (the database refuses an issuing write without them), so
+      // there is no fallback to the live record. The live company still fills
+      // the fields the stamp does not carry (Arabic name, CR, address).
+      name: inv.sellerName ?? "",
       nameAr: company?.nameAr ?? null,
-      vatNumber: inv.sellerVatNumber ?? company?.vatNumber ?? null,
+      vatNumber: inv.sellerVatNumber ?? null,
       crNumber: company?.crNumber ?? null,
       address: company ? partyAddress(company) : null,
     },
@@ -165,9 +164,17 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
     qrDataUrl,
     logoDataUrl: await loadLogoDataUrl(company?.logoPath),
     termsAndConditions: inv.termsAndConditions ?? null,
-    bankDetails: defaultBank
-      ? { bankName: defaultBank.bankName ?? defaultBank.name, iban: defaultBank.iban ?? "", accountName: defaultBank.name }
-      : null,
+    // 🔴 G30: the payment details captured AT ISSUE, never the bank account's
+    // current values — re-rendering an issued invoice reproduces what it told
+    // the customer. Bank details invite payment, so only an invoice carries a
+    // capture (never a note or an advance tax invoice). An invoice issued
+    // before the capture existed (migration 0121) has none and prints none:
+    // printing today's bank as if it were the original is the defect itself,
+    // and a backfill is an owner decision not yet taken.
+    bankDetails:
+      inv.documentType === "invoice" && inv.issuedBankAccountId != null
+        ? { bankName: inv.issuedBankName ?? "", iban: inv.issuedBankIban ?? "", accountName: inv.issuedBankAccountName ?? "" }
+        : null,
     noteReason: inv.noteReason ?? null,
   };
 }
