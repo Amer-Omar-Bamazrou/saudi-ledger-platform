@@ -124,9 +124,9 @@ describeMaybe("G04 — the service layer refuses before the database is asked", 
   it("INVOICE draft edit: another tenant's product is refused by the service — the draft's lines are not touched", async () => {
     const draft: any = await inX(() => invoicesService.create(invoiceBody(), uid.x));
     const del = vi.spyOn(invoicesRepository, "deleteItems");
-    expect(await refusal(inX(() => invoicesService.update(draft.id, { items: invoiceBody(fx.y.product).items } as any, uid.x)))).toMatchObject({ status: 422, code: "reference_not_found", field: "items[0].productId" });
+    expect(await refusal(inX(() => invoicesService.update(draft.id, { items: invoiceBody(fx.y.product).items } as any)))).toMatchObject({ status: 422, code: "reference_not_found", field: "items[0].productId" });
     expect(del).not.toHaveBeenCalled();
-    await inX(() => invoicesService.update(draft.id, { items: invoiceBody(fx.x.product).items } as any, uid.x));
+    await inX(() => invoicesService.update(draft.id, { items: invoiceBody(fx.x.product).items } as any));
     expect(del).toHaveBeenCalledTimes(1);
   });
 
@@ -143,7 +143,7 @@ describeMaybe("G04 — the service layer refuses before the database is asked", 
   it("BILL update: another tenant's asset is refused by the service — the bill is not updated", async () => {
     const draft: any = await inX(() => billsService.create(billBody() as any, uid.x));
     const update = vi.spyOn(billsRepository, "update");
-    expect(await refusal(inX(() => billsService.update(draft.id, { capitalisesAssetId: fx.y.asset } as any, uid.x)))).toMatchObject({ status: 422, code: "reference_not_found", field: "capitalisesAssetId" });
+    expect(await refusal(inX(() => billsService.update(draft.id, { capitalisesAssetId: fx.y.asset } as any)))).toMatchObject({ status: 422, code: "reference_not_found", field: "capitalisesAssetId" });
     expect(update).not.toHaveBeenCalled();
   });
 
