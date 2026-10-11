@@ -241,6 +241,26 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   //    backstop. Transaction-scoped: released on commit or rollback. ──
   await invoicesRepository.lockCompanySequence(inv.companyId);
 
+  // 🔴 G58: a credit note's ceiling is RE-CHECKED here, under the company
+  //    sequence lock. The re-validation above runs before any lock and counts
+  //    only notes already ISSUED, so two approvals against one invoice could
+  //    both pass it before either committed. The lock then serialised them
+  //    AFTER the check, and the second over-credited the invoice, its excess
+  //    landing in CUSTOMER_CREDITS (reproduced, Phase 18 S1). Every issuance in
+  //    this company holds this lock until it commits, so this read sees every
+  //    note issued before it. No new lock is taken, so the lock order is
+  //    unchanged. A refusal here comes before the ICV, the hash, the update and
+  //    the posting: the request rolls back with nothing written.
+  if (inv.documentType === "credit_note") {
+    await assertNoteIsValid({
+      documentType: inv.documentType,
+      originalInvoiceId: inv.originalInvoiceId,
+      noteReason: inv.noteReason,
+      total: toNum(inv.total),
+      excludeNoteId: inv.id,
+    });
+  }
+
   const previousHash =
     (await invoicesRepository.previousInvoiceHash(inv.companyId)) ?? LEGACY_GENESIS_HASH;
 
