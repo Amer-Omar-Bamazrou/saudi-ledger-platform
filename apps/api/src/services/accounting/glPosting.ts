@@ -21,7 +21,7 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { checkPeriodOpen } from "./periodLock";
 import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
 import { BusinessRuleError } from "../../lib/errors";
-import { assertLineReferencesOwned } from "./tenantReferences";
+import { assertBankLeavesInCompany, assertLineReferencesOwned } from "./tenantReferences";
 
 /**
  * One posting line. It MUST identify its account in exactly one of two ways.
@@ -352,6 +352,14 @@ export async function postJournalEntry(opts: {
       vendorId: l.party?.type === "vendor" ? l.party.vendorId : null,
     })),
   );
+  /**
+   * 🔴 G55 / DR-42 (2026-10-14): and a bank's cash account named BY ID is a
+   * bank of THIS company — the company boundary `resolveBankLeaves` holds for
+   * the `bankAccountId` arm, held on the `accountId` arm too, for every caller
+   * of this seam (a prepayment release, a bill's account, a categorised bank
+   * row…). The entry this call writes takes this transaction's company.
+   */
+  await assertBankLeavesInCompany(lines.map((l) => ({ accountId: l.accountId ?? null })));
   const idLines = lines.filter((l) => l.accountId != null);
   if (idLines.length > 0) {
     const rows = await db

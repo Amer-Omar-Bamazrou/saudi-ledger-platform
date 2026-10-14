@@ -40,6 +40,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { statusLabel } from "@/lib/statusLabel";
 import { whtTypeLabel } from "@/lib/taxLabels";
 import { useGuarded } from "@/lib/singleSubmit";
+import { accountRefusalToast } from "@/lib/accountRefusals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -171,7 +172,8 @@ export default function Approvals() {
       setText("");
       toast({ title: v.row.entity === "payment-plans" && v.action === "reject" ? t("Plan cancelled", "أُلغيت الخطة") : v.row.entity === "wht-reliefs" && v.action === "reject" ? t("Relief revoked", "أُلغي الإعفاء") : ACTION_DONE[v.action] });
     },
-    onError: (e: Error) => toast({ title: t("Action failed", "فشل الإجراء"), description: e.message, variant: "destructive" as any }),
+    // G55: approving a journal whose line is on an account this company cannot post to is explained in both languages.
+    onError: (e: Error) => toast(accountRefusalToast(e, t) ?? { title: t("Action failed", "فشل الإجراء"), description: e.message, variant: "destructive" as any }),
   }));
 
   const ACTION_LABEL: Record<Action, string> = {
