@@ -544,3 +544,12 @@ Record: [`phase-13b-vat-claim-ledger-architecture.md`](../product/phase-13b-vat-
 - Recovered after an interrupted session (2026-10-04): the uncommitted work was verified file by file against the session transcript before the build resumed; nothing was regenerated.
 - **Manual product QA (2026-10-04)** — a disposable database, three tenants, real clicks, every figure reconciled to the GL: F-16…F-25 fixed (refusals that answered 500, a deferred trigger that paged ops, double-submits, a 0 % relief default, a date-less bill payment), D-11…D-22 documented — three HIGH design questions (WHT payment correction, WHT on deposits, migrated assets on reversal) for the owner and accountant. Record: [`phase-16-17-manual-qa-2026-10-04.md`](phase-16-17-manual-qa-2026-10-04.md).
 - **Gap closure (2026-10-04)** — everything the QA left open that needed no decision: F-26…F-36 (the approvals inbox takes submitted computations, pending reliefs and planned payments; every VAT period listed with its position; classification balances from the balance sheet the computation reads; the plans list responsive; the plan pay form's WHT preview — and a screen/server nature mismatch it hid; obligations links that keep their period; Arabic legal references; existing computations always visible; a statutory-rate relief warned; a paid plan shows the withholding recorded, not a re-estimate). No posting, calculation or migration changed. The three HIGH items stay decision-gated, each with a technical design. Record: [`phase-16-17-gap-closure-2026-10-04.md`](phase-16-17-gap-closure-2026-10-04.md).
+
+## CLAUDE.md §2 STATUS LINES, MOVED (2026-10-14)
+
+Moved verbatim from CLAUDE.md §2 to make room under its budget (the budget test); link targets re-pointed to this folder. Each line keeps its own date.
+
+**2026-10-01** — 🔴 **PHASES 14+15 BUILT** (`docs/product/phase-14-15-*` pack).
+**2026-10-05** — 🔴 **PHASES 16+17 MERGED (#190)** ([`pack`](../product/phase-16-17-tax-treasury-decision-pack.md) §12–§15). 🔴 **RATE LIMITING BUILT, PR OPEN** ([`design`](../product/design-rate-limiting.md)).
+
+*(2026-10-14: "PR OPEN" was already stale when moved — rate limiting merged as #191 on 2026-10-05. Phases 14+15 merged as #189 on 2026-10-03 and 16+17 as #190 on 2026-10-05, so the two headings above that read "PR — not merged" are as of their own dates. §2 now carries one merged-status line in their place.)*

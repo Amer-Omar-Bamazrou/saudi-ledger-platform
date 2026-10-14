@@ -2704,3 +2704,68 @@ lost. Record: `docs/product/phase-14-15-reporting-budgeting-decision-pack.md` D1
 `phase14-reporting-invariants.test.ts` (C — the P&L is the ledger), mutation M5.
 
 State: CLOSED.
+
+## G58 — CONCURRENT CREDIT NOTES COULD OVER-CREDIT ONE INVOICE — CLOSED 2026-10-11 (Phase 18 remediation batch 1, PR #194)
+
+**What it was.** Found in Phase 18 discovery as contract gap G58, one of the "validated before lock"
+gaps. Reproduced on 2026-10-11 by the owner-authorised S1 proof.
+
+- **The mechanism.** Approval re-validated a credit note with `assertNoteIsValid` BEFORE taking any
+  lock, and that check counted only notes already ISSUED. So two approvals against one invoice could
+  both pass it before either committed. `lockCompanySequence` then serialised them AFTER the check,
+  and the second over-credited the invoice.
+- **Reproduced:** both approvals answered HTTP 200; SAR 1,840.00 of notes were issued against a
+  SAR 1,150.00 invoice; SAR 690.00 went to `CUSTOMER_CREDITS`.
+- **Triage:**
+  - it ISSUES: a ZATCA-bound credit note, and an ICV;
+  - it removes the correction: an issued note is undone only by a new document;
+  - it hid the result: the excess read as an ordinary balance owed to the customer.
+
+**How it closed.** `apps/api/src/services/invoices.approvable.ts` (+20 lines): for a `credit_note`,
+`assertNoteIsValid` runs again immediately after `lockCompanySequence`. Every issuance in a company
+holds that advisory lock until it commits, so the re-read sees every note issued before it.
+
+- **No new lock is taken,** so the lock order, and the G40 invoice-row vs receipt inversion, are
+  untouched.
+- **A refusal (409 `note_over_credit`) comes before the ICV, the hash, the update and the posting,**
+  so nothing is written and no ICV gap opens.
+- **Unchanged:** the pre-lock check, debit notes, advance credit notes and the credit-note
+  accounting.
+- **No schema or migration change.** The database-guard option was not authorised.
+
+**Tests.**
+
+- `phase18-s1-g58-credit-note-race.test.ts`: the S1 proof, with its assertions unchanged.
+- `g58-credit-note-ceiling-under-lock.test.ts`:
+  - notes that fit are not refused;
+  - three racing with room for two: two issue and one is refused with 409;
+  - the refused approval leaves nothing behind, and no ICV gap;
+  - five unforced rounds;
+  - a bookkeeper still gets 403.
+- **Mutation:** with the fix removed, the three race-dependent tests fail.
+
+**Merged** by the owner on 2026-10-11 at 20:52:47Z: PR #194, merge commit
+`cf0f0b69ef294bf45bce1d21efffe5969a06a379`, fix commit `b8d45324`.
+
+**CI on the merge commit** (run 38174046269) concluded **success** on all five checks:
+
+- `secrets`, `typecheck` and `build`;
+- `test`: API 242/242 files, 2,406 passed and 4 skipped, including all 7 G58 tests; DB 58;
+  zatca-tlv 10; web 127;
+- `e2e (browser)`.
+
+**Record:** owner decision register DR-46 and DR-48
+(`docs/phase-18-owner-decision-register-2026-10-09.md`, untracked at the time of writing). DR-46
+holds the full close-out, including the standing check.
+
+**Still open around it.** None of these is part of this fix, and each needs its own owner
+authorisation:
+
+- the database-level ceiling;
+- a note racing a *payment* of the same original;
+- G64 and the other "validated before lock" gaps;
+- the UI does not key on `note_over_credit`, and its message is English only. Both predate G58;
+- the three other S1 defects (G60, DR-42/G55 and DR-41), which still reproduced when re-run on
+  2026-10-13.
+
+State: CLOSED.

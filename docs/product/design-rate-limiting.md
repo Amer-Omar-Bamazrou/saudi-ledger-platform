@@ -1,7 +1,7 @@
 # Rate limiting — audit, threat model, policy and design
 
-**Status (2026-10-05): built on branch `feat/rate-limiting`, not merged. Current
-state authority: CLAUDE.md §2.** This is a standalone security hardening task,
+**Status (2026-10-14): merged — PR #191, 2026-10-05 (merge commit `d828f786`).
+Current state authority: CLAUDE.md §2.** This is a standalone security hardening task,
 not a roadmap phase.
 
 Code: `apps/api/src/lib/rateLimit.ts` (the 429 contract, client identities,
