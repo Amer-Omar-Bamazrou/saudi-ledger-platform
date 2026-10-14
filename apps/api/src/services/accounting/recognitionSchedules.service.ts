@@ -29,6 +29,7 @@ import { round2, spreadOverPeriods } from "../../lib/money.js";
 import { businessToday } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";
+import { bankLeavesOutsideCompany } from "./tenantReferences.js";
 import { periodOf, shiftPeriod, lastDayOf } from "../assets/depreciationSchedule.js";
 
 const refuse = (code: string, error: string, field?: string): never => {
@@ -70,6 +71,17 @@ export const recognitionSchedulesService = {
     const [balance] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, balanceAccountId)).limit(1);
     if (!expense) refuse("expense_account_unknown", "The expense account does not exist in this company's chart.", "expenseAccountId");
     if (!balance) refuse("balance_account_unknown", "The balance-sheet account does not exist in this company's chart.", "balanceAccountId");
+    // 🔴 G55 / DR-42 (2026-10-14): another company's bank is not in THIS
+    // company's books — refused here, with this field's not-found code, before
+    // a bookkeeper's schedule can release a balance onto it (the posting seam
+    // refuses the same line again for a schedule written before this rule).
+    if ((await bankLeavesOutsideCompany([balanceAccountId])).has(balanceAccountId)) {
+      refuse(
+        "balance_account_unknown",
+        `“${balance!.name}” is the cash account of a bank account that belongs to another company, so it is not in this company's chart. Choose one of this company's own accounts.`,
+        "balanceAccountId",
+      );
+    }
     if (expense!.type !== "expense") {
       refuse("expense_account_not_expense", `Recognition debits an EXPENSE account; “${expense!.name}” is ${expense!.type}.`, "expenseAccountId");
     }

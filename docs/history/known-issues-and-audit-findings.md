@@ -2704,3 +2704,166 @@ lost. Record: `docs/product/phase-14-15-reporting-budgeting-decision-pack.md` D1
 `phase14-reporting-invariants.test.ts` (C — the P&L is the ledger), mutation M5.
 
 State: CLOSED.
+
+## G58 — CONCURRENT CREDIT NOTES COULD OVER-CREDIT ONE INVOICE — CLOSED 2026-10-11 (Phase 18 remediation batch 1, PR #194)
+
+**What it was.** Found in Phase 18 discovery as contract gap G58, one of the "validated before lock"
+gaps. Reproduced on 2026-10-11 by the owner-authorised S1 proof.
+
+- **The mechanism.** Approval re-validated a credit note with `assertNoteIsValid` BEFORE taking any
+  lock, and that check counted only notes already ISSUED. So two approvals against one invoice could
+  both pass it before either committed. `lockCompanySequence` then serialised them AFTER the check,
+  and the second over-credited the invoice.
+- **Reproduced:** both approvals answered HTTP 200; SAR 1,840.00 of notes were issued against a
+  SAR 1,150.00 invoice; SAR 690.00 went to `CUSTOMER_CREDITS`.
+- **Triage:**
+  - it ISSUES: a ZATCA-bound credit note, and an ICV;
+  - it removes the correction: an issued note is undone only by a new document;
+  - it hid the result: the excess read as an ordinary balance owed to the customer.
+
+**How it closed.** `apps/api/src/services/invoices.approvable.ts` (+20 lines): for a `credit_note`,
+`assertNoteIsValid` runs again immediately after `lockCompanySequence`. Every issuance in a company
+holds that advisory lock until it commits, so the re-read sees every note issued before it.
+
+- **No new lock is taken,** so the lock order, and the G40 invoice-row vs receipt inversion, are
+  untouched.
+- **A refusal (409 `note_over_credit`) comes before the ICV, the hash, the update and the posting,**
+  so nothing is written and no ICV gap opens.
+- **Unchanged:** the pre-lock check, debit notes, advance credit notes and the credit-note
+  accounting.
+- **No schema or migration change.** The database-guard option was not authorised.
+
+**Tests.**
+
+- `phase18-s1-g58-credit-note-race.test.ts`: the S1 proof, with its assertions unchanged.
+- `g58-credit-note-ceiling-under-lock.test.ts`:
+  - notes that fit are not refused;
+  - three racing with room for two: two issue and one is refused with 409;
+  - the refused approval leaves nothing behind, and no ICV gap;
+  - five unforced rounds;
+  - a bookkeeper still gets 403.
+- **Mutation:** with the fix removed, the three race-dependent tests fail.
+
+**Merged** by the owner on 2026-10-11 at 20:52:47Z: PR #194, merge commit
+`cf0f0b69ef294bf45bce1d21efffe5969a06a379`, fix commit `b8d45324`.
+
+**CI on the merge commit** (run 38174046269) concluded **success** on all five checks:
+
+- `secrets`, `typecheck` and `build`;
+- `test`: API 242/242 files, 2,406 passed and 4 skipped, including all 7 G58 tests; DB 58;
+  zatca-tlv 10; web 127;
+- `e2e (browser)`.
+
+**Record:** owner decision register DR-46 and DR-48
+(`docs/phase-18-owner-decision-register-2026-10-09.md`, untracked at the time of writing). DR-46
+holds the full close-out, including the standing check.
+
+**Still open around it.** None of these is part of this fix, and each needs its own owner
+authorisation:
+
+- the database-level ceiling;
+- a note racing a *payment* of the same original;
+- G64 and the other "validated before lock" gaps;
+- the UI does not key on `note_over_credit`, and its message is English only. Both predate G58;
+- the three other S1 defects (G60, DR-42/G55 and DR-41), which still reproduced when re-run on
+  2026-10-13.
+
+State: CLOSED.
+
+## G55 — ONE COMPANY COULD POST TO ANOTHER COMPANY'S BANK ACCOUNT — FIXED (Phase 18 remediation batch 2, PR #195)
+
+**What it was.** Contract gap G55 (register DR-42, research OBS-2): in an organisation with two
+companies, company A could post onto company B's bank account. Reproduced on 2026-10-11 by the
+owner-authorised S1 proof, and again on 2026-10-13.
+
+- **The mechanism.** Accounts are organisation-level, but a bank account belongs to one company and
+  its GL leaf (`categories.bank_account_id`) is that bank's cash. Naming the BANK was
+  company-bounded (`resolveBankLeaves` in `glPosting.ts`); naming its LEAF by account id passed the
+  organisation check only.
+- **Reproduced (S1):**
+  - a manual journal (bookkeeper drafts, admin approves) credited B's bank: −SAR 100.00 in A's books;
+  - a prepayment schedule created, activated and recognised by a **bookkeeper alone** did the same
+    (−SAR 100.00 more);
+  - B's own figure for that bank stayed 0.00;
+  - another organisation's bank leaf was refused on both paths (G04).
+- **Triage:**
+  - it POSTS, through a bookkeeper path with no approver;
+  - it partly removes the correction: a generically reversed recognition leaves its period marked
+    recognised (OBS-4);
+  - it HIDES the result: B's own figure reads 0.00.
+- **Severity:** HIGH (owner, 2026-10-14).
+
+**How it closed.** Owner-authorised 2026-10-14: register DR-42 options (a) + (b), application level
+only.
+
+- **The rule** (`assertBankLeavesInCompany` / `bankLeavesOutsideCompany`,
+  `services/accounting/tenantReferences.ts`): an account id that is a bank's GL leaf must be a leaf
+  of a bank of the company the entry is written in. It is an explicit predicate on the company, not
+  RLS visibility; with no company context it matches no bank and refuses (fail closed).
+- **Where it is held:**
+  - drafting a manual journal: 422 `reference_not_found` on `lines[i].accountId`;
+  - drafting a recognition schedule: 422 `balance_account_unknown` on `balanceAccountId`;
+  - the posting seam `postJournalEntry`, for every caller that names an account by id (prepayment
+    release, bills, categorised bank rows, assets, migration);
+  - manual-journal APPROVAL, which never reaches the seam. It checks against the entry's own
+    company, so a draft written before the rule is refused there too.
+- **Deliberately NOT changed:**
+  - the generic reversal: the mirror of an entry already on another company's bank is how that
+    entry is corrected;
+  - an inactive bank of the same company still passes. No new restriction (owner exclusion);
+  - bank accounts are not refused as prepayment accounts in general (that is DR-33, not this fix);
+  - the account pickers still offer the other company's bank, so the refusal is what the user
+    meets, explained.
+- **No database trigger, schema change or migration** (owner exclusion; register option (c) not
+  taken).
+- **The UI explains the refusal in both languages,** keyed on code + field
+  (`apps/web/src/lib/accountRefusals.ts`). It is wired into the journal form (save, post), the
+  approvals inbox, and the prepayment form (create, recognise).
+
+**Tests.**
+
+- `phase18-s1-dr42-cross-company-bank-leaf.test.ts`: the S1 proof. Assertions unchanged (header
+  comment updated, the G58 precedent); 2 failed / 4 passed before the fix, 6/6 after.
+- `g55-cross-company-bank-leaf.test.ts` (10):
+  - the rule in companies A and B, and with no company context;
+  - refusal at drafting on both paths, nothing written;
+  - refusal at the seam before any write;
+  - refusal at approval of a pre-rule draft;
+  - refusal at recognition of a pre-rule schedule, and the month-end run reporting it skipped;
+  - a reversal of a pre-rule posted entry still allowed;
+  - the company's own inactive bank still posts;
+  - company B on its own bank (movement in B, absence in A), and B naming A's leaf refused;
+  - another organisation's leaf still G04's refusal, naming nothing.
+- `apps/web/src/lib/accountRefusals.test.ts` (4): both error classes, both languages.
+- `e2e/g55-cross-company-bank-leaf.spec.ts` (4): journal and prepayment, refused at save and
+  explained. English on desktop names the bank; Arabic on a phone gives the line. Nothing is
+  created, and A's own bank still saves.
+- **Mutation:** removing each of the five enforcement points (seam, journal create, approval,
+  schedule create, the explicit company predicate) fails its own test(s). Disabling the UI
+  explanation turns the browser leg red.
+
+**Existing records.** No existing record was rewritten; correction is by reversal. On the local
+database (read-only, 2026-10-14) there were none:
+
+- 0 journal lines on another company's bank leaf;
+- 0 such schedules;
+- no organisation with more than one company.
+
+No hosted database exists. The query keys `journal_entry_lines → categories.bank_account_id →
+bank_accounts.company_id` against `journal_entries.company_id` (and `recognition_schedules.company_id`).
+
+**Still open around it, or worth knowing.** Anything here that changes behaviour needs its own owner
+decision:
+
+- **The database guard** (DR-42 option (c)).
+- **The seam's other callers need no UI change today.** The bill account picker lists expense
+  accounts only. A bank row's category excludes every bank leaf (and the server refuses one with
+  422 `category_is_bank_account`). So their refusal at the seam is reachable only by a raw API
+  call, where it answers in English.
+- **Hiding the other company's bank in the pickers.** Not done; today the refusal is what the user
+  meets.
+- **No product path creates a second company today** (signup creates one, and every request acts as
+  the first-created company). The defect was latent until an organisation has two.
+- **G60, DR-41, DR-45 and the rest of Phase 18** remain unauthorised.
+
+State: CLOSED on merge; the merge commit and its CI are recorded in the register's DR-42 close-out.

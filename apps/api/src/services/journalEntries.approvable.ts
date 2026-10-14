@@ -23,7 +23,7 @@
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { BusinessRuleError } from "../lib/errors";
-import { assertLineReferencesOwned } from "./accounting/tenantReferences";
+import { assertBankLeavesInCompany, assertLineReferencesOwned } from "./accounting/tenantReferences";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import { buildJEOut, type JournalEntryOut } from "./journalEntries.presenter";
 import type { Approvable, ApprovalState } from "./approval";
@@ -63,6 +63,13 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
      * bypass of the create path's rule, whatever wrote the draft.
      */
     await assertLineReferencesOwned(storedLines);
+    /**
+     * 🔴 G55 / DR-42 (2026-10-14): approval is a manual journal's POSTING step
+     * (it never reaches `postJournalEntry`), so the company rule for a bank's
+     * cash account is held here too — against the ENTRY's own company, on the
+     * stored lines, which also refuses a draft written before the rule existed.
+     */
+    await assertBankLeavesInCompany(storedLines, { companyId: je.companyId });
     /**
      * 🔴 D-3 (2026-09-17): approval only flips `status` — it inserts no line,
      * so the DB trigger that refuses a header line never fires here. A draft

@@ -17,7 +17,7 @@ import { BadRequestError } from "../lib/errors";
 import { pick, assertAmount, assertDateString } from "../lib/writeGuards";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
-import { assertLineReferencesOwned } from "./accounting/tenantReferences";
+import { assertBankLeavesInCompany, assertLineReferencesOwned } from "./accounting/tenantReferences";
 import { round2, money2 } from "../lib/money";
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
@@ -208,8 +208,13 @@ export const journalEntriesService = {
      * account. One 422 `reference_not_found` for a foreign id and a missing
      * one (services/accounting/tenantReferences.ts); the database refuses the
      * same reference beneath every writer (0122).
+     *
+     * 🔴 G55 / DR-42 (2026-10-14): and a bank's cash account is THIS
+     * company's bank — refused when the draft is written, naming the line,
+     * rather than only when an approver posts it (approval re-checks).
      */
     await assertLineReferencesOwned(parsedLines);
+    await assertBankLeavesInCompany(parsedLines);
     const accountRows = await categoriesRepository.findByIds([
       ...new Set(parsedLines.map((l) => l.accountId).filter((id): id is number => id != null)),
     ]);
@@ -422,6 +427,8 @@ export const journalEntriesService = {
     // 🔴 G04: the mirror COPIES each stored line's account and party, so it is
     // only written when every one of them is this organization's — a reversal
     // is not a way to re-post a reference no other path may write.
+    // (G55: deliberately NOT `assertBankLeavesInCompany` — the mirror of an
+    // entry already on another company's bank is how that entry is corrected.)
     await assertLineReferencesOwned(lines);
     const now = new Date();
     const [reversal] = await journalEntriesRepository.insertEntry({

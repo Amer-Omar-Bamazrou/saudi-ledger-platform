@@ -27,10 +27,12 @@
  *
  * Organization-level entities stay organization-level: accounts, customers,
  * vendors and products are owned by the ORGANIZATION, so every company of it
- * passes. Company-scoped targets add the company (`assertAssetOwnedByCompany`).
+ * passes. Company-scoped targets add the company (`assertAssetOwnedByCompany`),
+ * and so does the one account that is company-scoped through what it stands
+ * for: a bank's GL leaf (`assertBankLeavesInCompany`, G55).
  */
 import { db, categoriesTable, customersTable, vendorsTable, productsTable, fixedAssetsTable } from "@workspace/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { BusinessRuleError } from "../../lib/errors";
 
 /** This transaction's organization — NULL outside a tenant transaction, which matches no row. */
@@ -82,6 +84,74 @@ export async function assertLineReferencesOwned(lines: LineReferences[], field =
     if (l.accountId != null && !accounts.has(Number(l.accountId))) throw new ReferenceNotFoundError(`${field}[${i}].accountId`, `Line ${i + 1} names an account`);
     if (l.customerId != null && !customers.has(Number(l.customerId))) throw new ReferenceNotFoundError(`${field}[${i}].customerId`, `Line ${i + 1} names a customer`);
     if (l.vendorId != null && !vendors.has(Number(l.vendorId))) throw new ReferenceNotFoundError(`${field}[${i}].vendorId`, `Line ${i + 1} names a vendor`);
+  }
+}
+
+/**
+ * 🔴 G55 / DR-42 (2026-10-14) — A BANK'S CASH ACCOUNT TAKES ENTRIES ONLY FROM
+ * ITS OWN COMPANY.
+ *
+ * Accounts are organization-level (above), but a bank account belongs to ONE
+ * company, and its GL leaf (`categories.bank_account_id`, created by trigger
+ * for every bank) is that bank's cash. Naming the BANK was already
+ * company-bounded (glPosting's `resolveBankLeaves`); naming its LEAF by account
+ * id passed the organization check above, so company A could post a manual
+ * journal or a prepayment release onto company B's bank — in A's books, and
+ * invisible in B's own figure for that bank (S1 proof,
+ * `tests/phase18-s1-dr42-cross-company-bank-leaf.test.ts`).
+ *
+ * THE RULE: an account id that is a bank leaf must be a leaf of a bank of the
+ * company the entry is written in — the entry's own `companyId` when it already
+ * exists, else this transaction's company — by an explicit predicate, not by
+ * what RLS lets the lookup see. Outside a company context the predicate is NULL
+ * and matches no bank, so every bank leaf is refused: fail closed. Whose bank it
+ * is, and nothing else: an INACTIVE bank of the same company still passes
+ * (owner, 2026-10-14).
+ *
+ * The generic REVERSAL deliberately does not call this: the mirror of an entry
+ * already sitting on another company's bank is how that entry is corrected.
+ *
+ * Returns the offending account ids with the leaf's name; each caller refuses
+ * in its own vocabulary (`assertBankLeavesInCompany` for journal lines).
+ */
+export async function bankLeavesOutsideCompany(accountIds: Array<number | null | undefined>, companyId?: string): Promise<Map<number, string>> {
+  const wanted = [...new Set(accountIds.filter((id): id is number => id != null).map(Number))];
+  if (wanted.length === 0) return new Map();
+  const company = companyId ? sql`${companyId}::uuid` : CURRENT_COMPANY_ID;
+  const rows = await db
+    .select({ id: categoriesTable.id, name: categoriesTable.name })
+    .from(categoriesTable)
+    .where(
+      and(
+        inArray(categoriesTable.id, wanted),
+        isNotNull(categoriesTable.bankAccountId),
+        sql`NOT EXISTS (SELECT 1 FROM bank_accounts b WHERE b.id = ${categoriesTable}."bank_account_id" AND b.company_id = ${company})`,
+      ),
+    );
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+/**
+ * Refuse a journal line that names another company's bank leaf (see
+ * `bankLeavesOutsideCompany`). The same 422 `reference_not_found` a foreign or
+ * missing account gets, on the same field (`lines[i].accountId`); the sentence
+ * says which bank account and why, since within one organization its name is
+ * already on the user's own chart.
+ */
+export async function assertBankLeavesInCompany(
+  lines: Array<{ accountId?: number | null }>,
+  opts: { field?: string; companyId?: string } = {},
+): Promise<void> {
+  const field = opts.field ?? "lines";
+  const foreign = await bankLeavesOutsideCompany(lines.map((l) => l.accountId), opts.companyId);
+  for (const [i, l] of lines.entries()) {
+    const name = l.accountId != null ? foreign.get(Number(l.accountId)) : undefined;
+    if (name === undefined) continue;
+    throw new BusinessRuleError(422, {
+      code: "reference_not_found",
+      error: `Line ${i + 1} posts to "${name}", the cash account of a bank account that belongs to another company. A bank account's cash account takes entries only from its own company — choose one of this company's own bank accounts.`,
+      field: `${field}[${i}].accountId`,
+    });
   }
 }
 

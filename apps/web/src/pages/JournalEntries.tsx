@@ -14,6 +14,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
 import { FilterScope } from "@/components/FilterScope";
 import { JOURNAL_ENTRY_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
+import { accountRefusalToast } from "@/lib/accountRefusals";
 
 import type { Category, CreateJournalEntryInput, Customer, JournalEntry, JournalEntryLineInput, ListJournalEntries200, Vendor } from "@workspace/api-client-react";
 import { fetchPickerOptions } from "@/lib/pagedList";
@@ -94,7 +95,8 @@ export default function JournalEntries() {
   const createMut = useMutation({
     mutationFn: (body: CreateJournalEntryInput) => apiFetch("/journal-entries", { method: "POST", body: json.create(body) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["journal-entries"] }); setOpen(false); toast({ title: t("Journal entry created", "تم إنشاء قيد اليومية") }); },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    // G55: a line on an account this company cannot post to (another company's bank) is explained in both languages.
+    onError: (e: Error) => toast(accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -110,7 +112,7 @@ export default function JournalEntries() {
   const postMut = useMutation({
     mutationFn: (id: number) => apiFetch(`/journal-entries/${id}/post`, { method: "POST" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry posted to ledger", "تم ترحيل القيد إلى دفتر الأستاذ") }); },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const reverseMut = useMutation({
@@ -138,14 +140,14 @@ export default function JournalEntries() {
           <p className="text-muted-foreground text-sm mt-1">{t("Double-entry journal entries", "قيود اليومية ذات القيد المزدوج")} · {entries.length} {t("entries", "قيود")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Entry", "قيد جديد")}</Button></DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogTrigger asChild><Button className="gap-2" data-testid="je-new"><Plus className="w-4 h-4" /> {t("New Entry", "قيد جديد")}</Button></DialogTrigger>
+          <DialogContent className="max-w-2xl" data-testid="je-dialog">
             <DialogHeader><DialogTitle>{t("New Journal Entry", "قيد يومية جديد")}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-3 gap-3 mt-2">
               <div><Label className="text-xs text-muted-foreground">{t("Entry Number", "رقم القيد")}</Label><Input value={form.entryNumber} onChange={e=>setForm(p=>({...p,entryNumber:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Reference", "المرجع")}</Label><Input value={form.reference} onChange={e=>setForm(p=>({...p,reference:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
-              <div className="col-span-3"><Label className="text-xs text-muted-foreground">{t("Description", "الوصف")}</Label><Input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
+              <div className="col-span-3"><Label className="text-xs text-muted-foreground">{t("Description", "الوصف")}</Label><Input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} className="mt-1 h-8 text-sm" data-testid="je-description" /></div>
             </div>
 
             <div className="mt-4">
@@ -166,7 +168,7 @@ export default function JournalEntries() {
                     <tr key={i}>
                       <td className="pe-2 py-1">
                         <Select value={String(l.accountId??"")} onValueChange={v=>{const cat=categories.find(c=>String(c.id)===v);setLines(prev=>prev.map((ln,idx)=>idx===i?{...ln,accountId:Number(v),accountName:cat?.name??v,customerId:null,vendorId:null}:ln));}}>
-                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder={t("Account...", "الحساب...")} /></SelectTrigger>
+                          <SelectTrigger className="h-7 text-xs" data-testid={`je-line-account-${i}`}><SelectValue placeholder={t("Account...", "الحساب...")} /></SelectTrigger>
                           {/* D-3: a header account ("Cash and Bank") accepts no line — each bank's own
                               cash account is offered instead. The server refuses a header too
                               (422 account_not_posting); this keeps the dead end off the screen. */}
@@ -187,8 +189,8 @@ export default function JournalEntries() {
                         )}
                       </td>
                       <td className="pe-2 py-1"><Input value={l.description??""} onChange={e=>updateLine(i,"description",e.target.value)} className="h-7 text-xs" placeholder={t("Description...", "الوصف...")} /></td>
-                      <td className="pe-2 py-1"><Input type="number" value={l.debitAmount||""} onChange={e=>updateLine(i,"debitAmount",Number(e.target.value))} className="h-7 text-xs text-end font-mono" /></td>
-                      <td className="pe-2 py-1"><Input type="number" value={l.creditAmount||""} onChange={e=>updateLine(i,"creditAmount",Number(e.target.value))} className="h-7 text-xs text-end font-mono" /></td>
+                      <td className="pe-2 py-1"><Input type="number" value={l.debitAmount||""} onChange={e=>updateLine(i,"debitAmount",Number(e.target.value))} className="h-7 text-xs text-end font-mono" data-testid={`je-line-debit-${i}`} /></td>
+                      <td className="pe-2 py-1"><Input type="number" value={l.creditAmount||""} onChange={e=>updateLine(i,"creditAmount",Number(e.target.value))} className="h-7 text-xs text-end font-mono" data-testid={`je-line-credit-${i}`} /></td>
                       <td className="py-1"><Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={()=>setLines(p=>p.filter((_,idx)=>idx!==i))}><Trash2 className="w-3 h-3 text-muted-foreground" /></Button></td>
                     </tr>
                   ))}
@@ -234,7 +236,7 @@ export default function JournalEntries() {
             </div>
 
             {partyMissing && <p className="text-xs text-negative mt-1">⚠ {t("A receivable/payable line must name its customer/vendor.", "سطر الذمم المدينة/الدائنة يجب أن يحدد العميل/المورّد.")}</p>}
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||partyMissing||createMut.isPending}>
+            <Button className="w-full mt-4" data-testid="je-save" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||partyMissing||createMut.isPending}>
               {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
             </Button>
           </DialogContent>

@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { businessToday } from "@workspace/shared";
 import type { RecognitionSchedule, RecognitionScheduleDetail } from "@workspace/api-client-react";
+import { accountRefusalToast } from "@/lib/accountRefusals";
 
 type Category = { id: number; name: string; nameAr: string | null; type: string; systemCode: string | null; isPosting?: boolean };
 
@@ -66,7 +67,8 @@ export default function RecognitionSchedules() {
     mutationFn: ({ id, what, body }: { id: number; what: string; body?: unknown }) =>
       apiFetch(`/recognition-schedules/${id}/${what}`, { method: "POST", body: JSON.stringify(body ?? {}) }),
     onSuccess: (_d, v) => { invalidate(); toast({ title: t(`Done: ${v.what}`, "تم") }); },
-    onError: (e: Error) => toast({ title: t("Refused", "مرفوض"), description: e.message, variant: "destructive" }),
+    // G55: a schedule whose entry names an account this company cannot post to is explained in both languages.
+    onError: (e: Error) => toast(accountRefusalToast(e, t, "schedule") ?? { title: t("Refused", "مرفوض"), description: e.message, variant: "destructive" }),
   });
 
   const all = cats;
@@ -228,7 +230,7 @@ function NewScheduleDialog({ expenses, liabilities, assets, name, t, onDone }: {
   const create = useMutation({
     mutationFn: (body: unknown) => apiFetch("/recognition-schedules", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => { toast({ title: t("Schedule created", "تم إنشاء الجدول") }); onDone(); },
-    onError: (e: Error) => toast({ title: t("Not created", "لم يُنشأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(accountRefusalToast(e, t, "schedule") ?? { title: t("Not created", "لم يُنشأ"), description: e.message, variant: "destructive" }),
   });
 
   return (
