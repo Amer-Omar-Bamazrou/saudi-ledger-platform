@@ -93,6 +93,21 @@ describeMaybe("rate limits before a session: login per IP and per account, invit
     }
     return last;
   }
+  /**
+   * 🔴 A test that SIGNS IN and then PLANTS the account's count must wait for
+   * that sign-in's refund first. Landing after the plant, the refund takes one
+   * planted hit back (60 → 59), and the next request then fits the budget it was
+   * meant to exceed — a 200 where the test expects 429 (CI run 38596266685).
+   * `beforeEach` empties the store, so a refunded sign-in leaves exactly 0: wait
+   * for that state, not merely for the count to stop moving (`settledHits`).
+   */
+  async function signInRefunded(key: string): Promise<void> {
+    for (let i = 0; i < 250; i++) {
+      if ((await hitsOf(key)) === 0) return;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    throw new Error(`the sign-in's refund never landed on ${key} (count ${await hitsOf(key)})`);
+  }
   const acct = (e: string) => keyIn("auth-account", accountKeyOf(e));
 
   function expect429(r: Res) {
@@ -146,6 +161,7 @@ describeMaybe("rate limits before a session: login per IP and per account, invit
   it("an account under lockout keeps its EXISTING sessions — only new sign-ins are refused", async () => {
     const signedIn = client();
     expect((await signedIn("POST", "/auth/login", { email: email("victim"), password: PASSWORD })).status).toBe(200);
+    await signInRefunded(acct(email("victim")));
     await plant(acct(email("victim")), 60);
     expect429(await client()("POST", "/auth/login", { email: email("victim"), password: PASSWORD }));
     // the session minted before the lockout is untouched by it
@@ -226,6 +242,7 @@ describeMaybe("rate limits before a session: login per IP and per account, invit
   it("change-password spends the SAME account budget as login", async () => {
     const c = client();
     expect((await c("POST", "/auth/login", { email: email("victim"), password: PASSWORD })).status).toBe(200);
+    await signInRefunded(acct(email("victim")));
     await plant(acct(email("victim")), 60);
     expect429(await c("POST", "/auth/change-password", { currentPassword: PASSWORD, newPassword: "a-new-password-1" }));
     await plant(acct(email("victim")), 0);
