@@ -2867,3 +2867,68 @@ decision:
 - **G60, DR-41, DR-45 and the rest of Phase 18** remain unauthorised.
 
 State: CLOSED on merge; the merge commit and its CI are recorded in the register's DR-42 close-out.
+
+## G60 — A MONTH-END RUN COULD REPORT ENTRIES AS POSTED THAT DID NOT EXIST — FIXED (Phase 18 remediation batch 3)
+
+**What it was.** Contract gap G60 (register DR-47; contract §22.3). The depreciation run
+(`POST /api/assets/depreciation-runs`) and the recognition run (`POST /api/recognition-schedules/runs`)
+post many items inside the request's one transaction and report the items that fail. A database
+error in one item aborted that transaction; the run carried on and answered 200, listing as
+"posted" entries the rollback had removed. COMMIT on an aborted transaction returns the tag
+ROLLBACK and raises no error, so nothing reached the existing 500 `commit_failed` path.
+
+- **Reproduced:** S1 on 2026-10-11, again on 2026-10-13, and on `main` fd27364e on 2026-10-15
+  (owner-authorised run): each run answered 200 reporting one entry that did not exist; the
+  fault-free control posted two entries, both present. The natural trigger is a bookkeeper's draft
+  journal entry holding the number a run is about to use (user numbers are not reserved, SG-11).
+- **Also seen (OBS-S1-1):** the skipped item's reason carried drizzle's "Failed query: insert
+  into …" text — the SQL and its parameters, sent to the client.
+- **Triage:** nothing posts that should not (the items stay due) and no correction is removed; it
+  HIDES the result, which is the defect.
+- **Reach:** the API only. No screen and no scheduled job calls either run; the screens act on one
+  asset or one schedule at a time, and those paths fail honestly.
+- **Severity:** HIGH (owner, 2026-10-15).
+
+**How it closed.** Owner-authorised 2026-10-15: DR-47 option A, standalone batch 3.
+
+- **`lib/savepoint.ts`** — `withSavepoint` runs one item between `SAVEPOINT` and `RELEASE`, in
+  explicit SQL: drizzle's `transaction()` on the request's handle would COMMIT the request's
+  transaction early. What the item throws is returned and its writes are rolled back; what the
+  savepoint statements throw is re-thrown, so a run never carries on in an aborted transaction.
+- **Depreciation run:** each asset in its own savepoint. A closed month still stops the whole run
+  with 423.
+- **Recognition run:** each schedule's reads and its recognition in its own savepoint, in id order
+  (`ORDER BY id`). A closed month is still reported per schedule.
+- **`lib/runItemFailure.ts`:** our own refusals pass through unchanged; a taken entry number is
+  named (`entry_number_taken`); any other error gets a fixed sentence (`database_error`,
+  `unknown`) and a server log entry.
+- **No API schema change.** The depreciation run's `skipped[].code` can now read
+  `entry_number_taken` or `database_error` where it read `unknown`.
+
+**Evidence.**
+
+- The S1 proof, unchanged: control passed and both proofs failed before; 3/3 after.
+- `g60-run-item-savepoint.test.ts` (11): the item after a failed one still posts; the failed item
+  leaves no entry, posted mark, asset event or audit row; one figure three ways (cost ÷ life or
+  total ÷ periods, the run's total, the ledger lines); safe reasons; id order on a fixture whose
+  physical order is not id order; isolation across two companies and two organisations; closed
+  months unchanged; the helper on its own.
+- Mutation: the savepoint removed turns both proofs and the run tests red; the reason mapper
+  removed turns the four reason tests red; `ORDER BY` removed turns the order test red.
+- Adjacent suites green: fixed assets (capitalisation, disposal, migration, report), Phase 11
+  accruals and prepayments, Phase 16–17 audit fixes and asset reversal, G55, and the DR-42 proof.
+
+**Not done — each needs its own authorisation.**
+
+- **O-6 / option C, commit-result verification: OPEN.** A 2xx only when the COMMIT really
+  committed is the class backstop, and it is not built. Its prerequisites: the statement import's
+  truthful zero-insert 200 would become a 500; the metering insert (`ai/metered.ts`) and
+  `transactionPosting.postMany` swallow errors inside a transaction; a rolled-back commit would page
+  the critical "check database health" alert. DR-47's commit-verification criterion moved here
+  (owner, 2026-10-15).
+- **No browser leg:** no screen calls either run (owner waiver, 2026-10-15). A run screen would be
+  separate work.
+- **Closed months stay as they were:** the depreciation run stops; the recognition run reports each
+  schedule. The difference is recorded, not changed.
+- **SG-11** (reserved entry numbers), the natural trigger, is unchanged: a run now names the taken
+  number instead of misreporting.

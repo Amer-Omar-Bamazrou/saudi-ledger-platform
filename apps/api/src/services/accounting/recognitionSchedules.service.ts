@@ -26,11 +26,16 @@ import {
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
 import { round2, spreadOverPeriods } from "../../lib/money.js";
+import { runItemFailure } from "../../lib/runItemFailure.js";
+import { withSavepoint } from "../../lib/savepoint.js";
 import { businessToday } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";
 import { bankLeavesOutsideCompany } from "./tenantReferences.js";
 import { periodOf, shiftPeriod, lastDayOf } from "../assets/depreciationSchedule.js";
+
+/** The number of one schedule's entry for one period — one definition, for the act and for the run's report. */
+const recognitionEntryNumber = (reference: string, period: string) => `${reference}-${period}`;
 
 const refuse = (code: string, error: string, field?: string): never => {
   throw new BusinessRuleError(422, { code, error, ...(field ? { field } : {}) });
@@ -207,7 +212,7 @@ export const recognitionSchedulesService = {
      */
     const date = lastDayOf(row.period);
     const entry = await postJournalEntry({
-      entryNumber: `${schedule.reference}-${row.period}`,
+      entryNumber: recognitionEntryNumber(schedule.reference, row.period),
       date,
       description: `${schedule.kind === "accrual" ? "Accrual" : "Prepayment release"}: ${schedule.description} (${row.period})`,
       reference: schedule.reference,
@@ -319,23 +324,47 @@ export const recognitionSchedulesService = {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
       refuse("recognition_period_invalid", "The period is a month, as YYYY-MM.", "period");
     }
-    const actives = await db.select().from(recognitionSchedulesTable).where(eq(recognitionSchedulesTable.status, "active"));
+    // 🔴 G60: in id order — the order the schedules were made. Without an
+    // ORDER BY the rows come back in the table's physical order, which any
+    // UPDATE can change, so the same month's run could post in a different
+    // order each time it was read.
+    const actives = await db.select().from(recognitionSchedulesTable)
+      .where(eq(recognitionSchedulesTable.status, "active"))
+      .orderBy(recognitionSchedulesTable.id);
     const posted: { scheduleId: number; reference: string; amount: number; journalEntryId: number }[] = [];
     const skipped: { scheduleId: number; reference: string; reason: string }[] = [];
     for (const s of actives) {
-      const rows = await this.rowsOf(s.id);
-      const row = rows.find((r) => r.period === period);
-      // 🔴 Every skip is REPORTED with its reason. A run that silently did
-      // nothing for a schedule is indistinguishable from one that had nothing
-      // to do, and month end is exactly when that distinction matters.
-      if (!row) { skipped.push({ scheduleId: s.id, reference: s.reference, reason: `no row for ${period}` }); continue; }
-      if (row.journalEntryId != null) { skipped.push({ scheduleId: s.id, reference: s.reference, reason: "already recognised" }); continue; }
-      try {
-        const out = await this.recognise(s.id, { period }, userId);
-        posted.push({ scheduleId: s.id, reference: s.reference, amount: out.amount, journalEntryId: out.journalEntryId });
-      } catch (err) {
-        skipped.push({ scheduleId: s.id, reference: s.reference, reason: (err as Error).message.slice(0, 200) });
+      // 🔴 G60 / DR-47: the schedule's reads AND its recognition run in its OWN
+      // SAVEPOINT. A schedule that fails — a database error included — has its
+      // own writes rolled back and is reported; the others still post. Before,
+      // a database error aborted the request's transaction: the run answered
+      // 200 listing as "posted" entries the rollback had removed, or — when the
+      // next schedule's read met the aborted transaction outside the catch —
+      // failed outright, depending on the order the rows happened to come in.
+      const outcome = await withSavepoint(async () => {
+        const rows = await this.rowsOf(s.id);
+        const row = rows.find((r) => r.period === period);
+        // 🔴 Every skip is REPORTED with its reason. A run that silently did
+        // nothing for a schedule is indistinguishable from one that had nothing
+        // to do, and month end is exactly when that distinction matters.
+        if (!row) return { kind: "skip", reason: `no row for ${period}` } as const;
+        if (row.journalEntryId != null) return { kind: "skip", reason: "already recognised" } as const;
+        return { kind: "posted", out: await this.recognise(s.id, { period }, userId) } as const;
+      });
+      if (!outcome.ok) {
+        const { reason } = runItemFailure(outcome.error, {
+          label: `schedule ${s.reference}`,
+          entryNumber: recognitionEntryNumber(s.reference, period),
+          log: { run: "recognition", period, scheduleId: s.id },
+        });
+        skipped.push({ scheduleId: s.id, reference: s.reference, reason });
+        continue;
       }
+      if (outcome.value.kind === "skip") {
+        skipped.push({ scheduleId: s.id, reference: s.reference, reason: outcome.value.reason });
+        continue;
+      }
+      posted.push({ scheduleId: s.id, reference: s.reference, amount: outcome.value.out.amount, journalEntryId: outcome.value.out.journalEntryId });
     }
     return { period, posted, skipped, postedTotal: round2(posted.reduce((a, p) => a + p.amount, 0)) };
   },

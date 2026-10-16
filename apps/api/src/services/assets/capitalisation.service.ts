@@ -30,6 +30,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db, fixedAssetsTable, assetDepreciationScheduleTable } from "@workspace/db";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../../lib/errors";
 import { round2, money2 } from "../../lib/money";
+import { runItemFailure } from "../../lib/runItemFailure";
+import { withSavepoint } from "../../lib/savepoint";
 import { assertDateString } from "../../lib/writeGuards";
 import { postJournalEntry } from "../accounting/glPosting";
 import { checkPeriodOpen } from "../accounting/periodLock";
@@ -42,6 +44,9 @@ import { businessToday } from "@workspace/shared";
 const num = (v: unknown) => (v != null ? Number(v) : 0);
 const fmt = (n: number) => n.toFixed(2);
 const PERIOD = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** The number of one asset's depreciation entry for one period — one definition, for the act and for the run's report. */
+const depreciationEntryNumber = (assetNumber: string, period: string) => `DEP-${assetNumber}-${period}`;
 
 async function loadForAct(assetId: number) {
   const [row] = await assetsRepository.findById(assetId);
@@ -159,7 +164,7 @@ export const assetCapitalisationService = {
     await checkPeriodOpen(date);
     const caughtUp = date !== scheduled;
     const je = await postJournalEntry({
-      entryNumber: `DEP-${asset.assetNumber}-${period}`,
+      entryNumber: depreciationEntryNumber(asset.assetNumber, period),
       date,
       description: `Depreciation ${period} — ${asset.assetNumber} ${asset.name}${caughtUp ? ` (caught up: ${period} is closed, posted in an open month)` : ""}`,
       reference: asset.assetNumber,
@@ -180,6 +185,12 @@ export const assetCapitalisationService = {
    * entry (one entry per asset per period — the schedule row IS the entry),
    * and an asset that cannot run is REPORTED by name rather than skipped
    * silently.
+   *
+   * 🔴 G60 / DR-47: each asset runs in its OWN SAVEPOINT. An asset that fails
+   * — a database error included — has its own writes rolled back and is
+   * reported; the assets before and after it still post. Without the
+   * savepoint a database error aborted the request's transaction, and the run
+   * answered 200 listing as "posted" entries the rollback had removed.
    */
   async runPeriod(body: { period?: unknown; postingDate?: string | null }, userId: number | null) {
     const period = typeof body.period === "string" ? body.period.trim() : "";
@@ -188,15 +199,22 @@ export const assetCapitalisationService = {
     const posted: Array<{ assetId: number; assetNumber: string; amount: number; journalEntryId: number }> = [];
     const skipped: Array<{ assetId: number; assetNumber: string; code: string; reason: string }> = [];
     for (const a of due) {
-      try {
-        const out = await this.depreciate(a.id, { period, postingDate: body.postingDate ?? null }, userId);
-        posted.push({ assetId: a.id, assetNumber: a.assetNumber, amount: out.amount, journalEntryId: out.journalEntryId });
-      } catch (err) {
-        // 🔴 A period lock stops the WHOLE run (it is one act on one company's books), and anything else is reported per asset.
-        const e = err as { statusCode?: number; payload?: { code?: string; error?: string } };
-        if (e.statusCode === 423) throw err;
-        skipped.push({ assetId: a.id, assetNumber: a.assetNumber, code: e.payload?.code ?? "unknown", reason: e.payload?.error ?? (err as Error).message });
+      const outcome = await withSavepoint(() => this.depreciate(a.id, { period, postingDate: body.postingDate ?? null }, userId));
+      if (outcome.ok) {
+        posted.push({ assetId: a.id, assetNumber: a.assetNumber, amount: outcome.value.amount, journalEntryId: outcome.value.journalEntryId });
+        continue;
       }
+      // 🔴 A period lock stops the WHOLE run (it is one act on one company's books), and anything else is reported per asset.
+      if ((outcome.error as { statusCode?: number }).statusCode === 423) throw outcome.error;
+      skipped.push({
+        assetId: a.id,
+        assetNumber: a.assetNumber,
+        ...runItemFailure(outcome.error, {
+          label: `asset ${a.assetNumber}`,
+          entryNumber: depreciationEntryNumber(a.assetNumber, period),
+          log: { run: "depreciation", period, assetId: a.id },
+        }),
+      });
     }
     return { period, posted, skipped, totalAmount: round2(posted.reduce((s, p) => s + p.amount, 0)) };
   },
