@@ -27,7 +27,7 @@ import { assertBankAccount } from "./accounting/bankIdentity";
 import { assertProductsOwned } from "./accounting/tenantReferences";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
-import { invoiceApprovable } from "./invoices.approvable";
+import { invoiceApprovable, removeUnissuedInvoice } from "./invoices.approvable";
 import { buildInvoiceOut } from "./invoices.presenter";
 import { invoicesRepository, DEFAULT_PAGE, type InvoiceListFilter } from "../repositories/invoices.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
@@ -665,12 +665,14 @@ export const invoicesService = {
    * before reaching the guard.
    */
   async deleteDraft(id: number) {
+    const ONLY_DRAFTS = "Only draft invoices can be deleted. Issued invoices must be reversed with a credit note.";
     const [existing] = await invoicesRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") {
-      throw new ConflictError("Only draft invoices can be deleted. Issued invoices must be reversed with a credit note.");
+      throw new ConflictError(ONLY_DRAFTS);
     }
-    await invoicesRepository.remove(id);
+    // G08: conditional — a delete queued behind an approval removes nothing.
+    await removeUnissuedInvoice(id, ["draft"], ONLY_DRAFTS);
     await auditService.deleted("invoice", id, existing);
   },
 };

@@ -7,7 +7,7 @@ import {
   einvoiceDocumentsTable,
   invoiceNumberCountersTable,
 } from "@workspace/db";
-import { and, desc, eq, gte, isNotNull, lte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
 import { businessToday } from "@workspace/shared";
 import { invoiceNotReversed } from "./openingReversal";
 import { receivableInBooks } from "./receivableInBooks";
@@ -26,6 +26,20 @@ export interface InvoiceListFilter {
 
 /** The default page. Stated once so the API, the UI and the tests agree. */
 export const DEFAULT_PAGE = 50;
+
+/**
+ * 🔴 G08 — an UNISSUED invoice: a draft or a queued (`submitted`) one that
+ * issuance has not stamped (no hash). The states an approval may issue from,
+ * and the only ones a reject or a delete may remove. Stated once, in its SQL
+ * form (`unissued`) and its row form (`isUnissued`), side by side.
+ */
+export const UNISSUED_STATUSES = ["draft", "submitted"] as const;
+export type UnissuedStatus = (typeof UNISSUED_STATUSES)[number];
+const unissued = (statuses: readonly UnissuedStatus[]) =>
+  and(inArray(invoicesTable.status, [...statuses]), isNull(invoicesTable.invoiceHash));
+export function isUnissued(inv: { status: string; invoiceHash: string | null }): boolean {
+  return (UNISSUED_STATUSES as readonly string[]).includes(inv.status) && inv.invoiceHash == null;
+}
 
 /**
  * 🔴 OVERDUE IS DERIVED FROM DATES, AND THIS IS THE ONLY PLACE IT IS DEFINED.
@@ -467,7 +481,25 @@ export const invoicesRepository = {
     return db.update(invoicesTable).set(values).where(eq(invoicesTable.id, id)).returning();
   },
 
-  remove(id: number) {
-    return db.delete(invoicesTable).where(eq(invoicesTable.id, id));
+  /**
+   * 🔴 G08 — the ISSUING update, conditional on the invoice still being
+   * unissued. Returns no row when a reject or delete removed it after the
+   * approval re-read it, so the approval refuses rather than posting for an
+   * invoice that no longer exists.
+   */
+  markIssued(id: number, values: Partial<typeof invoicesTable.$inferInsert>) {
+    return db.update(invoicesTable).set(values).where(and(eq(invoicesTable.id, id), unissued(UNISSUED_STATUSES))).returning();
+  },
+
+  /**
+   * 🔴 G08 — delete an invoice only while it is still unissued in one of
+   * `statuses` (reject: draft or submitted; `DELETE`: draft). The condition is
+   * in the statement, so a delete queued behind an approval re-checks the row
+   * that approval committed and removes nothing. It used to delete by id alone,
+   * which removed a just-issued invoice and left its entry posted (reproduced,
+   * Phase 18 S1-b). Returns the removed id, or nothing.
+   */
+  removeUnissued(id: number, statuses: readonly UnissuedStatus[]) {
+    return db.delete(invoicesTable).where(and(eq(invoicesTable.id, id), unissued(statuses))).returning({ id: invoicesTable.id });
   },
 };
