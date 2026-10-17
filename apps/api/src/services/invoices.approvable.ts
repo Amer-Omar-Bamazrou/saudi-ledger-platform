@@ -25,7 +25,7 @@ import { randomUUID } from "node:crypto";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { generateZatcaQr, computeInvoiceHash, LEGACY_GENESIS_HASH } from "./accounting/zatca";
-import { invoicesRepository } from "../repositories/invoices.repository";
+import { invoicesRepository, isUnissued, UNISSUED_STATUSES, type UnissuedStatus } from "../repositories/invoices.repository";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { paymentsRepository, invoiceSettlementRepository } from "../repositories/payments.repository";
@@ -33,7 +33,7 @@ import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME, depositLiability
 import { round2 } from "../lib/money";
 import { requireIssuanceSeller } from "./sellerIdentity";
 import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
-import { BusinessRuleError } from "../lib/errors";
+import { BusinessRuleError, ConflictError } from "../lib/errors";
 import { logger } from "../lib/logger";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
 import type { Approvable, ApprovalState } from "./approval";
@@ -48,6 +48,24 @@ import { auditContext } from "../lib/auditContext";
 type Invoice = typeof InvoicesTable.$inferSelect;
 type Customer = typeof customersTable.$inferSelect;
 type InvoiceRow = { inv: Invoice; cust: Customer | null };
+
+/** G08 — the 409 an approval answers when a reject or delete removed the invoice first. */
+const REMOVED_WHILE_APPROVING = "This invoice was rejected or deleted while it was being approved — nothing was issued.";
+
+/**
+ * 🔴 G08 — remove an invoice only while it is still unissued in one of
+ * `statuses`, or refuse with 409. The delete is conditional in the statement,
+ * so a reject or delete that queued behind an approval removes nothing once
+ * that approval commits. The refusal is the one the same act gets when it
+ * comes second sequentially (`refusal`), or, when another act already removed
+ * the invoice, says so: never a 2xx for a removal that did not happen.
+ */
+export async function removeUnissuedInvoice(id: number, statuses: readonly UnissuedStatus[], refusal: string): Promise<void> {
+  const [removed] = await invoicesRepository.removeUnissued(id, statuses);
+  if (removed) return;
+  const [still] = await invoicesRepository.findById(id);
+  throw new ConflictError(still ? refusal : "This invoice was already rejected or deleted by another action.");
+}
 
 // Seller identity is resolved from the ACTIVE COMPANY via sellerIdentity.ts.
 // The former DEFAULT_SELLER_VAT / DEFAULT_SELLER_NAME constants (a ZATCA SANDBOX
@@ -241,6 +259,23 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   //    backstop. Transaction-scoped: released on commit or rollback. ──
   await invoicesRepository.lockCompanySequence(inv.companyId);
 
+  // 🔴 G08: the invoice's own state is RE-READ here, under the company
+  //    sequence lock. The approval engine checked it on a row loaded before
+  //    any lock, so two approvals of one invoice could both pass, and the lock
+  //    then serialised them AFTER the check: the second re-stamped the invoice
+  //    with the NEXT ICV, and the first left the sequence (a zero-total invoice
+  //    posts no entry, so no key refused it; reproduced, Phase 18 S1-b). Every
+  //    issuance in this company holds this lock until it commits, so this read
+  //    sees an approval of this invoice that committed first, and a reject or
+  //    delete that did. No new lock is taken, so the lock order is unchanged.
+  //    A refusal here comes before the ICV, the hash, the update and the
+  //    posting: nothing is written. A delete that commits AFTER this read is
+  //    caught by the issuing update below, which is conditional on the same
+  //    state.
+  const [current] = await invoicesRepository.findById(inv.id);
+  if (!current) throw new ConflictError(REMOVED_WHILE_APPROVING);
+  if (!isUnissued(current)) throw new ConflictError("This invoice is already approved.");
+
   // 🔴 G58: a credit note's ceiling is RE-CHECKED here, under the company
   //    sequence lock. The re-validation above runs before any lock and counts
   //    only notes already ISSUED, so two approvals against one invoice could
@@ -286,7 +321,7 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
     vatAmount: vatAmount.toFixed(2),
   });
 
-  let [updated] = await invoicesRepository.update(inv.id, {
+  let [updated] = await invoicesRepository.markIssued(inv.id, {
     status: "sent",
     invoiceHash,
     previousHash,
@@ -302,6 +337,8 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
     zatcaUuid,
     reviewNote: null,
   });
+  // G08: a reject or delete committed between the re-read and this update.
+  if (!updated) throw new ConflictError(REMOVED_WHILE_APPROVING);
 
   // ── ZATCA Phase 2 (M12.8) ─────────────────────────────────────────────────
   // Build, sign and queue the UBL document — STILL INSIDE the sequence lock and
@@ -667,7 +704,8 @@ export function invoiceApprovable(): Approvable<InvoiceRow, InvoiceOut> {
     },
 
     async hardDelete(row) {
-      await invoicesRepository.remove(row.inv.id);
+      // G08: conditional — a reject queued behind an approval removes nothing.
+      await removeUnissuedInvoice(row.inv.id, UNISSUED_STATUSES, "An approved invoice cannot be rejected — reverse it instead.");
     },
   };
 }
