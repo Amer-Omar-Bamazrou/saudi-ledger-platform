@@ -88,6 +88,8 @@ test.describe.serial("Phase 13 — evidence integrity and expenses, by clicking"
   const REF_HELD = `SCAN-HELD-${STAMP}`;
 
   test("🔴 a scanned PDF becomes a DRAFT with its document linked — the review saves, it never posts", async ({ page }) => {
+    // Owner-approved for this test only: the wait for the capture-promotion job (every 60 s) below.
+    test.setTimeout(120_000);
     const vat0 = await vatInput();
     await scanPdf(page, `invoice-${STAMP}.pdf`);
     await typeReceipt(page, REF_OK, "400.00", "60.00", "460.00");
@@ -110,7 +112,12 @@ test.describe.serial("Phase 13 — evidence integrity and expenses, by clicking"
     await page.getByRole("button", { name: /Confirm & Post/ }).click();
     await expect.poll(async () => (await bill(b!.id)).status).toBe("received");
     expect(await vatInput() - vat0).toBeCloseTo(60, 2);
-    expect((await bill(b!.id)).evidenceDocument.status, "the document became the posted bill's evidence").toBe("promotion_pending");
+    // Posting makes the document the bill's evidence: `promotion_pending` until the capture-promotion
+    // job (every 60 s, in the server this suite starts) archives it as `promoted`. The job can tick
+    // between the post and this check, so either status is correct here; then wait for the job.
+    const evidenceStatus = async () => (await bill(b!.id)).evidenceDocument.status;
+    expect(["promotion_pending", "promoted"], "the document became the posted bill's evidence").toContain(await evidenceStatus());
+    await expect.poll(evidenceStatus, { timeout: 90_000, message: "the capture-promotion job archived the posted bill's evidence" }).toBe("promoted");
   });
 
   test("🔴 X1: a document that is NOT a tax invoice is HELD — listed with its reason; POSTED by clicking, its VAT is held off every return; supplying the evidence by clicking claims it on the evidence day", async ({ page }) => {
