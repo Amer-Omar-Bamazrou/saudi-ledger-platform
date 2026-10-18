@@ -2766,7 +2766,7 @@ authorisation:
 - G64 and the other "validated before lock" gaps;
 - the UI does not key on `note_over_credit`, and its message is English only. Both predate G58;
 - the three other S1 defects (G60, DR-42/G55 and DR-41), which still reproduced when re-run on
-  2026-10-13.
+  2026-10-13. *(2026-10-18: G55 has since been fixed by #195 and G60 by #197; DR-41 stays open.)*
 
 State: CLOSED.
 
@@ -2864,7 +2864,14 @@ decision:
   meets.
 - **No product path creates a second company today** (signup creates one, and every request acts as
   the first-created company). The defect was latent until an organisation has two.
-- **G60, DR-41, DR-45 and the rest of Phase 18** remain unauthorised.
+- **G60, DR-41, DR-45 and the rest of Phase 18** remain unauthorised. *(As of 2026-10-14. G60 was
+  authorised on 2026-10-15 and is fixed (#197); G08 (a) and (b) were authorised on 2026-10-17 and
+  are fixed (#198).)*
+
+**Merged** on the owner's explicit authorisation on 2026-10-14 at 17:24:13Z: PR #195, merge commit
+`e67ad301724f3d6640d3cf6df4e977bc7302ccec`, PR head `9aedd0e2`. The merged tree is identical to the
+head's. **CI on the merge commit** (run 38606362479) concluded **success** on all five checks.
+*(Added 2026-10-18.)*
 
 State: CLOSED on merge; the merge commit and its CI are recorded in the register's DR-42 close-out.
 
@@ -2932,3 +2939,99 @@ ROLLBACK and raises no error, so nothing reached the existing 500 `commit_failed
   schedule. The difference is recorded, not changed.
 - **SG-11** (reserved entry numbers), the natural trigger, is unchanged: a run now names the taken
   number instead of misreporting.
+
+**Merged** on the owner's separate approval on 2026-10-16 at 14:21:06Z: PR #197 (`e88cc6fb` the fix,
+`18343d2c` this record, `a198cfc9` the proof), merge commit
+`f480a5691901bfdfbda79d3022d22d6697ff5c16`. The merged tree is identical to the PR head's.
+
+**CI.** The PR's run (38903887298) and the run on the merge commit (38915055975) concluded
+**success** on all five checks. On the merge commit:
+
+- `secrets`, `typecheck` and `build`;
+- `test`: API 246/246 files, 2,436 passed and 4 skipped, with the S1 proof 3/3 and
+  `g60-run-item-savepoint.test.ts` 11/11; DB 58; zatca-tlv 10; web 131;
+- `e2e (browser)`: 558 passed.
+
+**Record:** owner decision register DR-47 (`docs/phase-18-owner-decision-register-2026-10-09.md`,
+untracked at the time of writing), with DECIDED and CLOSE-OUT blocks added on 2026-10-18.
+
+State: CLOSED. O-6, the class backstop, stays OPEN. *(The merge, CI, record and state lines were
+added on 2026-10-18; everything above them was written before the merge.)*
+
+## G08 — CONCURRENT ACTS ON ONE INVOICE COULD LOSE AN ICV OR DELETE AN ISSUED INVOICE — PARTLY FIXED (Phase 18, PR #198)
+
+**What it was.** Contract gap G08 (HIGH): the generic approval engine is check-then-act. It loads a
+document unlocked, checks its state, then acts with an unconditional update or delete. The contract
+names three invoice cases: (a) a double approval re-stamps the ICV of a zero-total invoice in a
+non-onboarded company; (b) a reject or delete removes a just-issued invoice; (c) a draft edit races
+the approval. Bills, journal entries and payroll use the same engine shape.
+
+- **Reproduced** by the owner-authorised Batch 4B proof on `main` `f480a569` (2026-10-16, two
+  passes, the same failing assertions):
+  - (a): both approvals succeeded. The invoice was re-stamped from ICV 3 to ICV 4, so ICV 3 left the
+    company's sequence;
+  - (b): approve 200 and reject 204. The issued invoice and its lines were deleted, and its GL entry
+    stayed posted.
+- **Found while writing the regression test, also red on `main`:** `DELETE /invoices/:id` queued
+  behind an approval did the same damage as the reject; and an approval that lost to a reject or
+  delete answered 500 (a TypeError on the empty update result; the transaction rolled back).
+- **Triage:** it ISSUES (an ICV is consumed and a GL entry posts), and it HID the result (both racing
+  requests reported success).
+
+**How it closed (parts (a) and (b), invoices only).** Owner-authorised 2026-10-17: G08 remediation
+only. Keep the lock order (company sequence, then the document); re-check after the sequence lock;
+make deletion conditional on the invoice's status. The scoped behaviour change: the second of two
+concurrent acts on one invoice answers 409 instead of succeeding, for the invoice approve, reject and
+delete endpoints only.
+
+- **Issuance** (`invoices.approvable.ts`): `issueInvoice` re-reads the invoice after
+  `lockCompanySequence`, and refuses with 409 unless it is still unissued (`draft` or `submitted`,
+  no hash).
+- **The issuing update** (`markIssued`, `invoices.repository.ts`) applies only while the invoice is
+  unissued. An empty result means a delete committed after the re-read, and answers 409.
+- **Removal:** reject and `DELETE /invoices/:id` go through `removeUnissued`, which deletes only while
+  the invoice is unissued, inside the DELETE statement itself. Reject accepts `draft` or `submitted`;
+  DELETE accepts `draft` only.
+- **No new lock.** The generic engine, the bill, journal-entry and payroll adapters, migrations and
+  OpenAPI are unchanged.
+- **What the loser now gets:** a second approval, "This invoice is already approved." (for a non-zero
+  invoice it used to be the misleading `concurrent_conflict`); a reject or delete that lost, its
+  sequential refusal; an approval that lost to a removal, "This invoice was rejected or deleted while
+  it was being approved — nothing was issued." Sequential behaviour is unchanged.
+- **As implemented:** "draft status" was read as unissued, so reject keeps working from the queue.
+  The conditional issuing update goes slightly beyond the instruction: the re-read alone leaves a
+  window, where mutation M2 showed a 500.
+
+**Tests.**
+
+- `phase18-s1b-g08-approval-race.test.ts`: the Batch 4B proof, byte-identical. It failed on
+  `f480a569` and passes unchanged on the fix.
+- `g08-invoice-approval-race.test.ts` (9): controls; the race losers compared with the sequential
+  refusals; DELETE behind an approval; both directions of approve against reject or delete; unforced
+  rounds. 7 of 9 failed on unfixed `main`.
+- **Mutation:** removing the re-read, the empty-update refusal or the delete condition, or both the
+  re-read and the update condition, each turns its matching tests red.
+
+**Merged** on 2026-10-17 at 19:16:50Z, by the owner account: PR #198 (`af87b3aa` the fix,
+`2f351105` the tests), merge commit `04f77e4debe4d8759302f8a364d23292e06d229b`. The merged tree is
+identical to the PR head's.
+
+**CI.** The PR's run (39056764551) and the run on the merge commit (39061773553) concluded
+**success** on all five checks. On the merge commit:
+
+- `secrets`, `typecheck` and `build`;
+- `test`: API 248/248 files, 2,449 passed and 4 skipped, with the proof 4/4 and the regression file
+  9/9; DB 58; zatca-tlv 10; web 131;
+- `e2e (browser)`: 558 passed.
+
+**Still open: G08 is PARTIAL.** None of these is authorised by the G08 batch; each needs its own
+proof and authorisation:
+
+- **(c), an edit racing the approval.** Issuance still stamps the totals, hash input and GL entry
+  from the row loaded before the lock; the re-read checks state only. Unconfirmed: code reading.
+- Further G08 residual risks (R1–R6) are tracked in the Phase 18 decision register.
+
+**Record:** owner decision register DR-49 (`docs/phase-18-owner-decision-register-2026-10-09.md`,
+untracked at the time of writing).
+
+State: PARTIAL. Parts (a) and (b) are CLOSED for invoices; the residuals above are OPEN.
