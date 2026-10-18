@@ -148,6 +148,17 @@ describeMaybe("G08 residuals, PR A — VAT-bearing bills, M2, and supplier advan
     expect(ev.gl).toHaveLength(0);
   }, 60_000);
 
+  it("NEGATIVE CONTROL (M1 does not over-match): a committed manual entry already holds the bill's entry number (G17) — the approval keeps today's refusal (409 concurrent_conflict), never \"already approved\"; the bill stays a draft", async () => {
+    const b = await draftBill(0);
+    await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,$3,$4,'G17 squat','draft')`, [orgId, companyId, `BILL-${b.no}`, DATE]);
+    const r = await approve("admin", b.id)();
+    log("M1 negative control", { approve: brief(r) });
+    expect(r.status).toBe(409);
+    expect(r.body?.code).toBe("concurrent_conflict");
+    expect(r.body?.error).not.toBe(ALREADY_APPROVED);
+    expect((await evidence(b)).bill?.status).toBe("draft");
+  }, 60_000);
+
   // ── 2. M2 ──────────────────────────────────────────────────────────────────
   it("PREMISE (M2): an approval that names a staged capture attaches it — the capture path the race below runs through is live", async () => {
     const b = await draftBill(0);

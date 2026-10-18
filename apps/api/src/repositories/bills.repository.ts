@@ -169,6 +169,15 @@ export const billsRepository = {
   },
 
   /**
+   * 🔴 G08 residuals (PR A) — applied only while the bill is still in `status`
+   * (compare-and-set). Returns no row when another request moved, posted or
+   * removed it first.
+   */
+  updateIfStatus(id: number, status: string, values: Partial<typeof billsTable.$inferInsert>) {
+    return db.update(billsTable).set(values).where(and(eq(billsTable.id, id), eq(billsTable.status, status))).returning();
+  },
+
+  /**
    * Q1 (pack §14.1): a bill payment a WHT correction REVERSED leaves the legacy
    * counter — `paid_amount` stays "Σ live bill payments", so `billPosition` reads
    * the bill as owing it again with no change to the one definition. The second
@@ -383,5 +392,16 @@ export const billsRepository = {
   async remove(id: number) {
     await capturedDocumentsRepository.unlinkStagedFromBill(id);
     return db.delete(billsTable).where(eq(billsTable.id, id));
+  },
+
+  /**
+   * 🔴 G08 residuals (PR A) — `remove`, applied only while the bill is still in
+   * `status` (compare-and-set). Returns the removed id, or nothing when another
+   * request moved, posted or removed the bill first; the unlink before it then
+   * rolls back with the refused request.
+   */
+  async removeIfStatus(id: number, status: string) {
+    await capturedDocumentsRepository.unlinkStagedFromBill(id);
+    return db.delete(billsTable).where(and(eq(billsTable.id, id), eq(billsTable.status, status))).returning({ id: billsTable.id });
   },
 };

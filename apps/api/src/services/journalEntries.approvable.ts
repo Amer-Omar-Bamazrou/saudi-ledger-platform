@@ -26,13 +26,15 @@ import { BusinessRuleError } from "../lib/errors";
 import { assertBankLeavesInCompany, assertLineReferencesOwned } from "./accounting/tenantReferences";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import { buildJEOut, type JournalEntryOut } from "./journalEntries.presenter";
-import type { Approvable, ApprovalState } from "./approval";
+import { TransitionNotApplied, type Approvable, type ApprovalState } from "./approval";
 import type { journalEntriesTable } from "@workspace/db";
 
 type JournalEntry = typeof journalEntriesTable.$inferSelect;
 
 export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> = {
   entityType: "journal_entry",
+  // 🔴 G08 residuals (PR A): every write below applies only from the state the engine checked.
+  compareAndSet: true,
 
   async load(id) {
     const [je] = await journalEntriesRepository.findById(id);
@@ -97,10 +99,13 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
         field: "lines",
       });
     }
-    const [posted] = await journalEntriesRepository.updateEntry(je.id, {
+    // 🔴 G08 residuals (PR A): posted only while the entry is still a draft. Two
+    // approvals both passed the engine's check and both answered 200.
+    const [posted] = await journalEntriesRepository.updateEntryIfStatus(je.id, "draft", {
       status: "posted",
       postedAt: new Date(),
     });
+    if (!posted) throw new TransitionNotApplied();
     const lines = await journalEntriesRepository.linesByEntry(je.id);
     return buildJEOut(posted, lines);
   },
@@ -110,7 +115,11 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
     return buildJEOut(je, lines);
   },
 
+  // 🔴 G08 residuals (PR A), and the CRITICAL case: a reject queued behind an
+  // approval deleted the POSTED entry with its lines. It now removes only a
+  // draft. (A database writer can still delete a posted entry — G16.)
   async hardDelete(je) {
-    await journalEntriesRepository.remove(je.id);
+    const [removed] = await journalEntriesRepository.removeIfStatus(je.id, "draft");
+    if (!removed) throw new TransitionNotApplied();
   },
 };

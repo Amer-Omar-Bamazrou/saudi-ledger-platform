@@ -36,12 +36,67 @@ import { buildBillOut, toNum, type BillOut } from "./bills.presenter";
 import { supplierAdvanceInvoicesService } from "./accounting/supplierAdvanceInvoices.service";
 import { inputVatLedgerService, treatmentForBucket } from "./accounting/inputVatLedger.service";
 import { SUPPLIER_ON_ACCOUNT_ASSET_NAME } from "./accounting/supplierCreditPolicy";
-import type { Approvable, ApprovalActor, ApprovalState } from "./approval";
+import { checkedState, TransitionNotApplied, type Approvable, type ApprovalActor, type ApprovalState } from "./approval";
+import { withSavepoint } from "../lib/savepoint";
+import { pgErrorFields } from "../lib/dbRefusals";
 import type { billsTable, vendorsTable } from "@workspace/db";
 
 type Bill = typeof billsTable.$inferSelect;
 type Vendor = typeof vendorsTable.$inferSelect;
 type BillRow = { bill: Bill; vendor: Vendor | null };
+
+/*
+ * 🔴 G08 residuals (PR A) — M1 and M2, the two database refusals a lost race
+ * meets BEFORE the conditional status write. Each runs the one write it guards
+ * in its own savepoint, so that after the refusal the bill can be read again,
+ * and recognises the race by the refusal's code and constraint AND by what the
+ * read finds. Not by the refusal's detail: under the app role, row-level
+ * security makes Postgres withhold the key values from it (the detail is null),
+ * so it cannot say which row it was about. Anything that is not exactly the race
+ * is rethrown unchanged. A savepoint is not a lock: the lock order is unchanged.
+ */
+
+/**
+ * M1 — post the bill's OWN entry. Two approvals of one ordinary bill both reach
+ * this insert (nothing serialises them earlier), and the unique entry number
+ * refuses the second once the first commits — with the misleading "Another
+ * entry was recorded at the same moment". It is the engine's lost race ("This
+ * bill is already approved.") only when the refusal is 23505 on
+ * `journal_entries_company_number_unq` AND, read again, the bill is now posted:
+ * the posting that got there first wrote this bill's own entry under the key
+ * that refused this one. A refusal while the bill is still unposted (its number
+ * held by some other entry, G17) is rethrown unchanged — pinned by a test.
+ */
+async function postOwnEntry<T>(bill: Bill, post: () => Promise<T>): Promise<T> {
+  const out = await withSavepoint(post);
+  if (out.ok) return out.value;
+  const f = pgErrorFields(out.error);
+  if (f.code === "23505" && f.constraint === "journal_entries_company_number_unq") {
+    const [now] = await billsRepository.findById(bill.id);
+    if (now != null && now.status !== "draft" && now.status !== "submitted") throw new TransitionNotApplied();
+  }
+  throw out.error;
+}
+
+/**
+ * M2 — attach the evidence capture. The bill may have been removed (a reject or
+ * delete that committed first) before this approval's first write that
+ * references it, which then fails on the capture's foreign key to `bills`. It is
+ * the lost race the conditional status write would catch later, met earlier —
+ * the engine's "rejected or deleted while it was being approved", instead of a
+ * 500 — only when the refusal is 23503 on `captured_documents_bill_id_bills_id_fk`
+ * AND, read again, the bill no longer exists.
+ */
+async function attachCaptureToBill(bill: Bill, captureId: string): Promise<void> {
+  const out = await withSavepoint(() => captureService.attachToBill(captureId, bill.id));
+  if (out.ok) return;
+  const f = pgErrorFields(out.error);
+  if (f.code === "23503" && f.constraint === "captured_documents_bill_id_bills_id_fk") {
+    const [now] = await billsRepository.findById(bill.id);
+    if (!now) throw new TransitionNotApplied();
+  }
+  throw out.error;
+}
 
 // Validation constants (mirror receiptValidator.ts on the frontend).
 const RECONCILE_TOLERANCE = 0.02;
@@ -148,7 +203,7 @@ async function snapshot(row: BillRow): Promise<BillOut> {
  * The bill's on-approve action: the existing post-to-GL path, unchanged. Runs
  * only on a transition into `approved` (from draft or the submitted queue).
  */
-async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: ApprovalActor): Promise<BillOut> {
+async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: ApprovalActor, from: "draft" | "submitted"): Promise<BillOut> {
   const { debitAccountId, debitAccount, force = false, captureId } = opts;
   const bill = row.bill;
 
@@ -225,13 +280,14 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
       : null;
     if (advance) await inputVatLedgerService.assertNoteAdmissible(bill, advance);
     const entryId = bill.documentType === "advance_invoice"
-      ? await supplierAdvanceInvoicesService.approveAdvanceInvoice(bill)
-      : await supplierAdvanceInvoicesService.approveAdvanceCreditNote(bill);
+      ? await supplierAdvanceInvoicesService.approveAdvanceInvoice(bill, from)
+      : await supplierAdvanceInvoicesService.approveAdvanceCreditNote(bill, from);
     await inputVatLedgerService.recordPosting({
       bill, treatment: "claimed", vatToClaim: toNum(bill.vatAmount), entryId, original: advance, verdict,
       capture: capture ? { id: capture.id, sha256: capture.sha256 } : null,
       columns: { status: "received", reviewNote: null, ...vatEvidenceService.columns(verdict) },
       userId: actor.userId ?? null,
+      expectedStatus: from,
     });
     return fullOut(bill.id);
   }
@@ -455,8 +511,9 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
       ? { debitAmount: amount, creditAmount: 0 }
       : { debitAmount: 0, creditAmount: amount };
 
-  const je = await postJournalEntry({
-    entryNumber: isNote ? `BILLCN-${bill.billNumber}` : `BILL-${bill.billNumber}`,
+  const entryNumber = isNote ? `BILLCN-${bill.billNumber}` : `BILL-${bill.billNumber}`;
+  const je = await postOwnEntry(bill, () => postJournalEntry({
+    entryNumber,
     date: bill.date,
     description: `${isNote ? "Supplier credit note" : "Vendor bill"} ${bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}${plan ? ` (capitalised: ${plan.asset.assetNumber})` : ""}`,
     reference: bill.billNumber ?? undefined,
@@ -466,7 +523,7 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
       ...advanceLine,
       ...(apAmount > 0 ? [{ systemCode: "AP" as const, accountName: "Accounts Payable", description: `${isNote ? "Credit note" : "Bill"} ${bill.billNumber}`, ...side(apAmount, false), party: bill.vendorId != null ? { type: "vendor" as const, vendorId: bill.vendorId } : { type: "none" as const, reason: "bill with no vendor record" } }] : []),
     ],
-  });
+  }));
   // Z-AP1: the advance now settles the bill — one folded allocation per advance payment, naming THIS entry.
   if (prepaid) await supplierAdvanceInvoicesService.finaliseFinalBill(bill.id, prepaid, je.id, actor.userId ?? null);
 
@@ -481,7 +538,7 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   // Phase 13A: the document linked to the DRAFT as its evidence is promoted
   // the same way — it becomes immutable evidence of the posted bill.
   const evidenceId = captureId ?? evidenceCapture?.id ?? null;
-  if (evidenceId) await captureService.attachToBill(evidenceId, bill.id);
+  if (evidenceId) await attachCaptureToBill(bill, evidenceId);
 
   // 🔴 PHASE 13B-3 — WHERE ITS VAT SITS, through the ONE writer: approved &
   // posted, any prior review note cleared, the verdict it posted on — and in
@@ -497,6 +554,7 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
     capture: evidenceCapture ? { id: evidenceCapture.id, sha256: evidenceCapture.sha256 } : null,
     columns: { status: "received", reviewNote: null, ...vatEvidenceService.columns(evidence) },
     userId: actor.userId ?? null,
+    expectedStatus: from,
   });
 
   /**
@@ -521,6 +579,8 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
 export function billApprovable(opts: BillApproveOptions = {}): Approvable<BillRow, BillOut> {
   return {
     entityType: "bill",
+    // 🔴 G08 residuals (PR A): every write below applies only from the state the engine checked.
+    compareAndSet: true,
 
     async load(id) {
       const [row] = await billsRepository.findWithVendor(id);
@@ -535,28 +595,36 @@ export function billApprovable(opts: BillApproveOptions = {}): Approvable<BillRo
 
     snapshot,
 
-    onApprove(row, actor) {
-      return postBillToGL(row, opts, actor);
+    // 🔴 G08 residuals (PR A): the status write that posts the bill is
+    // conditional on `from` (inside `recordPosting`), and keeps its place after
+    // the entry: bills lock a supplier payment or an original bill BEFORE their
+    // own row, so claiming the row first would reverse that order.
+    onApprove(row, actor, from) {
+      return postBillToGL(row, opts, actor, checkedState(from));
     },
 
     async onSubmit(row) {
       // draft → submitted: enters the approver's queue, clears any prior note.
-      await billsRepository.update(row.bill.id, { status: "submitted", reviewNote: null });
+      const [moved] = await billsRepository.updateIfStatus(row.bill.id, "draft", { status: "submitted", reviewNote: null });
+      if (!moved) throw new TransitionNotApplied();
       return fullOut(row.bill.id);
     },
 
     async onSendBack(row, _actor, note) {
       // submitted → draft: returned for correction, note shown to the enterer.
-      const [updated] = await billsRepository.update(row.bill.id, {
+      const [moved] = await billsRepository.updateIfStatus(row.bill.id, "submitted", {
         status: "draft",
         reviewNote: note?.trim() ? note.trim() : null,
       });
-      void updated;
+      if (!moved) throw new TransitionNotApplied();
       return fullOut(row.bill.id);
     },
 
-    async hardDelete(row) {
-      await billsRepository.remove(row.bill.id);
+    // 🔴 G08 residuals (PR A): a reject queued behind an approval deleted the
+    // POSTED bill and left its entry. It now removes only from `from`.
+    async hardDelete(row, from) {
+      const [removed] = await billsRepository.removeIfStatus(row.bill.id, checkedState(from));
+      if (!removed) throw new TransitionNotApplied();
     },
   };
 }

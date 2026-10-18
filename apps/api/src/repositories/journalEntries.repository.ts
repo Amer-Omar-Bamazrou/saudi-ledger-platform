@@ -171,7 +171,15 @@ export const journalEntriesRepository = {
   updateEntry(id: number, values: Partial<typeof journalEntriesTable.$inferInsert>) {
     return db.update(journalEntriesTable).set(values).where(eq(journalEntriesTable.id, id)).returning();
   },
+  /** 🔴 G08 residuals (PR A) — applied only while the entry is still in `status` (compare-and-set); no row when it was not. */
+  updateEntryIfStatus(id: number, status: string, values: Partial<typeof journalEntriesTable.$inferInsert>) {
+    return db.update(journalEntriesTable).set(values).where(and(eq(journalEntriesTable.id, id), eq(journalEntriesTable.status, status))).returning();
+  },
   remove(id: number) {
     return db.delete(journalEntriesTable).where(eq(journalEntriesTable.id, id));
+  },
+  /** 🔴 G08 residuals (PR A) — removes the entry (its lines cascade) only while it is still in `status`; returns the removed id, or nothing. */
+  removeIfStatus(id: number, status: string) {
+    return db.delete(journalEntriesTable).where(and(eq(journalEntriesTable.id, id), eq(journalEntriesTable.status, status))).returning({ id: journalEntriesTable.id });
   },
 };

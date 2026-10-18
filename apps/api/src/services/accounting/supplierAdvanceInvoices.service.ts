@@ -35,6 +35,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, billsTable, billItemsTable, billPrepaymentsTable, supplierPaymentAllocationsTable, vendorsTable, type SupplierPayment } from "@workspace/db";
 import { DEFAULT_VAT_RATE, businessToday } from "@workspace/shared";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
+import { TransitionNotApplied } from "../approval/approvable.js";
 import { round2, money2 } from "../../lib/money.js";
 import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";
@@ -111,6 +112,20 @@ async function advanceInvoicesOpen(filter: { supplierPaymentId?: number; vendorI
 async function lockPayment(id: number): Promise<SupplierPayment> {
   const { supplierPaymentsService } = await import("./supplierPayments.service.js");
   return supplierPaymentsService.findOrThrow(id, { lock: true });
+}
+
+/**
+ * 🔴 G08 residuals (PR A) — two approvals of one advance document serialise on
+ * its payment's lock. Under that lock (taken just before this), the document
+ * must still be in the state the approval engine checked: otherwise another
+ * approval (or a reject, or a send-back) committed first, and this approval is
+ * the engine's lost race — never the misleading "only 0.00 of the advance is
+ * still un-invoiced" the figures below would otherwise give it. A plain read: no
+ * lock is taken, so the lock order is unchanged.
+ */
+async function assertStillInCheckedState(billId: number, from: "draft" | "submitted"): Promise<void> {
+  const [now] = await db.select({ status: billsTable.status }).from(billsTable).where(eq(billsTable.id, billId)).limit(1);
+  if (!now || now.status !== from) throw new TransitionNotApplied();
 }
 
 export type PrepaymentInput = { advanceBillId: number; amount?: number | null; taxAmount?: number | null };
@@ -313,9 +328,10 @@ export const supplierAdvanceInvoicesService = {
    * (a non-financial prepayment, IAS 32 AG11); the recoverable VAT leaves it
    * (IAS 2.11 / IAS 16.16(a) — recoverable taxes are not part of a cost).
    */
-  async approveAdvanceInvoice(bill: typeof billsTable.$inferSelect): Promise<number | null> {
+  async approveAdvanceInvoice(bill: typeof billsTable.$inferSelect, from: "draft" | "submitted"): Promise<number | null> {
     const { supplierPaymentsService } = await import("./supplierPayments.service.js");
     const payment = await lockPayment(bill.advanceSupplierPaymentId!);
+    await assertStillInCheckedState(bill.id, from);
     if (payment.classification !== "advance") refuse("advance_invoice_requires_advance", "The payment this invoice is against is no longer classified as an advance.", "classification", 409);
     const f = await this.figures(payment, await supplierPaymentsService.availableOf(payment.id));
     if (Number(bill.total) > f.uninvoicedAmount + 0.005) {
@@ -342,10 +358,11 @@ export const supplierAdvanceInvoicesService = {
   },
 
   /** Approve a credit note against an advance invoice: Dr Supplier advances / Cr Input VAT, in the note's period. */
-  async approveAdvanceCreditNote(bill: typeof billsTable.$inferSelect): Promise<number | null> {
+  async approveAdvanceCreditNote(bill: typeof billsTable.$inferSelect, from: "draft" | "submitted"): Promise<number | null> {
     const [inv] = await advanceInvoicesOpen({ ids: [bill.creditNoteAgainstBillId!] });
     if (!inv) refuse("advance_invoice_unknown", "The advance invoice this note credits is not approved.", "creditNoteAgainstBillId", 409);
     await lockPayment(inv!.supplierPaymentId);
+    await assertStillInCheckedState(bill.id, from);
     const [again] = await advanceInvoicesOpen({ ids: [inv!.id] });
     if (Number(bill.total) > again!.open + 0.005 || Number(bill.vatAmount) > again!.openTax + 0.005) {
       refuse("credit_exceeds_open_advance_invoice", `${again!.billNumber} has ${again!.open.toFixed(2)} still open; this note credits ${Number(bill.total).toFixed(2)}.`, "total", 409);

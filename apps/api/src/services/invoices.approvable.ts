@@ -25,7 +25,7 @@ import { randomUUID } from "node:crypto";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { generateZatcaQr, computeInvoiceHash, LEGACY_GENESIS_HASH } from "./accounting/zatca";
-import { invoicesRepository, isUnissued, UNISSUED_STATUSES, type UnissuedStatus } from "../repositories/invoices.repository";
+import { invoicesRepository, isUnissued, type UnissuedStatus } from "../repositories/invoices.repository";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { paymentsRepository, invoiceSettlementRepository } from "../repositories/payments.repository";
@@ -36,7 +36,7 @@ import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
 import { BusinessRuleError, ConflictError } from "../lib/errors";
 import { logger } from "../lib/logger";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
-import type { Approvable, ApprovalState } from "./approval";
+import { checkedState, TransitionNotApplied, type Approvable, type ApprovalState } from "./approval";
 import type { invoicesTable as InvoicesTable, customersTable } from "@workspace/db";
 import { ADVANCE_INVOICE_TYPE, ADVANCE_CREDIT_NOTE_TYPE, RECOVERY_INVOICE_TYPE, INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
@@ -182,7 +182,7 @@ async function assertPrepaymentsIssuable(inv: Invoice, total: number) {
  * Serves invoices AND notes: they are the same row shape and share one chain,
  * one ICV sequence and one approval workflow. Only the GL direction differs.
  */
-async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
+async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<InvoiceOut> {
   const inv = row.inv;
 
   // Approval is when it hits the books — enforce the period lock first. An
@@ -275,6 +275,10 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
   const [current] = await invoicesRepository.findById(inv.id);
   if (!current) throw new ConflictError(REMOVED_WHILE_APPROVING);
   if (!isUnissued(current)) throw new ConflictError("This invoice is already approved.");
+  // 🔴 G08 residuals (PR A): whether it is still in the very state the engine
+  //    checked (a submit or send-back that committed first) is decided by the
+  //    issuing update below, which is conditional on `from` — before anything
+  //    is written.
 
   // 🔴 G58: a credit note's ceiling is RE-CHECKED here, under the company
   //    sequence lock. The re-validation above runs before any lock and counts
@@ -336,9 +340,10 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
     icv,
     zatcaUuid,
     reviewNote: null,
-  });
-  // G08: a reject or delete committed between the re-read and this update.
-  if (!updated) throw new ConflictError(REMOVED_WHILE_APPROVING);
+  }, [from]);
+  // G08: a reject, delete, submit or send-back committed between the re-read
+  // and this update. The engine answers it from the invoice as it is now.
+  if (!updated) throw new TransitionNotApplied();
 
   // ── ZATCA Phase 2 (M12.8) ─────────────────────────────────────────────────
   // Build, sign and queue the UBL document — STILL INSIDE the sequence lock and
@@ -669,6 +674,9 @@ async function issueInvoice(row: InvoiceRow): Promise<InvoiceOut> {
 export function invoiceApprovable(): Approvable<InvoiceRow, InvoiceOut> {
   return {
     entityType: "invoice",
+    // 🔴 G08 residuals (PR A): every write below applies only from the state the engine checked.
+    compareAndSet: true,
+    approvalEffect: "issued",
 
     async load(id) {
       const [row] = await invoicesRepository.findWithCustomer(id);
@@ -686,26 +694,34 @@ export function invoiceApprovable(): Approvable<InvoiceRow, InvoiceOut> {
       return buildInvoiceOut(row.inv, row.cust, items);
     },
 
-    onApprove(row) {
-      return issueInvoice(row);
+    onApprove(row, _actor, from) {
+      return issueInvoice(row, checkedState(from));
     },
 
+    // 🔴 G08 residuals (PR A), R2: submit and send-back change the status only
+    // while the invoice is still unissued in the state the engine checked. They
+    // were keyed on id only, so one queued behind an approval set the ISSUED
+    // invoice back to `submitted` or `draft`, where PATCH could then edit it.
     async onSubmit(row) {
-      const [updated] = await invoicesRepository.update(row.inv.id, { status: "submitted", reviewNote: null });
+      const [updated] = await invoicesRepository.updateUnissued(row.inv.id, ["draft"], { status: "submitted", reviewNote: null });
+      if (!updated) throw new TransitionNotApplied();
       return buildInvoiceOut(updated, row.cust);
     },
 
     async onSendBack(row, _actor, note) {
-      const [updated] = await invoicesRepository.update(row.inv.id, {
+      const [updated] = await invoicesRepository.updateUnissued(row.inv.id, ["submitted"], {
         status: "draft",
         reviewNote: note?.trim() ? note.trim() : null,
       });
+      if (!updated) throw new TransitionNotApplied();
       return buildInvoiceOut(updated, row.cust);
     },
 
-    async hardDelete(row) {
+    async hardDelete(row, from) {
       // G08: conditional — a reject queued behind an approval removes nothing.
-      await removeUnissuedInvoice(row.inv.id, UNISSUED_STATUSES, "An approved invoice cannot be rejected — reverse it instead.");
+      // PR A: and only from the state the engine checked.
+      const [removed] = await invoicesRepository.removeUnissued(row.inv.id, [checkedState(from)]);
+      if (!removed) throw new TransitionNotApplied();
     },
   };
 }

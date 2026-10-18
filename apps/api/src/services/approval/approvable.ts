@@ -52,6 +52,37 @@ export interface ApprovalActor {
 }
 
 /**
+ * 🔴 G08 residuals (PR A) — a COMPARE-AND-SET transition that did not apply.
+ *
+ * An adapter on compare-and-set writes only while the record is still in the
+ * state the engine checked when it loaded it. When that conditional write
+ * matches no row, another request changed or removed the record first. The
+ * adapter throws this, and the engine answers it with the 409 the record's
+ * state now calls for (`approvalService`), so the request's transaction rolls
+ * back whole: nothing posted, issued or recorded. The engine reads the record
+ * again to decide that answer, so it is thrown only while the transaction can
+ * still read (after a conditional write that matched nothing, or a savepoint
+ * rolled back).
+ */
+export class TransitionNotApplied extends Error {
+  constructor() {
+    super("The record left the state the approval engine checked; the transition was not applied.");
+    this.name = "TransitionNotApplied";
+    Object.setPrototypeOf(this, TransitionNotApplied.prototype);
+  }
+}
+
+/**
+ * The unapproved state the engine checked, as a compare-and-set adapter needs
+ * it. The engine always passes it; a caller that does not is a defect, and is
+ * refused loudly rather than defaulted.
+ */
+export function checkedState(from: ApprovalState | undefined): "draft" | "submitted" {
+  if (from === "draft" || from === "submitted") return from;
+  throw new Error(`compare-and-set: the approval engine passes the state it checked (got ${String(from)})`);
+}
+
+/**
  * The adapter a financial entity implements to join the approval workflow.
  *
  * @typeParam TEntity   the loaded domain row (opaque to the service)
@@ -64,6 +95,20 @@ export interface Approvable<TEntity, TSnapshot = unknown> {
    */
   readonly entityType: string;
 
+  /**
+   * 🔴 G08 residuals (PR A) — COMPARE-AND-SET. `true` declares that every write
+   * below applies only while the record is still in the state the engine
+   * checked (`from`, or `draft` for `onSubmit` and `submitted` for
+   * `onSendBack`), and that a write which matched nothing throws
+   * {@link TransitionNotApplied}. An adapter without it runs as before; the
+   * ratchet `tests/approval-compare-and-set-ratchet.test.ts` names every such
+   * adapter, and that list may only shrink.
+   */
+  readonly compareAndSet?: true;
+
+  /** What approval does to the record, for the 409 when it loses to a removal: "posted" (the default) or "issued". */
+  readonly approvalEffect?: "posted" | "issued";
+
   /** Load the record by id, tenant-scoped. Returns null when not found. */
   load(id: number): Promise<TEntity | null>;
 
@@ -75,8 +120,9 @@ export interface Approvable<TEntity, TSnapshot = unknown> {
    * that makes the record affect the books (period-lock checks included). Called
    * by the service ONLY on a transition INTO `approved`. Returns the
    * post-approval snapshot (used as the audit `after` state and the response).
+   * `from` is the state the engine checked (`draft` or `submitted`).
    */
-  onApprove(entity: TEntity, actor: ApprovalActor): Promise<TSnapshot>;
+  onApprove(entity: TEntity, actor: ApprovalActor, from?: ApprovalState): Promise<TSnapshot>;
 
   /**
    * Build a snapshot of the record in its current state — the audit `before`
@@ -87,9 +133,9 @@ export interface Approvable<TEntity, TSnapshot = unknown> {
   /**
    * Hard-delete the record (reject path). Per spec §4 there is NO archive of
    * rejected drafts — a rejected record is removed. The service only ever calls
-   * this on a non-approved record.
+   * this on a non-approved record. `from` is the state the engine checked.
    */
-  hardDelete(entity: TEntity): Promise<void>;
+  hardDelete(entity: TEntity, from?: ApprovalState): Promise<void>;
 
   /**
    * OPTIONAL — move an editable `draft` into the approval queue (`submitted`).

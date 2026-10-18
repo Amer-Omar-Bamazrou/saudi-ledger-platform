@@ -39,6 +39,7 @@ import { db, inputVatEventsTable, type billsTable, type OpeningPayableVatDeclara
 import { BusinessRuleError } from "../../lib/errors";
 import { money2, round2 } from "../../lib/money";
 import { billsRepository } from "../../repositories/bills.repository";
+import { TransitionNotApplied } from "../approval/approvable";
 import { billOutstandingSql } from "../../repositories/billPosition";
 import type { VatEvidenceVerdict } from "../purchaseEvidence/vatEvidence";
 
@@ -284,35 +285,59 @@ export const inputVatLedgerService = {
     capture?: { id: string; sha256: string } | null;
     columns: Record<string, unknown>;
     userId: number | null;
+    /**
+     * 🔴 G08 residuals (PR A): the state the approval engine checked. The
+     * APPROVAL always passes it, and then the status change applies only from
+     * it (compare-and-set) and the retry shortcut below is NOT taken. A direct
+     * caller that omits it keeps the retry-safe writer contract unchanged.
+     */
+    expectedStatus?: "draft" | "submitted";
   }): Promise<void> {
     const { bill, treatment, entryId, original, verdict, userId } = input;
     const vat = round2(input.vatToClaim);
     const isNote = NOTE_TYPES.has(bill.documentType);
+    const cache = {
+      ...input.columns,
+      inputVatState: treatment,
+      inputVatPending: !isNote && treatment === "awaiting_evidence" && vat > 0 ? money2(vat) : "0",
+      inputVatClaimedOn: treatment === "claimed" ? bill.date : null,
+    };
 
-    /**
-     * 🔴 RETRY-SAFE AS A WHOLE. A posting happens once: when the document is
-     * already posted, this call is a RETRY of it — it writes no status and no
-     * cache (a late retry must not turn `paid` back into `received`, nor reset
-     * a held amount a credit note has since lowered) and only RESTATES the
-     * events, which the database either finds identical (nothing recorded,
-     * nothing moved) or refuses as a different act (409). A zero-VAT posting
-     * has no event to restate; its retry must state the same treatment.
-     */
-    const [current] = await billsRepository.findById(bill.id);
-    const retry = current != null && !UNPOSTED.has(current.status);
-    if (retry && !(vat > 0) && current.inputVatState != null && current.inputVatState !== treatment) {
-      throw new BusinessRuleError(409, {
-        code: "input_vat_idempotency_conflict",
-        error: `${bill.billNumber} is already posted with its input VAT ${current.inputVatState}; restating it as ${treatment} is a different act. Nothing was changed.`,
-      });
-    }
-    if (!retry) {
-      await billsRepository.update(bill.id, {
-        ...input.columns,
-        inputVatState: treatment,
-        inputVatPending: !isNote && treatment === "awaiting_evidence" && vat > 0 ? money2(vat) : "0",
-        inputVatClaimedOn: treatment === "claimed" ? bill.date : null,
-      });
+    let retry = false;
+    if (input.expectedStatus) {
+      /**
+       * 🔴 G08 residuals (PR A) — THE APPROVAL'S status change is CONDITIONAL
+       * on the state the engine checked, in the SAME statement as the cache
+       * `bills_vat_evidence_gate` checks. When it matches nothing, another
+       * request moved, posted or removed the document after this approval
+       * loaded it, and the approval refuses (`TransitionNotApplied`, the
+       * engine's 409; the whole request rolls back, its entry included). The
+       * retry shortcut is not taken here: on the approval path an already
+       * posted document can only mean a lost race (a sequential second approval
+       * is refused by the engine before it gets here), and that shortcut let
+       * the losing approval answer 200.
+       */
+      const [posted] = await billsRepository.updateIfStatus(bill.id, input.expectedStatus, cache);
+      if (!posted) throw new TransitionNotApplied();
+    } else {
+      /**
+       * 🔴 RETRY-SAFE AS A WHOLE. A posting happens once: when the document is
+       * already posted, this call is a RETRY of it — it writes no status and no
+       * cache (a late retry must not turn `paid` back into `received`, nor reset
+       * a held amount a credit note has since lowered) and only RESTATES the
+       * events, which the database either finds identical (nothing recorded,
+       * nothing moved) or refuses as a different act (409). A zero-VAT posting
+       * has no event to restate; its retry must state the same treatment.
+       */
+      const [current] = await billsRepository.findById(bill.id);
+      retry = current != null && !UNPOSTED.has(current.status);
+      if (retry && !(vat > 0) && current.inputVatState != null && current.inputVatState !== treatment) {
+        throw new BusinessRuleError(409, {
+          code: "input_vat_idempotency_conflict",
+          error: `${bill.billNumber} is already posted with its input VAT ${current.inputVatState}; restating it as ${treatment} is a different act. Nothing was changed.`,
+        });
+      }
+      if (!retry) await billsRepository.update(bill.id, cache);
     }
     if (!(vat > 0)) return;
     if (entryId == null) throw new Error(`input VAT writer: ${bill.billNumber} carries VAT ${vat} but posted no entry`);
