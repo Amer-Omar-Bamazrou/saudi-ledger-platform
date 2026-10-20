@@ -482,13 +482,23 @@ export const invoicesRepository = {
   },
 
   /**
-   * 🔴 G08 — the ISSUING update, conditional on the invoice still being
-   * unissued. Returns no row when a reject or delete removed it after the
-   * approval re-read it, so the approval refuses rather than posting for an
-   * invoice that no longer exists.
+   * 🔴 G08 residuals (PR A) — a status change applied only while the invoice is
+   * still unissued in one of `statuses` (compare-and-set). Returns no row when
+   * another request moved, issued or removed it first.
    */
-  markIssued(id: number, values: Partial<typeof invoicesTable.$inferInsert>) {
-    return db.update(invoicesTable).set(values).where(and(eq(invoicesTable.id, id), unissued(UNISSUED_STATUSES))).returning();
+  updateUnissued(id: number, statuses: readonly UnissuedStatus[], values: Partial<typeof invoicesTable.$inferInsert>) {
+    return db.update(invoicesTable).set(values).where(and(eq(invoicesTable.id, id), unissued(statuses))).returning();
+  },
+
+  /**
+   * 🔴 G08 — the ISSUING update, conditional on the invoice still being
+   * unissued — since PR A, in the very state the approval checked (`statuses`).
+   * Returns no row when a reject, delete, submit or send-back changed it after
+   * the approval re-read it, so the approval refuses rather than issuing an
+   * invoice that is no longer the one it checked.
+   */
+  markIssued(id: number, values: Partial<typeof invoicesTable.$inferInsert>, statuses: readonly UnissuedStatus[] = UNISSUED_STATUSES) {
+    return db.update(invoicesTable).set(values).where(and(eq(invoicesTable.id, id), unissued(statuses))).returning();
   },
 
   /**

@@ -516,7 +516,14 @@ export const billsService = {
     const [existing] = await billsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") throw new ConflictError("Only draft bills can be deleted.");
-    await billsRepository.remove(id);
+    // 🔴 G08 residuals (PR A): conditional — a delete queued behind an approval
+    // removed the POSTED bill and left its entry. It now removes only a draft,
+    // and the loser gets the refusal the bill's state now calls for.
+    const [removed] = await billsRepository.removeIfStatus(id, "draft");
+    if (!removed) {
+      const [still] = await billsRepository.findById(id);
+      throw new ConflictError(still ? "Only draft bills can be deleted." : "This bill was already rejected or deleted by another action.");
+    }
     await auditService.deleted("bill", id, existing);
   },
 };

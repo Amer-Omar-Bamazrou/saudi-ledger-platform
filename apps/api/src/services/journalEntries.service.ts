@@ -500,7 +500,16 @@ export const journalEntriesService = {
     if (existing.status !== "draft") {
       throw new ConflictError(`Cannot delete a ${existing.status} journal entry. Post a reversing entry instead.`);
     }
-    await journalEntriesRepository.remove(id);
+    // 🔴 G08 residuals (PR A): conditional — a delete queued behind an approval
+    // removed the POSTED entry with its lines. It now removes only a draft, and
+    // the loser gets the refusal the entry's state now calls for.
+    const [removed] = await journalEntriesRepository.removeIfStatus(id, "draft");
+    if (!removed) {
+      const [still] = await journalEntriesRepository.findById(id);
+      throw new ConflictError(still
+        ? `Cannot delete a ${still.status} journal entry. Post a reversing entry instead.`
+        : "This journal entry was already rejected or deleted by another action.");
+    }
     await auditService.deleted("journal_entry", id, existing);
   },
 };

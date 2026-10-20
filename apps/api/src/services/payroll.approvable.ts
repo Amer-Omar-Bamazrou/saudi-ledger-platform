@@ -12,18 +12,44 @@
  *   submitted → submitted  (awaiting approval; not posted)
  *   approved  → approved   (posted to the GL)
  *   paid      → approved   (post-approval)
+ *
+ * 🔴 G08 residuals (PR A) — COMPARE-AND-SET. Every write applies only while the
+ * run is still in the state the approval engine checked. B-G08R-P reproduced,
+ * with these writes keyed on id only: a reject queued behind an approval
+ * DELETED the approved run and left its posted entry; a send-back or submit
+ * behind one set it back to draft or submitted, where a later reject deleted it.
  */
 import { postJournalEntry } from "./accounting/glPosting";
 import { payrollRepository } from "../repositories/payroll.repository";
 import { runToOut, toNum, type PayrollRunOut } from "./payroll.presenter";
-import type { Approvable, ApprovalState } from "./approval";
+import { checkedState, TransitionNotApplied, type Approvable, type ApprovalState } from "./approval";
 import type { payrollRunsTable } from "@workspace/db";
 import { businessToday } from "@workspace/shared";
 
 type PayrollRun = typeof payrollRunsTable.$inferSelect;
 
-/** The run's on-approve action: the existing payroll GL posting, unchanged. */
-async function postPayrollGL(run: PayrollRun): Promise<PayrollRunOut> {
+/**
+ * The run's on-approve action: the existing payroll GL posting, unchanged —
+ * except that the run is CLAIMED first.
+ *
+ * 🔴 G08 residuals (PR A): the run becomes approved only while it is still in
+ * the state the engine checked, and BEFORE anything posts, so an approval that
+ * lost a race writes nothing at all. Claiming first is safe here: a payroll
+ * run's row is locked only by its own transitions, none of which holds another
+ * lock first, and the entry posted next is keyed on this run's id
+ * (`PAY-<period>-R<id>`), so no other request can hold that key while waiting
+ * for this row — no lock cycle can form. (Bills keep their status write where
+ * it was: they lock a supplier payment or an original bill before their own
+ * row.)
+ */
+async function postPayrollGL(run: PayrollRun, from: "draft" | "submitted"): Promise<PayrollRunOut> {
+  const [approved] = await payrollRepository.updateRunIfStatus(run.id, from, {
+    status: "approved",
+    processedAt: new Date(),
+    reviewNote: null,
+  });
+  if (!approved) throw new TransitionNotApplied();
+
   const gross = toNum(run.totalBasicSalary) + toNum(run.totalAllowances);
   const gosiEmp = toNum(run.totalGosiEmployee);
   const gosiEr = toNum(run.totalGosiEmployer);
@@ -46,17 +72,14 @@ async function postPayrollGL(run: PayrollRun): Promise<PayrollRunOut> {
     ],
   });
 
-  const [approved] = await payrollRepository.updateRun(run.id, {
-    status: "approved",
-    processedAt: new Date(),
-    reviewNote: null,
-  });
   return runToOut(approved);
 }
 
 export function payrollApprovable(): Approvable<PayrollRun, PayrollRunOut> {
   return {
     entityType: "payroll_run",
+    // 🔴 G08 residuals (PR A): every write below applies only from the state the engine checked.
+    compareAndSet: true,
 
     async load(id) {
       const [run] = await payrollRepository.findRun(id);
@@ -73,25 +96,28 @@ export function payrollApprovable(): Approvable<PayrollRun, PayrollRunOut> {
       return runToOut(run);
     },
 
-    onApprove(run) {
-      return postPayrollGL(run);
+    onApprove(run, _actor, from) {
+      return postPayrollGL(run, checkedState(from));
     },
 
     async onSubmit(run) {
-      const [updated] = await payrollRepository.updateRun(run.id, { status: "submitted", reviewNote: null });
+      const [updated] = await payrollRepository.updateRunIfStatus(run.id, "draft", { status: "submitted", reviewNote: null });
+      if (!updated) throw new TransitionNotApplied();
       return runToOut(updated);
     },
 
     async onSendBack(run, _actor, note) {
-      const [updated] = await payrollRepository.updateRun(run.id, {
+      const [updated] = await payrollRepository.updateRunIfStatus(run.id, "submitted", {
         status: "draft",
         reviewNote: note?.trim() ? note.trim() : null,
       });
+      if (!updated) throw new TransitionNotApplied();
       return runToOut(updated);
     },
 
-    async hardDelete(run) {
-      await payrollRepository.deleteRun(run.id);
+    async hardDelete(run, from) {
+      const [removed] = await payrollRepository.deleteRunIfStatus(run.id, checkedState(from));
+      if (!removed) throw new TransitionNotApplied();
     },
   };
 }

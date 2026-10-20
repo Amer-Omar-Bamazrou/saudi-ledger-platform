@@ -41,6 +41,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness, type Res } from "./helpers/g04Harness";
+import { lockWaitersOn } from "./helpers/g08rRace";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -101,10 +102,6 @@ describeMaybe("G08 — two acts on one invoice at once: one wins, the other gets
       WHERE l.locktype = 'advisory' AND NOT l.granted AND l.objsubid = 1
         AND l.classid::bigint = ((x.k >> 32) & 4294967295) AND l.objid::bigint = (x.k & 4294967295)`, [companyId],
   )).rows[0].n);
-  const waitingOn = async (statementStart: string) => Number((await pool.query(
-    `SELECT count(*)::int AS n FROM pg_stat_activity
-      WHERE datname = current_database() AND wait_event_type = 'Lock' AND ltrim(query) ILIKE $1`, [`${statementStart}%`],
-  )).rows[0].n);
   async function until(label: string, check: () => Promise<boolean>) {
     const deadline = Date.now() + 20_000;
     while (!(await check())) {
@@ -137,7 +134,8 @@ describeMaybe("G08 — two acts on one invoice at once: one wins, the other gets
   /**
    * Two acts queued on the invoice ROW in a chosen order: a holder locks the
    * row, `first` is seen waiting on its statement, then `second`; the holder
-   * releases and the first in the queue goes first.
+   * releases and the first in the queue goes first. A waiter is counted only
+   * inside THIS holder's wait tree, never a parallel file's matching one.
    */
   async function queuedOnRow(id: number, first: { send: () => Promise<Res>; waitsOn: string }, second: { send: () => Promise<Res>; waitsOn: string }): Promise<[Res, Res]> {
     const holder = await pool.connect();
@@ -145,11 +143,12 @@ describeMaybe("G08 — two acts on one invoice at once: one wins, the other gets
     try {
       await holder.query("BEGIN");
       open = true;
+      const holderPid = Number((await holder.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid);
       await holder.query(`SELECT id FROM invoices WHERE id = $1 FOR UPDATE`, [id]);
       const a = first.send();
-      await until(`the first act did not queue on ${first.waitsOn}`, async () => (await waitingOn(first.waitsOn)) >= 1);
+      await until(`the first act did not queue on ${first.waitsOn}`, async () => (await lockWaitersOn(holderPid, first.waitsOn)) >= 1);
       const b = second.send();
-      await until(`the second act did not queue on ${second.waitsOn}`, async () => (await waitingOn(second.waitsOn)) >= 1);
+      await until(`the second act did not queue on ${second.waitsOn}`, async () => (await lockWaitersOn(holderPid, second.waitsOn)) >= 1);
       await holder.query("COMMIT");
       open = false;
       return await Promise.all([a, b]);

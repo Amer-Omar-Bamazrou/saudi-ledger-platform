@@ -181,6 +181,18 @@ export interface DbRefusal {
 }
 
 /**
+ * The driver error's SQLSTATE, constraint and detail, read the way
+ * {@link translateDbRefusal} reads them (Drizzle may wrap the driver error in
+ * `cause`). For callers that must recognise ONE exact refusal — G08 residuals
+ * (PR A), the bill approval's M1 and M2 — and leave every other error as it was.
+ */
+export function pgErrorFields(err: unknown): { code?: string; constraint?: string; detail?: string } {
+  const pg = err as { code?: string; constraint?: string; detail?: string; cause?: { code?: string; constraint?: string; detail?: string } };
+  const code = pg?.code && /^[0-9A-Z]{5}$/.test(pg.code) ? pg.code : pg?.cause?.code;
+  return { code, constraint: pg?.constraint ?? pg?.cause?.constraint, detail: pg?.detail ?? pg?.cause?.detail };
+}
+
+/**
  * The HTTP answer a database refusal deserves, or null when the error is not a
  * refusal we recognise (it then stays a logged 500). Drizzle may wrap the
  * driver error in `cause`.

@@ -1,6 +1,6 @@
 /** Payroll repository — tenant-scoped via RLS. */
 import { db, payrollRunsTable, payrollItemsTable, employeesTable } from "@workspace/db";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 export const payrollRepository = {
   listRuns() {
@@ -54,8 +54,16 @@ export const payrollRepository = {
   updateRun(id: number, values: Partial<typeof payrollRunsTable.$inferInsert>) {
     return db.update(payrollRunsTable).set(values).where(eq(payrollRunsTable.id, id)).returning();
   },
+  /** 🔴 G08 residuals (PR A) — applied only while the run is still in `status` (compare-and-set); no row when it was not. */
+  updateRunIfStatus(id: number, status: string, values: Partial<typeof payrollRunsTable.$inferInsert>) {
+    return db.update(payrollRunsTable).set(values).where(and(eq(payrollRunsTable.id, id), eq(payrollRunsTable.status, status))).returning();
+  },
   // Reject (hard-delete) a non-approved run; payroll_items cascade on the FK.
   deleteRun(id: number) {
     return db.delete(payrollRunsTable).where(eq(payrollRunsTable.id, id));
+  },
+  /** 🔴 G08 residuals (PR A) — `deleteRun`, only while the run is still in `status`; returns the removed id, or nothing. */
+  deleteRunIfStatus(id: number, status: string) {
+    return db.delete(payrollRunsTable).where(and(eq(payrollRunsTable.id, id), eq(payrollRunsTable.status, status))).returning({ id: payrollRunsTable.id });
   },
 };
