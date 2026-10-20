@@ -29,6 +29,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness, type Res } from "./helpers/g04Harness";
+import { lockWaitersOn } from "./helpers/g08rRace";
 import { signingService } from "../services/einvoice/signing/signing.service";
 import { GENESIS_PIH } from "../services/einvoice/crypto/invoiceHash";
 import type { ZatcaCsrInput } from "../services/einvoice/crypto/csr";
@@ -95,10 +96,6 @@ describeMaybe("B-G08R-P (b) — the G08 races on a ZATCA-ONBOARDED company", () 
       WHERE l.locktype = 'advisory' AND NOT l.granted AND l.objsubid = 1
         AND l.classid::bigint = ((x.k >> 32) & 4294967295) AND l.objid::bigint = (x.k & 4294967295)`, [companyId],
   )).rows[0].n);
-  const waitingOn = async (statementStart: string) => Number((await pool.query(
-    `SELECT count(*)::int AS n FROM pg_stat_activity
-      WHERE datname = current_database() AND wait_event_type = 'Lock' AND ltrim(query) ILIKE $1`, [`${statementStart}%`],
-  )).rows[0].n);
   async function until(label: string, check: () => Promise<boolean>) {
     const deadline = Date.now() + 20_000;
     while (!(await check())) {
@@ -107,13 +104,17 @@ describeMaybe("B-G08R-P (b) — the G08 races on a ZATCA-ONBOARDED company", () 
     }
   }
 
-  /** Acts queued on the invoice ROW in the given order; the holder then commits and they run in that order. */
+  /**
+   * Acts queued on the invoice ROW in the given order; the holder then commits and they run in that order.
+   * A waiter is counted only inside THIS holder's wait tree, never a parallel file's matching one.
+   */
   async function queuedOnRow(id: number, acts: Array<{ send: () => Promise<Res>; waitsOn: string }>): Promise<Res[]> {
     const holder = await pool.connect();
     let open = false;
     try {
       await holder.query("BEGIN");
       open = true;
+      const holderPid = Number((await holder.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid);
       await holder.query(`SELECT id FROM invoices WHERE id = $1 FOR UPDATE`, [id]);
       const sent: Promise<Res>[] = [];
       const queued = new Map<string, number>();
@@ -121,7 +122,7 @@ describeMaybe("B-G08R-P (b) — the G08 races on a ZATCA-ONBOARDED company", () 
         sent.push(act.send());
         const n = (queued.get(act.waitsOn) ?? 0) + 1;
         queued.set(act.waitsOn, n);
-        await until(`act ${sent.length} did not queue on ${act.waitsOn}`, async () => (await waitingOn(act.waitsOn)) >= n);
+        await until(`act ${sent.length} did not queue on ${act.waitsOn}`, async () => (await lockWaitersOn(holderPid, act.waitsOn)) >= n);
       }
       await holder.query("COMMIT");
       open = false;

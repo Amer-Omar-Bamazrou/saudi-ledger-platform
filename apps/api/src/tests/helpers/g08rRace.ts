@@ -13,14 +13,29 @@
 import { pool } from "@workspace/db";
 import type { Res } from "./g04Harness";
 
-/** How many sessions are waiting, directly or through another waiter, on `holderPid`. */
-export const lockWaiters = async (holderPid: number): Promise<number> => Number((await pool.query(
-  `WITH RECURSIVE tree(pid) AS (
+/** The holder ($1) and every session blocked by it, directly or through another session in the tree. */
+const WAIT_TREE = `WITH RECURSIVE tree(pid) AS (
      SELECT $1::int
      UNION
      SELECT a.pid FROM pg_stat_activity a JOIN tree t ON t.pid = ANY (pg_blocking_pids(a.pid))
-   )
+   )`;
+
+/** How many sessions are waiting, directly or through another waiter, on `holderPid`. */
+export const lockWaiters = async (holderPid: number): Promise<number> => Number((await pool.query(
+  `${WAIT_TREE}
    SELECT (count(*) - 1)::int AS n FROM tree`, [holderPid],
+)).rows[0].n);
+
+/**
+ * The statement-specific form: how many sessions in `holderPid`'s wait tree are waiting on a lock
+ * in a statement that starts with `statementStart` (e.g. `update "invoices"`). A matching waiter
+ * in ANOTHER session's tree — a parallel test file's race — is never counted
+ * (`g08r-lock-waiters-scope.test.ts`).
+ */
+export const lockWaitersOn = async (holderPid: number, statementStart: string): Promise<number> => Number((await pool.query(
+  `${WAIT_TREE}
+   SELECT count(*)::int AS n FROM pg_stat_activity a JOIN tree t ON t.pid = a.pid
+    WHERE a.pid <> $1 AND a.wait_event_type = 'Lock' AND ltrim(a.query) ILIKE $2`, [holderPid, `${statementStart}%`],
 )).rows[0].n);
 
 export async function until(label: string, check: () => Promise<boolean>, ms = 20_000): Promise<void> {

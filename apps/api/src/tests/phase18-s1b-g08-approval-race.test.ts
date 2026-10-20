@@ -45,6 +45,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
+import { lockWaitersOn } from "./helpers/g08rRace";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -92,10 +93,6 @@ describeMaybe("Phase 18 S1-b · G08 proof — two acts on one invoice at once (d
     `SELECT count(*)::int AS n FROM pg_locks l, (SELECT hashtextextended($1::text, 0) AS k) x
       WHERE l.locktype = 'advisory' AND NOT l.granted AND l.objsubid = 1
         AND l.classid::bigint = ((x.k >> 32) & 4294967295) AND l.objid::bigint = (x.k & 4294967295)`, [companyId],
-  )).rows[0].n);
-  const waitingOn = async (statementStart: string) => Number((await pool.query(
-    `SELECT count(*)::int AS n FROM pg_stat_activity
-      WHERE datname = current_database() AND wait_event_type = 'Lock' AND ltrim(query) ILIKE $1`, [`${statementStart}%`],
   )).rows[0].n);
   async function until(label: string, check: () => Promise<boolean>) {
     const deadline = Date.now() + 20_000;
@@ -194,11 +191,13 @@ describeMaybe("Phase 18 S1-b · G08 proof — two acts on one invoice at once (d
     try {
       await holder.query("BEGIN");
       open = true;
+      // Waiters are counted only inside THIS holder's wait tree, never a parallel file's matching one.
+      const holderPid = Number((await holder.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid);
       await holder.query(`SELECT id FROM invoices WHERE id = $1 FOR UPDATE`, [inv.id]);
       const approving = h.api("admin", "POST", `/invoices/${inv.id}/approve`, {});
-      await until("the approval did not queue on the invoice row", async () => (await waitingOn(`update "invoices"`)) >= 1);
+      await until("the approval did not queue on the invoice row", async () => (await lockWaitersOn(holderPid, `update "invoices"`)) >= 1);
       const rejecting = h.api("accountant", "POST", `/invoices/${inv.id}/reject`, {});
-      await until("the reject did not queue on the invoice row", async () => (await waitingOn(`delete from "invoices"`)) >= 1);
+      await until("the reject did not queue on the invoice row", async () => (await lockWaitersOn(holderPid, `delete from "invoices"`)) >= 1);
       await holder.query("COMMIT");
       open = false;
       [approveRes, rejectRes] = await Promise.all([approving, rejecting]);
