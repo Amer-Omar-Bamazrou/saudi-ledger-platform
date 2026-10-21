@@ -14,6 +14,7 @@
 import { Router } from "express";
 import { preSessionLimiter } from "../lib/rateLimit";
 import { invitationsService } from "../services/invitations.service";
+import { sessionStampFor } from "../lib/auth";
 
 const router = Router();
 
@@ -59,6 +60,7 @@ router.post("/:token/accept", acceptRateLimiter, async (req, res) => {
   }
 
   // New account — establish the session (rotating the id, as login does).
+  const stamp = await sessionStampFor(accepted.userId);
   req.session.regenerate((regenErr) => {
     if (regenErr) { req.log.error({ err: regenErr }); res.status(500).json({ error: "Session error." }); return; }
     req.session.userId = accepted.userId;
@@ -67,6 +69,7 @@ router.post("/:token/accept", acceptRateLimiter, async (req, res) => {
     req.session.userName = accepted.name;
     req.session.userEmail = accepted.email;
     req.session.activeOrgId = accepted.organizationId;
+    Object.assign(req.session, stamp);
     req.session.save((err) => {
       if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
       respond();
