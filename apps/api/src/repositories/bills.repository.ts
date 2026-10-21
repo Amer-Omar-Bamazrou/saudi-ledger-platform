@@ -15,6 +15,30 @@ const OUTSTANDING = billOutstandingSql("bills");
 /** Z-AP1: Σ the supplier advance deductions on a final bill (its prepayment rows). */
 const PREPAID = sql<string>`coalesce((SELECT sum(bp.amount) FROM bill_prepayments bp WHERE bp.bill_id = ${billsTable}."id"), 0)::text`; // qualified: a bare "id" would bind to bp.id
 
+type BillRow = typeof billsTable.$inferSelect;
+
+/**
+ * 🔴 PR B (bill half) — the columns a DRAFT EDIT may write. The one list: the
+ * PATCH allowlist (`billsService.update`) picks exactly these, and an approval
+ * posts only while the bill still carries, in each of them, the value it loaded
+ * (`unchangedSince`). A column added here is guarded on both sides at once. A
+ * PATCH writes no bill line, so the header is the whole of what it can change
+ * under an approval.
+ */
+export const BILL_DRAFT_EDITABLE = [
+  "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
+  "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId", "capitalisesAssetId",
+  "supplierDocumentKind", "recordedAsExpense", "expensePaidFromBankAccountId", "expensePaidAt",
+] as const satisfies readonly (keyof BillRow)[];
+
+/**
+ * The row still carries `loaded`'s value in every draft-editable column —
+ * `IS NOT DISTINCT FROM`, so a NULL compares equal to a NULL. Every one of these
+ * columns is text, integer, numeric or boolean, so the comparison is exact.
+ */
+const unchangedSince = (loaded: BillRow) =>
+  and(...BILL_DRAFT_EDITABLE.map((k) => sql`${billsTable[k]} IS NOT DISTINCT FROM ${loaded[k]}`));
+
 export interface BillListFilter {
   status?: string;
   vendorId?: number;
@@ -175,6 +199,29 @@ export const billsRepository = {
    */
   updateIfStatus(id: number, status: string, values: Partial<typeof billsTable.$inferInsert>) {
     return db.update(billsTable).set(values).where(and(eq(billsTable.id, id), eq(billsTable.status, status))).returning();
+  },
+
+  /**
+   * 🔴 PR B (bill half) — THE APPROVAL'S posting write: applied only while the
+   * bill is still in `status` (PR A) AND carries the editable values the
+   * approval loaded (`loaded`, required). The entry is computed from `loaded`;
+   * a PATCH that committed after the load used to leave a posted bill whose
+   * stored total disagreed with its own entry (reproduced on main). Returns no
+   * row when anything moved the bill first.
+   */
+  updateIfStatusAsLoaded(id: number, status: string, loaded: BillRow, values: Partial<typeof billsTable.$inferInsert>) {
+    return db.update(billsTable).set(values).where(and(eq(billsTable.id, id), eq(billsTable.status, status), unchangedSince(loaded))).returning();
+  },
+
+  /**
+   * 🔴 PR B (bill half) — a draft edit, applied only while the bill is still a
+   * DRAFT, in the same statement. It wrote keyed on id alone after a status
+   * check on a row read without a lock, so a PATCH that queued behind an
+   * approval rewrote the posted bill's figures (reproduced on main). Returns no
+   * row when an approval (or anything else) moved the draft first.
+   */
+  updateDraft(id: number, values: Partial<typeof billsTable.$inferInsert>) {
+    return db.update(billsTable).set(values).where(and(eq(billsTable.id, id), eq(billsTable.status, "draft"))).returning();
   },
 
   /**

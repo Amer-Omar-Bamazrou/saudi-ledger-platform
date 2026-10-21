@@ -41,6 +41,30 @@ export function isUnissued(inv: { status: string; invoiceHash: string | null }):
   return (UNISSUED_STATUSES as readonly string[]).includes(inv.status) && inv.invoiceHash == null;
 }
 
+type InvoiceRow = typeof invoicesTable.$inferSelect;
+
+/**
+ * 🔴 PR B (R1) — the header columns a DRAFT EDIT may write. The one list: the
+ * PATCH allowlist (`invoicesService.update`) picks exactly these, and an
+ * issuance writes only while the invoice still carries, in each of them and in
+ * the totals a line edit recomputes (`DRAFT_EDIT_TOTALS`), the values it loaded
+ * (`issuedAsLoaded`). A column added here is guarded on both sides at once.
+ */
+export const INVOICE_DRAFT_EDITABLE = [
+  "invoiceNumber", "date", "dueDate", "customerId", "currency",
+  "notes", "termsAndConditions", "reviewNote",
+  "disposesAssetId",
+] as const satisfies readonly (keyof InvoiceRow)[];
+const DRAFT_EDIT_TOTALS = ["subtotal", "vatAmount", "total"] as const satisfies readonly (keyof InvoiceRow)[];
+
+/**
+ * The row still carries `loaded`'s value in every column a draft edit writes —
+ * `IS NOT DISTINCT FROM`, so a NULL compares equal to a NULL. Every one of these
+ * columns is text, integer or numeric, so the comparison is exact.
+ */
+const issuedAsLoaded = (loaded: InvoiceRow) =>
+  and(...[...INVOICE_DRAFT_EDITABLE, ...DRAFT_EDIT_TOTALS].map((k) => sql`${invoicesTable[k]} IS NOT DISTINCT FROM ${loaded[k]}`));
+
 /**
  * 🔴 OVERDUE IS DERIVED FROM DATES, AND THIS IS THE ONLY PLACE IT IS DEFINED.
  *
@@ -491,14 +515,32 @@ export const invoicesRepository = {
   },
 
   /**
+   * 🔴 PR B (R1) — a draft edit, applied only while the invoice is still an
+   * unissued DRAFT, in the same statement. It used to write keyed on id alone
+   * after a status check on a row read without a lock, so a PATCH that queued
+   * behind an approval rewrote the just-issued invoice's lines and totals
+   * (reproduced on main). Returns no row when an approval (or anything else)
+   * moved the draft first.
+   */
+  updateDraft(id: number, values: Partial<typeof invoicesTable.$inferInsert>) {
+    return db.update(invoicesTable).set(values).where(and(eq(invoicesTable.id, id), unissued(["draft"]))).returning();
+  },
+
+  /**
    * 🔴 G08 — the ISSUING update, conditional on the invoice still being
    * unissued — since PR A, in the very state the approval checked (`statuses`).
    * Returns no row when a reject, delete, submit or send-back changed it after
    * the approval re-read it, so the approval refuses rather than issuing an
    * invoice that is no longer the one it checked.
    */
-  markIssued(id: number, values: Partial<typeof invoicesTable.$inferInsert>, statuses: readonly UnissuedStatus[] = UNISSUED_STATUSES) {
-    return db.update(invoicesTable).set(values).where(and(eq(invoicesTable.id, id), unissued(statuses))).returning();
+  markIssued(id: number, values: Partial<typeof invoicesTable.$inferInsert>, statuses: readonly UnissuedStatus[], loaded: InvoiceRow) {
+    // 🔴 PR B (R1): ALSO only while no draft edit committed after the approval loaded the invoice
+    // (`loaded`, required so no caller can issue without the check). The hash, the QR and the posted
+    // entry are computed from `loaded`'s header; issuing a row whose figures had moved on stamped an
+    // invoice that disagreed with its own entry (reproduced on main). The header is enough: a PATCH
+    // writes the header (its recomputed totals included) BEFORE it replaces the lines, so it holds this
+    // row's lock while it does, and the e-invoice is built from the row after this update.
+    return db.update(invoicesTable).set(values).where(and(eq(invoicesTable.id, id), unissued(statuses), issuedAsLoaded(loaded))).returning();
   },
 
   /**
