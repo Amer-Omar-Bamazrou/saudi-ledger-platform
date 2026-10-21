@@ -408,12 +408,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Quotation"
+        "409":
+          description: "Submitted (locked while it awaits approval), or declined/closed — including when a submit committed while this edit was in flight; nothing of the edit is written"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
     delete:
       operationId: deleteQuotation
       tags: [quotations]
-      summary: Delete a quotation (admin only)
+      summary: Delete a DRAFT quotation (admin only). A submitted, approved or converted quotation is not deleted.
       responses:
         "204": { description: Deleted }
+        "409":
+          description: "Not a draft (submitted, approved — including one approved while this request was in flight) or converted into an invoice; nothing is deleted"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
   /quotations/{id}/submit:
     parameters:
@@ -708,12 +718,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PurchaseOrder"
+        "409":
+          description: "Submitted (locked while it awaits approval), or cancelled/closed — including when a submit committed while this edit was in flight; nothing of the edit is written"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
     delete:
       operationId: deletePurchaseOrder
       tags: [purchase-orders]
-      summary: Delete a purchase order (admin only; refused once billed)
+      summary: Delete a DRAFT purchase order (admin only). A submitted, approved or billed order is not deleted.
       responses:
         "204": { description: Deleted }
+        "409":
+          description: "Not a draft (submitted, approved — including one approved while this request was in flight) or billed; nothing is deleted"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
   /purchase-orders/{id}/submit:
     parameters:
