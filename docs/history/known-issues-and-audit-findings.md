@@ -3034,4 +3034,64 @@ proof and authorisation:
 **Record:** owner decision register DR-49 (`docs/phase-18-owner-decision-register-2026-10-09.md`,
 untracked at the time of writing).
 
-State: PARTIAL. Parts (a) and (b) are CLOSED for invoices; the residuals above are OPEN.
+State: PARTIAL. Parts (a) and (b) are CLOSED for invoices; the residuals above are OPEN. *(2026-10-20:
+the engine-wide compare-and-set landed as PR #202 — the next entry. Residual (c) is unchanged by it.)*
+
+## G08 PR A — THE APPROVAL ENGINE'S COMPARE-AND-SET, ENGINE-WIDE — FIXED (Phase 18, PR #202)
+
+**What it was.** The same check-then-act shape as the entry above, in the generic approval engine
+rather than in one adapter: every hook acted on a document without a condition on the state the
+engine had just checked. With #198 only the invoice approve, reject and delete endpoints were
+conditional. A submit or send-back queued behind an invoice approval could still set an issued
+invoice back to `draft` or `submitted`; a reject or delete queued behind an approval could still
+remove a posted bill's or a journal entry's row; a payroll run could be approved twice. Reproduced
+on `main` `ab9e0cb5` with forced interleavings: 50 of the 63 proof and regression tests were red
+before the fix.
+
+**How it closed.** Owner-authorised as PR A of the G08 remediation (the scoped statement of
+2026-10-18); merged 2026-10-20.
+
+- **Engine:** every hook receives the state the engine checked. An adapter that opts in
+  (`compareAndSet: true`) writes only from that state, throws `TransitionNotApplied` when its write
+  matched nothing, and the engine answers **409** from the record as it now is (gone, the sequential
+  refusal, or "changed while it was being approved"). The request rolls back whole.
+- **Invoices:** submit and send-back conditional on still unissued; issuance and reject conditional
+  on the exact state checked.
+- **Bills:** submit, send-back, reject and DELETE conditional; the posting's status write conditional
+  on the checked state; supplier advance documents re-read their state under the payment lock.
+- **Journal entries:** approve, reject and DELETE conditional on draft.
+- **Payroll:** claim-first; submit, send-back and reject conditional.
+- **No new lock, no migration, no OpenAPI change;** sequential behaviour is unchanged. The four other
+  adapters stay as they were, named by a ratchet test that may only shrink.
+
+**Test-only follow-up, in the same PR.** The four invoice race files detected "my second act has
+queued" by counting lock waiters across the whole database, so under file parallelism another file's
+race satisfied the check early and the queue order flipped (the product's answer was correct in every
+run; the race asked for was not the one that ran). `helpers/g08rRace.ts` now counts waiters only
+inside the holder's own wait tree (`pg_blocking_pids`); the four files use it, with race order and
+every assertion unchanged, and a planted test (`g08r-lock-waiters-scope.test.ts`) proves a foreign
+session's matching waiter is seen by the database-wide count and not by the scoped one.
+
+**Tests.** 63 proof and regression tests across the engine, invoices, bills, journal entries and
+payroll (commit `045c2fc5`), the fix (`91f5a0f2`, 22 of 22 mutations killed), the detector
+(`27f34b0f`). Locally, at the PR head on an isolated PostgreSQL 16.15 database: the API suite 258
+files, 2,486 passed, 32 skipped, 0 failed; DB 58; ZATCA TLV 10; web 131; typecheck and build;
+gitleaks over the full history. The browser suite was not run locally and was verified by CI only.
+
+**Merged** on 2026-10-20 at 15:27:58Z, by the owner account: PR #202, merge commit
+`ba5c453ccf85ba8f2f52f6e0589bac70785a43a5` (parents `ab9e0cb5` and `27f34b0f`). The diff on `main`
+is byte-identical to the PR's: 29 files, all under `apps/api/src`.
+
+**CI.** The PR's run (39437509416) and the run on the merge commit (39448656010) concluded
+**success** on all five checks. On the merge commit: `secrets`, `typecheck`, `build`; `test` (API
+258 files, DB 10, ZATCA TLV 1, web 16, all passed); `e2e (browser)` 558 passed.
+
+**Still open.** Residual (c) above, and the remaining G08 residuals, are tracked in the Phase 18
+decision register. One test-reliability observation from the verification (a single reporting-plan
+assertion that failed once and passed on every re-run, cause unproven) is tracked there too.
+
+**Record:** owner decision register §10.9–§10.11 (`docs/phase-18-owner-decision-register-2026-10-09.md`,
+untracked at the time of writing); evidence folder `2026-10-20-pr-a-verification` with its SHA-256
+manifest.
+
+State: CLOSED for the engine-wide compare-and-set; G08 as a whole stays PARTIAL (see the entry above).
