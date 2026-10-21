@@ -588,7 +588,7 @@ export const UpdateQuotationResponse = zod.object({
 
 
 /**
- * @summary Delete a quotation (admin only)
+ * @summary Delete a DRAFT quotation (admin only). A submitted, approved or converted quotation is not deleted.
  */
 export const DeleteQuotationParams = zod.object({
   "id": zod.coerce.number()
@@ -1286,7 +1286,7 @@ export const UpdatePurchaseOrderResponse = zod.object({
 
 
 /**
- * @summary Delete a purchase order (admin only; refused once billed)
+ * @summary Delete a DRAFT purchase order (admin only). A submitted, approved or billed order is not deleted.
  */
 export const DeletePurchaseOrderParams = zod.object({
   "id": zod.coerce.number()

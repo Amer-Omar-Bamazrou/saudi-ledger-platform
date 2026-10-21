@@ -99,8 +99,19 @@ export async function payBill(
     // applied advance, an applied credit note); reading the legacy counter
     // alone accepted a full payment on a bill an advance had already settled,
     // and posted Dr AP twice for one debt.
-    const alreadyPaid = Number(existing.paidAmount ?? 0);
     const outstanding = await billsRepository.outstandingOf(id, { lock: true });
+    // 🔴 G36: the bill is RE-READ here, under that row lock. `paid_amount` used
+    //    to come from `existing`, read before the lock, so a payment queued
+    //    behind another one wrote `stale paid + its amount` over the first's
+    //    increment — `paid_amount` ≠ Σ payments, the bill read as owing money it
+    //    did not (reproduced, Phase 18 Batch 4B). Every payment of this bill
+    //    holds this lock until it commits, so this read sees each one that
+    //    committed first; one that left the bill fully paid gets the refusal
+    //    it gets sequentially, and one that no longer fits, the overpay below.
+    const [locked] = await billsRepository.findById(id);
+    if (!locked) throw new NotFoundError("Not found");
+    if (locked.status === "paid") throw new ConflictError("Bill is already paid.");
+    const alreadyPaid = Number(locked.paidAmount ?? 0);
     if (paid > outstanding + 0.005) {
       throw new ConflictError(
         `Payment of ${paid.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} on this bill.`,
@@ -128,7 +139,7 @@ export async function payBill(
     const [bill] = await billsRepository.update(id, {
       paidAmount: String(newPaid),
       paidAt: payDate,
-      status: fullySettled ? "paid" : existing.status,
+      status: fullySettled ? "paid" : locked.status,
     });
 
     // B4 — the dated record of THIS payment (see invoices.service.pay).
