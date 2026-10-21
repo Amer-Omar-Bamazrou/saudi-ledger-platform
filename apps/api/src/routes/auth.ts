@@ -12,12 +12,13 @@ import { resetAllRateLimitStores } from "../lib/rateLimitStore";
 import { ownerDb as db } from "@workspace/db";
 import { usersTable, organizationMembershipsTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, credentialOf, sessionStampFor } from "../lib/auth";
 import { refuseSignupInDemo } from "../lib/demoMode";
 import { selectActiveMembership } from "../lib/activeOrg";
 import { securityAuditService } from "../services/securityAudit.service";
 import { signupService } from "../services/signup.service";
 import { userAdminService, safeUser } from "../services/userAdmin.service";
+import { userAdminRepository } from "../repositories/userAdmin.repository";
 import { requireIdParam } from "../lib/httpParams";
 
 const router = Router();
@@ -158,6 +159,7 @@ router.post("/register", userAdminRateLimiter, requireAuth, async (req, res) => 
  */
 router.post("/signup", refuseSignupInDemo, signupRateLimiter, async (req, res) => {
   const created = await signupService.signup(req.body ?? {}, { ipAddress: req.ip ?? null });
+  const stamp = await sessionStampFor(created.userId);
 
   // Rotate the session id on the anonymous → authenticated transition, then sign
   // the new admin in (same posture as /auth/login).
@@ -173,6 +175,7 @@ router.post("/signup", refuseSignupInDemo, signupRateLimiter, async (req, res) =
     req.session.userName = created.name;
     req.session.userEmail = created.email;
     req.session.activeOrgId = created.organizationId;
+    Object.assign(req.session, stamp);
     req.session.save((err) => {
       if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
       res.status(201).json({
@@ -236,6 +239,9 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
     // Stamp last login
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
+    // G02: the session's sign-in time and credential, from the hash as now stored.
+    const stamp = await sessionStampFor(user.id);
+
     // Rotate the session ID on the anonymous → authenticated transition to
     // defend against session fixation: any pre-login session identifier an
     // attacker may have planted is discarded and a fresh one is issued.
@@ -246,6 +252,7 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
       req.session.userRole = user.role as any;
       req.session.userName = user.name;
       req.session.userEmail = user.email;
+      Object.assign(req.session, stamp);
 
       // Save the session to PostgreSQL BEFORE sending the response.
       // Without this, express-session flushes asynchronously after res.end(),
@@ -353,12 +360,24 @@ router.post("/change-password", authRateLimiter, requireAuth, changePasswordAcco
     if (!valid) { res.status(401).json({ error: "Current password is incorrect." }); return; }
     const passwordHash = await hashPassword(newPassword, "newPassword");
     await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
+    // 🔴 G02: every OTHER session of this user ends (the per-request check would end
+    // them anyway — their credential is the old password's; this deletes them now).
+    // The session the change was made in is KEPT and re-stamped with the new
+    // credential (the page promises "you'll remain logged in"; the owner may choose
+    // to end it too — Phase 18 plan, B-G02), and saved before the response so the
+    // next request does not meet the old credential.
+    const sessionsEnded = await userAdminRepository.revokeSessions(user.id, req.sessionID);
+    req.session.credential = credentialOf(passwordHash);
     await securityAuditService.record({
       action: "user.password_changed",
       actorUserId: user.id, actorEmail: user.email, targetUserId: user.id,
+      metadata: { otherSessionsEnded: sessionsEnded },
       ipAddress: req.ip ?? null,
     });
-    res.json({ message: "Password changed successfully." });
+    req.session.save((err) => {
+      if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
+      res.json({ message: "Password changed successfully." });
+    });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
 

@@ -408,12 +408,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Quotation"
+        "409":
+          description: "Submitted (locked while it awaits approval), or declined/closed — including when a submit committed while this edit was in flight; nothing of the edit is written"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
     delete:
       operationId: deleteQuotation
       tags: [quotations]
-      summary: Delete a quotation (admin only)
+      summary: Delete a DRAFT quotation (admin only). A submitted, approved or converted quotation is not deleted.
       responses:
         "204": { description: Deleted }
+        "409":
+          description: "Not a draft (submitted, approved — including one approved while this request was in flight) or converted into an invoice; nothing is deleted"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
   /quotations/{id}/submit:
     parameters:
@@ -708,12 +718,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PurchaseOrder"
+        "409":
+          description: "Submitted (locked while it awaits approval), or cancelled/closed — including when a submit committed while this edit was in flight; nothing of the edit is written"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
     delete:
       operationId: deletePurchaseOrder
       tags: [purchase-orders]
-      summary: Delete a purchase order (admin only; refused once billed)
+      summary: Delete a DRAFT purchase order (admin only). A submitted, approved or billed order is not deleted.
       responses:
         "204": { description: Deleted }
+        "409":
+          description: "Not a draft (submitted, approved — including one approved while this request was in flight) or billed; nothing is deleted"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
   /purchase-orders/{id}/submit:
     parameters:
@@ -6644,7 +6664,12 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/WhtLineage" }
         "409":
-          description: "Already corrected; the month is filed and no treatment was stated; the payment was acted on since; reconciled to the bank"
+          description: "Already corrected; the month is filed and no treatment was stated; the payment was acted on since; reconciled to the bank; the re-entry would change the payment's recorded cash without the statement that it was wrong (wht_correction_changes_cash), or its cash is not the cash stated (wht_correction_cash_mismatch) — DR-45 (I); nothing is written"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: "The reason is missing; a date is in the future or before the payment; the statement that the recorded cash was wrong came without the cash that actually left (wht_actual_cash_required), or that cash came without the statement (wht_actual_cash_without_statement)"
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -15004,6 +15029,15 @@ components:
         whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
         whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
         whtFiledMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        recordedCashWasWrong:
+          type: ["boolean", "null"]
+          description: >-
+            DR-45 (I): the person's explicit statement that the ORIGINAL payment's recorded cash was wrong. Without it the
+            re-entry must move exactly the original's cash (same bank, amount and date) or the correction is refused.
+        actualCash:
+          type: ["number", "null"]
+          exclusiveMinimum: 0
+          description: "DR-45 (I): with recordedCashWasWrong, the cash that actually left the bank; the re-entry must move exactly this."
 
     WhtLineage:
       type: object

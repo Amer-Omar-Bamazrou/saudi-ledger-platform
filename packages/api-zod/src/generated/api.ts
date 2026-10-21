@@ -588,7 +588,7 @@ export const UpdateQuotationResponse = zod.object({
 
 
 /**
- * @summary Delete a quotation (admin only)
+ * @summary Delete a DRAFT quotation (admin only). A submitted, approved or converted quotation is not deleted.
  */
 export const DeleteQuotationParams = zod.object({
   "id": zod.coerce.number()
@@ -1286,7 +1286,7 @@ export const UpdatePurchaseOrderResponse = zod.object({
 
 
 /**
- * @summary Delete a purchase order (admin only; refused once billed)
+ * @summary Delete a DRAFT purchase order (admin only). A submitted, approved or billed order is not deleted.
  */
 export const DeletePurchaseOrderParams = zod.object({
   "id": zod.coerce.number()
@@ -15842,6 +15842,8 @@ export const correctWhtWithholdingBodyReentryOneAmountExclusiveMin = 0;
 
 export const correctWhtWithholdingBodyReentryOneWhtNotSubjectNoteMax = 2000;
 
+export const correctWhtWithholdingBodyReentryOneActualCashExclusiveMin = 0;
+
 
 
 export const CorrectWhtWithholdingBody = zod.object({
@@ -15864,7 +15866,9 @@ export const CorrectWhtWithholdingBody = zod.object({
   "whtPaymentType": zod.string().nullish(),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
   "whtNotSubjectNote": zod.string().max(correctWhtWithholdingBodyReentryOneWhtNotSubjectNoteMax).nullish(),
-  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish()
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish(),
+  "recordedCashWasWrong": zod.boolean().nullish().describe('DR-45 (I): the person\'s explicit statement that the ORIGINAL payment\'s recorded cash was wrong. Without it the re-entry must move exactly the original\'s cash (same bank, amount and date) or the correction is refused.'),
+  "actualCash": zod.number().gt(correctWhtWithholdingBodyReentryOneActualCashExclusiveMin).nullish().describe('DR-45 (I): with recordedCashWasWrong, the cash that actually left the bank; the re-entry must move exactly this.')
 }).describe('The corrected payment. A bill payment\'s fields: billId (defaults to the original\'s bill), amount, paidAt, bankAccountId. A supplier payment\'s: vendorId, classification, allocations, reference. The WHT declaration as on any pay path.'),zod.null()]).optional()
 }).describe('Q1 (pack §14.1): reverse a WHT-bearing payment (its mirror entry; the original kept) and, with `reentry`, record the corrected payment through the same pay path. `filedMonthTreatment` is required when a leg falls in a FILED month.')
 

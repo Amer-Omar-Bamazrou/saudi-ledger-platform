@@ -91,6 +91,21 @@ export const journalEntriesRepository = {
   findById(id: number) {
     return db.select().from(journalEntriesTable).where(eq(journalEntriesTable.id, id)).limit(1);
   },
+  /**
+   * 🔴 DR-45 (I) — the CASH an entry moved: per bank, the net that left (credit − debit, in halalas, so an
+   * outflow is positive), read through `journal_line_bank_identity`, the one "which bank" definition (D-3).
+   * Sorted by bank, so two movements compare as values.
+   */
+  async cashMovementOf(entryId: number): Promise<Array<{ bankAccountId: number; outH: number }>> {
+    const { rows } = await db.execute<{ bank_account_id: number; out_h: string }>(sql`
+      SELECT v.bank_account_id, round(sum(v.credit_amount - v.debit_amount) * 100)::bigint::text AS out_h
+        FROM journal_line_bank_identity v
+       WHERE v.journal_entry_id = ${entryId} AND v.bank_account_id IS NOT NULL
+       GROUP BY v.bank_account_id
+      HAVING sum(v.credit_amount - v.debit_amount) <> 0
+       ORDER BY v.bank_account_id`);
+    return rows.map((r) => ({ bankAccountId: Number(r.bank_account_id), outH: Number(r.out_h) }));
+  },
   /** D-3: which of these accounts are non-posting headers (the approval gate). */
   async nonPostingAccountsOf(accountIds: number[]) {
     if (accountIds.length === 0) return [];

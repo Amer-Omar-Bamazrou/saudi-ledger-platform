@@ -114,6 +114,7 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
     const vendor = async (org: string, name: string, type: string | null, residency = "non_resident") =>
       (await q(`INSERT INTO vendors (organization_id, name, residency, wht_default_payment_type, country, foreign_tax_id) VALUES ($1,$2,$3,$4,'GB','GB-1') RETURNING id`, [org, name, residency, type]))[0].id as number;
     v.tech = await vendor(orgId, "Q1 London Tech", "technical_consulting");
+    v.tech2 = await vendor(orgId, "Q1 Manchester Tech", "technical_consulting");
     v.other = await vendor(orgId, "Q1 Dublin Licences", "royalty");
     v.res = await vendor(orgId, "Q1 Riyadh Trading", null, "resident");
     v.techC = await vendor(orgC, "Q1 C Tech", "technical_consulting");
@@ -126,9 +127,25 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
     await payA(b, 10_000, "2026-06-10"); // technical consulting 5 % → 500 withheld, 9,500 paid
     const [orig] = await whtOfBill(b);
     const origEntryLines = await q(`SELECT account_id, debit_amount::text, credit_amount::text, vendor_id FROM journal_entry_lines WHERE journal_entry_id = $1 ORDER BY id`, [orig.journal_entry_id]);
-    const out = await inA(() => whtCorrectionService.correct(orig.id, {
+    // 🔴 DR-45 (I), re-pointed (register DR-45 test 7): this test asserted −8,500 — the re-entry silently recording
+    //    cash the bank never paid when the 9,500 was right. Now, WITHOUT the statement that the recorded cash was
+    //    wrong, the correction is REFUSED and nothing moves: the bank stays at the 9,500 that left, WHT payable at 500.
+    const whtPayable0 = await glCredit(coA, "WHT_PAYABLE");
+    const before = await counts();
+    const e = await refusal(inA(() => whtCorrectionService.correct(orig.id, {
       reason: "nature was a royalty, not a consulting fee", date: "2026-06-20",
       reentry: { amount: 10_000, paidAt: "2026-06-10", whtPaymentType: "royalty" },
+    }, userId)));
+    expect([e.statusCode, e.payload?.code]).toEqual([409, "wht_correction_changes_cash"]);
+    expect(await counts(), "refused: nothing written").toEqual(before);
+    expect(await bankGl(bankA) - bank0, "the bank still shows the 9,500 that left").toBeCloseTo(-9_500, 2);
+    expect(await glCredit(coA, "WHT_PAYABLE"), "WHT payable unmoved").toBe(whtPayable0);
+    expect((await q(`SELECT status FROM journal_entries WHERE id = $1`, [orig.journal_entry_id]))[0].status).toBe("posted");
+    // With the statement — the recorded 9,500 was wrong; 8,500 actually left — the correction completes, and the
+    // bank shows the TRUE cash because it was stated, not because the pay path derived it.
+    const out = await inA(() => whtCorrectionService.correct(orig.id, {
+      reason: "nature was a royalty, not a consulting fee", date: "2026-06-20",
+      reentry: { amount: 10_000, paidAt: "2026-06-10", whtPaymentType: "royalty", recordedCashWasWrong: true, actualCash: 8_500 },
     }, userId));
     // the lineage: original → reversal → corrected
     expect(out.correction).toMatchObject({ reversalReturnPeriod: "2026-06", filedMonthTreatment: null, originalFilingId: null, remittedAtCorrection: 0 });
@@ -159,7 +176,8 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
     const b = await bill(inA, v.tech!, 10_000, "2026-06-02");
     await payA(b, 10_000, "2026-06-11");
     const [orig] = await whtOfBill(b);
-    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "typed ten thousand for one thousand", date: "2026-06-21", reentry: { amount: 1_000, paidAt: "2026-06-11" } }, userId));
+    // DR-45 (I): a recording error of the amount changes the cash, so it is stated (1,000 at 5 % → 950 left the bank)
+    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "typed ten thousand for one thousand", date: "2026-06-21", reentry: { amount: 1_000, paidAt: "2026-06-11", recordedCashWasWrong: true, actualCash: 950 } }, userId));
     expect([out.reentry!.baseAmount, out.reentry!.whtAmount]).toEqual([1_000, 50]);
     expect(await owes(b)).toBe(9_000);
     expect((await q(`SELECT status FROM bills WHERE id = $1`, [b]))[0].status, "paid → owing again").not.toBe("paid");
@@ -168,11 +186,19 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
 
   it("WRONG SUPPLIER: paid against supplier X's bill, really supplier Y's — the correction re-enters against Y's bill; X's bill owes again", async () => {
     const bx = await bill(inA, v.tech!, 4_000, "2026-06-03");
-    const by = await bill(inA, v.other!, 4_000, "2026-06-03");
+    const by = await bill(inA, v.tech2!, 4_000, "2026-06-03");
+    const bz = await bill(inA, v.other!, 4_000, "2026-06-03");
     await payA(bx, 4_000, "2026-06-12");
     const [orig] = await whtOfBill(bx);
+    // 🔴 DR-45 (I): Y at ANOTHER rate (a royalty, 15 %) would change the tax on correctly recorded cash (3,800 left) —
+    //    the treatment of that difference is open (W-16/W-2), so without a cash statement it is refused, nothing written.
+    const before = await counts();
+    const e = await refusal(inA(() => whtCorrectionService.correct(orig.id, { reason: "paid to the wrong supplier's bill", date: "2026-06-22", reentry: { billId: bz, amount: 4_000, paidAt: "2026-06-12" } }, userId)));
+    expect([e.statusCode, e.payload?.code]).toEqual([409, "wht_correction_changes_cash"]);
+    expect(await counts()).toEqual(before);
+    // Y of the SAME nature: the cash is unchanged, so the supplier change completes as before
     const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "paid to the wrong supplier's bill", date: "2026-06-22", reentry: { billId: by, amount: 4_000, paidAt: "2026-06-12" } }, userId));
-    expect([out.reentry!.vendorId, out.reentry!.paymentType, out.reentry!.whtAmount]).toEqual([v.other, "royalty", 600]);
+    expect([out.reentry!.vendorId, out.reentry!.paymentType, out.reentry!.whtAmount]).toEqual([v.tech2, "technical_consulting", 200]);
     expect([await owes(bx), await owes(by)]).toEqual([4_000, 0]);
     expect(await w1()).toMatchObject({ reconciles: true });
   });
@@ -182,7 +208,8 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
     await payA(b, 2_000, "2026-07-28");
     const [orig] = await whtOfBill(b);
     const julyBefore = await dbReturnTax(coA, "2026-07"), augBefore = await dbReturnTax(coA, "2026-08");
-    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "the transfer left on 2 August", date: "2026-08-03", reentry: { amount: 2_000, paidAt: "2026-08-02" } }, userId));
+    // DR-45 (I): the recorded DATE of the cash was wrong — a cash movement is restated, so it is stated (1,900 left on 2 August)
+    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "the transfer left on 2 August", date: "2026-08-03", reentry: { amount: 2_000, paidAt: "2026-08-02", recordedCashWasWrong: true, actualCash: 1_900 } }, userId));
     expect(out.correction!.reversalReturnPeriod, "unfiled: the reversal is reported in the original's own month").toBe("2026-07");
     expect([await dbReturnTax(coA, "2026-07") - julyBefore, await dbReturnTax(coA, "2026-08") - augBefore]).toEqual([-100, 100]);
     expect(out.reentry!.returnPeriod).toBe("2026-08");
@@ -193,13 +220,18 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
     await payA(b, 3_000, "2026-06-13");
     const [orig] = await whtOfBill(b);
     const before = await dbReturnTax(coA, "2026-06");
-    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "these were spare parts — goods", date: "2026-06-23", reentry: { amount: 3_000, paidAt: "2026-06-13", whtNotSubjectReason: "goods" } }, userId));
+    // 🔴 DR-45 (I): 2,850 left the bank and was right; goods are not subject, so the corrected payment is the 2,850 the
+    //    supplier actually received — the cash is unchanged, the bill owes the 150 withheld in error again.
+    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "these were spare parts — goods", date: "2026-06-23", reentry: { amount: 2_850, paidAt: "2026-06-13", whtNotSubjectReason: "goods" } }, userId));
     expect([out.reentry!.status, out.reentry!.notSubjectReason, out.reentry!.whtAmount]).toEqual(["not_subject", "goods", 0]);
+    expect(await owes(b)).toBe(150);
     expect(await dbReturnTax(coA, "2026-06") - before).toBe(-150);
     expect(await w1()).toMatchObject({ reconciles: true });
   });
 
   it("🔴 FILED month, SUBSEQUENT PERIOD: refused without a treatment; with it, the filed May return is untouched and September carries −old +new", async () => {
+    // DR-45 (I): this scenario tests the return mechanics; its re-entry changes the cash, so it carries the statement
+    // that the recorded cash was wrong (without it, the correction is refused — see WRONG RATE).
     const b = await bill(inA, v.tech!, 8_000, "2026-05-01");
     await payA(b, 8_000, "2026-05-10");
     const [orig] = await whtOfBill(b);
@@ -207,11 +239,11 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
     expect([filed.filing.status, filed.filing.latest!.taxWithheld]).toEqual(["filed", filed.totals.taxWithheld]);
     expect(filed.filing.latest!.taxWithheld, "the snapshot is the ledger's own figure").toBe(await dbReturnTax(coA, "2026-05"));
     const before = await counts();
-    const e = await refusal(inA(() => whtCorrectionService.correct(orig.id, { reason: "royalty, not consulting", date: "2026-09-10", reentry: { amount: 8_000, paidAt: "2026-05-10", whtPaymentType: "royalty" } }, userId)));
+    const e = await refusal(inA(() => whtCorrectionService.correct(orig.id, { reason: "royalty, not consulting", date: "2026-09-10", reentry: { amount: 8_000, paidAt: "2026-05-10", whtPaymentType: "royalty", recordedCashWasWrong: true, actualCash: 6_800 } }, userId)));
     expect([e.statusCode, e.payload?.code]).toEqual([409, "wht_month_filed"]);
     expect(await counts(), "refused: nothing written").toEqual(before);
     const septBefore = await dbReturnTax(coA, "2026-09");
-    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "royalty, not consulting", date: "2026-09-10", filedMonthTreatment: "subsequent_period", reentry: { amount: 8_000, paidAt: "2026-05-10", whtPaymentType: "royalty" } }, userId));
+    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "royalty, not consulting", date: "2026-09-10", filedMonthTreatment: "subsequent_period", reentry: { amount: 8_000, paidAt: "2026-05-10", whtPaymentType: "royalty", recordedCashWasWrong: true, actualCash: 6_800 } }, userId));
     expect(out.correction).toMatchObject({ reversalReturnPeriod: "2026-09", filedMonthTreatment: "subsequent_period", originalFilingId: filed.filing.latest!.id });
     expect([out.reentry!.returnPeriod, out.reentry!.filedMonthTreatment, out.reentry!.paymentDate]).toEqual(["2026-09", "subsequent_period", "2026-05-10"]);
     const may = await inA(() => whtService.monthlyReturn("2026-05"));
@@ -227,11 +259,13 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
   });
 
   it("🔴 FILED month, AMENDMENT: April's live return changes, reads AMENDMENT DUE beside the filed figure, and reads AMENDED once the amendment is recorded", async () => {
+    // DR-45 (I): this scenario tests the return mechanics; its re-entry changes the cash, so it carries the statement
+    // that the recorded cash was wrong (without it, the correction is refused — see WRONG RATE).
     const b = await bill(inA, v.tech!, 6_000, "2026-04-01");
     await payA(b, 6_000, "2026-04-10");
     const [orig] = await whtOfBill(b);
     const filed = await inA(() => whtService.fileReturn("2026-04", { filedOn: "2026-05-08", zatcaReference: "WHT-0426-001" }, userId));
-    await inA(() => whtCorrectionService.correct(orig.id, { reason: "management fee, not consulting", date: "2026-09-11", filedMonthTreatment: "amendment", reentry: { amount: 6_000, paidAt: "2026-04-10", whtPaymentType: "management_fee" } }, userId));
+    await inA(() => whtCorrectionService.correct(orig.id, { reason: "management fee, not consulting", date: "2026-09-11", filedMonthTreatment: "amendment", reentry: { amount: 6_000, paidAt: "2026-04-10", whtPaymentType: "management_fee", recordedCashWasWrong: true, actualCash: 4_800 } }, userId));
     const apr = await inA(() => whtService.monthlyReturn("2026-04"));
     expect([apr.filing.status, apr.filing.latest!.taxWithheld, apr.totals.taxWithheld]).toEqual(["amendment_due", filed.totals.taxWithheld, filed.totals.taxWithheld - 300 + 1_200]);
     expect((await inA(() => whtService.overview())).months.find((m) => m.period === "2026-04")!.filingStatus).toBe("amendment_due");
@@ -241,11 +275,13 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
   });
 
   it("🔴 REMITTED month: correcting a remitted withholding records the state (remitted at correction) and leaves the month in CREDIT — never netted elsewhere, no further remittance", async () => {
+    // DR-45 (I): this scenario tests the return mechanics; its re-entry changes the cash, so it carries the statement
+    // that the recorded cash was wrong (without it, the correction is refused — see WRONG RATE).
     const b = await bill(inA, v.other!, 10_000, "2026-03-01");
     await payA(b, 10_000, "2026-03-10"); // royalty 15 % → 1,500
     const [orig] = await whtOfBill(b);
     await inA(() => whtService.remit("2026-03", { bankAccountId: bankA, paidAt: "2026-04-08", reference: "SADAD-0326" }, userId));
-    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "rent of equipment, not a royalty", date: "2026-04-20", reentry: { amount: 10_000, paidAt: "2026-03-10", whtPaymentType: "rent" } }, userId));
+    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "rent of equipment, not a royalty", date: "2026-04-20", reentry: { amount: 10_000, paidAt: "2026-03-10", whtPaymentType: "rent", recordedCashWasWrong: true, actualCash: 9_500 } }, userId));
     expect(out.correction!.remittedAtCorrection, "the REMITTED state, written by the database").toBe(1_500);
     const mar = await inA(() => whtService.monthlyReturn("2026-03"));
     expect([mar.totals.taxWithheld, mar.totals.remitted, mar.totals.outstanding, mar.status]).toEqual([500, 1_500, -1_000, "credit"]);
@@ -298,13 +334,15 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
   });
 
   it("🔴 a SUPPLIER payment: its own allocations are superseded by the same mirror, the money leaves on-account, the statement and AP reconcile on EVERY component; a touched payment is refused", async () => {
+    // DR-45 (I): this scenario tests the return mechanics; its re-entry changes the cash, so it carries the statement
+    // that the recorded cash was wrong (without it, the correction is refused — see WRONG RATE).
     const b = await bill(inA, v.tech!, 5_000, "2026-09-01");
     const pay = await inA(() => supplierPaymentsService.create({ vendorId: v.tech, bankAccountId: bankA, amount: 8_000, paidAt: "2026-09-02", classification: "advance", allocations: [{ billId: b, amount: 5_000 }] }, userId)) as { id: number };
     const [orig] = await q(`SELECT * FROM wht_withholdings WHERE supplier_payment_id = $1`, [pay.id]);
     expect(Number(orig.wht_amount)).toBe(400);
     const out = await inA(() => whtCorrectionService.correct(orig.id, {
       reason: "advance was for a licence (royalty)", date: "2026-09-05",
-      reentry: { amount: 8_000, paidAt: "2026-09-02", classification: "advance", allocations: [{ billId: b, amount: 5_000 }], whtPaymentType: "royalty" },
+      reentry: { amount: 8_000, paidAt: "2026-09-02", classification: "advance", allocations: [{ billId: b, amount: 5_000 }], whtPaymentType: "royalty", recordedCashWasWrong: true, actualCash: 6_800 },
     }, userId));
     expect([out.reentry!.whtAmount, out.reentry!.supplierPaymentId != null]).toEqual([1_200, true]);
     const original = await inA(() => supplierPaymentsService.getById(pay.id));

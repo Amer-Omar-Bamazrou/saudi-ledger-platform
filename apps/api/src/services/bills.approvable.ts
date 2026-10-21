@@ -19,7 +19,7 @@
  * Built as a per-request factory because approval carries request options
  * (`debitAccount`, `force`); submit/send-back/reject need no options.
  */
-import { BusinessRuleError } from "../lib/errors";
+import { BusinessRuleError, NotFoundError } from "../lib/errors";
 import { round2 } from "../lib/money";
 import { postJournalEntry } from "./accounting/glPosting";
 import { documentSign } from "../repositories/reports.repository";
@@ -190,6 +190,10 @@ export interface BillApproveOptions {
  */
 async function fullOut(billId: number): Promise<BillOut> {
   const [r] = await billsRepository.findWithVendor(billId);
+  // 🔴 The bill can be gone by now: the approval engine snapshots AFTER its `load`, and a reject that
+  // committed in between deleted it (the R3 residual; CI runs 39620756398 and 39662603965 answered 500 with
+  // a TypeError here). Answer as the same act answers sequentially once the bill is gone.
+  if (!r) throw new NotFoundError("Not found");
   const items = await billsRepository.itemsByBill(billId);
   const prepayments = await supplierAdvanceInvoicesService.prepaymentsOf(billId);
   return buildBillOut(r!.bill, r!.vendor, items, r!.outstanding, r!.prepaid, prepayments);

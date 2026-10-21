@@ -15,7 +15,7 @@
  */
 import { purchaseOrdersRepository } from "../repositories/purchaseOrders.repository";
 import { buildPurchaseOrderOut, type PurchaseOrderOut } from "./purchaseOrders.presenter";
-import type { Approvable, ApprovalState } from "./approval";
+import { checkedState, TransitionNotApplied, type Approvable, type ApprovalState } from "./approval";
 import type { purchaseOrdersTable, vendorsTable } from "@workspace/db";
 
 type PurchaseOrder = typeof purchaseOrdersTable.$inferSelect;
@@ -30,6 +30,9 @@ async function snapshot(row: PurchaseOrderRow): Promise<PurchaseOrderOut> {
 export function purchaseOrderApprovable(): Approvable<PurchaseOrderRow, PurchaseOrderOut> {
   return {
     entityType: "purchase_order",
+    // 🔴 Phase 18 (2.4, proof e3): every write below applies only from the state the engine checked (the mirror of
+    // quotations: transitions keyed on id alone let a loser overwrite or remove an approved order, or answer 500).
+    compareAndSet: true,
 
     async load(id) {
       const [row] = await purchaseOrdersRepository.findWithVendor(id);
@@ -44,33 +47,37 @@ export function purchaseOrderApprovable(): Approvable<PurchaseOrderRow, Purchase
 
     snapshot,
 
-    async onApprove(row) {
-      const [updated] = await purchaseOrdersRepository.update(row.po.id, {
+    async onApprove(row, _actor, from) {
+      const [updated] = await purchaseOrdersRepository.updateIfStatus(row.po.id, checkedState(from), {
         status: "approved",
         reviewNote: null,
       });
+      if (!updated) throw new TransitionNotApplied();
       return snapshot({ po: updated, vendor: row.vendor });
     },
 
     async onSubmit(row) {
-      const [updated] = await purchaseOrdersRepository.update(row.po.id, {
+      const [updated] = await purchaseOrdersRepository.updateIfStatus(row.po.id, "draft", {
         status: "submitted",
         reviewNote: null,
       });
+      if (!updated) throw new TransitionNotApplied();
       return snapshot({ po: updated, vendor: row.vendor });
     },
 
     async onSendBack(row, _actor, note) {
-      const [updated] = await purchaseOrdersRepository.update(row.po.id, {
+      const [updated] = await purchaseOrdersRepository.updateIfStatus(row.po.id, "submitted", {
         status: "draft",
         reviewNote: note?.trim() ? note.trim() : null,
       });
+      if (!updated) throw new TransitionNotApplied();
       return snapshot({ po: updated, vendor: row.vendor });
     },
 
-    async hardDelete(row) {
-      await purchaseOrdersRepository.deleteItems(row.po.id);
-      await purchaseOrdersRepository.delete(row.po.id);
+    async hardDelete(row, from) {
+      // Removed only while still in the state the engine checked; its lines cascade on the FK.
+      const [removed] = await purchaseOrdersRepository.removeIfStatus(row.po.id, checkedState(from));
+      if (!removed) throw new TransitionNotApplied();
     },
   };
 }

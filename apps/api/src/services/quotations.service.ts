@@ -308,7 +308,16 @@ export const quotationsService = {
       ).toFixed(2);
     }
 
-    const [updated] = await quotationsRepository.update(id, values);
+    // 🔴 Phase 18 (2.4, proof e2): written only while the quotation is still editable, in the same statement. The
+    //    checks above read it unlocked, so a submit could commit in between and the edit landed on a quotation
+    //    locked in the approver's queue. Nothing of the edit is kept (the request rolls back, its lines included).
+    const [updated] = await quotationsRepository.updateEditable(id, values);
+    if (!updated) {
+      const [now] = await quotationsRepository.findById(id);
+      if (!now) throw new NotFoundError("Not found");
+      if (now.outcome) throw new ConflictError(`This quotation was ${now.outcome} and can no longer be edited.`);
+      throw new ConflictError("A submitted quotation is locked while it awaits approval. Ask for it to be sent back.");
+    }
     await auditService.updated("quotation", id, existing, updated);
     return this.getById(id);
   },
@@ -375,6 +384,10 @@ export const quotationsService = {
    * before reaching the guard.
    */
   async deleteDraft(id: number) {
+    // 🔴 Phase 18 (2.4, proof e2): the quotation is LOCKED first, then read. Only a DRAFT is deleted: this removed an
+    //    approved or submitted quotation (sequentially, and behind an approval), and raced a conversion into a
+    //    deadlock or an unmapped FK error. Under the lock it waits for a conversion in flight and then sees it.
+    if (!(await quotationsRepository.lockForUpdate(id))) throw new NotFoundError("Not found");
     const [existing] = await quotationsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     // A converted quotation is the record of what the customer agreed to, and
@@ -385,8 +398,15 @@ export const quotationsService = {
         "This quotation has been converted into an invoice and cannot be deleted. Close it instead.",
       );
     }
-    await quotationsRepository.deleteItems(id);
-    await quotationsRepository.delete(id);
+    if (existing.status !== "draft") {
+      throw new ConflictError(
+        existing.status === "submitted"
+          ? "A submitted quotation is in the approver's queue and cannot be deleted. Ask for it to be sent back, or have it rejected."
+          : "An approved quotation is a record of what was offered and cannot be deleted. Close it instead.",
+      );
+    }
+    const [removed] = await quotationsRepository.removeIfStatus(id, "draft"); // its lines cascade on the FK
+    if (!removed) throw new NotFoundError("Not found");
     await auditService.deleted("quotation", id, existing);
     return { deleted: true };
   },
