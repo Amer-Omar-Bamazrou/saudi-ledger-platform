@@ -256,7 +256,15 @@ export const purchaseOrdersService = {
       await purchaseOrdersRepository.deleteItemsByIds([...existingIds].filter((e) => !keptIds.has(e)));
     }
 
-    const [updated] = await purchaseOrdersRepository.update(id, values);
+    // 🔴 Phase 18 (2.4, proof e3): written only while the order is still editable, in the same statement (a submit
+    //    committing between the unlocked checks above and this write let the edit land on a locked order).
+    const [updated] = await purchaseOrdersRepository.updateEditable(id, values);
+    if (!updated) {
+      const [now] = await purchaseOrdersRepository.findById(id);
+      if (!now) throw new NotFoundError("Not found");
+      if (now.outcome) throw new ConflictError(`This order was ${now.outcome} and can no longer be edited.`);
+      throw new ConflictError("A submitted order is locked while it awaits approval. Ask for it to be sent back.");
+    }
     await auditService.updated("purchase_order", id, existing, updated);
     return this.getById(id);
   },
@@ -317,6 +325,8 @@ export const purchaseOrdersService = {
    * before reaching the guard.
    */
   async deleteDraft(id: number) {
+    // 🔴 Phase 18 (2.4, proof e3): LOCKED first, then read; only a DRAFT is deleted (see quotations.service).
+    if (!(await purchaseOrdersRepository.lockForUpdate(id))) throw new NotFoundError("Not found");
     const [existing] = await purchaseOrdersRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (await purchaseOrdersRepository.hasConversions(id)) {
@@ -324,8 +334,15 @@ export const purchaseOrdersService = {
         "This order has been billed and cannot be deleted. Close it instead.",
       );
     }
-    await purchaseOrdersRepository.deleteItems(id);
-    await purchaseOrdersRepository.delete(id);
+    if (existing.status !== "draft") {
+      throw new ConflictError(
+        existing.status === "submitted"
+          ? "A submitted order is in the approver's queue and cannot be deleted. Ask for it to be sent back, or have it rejected."
+          : "An approved order is a record of what was ordered and cannot be deleted. Close it instead.",
+      );
+    }
+    const [removed] = await purchaseOrdersRepository.removeIfStatus(id, "draft"); // its lines cascade on the FK
+    if (!removed) throw new NotFoundError("Not found");
     await auditService.deleted("purchase_order", id, existing);
     return { deleted: true };
   },

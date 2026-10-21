@@ -12,12 +12,12 @@
  * RESIDUAL RISK of the adapters not yet converted (owner decision 2026-10-18:
  * out of PR A, risk documented, not tested):
  *  - budgetVersionApprovable, taxComputationVersionApprovable — their services
- *    already take row locks, but no race on their transitions has been proved
- *    safe;
- *  - quotationApprovable, purchaseOrderApprovable — no lock, and by reading
- *    the same check-then-act shape the B-G08R-P proofs reproduced on the
- *    other adapters (an act queued behind an approval writing keyed on id
- *    only). Untested.
+ *    already take row locks; the Phase 18 (2.4) proofs forced every ordering of
+ *    their transitions and found them SAFE (2026-10-21), so they stay as they are.
+ *
+ * quotationApprovable and purchaseOrderApprovable LEFT the list on 2026-10-21
+ * (Phase 18 2.4): the proofs reproduced the check-then-act races on both, and
+ * they are now on compare-and-set.
  *
  * Scans the source (not the tests) for `approvalService.<transition>(<adapter>`
  * calls and reads each adapter's own definition.
@@ -30,8 +30,6 @@ const SRC = path.resolve(import.meta.dirname, "..");
 
 const NOT_YET_ON_COMPARE_AND_SET = [
   "budgetVersionApprovable",
-  "purchaseOrderApprovable",
-  "quotationApprovable",
   "taxComputationVersionApprovable",
 ];
 
@@ -70,6 +68,6 @@ describe("the approval engine's adapters are on compare-and-set, or named as not
       (/\bcompareAndSet:\s*true\b/.test(own) ? onCompareAndSet : notOnCompareAndSet).push(name);
     }
     expect(notOnCompareAndSet.sort(), "adapters NOT on compare-and-set — this list may only shrink").toEqual(NOT_YET_ON_COMPARE_AND_SET);
-    expect(onCompareAndSet.sort()).toEqual(["billApprovable", "invoiceApprovable", "journalEntryApprovable", "payrollApprovable"]);
+    expect(onCompareAndSet.sort()).toEqual(["billApprovable", "invoiceApprovable", "journalEntryApprovable", "payrollApprovable", "purchaseOrderApprovable", "quotationApprovable"]);
   });
 });

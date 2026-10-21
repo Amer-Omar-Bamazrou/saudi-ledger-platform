@@ -1540,7 +1540,7 @@ export const updateQuotation = async (id: number,
 
 
 
-export const getUpdateQuotationMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdateQuotationMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateQuotation>>, TError,{id: number;data: BodyType<UpdateQuotationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateQuotation>>, TError,{id: number;data: BodyType<UpdateQuotationInput>}, TContext> => {
 
@@ -1569,13 +1569,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateQuotationMutationResult = NonNullable<Awaited<ReturnType<typeof updateQuotation>>>
     export type UpdateQuotationMutationBody = BodyType<UpdateQuotationInput>
-    export type UpdateQuotationMutationError = ErrorType<unknown>
+    export type UpdateQuotationMutationError = ErrorType<ErrorResponse>
 
     /**
  * @summary Edit a quotation. Allowed while draft AND while approved - unlike an invoice, because a quotation is an offer rather than a legal document and renegotiating an unaccepted price is ordinary business. Locked while submitted, and after the tenant has declined or closed it.
 
  */
-export const useUpdateQuotation = <TError = ErrorType<unknown>,
+export const useUpdateQuotation = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateQuotation>>, TError,{id: number;data: BodyType<UpdateQuotationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateQuotation>>,
@@ -1595,7 +1595,7 @@ export const getDeleteQuotationUrl = (id: number,) => {
 }
 
 /**
- * @summary Delete a quotation (admin only)
+ * @summary Delete a DRAFT quotation (admin only). A submitted, approved or converted quotation is not deleted.
  */
 export const deleteQuotation = async (id: number, options?: RequestInit): Promise<void> => {
 
@@ -1612,7 +1612,7 @@ export const deleteQuotation = async (id: number, options?: RequestInit): Promis
 
 
 
-export const getDeleteQuotationMutationOptions = <TError = ErrorType<unknown>,
+export const getDeleteQuotationMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteQuotation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteQuotation>>, TError,{id: number}, TContext> => {
 
@@ -1641,12 +1641,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteQuotationMutationResult = NonNullable<Awaited<ReturnType<typeof deleteQuotation>>>
 
-    export type DeleteQuotationMutationError = ErrorType<unknown>
+    export type DeleteQuotationMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Delete a quotation (admin only)
+ * @summary Delete a DRAFT quotation (admin only). A submitted, approved or converted quotation is not deleted.
  */
-export const useDeleteQuotation = <TError = ErrorType<unknown>,
+export const useDeleteQuotation = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteQuotation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteQuotation>>,
@@ -2582,7 +2582,7 @@ export const updatePurchaseOrder = async (id: number,
 
 
 
-export const getUpdatePurchaseOrderMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdatePurchaseOrderMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseOrder>>, TError,{id: number;data: BodyType<CreatePurchaseOrderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseOrder>>, TError,{id: number;data: BodyType<CreatePurchaseOrderInput>}, TContext> => {
 
@@ -2611,13 +2611,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdatePurchaseOrderMutationResult = NonNullable<Awaited<ReturnType<typeof updatePurchaseOrder>>>
     export type UpdatePurchaseOrderMutationBody = BodyType<CreatePurchaseOrderInput>
-    export type UpdatePurchaseOrderMutationError = ErrorType<unknown>
+    export type UpdatePurchaseOrderMutationError = ErrorType<ErrorResponse>
 
     /**
  * @summary Edit. Allowed while draft AND approved; locked while submitted and after a terminal outcome. A line the supplier has already billed cannot have its ordered quantity or price changed.
 
  */
-export const useUpdatePurchaseOrder = <TError = ErrorType<unknown>,
+export const useUpdatePurchaseOrder = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseOrder>>, TError,{id: number;data: BodyType<CreatePurchaseOrderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updatePurchaseOrder>>,
@@ -2637,7 +2637,7 @@ export const getDeletePurchaseOrderUrl = (id: number,) => {
 }
 
 /**
- * @summary Delete a purchase order (admin only; refused once billed)
+ * @summary Delete a DRAFT purchase order (admin only). A submitted, approved or billed order is not deleted.
  */
 export const deletePurchaseOrder = async (id: number, options?: RequestInit): Promise<void> => {
 
@@ -2654,7 +2654,7 @@ export const deletePurchaseOrder = async (id: number, options?: RequestInit): Pr
 
 
 
-export const getDeletePurchaseOrderMutationOptions = <TError = ErrorType<unknown>,
+export const getDeletePurchaseOrderMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseOrder>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseOrder>>, TError,{id: number}, TContext> => {
 
@@ -2683,12 +2683,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeletePurchaseOrderMutationResult = NonNullable<Awaited<ReturnType<typeof deletePurchaseOrder>>>
 
-    export type DeletePurchaseOrderMutationError = ErrorType<unknown>
+    export type DeletePurchaseOrderMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Delete a purchase order (admin only; refused once billed)
+ * @summary Delete a DRAFT purchase order (admin only). A submitted, approved or billed order is not deleted.
  */
-export const useDeletePurchaseOrder = <TError = ErrorType<unknown>,
+export const useDeletePurchaseOrder = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseOrder>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deletePurchaseOrder>>,
