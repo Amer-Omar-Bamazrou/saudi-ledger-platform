@@ -103,7 +103,7 @@ import { assertAssetOwnedByCompany } from "./accounting/tenantReferences";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { billApprovable, type BillApproveOptions } from "./bills.approvable";
-import { payBill } from "./bills.payment";
+import { BillPaymentReplay, payBill } from "./bills.payment";
 import { buildBillOut } from "./bills.presenter";
 import { billsRepository, BILL_DRAFT_EDITABLE, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
@@ -477,8 +477,13 @@ export const billsService = {
    * (`bills.payment.ts`), then read the bill back through the one definition,
    * so the response carries what it owes NOW.
    */
-  async pay(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown }, userId: number | null) {
-    await payBill(id, body, userId);
+  async pay(id: number, body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; idempotencyKey?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown }, userId: number | null) {
+    try {
+      await payBill(id, body, userId);
+    } catch (err) {
+      // G36-KEY: a retry of a payment already recorded under its key — nothing was written; answer as the first did.
+      if (!(err instanceof BillPaymentReplay)) throw err;
+    }
     return billsService.getById(id);
   },
 
