@@ -19,7 +19,7 @@
  * provision a bookkeeper and make the approval feature usable end to end.
  * Cross-org management and invites are Phase 1 onboarding work.
  */
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
+import { BadRequestError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { membersRepository } from "../repositories/members.repository";
 import { assertAccountConfinedTo, recordOperatorTargetRefused } from "../lib/accountScope";
 import { operatorsRepository } from "../repositories/operators.repository";
@@ -35,8 +35,12 @@ export interface MemberActionContext {
 export const VALID_MEMBERSHIP_ROLES = ["admin", "accountant", "bookkeeper", "viewer"] as const;
 export type MembershipRole = (typeof VALID_MEMBERSHIP_ROLES)[number];
 
-/** G03: the one refusal of `membersRepository.withLastAdminGuard`, on every path. */
-export const lastAdminRefusal = () => new ConflictError("Cannot remove the last admin of the organization.");
+/**
+ * G03: the one refusal of `membersRepository.withLastAdminGuard`, on every path —
+ * 409 with the structured `code` the Users screen keys its words on.
+ */
+export const lastAdminRefusal = () =>
+  new BusinessRuleError(409, { error: "Cannot remove the last admin of the organization.", code: "last_admin_required" });
 
 /** Explicitly require the actor to be an active admin of THIS org (no ambient context). */
 async function assertOrgAdmin(actorUserId: number, orgId: string): Promise<void> {

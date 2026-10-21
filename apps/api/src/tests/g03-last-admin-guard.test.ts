@@ -33,6 +33,7 @@ const REAL_DB = !!url && !url.includes("placeholder");
 const describeMaybe = REAL_DB ? describe : describe.skip;
 const PW = "G03RegressionPw123!";
 const REFUSAL = "Cannot remove the last admin of the organization.";
+const CODE = "last_admin_required";
 
 describeMaybe("G03 — the last usable admin cannot be removed on any path", () => {
   const h = g04Harness("g03reg");
@@ -79,7 +80,7 @@ describeMaybe("G03 — the last usable admin cannot be removed on any path", () 
 
   beforeAll(async () => {
     await h.cleanup();
-    for (const key of ["solo", "pair", "dormant", "self", "acct", "race", "mixed"]) {
+    for (const key of ["solo", "pair", "dormant", "self", "acct", "race", "mixed", "isop", "isoq"]) {
       orgs[key] = await h.mkOrg(key);
       await h.mkCompany(orgs[key]!, `G03 ${key}`, `31818181818${String(Object.keys(orgs).length).padStart(2, "0")}03`);
     }
@@ -96,8 +97,12 @@ describeMaybe("G03 — the last usable admin cannot be removed on any path", () 
     ids.race2 = await h.mkUser("race2", PW, orgs.race!, "admin");
     ids.mixed1 = await h.mkUser("mixed1", PW, orgs.mixed!, "admin");
     ids.mixed2 = await h.mkUser("mixed2", PW, orgs.mixed!, "admin");
+    // isox is the ONLY admin of isop, and one of two admins of isoq (with isoy).
+    ids.isox = await h.mkUser("isox", PW, orgs.isop!, "admin");
+    await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [ids.isox, orgs.isoq]);
+    ids.isoy = await h.mkUser("isoy", PW, orgs.isoq!, "admin");
     await h.start();
-    for (const who of ["solo", "pair1", "dormant1", "self1", "acct1", "race1", "race2", "mixed1", "mixed2"]) {
+    for (const who of ["solo", "pair1", "dormant1", "self1", "acct1", "race1", "race2", "mixed1", "mixed2", "isox"]) {
       expect(await h.login(who, h.email(who), PW), `login ${who}`).toBe(200);
     }
     // dormant2 holds an ACTIVE admin membership on an INACTIVE account: an admin who cannot sign in.
@@ -108,7 +113,7 @@ describeMaybe("G03 — the last usable admin cannot be removed on any path", () 
   it("assign: the last admin re-assigning themselves a lesser role is refused (409, the guard's message) and nothing changes; a bookkeeper's role still changes (control)", async () => {
     const before = await state(orgs.solo!);
     const r = await h.api("solo", "POST", `/orgs/${orgs.solo}/members`, { userId: ids.solo, role: "bookkeeper" });
-    expect([r.status, r.body?.error]).toEqual([409, REFUSAL]);
+    expect([r.status, r.body?.error, r.body?.code]).toEqual([409, REFUSAL, CODE]);
     expect(await state(orgs.solo!)).toEqual(before);
     const ok = await h.api("solo", "POST", `/orgs/${orgs.solo}/members`, { userId: ids.solobk, role: "accountant" });
     expect(ok.status, JSON.stringify(ok.body)).toBe(201);
@@ -135,14 +140,29 @@ describeMaybe("G03 — the last usable admin cannot be removed on any path", () 
 
   it("account deactivation: the last usable admin cannot deactivate their own account (409; they can still sign in); deactivating ANOTHER admin's account while one remains goes through (200)", async () => {
     const self = await h.api("self1", "PATCH", `/auth/users/${ids.self1}`, { isActive: false });
-    expect([self.status, self.body?.error]).toEqual([409, REFUSAL]);
-    expect(await h.login("self1-again", h.email("self1"), PW)).toBe(200);
+    expect([self.status, self.body?.error, self.body?.code]).toEqual([409, REFUSAL, CODE]);
+    expect((await state(orgs.self!)).find((m) => m.user_id === ids.self1)?.is_active, "the account is still active (it can sign in)").toBe(true);
     const other = await h.api("acct1", "PATCH", `/auth/users/${ids.acct2}`, { isActive: false });
     expect(other.status, JSON.stringify(other.body)).toBe(200);
     expect(await usableAdmins(orgs.acct!)).toBe(1);
     const then = await h.api("acct1", "PATCH", `/auth/users/${ids.acct1}`, { isActive: false });
     expect([then.status, then.body?.error]).toEqual([409, REFUSAL]);
     expect(await usableAdmins(orgs.acct!)).toBe(1);
+  });
+
+  it("ISOLATION: each organisation counts its OWN admins — the account that is isop's only admin is refused there (deactivation 409, step-down 409) though isoq keeps isoy, and isoq is untouched by those refusals; in isoq it steps down (201)", async () => {
+    expect([await usableAdmins(orgs.isop!), await usableAdmins(orgs.isoq!)]).toEqual([1, 2]);
+    const q0 = await state(orgs.isoq!);
+    const account = await h.api("isox", "PATCH", `/auth/users/${ids.isox}`, { isActive: false });
+    expect([account.status, account.body?.code], JSON.stringify(account.body)).toEqual([409, CODE]);
+    const inP = await h.api("isox", "POST", `/orgs/${orgs.isop}/members`, { userId: ids.isox, role: "accountant" });
+    expect([inP.status, inP.body?.code], JSON.stringify(inP.body)).toEqual([409, CODE]);
+    expect([await usableAdmins(orgs.isop!), await usableAdmins(orgs.isoq!)]).toEqual([1, 2]);
+    expect(await state(orgs.isoq!), "isoq is untouched by isop's refusals").toEqual(q0);
+    // Movement: the same act in isoq, where another admin remains, goes through — and isop does not move.
+    const inQ = await h.api("isox", "POST", `/orgs/${orgs.isoq}/members`, { userId: ids.isox, role: "accountant" });
+    expect(inQ.status, JSON.stringify(inQ.body)).toBe(201);
+    expect([await usableAdmins(orgs.isop!), await usableAdmins(orgs.isoq!)], "isoq moved; isop did not").toEqual([1, 1]);
   });
 
   it("🔴 RACE (forced) — two admins demote EACH OTHER at once: one applied, the other the guard's 409; the organisation keeps one usable admin", async () => {
