@@ -132,6 +132,8 @@ test.describe.serial("Phase 16 + 17 — the accountant's answers, by clicking", 
     // 🔴 DR-45 (I), the browser leg of each refusal the panel can reach. Re-entering at 8,000 records 7,600 of cash
     //    where the payment recorded 9,500: without the statement that the RECORDED cash was wrong, it is refused,
     //    titled by its code — in Arabic, then in English — and nothing is written.
+    // (localStorage belongs to the app's origin: load a page before setting the language — on about:blank it throws)
+    await page.goto(`/tax/withholding?tab=return&period=${PERIOD}`);
     await page.evaluate(() => localStorage.setItem("ksa_lang", "ar"));
     let panel = await openPanel();
     await panel.getByTestId("wht-correct-submit").click();
