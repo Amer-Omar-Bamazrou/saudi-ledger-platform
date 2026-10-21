@@ -47,6 +47,7 @@ import { checkPeriodOpen } from "../accounting/periodLock";
 import { latestFilingOf, WHT_FILED_MONTH_TREATMENTS, type WhtFiledMonthTreatment } from "../accounting/wht";
 import { auditService } from "../audit.service";
 import { whtService } from "./wht.service";
+import { fromHalalas, toHalalas } from "../../lib/money";
 
 const MAX_ID = 2_147_483_647;
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -54,6 +55,60 @@ const refuse = (status: number, code: string, error: string, field?: string): ne
   throw new BusinessRuleError(status, { code, error, ...(field ? { field } : {}) });
 };
 const str = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined);
+const MONEY = /^\d+(\.\d{1,2})?$/;
+
+/**
+ * 🔴 DR-45 (I) — "the payment's recorded cash was wrong": the person's EXPLICIT statement and the cash that actually
+ * left the bank. Returns that cash (SAR), or null when no statement is made. Read before anything is written.
+ */
+function cashStatementOf(r: Record<string, unknown> | null): number | null {
+  if (!r) return null;
+  const said = r.recordedCashWasWrong;
+  if (said != null && typeof said !== "boolean") throw new BadRequestError("reentry.recordedCashWasWrong is true or false.");
+  const actual = r.actualCash;
+  if (said !== true) {
+    if (actual != null && actual !== "") {
+      refuse(422, "wht_actual_cash_without_statement", "The cash that actually left the bank is stated only together with the statement that the payment's recorded cash was wrong. Tick that statement, or leave the cash empty.", "reentry.actualCash");
+    }
+    return null;
+  }
+  const text = typeof actual === "number" ? String(actual) : typeof actual === "string" ? actual.trim() : "";
+  if (!MONEY.test(text) || !(Number(text) > 0)) {
+    refuse(422, "wht_actual_cash_required", "You stated that the payment's recorded cash was wrong: state the cash that actually left the bank (a positive amount, at most two decimals).", "reentry.actualCash");
+  }
+  return Number(text);
+}
+
+/**
+ * 🔴 DR-45 (I) — A CORRECTION NEVER REWRITES RECORDED CASH IMPLICITLY. The re-entry's pay path derives its cash
+ * (amount − tax), so a rate or category correction re-entered at the same amount used to record different cash for
+ * a payment whose cash was right — the bank ledger then disagreed with the bank (reproduced; register DR-45). Unless
+ * the person has stated that the recorded cash was wrong, the re-entry must move exactly the original's cash: the
+ * same bank(s), the same amount to the halala, on the same date. With the statement, it must move exactly the cash
+ * stated. Otherwise the whole correction is refused: it runs in one transaction, so nothing is written.
+ */
+async function assertCashKept(original: { id: number; date: string }, reentryEntryId: number, stated: number | null): Promise<void> {
+  const before = await journalEntriesRepository.cashMovementOf(original.id);
+  const after = await journalEntriesRepository.cashMovementOf(reentryEntryId);
+  const [re] = await journalEntriesRepository.findById(reentryEntryId);
+  const outH = (m: Array<{ outH: number }>) => m.reduce((s, l) => s + l.outH, 0);
+  const sar = (h: number) => fromHalalas(h).toFixed(2);
+  if (stated != null) {
+    if (outH(after) !== toHalalas(stated)) {
+      refuse(409, "wht_correction_cash_mismatch",
+        `You stated that ${stated.toFixed(2)} actually left the bank, but the corrected payment would record ${sar(outH(after))}. Re-enter it so that its cash is the cash you stated. Nothing was changed.`,
+        "reentry.actualCash");
+    }
+    return;
+  }
+  if (re?.date === original.date && JSON.stringify(before) === JSON.stringify(after)) return;
+  const banks = JSON.stringify(before.map((l) => l.bankAccountId)) === JSON.stringify(after.map((l) => l.bankAccountId)) ? "" : " from a different bank account";
+  refuse(409, "wht_correction_changes_cash",
+    `The payment's recorded cash is ${sar(outH(before))} leaving the bank on ${original.date}; the corrected payment would record ${sar(outH(after))} on ${re?.date ?? "?"}${banks}. ` +
+    "A correction never rewrites cash that was recorded correctly. If the original record of the cash was wrong, say so and state the cash that actually left. " +
+    "If the cash was right, a change of rate or category that changes the tax cannot be completed by re-entry while the treatment of the difference is an open question for your adviser (W-16, W-2). Nothing was changed.",
+    "reentry");
+}
 
 export const whtCorrectionService = {
   /**
@@ -86,6 +141,8 @@ export const whtCorrectionService = {
     if (!ISO.test(date)) throw new BadRequestError("date is a YYYY-MM-DD date.");
     if (date > today) refuse(422, "date_in_future", "A correction is recorded on a day that has happened.", "date");
     if (date < w.paymentDate) refuse(422, "date_before_payment", `The payment was made on ${w.paymentDate}; it cannot be reversed before it happened.`, "date");
+    const r = body.reentry && typeof body.reentry === "object" ? (body.reentry as Record<string, unknown>) : null;
+    const statedCash = cashStatementOf(r); // DR-45 (I): read before anything is written
 
     // ── the payment: still as it was posted ─────────────────────────────────
     let billPayment: Awaited<ReturnType<typeof taxRepository.billPaymentById>> | null = null;
@@ -171,9 +228,9 @@ export const whtCorrectionService = {
 
     // ── 3. the CORRECTED transaction: a new payment through the existing pay path ──
     let reentry: { kind: "bill_payment" | "supplier_payment"; id: number } | null = null;
-    const r = body.reentry && typeof body.reentry === "object" ? (body.reentry as Record<string, unknown>) : null;
     if (r) {
-      const link = { correction: { id: correction.id, correctionPeriod } };
+      // DR-45 (II): the pay path refuses a withheld re-entry of a payment made with nothing withheld
+      const link = { correction: { id: correction.id, correctionPeriod, originalStatus: w.status } };
       const decl = {
         whtPaymentType: r.whtPaymentType, whtNotSubjectReason: r.whtNotSubjectReason, whtNotSubjectNote: r.whtNotSubjectNote,
         // the person's one treatment applies to whichever leg falls in a filed month
@@ -188,6 +245,7 @@ export const whtCorrectionService = {
         } as Parameters<typeof payBill>[1], userId, link);
         await taxRepository.linkCorrection(correction.id, { correctedBillPaymentId: paid.billPaymentId });
         reentry = { kind: "bill_payment", id: paid.billPaymentId };
+        await assertCashKept(entry!, paid.journalEntryId, statedCash);
       } else {
         const original = await supplierPaymentsService.findOrThrow(w.supplierPaymentId!);
         const created = await supplierPaymentsService.create({
@@ -199,13 +257,14 @@ export const whtCorrectionService = {
         }, userId, link) as { id: number };
         await taxRepository.linkCorrection(correction.id, { correctedSupplierPaymentId: created.id });
         reentry = { kind: "supplier_payment", id: created.id };
+        await assertCashKept(entry!, (await supplierPaymentsService.findOrThrow(created.id)).journalEntryId, statedCash);
       }
     }
 
     await auditService.record({
       action: "wht_correct", entityType: "wht_withholding", entityId: withholdingId,
       before: { withholding: w, entryId: w.journalEntryId, returnPeriod: w.returnPeriod, filing: filedOriginal ? { id: filedOriginal.id, filedOn: filedOriginal.filedOn } : null },
-      after: { correctionId: correction.id, reason, correctedOn: date, reversalJournalEntryId: mirror.reversalId, reversalReturnPeriod, filedMonthTreatment: treatment, reentry, plansPaidByTheOriginal: plansPaid, by: userId },
+      after: { correctionId: correction.id, reason, correctedOn: date, reversalJournalEntryId: mirror.reversalId, reversalReturnPeriod, filedMonthTreatment: treatment, reentry, plansPaidByTheOriginal: plansPaid, recordedCashWasWrong: statedCash != null, statedActualCash: statedCash, by: userId },
     });
     return { ...(await this.lineage(withholdingId)), replayed: false };
   },
