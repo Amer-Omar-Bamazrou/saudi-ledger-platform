@@ -316,8 +316,13 @@ export const inputVatLedgerService = {
        * posted document can only mean a lost race (a sequential second approval
        * is refused by the engine before it gets here), and that shortcut let
        * the losing approval answer 200.
+       *
+       * 🔴 PR B (bill half): and only while the bill still carries the
+       * editable values the approval LOADED (`bill`), from which its entry was
+       * computed — a PATCH that committed after the load no longer leaves a
+       * posted bill whose stored figures disagree with its own entry.
        */
-      const [posted] = await billsRepository.updateIfStatus(bill.id, input.expectedStatus, cache);
+      const [posted] = await billsRepository.updateIfStatusAsLoaded(bill.id, input.expectedStatus, bill, cache);
       if (!posted) throw new TransitionNotApplied();
     } else {
       /**

@@ -340,9 +340,11 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
     icv,
     zatcaUuid,
     reviewNote: null,
-  }, [from]);
+  }, [from], inv);
   // G08: a reject, delete, submit or send-back committed between the re-read
-  // and this update. The engine answers it from the invoice as it is now.
+  // and this update — or (PR B, R1) a draft edit committed after the invoice
+  // was loaded, so the figures above are no longer its figures. The engine
+  // answers it from the invoice as it is now.
   if (!updated) throw new TransitionNotApplied();
 
   // ── ZATCA Phase 2 (M12.8) ─────────────────────────────────────────────────
