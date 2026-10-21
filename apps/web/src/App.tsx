@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, MutationCache, QueryCache } from '@ta
 import { ApiError } from '@/lib/api';
 import { notifyRateLimited, rateLimitedSecondsOf } from '@/lib/rateLimit';
 import { openingVatRefusalTitle, refusalOf } from '@/lib/openingVatRefusals';
+import { whtCorrectionRefusalTitle } from '@/lib/whtCorrectionRefusals';
 import { toast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -178,7 +179,8 @@ const queryClient = new QueryClient({
       // Phase 13B S1: a note against an opening payable (or its declaration) — the title says the next step,
       // keyed on the code from either client; the server's WHOLE sentence beneath.
       const s1 = refusalOf(error);
-      const s1Title = openingVatRefusalTitle(s1.code, tOutside);
+      // DR-45 (I): a WHT correction that would rewrite a payment's recorded cash — the same shape, its own titles
+      const s1Title = openingVatRefusalTitle(s1.code, tOutside) ?? whtCorrectionRefusalTitle(s1.code, tOutside);
       if (s1Title) {
         toast({ variant: "destructive", title: s1Title, description: s1.words });
         return;

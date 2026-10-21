@@ -106,11 +106,14 @@ export function WhtCorrectionPanel({ row, monthFilingStatus, onDone, onCancel }:
   const bills = useListBills(billParams, { query: { enabled: isBill && !!otherVendor, queryKey: getListBillsQueryKey(billParams) } });
   const openBills = (bills.data?.items ?? []).filter((b) => b.vendorId === vendorId && !["draft", "submitted"].includes(b.status) && b.documentType !== "credit_note" && Number(b.outstanding ?? 0) >= 0.01);
   const [wht, setWht] = useState<{ declaration: WhtDeclarationValue; ready: boolean }>({ declaration: {}, ready: true });
+  // 🔴 DR-45 (I): the re-entry keeps the cash that left the bank unless the person STATES the recorded cash was wrong
+  const [cashWrong, setCashWrong] = useState(false);
+  const [actualCash, setActualCash] = useState("");
   const key = useRef(crypto.randomUUID());
   const correct = useGuarded(useCorrectWhtWithholding({ mutation: { onSuccess: () => { toast({ title: t("Correction recorded — the original is kept beside it", "سُجِّل التصحيح — ويُحتفظ بالأصل بجانبه") }); key.current = crypto.randomUUID(); onDone(); } } }));
   // a filed month's treatment is asked for the REVERSAL here (the re-entry's own month is asked by its preview)
   const needsTreatment = row.status === "withheld" && monthFilingStatus !== "unfiled";
-  const ready = reason.trim().length >= 10 && (!needsTreatment || !!treatment) && (!reenter || (Number(amount) > 0 && wht.ready && (!isBill || !otherVendor || !!billId)));
+  const ready = reason.trim().length >= 10 && (!needsTreatment || !!treatment) && (!reenter || (Number(amount) > 0 && wht.ready && (!isBill || !otherVendor || !!billId) && (!cashWrong || Number(actualCash) > 0)));
   return (
     <div className="mt-3 rounded border border-border p-3 space-y-3 text-sm" data-testid={`wht-correct-panel-${row.id}`}>
       <p className="font-medium">{t("Correct this payment", "تصحيح هذه الدفعة")} — {n(row.vendorName, row.vendorNameAr)} · {fmtDate(row.paymentDate)} · <span className="font-mono" dir="ltr">{money(row.baseAmount)}</span></p>
@@ -174,6 +177,17 @@ export function WhtCorrectionPanel({ row, monthFilingStatus, onDone, onCancel }:
               {...(isBill ? {} : { classification: classification as "advance" | "security_deposit" | "erroneous" | "unknown", allocatedAmount: 0 })}
               onChange={(declaration, ok) => setWht({ declaration, ready: ok })} />
           )}
+          <div className="rounded bg-secondary/30 p-2 space-y-2 text-xs" data-testid="wht-correct-cash">
+            <p className="text-muted-foreground">{t(
+              "The correction keeps the cash that left the bank: the corrected payment must move the same amount, from the same bank, on the same day. If the rate or category changes the tax on a payment whose cash was right, it cannot be completed by re-entry while the treatment of the difference is an open question for your adviser.",
+              "يُبقي التصحيح النقد الذي خرج من البنك: يجب أن تحرّك الدفعة المصححة المبلغ نفسه من البنك نفسه في اليوم نفسه. وإذا غيّر السعر أو الفئة الضريبة على دفعة كان نقدها صحيحًا، فلا يمكن إتمامه بإعادة الإدخال ما دامت معالجة الفرق مسألة مفتوحة لدى مستشارك.")}</p>
+            <label className="flex items-center gap-2"><input type="checkbox" className="accent-primary" checked={cashWrong} onChange={(e) => setCashWrong(e.target.checked)} data-testid="wht-correct-cash-wrong" />
+              {t("The payment's RECORDED cash was wrong (state what actually left the bank)", "النقد المُسجَّل للدفعة كان خاطئًا (اذكر ما خرج فعلًا من البنك)")}</label>
+            {cashWrong && (
+              <div className="sm:w-1/3"><Label className="text-xs text-muted-foreground">{t("Cash that actually left the bank", "النقد الذي خرج فعلًا من البنك")}</Label>
+                <Input dir="ltr" inputMode="decimal" value={actualCash} onChange={(e) => setActualCash(e.target.value)} data-testid="wht-correct-actual-cash" /></div>
+            )}
+          </div>
         </div>
       )}
       <div className="flex flex-wrap gap-2">
@@ -184,6 +198,8 @@ export function WhtCorrectionPanel({ row, monthFilingStatus, onDone, onCancel }:
               amount: Number(amount), paidAt, bankAccountId: bank ? Number(bank) : null,
               ...(isBill ? (billId ? { billId: Number(billId) } : {}) : { vendorId: otherVendor ? Number(otherVendor) : null, classification: classification as "advance" }),
               ...wht.declaration,
+              recordedCashWasWrong: cashWrong ? true : null,
+              actualCash: cashWrong ? Number(actualCash) : null,
             } : null,
           } })}>
           {reenter ? t("Reverse and re-enter", "عكس وإعادة إدخال") : t("Reverse only", "عكس فقط")}

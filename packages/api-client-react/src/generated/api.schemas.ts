@@ -10268,6 +10268,17 @@ export interface WhtReentryInput {
   whtNotSubjectNote?: string | null;
   /** @nullable */
   whtFiledMonthTreatment?: WhtReentryInputWhtFiledMonthTreatment;
+  /**
+     * DR-45 (I): the person's explicit statement that the ORIGINAL payment's recorded cash was wrong. Without it the re-entry must move exactly the original's cash (same bank, amount and date) or the correction is refused.
+     * @nullable
+     */
+  recordedCashWasWrong?: boolean | null;
+  /**
+     * DR-45 (I): with recordedCashWasWrong, the cash that actually left the bank; the re-entry must move exactly this.
+     * @exclusiveMinimum 0
+     * @nullable
+     */
+  actualCash?: number | null;
 }
 
 /**

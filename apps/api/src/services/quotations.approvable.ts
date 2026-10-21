@@ -30,7 +30,7 @@
  */
 import { quotationsRepository } from "../repositories/quotations.repository";
 import { buildQuotationOut, type QuotationOut } from "./quotations.presenter";
-import type { Approvable, ApprovalState } from "./approval";
+import { checkedState, TransitionNotApplied, type Approvable, type ApprovalState } from "./approval";
 import type { quotationsTable, customersTable } from "@workspace/db";
 
 type Quotation = typeof quotationsTable.$inferSelect;
@@ -45,6 +45,10 @@ async function snapshot(row: QuotationRow): Promise<QuotationOut> {
 export function quotationApprovable(): Approvable<QuotationRow, QuotationOut> {
   return {
     entityType: "quotation",
+    // 🔴 Phase 18 (2.4, proof e2): every write below applies only from the state the engine checked. They were keyed on
+    // id alone, so a transition queued behind another overwrote it — an approved quotation set back to draft or
+    // submitted, approved twice, or hard-deleted by a reject; one queued behind a removal answered 500.
+    compareAndSet: true,
 
     async load(id) {
       const [row] = await quotationsRepository.findWithCustomer(id);
@@ -59,38 +63,41 @@ export function quotationApprovable(): Approvable<QuotationRow, QuotationOut> {
 
     snapshot,
 
-    async onApprove(row) {
+    async onApprove(row, _actor, from) {
       // The whole activation: the quotation may now be sent. No ledger effect
       // exists to fire — see the module header.
-      const [updated] = await quotationsRepository.update(row.quo.id, {
+      const [updated] = await quotationsRepository.updateIfStatus(row.quo.id, checkedState(from), {
         status: "approved",
         reviewNote: null,
       });
+      if (!updated) throw new TransitionNotApplied();
       return snapshot({ quo: updated, cust: row.cust });
     },
 
     async onSubmit(row) {
-      const [updated] = await quotationsRepository.update(row.quo.id, {
+      const [updated] = await quotationsRepository.updateIfStatus(row.quo.id, "draft", {
         status: "submitted",
         reviewNote: null,
       });
+      if (!updated) throw new TransitionNotApplied();
       return snapshot({ quo: updated, cust: row.cust });
     },
 
     async onSendBack(row, _actor, note) {
-      const [updated] = await quotationsRepository.update(row.quo.id, {
+      const [updated] = await quotationsRepository.updateIfStatus(row.quo.id, "submitted", {
         status: "draft",
         reviewNote: note?.trim() ? note.trim() : null,
       });
+      if (!updated) throw new TransitionNotApplied();
       return snapshot({ quo: updated, cust: row.cust });
     },
 
-    async hardDelete(row) {
-      // Items cascade on the FK, but delete them explicitly so the intent is
-      // visible rather than resting on a schema detail a later migration could
-      // change without anyone rereading this file.
-      await quotationsRepository.deleteItems(row.quo.id);
-      await quotationsRepository.delete(row.quo.id);
+    async hardDelete(row, from) {
+      // Removed only while still in the state the engine checked; its lines cascade on the FK (the header is
+      // removed first and conditionally — deleting the lines first would strip an approved quotation's lines
+      // before the condition refused it).
+      const [removed] = await quotationsRepository.removeIfStatus(row.quo.id, checkedState(from));
+      if (!removed) throw new TransitionNotApplied();
     },
   };
 }

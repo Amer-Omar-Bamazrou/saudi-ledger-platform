@@ -16,16 +16,18 @@
  * and `bills.paid_amount` keep meaning what the SUPPLIER is credited with, so
  * `billPosition` is untouched; the bank line is the cash that actually left.
  */
-import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors";
+import { createHash } from "node:crypto";
+import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
+import { pgErrorFields } from "../lib/dbRefusals";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
-import { decideWithholding, recordWithholding, returnPeriodFor, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
+import { decideWithholding, recordWithholding, refuseLateWithholdingOnReentry, returnPeriodFor, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
 import { billsRepository } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { businessToday } from "@workspace/shared";
-import { fromHalalas, toHalalas } from "../lib/money";
+import { fromHalalas, round2, toHalalas } from "../lib/money";
 
 export interface BillPaymentResult {
   billPaymentId: number;
@@ -38,20 +40,58 @@ export interface BillPaymentResult {
   withholding: WhtDecision;
 }
 
+/**
+ * 🔴 G36-KEY — the request is a RETRY of a payment already recorded under its idempotency key. Thrown before
+ * anything is written; `billsService.pay` answers it as the first request was answered (the bill as it now
+ * stands), so the same key twice records ONE payment and posts cash once.
+ */
+export class BillPaymentReplay extends Error {
+  constructor(readonly billPaymentId: number) {
+    super(`Bill payment ${billPaymentId} replayed`);
+  }
+}
+
+type PayBillBody = { amount: unknown; paidAt?: string; bankAccountId?: unknown; idempotencyKey?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown };
+
+/** G36-KEY: the request a key was first used with — a retry must repeat it to be the SAME payment. */
+function requestFingerprint(billId: number, body: PayBillBody): string {
+  const n = (v: unknown) => (v === undefined || v === "" ? null : v);
+  return createHash("sha256")
+    .update(JSON.stringify([billId, round2(Number(body.amount)), n(body.paidAt), Number(body.bankAccountId), n(body.whtPaymentType), n(body.whtNotSubjectReason), n(body.whtNotSubjectNote), n(body.whtFiledMonthTreatment)]))
+    .digest("hex");
+}
+
+/** G36-KEY: a payment already recorded under the key — the same request replays; a different one is refused, nothing written. */
+async function replayOrRefuse(idem: { key: string; fingerprint: string }): Promise<void> {
+  const [prior] = await paymentsRepository.findBillPaymentByIdempotencyKey(idem.key);
+  if (!prior) return;
+  if (prior.requestFingerprint === idem.fingerprint) throw new BillPaymentReplay(prior.id);
+  throw new BusinessRuleError(409, {
+    code: "idempotency_key_reused",
+    error: `Idempotency key "${idem.key}" was already used for a different payment (${prior.amount} on ${prior.paidAt}). Nothing was recorded; use a new key for a new payment.`,
+  });
+}
+
 export async function payBill(
   id: number,
-  body: { amount: unknown; paidAt?: string; bankAccountId?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown },
+  body: PayBillBody,
   userId: number | null,
   /**
    * Q1 (pack §14.1): set ONLY by the WHT correction when this payment is the corrected RE-ENTRY — never from a
    * request. Its withholding names the correction, and a subsequent-period report lands in the correction's month.
    */
-  opts: { correction?: { id: number; correctionPeriod: string } } = {},
+  opts: { correction?: { id: number; correctionPeriod: string; originalStatus?: string | null } } = {},
 ): Promise<BillPaymentResult> {
     const { amount, paidAt } = body;
 
     const [existing] = await billsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
+
+    // 🔴 G36-KEY: a retry is recognised FIRST — before the status checks, so a retried payment that settled the
+    // bill replays instead of answering "already paid" — and again under the bill's lock below.
+    const key = typeof body.idempotencyKey === "string" && body.idempotencyKey.trim() ? body.idempotencyKey.trim() : null;
+    const idem = key ? { key, fingerprint: requestFingerprint(id, body) } : null;
+    if (idem) await replayOrRefuse(idem);
 
     // A bill must be approved (posted to AP) before it can be paid — a draft or
     // queued bill has no payable AP balance yet.
@@ -99,8 +139,21 @@ export async function payBill(
     // applied advance, an applied credit note); reading the legacy counter
     // alone accepted a full payment on a bill an advance had already settled,
     // and posted Dr AP twice for one debt.
-    const alreadyPaid = Number(existing.paidAmount ?? 0);
     const outstanding = await billsRepository.outstandingOf(id, { lock: true });
+    // G36-KEY: the same key sent twice at once — the twin that held this lock has committed; replay it.
+    if (idem) await replayOrRefuse(idem);
+    // 🔴 G36: the bill is RE-READ here, under that row lock. `paid_amount` used
+    //    to come from `existing`, read before the lock, so a payment queued
+    //    behind another one wrote `stale paid + its amount` over the first's
+    //    increment — `paid_amount` ≠ Σ payments, the bill read as owing money it
+    //    did not (reproduced, Phase 18 Batch 4B). Every payment of this bill
+    //    holds this lock until it commits, so this read sees each one that
+    //    committed first; one that left the bill fully paid gets the refusal
+    //    it gets sequentially, and one that no longer fits, the overpay below.
+    const [locked] = await billsRepository.findById(id);
+    if (!locked) throw new NotFoundError("Not found");
+    if (locked.status === "paid") throw new ConflictError("Bill is already paid.");
+    const alreadyPaid = Number(locked.paidAmount ?? 0);
     if (paid > outstanding + 0.005) {
       throw new ConflictError(
         `Payment of ${paid.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} on this bill.`,
@@ -119,6 +172,7 @@ export async function payBill(
       paymentClass: "bill_payment", // settling a bill is consideration: judged by its nature (Q2)
       declared,
     });
+    refuseLateWithholdingOnReentry(withholding, opts.correction); // DR-45 (II): before anything is written
     // Q1: which month's return carries it — a FILED month is never changed silently (refused here, before any write)
     const reported = await returnPeriodFor(withholding, payDate, declared.filedMonthTreatment, { today: businessToday(), correctionPeriod: opts.correction?.correctionPeriod });
     const withheld = whtOf(withholding);
@@ -127,13 +181,27 @@ export async function payBill(
     const [bill] = await billsRepository.update(id, {
       paidAmount: String(newPaid),
       paidAt: payDate,
-      status: fullySettled ? "paid" : existing.status,
+      status: fullySettled ? "paid" : locked.status,
     });
 
     // B4 — the dated record of THIS payment (see invoices.service.pay).
     // 🔴 N3: recorded BEFORE the GL entry so its id makes the entry number
     // unique — `BILL-x-PAY` alone collided on the second partial payment.
-    const payment = await paymentsRepository.recordBillPayment(id, paid, payDate, bankAccountId);
+    let payment;
+    try {
+      payment = await paymentsRepository.recordBillPayment(id, paid, payDate, bankAccountId, idem ?? undefined);
+    } catch (err) {
+      // G36-KEY: the key's unique index (0124) is the backstop for the one race the bill lock cannot see — the
+      // same key on two DIFFERENT bills at once. Mapped, never an unmapped 23505.
+      const pg = pgErrorFields(err);
+      if (idem && pg.code === "23505" && pg.constraint === "bill_payments_idempotency_unq") {
+        throw new BusinessRuleError(409, {
+          code: "idempotency_key_in_flight",
+          error: `A payment with idempotency key "${idem.key}" was recorded at the same moment. Nothing was recorded by this request; send it again to read that payment.`,
+        });
+      }
+      throw err;
+    }
 
     // ── GL: Dr Accounts Payable / Cr <the bank's own cash account> (/ Cr WHT_PAYABLE) ──
     const payEntry = await postJournalEntry({
