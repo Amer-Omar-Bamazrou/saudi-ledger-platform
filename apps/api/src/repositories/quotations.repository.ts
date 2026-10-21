@@ -204,6 +204,36 @@ export const quotationsRepository = {
     return db.update(quotationsTable).set(values).where(eq(quotationsTable.id, id)).returning();
   },
 
+  /**
+   * 🔴 Phase 18 (2.4) — an approval transition applied only while the quotation
+   * is still in `status`, the state the engine checked (compare-and-set). Returns
+   * no row when another request moved, approved or removed it first.
+   */
+  updateIfStatus(id: number, status: string, values: Partial<typeof quotationsTable.$inferInsert>) {
+    return db.update(quotationsTable).set(values).where(and(eq(quotationsTable.id, id), eq(quotationsTable.status, status))).returning();
+  },
+
+  /**
+   * 🔴 Phase 18 (2.4) — an edit, applied only while the quotation is still
+   * editable: not in the approver's queue and with no outcome. Returns no row
+   * when a submit (or an outcome) committed after the edit's own check.
+   */
+  updateEditable(id: number, values: Partial<typeof quotationsTable.$inferInsert>) {
+    return db.update(quotationsTable).set(values)
+      .where(and(eq(quotationsTable.id, id), sql`${quotationsTable.status} <> 'submitted'`, sql`${quotationsTable.outcome} IS NULL`)).returning();
+  },
+
+  /** 🔴 Phase 18 (2.4) — the quotation's row lock, taken before a removal decides anything. */
+  async lockForUpdate(id: number) {
+    const { rows } = await db.execute<{ id: number }>(sql`SELECT id FROM quotations WHERE id = ${id} FOR UPDATE`);
+    return rows.length > 0;
+  },
+
+  /** 🔴 Phase 18 (2.4) — removed only while still in `status` (its lines cascade on the FK). */
+  removeIfStatus(id: number, status: string) {
+    return db.delete(quotationsTable).where(and(eq(quotationsTable.id, id), eq(quotationsTable.status, status))).returning({ id: quotationsTable.id });
+  },
+
   updateItem(id: number, values: Partial<typeof quotationItemsTable.$inferInsert>) {
     return db.update(quotationItemsTable).set(values).where(eq(quotationItemsTable.id, id)).returning();
   },

@@ -98,10 +98,20 @@ export const billPaymentsTable = pgTable(
      * not be reconciled to it.
      */
     journalEntryId: integer("journal_entry_id").references(() => journalEntriesTable.id, { onDelete: "restrict" }),
+    /**
+     * 🔴 G36-KEY (Phase 18, 0124): the caller's idempotency key (`PaymentInput.idempotencyKey`), unique per
+     * company, and a fingerprint of the request it came with — the same key and request twice records ONE
+     * payment (the second replays); the same key with a different request is refused. NULL for every payment
+     * made without a key, and for every payment before 0124 (no back-fill).
+     */
+    idempotencyKey: text("idempotency_key"),
+    requestFingerprint: text("request_fingerprint"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("bill_payments_bill_idx").on(t.billId), index("bill_payments_org_idx").on(t.organizationId),
+    uniqueIndex("bill_payments_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
+    check("bill_payments_idempotency_key_chk", sql`idempotency_key IS NULL OR (char_length(idempotency_key) BETWEEN 1 AND 120 AND request_fingerprint IS NOT NULL)`),
     // Phase 12: the reconciliation reads name a cash line's document by its entry.
     index("bill_payments_entry_idx").on(t.journalEntryId),
   ],
