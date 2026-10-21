@@ -150,7 +150,7 @@ export const userAdminRepository = {
     });
   },
 
-  update(userId: number, values: Partial<typeof usersTable.$inferInsert>) {
-    return db.update(usersTable).set(values).where(eq(usersTable.id, userId)).returning();
+  update(userId: number, values: Partial<typeof usersTable.$inferInsert>, tx: Pick<typeof db, "update"> = db) {
+    return tx.update(usersTable).set(values).where(eq(usersTable.id, userId)).returning();
   },
 };
