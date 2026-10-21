@@ -133,7 +133,7 @@ describeMaybe("Phase 18 S1-b · G36 proof — the direct bill payment (race, ret
     const r = await pay(bill.id, 400);
     const ev = await evidence(bill);
     // eslint-disable-next-line no-console
-    console.warn("[S1B G36] PREMISE", JSON.stringify({ status: r.status, ...ev }));
+    console.warn("[S1B G36] PREMISE", JSON.stringify({ httpStatus: r.status, ...ev }));
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(ev.total).toBe(1_150);
     expect(ev.paymentCount).toBe(1);
@@ -200,7 +200,7 @@ describeMaybe("Phase 18 S1-b · G36 proof — the direct bill payment (race, ret
     const r = await pay(bill.id, 100.005);
     const ev = await evidence(bill);
     // eslint-disable-next-line no-console
-    console.warn("[S1B G36] SUB-HALALA", JSON.stringify({ status: r.status, code: r.body?.code ?? null, ...ev }));
+    console.warn("[S1B G36] SUB-HALALA", JSON.stringify({ httpStatus: r.status, code: r.body?.code ?? null, ...ev }));
     if (r.status >= 400) {
       expect.soft(ev.paymentCount, "a refused payment writes nothing").toBe(0);
       expect.soft(ev.paidAmount).toBe(0);
