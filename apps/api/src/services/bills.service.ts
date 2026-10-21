@@ -107,7 +107,7 @@ import { payBill } from "./bills.payment";
 import { buildBillOut } from "./bills.presenter";
 import { billsRepository, BILL_DRAFT_EDITABLE, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
-import { round2 } from "../lib/money";
+import { money2, round2 } from "../lib/money";
 import { taxRepository } from "../repositories/tax.repository";
 import { businessToday } from "@workspace/shared";
 import { supplierAdvanceInvoicesService, type PrepaymentInput } from "./accounting/supplierAdvanceInvoices.service";
@@ -369,6 +369,23 @@ export const billsService = {
       if (values[f] != null) assertAmount(values[f], f, { min: 0, allowZero: true });
     }
     await assertVendorExists(values.vendorId);
+    // 🔴 G65 (owner decision DR-07(b), 2026-10-20): a bill WITH LINES carries the header its lines make. It was stored
+    //    verbatim from the request, so an edit could post a header that disagreed with its own lines — the GL and the
+    //    input-VAT events from the header, the VAT return from the lines (reproduced, Batch 4B). Recomputed here from
+    //    the stored lines exactly as `create` computes it (line base = total − VAT; header = Σ rounded lines); a header
+    //    total in the request is not accepted for such a bill. A bill without lines keeps its stated header.
+    const lines = await billsRepository.itemsByBill(id);
+    if (lines.length > 0) {
+      let subtotal = 0;
+      let vat = 0;
+      for (const l of lines) {
+        subtotal = round2(subtotal + round2(Number(l.total) - Number(l.vatAmount ?? 0)));
+        vat = round2(vat + Number(l.vatAmount ?? 0));
+      }
+      values.subtotal = money2(subtotal);
+      values.vatAmount = money2(vat);
+      values.total = money2(round2(subtotal + vat));
+    }
     // 🔴 PR B (bill half): the edit applies only while the bill is still a draft, in the same
     //    statement. The check above ran on a row read without a lock, so an approval could commit
     //    between it and this write, which then rewrote the posted bill's figures. The loser now gets
