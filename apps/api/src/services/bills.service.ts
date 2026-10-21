@@ -105,7 +105,7 @@ import { approvalService } from "./approval";
 import { billApprovable, type BillApproveOptions } from "./bills.approvable";
 import { payBill } from "./bills.payment";
 import { buildBillOut } from "./bills.presenter";
-import { billsRepository, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
+import { billsRepository, BILL_DRAFT_EDITABLE, DEFAULT_PAGE as BILL_PAGE, type BillListFilter } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { round2 } from "../lib/money";
 import { taxRepository } from "../repositories/tax.repository";
@@ -116,6 +116,8 @@ import { vatEvidenceService, assertSupplierDocumentKind } from "./purchaseEviden
 import { duplicatesService } from "./purchaseEvidence/duplicates.service";
 import { captureService } from "./capture/capture.service";
 
+/** The refusal a PATCH gets on anything but a draft — sequentially, and when it loses a race to an approval. */
+const ONLY_DRAFT_BILLS_EDITABLE = "Only draft bills can be edited.";
 
 export const billsService = {
   /** A PAGE of bills, plus the totals for the whole filtered set (see invoices). */
@@ -327,7 +329,7 @@ export const billsService = {
   async update(id: number, data: Record<string, unknown>) {
     const [existing] = await billsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
-    if (existing.status !== "draft") throw new ConflictError("Only draft bills can be edited.");
+    if (existing.status !== "draft") throw new ConflictError(ONLY_DRAFT_BILLS_EDITABLE);
     // Z-AP1: a supplier's advance document is derived from the payment (or the
     // advance invoice) it records; a wrong draft is rejected and re-entered.
     if (existing.documentType === "advance_invoice" || existing.documentType === "advance_credit_note") {
@@ -340,11 +342,8 @@ export const billsService = {
      * approved bill become a credit note by PATCH would flip the sign of an
      * entry that has already posted, and a draft can simply be re-entered.
      */
-    const values = pick<typeof import("@workspace/db").billsTable.$inferInsert>(data, [
-      "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
-      "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId", "capitalisesAssetId",
-      "supplierDocumentKind", "recordedAsExpense", "expensePaidFromBankAccountId", "expensePaidAt",
-    ]);
+    // The list is the repository's: an approval posts only while none of these columns moved (PR B).
+    const values = pick<typeof import("@workspace/db").billsTable.$inferInsert>(data, [...BILL_DRAFT_EDITABLE]);
     assertSupplierDocumentKind(values.supplierDocumentKind);
     if (values.capitalisesAssetId != null) await assertAssetOwnedByCompany(values.capitalisesAssetId, "capitalisesAssetId"); // G04 — see create
     // An expense is judged on the draft as it will STAND (a partial PATCH keeps the stored fields).
@@ -370,7 +369,16 @@ export const billsService = {
       if (values[f] != null) assertAmount(values[f], f, { min: 0, allowZero: true });
     }
     await assertVendorExists(values.vendorId);
-    const [bill] = await billsRepository.update(id, values);
+    // 🔴 PR B (bill half): the edit applies only while the bill is still a draft, in the same
+    //    statement. The check above ran on a row read without a lock, so an approval could commit
+    //    between it and this write, which then rewrote the posted bill's figures. The loser now gets
+    //    the refusal it gets sequentially, and nothing of the edit is written.
+    const [bill] = await billsRepository.updateDraft(id, values);
+    if (!bill) {
+      const [now] = await billsRepository.findById(id);
+      if (!now) throw new NotFoundError("Not found");
+      throw new ConflictError(ONLY_DRAFT_BILLS_EDITABLE);
+    }
     // Z-AP1: the draft's advance deductions, re-checked against the bill as it now stands.
     if (data.prepayments !== undefined) {
       const rows = Array.isArray(data.prepayments) ? (data.prepayments as PrepaymentInput[]) : [];
