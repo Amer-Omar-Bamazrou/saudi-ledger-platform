@@ -494,6 +494,16 @@ export const taxRepository = {
       .where(and(inArray(taxComputationVersionsTable.computationId, computationIds), companyScoped(taxComputationVersionsTable.companyId)))
       .orderBy(asc(taxComputationVersionsTable.versionNo));
   },
+  /**
+   * Phase 18 (e1): EVERY version of a computation, locked for the transaction in id
+   * order — the DELETE of a computation reads their statuses under the same lock
+   * every transition takes, so a DELETE queued behind an approval sees the approval.
+   */
+  lockVersionsOf(computationId: number): Promise<TaxComputationVersion[]> {
+    return db.select().from(taxComputationVersionsTable)
+      .where(and(eq(taxComputationVersionsTable.computationId, computationId), companyScoped(taxComputationVersionsTable.companyId)))
+      .orderBy(asc(taxComputationVersionsTable.id)).for("update");
+  },
   /** The version, locked for the transaction (every transition and adjustment write serialises on it). */
   async lockVersion(id: number) {
     const [row] = await db.select().from(taxComputationVersionsTable)
