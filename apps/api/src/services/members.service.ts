@@ -35,6 +35,9 @@ export interface MemberActionContext {
 export const VALID_MEMBERSHIP_ROLES = ["admin", "accountant", "bookkeeper", "viewer"] as const;
 export type MembershipRole = (typeof VALID_MEMBERSHIP_ROLES)[number];
 
+/** G03: the one refusal of `membersRepository.withLastAdminGuard`, on every path. */
+export const lastAdminRefusal = () => new ConflictError("Cannot remove the last admin of the organization.");
+
 /** Explicitly require the actor to be an active admin of THIS org (no ambient context). */
 async function assertOrgAdmin(actorUserId: number, orgId: string): Promise<void> {
   const role = await membersRepository.activeRole(actorUserId, orgId);
@@ -111,7 +114,12 @@ export const membersService = {
     // other organization's decision (concealed, 404, as before).
     await assertAccountConfinedTo(userId, await membersRepository.administeredOrgIds(actorUserId), "conceal", actorCtx);
 
-    const [membership] = await membersRepository.upsert(userId, orgId, role as MembershipRole);
+    // 🔴 G03: re-assigning the last admin a lesser role is removing the last admin.
+    const [membership] = await membersRepository.withLastAdminGuard(
+      { userId, orgId },
+      (tx) => membersRepository.upsert(userId, orgId, role as MembershipRole, tx),
+      lastAdminRefusal,
+    );
     await securityAuditService.record({
       action: "membership.assigned",
       actorUserId,
@@ -145,18 +153,16 @@ export const membersService = {
     const [existing] = await membersRepository.findMembership(targetUserId, orgId);
     if (!existing) throw new NotFoundError("Membership not found.");
 
-    // Refuse to remove the last active admin (via demotion or deactivation).
-    const isActiveAdmin = existing.role === "admin" && existing.status === "active";
-    const willLoseAdmin = (role !== undefined && role !== "admin") || status === "inactive";
-    if (isActiveAdmin && willLoseAdmin && (await membersRepository.activeAdminCount(orgId)) <= 1) {
-      throw new ConflictError("Cannot remove the last admin of the organization.");
-    }
-
     const updates: { role?: MembershipRole; status?: string } = {};
     if (role !== undefined) updates.role = role as MembershipRole;
     if (status !== undefined) updates.status = status as string;
 
-    const [membership] = await membersRepository.update(targetUserId, orgId, updates);
+    // Refuse to remove the last usable admin (via demotion or deactivation) — G03's one guard.
+    const [membership] = await membersRepository.withLastAdminGuard(
+      { userId: targetUserId, orgId },
+      (tx) => membersRepository.update(targetUserId, orgId, updates, tx),
+      lastAdminRefusal,
+    );
     if (!membership) throw new NotFoundError("Membership not found.");
 
     // A role change and a (de)activation are distinct security events; pick the
