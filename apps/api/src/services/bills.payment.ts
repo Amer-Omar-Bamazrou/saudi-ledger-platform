@@ -21,7 +21,7 @@ import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
-import { decideWithholding, recordWithholding, returnPeriodFor, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
+import { decideWithholding, recordWithholding, refuseLateWithholdingOnReentry, returnPeriodFor, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
 import { billsRepository } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { businessToday } from "@workspace/shared";
@@ -46,7 +46,7 @@ export async function payBill(
    * Q1 (pack §14.1): set ONLY by the WHT correction when this payment is the corrected RE-ENTRY — never from a
    * request. Its withholding names the correction, and a subsequent-period report lands in the correction's month.
    */
-  opts: { correction?: { id: number; correctionPeriod: string } } = {},
+  opts: { correction?: { id: number; correctionPeriod: string; originalStatus?: string | null } } = {},
 ): Promise<BillPaymentResult> {
     const { amount, paidAt } = body;
 
@@ -119,6 +119,7 @@ export async function payBill(
       paymentClass: "bill_payment", // settling a bill is consideration: judged by its nature (Q2)
       declared,
     });
+    refuseLateWithholdingOnReentry(withholding, opts.correction); // DR-45 (II): before anything is written
     // Q1: which month's return carries it — a FILED month is never changed silently (refused here, before any write)
     const reported = await returnPeriodFor(withholding, payDate, declared.filedMonthTreatment, { today: businessToday(), correctionPeriod: opts.correction?.correctionPeriod });
     const withheld = whtOf(withholding);

@@ -229,7 +229,8 @@ export const whtCorrectionService = {
     // ── 3. the CORRECTED transaction: a new payment through the existing pay path ──
     let reentry: { kind: "bill_payment" | "supplier_payment"; id: number } | null = null;
     if (r) {
-      const link = { correction: { id: correction.id, correctionPeriod } };
+      // DR-45 (II): the pay path refuses a withheld re-entry of a payment made with nothing withheld
+      const link = { correction: { id: correction.id, correctionPeriod, originalStatus: w.status } };
       const decl = {
         whtPaymentType: r.whtPaymentType, whtNotSubjectReason: r.whtNotSubjectReason, whtNotSubjectNote: r.whtNotSubjectNote,
         // the person's one treatment applies to whichever leg falls in a filed month
