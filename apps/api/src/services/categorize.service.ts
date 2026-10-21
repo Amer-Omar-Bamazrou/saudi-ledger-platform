@@ -6,6 +6,8 @@
 import { RunCategorizationBody, RunCategorizationResponse } from "@workspace/api-zod";
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes } from "./categorization/categorizer.js";
+import { payrollAwareSalary } from "./categorization/payrollSalary.js";
+import { payrollRepository } from "../repositories/payroll.repository.js";
 import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross } from "./categorization/resolveCategory.js";
 import { categorizeRepository } from "../repositories/categorize.repository";
 
@@ -14,7 +16,9 @@ type RunInput = ReturnType<(typeof RunCategorizationBody)["parse"]>;
 export const categorizeService = {
   async run({ transactionIds, overrideExisting }: RunInput) {
     const rows = await categorizeRepository.fetchTransactions(transactionIds ?? undefined, overrideExisting);
-    const resolvedCodes = await resolveSystemCodes(allEngineCodes());
+    // DR-41: SALARIES_PAYABLE is not an engine code, but a salary line in a company that runs payroll pays it.
+    const resolvedCodes = await resolveSystemCodes([...allEngineCodes(), "SALARIES_PAYABLE"]);
+    const payrollCtx = await payrollRepository.salaryPayableContext();
     const categories = await categorizeRepository.allCategories();
     const catMap = new Map(categories.map((c) => [c.id, c]));
 
@@ -38,12 +42,13 @@ export const categorizeService = {
         continue;
       }
 
-      const match = categorizeTransaction(
+      // 🔴 DR-41: a salary line never re-expenses a payroll run's salaries (categorization/payrollSalary.ts).
+      const match = payrollAwareSalary(categorizeTransaction(
         tx.description,
         Number(tx.amount),
         tx.type as "debit" | "credit",
         tx.descriptionAr,
-      );
+      ), Number(tx.amount), payrollCtx);
 
       // M15: the engine now says "I don't know" (null), and a low-confidence
       // match is a hint rather than an assignment. Both leave the row for the
@@ -127,6 +132,7 @@ export const categorizeService = {
         // human PATCH may claim it.
       });
 
+      if (match.systemCode === "SALARIES_PAYABLE") payrollCtx.openPayable = Math.round((payrollCtx.openPayable - Number(tx.amount)) * 100) / 100;
       const cat = catMap.get(resolvedId);
       results.push({
         transactionId: tx.id,

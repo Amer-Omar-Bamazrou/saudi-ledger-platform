@@ -284,6 +284,7 @@ import type {
   OpeningVatDeclaration,
   OwnerEquityReport,
   PayPaymentPlanInput,
+  PayPayrollRunInput,
   Payment,
   PaymentAllocationDetail,
   PaymentClassification,
@@ -21357,6 +21358,79 @@ export const useApprovePayrollRun = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getApprovePayrollRunMutationOptions(options));
+    }
+
+export const getPayPayrollRunUrl = (id: number,) => {
+
+
+
+
+  return `/api/payroll/${id}/pay`
+}
+
+/**
+ * DR-41 / DR-39 (Phase 18). The approval already EXPENSED the salaries (Dr Salaries / Cr Salaries Payable); paying posts Dr Salaries Payable / Cr the bank's cash account for the run's net pay and never touches Salaries again. One payment per run: the run must be approved, and it becomes paid. Dated the payment's own day (default today). Approver-only.
+ * @summary Pay an approved payroll run's net pay from a bank account (settles Salaries Payable)
+ */
+export const payPayrollRun = async (id: number,
+    payPayrollRunInput: PayPayrollRunInput, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getPayPayrollRunUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(payPayrollRunInput)
+  }
+);}
+
+
+
+
+
+export const getPayPayrollRunMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payPayrollRun>>, TError,{id: number;data: BodyType<PayPayrollRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof payPayrollRun>>, TError,{id: number;data: BodyType<PayPayrollRunInput>}, TContext> => {
+
+const mutationKey = ['payPayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof payPayrollRun>>, {id: number;data: BodyType<PayPayrollRunInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  payPayrollRun(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PayPayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof payPayrollRun>>>
+    export type PayPayrollRunMutationBody = BodyType<PayPayrollRunInput>
+    export type PayPayrollRunMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Pay an approved payroll run's net pay from a bank account (settles Salaries Payable)
+ */
+export const usePayPayrollRun = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payPayrollRun>>, TError,{id: number;data: BodyType<PayPayrollRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof payPayrollRun>>,
+        TError,
+        {id: number;data: BodyType<PayPayrollRunInput>},
+        TContext
+      > => {
+      return useMutation(getPayPayrollRunMutationOptions(options));
     }
 
 export const getRejectPayrollRunUrl = (id: number,) => {

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { CreatePayrollRunBody } from "@workspace/api-zod";
+import { CreatePayrollRunBody, PayPayrollRunBody } from "@workspace/api-zod";
 import { payrollService } from "../services/payroll.service";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
@@ -34,5 +34,9 @@ export const payrollController = {
   },
   async approve(req: Request, res: Response) {
     res.json(await payrollService.approve(requireIdParam(req), req.session?.userId ?? null));
+  },
+  // DR-41 / DR-39 (Phase 18): pay an approved run's net pay from a bank (approver-only: `/:id/pay` is an approve route).
+  async pay(req: Request, res: Response) {
+    res.json(await payrollService.pay(requireIdParam(req), parseOr400(PayPayrollRunBody.safeParse(req.body)), req.session?.userId ?? null));
   },
 };
