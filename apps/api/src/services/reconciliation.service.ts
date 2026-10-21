@@ -190,6 +190,15 @@ export const reconciliationService = {
       throw new BadRequestError("Name exactly one document to settle: invoiceId or billId.");
     }
 
+    // 🔴 G64: the statement line is LOCKED before it is read. Its `pending_review`
+    //    state used to be read unlocked, so two settles of one line both passed
+    //    the check below and both recorded a receipt (the bank moved twice for
+    //    one line; reproduced, Phase 18 Batch 4B). The lock is the one every
+    //    reconciliation write for a line takes (`lockLine`), taken FIRST here as
+    //    it is there, before the pay path locks the invoice or bill — so the lock
+    //    order is line → document on every path. A second settle now waits, then
+    //    reads the line as accepted and gets the refusal it gets sequentially.
+    await bankReconciliationRepository.lockLine(transactionId);
     const [found] = await transactionsRepository.findWithCategory(transactionId);
     if (!found) throw new NotFoundError("Transaction not found");
     const tx = found.tx;
