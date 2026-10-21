@@ -114,14 +114,43 @@ test.describe.serial("Phase 16 + 17 — the accountant's answers, by clicking", 
     const original = (await monthReturn()).schedule.find((r) => r.billId === billId)!;
     expect([original.baseAmount, original.whtAmount]).toEqual([10_000, 500]);
 
-    await page.goto(`/tax/withholding?tab=return&period=${PERIOD}`);
-    await page.getByTestId(`wht-correct-${original.id}`).click();
-    const panel = page.getByTestId(`wht-correct-panel-${original.id}`);
+    const openPanel = async () => {
+      await page.goto(`/tax/withholding?tab=return&period=${PERIOD}`);
+      await page.getByTestId(`wht-correct-${original.id}`).click();
+      const p = page.getByTestId(`wht-correct-panel-${original.id}`);
+      await expect(p).toBeVisible();
+      await p.getByTestId("wht-correct-reason").fill("Paid 10,000 in error; the agreed fee was 8,000");
+      await p.getByTestId("wht-correct-amount").fill("8000");
+      // the re-entry's withholding is the SERVER's preview, on the corrected amount
+      await expect(p.getByTestId("wht-preview-withheld")).toContainText("400.00");
+      return p;
+    };
+    const unchanged = async () => {
+      expect(await totalCash(), "refused: the bank still shows the error's 9,500 — nothing written").toBe(cashBefore - 9_500);
+      expect((await monthReturn()).corrected.filter((r) => r.billId === billId), "refused: nothing corrected").toEqual([]);
+    };
+    // 🔴 DR-45 (I), the browser leg of each refusal the panel can reach. Re-entering at 8,000 records 7,600 of cash
+    //    where the payment recorded 9,500: without the statement that the RECORDED cash was wrong, it is refused,
+    //    titled by its code — in Arabic, then in English — and nothing is written.
+    await page.evaluate(() => localStorage.setItem("ksa_lang", "ar"));
+    let panel = await openPanel();
+    await panel.getByTestId("wht-correct-submit").click();
+    await expect(page.getByText("لم يُصحَّح — كان سيتغيّر النقد المسجَّل للدفعة").first()).toBeVisible();
     await expect(panel).toBeVisible();
-    await panel.getByTestId("wht-correct-reason").fill("Paid 10,000 in error; the agreed fee was 8,000");
-    await panel.getByTestId("wht-correct-amount").fill("8000");
-    // the re-entry's withholding is the SERVER's preview, on the corrected amount
-    await expect(panel.getByTestId("wht-preview-withheld")).toContainText("400.00");
+    await unchanged();
+    await page.evaluate(() => localStorage.setItem("ksa_lang", "en"));
+    panel = await openPanel();
+    await panel.getByTestId("wht-correct-submit").click();
+    await expect(page.getByText("Not corrected — the payment's recorded cash would change").first()).toBeVisible();
+    await unchanged();
+    // the statement with a cash the re-entry does not move (7,500 ≠ 7,600) is refused too
+    await panel.getByTestId("wht-correct-cash-wrong").check();
+    await panel.getByTestId("wht-correct-actual-cash").fill("7500");
+    await panel.getByTestId("wht-correct-submit").click();
+    await expect(page.getByText("Not corrected — the corrected payment's cash is not the cash you stated").first()).toBeVisible();
+    await unchanged();
+    // the recording error stated as what it was: 7,600 actually left the bank
+    await panel.getByTestId("wht-correct-actual-cash").fill("7600");
     await panel.getByTestId("wht-correct-submit").click();
     await expect(panel).toBeHidden();
 
