@@ -29,7 +29,7 @@ import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { invoiceApprovable, removeUnissuedInvoice } from "./invoices.approvable";
 import { buildInvoiceOut } from "./invoices.presenter";
-import { invoicesRepository, DEFAULT_PAGE, type InvoiceListFilter } from "../repositories/invoices.repository";
+import { invoicesRepository, DEFAULT_PAGE, INVOICE_DRAFT_EDITABLE, type InvoiceListFilter } from "../repositories/invoices.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { paymentsService } from "./payments.service";
 import { customersRepository } from "../repositories/customers.repository";
@@ -38,6 +38,9 @@ import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./acco
 import { businessToday, isAdvanceInvoiceType, isAdvanceDocumentType, isAdvanceCreditNoteType, isRecoveryInvoiceType, isVatOnlyDocumentType } from "@workspace/shared";
 import { advanceInvoicesService, prepaymentsOf, shapePrepayment, type PreparedPrepayment } from "./advanceInvoices.service";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
+
+/** The refusal a PATCH gets on anything but a draft — sequentially, and when it loses a race to an approval. */
+const ONLY_DRAFTS_EDITABLE = "Only draft invoices can be edited. Use a credit note to correct an issued invoice.";
 
 /**
  * MED (audit 2026-08-20): a nonexistent customerId surfaced as a raw 500
@@ -396,7 +399,7 @@ export const invoicesService = {
     const [existing] = await invoicesRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") {
-      throw new ConflictError("Only draft invoices can be edited. Use a credit note to correct an issued invoice.");
+      throw new ConflictError(ONLY_DRAFTS_EDITABLE);
     }
     // 🔴 H1 — ALLOWLIST. The raw spread here was the worst finding of the
     // 2026-08-20 audit: a draft PATCHed with {status:"sent", invoiceHash, icv}
@@ -405,11 +408,8 @@ export const invoicesService = {
     // predecessor the next real approval links to. Only descriptive header
     // fields are editable on a draft; status, totals, hash/QR/ICV, ZATCA
     // identity and paid state are minted by approval/pay and NEVER by a client.
-    const values = pick<typeof import("@workspace/db").invoicesTable.$inferInsert>(data, [
-      "invoiceNumber", "date", "dueDate", "customerId", "currency",
-      "notes", "termsAndConditions", "reviewNote",
-      "disposesAssetId",
-    ]);
+    // The list is the repository's: an approval issues only while none of these columns moved (PR B, R1).
+    const values = pick<typeof import("@workspace/db").invoicesTable.$inferInsert>(data, [...INVOICE_DRAFT_EDITABLE]);
     if (values.date !== undefined) {
       assertDateString(values.date, "date");
       // 🔴 Owner policy (2026-08-23): an invoice must not be DATED into a
@@ -490,7 +490,16 @@ export const invoicesService = {
       totals = { subtotal: subtotal.toFixed(2), vatAmount: vatTotal.toFixed(2), total: total.toFixed(2) };
     }
 
-    const [inv] = await invoicesRepository.update(id, { ...values, ...totals });
+    // 🔴 PR B (R1): the edit applies only while the invoice is still a draft, in the same statement.
+    //    The check above ran on a row read without a lock, so an approval could commit between it and
+    //    this write; the write then rewrote the issued invoice's totals and (below) its lines. The loser
+    //    now gets the refusal it gets sequentially, and nothing of the edit is written.
+    const [inv] = await invoicesRepository.updateDraft(id, { ...values, ...totals });
+    if (!inv) {
+      const [now] = await invoicesRepository.findById(id);
+      if (!now) throw new NotFoundError("Not found");
+      throw new ConflictError(ONLY_DRAFTS_EDITABLE);
+    }
     if (prepared) {
       await invoicesRepository.deleteItems(id);
       await invoicesRepository.insertItems(prepared.map((it) => ({ ...it, invoiceId: id })) as Parameters<typeof invoicesRepository.insertItems>[0]);
