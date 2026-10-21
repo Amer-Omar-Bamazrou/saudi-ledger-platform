@@ -21,7 +21,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import { randomBytes } from "node:crypto";
-import { beginTenantConnection, pool } from "@workspace/db";
+import { beginTenantConnection, db, pool } from "@workspace/db";
+import { sql as sqlTag } from "drizzle-orm";
 import { auditContext } from "../lib/auditContext";
 import { hashPassword } from "../lib/password";
 import { billsService } from "../services/bills.service";
@@ -36,6 +37,7 @@ import { openingVatDeclarationsService, art4010TriggerDate } from "../services/o
 import { inputVatLedgerService } from "../services/accounting/inputVatLedger.service";
 import { inputVatTreatment } from "../services/purchaseEvidence/vatEvidence";
 import { __resetRateLimitsForTests } from "../routes/auth";
+import { lockWaitersOn } from "./helpers/g08rRace";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -558,12 +560,17 @@ describeMaybe("Phase 13B S1 — opening-payable historical VAT and single-state 
     try {
       const a = await connA.run(() => auditContext.run({ userId: adminId, organizationId: orgId, ipAddress: null },
         () => openingVatDeclarationsService.declare(body(capA) as never, adminId)));
+      // A's own session: B counts as waiting only when it is blocked inside A's wait tree. The count used to
+      // be every matching insert waiting anywhere in the database, so a parallel file's insert could make it 2,
+      // or satisfy it before B had queued.
+      const aPid = await connA.run(async () =>
+        Number(((await db.execute(sqlTag`SELECT pg_backend_pid() AS pid`)) as unknown as { rows: { pid: number }[] }).rows[0].pid));
       const b = inTenant(() => openingVatDeclarationsService.declare(body(capB) as never, accountantId), coA, accountantId)
         .then((v) => ({ ok: true as const, v }), (e: { statusCode?: number; payload?: { code?: string } }) => ({ ok: false as const, e }));
       // B is really WAITING on A (a lock), not already refused by the pre-check
       let waiting = 0;
       for (let i = 0; i < 100 && waiting === 0; i++) {
-        waiting = (await pool.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query ILIKE '%insert into "opening_payable_vat_declarations"%'`)).rows[0].n;
+        waiting = await lockWaitersOn(aPid, `insert into "opening_payable_vat_declarations"`);
         if (waiting === 0) await new Promise((r) => setTimeout(r, 50));
       }
       expect(waiting, "B is blocked on A's uncommitted declaration").toBe(1);

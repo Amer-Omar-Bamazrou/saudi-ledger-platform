@@ -34,6 +34,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { pool } from "@workspace/db";
+import { businessDateShift, businessToday } from "@workspace/shared";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { invoicesService } from "../services/invoices.service";
@@ -46,6 +47,15 @@ const describeMaybe = REAL_DB ? describe : describe.skip;
 const PW = "G04SweepPw1!";
 const MISSING = 2_000_000_000;
 const TODAY = new Date().toISOString().slice(0, 10);
+/**
+ * A payment plan's date. The service refuses a plan dated before the BUSINESS
+ * day (Asia/Riyadh, `paymentPlansService` → `businessToday()`), so the UTC
+ * `TODAY` above is the day before from 21:00Z to midnight, and both plan cases
+ * failed their CONTROL there (422 `plan_date_in_past`, register §10.10). The
+ * plan date therefore comes from the business-day seam, a week ahead so a run
+ * that crosses Riyadh midnight cannot turn it into a past date either.
+ */
+const PLAN_DATE = businessDateShift(businessToday(), 7);
 
 type Who = "x" | "y";
 type Id = number | string;
@@ -192,7 +202,7 @@ describeMaybe("G04 sweep — ids from the request body never reach across tenant
   // Own bank FRESH: a completed reconciliation locks its bank through the date.
   bankCase("bank reconciliation", "POST /bank-reconciliations", (v) => api("x", "POST", "/bank-reconciliations", { bankAccountId: v, asOf: TODAY, statementBalance: 0 }), () => mkBank("x"));
   bankCase("supplier payment", "POST /supplier-payments", (v) => api("x", "POST", "/supplier-payments", { vendorId: fx.x.vendor, amount: 10, bankAccountId: v, paidAt: TODAY }));
-  bankCase("payment plan", "POST /treasury/payment-plans", async (v) => api("x", "POST", "/treasury/payment-plans", { billId: await mkBill("x", fx.x.vendor), amount: 100, plannedDate: TODAY, bankAccountId: v }));
+  bankCase("payment plan", "POST /treasury/payment-plans", async (v) => api("x", "POST", "/treasury/payment-plans", { billId: await mkBill("x", fx.x.vendor), amount: 100, plannedDate: PLAN_DATE, bankAccountId: v }));
   bankCase("customer refund", "POST /payments/refunds", async (v) => {
     const p = ok(await api("x", "POST", "/payments", { customerId: fx.x.customer, amount: 50, bankAccountId: fx.x.bank, paidAt: TODAY }), "deposit");
     return api("x", "POST", "/payments/refunds", { customerId: fx.x.customer, origin: "deposit", paymentId: p.id, amount: 10, bankAccountId: v, reason: "returned" });
@@ -313,7 +323,7 @@ describeMaybe("G04 sweep — ids from the request body never reach across tenant
     stored: async (v) => (await pool.query(`SELECT 1 FROM transactions WHERE organization_id = $1 AND settles_bill_id = $2`, [org.x, v])).rowCount! > 0 });
   add({ name: "payment plan for a bill", endpoint: "POST /treasury/payment-plans", field: "billId", scope: "tenant",
     own: () => mkBill("x", fx.x.vendor), foreign: async () => fx.y.bill,
-    send: (v) => api("x", "POST", "/treasury/payment-plans", { billId: v, amount: 10, plannedDate: TODAY }) });
+    send: (v) => api("x", "POST", "/treasury/payment-plans", { billId: v, amount: 10, plannedDate: PLAN_DATE }) });
   add({ name: "credit/debit note's original invoice", endpoint: "POST /invoices", field: "originalInvoiceId", scope: "tenant+company",
     own: () => mkInvoice("x", fx.x.customer), foreign: async () => fx.y.invoice, otherCompany: async () => fx.x2.invoice,
     send: (v) => api("x", "POST", "/invoices", { invoiceNumber: `CN${next()}`, date: TODAY, customerId: fx.x.customer, documentType: "credit_note", originalInvoiceId: v, noteReason: "Price correction", items: [{ description: "A", quantity: 1, unitPrice: 10, vatRate: 15 }] }) });
@@ -416,8 +426,12 @@ describeMaybe("G04 sweep — ids from the request body never reach across tenant
   for (const c of CASES) {
     it(`🔴 ${c.endpoint} · ${c.field} — ${c.name}`, async () => {
       const control = await c.send(await c.own());
-      expect(control.status, `CONTROL with the tenant's own id must succeed: ${JSON.stringify(control.body).slice(0, 300)}`).toBeGreaterThanOrEqual(200);
-      expect(control.status).toBeLessThan(300);
+      // Both bounds carry the status and the body: a refused CONTROL (a 4xx) passes the
+      // lower bound, so it is the UPPER one that fails, and it used to print only
+      // "expected 422 to be less than 300", without the refusal code that names the cause.
+      const controlMsg = `CONTROL with the tenant's own id must succeed: ${control.status} ${JSON.stringify(control.body).slice(0, 300)}`;
+      expect(control.status, controlMsg).toBeGreaterThanOrEqual(200);
+      expect(control.status, controlMsg).toBeLessThan(300);
       const attempt = async (label: string, value: Id) => {
         const before = await crossEdges();
         const r = await c.send(value);

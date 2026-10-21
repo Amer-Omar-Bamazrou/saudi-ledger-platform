@@ -32,6 +32,7 @@ import { primePermissionCache } from "../lib/rbac";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { addDays } from "../services/tax/taxComputations.service";
 import { translateDbRefusal } from "../lib/dbRefusals";
+import { lockWaiters } from "./helpers/g08rRace";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -176,12 +177,16 @@ describeMaybe("Phase 16 + 17 QA — the client is told the truth over HTTP", () 
     // Pinning makes that collision certain under the old numbering instead of a matter of luck.
     const pinned = vi.spyOn(Date, "now").mockReturnValue(Date.now());
     try {
+      // The holder's own session: a request counts as queued only when it waits inside THIS holder's
+      // wait tree. The count used to be every ungranted advisory lock in the database, so a parallel
+      // file's advisory waiter could satisfy "both requests reached the lock" before they had.
+      const holderPid = Number((await holder.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid);
       await holder.query(`SELECT pg_advisory_lock(hashtext($1))`, [`wht-remit:${companyId}:${period}`]);
       const pay = () => as("POST", `/tax/wht/periods/${period}/pay`, { bankAccountId: bank, paidAt: today });
       const racing = Promise.all([pay(), pay()]);
       const deadline = Date.now() + 15_000;
       for (;;) {
-        const waiting = Number((await pool.query(`SELECT count(*) n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`)).rows[0].n);
+        const waiting = await lockWaiters(holderPid);
         if (waiting >= 2) break;
         if (Date.now() > deadline) throw new Error(`only ${waiting} request(s) reached the remittance lock`);
         await new Promise((r) => setTimeout(r, 50));
