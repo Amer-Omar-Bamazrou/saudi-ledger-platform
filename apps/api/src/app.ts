@@ -8,6 +8,7 @@ import { loadEnv } from "@workspace/config";
 import router from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./lib/logger";
+import { endEndedSessions } from "./lib/auth";
 
 const env = loadEnv();
 const isProduction = env.NODE_ENV === "production";
@@ -91,6 +92,10 @@ app.use(
     },
   }),
 );
+// 🔴 G02: a session ends when what it was issued for ends — deactivation, a
+// password change or reset, 12 hours from sign-in. Checked here, once, before
+// any guard reads `req.session` (lib/auth.ts).
+app.use(endEndedSessions);
 
 app.use("/api", router);
 

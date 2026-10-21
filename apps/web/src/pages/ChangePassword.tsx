@@ -50,7 +50,7 @@ export default function ChangePassword() {
       <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("New password", "كلمة المرور الجديدة")}</CardTitle>
-          <CardDescription>{t("You'll remain logged in after changing your password.", "ستظل مسجل الدخول بعد تغيير كلمة المرور.")}</CardDescription>
+          <CardDescription>{t("You'll stay signed in here. Every other session of this account is signed out.", "ستبقى مسجّل الدخول هنا، وتُنهى كل الجلسات الأخرى لهذا الحساب.")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -58,7 +58,7 @@ export default function ChangePassword() {
             {success && (
               <Alert className="border-positive-surface/30 bg-positive-surface/10">
                 <CheckCircle2 className="w-4 h-4 text-positive" />
-                <AlertDescription className="text-positive">{t("Password changed successfully.", "تم تغيير كلمة المرور بنجاح.")}</AlertDescription>
+                <AlertDescription className="text-positive">{t("Password changed. Your other sessions are signed out.", "تم تغيير كلمة المرور. أُنهيت جلساتك الأخرى.")}</AlertDescription>
               </Alert>
             )}
             <div className="space-y-1.5">
