@@ -15,6 +15,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { paymentsService } from "../services/payments.service";
@@ -65,6 +66,7 @@ describeMaybe("D-4 Phase D — deterministic bank matching", () => {
   const cleanup = async () => {
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
+      await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
       for (const t of [
         "statement_match_reversals", "statement_matches", "customer_refunds", "payment_allocation_reversals", "payment_allocations", "payments",
         "journal_entry_lines", "journal_entries", "transactions", "invoice_items", "einvoice_documents", "invoices", "customers",

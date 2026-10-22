@@ -99,7 +99,7 @@ async function assertVendorExists(vendorId: unknown): Promise<void> {
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
-import { assertAssetOwnedByCompany } from "./accounting/tenantReferences";
+import { assertAssetOwnedByCompany, assertProductsOwned } from "./accounting/tenantReferences";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { billApprovable, type BillApproveOptions } from "./bills.approvable";
@@ -214,6 +214,10 @@ export const billsService = {
       assertAmount(it.unitPrice, `item ${i + 1} unit price`, { min: 0, allowZero: true });
       if (it.vatRate != null) assertRate(it.vatRate, `item ${i + 1} VAT rate`);
     });
+    // 🔴 G53 (2026-10-22): a line's product is THIS organization's — the plain
+    // key is checked outside RLS, so another tenant's product was stored and a
+    // missing one was a raw 23503 (G04's invoice-line rule, swept to bills).
+    await assertProductsOwned(items as Array<{ productId?: unknown }>);
     if (billData.date != null) assertDateString(billData.date, "date");
     if (billData.dueDate != null) assertDateString(billData.dueDate, "dueDate");
     await assertVendorExists(billData.vendorId);

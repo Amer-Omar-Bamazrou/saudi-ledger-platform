@@ -18,6 +18,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { cashService } from "../services/cash.service";
 import { monthsBetween } from "../services/analytics.service";
@@ -64,6 +65,7 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     for (const t of [
       "transactions",
       "journal_entry_lines",

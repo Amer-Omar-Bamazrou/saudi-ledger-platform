@@ -31,7 +31,7 @@ import { withSavepoint } from "../../lib/savepoint.js";
 import { businessToday } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";
-import { bankLeavesOutsideCompany } from "./tenantReferences.js";
+import { assertVendorOwned, bankLeavesOutsideCompany } from "./tenantReferences.js";
 import { periodOf, shiftPeriod, lastDayOf } from "../assets/depreciationSchedule.js";
 
 /** The number of one schedule's entry for one period — one definition, for the act and for the run's report. */
@@ -109,11 +109,17 @@ export const recognitionSchedulesService = {
       );
     }
 
+    // 🔴 G53 (2026-10-22): the supplier is THIS organization's — the plain key
+    // is checked outside RLS, so another tenant's vendor was stored and a
+    // missing one was a raw 23503. Checked on the value exactly as stored.
+    const vendorId = body.vendorId == null ? null : Number(body.vendorId);
+    await assertVendorOwned(vendorId, "vendorId", "The schedule names a vendor");
+
     const reference = String(body.reference ?? "").trim() || `REC-${Date.now()}`;
     const [row] = await db.insert(recognitionSchedulesTable).values({
       reference, kind, description,
       descriptionAr: (body.descriptionAr as string) ?? null,
-      vendorId: body.vendorId == null ? null : Number(body.vendorId),
+      vendorId,
       expenseAccountId, balanceAccountId,
       totalAmount: String(totalAmount),
       periods, startPeriod,

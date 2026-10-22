@@ -41,6 +41,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { createApproved } from "./helpers/createApproved";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..", "..");
@@ -100,6 +101,7 @@ describeMaybe("the allocator's callers, exercised against real rows", () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await pool.query(`DELETE FROM recurring_runs WHERE rule_id IN (SELECT id FROM recurring_rules WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM recurring_rules WHERE organization_id IN ${org}`);
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
     // Approving posts a journal entry, whose lines reference `categories` —
