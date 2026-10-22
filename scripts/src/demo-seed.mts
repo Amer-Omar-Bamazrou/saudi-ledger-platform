@@ -8,7 +8,13 @@
  * It never touches rows it did not create.
  *
  * Run:  pnpm --filter @workspace/db run seed          (creates org/company/admin)
- *       tsx scripts/src/demo-seed.mts                 (this file)
+ *       DEMO_MODE=1 tsx scripts/src/demo-seed.mts     (this file)
+ *
+ * G71 (Phase 18; owner decision 2026-10-21): it REFUSES to run unless
+ * `DEMO_MODE=1` is set (checked before any query), and its payroll wipe is
+ * limited to the payroll it created itself: DRAFT runs of the `default`
+ * organization whose every item belongs to one of its `DEMO-` employees. It
+ * used to delete EVERY payroll run of that organization, outside demo mode too.
  */
 import { pool } from "@workspace/db";
 
@@ -16,7 +22,17 @@ const P = "DEMO-";
 const YEAR = new Date().getFullYear();
 const d = (mm: number, dd: number) => `${YEAR}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 
+/** G71: the refusal comes before the first query; nothing is read or written outside demo mode. */
+function refuseOutsideDemoMode(): void {
+  if (process.env.DEMO_MODE !== "1") {
+    throw new Error(
+      "demo-seed refuses to run: DEMO_MODE=1 is not set. It deletes and re-creates demo rows in the 'default' organization, so it runs only on a demo database.",
+    );
+  }
+}
+
 async function main() {
+  refuseOutsideDemoMode();
   const org = await pool.query(`SELECT id FROM organizations WHERE slug = 'default'`);
   if (!org.rows[0]) throw new Error("No 'default' organization — run `pnpm --filter @workspace/db run seed` first.");
   const orgId = org.rows[0].id as string;
@@ -37,8 +53,19 @@ async function main() {
   await q(`DELETE FROM quotations WHERE organization_id=$1 AND quotation_number LIKE $2`, [orgId, `${P}%`]);
   await q(`DELETE FROM purchase_order_items WHERE purchase_order_id IN (SELECT id FROM purchase_orders WHERE organization_id=$1 AND order_number LIKE $2)`, [orgId, `${P}%`]);
   await q(`DELETE FROM purchase_orders WHERE organization_id=$1 AND order_number LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM payroll_items WHERE payroll_run_id IN (SELECT id FROM payroll_runs WHERE organization_id=$1)`, [orgId]);
-  await q(`DELETE FROM payroll_runs WHERE organization_id=$1`, [orgId]);
+  // G71: only the payroll THIS script created: a DRAFT run (it inserts its run as draft) with at least one
+  // item, every item an employee it created (`DEMO-`). A run anyone approved or paid, or one naming any
+  // other employee, is never touched. The ids are read first, so the items can go before their run.
+  const demoRuns = (await q(
+    `SELECT r.id FROM payroll_runs r
+      WHERE r.organization_id=$1 AND r.status='draft'
+        AND EXISTS (SELECT 1 FROM payroll_items i WHERE i.payroll_run_id=r.id)
+        AND NOT EXISTS (SELECT 1 FROM payroll_items i JOIN employees e ON e.id=i.employee_id
+                         WHERE i.payroll_run_id=r.id AND e.employee_number NOT LIKE $2)`,
+    [orgId, `${P}%`],
+  )).rows.map((r) => r.id as number);
+  await q(`DELETE FROM payroll_items WHERE payroll_run_id = ANY($1::int[])`, [demoRuns]);
+  await q(`DELETE FROM payroll_runs WHERE id = ANY($1::int[])`, [demoRuns]);
   await q(`DELETE FROM depreciation_entries WHERE asset_id IN (SELECT id FROM fixed_assets WHERE organization_id=$1 AND asset_number LIKE $2)`, [orgId, `${P}%`]);
   await q(`DELETE FROM fixed_assets WHERE organization_id=$1 AND asset_number LIKE $2`, [orgId, `${P}%`]);
   await q(`DELETE FROM employees WHERE organization_id=$1 AND employee_number LIKE $2`, [orgId, `${P}%`]);
