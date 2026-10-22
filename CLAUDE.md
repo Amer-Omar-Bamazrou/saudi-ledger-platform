@@ -472,7 +472,7 @@ doing the thing it governs rather than only once you know its name.
   outage stops invoicing rather than minting an unreachable invoice and a
   permanent ICV gap. Companies with no active credential are skipped silently
   and issue as before. Revisit diagnosability before a real taxpayer (queue C5).
-- **🔴 AN ISSUED INVOICE'S SELLER IDENTITY AND PRINTED BANK DETAILS ARE FIXED AT ISSUE** (0121) — from the company record and the default bank, never from a request, never re-read live.
+- **🔴 AN ISSUED INVOICE IS FROZEN AT THE DATABASE** (0121, 0125) — keyed on issued STATUS, never the hash; its seller and bank come from the company at issue, never a request or a live re-read.
 - **The chain needs two mechanisms:** allocation serialised by
   `lockCompanySequence` (the lock covers the ICV read AND the chain-head read),
   and ordering by **`icv DESC NULLS LAST, id DESC`** — never row id.

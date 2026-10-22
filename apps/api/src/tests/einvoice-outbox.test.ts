@@ -15,6 +15,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 import { einvoiceOutboxRepository } from "../repositories/einvoiceOutbox.repository";
 import { EInvoiceWorker, backoffSeconds } from "../services/einvoice/outbox/worker";
 import { mapZatcaResponse } from "../services/einvoice/zatca/errorMapping";
@@ -70,6 +71,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
 
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${O}`);
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${O})`);
@@ -83,7 +85,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   async function queueDocument(opts: { flow?: "clearance" | "reporting"; signed?: boolean } = {}): Promise<string> {
     invoiceSeq += 1;
     const inv = (
-      await pool.query(
+      await writeIssuedFixture(
         `INSERT INTO invoices (organization_id, company_id, invoice_number, date, customer_id, status)
          VALUES ($1,$2,$3,'2026-04-01',$4,'sent') RETURNING id`,
         [orgId, companyId, `OB-${invoiceSeq}`, customerId],
@@ -123,7 +125,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
 
   afterAll(cleanup);
   beforeEach(async () => {
-    await pool.query(
+    await writeIssuedFixture(
       `DELETE FROM einvoice_documents WHERE organization_id = $1`,
       [orgId],
     );
@@ -282,7 +284,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
 
   it("surfaces overdue documents — quiet neglect is the dangerous failure", async () => {
     const id = await queueDocument();
-    await pool.query(`UPDATE einvoice_documents SET created_at = now() - interval '3 hours' WHERE id = $1`, [id]);
+    await writeIssuedFixture(`UPDATE einvoice_documents SET created_at = now() - interval '3 hours' WHERE id = $1`, [id]);
     const overdue = await einvoiceOutboxRepository.listOverdue(60);
     // A simplified invoice silently missing ZATCA's 24h reporting window is
     // legal exposure for the tenant and nothing about it looks broken.
