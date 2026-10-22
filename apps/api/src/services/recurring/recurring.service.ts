@@ -5,7 +5,6 @@
  * it on rent, retainers and subscriptions.
  */
 import { BadRequestError, NotFoundError } from "../../lib/errors";
-import { can } from "../../lib/rbac";
 import { auditService } from "../audit.service";
 import { recurringRepository } from "../../repositories/recurring.repository";
 import { round2 } from "../../lib/money";
@@ -44,30 +43,6 @@ export function nextOccurrence(from: string, frequency: Frequency, dayOfMonth: n
   const day = Math.min(dayOfMonth, lastDay);
 
   return new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
-}
-
-/**
- * 🔴 THE AUTHORITY INVARIANT — built now, unused in v1.
- *
- * `autoIssue` is always false today, so nothing calls this in anger. It exists
- * because when auto-issue ships, the check must ALREADY be here rather than be
- * remembered: a rule that issues invoices is a standing grant of authority, and
- * the M11.7 invitation invariant applies exactly — **no rule may grant more than
- * its creator holds.**
- *
- * Two properties, both deliberate:
- *   1. checked against the entity's `approve` action, not `create` — issuing is
- *      approval-level authority, which is why M10.1 separated the two;
- *   2. **re-checked at GENERATION, never stored.** A rule is not a credential.
- *      If the author's role is reduced or their membership deactivated, the rule
- *      falls back to drafts instead of continuing to act with authority its
- *      owner no longer has.
- */
-export async function mayAutoIssue(role: string | null, entity: "invoice" | "bill" | "journal_entry"): Promise<boolean> {
-  if (!role) return false;
-  // A recurring JOURNAL ENTRY would be POSTED, not issued, and posting is the
-  // approver's act on the entry itself — the same authority `approve` names.
-  return can(role, entity === "invoice" ? "invoices" : entity === "bill" ? "bills" : "journal-entries", "approve");
 }
 
 export const recurringService = {
