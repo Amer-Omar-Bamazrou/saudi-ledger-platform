@@ -133,30 +133,32 @@ async function main() {
     vendors.push(Number(r.rows[0].id));
   }
 
-  // ── invoices: issued + paid, and 60 PENDING drafts (the old cap was 50) ────
-  const issued: Array<[string, number, number, number, string, string]> = [
-    [`${P}INV-1001`, 12000, 1800, 13800, d(3, 5), "paid"],
-    [`${P}INV-1002`, 8000, 1200, 9200, d(4, 12), "paid"],
-    [`${P}INV-1003`, 15000, 2250, 17250, d(5, 2), "sent"],
-    [`${P}INV-1004`, 6400, 960, 7360, d(6, 18), "sent"],
-    [`${P}INV-1005`, 22000, 3300, 25300, d(7, 9), "sent"],
+  // ── invoices: 5 awaiting approval, and 60 PENDING drafts (the old cap was 50) ────
+  // 🔴 NEVER INSERTED ISSUED (PR C, migration 0125): an invoice is issued only by
+  // its approval — the issuing write assigns its place in the chain, its ICV,
+  // hash, QR and seller, and posts its entry — and the database refuses a row
+  // inserted already issued (`invoice_inserted_issued`). This script writes raw
+  // rows and cannot issue; approve these through the product (the Approvals
+  // queue, or `invoicesService.approve` — `services/demo/demoSeed` does exactly
+  // that) to get issued and paid invoices with their entries.
+  const awaiting: Array<[string, number, number, number, string]> = [
+    [`${P}INV-1001`, 12000, 1800, 13800, d(3, 5)],
+    [`${P}INV-1002`, 8000, 1200, 9200, d(4, 12)],
+    [`${P}INV-1003`, 15000, 2250, 17250, d(5, 2)],
+    [`${P}INV-1004`, 6400, 960, 7360, d(6, 18)],
+    [`${P}INV-1005`, 22000, 3300, 25300, d(7, 9)],
   ];
-  for (const [num, sub, vat, total, date, status] of issued) {
-    const paid = status === "paid" ? total : 0;
+  for (const [num, sub, vat, total, date] of awaiting) {
     const r = await q(
-      `INSERT INTO invoices (organization_id, company_id, customer_id, invoice_number, document_type, date, due_date, subtotal, vat_amount, total, paid_amount, status, invoice_hash, previous_hash, qr_code, icv, issued_at)
-       VALUES ($1,$2,$3,$4,'invoice',$5,$6,$7,$8,$9,$10,$11,'demo-hash','GENESIS','demo-qr',$12,now()) RETURNING id`,
-      [orgId, companyId, customers[issued.indexOf([num, sub, vat, total, date, status] as never) % 3] ?? customers[0], num, date, date, sub, vat, total, paid, status, 1000 + issued.findIndex((x) => x[0] === num)],
+      `INSERT INTO invoices (organization_id, company_id, customer_id, invoice_number, document_type, date, due_date, subtotal, vat_amount, total, paid_amount, status)
+       VALUES ($1,$2,$3,$4,'invoice',$5,$6,$7,$8,$9,0,'submitted') RETURNING id`,
+      [orgId, companyId, customers[0], num, date, date, sub, vat, total],
     );
     await q(
       `INSERT INTO invoice_items (organization_id, company_id, invoice_id, description, description_ar, quantity, unit_price, vat_rate, vat_amount, total, tax_category_code)
        VALUES ($1,$2,$3,'Professional services','خدمات مهنية',1,$4,15,$5,$6,'S')`,
       [orgId, companyId, r.rows[0].id, sub, vat, total],
     );
-    if (paid > 0) {
-      await q(`INSERT INTO invoice_payments (organization_id, company_id, invoice_id, amount, paid_at) VALUES ($1,$2,$3,$4,$5)`,
-        [orgId, companyId, r.rows[0].id, paid, date]);
-    }
   }
   // 🔴 60 pending drafts — the approvals queue used to show at most 50.
   for (let i = 1; i <= 60; i++) {

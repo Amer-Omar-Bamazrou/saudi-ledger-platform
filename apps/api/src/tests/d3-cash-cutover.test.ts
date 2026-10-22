@@ -31,6 +31,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { cashCutoverService, CashCutoverBlockedError, type ClassifiedLine } from "../services/accounting/cashCutover.service";
 import { pairOneToOne } from "../services/accounting/evidencePairing";
@@ -118,6 +119,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
   const cleanup = async () => {
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
+      await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
       await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
       for (const t of [
@@ -168,7 +170,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
       [orgId, companyId, o.date, o.description, o.amount, o.type, o.kind ?? "operating", o.bankAccountId, o.journalEntryId ?? null, o.settlesInvoiceId ?? null, o.settlesBillId ?? null],
     )).rows[0].id as number;
   const invoice = async (companyId: string, number: string, total: number, paid: number) =>
-    (await pool.query(
+    (await writeIssuedFixture(
       `INSERT INTO invoices (organization_id, company_id, customer_id, invoice_number, document_type, date, due_date, subtotal, vat_amount, total, paid_amount, status)
        VALUES ($1,$2,$3,$4,'invoice','2026-03-01','2026-03-31',$5,0,$5,$6,$7) RETURNING id`,
       [orgId, companyId, customerId, number, total, paid, paid >= total ? "paid" : "sent"],

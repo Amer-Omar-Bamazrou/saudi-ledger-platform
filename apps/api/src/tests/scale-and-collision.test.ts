@@ -43,6 +43,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -94,6 +95,7 @@ async function withOrg<T>(
  */
 async function wipeFixture() {
   const org = `(SELECT id FROM organizations WHERE slug = '${FIXTURE_SLUG}')`;
+  await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
   await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${org}`);
   await pool.query(
     `DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`,
@@ -195,7 +197,7 @@ describeMaybe("scale and collision — the two classes small unique fixtures can
       // is exactly the situation a (customer, amount, date) identity cannot
       // survive.
       for (let i = 0; i < COLLIDING_COUNT; i++) {
-        await pool.query(
+        await writeIssuedFixture(
           `INSERT INTO invoices
              (organization_id, company_id, customer_id, invoice_number, document_type,
               date, due_date, subtotal, vat_amount, total, paid_amount, status)
