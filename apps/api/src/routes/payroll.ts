@@ -12,5 +12,6 @@ router.post("/:id/submit", payrollController.submit);
 router.post("/:id/send-back", payrollController.sendBack);
 router.post("/:id/reject", payrollController.reject);
 router.post("/:id/approve", payrollController.approve);
+router.post("/:id/pay", payrollController.pay);
 
 export default router;

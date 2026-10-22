@@ -268,7 +268,8 @@ export const budgetsService = {
 
   async remove(id: number) {
     const before = await loadBudget(id);
-    const versions = await budgetsRepository.versionsOf([id]);
+    // Locked, not merely read (Phase 18 e4): a DELETE queued behind an approval waits for it, then refuses here.
+    const versions = await budgetsRepository.lockVersionsOf(id);
     if (versions.some((v) => v.status === "approved" || v.status === "superseded")) {
       throw new BusinessRuleError(409, { code: "budget_ever_approved", error: "This budget has been approved — an approved budget is a record and is never deleted. Start a revision to change it." });
     }

@@ -12,7 +12,22 @@
 // The `db` proxy now REFUSES a query outside a tenant transaction instead of
 // silently falling back to this connection.
 import { ownerDb as db, ownerDb, organizationMembershipsTable, usersTable } from "@workspace/db";
-import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray, sql } from "drizzle-orm";
+
+/** A transaction on the owner connection (the last-admin guard's). */
+export type OwnerTx = Parameters<Parameters<typeof ownerDb.transaction>[0]>[0];
+
+/** G03: usable admins per organization — active admin membership AND an active account. */
+async function usableAdminCounts(tx: OwnerTx, orgIds: string[]): Promise<Map<string, number>> {
+  const m = organizationMembershipsTable;
+  const rows = await tx
+    .select({ organizationId: m.organizationId, n: sql<number>`count(*)::int` })
+    .from(m)
+    .innerJoin(usersTable, eq(usersTable.id, m.userId))
+    .where(and(inArray(m.organizationId, orgIds), eq(m.role, "admin"), eq(m.status, "active"), eq(usersTable.isActive, true)))
+    .groupBy(m.organizationId);
+  return new Map(rows.map((r) => [r.organizationId, Number(r.n)]));
+}
 
 export const membersRepository = {
   /** The user's active membership role in an org, or null if not an active member. */
@@ -91,19 +106,55 @@ export const membersRepository = {
     return rows.map((r) => r.email);
   },
 
-  /** Count active admins in an org (to refuse orphaning the last one). */
-  async activeAdminCount(orgId: string): Promise<number> {
-    const rows = await db
-      .select({ id: organizationMembershipsTable.id })
-      .from(organizationMembershipsTable)
-      .where(
-        and(
-          eq(organizationMembershipsTable.organizationId, orgId),
-          eq(organizationMembershipsTable.role, "admin"),
-          eq(organizationMembershipsTable.status, "active"),
-        ),
-      );
-    return rows.length;
+  /**
+   * 🔴 G03 — THE LAST-ADMIN GUARD, one for every path that can take an admin
+   * away (owner D-4, 2026-10-20: the last usable admin cannot be demoted or
+   * deactivated on any path; 409). A USABLE admin is an active admin membership
+   * whose ACCOUNT is active — one who can sign in. It replaces a count-then-write
+   * check that covered `membersService.update` only.
+   *
+   * `write` runs in ONE transaction that first locks the target's account row,
+   * then the admin memberships of every organization the act can affect (the one
+   * named, or — for an account-wide act — every organization the target is an
+   * active admin of, read under the account lock), in id order. The usable
+   * admins are counted BEFORE and AFTER the write; an organization that had one
+   * and has none afterwards refuses the act with `refusal()`, and the write
+   * rolls back. The count is taken under the lock, so two acts each allowed
+   * alone — two admins demoting each other, a demotion beside a deactivation —
+   * serialise here and the second counts what the first left.
+   *
+   * Lock order is fixed (one account row, then admin memberships ascending by
+   * id), so two guards never deadlock each other.
+   */
+  withLastAdminGuard<T>(
+    target: { userId: number; orgId?: string },
+    write: (tx: OwnerTx) => Promise<T>,
+    refusal: () => Error,
+  ): Promise<T> {
+    const m = organizationMembershipsTable;
+    return ownerDb.transaction(async (tx) => {
+      await tx.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, target.userId)).for("no key update");
+      const orgIds = target.orgId
+        ? [target.orgId]
+        : (
+            await tx
+              .select({ organizationId: m.organizationId })
+              .from(m)
+              .where(and(eq(m.userId, target.userId), eq(m.role, "admin"), eq(m.status, "active")))
+          ).map((r) => r.organizationId);
+      if (orgIds.length === 0) return write(tx);
+      await tx
+        .select({ id: m.id })
+        .from(m)
+        .where(and(inArray(m.organizationId, orgIds), eq(m.role, "admin")))
+        .orderBy(asc(m.id))
+        .for("update");
+      const before = await usableAdminCounts(tx, orgIds);
+      const result = await write(tx);
+      const after = await usableAdminCounts(tx, orgIds);
+      if (orgIds.some((org) => (before.get(org) ?? 0) > 0 && (after.get(org) ?? 0) === 0)) throw refusal();
+      return result;
+    });
   },
 
   /** List all memberships of an org, joined to user identity. */
@@ -205,8 +256,8 @@ export const membersRepository = {
   },
 
   /** Insert or re-activate a membership (idempotent on the unique (user, org)). */
-  upsert(userId: number, orgId: string, role: string) {
-    return db
+  upsert(userId: number, orgId: string, role: string, tx: Pick<typeof db, "insert"> = db) {
+    return tx
       .insert(organizationMembershipsTable)
       .values({ userId, organizationId: orgId, role, status: "active" })
       .onConflictDoUpdate({
@@ -216,8 +267,13 @@ export const membersRepository = {
       .returning();
   },
 
-  update(userId: number, orgId: string, values: Partial<typeof organizationMembershipsTable.$inferInsert>) {
-    return db
+  update(
+    userId: number,
+    orgId: string,
+    values: Partial<typeof organizationMembershipsTable.$inferInsert>,
+    tx: Pick<typeof db, "update"> = db,
+  ) {
+    return tx
       .update(organizationMembershipsTable)
       .set(values)
       .where(

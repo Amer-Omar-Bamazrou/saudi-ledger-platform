@@ -6135,10 +6135,23 @@ export type PayrollRunDetail = PayrollRun & {
 };
 
 export interface CreatePayrollRunInput {
-  /** YYYY-MM */
+  /**
+     * YYYY-MM — validated (DR-39, Phase 18): a month, not free text
+     * @pattern ^[0-9]{4}-(0[1-9]|1[0-2])$
+     */
   period: string;
   /** @nullable */
   notes?: string | null;
+}
+
+export interface PayPayrollRunInput {
+  /** The bank the net pay left from (D-3: every cash line names its bank) */
+  bankAccountId: number;
+  /**
+     * YYYY-MM-DD; defaults to today
+     * @nullable
+     */
+  paidAt?: string | null;
 }
 
 export interface Employee {

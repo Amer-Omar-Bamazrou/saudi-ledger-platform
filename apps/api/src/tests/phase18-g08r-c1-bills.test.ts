@@ -26,8 +26,11 @@ const REAL_DB = !!url && !url.includes("placeholder");
 const describeMaybe = REAL_DB ? describe : describe.skip;
 const PW = "G08rProofPw123!";
 const DATE = "2026-10-05";
-// A bill's PATCH edits its header figures (the allowlist in billsService.update), not its lines.
-const EDIT = { subtotal: 9_999, vatAmount: 0, total: 9_999 };
+// A bill's PATCH edits its header (the allowlist in billsService.update), not its lines. RE-POINTED 2026-10-21 with
+// G65 (owner decision DR-07(b)): a LINED bill's header totals now follow its lines, so the totals below no longer
+// change a draft; the probe carries a `notes` edit, which a draft still takes, and the control checks that instead.
+const PROBE_NOTE = "EDITED BY THE PATCH PROBE";
+const EDIT = { subtotal: 9_999, vatAmount: 0, total: 9_999, notes: PROBE_NOTE };
 
 describeMaybe("B-G08R-P (c1) — the G08 races on BILLS", () => {
   const h = g04Harness("g08rc1");
@@ -74,7 +77,9 @@ describeMaybe("B-G08R-P (c1) — the G08 races on BILLS", () => {
     expect((await submit(a.id)).status).toBe(200);
     expect((await sendBack(a.id)).status).toBe(200);
     expect((await patch(a.id)).status, "a draft bill is editable").toBe(200);
-    expect((await evidence(a)).bill?.total, "anti-vacuity: the PATCH probe changes a draft's total").toBe("9999.00");
+    const probed = (await pool.query(`SELECT notes, total::text AS total FROM bills WHERE id = $1`, [a.id])).rows[0];
+    expect(probed.notes, "anti-vacuity: the PATCH probe changes a draft").toBe(PROBE_NOTE);
+    expect(probed.total, "G65: a lined draft's total follows its lines, whatever the PATCH sent").toBe("1000.00");
     const d = await draftBill();
     expect((await del(d.id)).status, "a draft bill deletes").toBe(204);
 

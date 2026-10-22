@@ -11,14 +11,17 @@
  *
  * GOSI rates + all arithmetic preserved exactly from the pre-M6 route.
  */
-import { BadRequestError, NotFoundError } from "../lib/errors";
+import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
 import { payrollApprovable } from "./payroll.approvable";
 import { runToOut, itemToOut, toNum } from "./payroll.presenter";
 import { payrollRepository } from "../repositories/payroll.repository";
 import { round2, money2 } from "../lib/money";
-import { GOSI_RATES } from "@workspace/shared";
+import { GOSI_RATES, businessToday } from "@workspace/shared";
+import { postJournalEntry } from "./accounting/glPosting";
+import { assertBankAccount } from "./accounting/bankIdentity";
+import { assertDateString } from "../lib/writeGuards";
 
 export const payrollService = {
   async list() {
@@ -143,5 +146,49 @@ export const payrollService = {
   /** Approve a run — posts the payroll GL entry (Dr Salaries+GOSI / Cr Net+GOSI Payable). */
   approve(id: number, userId: number | null) {
     return approvalService.approve(payrollApprovable(), id, { userId: userId ?? null });
+  },
+
+  /**
+   * 🔴 DR-41 / DR-39 (Phase 18, owner decision 2.9) — PAY a run's net pay from a bank: Dr Salaries Payable / Cr the
+   * bank's cash account. The approval already EXPENSED the salaries; there was no pay path, so the only way to
+   * clear the payable was a bank line — which the categoriser booked to the EXPENSE, a second time (reproduced).
+   * Paying never touches SALARIES. One payment per run: the run's row is locked, it must be `approved`, and it
+   * becomes `paid` only from `approved`. It is refused while Salaries Payable no longer owes the net pay (a bank
+   * line already paid it, or one is waiting in review against it — `salaryPayableContext`, the one definition the
+   * categoriser also reads). Dated the PAYMENT's day (default today); the accrual's date is AQ-7's open question and
+   * is not changed here. A closed period refuses through the posting seam (423).
+   */
+  async pay(id: number, body: { bankAccountId?: unknown; paidAt?: unknown }, userId: number | null) {
+    const bankAccountId = await assertBankAccount(body.bankAccountId, { what: "the net pay left from" });
+    const paidAt = body.paidAt == null || body.paidAt === "" ? businessToday() : assertDateString(body.paidAt, "paidAt");
+    await payrollRepository.lockRun(id);
+    const [run] = await payrollRepository.findRun(id);
+    if (!run) throw new NotFoundError("Payroll run not found");
+    if (run.status === "paid") throw new BusinessRuleError(409, { code: "payroll_already_paid", error: `Payroll run ${run.period} is already paid.` });
+    if (run.status !== "approved") {
+      throw new BusinessRuleError(409, { code: "payroll_not_approved", error: `Payroll run ${run.period} is not approved yet; its salaries are not in the books, so there is nothing to pay. Approve it first.` });
+    }
+    const netPay = toNum(run.totalNetPay);
+    const { openPayable } = await payrollRepository.salaryPayableContext();
+    if (openPayable + 0.005 < netPay) {
+      throw new BusinessRuleError(409, {
+        code: "payroll_payable_already_settled",
+        error: `Salaries Payable owes ${openPayable.toFixed(2)} (after statement lines waiting in review against it), less than this run's net pay of ${netPay.toFixed(2)}: a bank line has already paid it, or is waiting to. Nothing was recorded. Reconcile that line instead.`,
+      });
+    }
+    const [paid] = await payrollRepository.updateRunIfStatus(id, "approved", { status: "paid" });
+    if (!paid) throw new BusinessRuleError(409, { code: "payroll_not_approved", error: `Payroll run ${run.period} changed while it was being paid. Nothing was recorded — reload and try again.` });
+    const entry = await postJournalEntry({
+      entryNumber: `PAY-${run.period}-R${run.id}-NET`,
+      date: paidAt,
+      description: `Net pay for payroll run ${run.period}`,
+      reference: `Payroll-${run.id}`,
+      lines: [
+        { systemCode: "SALARIES_PAYABLE", accountName: "Salaries Payable", description: `Net pay paid ${run.period}`, debitAmount: netPay, creditAmount: 0 },
+        { bankAccountId, description: `Net pay ${run.period}`, debitAmount: 0, creditAmount: netPay },
+      ],
+    });
+    await auditService.record({ action: "pay", entityType: "payroll_run", entityId: id, before: runToOut(run), after: { ...runToOut(paid), paidAt, bankAccountId, journalEntryId: entry?.id ?? null, by: userId } });
+    return runToOut(paid);
   },
 };

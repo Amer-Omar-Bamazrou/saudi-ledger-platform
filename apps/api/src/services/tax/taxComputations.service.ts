@@ -306,7 +306,12 @@ async function loadComputation(id: number): Promise<TaxComputation> {
 async function loadVersionOf(computationId: number, versionId: number): Promise<TaxComputationVersion> {
   if (!Number.isSafeInteger(versionId) || versionId <= 0 || versionId > MAX_ID) throw new NotFoundError("Version not found.");
   const v = await taxRepository.lockVersion(versionId);
-  if (!v || v.computationId !== computationId) throw new NotFoundError("Version not found.");
+  if (!v || v.computationId !== computationId) {
+    // Phase 18 (e1): a version that vanished while this request waited on its lock went with its
+    // computation (a reject of the only version, or a DELETE) — answer as the sequential request is answered.
+    if (!v) await loadComputation(computationId);
+    throw new NotFoundError("Version not found.");
+  }
   return v;
 }
 function lockedError(v: TaxComputationVersion) {
@@ -505,7 +510,8 @@ export const taxComputationsService = {
 
   async remove(id: number) {
     const before = await loadComputation(id);
-    const versions = await taxRepository.versionsOf([id]);
+    // Locked, not merely read (Phase 18 e1): a DELETE queued behind an approval waits for it, then refuses here.
+    const versions = await taxRepository.lockVersionsOf(id);
     if (versions.some((v) => v.status === "approved" || v.status === "superseded")) {
       refuse(409, "tax_computation_ever_approved", "This computation has been approved — it is a record and is never deleted. Start a revision to change it.");
     }

@@ -11,12 +11,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Banknote, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { BankPicker } from "@/components/payments/shared";
+import { ApiError } from "@/lib/api";
 
-import type { CreatePayrollRunInput, PayrollRunDetail, PayrollRunListItem } from "@workspace/api-client-react";
+import type { CreatePayrollRunInput, PayPayrollRunInput, PayrollRunDetail, PayrollRunListItem } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
-const json = { create: (b: CreatePayrollRunInput) => JSON.stringify(b) };
+const json = { create: (b: CreatePayrollRunInput) => JSON.stringify(b), pay: (b: PayPayrollRunInput) => JSON.stringify(b) };
+
+/** DR-41: the pay path's refusals, titled by their CODE in both languages (the server's sentence is the description). */
+const PAY_REFUSALS: Record<string, [string, string]> = {
+  payroll_payable_already_settled: ["Not paid — a bank line already paid this run, or is waiting to", "لم يُدفع — سطر بنكي دفع هذا المسير بالفعل أو بانتظار ذلك"],
+  payroll_already_paid: ["This payroll run is already paid", "مسير الرواتب هذا مدفوع بالفعل"],
+  payroll_not_approved: ["Approve the payroll run before paying it", "اعتمد مسير الرواتب قبل دفعه"],
+};
 
 const STATUS_STYLES: Record<string, string> = { draft: "bg-attention-surface/20 text-attention", approved: "bg-positive-surface/20 text-positive", paid: "bg-info-surface/20 text-info" };
 
@@ -24,6 +33,10 @@ export default function Payroll() {
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [period, setPeriod] = useState(businessToday().slice(0, 7));
+  // DR-41: paying an approved run's net pay (Dr Salaries Payable / Cr the bank) — never the salary expense again
+  const [payRun, setPayRun] = useState<PayrollRunListItem | null>(null);
+  const [payBank, setPayBank] = useState("");
+  const [paidAt, setPaidAt] = useState(businessToday());
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t, lang } = useLanguage();
@@ -43,6 +56,15 @@ export default function Payroll() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
+  const payMut = useMutation({
+    mutationFn: (v: { id: number; body: PayPayrollRunInput }) => apiFetch(`/payroll/${v.id}/pay`, { method: "POST", body: json.pay(v.body) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll"] }); setPayRun(null); toast({ title: t("Net pay recorded — Salaries Payable settled", "سُجِّل صافي الرواتب — سُوِّيت الرواتب المستحقة") }); },
+    onError: (e: Error) => {
+      const pair = e instanceof ApiError && e.code ? PAY_REFUSALS[e.code] : undefined;
+      toast({ title: pair ? t(pair[0], pair[1]) : t("Error", "خطأ"), description: e.message, variant: "destructive" });
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -59,6 +81,18 @@ export default function Payroll() {
               <p className="text-xs text-muted-foreground">{t("This will generate payroll items for all active employees based on their current salary setup and GOSI rates.", "سيُنشئ هذا بنود الرواتب لجميع الموظفين النشطين بناءً على إعداد الراتب الحالي ونسب GOSI.")}</p>
             </div>
             <Button className="w-full mt-4" onClick={()=>generateMut.mutate(period)} disabled={generateMut.isPending}>{generateMut.isPending ? t("Generating...", "جارٍ الإنشاء...") : t("Generate Payroll", "إنشاء مسير الرواتب")}</Button>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={payRun !== null} onOpenChange={(o)=>{ if (!o) setPayRun(null); }}>
+          <DialogContent className="max-w-sm" data-testid="payroll-pay-dialog">
+            <DialogHeader><DialogTitle>{t("Pay net salaries", "دفع صافي الرواتب")} — {payRun?.period}</DialogTitle></DialogHeader>
+            <div className="mt-2 space-y-3">
+              <p className="text-sm">{t("Net pay", "صافي الراتب")}: <span className="font-mono font-semibold" dir="ltr">{payRun ? fmtNum(payRun.totalNetPay) : ""}</span></p>
+              <BankPicker value={payBank} onChange={setPayBank} testId="payroll-pay-bank" label={t("Paid from", "دُفع من")} />
+              <div><Label className="text-xs text-muted-foreground">{t("Paid on", "تاريخ الدفع")}</Label><Input type="date" dir="ltr" value={paidAt} onChange={e=>setPaidAt(e.target.value)} className="mt-1 h-8 text-sm" data-testid="payroll-pay-date" /></div>
+              <p className="text-xs text-muted-foreground">{t("The salaries were expensed when the run was approved; paying settles Salaries Payable from the bank. If the bank's salary line is imported later, reconcile it to this payment rather than categorising it.", "سُجِّلت الرواتب مصروفًا عند اعتماد المسير؛ والدفع يسوّي الرواتب المستحقة من البنك. وإذا استُورد سطر الرواتب البنكي لاحقًا فطابقه مع هذه الدفعة بدل تصنيفه.")}</p>
+            </div>
+            <Button className="w-full mt-4" data-testid="payroll-pay-submit" disabled={!payBank || !paidAt || payMut.isPending} onClick={()=>payRun && payMut.mutate({ id: payRun.id, body: { bankAccountId: Number(payBank), paidAt } })}>{payMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record payment", "تسجيل الدفعة")}</Button>
           </DialogContent>
         </Dialog>
       </div>
@@ -95,6 +129,7 @@ export default function Payroll() {
                     <div className="flex items-center gap-2">
                       <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
                       {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();approveMut.mutate(r.id);}}>{t("Approve", "موافقة")}</Button>}
+                      {r.status==="approved"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setPayRun(r);setPayBank("");setPaidAt(businessToday());}}>{t("Pay", "دفع")}</Button>}
                     </div>
                   </div>
                 ))}

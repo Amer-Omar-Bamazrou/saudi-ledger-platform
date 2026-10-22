@@ -26,6 +26,19 @@ export const budgetsRepository = {
     return db.select().from(budgetsTable).where(and(eq(budgetsTable.id, id), companyScoped(budgetsTable.companyId))).limit(1);
   },
 
+  /**
+   * Phase 18 (e4): EVERY version of a budget, locked for the transaction in id order —
+   * the DELETE of a budget reads their statuses under the same lock every transition
+   * takes, so a DELETE queued behind an approval sees the approval.
+   */
+  lockVersionsOf(budgetId: number) {
+    return db
+      .select()
+      .from(budgetVersionsTable)
+      .where(and(eq(budgetVersionsTable.budgetId, budgetId), companyScoped(budgetVersionsTable.companyId)))
+      .orderBy(asc(budgetVersionsTable.id))
+      .for("update");
+  },
   versionsOf(budgetIds: number[]) {
     if (budgetIds.length === 0) return Promise.resolve([] as BudgetVersionRow[]);
     return db
