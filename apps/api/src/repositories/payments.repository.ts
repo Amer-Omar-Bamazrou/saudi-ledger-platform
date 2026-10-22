@@ -14,6 +14,7 @@
 import { db, invoicePaymentsTable, billPaymentsTable, paymentsTable, paymentAllocationsTable, paymentAllocationReversalsTable, customerRefundsTable, invoicesTable, migrationDepositReversalsTable, paymentClassificationsTable } from "@workspace/db";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { paymentNotReversed, paymentNotReversedSql } from "./openingReversal";
+import { companyScoped } from "./companyScope";
 
 export const paymentsRepository = {
   // N3: both return the inserted row — its id is what suffixes the payment's
@@ -27,9 +28,21 @@ export const paymentsRepository = {
     return row;
   },
 
-  async recordBillPayment(billId: number, amount: number, paidAt: string, bankAccountId: number) {
-    const [row] = await db.insert(billPaymentsTable).values({ billId, amount: String(amount), paidAt, bankAccountId }).returning();
+  async recordBillPayment(billId: number, amount: number, paidAt: string, bankAccountId: number, idempotency?: { key: string; fingerprint: string }) {
+    const [row] = await db
+      .insert(billPaymentsTable)
+      .values({ billId, amount: String(amount), paidAt, bankAccountId, idempotencyKey: idempotency?.key ?? null, requestFingerprint: idempotency?.fingerprint ?? null })
+      .returning();
     return row;
+  },
+
+  /** G36-KEY: THIS company's bill payment recorded under `key` (the key is unique per company, 0124). */
+  findBillPaymentByIdempotencyKey(key: string) {
+    return db
+      .select()
+      .from(billPaymentsTable)
+      .where(and(eq(billPaymentsTable.idempotencyKey, key), companyScoped(billPaymentsTable.companyId)))
+      .limit(1);
   },
 
   /** Phase 12B — the entry a bill payment posted; written once, by the pay path. */

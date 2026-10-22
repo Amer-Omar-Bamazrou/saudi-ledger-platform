@@ -5569,8 +5569,11 @@ export const ListPayrollRunsResponse = zod.array(ListPayrollRunsResponseItem)
 /**
  * @summary Create a DRAFT run for a period from every active employee
  */
+export const createPayrollRunBodyPeriodRegExp = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])$');
+
+
 export const CreatePayrollRunBody = zod.object({
-  "period": zod.string().describe('YYYY-MM'),
+  "period": zod.string().regex(createPayrollRunBodyPeriodRegExp).describe('YYYY-MM — validated (DR-39, Phase 18): a month, not free text'),
   "notes": zod.string().nullish()
 })
 
@@ -13986,6 +13989,36 @@ export const ApprovePayrollRunResponse = zod.object({
 
 
 /**
+ * DR-41 / DR-39 (Phase 18). The approval already EXPENSED the salaries (Dr Salaries / Cr Salaries Payable); paying posts Dr Salaries Payable / Cr the bank's cash account for the run's net pay and never touches Salaries again. One payment per run: the run must be approved, and it becomes paid. Dated the payment's own day (default today). Approver-only.
+ * @summary Pay an approved payroll run's net pay from a bank account (settles Salaries Payable)
+ */
+export const PayPayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PayPayrollRunBody = zod.object({
+  "bankAccountId": zod.number().describe('The bank the net pay left from (D-3: every cash line names its bank)'),
+  "paidAt": zod.string().nullish().describe('YYYY-MM-DD; defaults to today')
+})
+
+export const PayPayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
+  "totalBasicSalary": zod.number(),
+  "totalAllowances": zod.number(),
+  "totalGosiEmployee": zod.number(),
+  "totalGosiEmployer": zod.number(),
+  "totalDeductions": zod.number(),
+  "totalNetPay": zod.number(),
+  "processedAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * Draft/approval workflow (M10.5). Hard-deletes a draft or submitted run — no archive. An approved run cannot be rejected. Approver-only.
  * @summary Reject a non-approved payroll run (hard-deletes it)
  */
@@ -15809,6 +15842,8 @@ export const correctWhtWithholdingBodyReentryOneAmountExclusiveMin = 0;
 
 export const correctWhtWithholdingBodyReentryOneWhtNotSubjectNoteMax = 2000;
 
+export const correctWhtWithholdingBodyReentryOneActualCashExclusiveMin = 0;
+
 
 
 export const CorrectWhtWithholdingBody = zod.object({
@@ -15831,7 +15866,9 @@ export const CorrectWhtWithholdingBody = zod.object({
   "whtPaymentType": zod.string().nullish(),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
   "whtNotSubjectNote": zod.string().max(correctWhtWithholdingBodyReentryOneWhtNotSubjectNoteMax).nullish(),
-  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish()
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish(),
+  "recordedCashWasWrong": zod.boolean().nullish().describe('DR-45 (I): the person\'s explicit statement that the ORIGINAL payment\'s recorded cash was wrong. Without it the re-entry must move exactly the original\'s cash (same bank, amount and date) or the correction is refused.'),
+  "actualCash": zod.number().gt(correctWhtWithholdingBodyReentryOneActualCashExclusiveMin).nullish().describe('DR-45 (I): with recordedCashWasWrong, the cash that actually left the bank; the re-entry must move exactly this.')
 }).describe('The corrected payment. A bill payment\'s fields: billId (defaults to the original\'s bill), amount, paidAt, bankAccountId. A supplier payment\'s: vendorId, classification, allocations, reference. The WHT declaration as on any pay path.'),zod.null()]).optional()
 }).describe('Q1 (pack §14.1): reverse a WHT-bearing payment (its mirror entry; the original kept) and, with `reentry`, record the corrected payment through the same pay path. `filedMonthTreatment` is required when a leg falls in a FILED month.')
 

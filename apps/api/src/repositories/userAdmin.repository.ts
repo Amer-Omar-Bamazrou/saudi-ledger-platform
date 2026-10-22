@@ -36,10 +36,26 @@ export const userAdminRepository = {
   async setPasswordHash(userId: number, passwordHash: string): Promise<void> {
     await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
   },
-  /** Kills every live session of the user; returns how many died. */
-  async revokeSessions(userId: number): Promise<number> {
-    const res = await db.execute(sql`DELETE FROM user_sessions WHERE (sess ->> 'userId')::int = ${userId}`);
+  /**
+   * Kills every live session of the user — but `exceptSid`, when given (G02: the
+   * session a user changes their own password in) — and returns how many died.
+   */
+  async revokeSessions(userId: number, exceptSid?: string): Promise<number> {
+    const res = await db.execute(
+      exceptSid === undefined
+        ? sql`DELETE FROM user_sessions WHERE (sess ->> 'userId')::int = ${userId}`
+        : sql`DELETE FROM user_sessions WHERE (sess ->> 'userId')::int = ${userId} AND sid <> ${exceptSid}`,
+    );
     return res.rowCount ?? 0;
+  },
+  /** G02: what a live session is checked against on every request — the account's active flag and its stored password hash. */
+  async sessionAccount(userId: number): Promise<{ isActive: boolean; passwordHash: string } | undefined> {
+    const [row] = await db
+      .select({ isActive: usersTable.isActive, passwordHash: usersTable.passwordHash })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
+    return row;
   },
 
   /**
@@ -150,7 +166,7 @@ export const userAdminRepository = {
     });
   },
 
-  update(userId: number, values: Partial<typeof usersTable.$inferInsert>) {
-    return db.update(usersTable).set(values).where(eq(usersTable.id, userId)).returning();
+  update(userId: number, values: Partial<typeof usersTable.$inferInsert>, tx: Pick<typeof db, "update"> = db) {
+    return tx.update(usersTable).set(values).where(eq(usersTable.id, userId)).returning();
   },
 };

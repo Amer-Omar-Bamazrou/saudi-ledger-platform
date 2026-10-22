@@ -131,7 +131,7 @@ describeMaybe("Q1 + Q2 over HTTP — corrections and filings are an approver's a
 
   it("🔴 Q1 — CORRECT is an approver's act: a viewer and a bookkeeper are refused at the gate (nothing written); the accountant corrects; a second correction is 409", async () => {
     const wId = await payBill(2_000, today);
-    const body = { reason: "the nature was a royalty, not a consulting fee", reentry: { amount: 2_000, paidAt: today, whtPaymentType: "royalty" } };
+    const body = { reason: "the nature was a royalty, not a consulting fee", reentry: { amount: 2_000, paidAt: today, whtPaymentType: "royalty", recordedCashWasWrong: true, actualCash: 1_700 } }; // DR-45 (I): the cash change is stated
     const before = Number((await pool.query(`SELECT count(*)::int n FROM wht_corrections WHERE organization_id = $1`, [orgX])).rows[0].n);
     expect((await as.viewer("POST", `/tax/wht/withholdings/${wId}/reverse`, body)).status).toBe(403);
     expect((await as.bookkeeper("POST", `/tax/wht/withholdings/${wId}/reverse`, body)).status).toBe(403);

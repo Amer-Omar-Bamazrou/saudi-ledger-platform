@@ -23,6 +23,8 @@ import { bankReconciliationsRepository } from "../repositories/bankReconciliatio
 import { MATCH_DATE_WINDOW_DAYS } from "./accounting/matchingPolicy";
 import { auditService } from "./audit.service";
 import { categorizeTransaction, allEngineCodes, looksForeignDigitalSupplier } from "./categorization/categorizer.js";
+import { payrollAwareSalary } from "./categorization/payrollSalary.js";
+import { payrollRepository } from "../repositories/payroll.repository.js";
 import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross, type ResolvedCategory } from "./categorization/resolveCategory.js";
 import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
 
@@ -219,9 +221,11 @@ export const transactionsService = {
       : null;
 
     // Resolve every code the engine could emit ONCE, inside the tenant tx.
+    // DR-41: SALARIES_PAYABLE is not an engine code, but a salary line in a company that runs payroll pays it.
     const resolvedCodes = autoCategrize
-      ? await resolveSystemCodes(allEngineCodes())
+      ? await resolveSystemCodes([...allEngineCodes(), "SALARIES_PAYABLE"])
       : new Map<string, ResolvedCategory>();
+    const payrollCtx = autoCategrize ? await payrollRepository.salaryPayableContext() : null;
 
     for (const raw of rows) {
       let rowWasCategorized = false;
@@ -308,12 +312,13 @@ export const transactionsService = {
         let vatBasis: string | null = null;
 
         if (autoCategrize) {
-          const match = categorizeTransaction(
+          // 🔴 DR-41: a salary line never re-expenses a payroll run's salaries (categorization/payrollSalary.ts).
+          const match = payrollAwareSalary(categorizeTransaction(
             row.description,
             Number(row.amount),
             row.type as "debit" | "credit",
             row.descriptionAr,
-          );
+          ), Number(row.amount), payrollCtx);
           // 🔴 THREE M15 RULES, all fixed together:
           //  - the match carries a SYSTEM CODE resolved against the tenant's own
           //    chart, never the engine's private ids (which the FK rejected —
@@ -340,6 +345,8 @@ export const transactionsService = {
             const resolved = resolvedCodes.get(match.systemCode);
             if (resolved != null) {
               catId = resolved.id;
+              // the payable this line pays is no longer open to the next salary line of the same upload
+              if (match.systemCode === "SALARIES_PAYABLE" && payrollCtx) payrollCtx.openPayable = Math.round((payrollCtx.openPayable - Number(row.amount)) * 100) / 100;
               confidenceScore = String(match.confidence);
               // M16.2 — the treatment comes from the CATEGORY's default, and
               // VAT is extracted ONLY for 'S'. 'Z'/'E'/'O' record zero VAT AND

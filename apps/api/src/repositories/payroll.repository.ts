@@ -1,6 +1,7 @@
 /** Payroll repository — tenant-scoped via RLS. */
-import { db, payrollRunsTable, payrollItemsTable, employeesTable } from "@workspace/db";
+import { db, payrollRunsTable, payrollItemsTable, employeesTable, journalEntriesTable, transactionsTable } from "@workspace/db";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { companyScoped } from "./companyScope";
 
 export const payrollRepository = {
   listRuns() {
@@ -65,5 +66,36 @@ export const payrollRepository = {
   /** 🔴 G08 residuals (PR A) — `deleteRun`, only while the run is still in `status`; returns the removed id, or nothing. */
   deleteRunIfStatus(id: number, status: string) {
     return db.delete(payrollRunsTable).where(and(eq(payrollRunsTable.id, id), eq(payrollRunsTable.status, status))).returning({ id: payrollRunsTable.id });
+  },
+
+  /** 🔴 DR-41 — the run's row lock: two payments of one run are serialised before either decides anything. */
+  async lockRun(id: number) {
+    await db.execute(sql`SELECT id FROM payroll_runs WHERE id = ${id} FOR UPDATE`);
+  },
+
+  /**
+   * 🔴 DR-41 (Phase 18, owner decision 2.9) — what a salary bank line could PAY in this company: whether it runs
+   * payroll (an approved or paid run), and the net pay its runs still owe — the books' `SALARIES_PAYABLE` balance,
+   * less the statement lines already waiting in review against it. Company-scoped (N1), so one company's payroll
+   * never changes another's suggestion.
+   */
+  async salaryPayableContext(): Promise<{ usesPayroll: boolean; openPayable: number }> {
+    // Each company predicate sits in a FROM with exactly one table carrying company_id, so it binds there however
+    // the column renders (a bare name inside a join of two such tables would be ambiguous).
+    const { rows } = await db.execute<{ uses: boolean; gl: string; pending: string }>(sql`
+      SELECT
+        EXISTS (SELECT 1 FROM payroll_runs WHERE payroll_runs.status IN ('approved', 'paid') AND ${companyScoped(payrollRunsTable.companyId)}) AS uses,
+        (SELECT coalesce(sum((SELECT coalesce(sum(l.credit_amount - l.debit_amount), 0) FROM journal_entry_lines l
+                                WHERE l.journal_entry_id = journal_entries.id
+                                  AND l.account_id IN (SELECT id FROM categories WHERE system_code = 'SALARIES_PAYABLE'))), 0)::text
+           FROM journal_entries
+          WHERE journal_entries.status IN ('posted', 'reversed') AND ${companyScoped(journalEntriesTable.companyId)}) AS gl,
+        (SELECT coalesce(sum(transactions.amount), 0)::text
+           FROM transactions
+          WHERE transactions.review_status = 'pending_review'
+            AND transactions.category_id IN (SELECT id FROM categories WHERE system_code = 'SALARIES_PAYABLE')
+            AND ${companyScoped(transactionsTable.companyId)}) AS pending`);
+    const r = rows[0];
+    return { usesPayroll: !!r?.uses, openPayable: Math.round((Number(r?.gl ?? 0) - Number(r?.pending ?? 0)) * 100) / 100 };
   },
 };

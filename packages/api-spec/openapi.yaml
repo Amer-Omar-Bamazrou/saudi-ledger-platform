@@ -6061,6 +6061,60 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /payroll/{id}/pay:
+    post:
+      operationId: payPayrollRun
+      tags: [payroll]
+      summary: Pay an approved payroll run's net pay from a bank account (settles Salaries Payable)
+      description: >
+        DR-41 / DR-39 (Phase 18). The approval already EXPENSED the salaries (Dr Salaries / Cr Salaries Payable);
+        paying posts Dr Salaries Payable / Cr the bank's cash account for the run's net pay and never touches
+        Salaries again. One payment per run: the run must be approved, and it becomes paid. Dated the payment's own
+        day (default today). Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayPayrollRunInput"
+      responses:
+        "200":
+          description: The paid payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "Not approved yet, already paid, or Salaries Payable no longer owes this run's net pay (a bank line already paid it, or one is waiting in review against it)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "No bank account named (bank_account_required), or an invalid payment date"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The payment date is in a closed period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /payroll/{id}/reject:
     post:
       operationId: rejectPayrollRun
@@ -6610,7 +6664,12 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/WhtLineage" }
         "409":
-          description: "Already corrected; the month is filed and no treatment was stated; the payment was acted on since; reconciled to the bank"
+          description: "Already corrected; the month is filed and no treatment was stated; the payment was acted on since; reconciled to the bank; the re-entry would change the payment's recorded cash without the statement that it was wrong (wht_correction_changes_cash), or its cash is not the cash stated (wht_correction_cash_mismatch) — DR-45 (I); nothing is written"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: "The reason is missing; a date is in the future or before the payment; the statement that the recorded cash was wrong came without the cash that actually left (wht_actual_cash_required), or that cash came without the statement (wht_actual_cash_without_statement)"
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -12480,8 +12539,16 @@ components:
       properties:
         period:
           type: string
-          description: YYYY-MM
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+          description: "YYYY-MM — validated (DR-39, Phase 18): a month, not free text"
         notes: { type: ["string", "null"] }
+
+    PayPayrollRunInput:
+      type: object
+      required: [bankAccountId]
+      properties:
+        bankAccountId: { type: integer, description: "The bank the net pay left from (D-3: every cash line names its bank)" }
+        paidAt: { type: ["string", "null"], description: "YYYY-MM-DD; defaults to today" }
 
     Employee:
       type: object
@@ -14962,6 +15029,15 @@ components:
         whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
         whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
         whtFiledMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
+        recordedCashWasWrong:
+          type: ["boolean", "null"]
+          description: >-
+            DR-45 (I): the person's explicit statement that the ORIGINAL payment's recorded cash was wrong. Without it the
+            re-entry must move exactly the original's cash (same bank, amount and date) or the correction is refused.
+        actualCash:
+          type: ["number", "null"]
+          exclusiveMinimum: 0
+          description: "DR-45 (I): with recordedCashWasWrong, the cash that actually left the bank; the re-entry must move exactly this."
 
     WhtLineage:
       type: object
