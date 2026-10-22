@@ -19,7 +19,7 @@ import { journalEntriesTable, journalEntryLinesTable, categoriesTable, bankAccou
 import type { SystemAccountCode } from "@workspace/db";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { checkPeriodOpen } from "./periodLock";
-import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
+import { PARTY_REQUIRED_SYSTEM_CODES, isCalendarDate } from "@workspace/shared";
 import { BusinessRuleError } from "../../lib/errors";
 import { assertBankLeavesInCompany, assertLineReferencesOwned } from "./tenantReferences";
 
@@ -288,6 +288,23 @@ export async function postJournalEntry(opts: {
 }): Promise<typeof journalEntriesTable.$inferSelect> {
   if (opts.reversalOf != null && opts.source !== "opening_reversal") {
     throw new BusinessRuleError(422, { error: "reversalOf is only written by the migration's reversal.", code: "reversal_of_refused", field: "reversalOf" });
+  }
+  /**
+   * 🔴 G18 (Phase 18, the calendar half): THE SEAM POSTS ONLY ON A DAY THAT
+   * EXISTS. `journal_entries.date` is text under a format-only CHECK (0071), so
+   * `2026-02-31` used to post here — in no month any report reads, while
+   * `checkPeriodOpen` found `2026-02` open — and a cash line on it died later as
+   * a raw 500 from the bank-lock trigger's `::date` cast (0102). Refused for
+   * EVERY caller, before any read or write; a path that validates its own
+   * input answers first in its own words. Which day a reversal takes is a
+   * different question (DR-32 / AQ-5), not decided here.
+   */
+  if (!isCalendarDate(opts.date)) {
+    throw new BusinessRuleError(422, {
+      error: `The posting date "${String(opts.date)}" is not a real calendar date (YYYY-MM-DD). Nothing was posted.`,
+      code: "date_invalid",
+      field: "date",
+    });
   }
   /**
    * 🔴 N2 (2026-09-03): the balance check runs on the ROUNDED lines — the

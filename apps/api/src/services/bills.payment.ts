@@ -19,6 +19,7 @@
 import { createHash } from "node:crypto";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pgErrorFields } from "../lib/dbRefusals";
+import { assertDateString } from "../lib/writeGuards";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
@@ -124,6 +125,10 @@ export async function payBill(
     if (!Number.isFinite(paid) || paid <= 0) {
       throw new BadRequestError("A positive payment amount is required.");
     }
+    // 🔴 G18: a stated payment date is a day that EXISTS, checked here like the amount — `paidAt` was never
+    // validated, so `2026-02-31` reached `bills.paid_at` (text) and died as a raw 500 at `bill_payments.paid_at`
+    // (a `date`). The same guard invoice pay uses. Omitted → today, unchanged.
+    if (paidAt != null) assertDateString(paidAt, "paidAt");
     // 🔴 D-3 (2026-09-16): WHICH bank did the money move through? Checked at
     // the same boundary as the amount — before any balance arithmetic and
     // before any write — with the one shared rule (accounting/bankIdentity).

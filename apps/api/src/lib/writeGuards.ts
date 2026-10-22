@@ -19,6 +19,7 @@
  * allowlist is default-DENY: a column absent from the list can never be set by
  * a client, so a newly-added sensitive column is protected by omission.
  */
+import { isCalendarDate } from "@workspace/shared";
 import { BadRequestError } from "./errors";
 
 /**
@@ -132,15 +133,14 @@ export function assertSupportedCurrency(value: unknown, field = "currency"): voi
  * A `YYYY-MM-DD` string that is a REAL calendar date. Business date columns are
  * `text`, so an invalid string otherwise persists and silently evades period
  * locks (which slice `YYYY-MM` off it) and lexical range filters. Rejects
- * `"banana"` and `"2026-13-40"`.
+ * `"banana"` and `"2026-13-40"`. The calendar half is `isCalendarDate`, the one
+ * definition in `@workspace/shared` (G18) — never a local copy.
  */
 export function assertDateString(value: unknown, field: string): string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new BadRequestError(`${field} must be a valid date (YYYY-MM-DD).`);
   }
-  const [y, m, d] = value.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) {
+  if (!isCalendarDate(value)) {
     throw new BadRequestError(`${field} is not a real calendar date.`);
   }
   return value;
