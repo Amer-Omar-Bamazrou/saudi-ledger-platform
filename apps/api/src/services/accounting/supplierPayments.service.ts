@@ -43,6 +43,7 @@ import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";
 import { checkPeriodOpen } from "./periodLock.js";
 import { assertBankAccount } from "./bankIdentity.js";
+import { assertNotReversedOpening } from "./openingReversed.js";
 import { billsRepository } from "../../repositories/bills.repository.js";
 import { supplierPaymentReversedSql } from "../../repositories/paymentReversal.js";
 import {
@@ -709,6 +710,10 @@ export const supplierPaymentsService = {
       if (bill!.documentType === "credit_note") {
         refuse("target_is_a_credit_note", `${bill!.billNumber} is a supplier credit note, not something you owe. Apply the note to a bill instead.`, "allocations", 409);
       }
+      // G66 — Policy C: a REVERSED opening bill is history; nothing settles it.
+      // The same refusal `payBill` gives, for every caller of this validator
+      // (create with allocations, allocate, credit-note apply), before the lock.
+      assertNotReversedOpening(bill!, `Bill ${bill!.billNumber}`, "settled");
       const outstanding = await billsRepository.outstandingOf(billId, { lock: true });
       if (amount > outstanding + 0.005) {
         refuse("allocation_exceeds_bill", `Bill ${bill!.billNumber} has ${outstanding.toFixed(2)} outstanding; ${amount.toFixed(2)} was applied to it.`, "allocations", 409);

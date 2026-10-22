@@ -6282,7 +6282,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SupplierPaymentDetail" }
         "409":
-          description: The classification may not be allocated, or the amount exceeds what is available or what the bill owes
+          description: "The classification may not be allocated, or the amount exceeds what is available or what the bill owes, or the bill is a reversed opening item (`opening_item_reversed`, G66)"
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -6469,7 +6469,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SupplierCreditNote" }
         "409":
-          description: The note is not approved, is a debit note, or the amount exceeds what is left
+          description: "The note is not approved, is a debit note, or the amount exceeds what is left, or the bill is a reversed opening item (`opening_item_reversed`, G66)"
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
