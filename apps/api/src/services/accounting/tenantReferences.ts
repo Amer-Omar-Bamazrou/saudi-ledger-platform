@@ -155,13 +155,28 @@ export async function assertBankLeavesInCompany(
   }
 }
 
-/** Refuse a document line whose product this organization does not own. */
+/**
+ * Refuse a document line whose product this organization does not own.
+ * G53 (2026-10-22): invoice lines (G04) and the bill, quotation and purchase
+ * order lines — every writer of a `*_items.product_id`.
+ */
 export async function assertProductsOwned(items: Array<{ productId?: unknown }>, field = "items"): Promise<void> {
   const ids = items.map((it) => (it.productId == null || it.productId === "" ? null : Number(it.productId)));
   const owned = await ownedIds("product", ids);
   for (const [i, id] of ids.entries()) {
     if (id != null && !owned.has(id)) throw new ReferenceNotFoundError(`${field}[${i}].productId`, `Item ${i + 1} names a product`);
   }
+}
+
+/**
+ * G53 (2026-10-22): refuse a vendor id this organization does not own, on a
+ * record that names its supplier outside a journal line (a recognition
+ * schedule). Pass the value exactly as it will be STORED — `null` is "no
+ * vendor"; anything else, `0` included, must be owned.
+ */
+export async function assertVendorOwned(vendorId: number | null, field: string, subject: string): Promise<void> {
+  if (vendorId == null) return;
+  if (!Number.isInteger(vendorId) || !(await ownedIds("vendor", [vendorId])).has(vendorId)) throw new ReferenceNotFoundError(field, subject);
 }
 
 /**
