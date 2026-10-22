@@ -19,6 +19,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { invoicesService } from "../services/invoices.service";
@@ -56,6 +57,7 @@ describeMaybe("one default bank account, set by the tenant, printed on the invoi
   const cleanup = async () => {
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
+      await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
       for (const t of ["journal_entry_lines", "journal_entries", "invoice_items", "einvoice_documents", "invoices", "customers", "bank_accounts", "audit_logs", "organization_memberships", "categories", "companies"]) {
         await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }

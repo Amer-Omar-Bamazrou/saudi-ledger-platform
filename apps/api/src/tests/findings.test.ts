@@ -17,6 +17,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool, PERMISSION_MATRIX } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { findingsService, ALL_FINDING_KINDS } from "../services/findings.service";
 import { summaryService } from "../services/summary.service";
@@ -57,6 +58,7 @@ describeMaybe("AI-3a — findings", () => {
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bill_items WHERE organization_id IN ${org}`);
@@ -124,7 +126,7 @@ describeMaybe("AI-3a — findings", () => {
     );
     // invoice_number_gap: counter-shaped numbers with 45..47 absent.
     for (const n of ["INV-2026-000044", "INV-2026-000048"]) {
-      await pool.query(
+      await writeIssuedFixture(
         `INSERT INTO invoices (organization_id, company_id, invoice_number, date, due_date, status, subtotal, vat_amount, total, paid_amount)
          VALUES ($1,$2,$3,'2026-07-01','2026-07-10','sent',100,15,115,0)`,
         [orgId, companyId, n],
@@ -159,7 +161,7 @@ describeMaybe("AI-3a — findings", () => {
       `SELECT id FROM invoices WHERE organization_id = $1 AND invoice_number = 'INV-2026-000044'`,
       [orgId],
     );
-    await pool.query(
+    await writeIssuedFixture(
       `INSERT INTO invoices (organization_id, company_id, invoice_number, date, status, document_type, original_invoice_id, note_reason, subtotal, vat_amount, total)
        VALUES ($1,$2,'FN-CN-1','2026-07-20','sent','credit_note',$3,'full credit',100,15,115)`,
       [orgId, companyId, rows[0].id],

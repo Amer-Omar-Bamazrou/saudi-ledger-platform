@@ -45,6 +45,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -288,6 +289,7 @@ describeMaybe("a page's declared list type matches the real response", () => {
     ]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(
       `DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`,
     );
@@ -364,7 +366,7 @@ describeMaybe("a page's declared list type matches the real response", () => {
       o,
       c,
     ]);
-    await pool.query(
+    await writeIssuedFixture(
       `INSERT INTO invoices (organization_id, company_id, invoice_number, document_type,
                              date, due_date, subtotal, vat_amount, total, paid_amount, status)
        VALUES ($1,$2,'INV-SHAPE','invoice','2026-07-01','2026-07-31',100,15,115,0,'sent')`,

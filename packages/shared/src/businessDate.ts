@@ -57,6 +57,25 @@ export function businessDateShift(date: string, days: number): string {
 }
 
 /**
+ * 🔴 G18 (Phase 18, the calendar half) — THE ONE DEFINITION of "a real
+ * calendar day": `YYYY-MM-DD` AND a day that exists. `2026-02-31` has the
+ * shape (so `journal_entries`' format-only CHECK, migration 0071, admits it)
+ * but names no day: an entry dated on it sits in no month any report reads,
+ * and `Date.parse` / `new Date()` silently roll it into March instead of
+ * refusing it. Every posting guard asks this predicate, so the guards cannot
+ * drift apart (`assertDateString` in the api's `writeGuards`, the posting
+ * seam, the generic reverse, transfers).
+ */
+export function isCalendarDate(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}
+
+/**
  * 🔴 Probe an externally checkable fact at load (CLAUDE.md §3): a runtime
  * whose ICU lacks the zone would not throw on `Intl` alone in every engine —
  * it could silently answer in UTC, which is exactly the defect. 22:00 UTC on
