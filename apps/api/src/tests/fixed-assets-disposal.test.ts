@@ -21,6 +21,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { assetsService } from "../services/assets.service";
 import { assetCapitalisationService } from "../services/assets/capitalisation.service";
@@ -67,6 +68,7 @@ describeMaybe("FA-C — disposal (real rows)", () => {
     try {
       await client.query("BEGIN");
       const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
+      await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
       for (const t of ["asset_disposals", "asset_events", "asset_depreciation_schedule", "bill_items", "bills", "fixed_assets", "asset_categories", "invoice_items", "einvoice_documents", "invoices", "journal_entry_lines", "journal_entries", "period_locks", "audit_logs", "organization_memberships", "customers", "vendors", "bank_accounts", "categories", "companies"]) {
         await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }

@@ -28,6 +28,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { invoicesService } from "../services/invoices.service";
 import { auditContext } from "../lib/auditContext";
 import { createApproved } from "./helpers/createApproved";
@@ -56,6 +57,7 @@ describeMaybe("M12.1a — multi-company invoice identity + hash chain", () => {
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email LIKE 'm121a-%')`;
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${O}`);
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${O} OR actor_user_id IN ${U}`);

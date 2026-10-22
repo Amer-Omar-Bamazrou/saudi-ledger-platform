@@ -30,6 +30,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { payrollService } from "../services/payroll.service";
@@ -76,6 +77,7 @@ describeMaybe("N2 — payroll approves at the measured failing salary; KPIs agre
     await pool.query(`DELETE FROM payroll_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM payroll_runs WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM employees WHERE organization_id IN ${org}`);
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org} AND document_type <> 'invoice'`);
