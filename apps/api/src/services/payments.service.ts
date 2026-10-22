@@ -56,7 +56,7 @@ import { auditService } from "./audit.service";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
 import type { Payment, PaymentAllocation, PaymentAllocationReversal, CustomerRefund, PaymentClassification, SystemAccountCode } from "@workspace/db";
 import { isNoteType } from "./creditNotes";
-import { isAdvanceInvoiceType } from "@workspace/shared";
+import { isAdvanceInvoiceType, isRecoveryInvoiceType } from "@workspace/shared";
 import { advanceInvoicesService, type ReceiptAdvanceInvoiceOut } from "./advanceInvoices.service";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 
@@ -767,6 +767,20 @@ export const paymentsService = {
     }
     const [inv] = await invoiceSettlementRepository.lockInvoices([alloc.invoiceId]);
     if (!inv) throw new NotFoundError("Invoice not found");
+    // G59: the allocation an Art. 40(9) RECOVERY invoice FOLDED into its own
+    // issue entry (invoices.approvable.ts, the recovery branch) applied the
+    // receipt to a document that never carried AR — the receivable it recovers
+    // was written off. Mirroring it here would debit AR against nothing, so it
+    // is refused like the prepayment adjustment above: the signed document
+    // carries it. (Allocation and credit application accept a tax invoice
+    // only; a note's settlement of its original is refused above.)
+    if (isRecoveryInvoiceType(inv.documentType)) {
+      throw new BusinessRuleError(409, {
+        error: `Allocation ${allocationId} is the receipt applied by ${inv.invoiceNumber}, the tax invoice issued under Art. 40(9) for consideration recovered after bad-debt relief; the issued document carries it, there is no receivable to restore, and it cannot be unapplied.`,
+        code: "recovery_allocation_immutable",
+        field: "id",
+      });
+    }
 
     const amount = round2(num(alloc.amount));
     const party = partyOf(customerId);
