@@ -29,6 +29,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 import {
   GetTrialBalanceResponse,
   GetIncomeStatementResponse,
@@ -120,6 +121,7 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${O}`);
     for (const t of ["journal_entry_lines", "journal_entries", "transactions", "bank_accounts", "invoice_items", "invoices", "bill_items", "bills", "customers", "vendors"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`);
     }
@@ -172,14 +174,14 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number) VALUES ($1,'Contract Customer','عميل العقد','310000000000003') RETURNING id`, [orgId])).rows[0].id;
     const vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Contract Vendor') RETURNING id`, [orgId])).rows[0].id;
 
-    await pool.query(
+    await writeIssuedFixture(
       `INSERT INTO invoices (organization_id, company_id, customer_id, invoice_number, document_type, date, due_date, subtotal, vat_amount, total, paid_amount, status)
        VALUES ($1,$2,$3,'RC-INV-1','invoice','2026-04-01','2026-04-30',1000,150,1150,1150,'paid'),
               ($1,$2,$3,'RC-INV-2','invoice','2026-05-01','2026-05-31',2000,300,2300,0,'sent'),
               ($1,$2,$3,'RC-INV-3','invoice','2026-06-01',NULL,300,45,345,0,'sent')`,
       [orgId, companyId, customerId],
     );
-    await pool.query(
+    await writeIssuedFixture(
       `INSERT INTO invoices (organization_id, company_id, customer_id, invoice_number, document_type, original_invoice_id, note_reason, date, subtotal, vat_amount, total, status)
        SELECT $1,$2,$3,'RC-CN-1','credit_note', i.id, 'Returned', '2026-05-15', 100, 15, 115, 'sent'
        FROM invoices i WHERE i.organization_id = $1 AND i.invoice_number = 'RC-INV-2'`,

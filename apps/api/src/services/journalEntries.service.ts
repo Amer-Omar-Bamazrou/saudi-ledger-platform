@@ -28,7 +28,7 @@ import { categoriesRepository } from "../repositories/categories.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
 import type { journalEntriesTable } from "@workspace/db";
-import { businessToday } from "@workspace/shared";
+import { businessToday, isCalendarDate } from "@workspace/shared";
 
 /**
  * The refusal for an entry a document owns — it names the document and the
@@ -417,8 +417,10 @@ export const journalEntriesService = {
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     // The date the reversal is POSTED on — today unless the caller names one.
     const date = typeof body.date === "string" && body.date.trim() !== "" ? body.date.trim() : businessToday();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      throw new BadRequestError("The reversal date must be a YYYY-MM-DD date.");
+    // 🔴 G18: a day that EXISTS, not only one shaped like it — `2026-02-31` used to post a mirror dated in no month.
+    // (Which day a reversal may take — before its original? — is DR-32 / AQ-5, not decided here.)
+    if (!isCalendarDate(date)) {
+      throw new BadRequestError("The reversal date must be a real calendar date (YYYY-MM-DD).");
     }
     // 🔴 Throws the structured PeriodLockedError (423) that names the month.
     await checkPeriodOpen(date);

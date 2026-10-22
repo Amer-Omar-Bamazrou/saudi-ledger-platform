@@ -18,6 +18,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 import {
   ListCustomersResponse,
   GetCustomerResponse,
@@ -82,6 +83,7 @@ describeMaybe("party contract conformance — customers, vendors, bills list on 
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${O}`);
     for (const t of ["quotation_items", "quotations", "purchase_order_items", "purchase_orders", "invoice_items", "invoices", "bill_items", "bills", "customers", "vendors"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`);
     }
@@ -120,7 +122,7 @@ describeMaybe("party contract conformance — customers, vendors, bills list on 
     await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'Bare Vendor Trading')`, [orgId]);
 
     // Issued documents so the balances are non-zero (and a draft that must not count).
-    await pool.query(
+    await writeIssuedFixture(
       `INSERT INTO invoices (organization_id, company_id, customer_id, invoice_number, document_type, date, due_date, subtotal, vat_amount, total, paid_amount, status)
        VALUES ($1,$2,$3,'PC-INV-1','invoice','2026-04-01','2026-04-30',1000,150,1150,1150,'paid'),
               ($1,$2,$3,'PC-INV-2','invoice','2026-05-01','2026-05-31',2000,300,2300,0,'sent'),

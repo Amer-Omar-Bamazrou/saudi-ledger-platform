@@ -20,6 +20,7 @@ import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from
 import { pick, assertAmount, assertRate, assertDateString, assertTaxCategoryCode } from "../lib/writeGuards";
 import { customersRepository } from "../repositories/customers.repository";
 import { DEFAULT_PAGE } from "../lib/httpParams";
+import { assertProductsOwned } from "./accounting/tenantReferences";
 
 /**
  * MED (audit 2026-08-20) class fix: FK checks run outside RLS, so a
@@ -199,6 +200,7 @@ export const quotationsService = {
     if (header.validUntil != null) assertDateString(header.validUntil, "validUntil");
     if (header.discount != null) assertAmount(header.discount, "discount", { min: 0, allowZero: true });
     await assertCustomerExists(header.customerId);
+    await assertProductsOwned(items); // G53 — a line's product is this organization's (G04's invoice-line rule)
 
     // 🔴 NO period-lock check, deliberately. A closed period protects the
     // ledger; a quotation never touches it. Blocking here would refuse a
@@ -270,6 +272,7 @@ export const quotationsService = {
     // cannot drift from the lines it claims to sum.
     if (data.items !== undefined) {
       validateItems(data.items);
+      await assertProductsOwned(data.items); // G53 — the edit writes lines too
       await assertConvertedLinesUnchanged(id, data.items);
       const { prepared, subtotal, vatTotal } = prepareItems(data.items);
       values.subtotal = subtotal.toFixed(2);
