@@ -243,9 +243,13 @@ describeMaybe("PR C proof · G50 — a company change between the issuing write 
       const holderPid = Number((await holder.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid);
       await holder.query(`LOCK TABLE einvoice_documents IN ACCESS EXCLUSIVE MODE`);
       const approving = approve(id);
+      // AMENDED when this proof landed with its fix (PR C), setup only: under file parallelism the table
+      // lock also queues OTHER suites' reads of einvoice_documents, so a queued read alone does not show
+      // that THIS approval is in the window. Wait until the invoice row is also held by the issuing
+      // transaction — the check below, made part of the wait. No assertion changed.
       await until("W2: the approval did not queue on einvoice_documents", async () => {
         waiting = await waitingInTree(holderPid);
-        return waiting.some((w) => /einvoice_documents/i.test(w.query));
+        return waiting.some((w) => /einvoice_documents/i.test(w.query)) && (await rowHeldByIssuer(id)).held;
       });
       position = await rowHeldByIssuer(id);
       if (!position.held) throw new Error(`W2 NOT ESTABLISHED: the approval waits on einvoice_documents but the invoice row is not held (issuing UPDATE not yet run): ${JSON.stringify({ position, waiting })}`);
