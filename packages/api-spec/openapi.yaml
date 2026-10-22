@@ -4020,7 +4020,7 @@ paths:
         "404":
           description: Not found
         "409":
-          description: "`allocation_already_corrected` (one correction per allocation — concurrent attempts get this); `credit_note_original_application_immutable`"
+          description: "`allocation_already_corrected` (one correction per allocation — concurrent attempts get this); `credit_note_original_application_immutable`; `recovery_allocation_immutable` (G59: the receipt an Art. 40(9) recovery invoice applied at issue — no receivable to restore)"
         "422":
           description: "`customer_required_for_unapplied`"
         "423":
