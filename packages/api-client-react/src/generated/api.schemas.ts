@@ -6135,10 +6135,23 @@ export type PayrollRunDetail = PayrollRun & {
 };
 
 export interface CreatePayrollRunInput {
-  /** YYYY-MM */
+  /**
+     * YYYY-MM — validated (DR-39, Phase 18): a month, not free text
+     * @pattern ^[0-9]{4}-(0[1-9]|1[0-2])$
+     */
   period: string;
   /** @nullable */
   notes?: string | null;
+}
+
+export interface PayPayrollRunInput {
+  /** The bank the net pay left from (D-3: every cash line names its bank) */
+  bankAccountId: number;
+  /**
+     * YYYY-MM-DD; defaults to today
+     * @nullable
+     */
+  paidAt?: string | null;
 }
 
 export interface Employee {
@@ -10268,6 +10281,17 @@ export interface WhtReentryInput {
   whtNotSubjectNote?: string | null;
   /** @nullable */
   whtFiledMonthTreatment?: WhtReentryInputWhtFiledMonthTreatment;
+  /**
+     * DR-45 (I): the person's explicit statement that the ORIGINAL payment's recorded cash was wrong. Without it the re-entry must move exactly the original's cash (same bank, amount and date) or the correction is refused.
+     * @nullable
+     */
+  recordedCashWasWrong?: boolean | null;
+  /**
+     * DR-45 (I): with recordedCashWasWrong, the cash that actually left the bank; the re-entry must move exactly this.
+     * @exclusiveMinimum 0
+     * @nullable
+     */
+  actualCash?: number | null;
 }
 
 /**

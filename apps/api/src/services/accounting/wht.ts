@@ -185,6 +185,24 @@ const refuse = (status: number, code: string, error: string, field?: string): ne
   throw new BusinessRuleError(status, { code, error, ...(field ? { field } : {}) });
 };
 
+/**
+ * 🔴 DR-45 (II) — A CORRECTION'S RE-ENTRY NEVER WITHHOLDS ON A PAYMENT MADE WITH NOTHING WITHHELD. The original
+ * was recorded `pending` (not yet identified) or `not_subject` (a refundable deposit, an erroneous payment, goods,
+ * no Kingdom source); tax on it now is open question W-16 — recovered from the supplier or borne by the payer — so
+ * a re-entry never records it, exactly as a reclassification never does (`classify`, the same code). Called by both
+ * pay paths with the decision, BEFORE anything is written; the database rule `wht_late_withholding` (0123) is the
+ * backstop for a writer that skips this.
+ */
+export function refuseLateWithholdingOnReentry(decision: WhtDecision, correction?: { originalStatus?: string | null }): void {
+  const was = correction?.originalStatus;
+  if (decision.kind !== "withheld" || (was !== "pending" && was !== "not_subject")) return;
+  refuse(409, "wht_late_withholding_open",
+    `This payment was made with nothing withheld (it was recorded as ${was === "pending" ? "not yet identified" : "not subject"}). ` +
+    `Re-entered as ${decision.paymentType}, ${fromHalalas(decision.whtH).toFixed(2)} would be withheld at ${(Number(decision.rate) * 100).toFixed(2)} % — tax the payer is liable for (Income Tax Law Art. 68(C)). ` +
+    "Whether it is recovered from the supplier or borne by the payer (grossed up) is open question W-16 for your adviser, so a correction never records it. Nothing was changed. If the supply is goods, or its income has no source in the Kingdom, declare that instead.",
+    "whtPaymentType");
+}
+
 /** A rate stored as numeric(7,4) → integer basis points (0.0500 → 500). Exact: the column has four decimals. */
 export function rateBasisPoints(rate: string | number): number {
   const bp = Math.round(Number(rate) * 10000);

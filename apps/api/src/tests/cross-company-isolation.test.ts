@@ -265,9 +265,15 @@ describeMaybe("same-org cross-company isolation", () => {
   // invoice's company explicitly. Its OLDER readers (list, findById, the
   // ledger figures) still rely on RLS's company arm (0065) alone; as with
   // `bills`, the removal is the detector's requirement, not an audit of them.
+  // 🔴 DR-41 (2026-10-21): `payroll` LEFT — its NEW reader
+  // (`salaryPayableContext`, what a salary bank line could pay) carries
+  // companyScoped() on every table it reads, and dr41-payroll-pay-path proves
+  // it per company (presence, absence, movement). Its OLDER readers (listRuns,
+  // findRun, activeEmployees…) still rely on RLS's company arm (0065) alone; as
+  // with `bills`, the removal is the detector's requirement, not an audit.
   const NO_COMPANY_FILTER = [
     "assets", "categorize",
-    "employees", "journalEntries", "payroll",
+    "employees", "journalEntries",
     "transactions", "vendors",
   ];
 

@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { lastAdminRefusalToast } from "@/lib/lastAdminRefusal";
 import { Plus, KeyRound, ShieldCheck, Eye, BookUser, PencilRuler } from "lucide-react";
 
 interface User { id: number; email: string; name: string; role: string; isActive: boolean; createdAt: string; }
@@ -93,7 +94,7 @@ export default function UserManagement() {
       qc.invalidateQueries({ queryKey: ["members", activeOrgId] });
       toast({ title: t("Role assigned", "تم تعيين الدور") });
     },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(lastAdminRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   // Create the account WITH its membership in the active org, in ONE request —
@@ -123,7 +124,7 @@ export default function UserManagement() {
       qc.invalidateQueries({ queryKey: ["users"] });
       toast({ title: t("User updated", "تم تحديث المستخدم") });
     },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(lastAdminRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   // ── Invitations (M11.7) ────────────────────────────────────────────────────
@@ -168,7 +169,7 @@ export default function UserManagement() {
       qc.invalidateQueries({ queryKey: ["members", activeOrgId] });
       toast({ title: t("Member removed", "تمت إزالة العضو") });
     },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(lastAdminRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const resetMut = useMutation({

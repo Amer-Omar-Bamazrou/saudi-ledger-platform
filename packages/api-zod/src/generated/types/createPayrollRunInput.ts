@@ -7,7 +7,10 @@
  */
 
 export interface CreatePayrollRunInput {
-  /** YYYY-MM */
+  /**
+     * YYYY-MM — validated (DR-39, Phase 18): a month, not free text
+     * @pattern ^[0-9]{4}-(0[1-9]|1[0-2])$
+     */
   period: string;
   /** @nullable */
   notes?: string | null;

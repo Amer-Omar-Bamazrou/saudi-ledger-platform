@@ -46,7 +46,7 @@ import { assertBankAccount } from "./bankIdentity.js";
 import { billsRepository } from "../../repositories/bills.repository.js";
 import { supplierPaymentReversedSql } from "../../repositories/paymentReversal.js";
 import {
-  decideWithholding, recordWithholding, supplierPaymentWasWithheld, whtDeclarationFrom, whtLine, whtOf,
+  decideWithholding, recordWithholding, refuseLateWithholdingOnReentry, supplierPaymentWasWithheld, whtDeclarationFrom, whtLine, whtOf,
   supplierPaymentClassOf, liveWithholdingOfSupplierPayment, assertSinglePurpose, returnPeriodFor, type WhtDecision,
 } from "./wht.js";
 import {
@@ -69,7 +69,7 @@ export const supplierPaymentsService = {
     body: Record<string, unknown>,
     userId: number | null,
     /** Q1 (pack §14.1): set ONLY by the WHT correction for its corrected RE-ENTRY — never from a request. */
-    opts: { correction?: { id: number; correctionPeriod: string } } = {},
+    opts: { correction?: { id: number; correctionPeriod: string; originalStatus?: string | null } } = {},
   ) {
     /**
      * A retried request is the SAME payment, not a second one: the key is
@@ -126,6 +126,7 @@ export const supplierPaymentsService = {
     const paymentClass = supplierPaymentClassOf(classification, amount, allocatedTotal);
     const declared = whtDeclarationFrom(body);
     const withholding = await decideWithholding({ vendorId, paymentDate: paidAt, base: amount, paymentClass, declared });
+    refuseLateWithholdingOnReentry(withholding, opts.correction); // DR-45 (II): before anything is written
     // Q1: which month's return carries it — a FILED month is never changed silently (refused before any write)
     const reported = await returnPeriodFor(withholding, paidAt, declared.filedMonthTreatment, { today: businessToday(), correctionPeriod: opts.correction?.correctionPeriod });
     const withheld = whtOf(withholding);

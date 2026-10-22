@@ -25,7 +25,9 @@ import { assertPasswordAcceptable, hashPassword } from "../lib/password";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
 import { assertAccountConfinedTo } from "../lib/accountScope";
+import { membersRepository } from "../repositories/members.repository";
 import { securityAuditService } from "./securityAudit.service";
+import { lastAdminRefusal } from "./members.service";
 
 
 /** The only roles accepted for the global `users.role` column. */
@@ -204,7 +206,16 @@ export const userAdminService = {
 
     const before = await userAdminRepository.findById(targetUserId);
     if (!before) throw new NotFoundError("User not found.");
-    const [user] = await userAdminRepository.update(targetUserId, updates);
+    // 🔴 G03: deactivating an ACCOUNT removes it as an admin from every organization it
+    // administers (login refuses an inactive account) — the same guard as a demotion.
+    const [user] =
+      updates.isActive === false
+        ? await membersRepository.withLastAdminGuard(
+            { userId: targetUserId },
+            (tx) => userAdminRepository.update(targetUserId, updates, tx),
+            lastAdminRefusal,
+          )
+        : await userAdminRepository.update(targetUserId, updates);
 
     const actor = { actorUserId, actorEmail: ctx.actorEmail, ipAddress: ctx.ipAddress };
     if (updates.role !== undefined && user.role !== before.role) {
@@ -213,9 +224,13 @@ export const userAdminService = {
         metadata: { before: before.role, after: user.role },
       });
     }
+    // 🔴 G02: a deactivated account's sessions end now (the per-request check in
+    // lib/auth.ts refuses them anyway — this deletes them).
+    const sessionsEnded = updates.isActive === false ? await userAdminRepository.revokeSessions(targetUserId) : 0;
     if (updates.isActive !== undefined && user.isActive !== before.isActive) {
       await securityAuditService.record({
         action: user.isActive ? "user.reactivated" : "user.deactivated", ...actor, targetUserId,
+        ...(user.isActive ? {} : { metadata: { sessionsEnded } }),
       });
     }
     return safeUser(user);
@@ -235,10 +250,14 @@ export const userAdminService = {
     const passwordHash = await hashPassword(newPassword, "newPassword");
     const [user] = await userAdminRepository.update(targetUserId, { passwordHash });
     if (!user) throw new NotFoundError("User not found.");
+    // 🔴 G02: every session of the reset account ends — the admin's own too, when
+    // they reset their own password here (its credential is the old password's).
+    const sessionsEnded = await userAdminRepository.revokeSessions(targetUserId);
 
     await securityAuditService.record({
       action: "user.password_reset",
       actorUserId, actorEmail: ctx.actorEmail, targetUserId, ipAddress: ctx.ipAddress,
+      metadata: { sessionsEnded },
     });
     return { message: `Password reset for ${user.name}.` };
   },
