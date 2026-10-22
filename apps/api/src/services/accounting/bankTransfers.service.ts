@@ -13,7 +13,7 @@ import { eq, sql, type SQL } from "drizzle-orm";
 import { db, bankTransfersTable, bankTransferReversalsTable, bankAccountsTable } from "@workspace/db";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
 import { round2 } from "../../lib/money.js";
-import { businessToday } from "@workspace/shared";
+import { businessToday, isCalendarDate } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";
 import { checkPeriodOpen } from "./periodLock.js";
@@ -128,7 +128,8 @@ export const bankTransfersService = {
     if (!Number.isFinite(amount) || amount <= 0) refuse("amount_invalid", "A transfer moves a positive amount.", "amount");
 
     const date = text(body.transferDate) ?? businessToday();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) refuse("transfer_date_invalid", "The transfer date is a YYYY-MM-DD date.", "transferDate");
+    // 🔴 G18: a day that EXISTS — `2026-02-31` used to pass this and die as a raw 500 in the duplicate check's `::date` cast.
+    if (!isCalendarDate(date)) refuse("transfer_date_invalid", "The transfer date is a real calendar date (YYYY-MM-DD).", "transferDate");
     // Checked before anything is written; never re-dated into an open month.
     await checkPeriodOpen(date);
 
