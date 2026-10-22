@@ -5569,8 +5569,11 @@ export const ListPayrollRunsResponse = zod.array(ListPayrollRunsResponseItem)
 /**
  * @summary Create a DRAFT run for a period from every active employee
  */
+export const createPayrollRunBodyPeriodRegExp = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])$');
+
+
 export const CreatePayrollRunBody = zod.object({
-  "period": zod.string().describe('YYYY-MM'),
+  "period": zod.string().regex(createPayrollRunBodyPeriodRegExp).describe('YYYY-MM — validated (DR-39, Phase 18): a month, not free text'),
   "notes": zod.string().nullish()
 })
 
@@ -13969,6 +13972,36 @@ export const ApprovePayrollRunParams = zod.object({
 })
 
 export const ApprovePayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
+  "totalBasicSalary": zod.number(),
+  "totalAllowances": zod.number(),
+  "totalGosiEmployee": zod.number(),
+  "totalGosiEmployer": zod.number(),
+  "totalDeductions": zod.number(),
+  "totalNetPay": zod.number(),
+  "processedAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * DR-41 / DR-39 (Phase 18). The approval already EXPENSED the salaries (Dr Salaries / Cr Salaries Payable); paying posts Dr Salaries Payable / Cr the bank's cash account for the run's net pay and never touches Salaries again. One payment per run: the run must be approved, and it becomes paid. Dated the payment's own day (default today). Approver-only.
+ * @summary Pay an approved payroll run's net pay from a bank account (settles Salaries Payable)
+ */
+export const PayPayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PayPayrollRunBody = zod.object({
+  "bankAccountId": zod.number().describe('The bank the net pay left from (D-3: every cash line names its bank)'),
+  "paidAt": zod.string().nullish().describe('YYYY-MM-DD; defaults to today')
+})
+
+export const PayPayrollRunResponse = zod.object({
   "id": zod.number(),
   "period": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
