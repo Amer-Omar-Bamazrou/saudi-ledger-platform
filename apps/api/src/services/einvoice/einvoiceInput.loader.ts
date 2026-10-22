@@ -14,7 +14,7 @@
  * It resolves the note→original reference from the FK, so the ZATCA
  * `cac:BillingReference` always names the row it actually points at.
  */
-import { NotFoundError } from "../../lib/errors";
+import { BusinessRuleError, NotFoundError } from "../../lib/errors";
 import { invoicesRepository } from "../../repositories/invoices.repository";
 import { companiesRepository } from "../../repositories/companies.repository";
 import { customersRepository } from "../../repositories/customers.repository";
@@ -46,6 +46,13 @@ export async function loadEInvoiceInput(
 ): Promise<EInvoiceInput> {
   const [invoice] = await invoicesRepository.findById(invoiceId);
   if (!invoice) throw new NotFoundError("Invoice not found");
+  // 🔴 G50 (PR C): the seller the document states is the one the issuing write STAMPED on the invoice
+  // (G31, 0121) — never a second, live read of the company. Issuance reads the company to stamp it and
+  // does not lock it, so a rename committed between the issuing write and this load made the signed XML
+  // and its QR name one seller while the stamp named another (reproduced on main).
+  if (!invoice.sellerName || !invoice.sellerVatNumber) {
+    throw new BusinessRuleError(422, { error: `Invoice ${invoice.invoiceNumber} carries no issued seller identity, so its e-invoice document cannot be built.`, code: "missing_issued_seller" });
+  }
 
   const [items, company] = await Promise.all([
     invoicesRepository.itemsByInvoice(invoiceId),
@@ -120,8 +127,8 @@ export async function loadEInvoiceInput(
       taxExemptionReasonText: it.taxExemptionReasonText,
     })),
     company: {
-      name: company.name,
-      vatNumber: company.vatNumber,
+      name: invoice.sellerName,
+      vatNumber: invoice.sellerVatNumber,
       crNumber: company.crNumber,
       buildingNumber: company.buildingNumber,
       street: company.street,

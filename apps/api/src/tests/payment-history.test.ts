@@ -10,6 +10,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
@@ -49,6 +50,7 @@ describeMaybe("B4 — every payment keeps its date", () => {
     await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     for (const t of [
       "invoice_payments",
       "bill_payments",

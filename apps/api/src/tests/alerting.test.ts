@@ -20,6 +20,7 @@
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ownerDb, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 import { sql } from "drizzle-orm";
 import { __setAlerterForTests, webhookAlerter, type Alert } from "../lib/alerter";
 import {
@@ -92,6 +93,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
   const cleanupFixture = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${FIXTURE_SLUG}')`;
     await pool.query(`DELETE FROM zatca_credentials WHERE company_id IN (SELECT id FROM companies WHERE organization_id IN ${org})`);
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
@@ -148,7 +150,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
       )
     ).rows[0].id;
     const invoice = (
-      await pool.query(
+      await writeIssuedFixture(
         `INSERT INTO invoices (organization_id, company_id, invoice_number, date, status, total)
          VALUES ($1,$2,'ALARM-1','2026-08-01','sent',115) RETURNING id`,
         [org, company],

@@ -17,6 +17,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool, PERMISSION_MATRIX } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { can, primePermissionCache, resetPermissionCache } from "../lib/rbac";
 import { invoicesService } from "../services/invoices.service";
@@ -71,6 +72,7 @@ describeMaybe("D-4 — customer payments, allocations, deposits, credit applicat
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
+      await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
       for (const t of [
         "payment_allocations", "payments", "journal_entry_lines", "journal_entries", "transactions",
         "invoice_items", "einvoice_documents", "invoices", "customers", "period_locks",

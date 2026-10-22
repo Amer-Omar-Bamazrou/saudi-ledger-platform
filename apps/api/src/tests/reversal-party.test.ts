@@ -12,6 +12,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
@@ -53,6 +54,7 @@ describeMaybe("Phase B — a journal reversal preserves the party on control-acc
     await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     for (const t of [
       "payment_allocations", "payments", "journal_entry_lines", "journal_entries", "invoice_items", "einvoice_documents", "invoices",
       "bill_items", "bills", "customers", "vendors", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies",

@@ -23,6 +23,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, db, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { sql } from "drizzle-orm";
 import { auditContext } from "../lib/auditContext";
 import { bankAccountsService } from "../services/bankAccounts.service";
@@ -82,6 +83,7 @@ describeMaybe("D-3 — per-bank cash GL", () => {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
       await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
+      await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
       for (const t of [
         "cash_line_bank_attributions", "cash_cutover_runs", "journal_entry_lines", "journal_entries", "transactions",
         "invoice_items", "einvoice_documents", "invoices", "bill_items", "bills", "customers", "vendors", "period_locks",

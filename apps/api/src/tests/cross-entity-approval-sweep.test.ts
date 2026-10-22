@@ -19,6 +19,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { billsService } from "../services/bills.service";
@@ -64,6 +65,7 @@ describeMaybe("cross-entity sweep — zero movement until approved, across all f
   const cleanup = async () => {
     await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('sweep')`); // Phase 13B-3: events first (append-only, RESTRICT)
     if (orgId) {
+      await releaseIssuedInvoicesForTeardown("organization_id = $1", [orgId]);
       for (const t of [
         "journal_entry_lines", "journal_entries", "bill_items", "bills", "invoice_items", "invoices",
         "payroll_items", "payroll_runs", "employees", "audit_logs", "customers", "vendors", "categories",

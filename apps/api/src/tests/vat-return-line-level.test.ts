@@ -20,6 +20,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
@@ -60,6 +61,7 @@ describeMaybe("VAT return — line-level classification + header=Σlines", () =>
     await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);

@@ -40,6 +40,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -72,6 +73,7 @@ describeMaybe("overdue is derived from dates, and no row stores it", () => {
 
   const wipe = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(
       `DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`,
     );
@@ -118,7 +120,7 @@ describeMaybe("overdue is derived from dates, and no row stores it", () => {
      *   INV-OD-5  overdue     no due date, so it ages from its own date
      *   INV-OD-6  overdue     partially paid, remainder still outstanding
      */
-    await pool.query(
+    await writeIssuedFixture(
       `INSERT INTO invoices
          (organization_id, company_id, customer_id, invoice_number, document_type,
           date, due_date, subtotal, vat_amount, total, paid_amount, status)
@@ -190,7 +192,7 @@ describeMaybe("overdue is derived from dates, and no row stores it", () => {
 
     // The only change: INV-OD-2's due date moves from the future into the past.
     // No status is written and no other column is touched.
-    await pool.query(
+    await writeIssuedFixture(
       `UPDATE invoices SET due_date = '${PAST}' WHERE organization_id = $1 AND invoice_number = 'INV-OD-2'`,
       [orgId],
     );
@@ -198,7 +200,7 @@ describeMaybe("overdue is derived from dates, and no row stores it", () => {
     expect(after.totals.overdue).toBe(4);
 
     // And back, so the fixture is unchanged for whatever runs next.
-    await pool.query(
+    await writeIssuedFixture(
       `UPDATE invoices SET due_date = '${FUTURE}' WHERE organization_id = $1 AND invoice_number = 'INV-OD-2'`,
       [orgId],
     );

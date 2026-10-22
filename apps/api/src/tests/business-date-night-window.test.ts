@@ -19,6 +19,7 @@
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { businessDate, businessToday, businessDateShift } from "@workspace/shared";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
@@ -91,6 +92,7 @@ describeMaybe("business dates at 01:00 Riyadh, through the product's own write p
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);

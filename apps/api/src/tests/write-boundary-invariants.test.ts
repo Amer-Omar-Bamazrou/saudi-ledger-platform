@@ -17,6 +17,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 import { categorizeService } from "../services/categorize.service";
@@ -56,6 +57,7 @@ describeMaybe("Audit Tier 2 — acceptance guarantee + write-boundary invariants
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
