@@ -248,10 +248,16 @@ describeMaybe("Batch 1C — migration foundation and chart mapping", () => {
     ];
     const je = await inTenant(() => postJournalEntry({ entryNumber: "B1C-SEAM-3", date: "2026-06-15", description: "opening", lines, source: "opening" }));
     expect(je.source).toBe("opening");
-    await expect(pool.query(`UPDATE journal_entries SET source = 'opening_clearing' WHERE id = $1`, [je.id])).rejects.toThrow(/journal_entries_source_chk/);
-    await expect(pool.query(`UPDATE journal_entries SET source = 'whatever' WHERE id = $1`, [je.id])).rejects.toThrow(/journal_entries_source_chk/);
-    await pool.query(`UPDATE journal_entries SET source = 'opening_reversal' WHERE id = $1`, [je.id]); // the other admitted value — the CHECK is not refusing everything
-    expect((await pool.query(`SELECT source FROM journal_entries WHERE id = $1`, [je.id])).rows[0].source).toBe("opening_reversal");
+    // G16 (owner approval 2026-10-23): a POSTED entry's `source` is frozen at the database before any
+    // CHECK is evaluated, so the CHECK is probed on a DRAFT carrying the same source. Its rule names no
+    // status (`source IS NULL OR source IN (...)`), so it binds the draft exactly as it binds a posted row.
+    const draft = (await pool.query(
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source)
+       VALUES ($1, $2, 'B1C-SEAM-3D', '2026-06-15', 'opening (the CHECK probe)', 'draft', 'opening') RETURNING id`, [orgId, companyId])).rows[0];
+    await expect(pool.query(`UPDATE journal_entries SET source = 'opening_clearing' WHERE id = $1`, [draft.id])).rejects.toThrow(/journal_entries_source_chk/);
+    await expect(pool.query(`UPDATE journal_entries SET source = 'whatever' WHERE id = $1`, [draft.id])).rejects.toThrow(/journal_entries_source_chk/);
+    await pool.query(`UPDATE journal_entries SET source = 'opening_reversal' WHERE id = $1`, [draft.id]); // the other admitted value — the CHECK is not refusing everything
+    expect((await pool.query(`SELECT source FROM journal_entries WHERE id = $1`, [draft.id])).rows[0].source).toBe("opening_reversal");
     // The line trigger that once admitted the account to migration sources is gone with it.
     expect((await pool.query(`SELECT count(*)::int n FROM pg_trigger WHERE tgname = 'refuse_migration_only_account_line_trg'`)).rows[0].n).toBe(0);
     expect((await pool.query(`SELECT count(*)::int n FROM pg_trigger WHERE tgname = 'migration_batches_immutable'`)).rows[0].n).toBe(1); // a trigger that STAYS — the probe sees triggers
