@@ -27,7 +27,6 @@ import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from
 import { migrationRepository } from "../repositories/migration.repository";
 import { auditService } from "./audit.service";
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const num = (v: unknown) => Number(v ?? 0);
 const fmt = (n: number) => n.toFixed(2);
 
@@ -266,7 +265,7 @@ export const migrationService = {
         const ref = String(v.returnReference ?? "").trim();
         if (!ref) throw new BadRequestError("vatPosition.returnReference is required — the return the balances reconcile to.");
         for (const k of ["periodStart", "periodEnd"] as const) {
-          if (!ISO_DATE.test(String(v[k] ?? "")) || Number.isNaN(Date.parse(v[k]))) throw new BadRequestError(`vatPosition.${k} must be YYYY-MM-DD.`);
+          if (!isCalendarDate(v[k])) throw new BadRequestError(`vatPosition.${k} must be YYYY-MM-DD.`);
         }
         if (v.periodEnd < v.periodStart) throw new BadRequestError("vatPosition.periodEnd is before periodStart.");
         if (v.periodEnd > batch.openingDate) throw new BadRequestError(`vatPosition.periodEnd ${v.periodEnd} is after the opening date ${batch.openingDate} — the position must be the one filed up to cut-off.`);

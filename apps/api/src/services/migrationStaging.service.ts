@@ -21,7 +21,7 @@
  */
 import type { MigrationBatch, MigrationParty, MigrationOpenItem, MigrationAdvance, MigrationChartRow } from "@workspace/db";
 import { round2 } from "../lib/money";
-import { isReservedOpeningNumber } from "@workspace/shared";
+import { isCalendarDate, isReservedOpeningNumber } from "@workspace/shared";
 import { assertTaxCategoryCode } from "../lib/writeGuards";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
 import { migrationRepository } from "../repositories/migration.repository";
@@ -30,12 +30,12 @@ import { migrationService } from "./migration.service";
 import { assetsRepository } from "../repositories/assets.repository";
 import { migratedAssetsService, migrationAssetProblems, type MigrationAssetInput } from "./assets/migratedAssets.service";
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_TIME = /^\d{2}:\d{2}(:\d{2})?$/;
 const num = (v: unknown) => Number(v ?? 0);
 const fmt = (n: number) => n.toFixed(2);
 const normName = (s: string) => s.trim().toLowerCase();
-const isIsoDate = (v: unknown): v is string => typeof v === "string" && ISO_DATE.test(v) && !Number.isNaN(Date.parse(v));
+// G18's one definition of a real day: `Date.parse` rolls 2026-02-31 into March instead of refusing it.
+const isIsoDate = (v: unknown): v is string => isCalendarDate(v);
 
 export type PartyInput = {
   partyType: "customer" | "vendor";

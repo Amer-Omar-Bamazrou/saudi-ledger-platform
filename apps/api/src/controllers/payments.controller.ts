@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { isCalendarDate } from "@workspace/shared";
 import { ReceivePaymentBody, AllocatePaymentBody, ApplyCreditNoteBody, UnallocateBody, RefundCustomerBody, ClassifyPaymentBody, CreateAdvanceInvoiceBody } from "@workspace/api-zod";
 import { paymentsService } from "../services/payments.service";
 import { advanceInvoicesService } from "../services/advanceInvoices.service";
@@ -87,8 +88,9 @@ export const paymentsController = {
     const { period_to, as_of, customer_id } = req.query as Record<string, string>;
     const customerId = customer_id ? Number(customer_id) : undefined;
     if (customer_id && (!Number.isInteger(customerId) || customerId! <= 0)) throw new BadRequestError("customer_id must be a positive integer");
-    if (period_to && !/^\d{4}-\d{2}$/.test(period_to)) throw new BadRequestError("period_to must be YYYY-MM");
-    if (as_of && !/^\d{4}-\d{2}-\d{2}$/.test(as_of)) throw new BadRequestError("as_of must be YYYY-MM-DD");
+    // G18's one definition of a real day: the shape alone admits 2026-02-31 and month 13.
+    if (period_to && !(/^\d{4}-\d{2}$/.test(period_to) && isCalendarDate(`${period_to}-01`))) throw new BadRequestError("period_to must be YYYY-MM");
+    if (as_of && !isCalendarDate(as_of)) throw new BadRequestError("as_of must be YYYY-MM-DD");
     const asOf = as_of || (period_to ? endOfMonth(period_to) : null);
     res.json(await depositReviewService.review({ asOf, customerId }));
   },
