@@ -127,6 +127,12 @@ export interface SubmissionResult {
    * `needs_review` instead.
    */
   ambiguous: boolean;
+  /**
+   * Can sending the SAME document again succeed? False when ZATCA rejected it
+   * (HTTP 400; it does not allow the same document to be submitted twice):
+   * the document goes to `needs_review` after one attempt.
+   */
+  retryable: boolean;
 }
 
 export interface EInvoiceProvider {

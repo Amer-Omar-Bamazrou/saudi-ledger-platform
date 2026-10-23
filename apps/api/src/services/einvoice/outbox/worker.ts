@@ -159,14 +159,17 @@ export class EInvoiceWorker {
       return;
     }
 
-    // An ambiguous failure never schedules a blind retry. `markFailed` routes it
-    // to `needs_review`, where a HUMAN reconciles it — see the note on
-    // `reclaimStale` about what "reconciliation" does and does not mean here.
+    // An ambiguous failure never schedules a blind retry, and neither does one
+    // ZATCA rejected (a 400: the same document is never submitted twice).
+    // `markFailed` routes both to `needs_review`, where a HUMAN takes over — see
+    // the note on `reclaimStale` about what "reconciliation" does and does not
+    // mean here.
     await einvoiceOutboxRepository.markFailed(row.id, {
       errors: outcome.errors,
       zatcaStatus: outcome.zatcaStatus,
       ambiguous: outcome.ambiguous,
-      retryInSeconds: outcome.ambiguous ? null : backoffSeconds(row.attemptCount, this.opts.maxAttempts),
+      retryInSeconds:
+        outcome.ambiguous || !outcome.retryable ? null : backoffSeconds(row.attemptCount, this.opts.maxAttempts),
     });
   }
 

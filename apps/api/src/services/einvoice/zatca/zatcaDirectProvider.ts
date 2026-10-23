@@ -175,6 +175,8 @@ export function createZatcaDirectProvider(deps: ZatcaDirectDeps = {}): EInvoiceP
           warnings: null,
           errors: [{ reason: "document has no invoice hash; it was never signed" }],
           ambiguous: false,
+          // Unchanged by the 400 rule: the worker refuses an unsigned row before it calls here.
+          retryable: true,
         };
       }
 
@@ -187,6 +189,8 @@ export function createZatcaDirectProvider(deps: ZatcaDirectDeps = {}): EInvoiceP
           warnings: null,
           errors: [{ reason: "no ZATCA credentials for this company; is it onboarded?" }],
           ambiguous: false,
+          // Nothing was sent, and onboarding may complete at any moment.
+          retryable: true,
         };
       }
 
@@ -210,6 +214,7 @@ export function createZatcaDirectProvider(deps: ZatcaDirectDeps = {}): EInvoiceP
         warnings: outcome.warnings,
         errors: outcome.errors,
         ambiguous: outcome.ambiguous,
+        retryable: outcome.retryable,
       };
     },
   };
