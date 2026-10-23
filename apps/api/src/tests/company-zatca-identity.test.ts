@@ -17,6 +17,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { computeInvoiceHash } from "../services/accounting/zatca";
 import { invoicesService } from "../services/invoices.service";
 import { companiesService } from "../services/companies.service";
@@ -61,6 +62,7 @@ describeMaybe("M11.6 — issued invoices carry the COMPANY's ZATCA identity", ()
     const U = `(SELECT id FROM users WHERE email LIKE 'zatca-id-%')`;
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${O} OR actor_user_id IN ${U}`);
+    await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${O}`);
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${O}`);

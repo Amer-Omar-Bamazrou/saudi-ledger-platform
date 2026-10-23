@@ -22,6 +22,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 import { BusinessRuleError } from "../lib/errors";
@@ -55,6 +56,7 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
 
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     for (const t of ["journal_entry_lines", "journal_entries", "transactions", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }

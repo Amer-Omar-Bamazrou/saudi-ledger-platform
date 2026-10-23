@@ -340,11 +340,12 @@ describeMaybe("Phase 13B-3 — the input-VAT event writer", () => {
       const acct = async (code: string) => (await cl.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = $2`, [orgA, code])).rows[0];
       const [cost, adj] = [await acct("PURCHASES"), await acct("VAT_ADJ_NONPAYMENT")];
       const { rows: [je] } = await cl.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, posted_at)
-         VALUES ($1, $2, 'VATADJ-P13B3-NI4', '2027-03-31', 'planted 40(10) reversal', 'posted', 'input_vat_event', now()) RETURNING id`, [orgA, coA]);
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source)
+         VALUES ($1, $2, 'VATADJ-P13B3-NI4', '2027-03-31', 'planted 40(10) reversal', 'draft', 'input_vat_event') RETURNING id`, [orgA, coA]);
       for (const [a, dr, cr] of [[cost, 50, 0], [adj, 0, 50]] as const) {
         await cl.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [orgA, coA, je.id, a.id, a.name, dr, cr]);
       }
+      await cl.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [je.id]); // G16: draft header, lines, then the flip to posted
       await cl.query(
         `INSERT INTO input_vat_events (organization_id, company_id, document_id, event_type, from_bucket, to_bucket, amount, occurred_on, posting_date, trigger_month,
                                        journal_entry_id, journal_role, provenance, actor_system, idempotency_key)
@@ -526,11 +527,12 @@ describeMaybe("Phase 13B-3 — the input-VAT event writer", () => {
       const acct = async (code: string) => (await cl.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = $2`, [orgA, code])).rows[0];
       const [cost, held] = [await acct("PURCHASES"), await acct("VAT_AWAITING_EVIDENCE")];
       const { rows: [je] } = await cl.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, posted_at)
-         VALUES ($1, $2, 'VATLAP-P13B3-CACHE', '2026-12-31', 'planted write-off', 'posted', 'input_vat_event', now()) RETURNING id`, [orgA, coA]);
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source)
+         VALUES ($1, $2, 'VATLAP-P13B3-CACHE', '2026-12-31', 'planted write-off', 'draft', 'input_vat_event') RETURNING id`, [orgA, coA]);
       for (const [a, dr, cr] of [[cost, 40, 0], [held, 0, 40]] as const) {
         await cl.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [orgA, coA, je.id, a.id, a.name, dr, cr]);
       }
+      await cl.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [je.id]); // G16: draft header, lines, then the flip to posted
       await cl.query(
         `INSERT INTO input_vat_events (organization_id, company_id, document_id, event_type, from_bucket, to_bucket, amount, occurred_on, posting_date,
                                        journal_entry_id, journal_role, reason, provenance, actor_system, idempotency_key)

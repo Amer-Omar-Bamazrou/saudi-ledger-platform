@@ -26,6 +26,7 @@ import { primePermissionCache } from "../lib/rbac";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { errorHandler } from "../middleware/errorHandler";
 import { RendererUnavailableError } from "../services/document/htmlToPdf";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -46,6 +47,7 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug LIKE '${P}-%')`;
     const U = `(SELECT id FROM users WHERE email LIKE '${P}-%@test.local')`;
+    await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     for (const t of ["journal_entry_lines", "journal_entries"]) await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
@@ -85,18 +87,21 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
     if (sale) {
       const ar = (await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = 'AR'`, [orgId])).rows[0];
       const sales = (await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = 'SALES'`, [orgId])).rows[0];
-      const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'P14H-1','2026-03-15','sale','posted') RETURNING id`, [orgId, companyId])).rows[0].id;
+      const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'P14H-1','2026-03-15','sale','draft') RETURNING id`, [orgId, companyId])).rows[0].id;
       await pool.query(
         `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,$7,0), ($1,$2,$3,$6,$8,0,$7)`,
         [orgId, companyId, je, ar.id, ar.name, sales.id, sale, sales.name],
       );
+      // G16: written as a draft, its lines added, then posted by its own transition.
+      await pool.query(`UPDATE journal_entries SET status = 'posted' WHERE id = $1`, [je]);
       // a user-named account that a spreadsheet would read as a FORMULA (CSV injection probe)
       const evil = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type) VALUES ($1,'=SUM(1+1)*cmd','=SUM(1+1)*cmd','expense') RETURNING id, name`, [orgId])).rows[0];
-      const je2 = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'P14H-2','2026-03-16','+cmd|calc','posted') RETURNING id`, [orgId, companyId])).rows[0].id;
+      const je2 = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'P14H-2','2026-03-16','+cmd|calc','draft') RETURNING id`, [orgId, companyId])).rows[0].id;
       await pool.query(
         `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,10,0), ($1,$2,$3,$6,$7,0,10)`,
         [orgId, companyId, je2, evil.id, evil.name, ar.id, ar.name],
       );
+      await pool.query(`UPDATE journal_entries SET status = 'posted' WHERE id = $1`, [je2]);
     }
   }
 

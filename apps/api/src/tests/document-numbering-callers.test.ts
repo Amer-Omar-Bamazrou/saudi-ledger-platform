@@ -42,6 +42,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { createApproved } from "./helpers/createApproved";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..", "..");
@@ -104,6 +105,7 @@ describeMaybe("the allocator's callers, exercised against real rows", () => {
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     // Approving posts a journal entry, whose lines reference `categories` —
     // so the ledger rows must go before the chart of accounts does.
     await pool.query(
@@ -251,6 +253,7 @@ describeMaybe("THE SWEEP — the same mint in the documents AUD-1 did not cover"
 
   const wipe = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG2}')`;
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bill_items WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);

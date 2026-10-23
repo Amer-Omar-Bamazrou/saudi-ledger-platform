@@ -22,6 +22,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import http from "node:http";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { insertJournalFixture } from "./helpers/journalFixtures";
 import { hashPassword } from "../lib/password";
 import { auditContext } from "../lib/auditContext";
 import { billsService } from "../services/bills.service";
@@ -146,10 +147,11 @@ describeMaybe("Phase 13B-1 — generic reversal protection (A-5)", () => {
     id.payment = (await pool.query(`SELECT id FROM journal_entries WHERE organization_id = $1 AND entry_number LIKE 'BILL-P13B1G-3-PAY-%'`, [orgA])).rows[0].id;
     const sus = (await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = 'SUSPENSE'`, [orgA])).rows[0];
     const pur = (await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = 'PURCHASES'`, [orgA])).rows[0];
-    id.opening = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, posted_at)
-                                    VALUES ($1, $2, 'P13B1G-OPEN', '2026-01-01', 'opening stand-in', 'posted', 'opening', now()) RETURNING id`, [orgA, coA])).rows[0].id;
-    await pool.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
-                      VALUES ($1, $2, $3, $4, $5, 5, 0), ($1, $2, $3, $6, $7, 0, 5)`, [orgA, coA, id.opening, pur.id, pur.name, sus.id, sus.name]);
+    // G16: the opening stand-in is written as the product writes an entry: a draft header, its lines, then the flip to posted.
+    id.opening = await insertJournalFixture(
+      { organizationId: orgA, companyId: coA, entryNumber: "P13B1G-OPEN", date: "2026-01-01", description: "opening stand-in", source: "opening" },
+      [{ accountId: pur.id, accountName: pur.name, debitAmount: 5, creditAmount: 0 }, { accountId: sus.id, accountName: sus.name, debitAmount: 0, creditAmount: 5 }],
+    );
 
     const app = (await import("../app")).default;
     server = http.createServer(app);

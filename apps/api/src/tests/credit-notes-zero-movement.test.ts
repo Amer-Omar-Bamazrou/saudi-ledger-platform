@@ -22,6 +22,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { customersService } from "../services/customers.service";
@@ -78,6 +79,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
     const org = `(SELECT id FROM organizations WHERE slug = 'cn-appr')`;
     const usr = `(SELECT id FROM users WHERE email = 'cn-approval@test.local')`;
 
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`); // G16: posted entries back to draft for the deletes below
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);

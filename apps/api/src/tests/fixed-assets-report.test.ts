@@ -22,6 +22,7 @@ import { assetReportsService } from "../services/assets/assetReports.service";
 import { billsService } from "../services/bills.service";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -43,6 +44,7 @@ describeMaybe("FA-G — the fixed-asset report and its reconciliation (real rows
   };
   const cleanup = async () => {
     await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
+    await releasePostedJournalsForTeardown(`organization_id IN (SELECT id FROM organizations WHERE slug = '${SLUG}')`); // G16: posted entries back to draft for the deletes below
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

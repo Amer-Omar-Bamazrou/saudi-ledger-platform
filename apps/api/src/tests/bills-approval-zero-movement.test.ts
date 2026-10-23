@@ -19,6 +19,7 @@ import { auditContext } from "../lib/auditContext";
 import { billsService } from "../services/bills.service";
 import { reportsService } from "../services/reports.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -59,6 +60,7 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
     if (orgId) {
       // bill_payments.journal_entry_id (Phase 12B) references the entry: payments go first.
       await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id = $1)`, [orgId]);
+      await releasePostedJournalsForTeardown(`organization_id = $1`, [orgId]); // G16: posted entries back to draft, then the deletes below
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM bill_items WHERE organization_id = $1`, [orgId]);
@@ -74,6 +76,10 @@ describeMaybe("Bill draft/approval — pre-approval states move zero AP; approva
   };
 
   beforeAll(async () => {
+    // A run whose teardown was refused leaves its rows behind: clean them the teardown's own way first.
+    orgId = (await pool.query(`SELECT id FROM organizations WHERE slug = 'bill-appr'`)).rows[0]?.id ?? "";
+    userId = (await pool.query(`SELECT id FROM users WHERE email = 'bill-approval@test.local'`)).rows[0]?.id ?? 0;
+    await cleanup();
     await pool.query(`DELETE FROM organizations WHERE slug = 'bill-appr'`);
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('BILL-APPR Org','bill-appr') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'BILL-APPR Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;

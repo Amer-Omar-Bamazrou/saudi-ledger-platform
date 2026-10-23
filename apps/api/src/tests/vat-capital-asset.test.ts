@@ -19,6 +19,7 @@ import { billsService } from "../services/bills.service";
 import { invoicesService } from "../services/invoices.service";
 import { vatCapitalAssetService } from "../services/assets/vatCapitalAsset.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -40,6 +41,7 @@ describeMaybe("FA-F — the VAT IR Art. 52 capital-asset adjustment (real rows)"
   };
   const cleanup = async () => {
     await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
+    await releasePostedJournalsForTeardown(`organization_id IN (SELECT id FROM organizations WHERE slug = '${SLUG}')`); // G16: posted entries back to draft for the deletes below
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

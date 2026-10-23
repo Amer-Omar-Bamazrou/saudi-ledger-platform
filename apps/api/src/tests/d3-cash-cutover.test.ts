@@ -32,6 +32,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
+import { insertJournalFixture, releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { cashCutoverService, CashCutoverBlockedError, type ClassifiedLine } from "../services/accounting/cashCutover.service";
 import { pairOneToOne } from "../services/accounting/evidencePairing";
@@ -120,6 +121,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
       await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
+      await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
       await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
       for (const t of [
@@ -152,16 +154,27 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
       return je;
     } catch (err) { await c.query("ROLLBACK"); throw err; } finally { c.release(); }
   };
-  const entry = async (org: string, companyId: string, entryNumber: string, date: string, lines: Array<{ accountId: number; accountName: string; dr: number; cr: number }>, opts: { status?: string; reversalOf?: number | null; reference?: string | null } = {}) => {
-    const je = (await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, reversal_of, reference, posted_at)
-       VALUES ($1,$2,$3,$4,'fixture',$5,$6,$7,CASE WHEN $5 = 'draft' THEN NULL ELSE now() END) RETURNING id`,
-      [org, companyId, entryNumber, date, opts.status ?? "posted", opts.reversalOf ?? null, opts.reference ?? null],
-    )).rows[0].id as number;
-    for (const l of lines) {
-      await pool.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [org, companyId, je, l.accountId, l.accountName, l.dr, l.cr]);
-    }
-    return je;
+  // G16 (0126): an entry is written the way the product writes one — a draft header, its lines, then
+  // the flip to `posted` (unless the fixture needs a draft) — on `client` when given, else on its own.
+  const entry = async (org: string, companyId: string, entryNumber: string, date: string, lines: Array<{ accountId: number; accountName: string; dr: number; cr: number }>, opts: { status?: "draft" | "posted"; reversalOf?: number | null; reference?: string | null } = {}, client?: Parameters<typeof insertJournalFixture>[2]) =>
+    insertJournalFixture(
+      { organizationId: org, companyId, entryNumber, date, description: "fixture", status: opts.status ?? "posted", reversalOf: opts.reversalOf ?? null, reference: opts.reference ?? null },
+      lines.map((l) => ({ accountId: l.accountId, accountName: l.accountName, debitAmount: l.dr, creditAmount: l.cr })),
+      client,
+    );
+  /**
+   * G16 (0126): an original turns `reversed` only when its posted mirror exists at COMMIT, so the
+   * status change and the mirror are written in ONE transaction (in the fixture's original order).
+   */
+  const reversedWithMirror = async (originalId: number, companyId: string, entryNumber: string, date: string, lines: Array<{ accountId: number; accountName: string; dr: number; cr: number }>, opts: { reference?: string | null } = {}) => {
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`UPDATE journal_entries SET status = 'reversed' WHERE id = $1`, [originalId]);
+      const mirror = await entry(orgId, companyId, entryNumber, date, lines, { reversalOf: originalId, reference: opts.reference ?? null }, c);
+      await c.query("COMMIT");
+      return mirror;
+    } catch (err) { await c.query("ROLLBACK"); throw err; } finally { c.release(); }
   };
   const transaction = async (companyId: string, o: { date: string; description: string; amount: number; type: "debit" | "credit"; bankAccountId: number | null; kind?: string; journalEntryId?: number | null; settlesInvoiceId?: number | null; settlesBillId?: number | null }) =>
     (await pool.query(
@@ -250,9 +263,11 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
 
     await withHeaderOpen(orgId, async () => {
       // ── Company ONE: every non-pairing shape ─────────────────────────────
-      const je1 = await entry(orgId, c1, "TXN-PLACEHOLDER-1", "2026-02-10", [{ ...H, dr: 1000, cr: 0 }, { ...S, dr: 0, cr: 1000 }]);
+      // G16: written as a draft so it can still be renamed once its transaction exists, then posted.
+      const je1 = await entry(orgId, c1, "TXN-PLACEHOLDER-1", "2026-02-10", [{ ...H, dr: 1000, cr: 0 }, { ...S, dr: 0, cr: 1000 }], { status: "draft" });
       const t1 = await transaction(c1, { date: "2026-02-10", description: "LINKED WITH BANK", amount: 1000, type: "credit", bankAccountId: c1BankA, journalEntryId: je1 });
       await pool.query(`UPDATE journal_entries SET entry_number = $1, reference = $1 WHERE id = $2`, [`TXN-${t1}`, je1]);
+      await pool.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1 AND status = 'draft'`, [je1]);
       const t2 = await transaction(c1, { date: "2026-02-12", description: "NUMBERED WITH BANK", amount: 250, type: "debit", bankAccountId: c1BankB });
       await entry(orgId, c1, `TXN-${t2}`, "2026-02-12", [{ ...RENT, dr: 250, cr: 0 }, { ...H, dr: 0, cr: 250 }], { reference: `TXN-${t2}` });
       const t3 = await transaction(c1, { date: "2026-02-14", description: "NO BANK", amount: 300, type: "debit", bankAccountId: null });
@@ -269,15 +284,14 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
       const bp1 = await billPayment(c1, b1, 400, "2026-02-24", c1BankB);
       await entry(orgId, c1, `BILL-CO-BILL-1-PAY-${bp1}`, "2026-02-24", [{ ...AP, dr: 400, cr: 0 }, { ...H, dr: 0, cr: 400 }], { reference: "CO-BILL-1" });
       await entry(orgId, c1, "JE-000007", "2026-02-25", [{ ...H, dr: 5000, cr: 0 }, { ...S, dr: 0, cr: 5000 }]);
-      const jeDel = await entry(orgId, c1, "TXN-999999901", "2026-02-26", [{ ...RENT, dr: 60, cr: 0 }, { ...H, dr: 0, cr: 60 }], { status: "reversed", reference: "TXN-999999901" });
-      await entry(orgId, c1, "TXN-999999901-REV", "2026-02-27", [{ ...RENT, dr: 0, cr: 60 }, { ...H, dr: 60, cr: 0 }], { reversalOf: jeDel, reference: "TXN-999999901" });
+      const jeDel = await entry(orgId, c1, "TXN-999999901", "2026-02-26", [{ ...RENT, dr: 60, cr: 0 }, { ...H, dr: 0, cr: 60 }], { reference: "TXN-999999901" });
+      await reversedWithMirror(jeDel, c1, "TXN-999999901-REV", "2026-02-27", [{ ...RENT, dr: 0, cr: 60 }, { ...H, dr: 60, cr: 0 }], { reference: "TXN-999999901" });
       await entry(orgId, c1, "TXN-999999902", "2026-02-28", [{ ...RENT, dr: 70, cr: 0 }, { ...H, dr: 0, cr: 70 }], { reference: "TXN-999999902" });
       await entry(orgId, c1, "GL-CO-INV-9-PAY-999999903", "2026-03-01", [{ ...H, dr: 80, cr: 0 }, { ...AR, dr: 0, cr: 80 }], { reference: "CO-INV-9" });
       const t4 = await transaction(c1, { date: "2026-03-02", description: "AMOUNT MISMATCH", amount: 90, type: "debit", bankAccountId: c1BankA });
       await entry(orgId, c1, `TXN-${t4}`, "2026-03-02", [{ ...RENT, dr: 95, cr: 0 }, { ...H, dr: 0, cr: 95 }], { reference: `TXN-${t4}` });
       const je2 = (await pool.query(`SELECT id FROM journal_entries WHERE organization_id = $1 AND entry_number = $2`, [orgId, `TXN-${t2}`])).rows[0].id;
-      await pool.query(`UPDATE journal_entries SET status = 'reversed' WHERE id = $1`, [je2]);
-      await entry(orgId, c1, `TXN-${t2}-REV`, "2026-03-03", [{ ...RENT, dr: 0, cr: 250 }, { ...H, dr: 250, cr: 0 }], { reversalOf: je2, reference: `TXN-${t2}` });
+      await reversedWithMirror(je2, c1, `TXN-${t2}-REV`, "2026-03-03", [{ ...RENT, dr: 0, cr: 250 }, { ...H, dr: 250, cr: 0 }], { reference: `TXN-${t2}` });
 
       // ── Company TWO: exactly one bank — the mandatory regression ─────────
       const t5 = await transaction(c2, { date: "2026-02-05", description: "ONE BANK, NO BANK ON ROW", amount: 120, type: "debit", bankAccountId: null });
@@ -298,8 +312,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
       const p4 = await invoicePayment(c3, inv4, 2300, "2026-02-15");
       await entry(orgId, c3, `GL-CO-INV-4-PAY-${p4}`, "2026-02-15", [{ ...H, dr: 2300, cr: 0 }, { ...AR, dr: 0, cr: 2300 }], { reference: "CO-INV-4" });
       await transaction(c3, { date: "2026-02-15", description: "SETTLES INV 4", amount: 2300, type: "credit", bankAccountId: c3BankA, kind: "settlement", settlesInvoiceId: inv4 });
-      await pool.query(`UPDATE journal_entries SET status = 'reversed' WHERE id = $1`, [je7]);
-      await entry(orgId, c3, `TXN-${t7}-REV`, "2026-03-05", [{ ...RENT, dr: 0, cr: 700 }, { ...H, dr: 700, cr: 0 }], { reversalOf: je7, reference: `TXN-${t7}` });
+      await reversedWithMirror(je7, c3, `TXN-${t7}-REV`, "2026-03-05", [{ ...RENT, dr: 0, cr: 700 }, { ...H, dr: 700, cr: 0 }], { reference: `TXN-${t7}` });
       await entry(orgId, c3, `TXN-${t7}-P1`, "2026-02-11", [{ ...RENT, dr: 700, cr: 0 }, { ...H, dr: 0, cr: 700 }], { reference: `TXN-${t7}` });
 
       // ── Company FOUR: one deterministic line — rollback and concurrency ──
@@ -342,8 +355,8 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
       await invoicePayment(c5, invE2, 600, "2026-02-27");
       await invoicePayment(c5, invE2, 600, "2026-02-28");
       await entry(orgId, c5, "GL-PAIR-E2-PAY", "2026-02-27", [{ ...H, dr: 600, cr: 0 }, { ...AR, dr: 0, cr: 600 }], { reference: "PAIR-E2" });
-      const jeF = await entry(orgId, c5, "JE-F-ORIGINAL", "2026-03-02", [{ ...H, dr: 77, cr: 0 }, { ...S, dr: 0, cr: 77 }], { status: "reversed" });
-      await entry(orgId, c5, "JE-F-ORIGINAL-REV", "2026-03-03", [{ ...S, dr: 78, cr: 0 }, { ...H, dr: 0, cr: 78 }], { reversalOf: jeF });
+      const jeF = await entry(orgId, c5, "JE-F-ORIGINAL", "2026-03-02", [{ ...H, dr: 77, cr: 0 }, { ...S, dr: 0, cr: 77 }]);
+      await reversedWithMirror(jeF, c5, "JE-F-ORIGINAL-REV", "2026-03-03", [{ ...S, dr: 78, cr: 0 }, { ...H, dr: 0, cr: 78 }]);
       // PLANTED with triggers off: a reversal of an entry that does not exist is LEGACY data — since 0119 the database
       // refuses to write one (`journal_entries_mirror_admit`); the cut-over must still name it if a book carries one
       await plantedOrphanReversal(orgId, c5, "JE-F-ORPHAN-REV", "2026-03-04", [{ ...S, dr: 5, cr: 0 }, { ...H, dr: 0, cr: 5 }], 999999904);
@@ -568,8 +581,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
     // next run attributes it; nothing is stranded, nothing duplicated.
     const orig = (await pool.query(`SELECT je.id FROM journal_entries je WHERE je.company_id = $1 AND je.entry_number LIKE 'TXN-%' AND je.status = 'posted' AND je.reversal_of IS NULL ORDER BY je.id LIMIT 1`, [c3])).rows[0].id;
     const sales = await accountByCode(orgId, "SALES");
-    await pool.query(`UPDATE journal_entries SET status = 'reversed' WHERE id = $1`, [orig]);
-    await entry(orgId, c3, "STRAGGLER-REV", "2026-03-20", [{ accountId: sales.id, accountName: sales.name, dr: 3000, cr: 0 }, { accountId: headerId, accountName: "Cash and Bank", dr: 0, cr: 3000 }], { reversalOf: orig });
+    await reversedWithMirror(orig, c3, "STRAGGLER-REV", "2026-03-20", [{ accountId: sales.id, accountName: sales.name, dr: 3000, cr: 0 }, { accountId: headerId, accountName: "Cash and Bank", dr: 0, cr: 3000 }]);
     expect(await unattributed(c3)).toBe(1);
     const dry = await t3(() => cashCutoverService.dryRun());
     expect(dry.lines).toHaveLength(1);

@@ -24,6 +24,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { billsService } from "../services/bills.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const connectionString = process.env.DATABASE_URL;
 const describeMaybe = connectionString ? describe : describe.skip;
@@ -57,6 +58,7 @@ describeMaybe("bill posting — the expense account is resolved by id, refused w
     await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}', '${SLUG_OTHER}')`); // Phase 13B-3: events first (append-only, RESTRICT)
     for (const slug of [SLUG, SLUG_OTHER]) {
       const O = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
+      await releasePostedJournalsForTeardown(`organization_id IN ${O}`); // G16: posted entries back to draft for the deletes below
       for (const t of ["journal_entry_lines", "journal_entries", "bill_items", "bills", "document_numbers", "vendors", "audit_logs", "categories", "companies"]) {
         await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
           if (!/does not exist/.test(e.message)) throw e;

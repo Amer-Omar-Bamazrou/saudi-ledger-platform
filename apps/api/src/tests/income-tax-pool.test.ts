@@ -24,6 +24,7 @@ import { assetDisposalService } from "../services/assets/disposal.service";
 import { billsService } from "../services/bills.service";
 import { incomeTaxPoolService } from "../services/assets/incomeTaxPool.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -44,15 +45,19 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
     } catch (err) { await conn.rollback(); throw err; }
   };
   const cleanup = async () => {
-    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ('${SLUG}')`); // Phase 13B-3: events first (append-only, RESTRICT)
+    // The last test's second org (`${SLUG}-other`) is cleaned here too: a run whose in-test cleanup was refused leaves it behind,
+    // holding this suite's user's membership, and then no later run could delete the user.
+    const SLUGS = `('${SLUG}', '${SLUG}-other')`;
+    await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug IN ${SLUGS}`); // Phase 13B-3: events first (append-only, RESTRICT)
+    await releasePostedJournalsForTeardown(`organization_id IN (SELECT id FROM organizations WHERE slug IN ${SLUGS})`); // G16: posted entries back to draft for the deletes below
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
+      const org = `(SELECT id FROM organizations WHERE slug IN ${SLUGS})`;
       for (const t of ["asset_tax_pool_declarations", "asset_disposals", "asset_events", "asset_depreciation_schedule", "bill_items", "bills", "fixed_assets", "asset_categories", "journal_entry_lines", "journal_entries", "period_locks", "audit_logs", "organization_memberships", "vendors", "bank_accounts", "categories", "companies"]) {
         await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
-      await client.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
+      await client.query(`DELETE FROM organizations WHERE slug IN ${SLUGS}`);
       await client.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
       await client.query("COMMIT");
     } catch (err) { await client.query("ROLLBACK"); throw err; } finally { client.release(); }
@@ -300,6 +305,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
       expect(ours.years.find((y) => y.taxYear === 2025)!.groups.find((g) => g.group === 3)!.openingBalance).toBe(100_000);
     } finally {
       await purgeInputVatLedger(`SELECT id FROM organizations WHERE slug = '${otherSlug}'`);
+      await releasePostedJournalsForTeardown(`organization_id IN (SELECT id FROM organizations WHERE slug = '${otherSlug}')`); // G16: posted entries back to draft for the deletes below
       const client = await pool.connect();
       try {
         await client.query("BEGIN");

@@ -15,6 +15,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { purchaseOrdersService } from "../services/purchaseOrders.service";
 import { purchaseOrderConversionService } from "../services/purchaseOrderConversion.service";
@@ -62,6 +63,7 @@ describeMaybe("Purchase orders (M21.3)", () => {
       await pool.query(`DELETE FROM purchase_order_conversion_items WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM purchase_order_conversions WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id = $1)`, [orgId]);
+      await releasePostedJournalsForTeardown("organization_id = $1", [orgId]);
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM purchase_order_items WHERE organization_id = $1`, [orgId]);

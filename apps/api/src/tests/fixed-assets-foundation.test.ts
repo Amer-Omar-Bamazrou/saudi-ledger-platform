@@ -27,6 +27,7 @@ import { auditContext } from "../lib/auditContext";
 import { assetsService } from "../services/assets.service";
 import { reportsService } from "../services/reports.service";
 import { postJournalEntry } from "../services/accounting/glPosting";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { generateStraightLineSchedule, lastDayOf, shiftPeriod } from "../services/assets/depreciationSchedule";
 
 const url = process.env.DATABASE_URL;
@@ -86,6 +87,7 @@ describeMaybe("FA-A foundation — the register on real rows", () => {
     } catch (err) { await conn.rollback(); return { ok: false as const, error: err as Error & { cause?: { code?: string; constraint?: string; message?: string } } }; }
   };
   const cleanup = async () => {
+    await releasePostedJournalsForTeardown(`organization_id IN (SELECT id FROM organizations WHERE slug = '${SLUG}')`); // G16: posted entries back to draft for the deletes below
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

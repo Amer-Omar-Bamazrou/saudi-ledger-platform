@@ -17,6 +17,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { reportsService } from "../services/reports.service";
@@ -48,6 +49,7 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
 
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
+    await releasePostedJournalsForTeardown(`organization_id IN ${O}`); // G16: posted entries back to draft for the deletes below
     for (const t of ["journal_entry_lines", "journal_entries", "audit_logs", "bank_accounts", "categories", "companies"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
         if (!/does not exist/.test(e.message)) throw e;

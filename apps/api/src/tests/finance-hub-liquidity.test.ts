@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { financeHubService } from "../services/financeHub.service";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -65,7 +66,7 @@ describeMaybe("M18.3 — the liquidity block", () => {
     entryNo += 1;
     const { rows } = await pool.query(
       `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1,$2,$3,'2026-06-15','liquidity fixture','posted') RETURNING id`,
+       VALUES ($1,$2,$3,'2026-06-15','liquidity fixture','draft') RETURNING id`,
       [orgId, companyId, `LIQ-${entryNo}`],
     );
     const jeId = rows[0].id;
@@ -80,11 +81,14 @@ describeMaybe("M18.3 — the liquidity block", () => {
         [orgId, companyId, jeId, account, n[0].name, debit, credit],
       );
     }
+    // G16: an entry is written as a draft, its lines added, then posted by its own transition.
+    await pool.query(`UPDATE journal_entries SET status = 'posted' WHERE id = $1`, [jeId]);
   }
 
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${O}`);

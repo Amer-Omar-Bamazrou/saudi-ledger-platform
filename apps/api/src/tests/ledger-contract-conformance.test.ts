@@ -50,6 +50,7 @@ import { journalEntriesService } from "../services/journalEntries.service";
 import { payrollService } from "../services/payroll.service";
 import { employeesService } from "../services/employees.service";
 import { assetsService } from "../services/assets.service";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -89,6 +90,7 @@ describeMaybe("ledger contract conformance — journal entries, payroll, employe
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     for (const t of ["payroll_items", "payroll_runs", "asset_events", "asset_depreciation_schedule", "fixed_assets", "asset_categories", "employees", "journal_entry_lines", "journal_entries", "document_numbers"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
         if (!/does not exist/.test(e.message)) throw e;

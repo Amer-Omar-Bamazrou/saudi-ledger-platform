@@ -28,6 +28,7 @@ import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { periodLocksService } from "../services/periodLocks.service";
 import { reportsService } from "../services/reports.service";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -48,6 +49,7 @@ describeMaybe("Phase 11 batch 1 — reversal period lock and business-day ageing
     } catch (err) { await conn.rollback(); throw err; }
   };
   const cleanup = async () => {
+    await releasePostedJournalsForTeardown(`organization_id IN (SELECT id FROM organizations WHERE slug = '${SLUG}')`);
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

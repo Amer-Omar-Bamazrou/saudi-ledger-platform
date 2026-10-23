@@ -18,6 +18,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { paymentsService } from "../services/payments.service";
@@ -68,6 +69,7 @@ describeMaybe("D-4 Part 2 — unallocation (superseding record) and customer ref
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
       await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
+      await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
       for (const t of [
         "customer_refunds", "payment_allocation_reversals", "payment_allocations", "payments", "journal_entry_lines", "journal_entries",
         "invoice_items", "einvoice_documents", "invoices", "customers", "period_locks", "audit_logs", "organization_memberships",

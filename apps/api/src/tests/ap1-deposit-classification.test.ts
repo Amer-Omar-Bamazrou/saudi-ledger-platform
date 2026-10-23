@@ -346,7 +346,8 @@ describeMaybe("AP-1 — deposit classification and the VAT-review list (real row
       const adv = (await pool.query(
         `INSERT INTO migration_advances (organization_id, company_id, batch_id, source_system, source_id, party_source_id, bank_source_code, amount, received_at, vat_position, advance_invoice_number)
          VALUES ($1,$2,$3,'OldERP',$4,'C-1','BANK1',$5,'2025-11-20',$6,$7) RETURNING id`, [orgId, companyId, batch, sourceId, amount, vatPosition, vatPosition === "invoiced" ? "ADV-2025-17" : null])).rows[0].id;
-      const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,$3,'2025-12-31','opening','posted') RETURNING id`, [orgId, companyId, `MIG-T-${sourceId}`])).rows[0].id;
+      const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,$3,'2025-12-31','opening','draft') RETURNING id`, [orgId, companyId, `MIG-T-${sourceId}`])).rows[0].id;
+      await pool.query(`UPDATE journal_entries SET status = 'posted' WHERE id = $1`, [je]); // G16: written as a draft, then posted by its own transition
       return (await pool.query(
         `INSERT INTO payments (organization_id, company_id, direction, party_type, customer_id, bank_account_id, amount, paid_at, source, journal_entry_id, migration_advance_id)
          VALUES ($1,$2,'in','customer',$3,$4,$5,'2025-12-31','opening',$6,$7) RETURNING id`, [orgId, companyId, custB, bank, amount, je, adv])).rows[0].id;

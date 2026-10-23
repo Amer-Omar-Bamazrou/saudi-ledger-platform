@@ -29,6 +29,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { invoicesService } from "../services/invoices.service";
 import { auditContext } from "../lib/auditContext";
 import { createApproved } from "./helpers/createApproved";
@@ -61,6 +62,7 @@ describeMaybe("M12.1a — multi-company invoice identity + hash chain", () => {
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${O} OR actor_user_id IN ${U}`);
+    await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${O}`);

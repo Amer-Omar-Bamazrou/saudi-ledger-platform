@@ -27,6 +27,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import {
   CreateInvoiceBody,
   CreateInvoiceResponse,
@@ -95,6 +96,7 @@ describeMaybe("document contract conformance — invoices & bills, detail and wr
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${O})`);
     await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${O})`);
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${O}`);
+    await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     for (const t of ["journal_entry_lines", "journal_entries", "einvoice_documents", "invoice_items", "invoices", "bill_items", "bills", "document_numbers", "customers", "vendors"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
         if (!/does not exist/.test(e.message)) throw e;

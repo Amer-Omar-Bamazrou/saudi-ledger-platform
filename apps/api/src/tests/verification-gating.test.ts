@@ -31,6 +31,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool, PERMISSION_MATRIX } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { resolveTenant } from "../lib/tenant";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { primePermissionCache } from "../lib/rbac";
@@ -65,6 +66,7 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${orgFilter}`);
     // A manual transaction POSTS since 2026-09-15 (workflow audit W7 B3), so the
     // org now owns journal entries that reference its company.
+    await releasePostedJournalsForTeardown(`organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${orgFilter}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${orgFilter}`);

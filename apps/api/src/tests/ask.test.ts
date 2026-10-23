@@ -19,6 +19,7 @@ import { beginTenantConnection, pool, PERMISSION_MATRIX } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { askService, ASK_TOOLS, RUNWAY_ASSUMPTION_EN, RUNWAY_ASSUMPTION_AR } from "../services/ask.service";
 import { transactionPostingService } from "../services/transactionPosting.service";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -48,6 +49,7 @@ describeMaybe("AI-6a — grounded answers", () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await pool.query(`DELETE FROM grounded_answers WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);

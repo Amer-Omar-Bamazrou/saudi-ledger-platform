@@ -30,6 +30,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, beginTenantConnection } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import {
   GetTrialBalanceResponse,
   GetIncomeStatementResponse,
@@ -106,8 +107,8 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
   async function post(entryNumber: string, date: string, status: string, lines: [Acct, number, number][]) {
     const { rows } = await pool.query(
       `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1,$2,$3,$4,'contract fixture',$5) RETURNING id`,
-      [orgId, companyId, entryNumber, date, status],
+       VALUES ($1,$2,$3,$4,'contract fixture','draft') RETURNING id`,
+      [orgId, companyId, entryNumber, date],
     );
     for (const [a, debit, credit] of lines) {
       await pool.query(
@@ -116,12 +117,15 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
         [orgId, companyId, rows[0].id, a.id, a.name, debit, credit],
       );
     }
+    // G16: an entry is written as a draft, its lines added, then moved to its status by its own transition.
+    if (status !== "draft") await pool.query(`UPDATE journal_entries SET status = $2 WHERE id = $1`, [rows[0].id, status]);
   }
 
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${O}`);
+    await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     for (const t of ["journal_entry_lines", "journal_entries", "transactions", "bank_accounts", "invoice_items", "invoices", "bill_items", "bills", "customers", "vendors"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`);
     }

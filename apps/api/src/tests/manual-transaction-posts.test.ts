@@ -16,6 +16,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 import { transactionPostingService } from "../services/transactionPosting.service";
@@ -55,6 +56,7 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
   const cleanup = async () => {
     for (const slug of [SLUG, SLUG_OTHER]) {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
+      await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
       for (const t of ["journal_entry_lines", "journal_entries", "transactions", "period_locks", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies"]) {
         await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
