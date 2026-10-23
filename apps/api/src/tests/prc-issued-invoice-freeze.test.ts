@@ -361,7 +361,7 @@ describeMaybe("PR C — the issued-invoice freeze (migration 0125)", () => {
     expect(Object.values(attempts).map((a) => [a.refused, a.rowCount])).toEqual([[false, 1], [false, 1], [false, 1], [false, 1]]);
   }, 60_000);
 
-  it("🔴 a STANDARD invoice ZATCA rejects at clearance, and a SIMPLIFIED one rejected at reporting, through the real worker: retried with the SAME signed document, then needs_review (never recorded as rejected); both stay frozen; the next document takes the next ICV with the rejected document's hash as its PIH", async () => {
+  it("🔴 a STANDARD invoice ZATCA rejects at clearance, and a SIMPLIFIED one rejected at reporting, through the real worker: sent ONCE, then needs_review (never resubmitted, never recorded as rejected); both stay frozen; the next document takes the next ICV with the rejected document's hash as its PIH", async () => {
     const out: Record<string, unknown> = {};
     for (const [label, customerId, flow] of [["standard", b2b, "clearance"], ["simplified", b2c, "reporting"]] as const) {
       const rejected = await issue({ customerId, items: line(2_500) });
@@ -370,10 +370,10 @@ describeMaybe("PR C — the issued-invoice freeze (migration 0125)", () => {
       expect(docBefore.flow, label).toBe(flow);
 
       const { worker, sent } = rejectingWorker(2);
-      await worker.runOnce(); // attempt 1 → 400 → failed, backoff
+      await worker.runOnce(); // attempt 1 → 400 → needs_review, never resubmitted (fix 3a)
       const afterOne = await doc(rejected);
       await pool.query(`UPDATE einvoice_documents SET next_attempt_at = now() - interval '1 hour' WHERE invoice_id = $1`, [rejected]);
-      await worker.runOnce(); // attempt 2 → 400 → attempts exhausted
+      await worker.runOnce(); // a second pass, any backoff elapsed: nothing is sent
       const afterTwo = await doc(rejected);
       const mine = sent.filter((s) => JSON.stringify(s).includes(docBefore.zatca_uuid));
 
@@ -408,8 +408,10 @@ describeMaybe("PR C — the issued-invoice freeze (migration 0125)", () => {
         receivables: ar.rows,
       };
 
-      expect(afterOne.status, `${label}: a 400 is not guessed into rejected`).toBe("failed");
-      expect([afterTwo.status, afterTwo.attempt_count], `${label}: escalated to a human after the attempts`).toEqual(["needs_review", 2]);
+      // Fix 3a (owner approval 2026-10-23): these two replace `afterOne.status === "failed"` and
+      // `[afterTwo.status, afterTwo.attempt_count] === ["needs_review", 2]`, which pinned the resubmission.
+      expect([afterOne.status, afterOne.attempt_count, mine.length], `${label}: after one HTTP 400, needs_review, one attempt, exactly one submission`).toEqual(["needs_review", 1, 1]);
+      expect([afterOne.status, afterTwo.status], `${label}: never recorded as rejected`).not.toContain("rejected");
       for (const [k, a] of Object.entries(tries)) expect.soft([label, k, a.refused], k).toEqual([label, k, true]);
       expect(invAfter, `${label}: the rejected invoice is unchanged`).toEqual(invBefore);
       expect([docAfter.invoice_hash, docAfter.signed_xml, docAfter.previous_invoice_hash, docAfter.qr_code, docAfter.zatca_uuid], `${label}: its signed evidence is unchanged`)
