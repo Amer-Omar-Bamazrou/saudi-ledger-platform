@@ -402,16 +402,20 @@ export async function postJournalEntry(opts: {
   // Enforce period lock — block posting into closed periods
   await checkPeriodOpen(opts.date);
 
+  // 🔴 G16 (Phase 18): the header is written as a DRAFT, then its lines, then
+  // it is flipped to `posted` (below). The database refuses a line written
+  // into a posted entry, and checks at the flip that the stored lines balance,
+  // so the order is the invariant, not a style.
   const now = new Date();
-  const [je] = await db
+  const [draft] = await db
     .insert(journalEntriesTable)
     .values({
       entryNumber: opts.entryNumber,
       date: opts.date,
       description: opts.description,
       reference: opts.reference ?? null,
-      status: "posted",
-      postedAt: now,
+      status: "draft",
+      postedAt: null,
       source: opts.source ?? null,
       migrationBatchId: opts.migrationBatchId ?? null,
       reversalOf: opts.reversalOf ?? null,
@@ -420,7 +424,7 @@ export async function postJournalEntry(opts: {
 
   await db.insert(journalEntryLinesTable).values(
     lines.map((l) => ({
-      journalEntryId: je.id,
+      journalEntryId: draft.id,
       // A bank line carries the LEAF's current name, so the denormalised
       // history label matches the account the line actually sits on.
       accountName: l.bankAccountId != null ? bankLeaves.get(l.bankAccountId)!.name : l.accountName!,
@@ -444,5 +448,13 @@ export async function postJournalEntry(opts: {
     }))
   );
 
+  // The flip names `status`, so the bank-reconciliation lock (0102,
+  // BEFORE UPDATE OF status) sees every posting; `posted_at` stays the
+  // application's clock, as before the reorder.
+  const [je] = await db
+    .update(journalEntriesTable)
+    .set({ status: "posted", postedAt: now })
+    .where(and(eq(journalEntriesTable.id, draft.id), eq(journalEntriesTable.status, "draft")))
+    .returning();
   return je;
 }

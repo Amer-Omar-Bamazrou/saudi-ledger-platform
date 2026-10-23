@@ -433,19 +433,21 @@ export const journalEntriesService = {
     // entry already on another company's bank is how that entry is corrected.)
     await assertLineReferencesOwned(lines);
     const now = new Date();
-    const [reversal] = await journalEntriesRepository.insertEntry({
+    // 🔴 G16: the mirror is written as a DRAFT, then its lines, then flipped to
+    // `posted` (below) — the posting seam's order, which the database requires.
+    const [draftMirror] = await journalEntriesRepository.insertEntry({
       entryNumber: `${original.entryNumber}-REV`,
       date,
       description: `Reversal of ${original.description}`,
       reference: original.reference,
-      status: "posted",
-      postedAt: now,
+      status: "draft",
+      postedAt: null,
       reversalOf: id,
       reversalReason: reason === "" ? null : reason,
     });
     const mirrorLines = await journalEntriesRepository.insertLines(
       lines.map((l) => ({
-        journalEntryId: reversal.id,
+        journalEntryId: draftMirror.id,
         accountId: l.accountId,
         accountName: l.accountName,
         description: l.description,
@@ -473,8 +475,9 @@ export const journalEntriesService = {
      * the leaf.
      */
     await journalEntriesRepository.copyBankAttributions(
-      lines.map((l, i) => ({ originalLineId: l.id, mirrorLineId: mirrorLines[i]!.id, journalEntryId: reversal.id })),
+      lines.map((l, i) => ({ originalLineId: l.id, mirrorLineId: mirrorLines[i]!.id, journalEntryId: draftMirror.id })),
     );
+    const [reversal] = await journalEntriesRepository.updateEntryIfStatus(draftMirror.id, "draft", { status: "posted", postedAt: now });
     if (owner.beforeFlip) await owner.beforeFlip(reversal.id);
     await journalEntriesRepository.updateEntry(id, { status: "reversed" });
     const reversalLines = await journalEntriesRepository.linesByEntry(reversal.id);
