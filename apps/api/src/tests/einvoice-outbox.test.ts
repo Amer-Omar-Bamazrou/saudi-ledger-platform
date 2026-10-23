@@ -59,6 +59,9 @@ function providerWith(
 
 const ACCEPTED: ZatcaResponse = { httpStatus: 200, body: { status: "REPORTED" }, networkFailure: false, errorMessage: null };
 const REJECTED: ZatcaResponse = { httpStatus: 400, body: { errors: [{ code: "X" }] }, networkFailure: false, errorMessage: null };
+// A transient failure: "Service Unavailable, invoice not received ... Please resend" (Detailed Guideline v2, p. 53).
+// The retry tests use it, not REJECTED: a 400 is never resubmitted (phase18-einvoice-400-no-resubmit.test.ts).
+const UNAVAILABLE: ZatcaResponse = { httpStatus: 503, body: { message: "unavailable" }, networkFailure: false, errorMessage: null };
 const TIMEOUT: ZatcaResponse = { httpStatus: null, body: null, networkFailure: true, errorMessage: "ETIMEDOUT" };
 
 describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => {
@@ -195,20 +198,21 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
     expect(rows[0].cleared_xml).toBe("<Cleared/>");
   });
 
-  it("a non-2xx response is RETRYABLE, never guessed into `rejected`", async () => {
+  it("a transient non-2xx response (503) is RETRYABLE, never guessed into `rejected`", async () => {
     const id = await queueDocument();
-    const client = fakeClient(() => REJECTED);
+    const client = fakeClient(() => UNAVAILABLE);
     await new EInvoiceWorker({ provider: providerWith(client, creds), organizationId: orgId }).runOnce();
 
     const row = await einvoiceOutboxRepository.findById(id);
-    // Until M12.4 supplies real error semantics, a 4xx is NOT assumed terminal:
-    // misclassifying a retryable error as terminal strands a valid invoice.
+    // Until M12.4 supplies real error semantics, an error is NOT assumed terminal:
+    // misclassifying a retryable error as terminal strands a valid invoice. The
+    // one exception is a 400 (never resubmitted; its own proof file).
     expect(row!.status).toBe("failed");
   });
 
   it("escalates to needs_review once attempts are exhausted, instead of retrying forever", async () => {
     const id = await queueDocument();
-    const client = fakeClient(() => REJECTED);
+    const client = fakeClient(() => UNAVAILABLE);
     const worker = new EInvoiceWorker({ provider: providerWith(client, creds), maxAttempts: 2, organizationId: orgId });
 
     await worker.runOnce(); // attempt 1 → failed, backoff
@@ -238,7 +242,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
 
   it("IDEMPOTENCY: a retry resubmits byte-identical content; the worker mints nothing", async () => {
     const id = await queueDocument();
-    const client = fakeClient(() => REJECTED);
+    const client = fakeClient(() => UNAVAILABLE);
     const worker = new EInvoiceWorker({ provider: providerWith(client, creds), organizationId: orgId });
 
     await worker.runOnce();

@@ -23,6 +23,10 @@
  * escalating to `needs_review` when attempts are exhausted. Nothing is ever
  * guessed into `rejected`, because `rejected` is terminal and unrecoverable
  * without human action.
+ *
+ * 🔴 One exception, by HTTP status rather than by error code (Phase 18, owner
+ * 2026-10-22): a 400 is `failed` but NOT retryable — the same signed document
+ * is never sent again. See the 400 branch below.
  */
 import type { ZatcaResponse } from "./zatcaHttpClient";
 
@@ -49,6 +53,12 @@ export interface ZatcaOutcome {
    * no status endpoint to ask. See the S2 note below.
    */
   ambiguous: boolean;
+  /**
+   * Can sending the SAME signed document again succeed? False for a 400 (ZATCA
+   * rejected it) and for every outcome that is not an ordinary failure; the
+   * worker parks a non-retryable failure in `needs_review` after one attempt.
+   */
+  retryable: boolean;
 }
 
 /**
@@ -78,6 +88,7 @@ export function mapZatcaResponse(response: ZatcaResponse, flow: "clearance" | "r
       userMessage: "Could not reach ZATCA. The invoice will be retried automatically.",
       clearedXml: null,
       ambiguous: true,
+      retryable: false,
     };
   }
 
@@ -95,6 +106,7 @@ export function mapZatcaResponse(response: ZatcaResponse, flow: "clearance" | "r
       userMessage: null,
       clearedXml: typeof body["clearedInvoice"] === "string" ? (body["clearedInvoice"] as string) : null,
       ambiguous: false,
+      retryable: false,
     };
   }
 
@@ -128,6 +140,7 @@ export function mapZatcaResponse(response: ZatcaResponse, flow: "clearance" | "r
       // A response was received — ZATCA's state is known, just not what we asked
       // for. `ambiguous` routes it to needs_review without a blind retry.
       ambiguous: true,
+      retryable: false,
     };
   }
 
@@ -138,6 +151,17 @@ export function mapZatcaResponse(response: ZatcaResponse, flow: "clearance" | "r
   // the cost of being wrong is a tenant unable to invoice. Backoff plus
   // escalation to `needs_review` gets a human to look, which is the correct
   // behaviour under genuine uncertainty.
+  //
+  // 🔴 EXCEPT A 400: never sent again (Phase 18, owner 2026-10-22). E-Invoicing
+  // Detailed Guideline v2 (May 2023), p. 53: 400 is "Action failed (rejected)",
+  // required action "Review detailed message, correct and resubmit" — a
+  // CORRECTED document, not these bytes; p. 60: "ZATCA does not allow the same
+  // document to be submitted twice." So the document goes to a human after ONE
+  // attempt, with ZATCA's errors kept. It stays `failed`, not `rejected`: the
+  // per-code table is still empty, and the correction route for a rejected
+  // invoice is not built. The same p. 53 lists 429/500/503/504 as "invoice not
+  // received ... Please resend" — those keep their retries.
+  const rejectedByZatca = response.httpStatus === 400;
   const body = (response.body ?? {}) as Record<string, unknown>;
   return {
     status: "failed",
@@ -146,11 +170,14 @@ export function mapZatcaResponse(response: ZatcaResponse, flow: "clearance" | "r
     errors: Array.isArray(body["errors"])
       ? (body["errors"] as unknown[])
       : [{ httpStatus: response.httpStatus, body: response.body }],
-    userMessage:
-      `ZATCA returned an error (HTTP ${response.httpStatus}). The invoice will be retried, ` +
-      "and flagged for review if it keeps failing.",
+    userMessage: rejectedByZatca
+      ? "ZATCA rejected this document (HTTP 400). It will not be submitted again; it has been " +
+        "flagged for review with ZATCA's response."
+      : `ZATCA returned an error (HTTP ${response.httpStatus}). The invoice will be retried, ` +
+        "and flagged for review if it keeps failing.",
     clearedXml: null,
     // A response WAS received, so ZATCA's state is known — not ambiguous.
     ambiguous: false,
+    retryable: !rejectedByZatca,
   };
 }
