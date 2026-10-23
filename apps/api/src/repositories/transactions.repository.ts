@@ -190,6 +190,17 @@ export const transactionsRepository = {
   },
 
   /**
+   * 🔴 G38 (Phase 18): one statement import at a time per bank account, until
+   * the caller's transaction ends. `countIdentical` below reads what the bank
+   * already holds with no lock, so two uploads of one file at once both read
+   * "none" and both import every line; holding this first makes the second
+   * read what the first committed.
+   */
+  async lockBankImport(bankAccountId: number): Promise<void> {
+    await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`bank-import:${bankAccountId}`}))`);
+  },
+
+  /**
    * 🔴 HOW MANY identical rows this account already holds — not WHETHER it holds
    * one.
    *

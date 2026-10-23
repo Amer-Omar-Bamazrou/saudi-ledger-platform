@@ -194,6 +194,14 @@ export const transactionsService = {
     // `reference_not_found` — one shared check (accounting/bankIdentity.ts).
     const bankAccountId: number = await assertBankAccount(data.bankAccountId, { what: "this statement belongs to" });
 
+    // 🔴 G38 (Phase 18): imports into ONE bank are serialised for the rest of
+    // this transaction, BEFORE the holdings below are read. The multiplicity
+    // rule reads "how many copies does the bank already hold"; without this,
+    // two uploads of the same file at once both read zero and both import.
+    // The client's file hash (`statement_already_imported`) is optional and
+    // cannot stand in for it.
+    await transactionsRepository.lockBankImport(bankAccountId);
+
     // 🔴 Phase 12D: a completed bank reconciliation fixes this bank's lines
     // through its date — a line dated inside it would change what it proved.
     // Refused whole and in words here; the trigger on `transactions` is the
