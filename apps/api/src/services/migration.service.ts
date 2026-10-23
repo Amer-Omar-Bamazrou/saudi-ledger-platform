@@ -21,6 +21,7 @@
  */
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import type { MigrationBatch, MigrationChartRow } from "@workspace/db";
+import { isCalendarDate } from "@workspace/shared";
 import { round2 } from "../lib/money";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { migrationRepository } from "../repositories/migration.repository";
@@ -202,7 +203,8 @@ export const migrationService = {
   async createBatch(body: { sourceSystem?: string; sourceVersion?: string | null; cutoverDate?: string; notes?: string | null; idempotencyKey?: string | null }, userId: number | null) {
     const sourceSystem = body.sourceSystem?.trim();
     if (!sourceSystem) throw new BadRequestError("sourceSystem is required — name the system the balances come from.");
-    if (!body.cutoverDate || !ISO_DATE.test(body.cutoverDate) || Number.isNaN(Date.parse(body.cutoverDate))) throw new BadRequestError("cutoverDate must be YYYY-MM-DD.");
+    // G18's one definition of a real day: `Date.parse` rolls 2026-02-31 into March instead of refusing it.
+    if (!isCalendarDate(body.cutoverDate)) throw new BadRequestError("cutoverDate must be YYYY-MM-DD.");
     const idempotencyKey = body.idempotencyKey?.trim() || null;
     if (idempotencyKey) {
       const [existing] = await migrationRepository.findBatchByIdempotencyKey(idempotencyKey);
