@@ -11,6 +11,7 @@
  * equity by their own SOCPA type (Art. 9, 23(1)) and are never classified.
  */
 import { ZAKAT_CLASSES, type ZakatClass } from "@workspace/db";
+import { isCalendarDate } from "@workspace/shared";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../../lib/errors";
 import { fromHalalas, toHalalas } from "../../lib/money";
 import { taxRepository } from "../../repositories/tax.repository";
@@ -107,7 +108,8 @@ export const zakatClassificationService = {
    */
   async list(asOfParam?: unknown) {
     const asOf = asOfParam == null || asOfParam === "" ? null : String(asOfParam);
-    if (asOf != null && (!/^\d{4}-\d{2}-\d{2}$/.test(asOf) || Number.isNaN(Date.parse(`${asOf}T00:00:00Z`)))) throw new BadRequestError("asOf must be a YYYY-MM-DD date.");
+    // G18's one definition of a real day (it used to fall through to a later guard naming `as_of`).
+    if (asOf != null && !isCalendarDate(asOf)) throw new BadRequestError("asOf must be a YYYY-MM-DD date.");
     const [cats, stored, fa, balances] = await Promise.all([
       reportsRepository.allCategories(), taxRepository.classifications(), fixedAssetAccountIds(), asOf ? balancesAt(asOf) : Promise.resolve(null),
     ]);
