@@ -168,11 +168,29 @@ test.describe("B-8 — the RTL direction attribute", () => {
     // Fresh document. `commit` resolves as soon as the navigation is committed
     // and the HTML starts arriving — head scripts have run, the module bundle
     // has not.
+    //
+    // 🔴 Against the BUILT app (playwright.config.ts) `commit` alone is no longer
+    // early enough: the production bundle arrives and mounts React before the
+    // read below (CI run 40108571006 — the vacuity check caught it). So every
+    // SCRIPT request is HELD until the read is taken. The pre-paint script is
+    // inline in index.html, not a request, so it still runs; the bundle cannot.
+    let releaseScripts!: () => void;
+    const scriptsHeld = new Promise<void>((resolve) => { releaseScripts = resolve; });
+    const holdScripts = async (route: import("@playwright/test").Route) => {
+      if (route.request().resourceType() === "script") await scriptsHeld;
+      await route.continue();
+    };
+    await page.route("**/*", holdScripts);
     await page.goto("/invoices", { waitUntil: "commit" });
+    // The body has been parsed (so the inline head script has run); the bundle is still held.
+    await page.waitForSelector("#root", { state: "attached" });
     const early = await page.evaluate(() => ({
       dir: document.documentElement.getAttribute("dir"),
       hasRoot: !!document.getElementById("root")?.childElementCount,
     }));
+    releaseScripts();
+    // Let the held requests finish in their handlers before the route goes (else "already handled").
+    await page.unrouteAll({ behavior: "wait" });
 
     expect(
       early.dir,
