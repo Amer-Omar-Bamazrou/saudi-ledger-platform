@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E_MIGRATION, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 
@@ -315,7 +315,11 @@ test.describe.serial("the migration, end to end", () => {
     await row3.getByRole("button", { name: "Mark Paid" }).click();
     await page.getByTestId("pay-bank-account").click();
     await pickOption(page, /Riyad Main/);
+    // Wait for the payment itself: the row already contains "Mark Paid", so the text check below is
+    // satisfied before anything is paid, and the server read after it could race the payment's commit.
+    const paid = page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/invoices\/\d+\/pay$/.test(new URL(r.url()).pathname));
     await page.getByRole("button", { name: "Record Payment" }).click();
+    await paid;
     await expect(row3).toContainText(/Paid/i, { timeout: 15_000 });
     const after = (await (await page.request.get("/api/invoices?limit=50")).json()).items.find((i: { invoiceNumber: string }) => i.invoiceNumber === "INV-1003");
     expect(after.status).toBe("paid");

@@ -18,7 +18,7 @@
  * Every figure is read off the page and compared with the API's own — the
  * page never computes one.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { businessToday } from "@workspace/shared";
 import { E2E } from "./global-setup";
 

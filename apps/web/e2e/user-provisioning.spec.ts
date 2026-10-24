@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 
 /**
  * G04 zero-membership (2026-10-07) — creating a team member through the Users

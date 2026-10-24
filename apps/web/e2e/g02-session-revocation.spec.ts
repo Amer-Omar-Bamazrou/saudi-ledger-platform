@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 
 /**
  * 🔴 G02 (owner D-4 and DR-07(a), 2026-10-20) — a session ends when what it was

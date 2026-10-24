@@ -17,7 +17,7 @@
  * 🔴 The walk restores the shared company's tax period and withdraws the use
  * records it made, so a second run starts where the first did.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 

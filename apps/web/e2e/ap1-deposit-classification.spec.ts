@@ -12,7 +12,7 @@
  * classification survives them; nothing posts. English desktop, then a
  * phone, then Arabic under dir=rtl on both.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 

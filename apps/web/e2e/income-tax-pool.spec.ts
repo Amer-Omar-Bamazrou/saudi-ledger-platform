@@ -16,7 +16,7 @@
  * company is shared by every spec in this project, and a Zakat spec that finds
  * it FOREIGN would fail for a reason that has nothing to do with Zakat.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { E2E } from "./global-setup";
 
 test.use({ storageState: E2E.storageState });

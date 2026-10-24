@@ -19,7 +19,7 @@
  * The walk declares what Zakat needs (ownership, a fiscal year) and puts the
  * shared company back exactly as it found it (the budgets pattern).
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { businessToday } from "@workspace/shared";
 import { E2E } from "./global-setup";
 

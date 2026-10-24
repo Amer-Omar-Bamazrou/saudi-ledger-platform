@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 
 /**
@@ -42,8 +43,23 @@ import { defineConfig, devices } from "@playwright/test";
  * delete the test. Raising `retries` is neither.
  */
 
+/**
+ * 🔴 ONE SERVER, THE BUILT APP (Phase 18, owner 2026-10-24): the API serves the
+ * production web build itself (`SERVE_WEB_DIST`, app.ts) on this one origin.
+ *
+ * The suite used to drive the Vite DEV server, whose runtime-error overlay
+ * (`@replit/vite-plugin-runtime-error-modal`, dev-only) twice covered the page
+ * and swallowed a click (runs 39137818141 and 39859668666), failing tests that
+ * had nothing wrong. A build has no overlay — and it is the artifact users get
+ * (CLAUDE.md §3: a test that exercises the code but not the artifact). What the
+ * overlay was ACCIDENTALLY doing — noticing an uncaught page error — is now an
+ * explicit check that fails the test (`e2e/fixtures.ts`).
+ *
+ * The port stays 5173, so every spec that names `http://localhost:5173` keeps
+ * working: `/api` is now served by the same process, not proxied.
+ */
 const WEB_PORT = 5173;
-const API_PORT = 3000;
+const WEB_DIST = fileURLToPath(new URL("./dist/public", import.meta.url));
 
 export default defineConfig({
   testDir: "./e2e",
@@ -77,43 +93,31 @@ export default defineConfig({
   globalSetup: "./e2e/global-setup.ts",
 
   /**
-   * Both servers, started here rather than in CI shell steps, so local and CI
-   * runs are the same run. `reuseExistingServer` locally means a dev server
-   * already up is used as-is; in CI it is always a fresh boot.
+   * The one server, started here rather than in CI shell steps, so local and
+   * CI runs are the same run: the web BUILD, then the API (its own bundle)
+   * serving it. `reuseExistingServer` locally means a server already up on the
+   * port is used as-is — a Vite dev server there would bring the overlay back,
+   * so stop it first; in CI it is always a fresh boot.
    */
   webServer: [
     {
-      command: "pnpm --filter @workspace/api-server run dev",
+      command: "pnpm --filter @workspace/bookkeeping run build && pnpm --filter @workspace/api-server run dev",
       // `/api/healthz`, not `/api/health` — the latter falls through to the
       // authenticated catch-all and answers 401 forever. Checked in routes/index.ts.
-      url: `http://localhost:${API_PORT}/api/healthz`,
+      url: `http://localhost:${WEB_PORT}/api/healthz`,
       reuseExistingServer: !process.env.CI,
-      timeout: 180_000,
+      timeout: 300_000,
       stdout: "pipe",
       stderr: "pipe",
       /**
-       * 🔴 PORT IS SET PER SERVER, NOT INHERITED FROM THE ENVIRONMENT.
+       * 🔴 PORT IS SET HERE, NOT INHERITED FROM THE ENVIRONMENT.
        *
-       * Both `vite.config.ts` and the API read `PORT` at load. CI set it once
-       * for the whole job, so vite took the API's 3000 and died with
-       * "Port 3000 is already in use" — a run that was green locally and red in
-       * CI, which is precisely what starting both servers here was supposed to
-       * make impossible. The claim was right and the ambient environment made
-       * the two runs different anyway.
-       *
-       * Naming each port here means the suite no longer depends on what the
-       * surrounding environment happens to hold.
+       * Both `vite.config.ts` (it requires PORT even to build) and the API read
+       * `PORT` at load. CI once set it for the whole job and two servers fought
+       * over it — a run green locally and red in CI. Naming it here keeps the
+       * suite independent of the surrounding environment.
        */
-      env: { PORT: String(API_PORT) },
-    },
-    {
-      command: "pnpm --filter @workspace/bookkeeping run dev",
-      url: `http://localhost:${WEB_PORT}/`,
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-      stdout: "pipe",
-      stderr: "pipe",
-      env: { PORT: String(WEB_PORT) },
+      env: { PORT: String(WEB_PORT), SERVE_WEB_DIST: WEB_DIST },
     },
   ],
 });
