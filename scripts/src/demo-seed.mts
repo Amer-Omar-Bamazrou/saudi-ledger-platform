@@ -76,10 +76,17 @@ async function main() {
   )).rows.map((r) => r.id as number);
   await w(`DELETE FROM payroll_items WHERE payroll_run_id = ANY($1::int[])`, [demoRuns]);
   await w(`DELETE FROM payroll_runs WHERE id = ANY($1::int[])`, [demoRuns]);
-  await w(`DELETE FROM depreciation_entries WHERE asset_id IN (SELECT id FROM fixed_assets WHERE organization_id=$1 AND asset_number LIKE $2)`, [orgId, `${P}%`]);
-  await w(`DELETE FROM fixed_assets WHERE organization_id=$1 AND asset_number LIKE $2`, [orgId, `${P}%`]);
+  // Only the DRAFT assets this script created: one someone capitalised (and its schedule and events) is never
+  // touched, and the insert below skips its number. (`depreciation_entries` went with migration 0087.)
+  await w(`DELETE FROM fixed_assets WHERE organization_id=$1 AND asset_number LIKE $2 AND status = 'draft'`, [orgId, `${P}%`]);
   await w(`DELETE FROM employees WHERE organization_id=$1 AND employee_number LIKE $2`, [orgId, `${P}%`]);
-  await w(`DELETE FROM budgets WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
+  // Only budgets whose every version is still a DRAFT: a submitted or approved budget is a record the
+  // database keeps (0112), and the insert below skips it.
+  await w(
+    `DELETE FROM budgets WHERE organization_id=$1 AND name LIKE $2
+        AND NOT EXISTS (SELECT 1 FROM budget_versions v WHERE v.budget_id = budgets.id AND v.status <> 'draft')`,
+    [orgId, `${P}%`],
+  );
   await w(`DELETE FROM transactions WHERE organization_id=$1 AND description LIKE $2`, [orgId, `${P}%`]);
   await w(`DELETE FROM bank_accounts WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
   await w(`DELETE FROM customers WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
@@ -333,29 +340,74 @@ async function main() {
       [orgId, companyId, run.rows[0].id, e.id, basic, housing, gross, basic * 0.0975, basic * 0.1175, gross - basic * 0.0975],
     );
   }
-  for (const [num, name, ar, cost, life] of [
-    [`${P}FA-01`, "Office fit-out", "تجهيزات المكتب", 180000, 10],
-    [`${P}FA-02`, "Company vehicle", "مركبة الشركة", 95000, 5],
-    [`${P}FA-03`, "Laptops (12)", "أجهزة محمولة", 62000, 3],
-  ] as const) {
-    const a = await q(
-      `INSERT INTO fixed_assets (organization_id, company_id, asset_number, name, name_ar, purchase_date, purchase_cost, salvage_value, useful_life_years, accumulated_depreciation, current_book_value, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,$9,$10,'active') RETURNING id`,
-      [orgId, companyId, num, name, ar, `${YEAR - 1}-01-15`, cost, life, cost / life / 12 * 6, cost - cost / life / 12 * 6],
-    );
-    await q(
-      `INSERT INTO depreciation_entries (organization_id, company_id, asset_id, period, amount, book_value_after)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [orgId, companyId, a.rows[0].id, `${YEAR}-07`, cost / life / 12, cost - cost / life / 12 * 6],
-    );
+  // ── fixed assets (the FA-A register, migration 0088) ───────────────────────
+  // One demo category on the account triple the product defaults to (FIXED_ASSETS / ACCUMULATED_DEPRECIATION /
+  // DEPRECIATION_EXPENSE), and three DRAFT assets. A draft moves no ledger and needs no capitalisation entry
+  // (`fixed_assets_state_chk`); capitalising is the product's own act, never this script's. A category is never
+  // deleted (retention), so it is reused across runs. Income Tax Law Art. 17(b) group 3 (vehicles, hardware,
+  // equipment) and VAT class `movable` fit all three.
+  const sysAccount = async (code: string) =>
+    (await q(`SELECT id FROM categories WHERE organization_id=$1 AND system_code=$2`, [orgId, code])).rows[0]?.id as number | undefined;
+  const [costAccount, accumulatedAccount, expenseAccount] = [await sysAccount("FIXED_ASSETS"), await sysAccount("ACCUMULATED_DEPRECIATION"), await sysAccount("DEPRECIATION_EXPENSE")];
+  if (costAccount && accumulatedAccount && expenseAccount) {
+    const categoryName = `${P}Vehicles and IT equipment`;
+    let categoryId = (await q(`SELECT id FROM asset_categories WHERE organization_id=$1 AND company_id=$2 AND name=$3`, [orgId, companyId, categoryName])).rows[0]?.id as number | undefined;
+    if (!categoryId) {
+      categoryId = (await q(
+        `INSERT INTO asset_categories (organization_id, company_id, name, name_ar, cost_account_id, accumulated_depreciation_account_id, depreciation_expense_account_id, default_useful_life_months, income_tax_group, vat_capital_asset_class)
+         VALUES ($1,$2,$3,'المركبات ومعدات تقنية المعلومات',$4,$5,$6,60,3,'movable') RETURNING id`,
+        [orgId, companyId, categoryName, costAccount, accumulatedAccount, expenseAccount],
+      )).rows[0].id as number;
+    }
+    for (const [num, name, ar, cost, lifeMonths] of [
+      [`${P}FA-01`, "Network and printing equipment", "معدات الشبكة والطباعة", 48000, 60],
+      [`${P}FA-02`, "Company vehicle", "مركبة الشركة", 95000, 60],
+      [`${P}FA-03`, "Laptops (12)", "أجهزة محمولة", 62000, 36],
+    ] as const) {
+      await q(
+        `INSERT INTO fixed_assets (organization_id, company_id, asset_number, name, name_ar, category_id, acquisition_date, cost, useful_life_months, vat_capital_asset_class, income_tax_group, status)
+         SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,'movable',3,'draft'
+          WHERE NOT EXISTS (SELECT 1 FROM fixed_assets WHERE organization_id=$1 AND company_id=$2 AND asset_number=$3)`,
+        [orgId, companyId, num, name, ar, categoryId, `${YEAR - 1}-01-15`, cost, lifeMonths],
+      );
+    }
+  } else {
+    console.warn("demo-seed: no fixed assets — the chart has no FIXED_ASSETS / ACCUMULATED_DEPRECIATION / DEPRECIATION_EXPENSE account for a category to default to.");
   }
-  const cats = await q(`SELECT id FROM categories WHERE organization_id=$1 AND type='expense' ORDER BY id LIMIT 3`, [orgId]);
-  for (const [i, c] of cats.rows.entries()) {
-    await q(
-      `INSERT INTO budgets (organization_id, company_id, name, name_ar, period, category_id, budgeted_amount)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [orgId, companyId, `${P}Operating budget ${i + 1}`, "الميزانية التشغيلية", String(YEAR), c.id, [240000, 120000, 60000][i]],
+
+  // ── budgets (Phase 15, migration 0112: a budget, its versions, their lines) ─
+  // One demo budget for this fiscal year: version 1 as a DRAFT, with annual lines on three expense posting
+  // accounts. Like the product (budgets.service), it needs the company's DECLARED fiscal year — an undeclared
+  // year is never assumed to be the calendar year — and a Hijri year is left to the product's own calendar code.
+  const company = (await q(`SELECT fiscal_year_start, fiscal_calendar FROM companies WHERE id=$1`, [companyId])).rows[0];
+  const budgetName = `${P}Operating budget`;
+  if (company.fiscal_year_start == null || (company.fiscal_calendar ?? "gregorian") !== "gregorian") {
+    console.warn(`demo-seed: no budget — ${company.fiscal_year_start == null ? "the company's fiscal year is not declared" : "the company keeps a Hijri fiscal year"}. Declare a Gregorian fiscal year in Company Settings to seed one.`);
+  } else {
+    const startMonth = Number(company.fiscal_year_start);
+    // The label is the year the fiscal year STARTS in; it ends the day before the next one starts (lib/fiscalYear.ts).
+    const kept = await q(
+      `SELECT 1 FROM budgets WHERE organization_id=$1 AND company_id=$2 AND name=$3 AND scenario='base' AND fiscal_year_start = make_date($4, $5, 1)::text`,
+      [orgId, companyId, budgetName, YEAR, startMonth],
     );
+    if (kept.rows.length === 0) {
+      const budget = await q(
+        `INSERT INTO budgets (organization_id, company_id, name, name_ar, scenario, fiscal_calendar, fiscal_start_month, fiscal_label, fiscal_year_start, fiscal_year_end)
+         VALUES ($1,$2,$3,'الميزانية التشغيلية','base','gregorian',$5::int,$4::int, make_date($4::int, $5::int, 1)::text, (make_date($4::int + 1, $5::int, 1) - 1)::text) RETURNING id`,
+        [orgId, companyId, budgetName, YEAR, startMonth],
+      );
+      const version = await q(
+        `INSERT INTO budget_versions (organization_id, company_id, budget_id, version_no, status) VALUES ($1,$2,$3,1,'draft') RETURNING id`,
+        [orgId, companyId, budget.rows[0].id],
+      );
+      const accounts = await q(`SELECT id FROM categories WHERE organization_id=$1 AND type='expense' AND is_posting ORDER BY id LIMIT 3`, [orgId]);
+      for (const [i, a] of accounts.rows.entries()) {
+        await q(
+          `INSERT INTO budget_lines (organization_id, company_id, version_id, account_id, period_no, amount) VALUES ($1,$2,$3,$4,NULL,$5)`,
+          [orgId, companyId, version.rows[0].id, a.id, [240000, 120000, 60000][i]],
+        );
+      }
+    }
   }
 
   const counts = await q(
