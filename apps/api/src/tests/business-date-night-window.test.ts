@@ -20,6 +20,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { businessDate, businessToday, businessDateShift } from "@workspace/shared";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
@@ -90,6 +91,7 @@ describeMaybe("business dates at 01:00 Riyadh, through the product's own write p
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);

@@ -39,6 +39,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool, db, invoicesTable } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { reportsService } from "../services/reports.service";
@@ -99,6 +100,7 @@ describeMaybe("N1 — company A's reports EXCLUDE company B's books", () => {
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);

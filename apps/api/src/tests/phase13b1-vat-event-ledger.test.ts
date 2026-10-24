@@ -120,12 +120,12 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
   };
   const acct = async (org: string, code: string) =>
     (await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = $2`, [org, code])).rows[0] as { id: number; name: string };
-  /** A posted entry the ledger would post itself — `source = 'input_vat_event'`. */
+  /** A posted entry the ledger would post itself — `source = 'input_vat_event'`. G16: written as the product writes one — a draft header, its lines, then the flip to posted, all in the caller's transaction. */
   const ledgerEntry = async (c: PoolClient, number: string, date: string, lines: Array<[string, number, number]>, opts: { source?: string | null; org?: string; co?: string } = {}) => {
     const org = opts.org ?? orgA, co = opts.co ?? coA;
     const { rows: [je] } = await c.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, posted_at)
-       VALUES ($1, $2, $3, $4, 'Phase 13B-1 test entry', 'posted', $5, now()) RETURNING id`,
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source)
+       VALUES ($1, $2, $3, $4, 'Phase 13B-1 test entry', 'draft', $5) RETURNING id`,
       [org, co, number, date, opts.source === undefined ? "input_vat_event" : opts.source]);
     for (const [code, dr, cr] of lines) {
       const a = await acct(org, code);
@@ -133,6 +133,7 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
         `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`, [org, co, je.id, a.id, a.name, dr, cr]);
     }
+    await c.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [je.id]);
     return je.id as number;
   };
   const balances = async (docId: number) =>

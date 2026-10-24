@@ -503,8 +503,18 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
   it("🔴 review M4 — a ledger ONE HALALA out of balance is reported unbalanced (the tolerance used to admit it)", async () => {
     const coI = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_year_start, fiscal_calendar) VALUES ($1,'P14 Co I',1,'gregorian') RETURNING id`, [orgId])).rows[0].id as string;
     // raw rows: the posting path refuses an unbalanced entry, so the defect is planted beneath it, as a legacy row would be
-    const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'P14-I-1','2026-02-02','one halala off','posted') RETURNING id`, [orgId, coI])).rows[0].id;
+    const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'P14-I-1','2026-02-02','one halala off','draft') RETURNING id`, [orgId, coI])).rows[0].id;
     await pool.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'Equipment',100.00,0), ($1,$2,$3,$5,'Owner capital',0,99.99)`, [orgId, coI, je, ids.equipment, ids.capital]);
+    // G16 (0126) refuses to post an unbalanced entry, so ONLY the flip of the planted legacy row to
+    // `posted` is written with triggers set aside (replica mode); the header and lines above go through
+    // every guard as before, and the report below still reads a ledger one halala out of balance.
+    const plant = await pool.connect();
+    try {
+      await plant.query("BEGIN");
+      await plant.query("SET LOCAL session_replication_role = replica");
+      await plant.query(`UPDATE journal_entries SET status = 'posted' WHERE id = $1 AND status = 'draft'`, [je]);
+      await plant.query("COMMIT");
+    } catch (err) { await plant.query("ROLLBACK"); throw err; } finally { plant.release(); }
     const inI = <T,>(fn: () => Promise<T>) => inCo(orgId, coI, fn);
     const [tb, bs] = await Promise.all([inI(() => reportsService.trialBalance(FY.from, FY.to)), inI(() => reportsService.balanceSheet(FY.to))]);
     expect([tb.totalDebit, tb.totalCredit, tb.balanced]).toEqual([100, 99.99, false]);

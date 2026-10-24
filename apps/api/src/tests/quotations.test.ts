@@ -22,6 +22,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { quotationsService } from "../services/quotations.service";
 import { invoicesService } from "../services/invoices.service";
@@ -64,6 +65,7 @@ describeMaybe("Quotations (M21.1)", () => {
 
   const cleanup = async () => {
     if (orgId) {
+      await releasePostedJournalsForTeardown("organization_id = $1", [orgId]);
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM quotation_items WHERE organization_id = $1`, [orgId]);

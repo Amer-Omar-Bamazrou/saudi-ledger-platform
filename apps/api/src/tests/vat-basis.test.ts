@@ -15,6 +15,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 import { summaryService } from "../services/summary.service";
@@ -79,6 +80,7 @@ describeMaybe("flaw #6 — extraction requires standard-rated AND charged", () =
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`); // G16: posted entries back to draft for the deletes below
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);

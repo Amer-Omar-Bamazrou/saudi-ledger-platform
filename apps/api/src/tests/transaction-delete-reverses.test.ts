@@ -17,6 +17,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 import { invoicesService } from "../services/invoices.service";
@@ -56,6 +57,7 @@ describeMaybe("deleting a posted transaction reverses its entry; settlements sti
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
       await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
+      await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
       for (const t of ["transactions", "journal_entry_lines", "journal_entries", "invoice_items", "einvoice_documents", "invoices", "customers", "bank_accounts", "audit_logs", "organization_memberships", "categories", "companies"]) {
         await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }

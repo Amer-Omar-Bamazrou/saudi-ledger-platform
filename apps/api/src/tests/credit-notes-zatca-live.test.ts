@@ -25,6 +25,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { loadEInvoiceInput } from "../services/einvoice/einvoiceInput.loader";
@@ -77,6 +78,7 @@ async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
 const cleanup = async () => {
   const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
   const usr = `(SELECT id FROM users WHERE email = 'cn-live@test.local')`;
+  await releasePostedJournalsForTeardown(`organization_id IN ${org}`); // G16: posted entries back to draft for the deletes below
   await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
   await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
   await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);

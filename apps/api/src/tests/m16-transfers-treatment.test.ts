@@ -14,6 +14,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 import { summaryService } from "../services/summary.service";
@@ -55,6 +56,7 @@ describeMaybe("M16.2 — transfers, treatment, bank accounts", () => {
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
     // Flaw #1 (Option A): accepting a transaction now posts a journal entry,
     // so teardown must clear the ledger before the company it references.
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);

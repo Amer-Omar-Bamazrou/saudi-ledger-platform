@@ -17,6 +17,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { payrollService } from "../services/payroll.service";
 import { reportsService } from "../services/reports.service";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -53,6 +54,7 @@ describeMaybe("Payroll draft/approval — pre-approval states post nothing; appr
 
   const cleanup = async () => {
     if (orgId) {
+      await releasePostedJournalsForTeardown(`organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM payroll_items WHERE organization_id = $1`, [orgId]);
@@ -67,8 +69,13 @@ describeMaybe("Payroll draft/approval — pre-approval states post nothing; appr
   };
 
   beforeAll(async () => {
+    // G16: an aborted run's residue holds POSTED entries the org cannot be deleted past — find it by
+    // slug/email (not in-memory ids) and remove it through the same cleanup before starting fresh.
+    orgId = (await pool.query(`SELECT id FROM organizations WHERE slug = 'pay-appr'`)).rows[0]?.id ?? "";
+    userId = (await pool.query(`SELECT id FROM users WHERE email = 'pay-approval@test.local'`)).rows[0]?.id ?? 0;
+    await cleanup();
     await pool.query(`DELETE FROM organizations WHERE slug = 'pay-appr'`);
-    orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('PAY-APPR Org','pay-appr') RETURNING id`)).rows[0].id;
+    orgId =(await pool.query(`INSERT INTO organizations (name, slug) VALUES ('PAY-APPR Org','pay-appr') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'PAY-APPR Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;
     userId = (
       await pool.query(

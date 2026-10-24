@@ -20,6 +20,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Request } from "express";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { UpdateTransactionBody } from "@workspace/api-zod";
 import { auditContext } from "../lib/auditContext";
 import { requireIdParam, parseJsonField } from "../lib/httpParams";
@@ -149,6 +150,7 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
       await pool.query(`DELETE FROM quotation_items WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM quotations WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
+      await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM invoice_items WHERE organization_id IN ${org}`);

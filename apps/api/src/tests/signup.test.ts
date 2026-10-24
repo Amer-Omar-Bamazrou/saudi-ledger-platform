@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool, PERMISSION_MATRIX } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { primePermissionCache } from "../lib/rbac";
 import { signupService } from "../services/signup.service";
 import { __resetRateLimitsForTests } from "../routes/auth";
@@ -56,6 +57,7 @@ describeMaybe("public signup + applicant resubmit (M11.5)", () => {
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${ORG_FILTER}`);
     // A manual transaction POSTS since 2026-09-15 (workflow audit W7 B3), so the
     // org now owns journal entries that reference its company.
+    await releasePostedJournalsForTeardown(`organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${ORG_FILTER}`);

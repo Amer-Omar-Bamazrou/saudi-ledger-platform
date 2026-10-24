@@ -20,6 +20,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { createApproved } from "./helpers/createApproved";
@@ -56,6 +57,7 @@ describeMaybe("ZATCA hash chain — drafts consume no sequence number, no gaps",
 
   const cleanup = async () => {
     if (orgId) {
+      await releasePostedJournalsForTeardown("organization_id = $1", [orgId]);
       await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM journal_entries WHERE organization_id = $1`, [orgId]);
       await releaseIssuedInvoicesForTeardown("organization_id = $1", [orgId]);

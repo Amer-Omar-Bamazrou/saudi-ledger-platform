@@ -34,6 +34,7 @@ import { billsService } from "../services/bills.service";
 import { paymentsService } from "../services/payments.service";
 import { findingsRepository } from "../repositories/findings.repository";
 import { postJournalEntry } from "../services/accounting/glPosting";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -316,6 +317,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     await expectRefusal(inTenant(() => postJournalEntry({ entryNumber: "X-1", date: "2026-06-15", description: "late", lines: [{ systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 1, creditAmount: 0 }, { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 1 }] })), 423);
     const later = await inTenant(() => postJournalEntry({ entryNumber: "X-2", date: "2026-07-01", description: "first live entry", lines: [{ systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 1, creditAmount: 0 }, { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 1 }] }));
     expect(later.source).toBeNull();
+    await releasePostedJournalsForTeardown(`id = $1`, [later.id]); // G16 (0126): the fixture entry back to draft so the removal below is a draft's
     await pool.query(`DELETE FROM journal_entries WHERE id = $1`, [later.id]);
     // The stored reconciliation is what the API returns.
     const stored = await inTenant(() => migrationService.getBatch(b.id));
@@ -691,7 +693,19 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
 
     // 5. R6 is BLOCKING and sees an unnamed line: plant a balanced pair on SUSPENSE (an account the staged content never named) and re-run the gates.
     const suspense = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'SUSPENSE'`, [orgId])).rows[0].id;
-    const planted = await pool.query(
+    // G16 (0126): a line can no longer be added to (or removed from) a posted entry, so the plant and its
+    // removal are written with triggers set aside (`session_replication_role = replica`, owner-only).
+    const inReplica = async (text: string, params: unknown[]) => {
+      const c = await pool.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SET LOCAL session_replication_role = replica");
+        const r = await c.query(text, params);
+        await c.query("COMMIT");
+        return r;
+      } catch (err) { await c.query("ROLLBACK"); throw err; } finally { c.release(); }
+    };
+    const planted = await inReplica(
       `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'planted',5,0), ($1,$2,$3,$4,'planted',0,5) RETURNING id`,
       [orgId, company2Id, out.openingJournalEntryId, suspense],
     );
@@ -702,7 +716,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     expect(check(replay, "R6")).toMatchObject({ status: "fail", actual: 2 });
     expect(check(replay, "R6").detail).toMatch(/planted.*not an account the staged content named/);
     expect(check(replay, "R5").status).toBe("pass"); // the pair balances — only R6 sees that it is on the wrong account, which is the point of R6
-    await pool.query(`DELETE FROM journal_entry_lines WHERE id = ANY($1::int[])`, [planted.rows.map((r) => r.id)]);
+    await inReplica(`DELETE FROM journal_entry_lines WHERE id = ANY($1::int[])`, [planted.rows.map((r) => r.id)]);
     expect(check(await inCompany2(async () => migrationCommitService.reconcile(b2row, content2, position2, out.openingJournalEntryId!, { invoiceIds: [], billIds: [], paymentIds: [], customersCreated: 0, vendorsCreated: 0, accountsCreated: 0 })), "R6").status).toBe("pass");
 
     // 6/7. No clearing exists — not as a method, not as a journal source, not as a row anywhere.
@@ -729,6 +743,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     const v = await inCompany2(() => migrationValidationService.validate(b.id, userId));
     expect(check(v, "LEDGER_EMPTY")).toMatchObject({ status: "fail", actual: 2 });
     expect(check(v, "LEDGER_EMPTY").detail).toMatch(/2 line\(s\) \(Dr 7\.00 \/ Cr 7\.00\) already sit on or before 2026-06-30 — this company has history in Saudi Ledger/);
+    await releasePostedJournalsForTeardown(`id = $1`, [prior.id]); // G16 (0126): the fixture entry back to draft so the removal below is a draft's
     await pool.query(`DELETE FROM journal_entries WHERE id = $1`, [prior.id]);
     await inCompany2(() => migrationService.discardBatch(b.id, userId));
   });

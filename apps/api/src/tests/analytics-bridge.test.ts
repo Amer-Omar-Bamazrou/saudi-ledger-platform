@@ -24,6 +24,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { analyticsService } from "../services/analytics.service";
 import { invoicesService } from "../services/invoices.service";
@@ -68,6 +69,7 @@ describeMaybe("M19.6 — the receivables bridge", () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     for (const t of [
       "journal_entry_lines",
       "journal_entries",

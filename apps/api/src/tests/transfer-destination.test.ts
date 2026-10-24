@@ -22,6 +22,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 
@@ -63,6 +64,7 @@ describeMaybe("B5 — where a transfer went", () => {
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     // journal tables too: transfers POST since A (GL owns cash), so this
     // suite's accepted fixtures now leave entries referencing the categories.
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     for (const t of ["transactions", "journal_entry_lines", "journal_entries", "bank_accounts", "categories"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }

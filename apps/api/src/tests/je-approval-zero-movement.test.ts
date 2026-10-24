@@ -20,6 +20,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { reportsService } from "../services/reports.service";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -56,6 +57,7 @@ describeMaybe("JE draft/approval — a pending draft moves zero balances; approv
 
   const cleanup = async () => {
     if (orgId) {
+      await releasePostedJournalsForTeardown(`organization_id = $1`, [orgId]);
       await pool.query(
         `DELETE FROM journal_entry_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE organization_id = $1)`,
         [orgId],
@@ -71,8 +73,13 @@ describeMaybe("JE draft/approval — a pending draft moves zero balances; approv
   };
 
   beforeAll(async () => {
+    // G16: an aborted run's residue holds POSTED entries the org cannot be deleted past — find it by
+    // slug/email (not in-memory ids) and remove it through the same cleanup before starting fresh.
+    orgId = (await pool.query(`SELECT id FROM organizations WHERE slug = 'je-appr'`)).rows[0]?.id ?? "";
+    userId = (await pool.query(`SELECT id FROM users WHERE email = 'je-approval@test.local'`)).rows[0]?.id ?? 0;
+    await cleanup();
     await pool.query(`DELETE FROM organizations WHERE slug = 'je-appr'`);
-    orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('JE-APPR Org','je-appr') RETURNING id`)).rows[0].id;
+    orgId =(await pool.query(`INSERT INTO organizations (name, slug) VALUES ('JE-APPR Org','je-appr') RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'JE-APPR Co','1010101010','399999999999993') RETURNING id`, [orgId])).rows[0].id;
     userId = (
       await pool.query(

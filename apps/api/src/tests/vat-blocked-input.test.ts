@@ -11,6 +11,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 import { summaryService } from "../services/summary.service";
@@ -45,6 +46,7 @@ describeMaybe("C9 — blocked input VAT is a cost, not a claim", () => {
   const cleanup = async () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
+    await releasePostedJournalsForTeardown(`organization_id IN ${org}`); // G16: posted entries back to draft for the deletes below
     for (const t of ["transactions", "journal_entry_lines", "journal_entries", "bank_accounts", "categories"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }

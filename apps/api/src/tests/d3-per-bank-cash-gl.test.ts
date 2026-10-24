@@ -24,6 +24,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, db, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { sql } from "drizzle-orm";
 import { auditContext } from "../lib/auditContext";
 import { bankAccountsService } from "../services/bankAccounts.service";
@@ -84,6 +85,7 @@ describeMaybe("D-3 — per-bank cash GL", () => {
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
       await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
       await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
+      await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
       for (const t of [
         "cash_line_bank_attributions", "cash_cutover_runs", "journal_entry_lines", "journal_entries", "transactions",
         "invoice_items", "einvoice_documents", "invoices", "bill_items", "bills", "customers", "vendors", "period_locks",
@@ -289,8 +291,10 @@ describeMaybe("D-3 — per-bank cash GL", () => {
         { accountId: salesId, accountName: "Sales", debitAmount: 0, creditAmount: 10 },
       ] } as never, userId)),
     ).rejects.toMatchObject({ statusCode: 422, payload: expect.objectContaining({ code: "account_not_posting", field: "lines[0].accountId" }) });
-    // And the database itself, for any writer.
-    const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'D3-HDR-RAW',$3,'raw','posted') RETURNING id`, [orgId, companyId, DATE])).rows[0].id;
+    // And the database itself, for any writer. (G16, 0126: a header is inserted only as a draft — and a
+    // draft's lines are written before it is posted — so the line below meets the non-posting-account
+    // guard, not the posted-journal freeze.)
+    const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'D3-HDR-RAW',$3,'raw','draft') RETURNING id`, [orgId, companyId, DATE])).rows[0].id;
     await expect(
       pool.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'Cash and Bank',10,0)`, [orgId, companyId, je, header.id]),
     ).rejects.toMatchObject({ code: "23514" });

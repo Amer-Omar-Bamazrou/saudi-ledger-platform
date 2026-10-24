@@ -42,21 +42,31 @@ async function main() {
   const q = (sql: string, params: unknown[] = []) => pool.query(sql, params);
 
   // ── wipe only what this script created ────────────────────────────────────
-  await q(`DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id=$1 AND invoice_number LIKE $2)`, [orgId, `${P}%`]);
-  await q(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id=$1 AND invoice_number LIKE $2)`, [orgId, `${P}%`]);
-  await q(`DELETE FROM invoices WHERE organization_id=$1 AND invoice_number LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM bill_items WHERE bill_id IN (SELECT id FROM bills WHERE organization_id=$1 AND bill_number LIKE $2)`, [orgId, `${P}%`]);
-  await q(`DELETE FROM bills WHERE organization_id=$1 AND bill_number LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM journal_entry_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE organization_id=$1 AND entry_number LIKE $2)`, [orgId, `${P}%`]);
-  await q(`DELETE FROM journal_entries WHERE organization_id=$1 AND entry_number LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM quotation_items WHERE quotation_id IN (SELECT id FROM quotations WHERE organization_id=$1 AND quotation_number LIKE $2)`, [orgId, `${P}%`]);
-  await q(`DELETE FROM quotations WHERE organization_id=$1 AND quotation_number LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM purchase_order_items WHERE purchase_order_id IN (SELECT id FROM purchase_orders WHERE organization_id=$1 AND order_number LIKE $2)`, [orgId, `${P}%`]);
-  await q(`DELETE FROM purchase_orders WHERE organization_id=$1 AND order_number LIKE $2`, [orgId, `${P}%`]);
+  // 🔴 G16 (Phase 18; owner decision 6, 2026-10-22): the wipe is ONE transaction
+  // on one connection, so it lands whole or not at all (a failure exits the
+  // process, and the dropped connection rolls it back). The journal rows go in
+  // replica mode — the only bypass of the posted-journal freeze, owner-only —
+  // and ONLY them: everything else is deleted with its triggers and cascades on.
+  const wipeClient = await pool.connect();
+  const w = (sql: string, params: unknown[] = []) => wipeClient.query(sql, params);
+  await w("BEGIN");
+  await w(`DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id=$1 AND invoice_number LIKE $2)`, [orgId, `${P}%`]);
+  await w(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id=$1 AND invoice_number LIKE $2)`, [orgId, `${P}%`]);
+  await w(`DELETE FROM invoices WHERE organization_id=$1 AND invoice_number LIKE $2`, [orgId, `${P}%`]);
+  await w(`DELETE FROM bill_items WHERE bill_id IN (SELECT id FROM bills WHERE organization_id=$1 AND bill_number LIKE $2)`, [orgId, `${P}%`]);
+  await w(`DELETE FROM bills WHERE organization_id=$1 AND bill_number LIKE $2`, [orgId, `${P}%`]);
+  await w("SET LOCAL session_replication_role = replica");
+  await w(`DELETE FROM journal_entry_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE organization_id=$1 AND entry_number LIKE $2)`, [orgId, `${P}%`]);
+  await w(`DELETE FROM journal_entries WHERE organization_id=$1 AND entry_number LIKE $2`, [orgId, `${P}%`]);
+  await w("SET LOCAL session_replication_role = origin");
+  await w(`DELETE FROM quotation_items WHERE quotation_id IN (SELECT id FROM quotations WHERE organization_id=$1 AND quotation_number LIKE $2)`, [orgId, `${P}%`]);
+  await w(`DELETE FROM quotations WHERE organization_id=$1 AND quotation_number LIKE $2`, [orgId, `${P}%`]);
+  await w(`DELETE FROM purchase_order_items WHERE purchase_order_id IN (SELECT id FROM purchase_orders WHERE organization_id=$1 AND order_number LIKE $2)`, [orgId, `${P}%`]);
+  await w(`DELETE FROM purchase_orders WHERE organization_id=$1 AND order_number LIKE $2`, [orgId, `${P}%`]);
   // G71: only the payroll THIS script created: a DRAFT run (it inserts its run as draft) with at least one
   // item, every item an employee it created (`DEMO-`). A run anyone approved or paid, or one naming any
   // other employee, is never touched. The ids are read first, so the items can go before their run.
-  const demoRuns = (await q(
+  const demoRuns = (await w(
     `SELECT r.id FROM payroll_runs r
       WHERE r.organization_id=$1 AND r.status='draft'
         AND EXISTS (SELECT 1 FROM payroll_items i WHERE i.payroll_run_id=r.id)
@@ -64,16 +74,16 @@ async function main() {
                          WHERE i.payroll_run_id=r.id AND e.employee_number NOT LIKE $2)`,
     [orgId, `${P}%`],
   )).rows.map((r) => r.id as number);
-  await q(`DELETE FROM payroll_items WHERE payroll_run_id = ANY($1::int[])`, [demoRuns]);
-  await q(`DELETE FROM payroll_runs WHERE id = ANY($1::int[])`, [demoRuns]);
-  await q(`DELETE FROM depreciation_entries WHERE asset_id IN (SELECT id FROM fixed_assets WHERE organization_id=$1 AND asset_number LIKE $2)`, [orgId, `${P}%`]);
-  await q(`DELETE FROM fixed_assets WHERE organization_id=$1 AND asset_number LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM employees WHERE organization_id=$1 AND employee_number LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM budgets WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM transactions WHERE organization_id=$1 AND description LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM bank_accounts WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM customers WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
-  await q(`DELETE FROM vendors WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
+  await w(`DELETE FROM payroll_items WHERE payroll_run_id = ANY($1::int[])`, [demoRuns]);
+  await w(`DELETE FROM payroll_runs WHERE id = ANY($1::int[])`, [demoRuns]);
+  await w(`DELETE FROM depreciation_entries WHERE asset_id IN (SELECT id FROM fixed_assets WHERE organization_id=$1 AND asset_number LIKE $2)`, [orgId, `${P}%`]);
+  await w(`DELETE FROM fixed_assets WHERE organization_id=$1 AND asset_number LIKE $2`, [orgId, `${P}%`]);
+  await w(`DELETE FROM employees WHERE organization_id=$1 AND employee_number LIKE $2`, [orgId, `${P}%`]);
+  await w(`DELETE FROM budgets WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
+  await w(`DELETE FROM transactions WHERE organization_id=$1 AND description LIKE $2`, [orgId, `${P}%`]);
+  await w(`DELETE FROM bank_accounts WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
+  await w(`DELETE FROM customers WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
+  await w(`DELETE FROM vendors WHERE organization_id=$1 AND name LIKE $2`, [orgId, `${P}%`]);
 
   // 🔴 QA fix (2026-09-04): sweep DEBRIS, not just this script's own rows.
   // The demo DB accumulates exploratory junk from manual sessions — a
@@ -83,28 +93,30 @@ async function main() {
   // requires a priced line and, for bills, an amount), so it is safe to
   // remove. Scoped to the demo org and to drafts only — a posted or
   // party-bearing row is never touched.
-  await q(
+  await w(
     `DELETE FROM bill_items WHERE bill_id IN (
        SELECT id FROM bills WHERE organization_id=$1 AND status='draft'
          AND total::numeric = 0 AND vendor_id IS NULL)`,
     [orgId],
   );
-  await q(
+  await w(
     `DELETE FROM bills WHERE organization_id=$1 AND status='draft'
        AND total::numeric = 0 AND vendor_id IS NULL`,
     [orgId],
   );
-  await q(
+  await w(
     `DELETE FROM invoice_items WHERE invoice_id IN (
        SELECT id FROM invoices WHERE organization_id=$1 AND status='draft'
          AND total::numeric = 0 AND customer_id IS NULL)`,
     [orgId],
   );
-  await q(
+  await w(
     `DELETE FROM invoices WHERE organization_id=$1 AND status='draft'
        AND total::numeric = 0 AND customer_id IS NULL`,
     [orgId],
   );
+  await w("COMMIT");
+  wipeClient.release();
 
   // ── parties ───────────────────────────────────────────────────────────────
   const customers: number[] = [];
@@ -227,18 +239,33 @@ async function main() {
     [`${P}JE-004`, d(8, 11), "draft", [[expense, 7500, 0], [cash, 0, 7500]]],
     [`${P}JE-005`, d(8, 19), "draft", [[cash, 3200, 0], [sales, 0, 3200]]],
   ];
+  // 🔴 G16: each entry is written as a draft, then its lines, then (if it is to
+  // be posted) flipped — the order the database requires — in one transaction.
   for (const [num, date, status, lines] of jes) {
-    const r = await q(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, posted_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [orgId, companyId, num, date, status === "posted" ? "Posted entry" : "Awaiting approval", status, status === "posted" ? new Date() : null],
-    );
-    for (const [a, dr, cr] of lines) {
-      await q(
-        `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [orgId, companyId, r.rows[0].id, a.id, a.name, dr, cr],
+    const je = await pool.connect();
+    try {
+      await je.query("BEGIN");
+      const r = await je.query(
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, posted_at)
+         VALUES ($1,$2,$3,$4,$5,'draft',NULL) RETURNING id`,
+        [orgId, companyId, num, date, status === "posted" ? "Posted entry" : "Awaiting approval"],
       );
+      for (const [a, dr, cr] of lines) {
+        await je.query(
+          `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [orgId, companyId, r.rows[0].id, a.id, a.name, dr, cr],
+        );
+      }
+      if (status === "posted") {
+        await je.query(`UPDATE journal_entries SET status = 'posted', posted_at = $2 WHERE id = $1 AND status = 'draft'`, [r.rows[0].id, new Date()]);
+      }
+      await je.query("COMMIT");
+    } catch (e) {
+      await je.query("ROLLBACK").catch(() => undefined);
+      throw e;
+    } finally {
+      je.release();
     }
   }
 

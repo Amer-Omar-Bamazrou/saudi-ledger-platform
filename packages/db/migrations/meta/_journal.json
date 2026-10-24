@@ -883,6 +883,13 @@
       "when": 1792681536533,
       "tag": "0125_prc_issued_invoice_freeze",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1792766109570,
+      "tag": "0126_g16_posted_journal_freeze",
+      "breakpoints": true
     }
   ]
 }
