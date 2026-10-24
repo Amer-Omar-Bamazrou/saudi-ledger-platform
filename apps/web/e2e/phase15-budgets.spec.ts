@@ -18,7 +18,7 @@
  * A budget needs a DECLARED fiscal year (D15-15): the walk declares one and puts
  * the shared company back exactly as it found it (the income-tax-pool pattern).
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E } from "./global-setup";
 

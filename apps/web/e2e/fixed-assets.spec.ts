@@ -12,7 +12,7 @@
  * only a browser can: the controls exist, the dialogs close, the figures the
  * page shows are the server's, and nothing scrolls sideways at 390 px.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 import { businessToday } from "@workspace/shared";

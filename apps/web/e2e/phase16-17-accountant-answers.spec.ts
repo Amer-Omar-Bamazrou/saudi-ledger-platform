@@ -18,7 +18,7 @@
  * payment turned that line from 500.00 into 900.00 (CI 37311565856). Owning the tenant also lets every cash
  * movement be asserted exactly (the bank moves by what the payment takes) instead of funded away.
  */
-import { test, expect, request as pwRequest, type APIRequestContext } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext } from "./fixtures";
 import { businessToday } from "@workspace/shared";
 import { E2E_ANSWERS } from "./global-setup";
 

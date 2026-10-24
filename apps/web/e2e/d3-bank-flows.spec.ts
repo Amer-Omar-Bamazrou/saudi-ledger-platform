@@ -11,7 +11,7 @@
  * the invoice default — so the picker starts EMPTY and "bank is required" is
  * a real state here, not a pre-selected one.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { E2E } from "./global-setup";
 
 test.use({ storageState: E2E.storageState });

@@ -15,7 +15,7 @@
  * 800 held ON ACCOUNT (a deposit). Two seeded statement rows classify
  * DETERMINISTIC and AMBIGUOUS; the seed's 1,150 row is UNMATCHED.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 
