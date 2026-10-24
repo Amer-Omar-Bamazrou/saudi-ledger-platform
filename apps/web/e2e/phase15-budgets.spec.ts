@@ -79,7 +79,11 @@ test.describe.serial("Phase 15 — a budget, end to end", () => {
     await page.getByTestId("budget-add-line").click();
     await pick(page, `budget-line-mode-${purchases}`, /Annual only/);
     await page.getByTestId(`budget-line-annual-${purchases}`).fill("12000");
+    // Wait for the save itself: the line total below is computed from the inputs before anything is
+    // saved, so the server read after it could race the save's commit.
+    const saved = page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/budgets\/\d+\/versions\/\d+\/lines$/.test(new URL(r.url()).pathname));
     await page.getByTestId("budget-save-lines").click();
+    await saved;
     await expect(page.getByTestId(`budget-line-total-${sales}`)).toContainText("18,000.00");
 
     // it round-tripped through the SERVER, not merely the DOM
