@@ -285,7 +285,7 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
                   <label className="flex items-center gap-2"><input type="radio" name="wht-filed-treatment" className="accent-primary" checked={treatment === "subsequent_period"} onChange={() => setTreatment("subsequent_period")} data-testid="wht-treatment-subsequent" />
                     {t("In a later, unfiled return (subsequent period — recommended by the accountant)", "في إقرار لاحق غير مُقدَّم (فترة لاحقة — يوصي بها المحاسب)")}</label>
                   <label className="flex items-center gap-2"><input type="radio" name="wht-filed-treatment" className="accent-primary" checked={treatment === "amendment"} onChange={() => setTreatment("amendment")} data-testid="wht-treatment-amendment" />
-                    {t("By amending the filed return (the month will read 'amendment due')", "بتعديل الإقرار المُقدَّم (سيظهر الشهر «تعديل مستحق»)")}</label>
+                    {t("By preparing a correction for the original month (the month will read 'correction due'; any delay fine counts from that month's original due date)", "بإعداد تصحيح للشهر الأصلي (سيظهر الشهر «تصحيح مستحق»، وتُحتسب أي غرامة تأخير من تاريخ استحقاق ذلك الشهر الأصلي)")}</label>
                 </div>
                 {p.returnPeriod && <p className="text-muted-foreground">{t("Reported in the return of", "يُقرَّر في إقرار")} <span className="font-mono" dir="ltr">{p.returnPeriod}</span></p>}
               </div>

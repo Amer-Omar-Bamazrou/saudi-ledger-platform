@@ -47,14 +47,14 @@ export function WhtFilingCard({ period, filing, liveTax, onDone }: { period: str
         <span data-testid="wht-filing-status">{whtFilingStatusLabel(filing.status, t)}</span>
         {latest && (
           <span className="text-muted-foreground" data-testid="wht-filing-latest">
-            {latest.kind === "amendment" ? t("amendment", "تعديل") : t("filed", "قُدِّم")} {fmtDate(latest.filedOn)} · <span className="font-mono" dir="ltr">{latest.zatcaReference}</span> · {t("tax as filed", "الضريبة كما قُدِّمت")} <span className="font-mono" dir="ltr" data-testid="wht-filing-filed-tax">{money(latest.taxWithheld)}</span>
+            {latest.kind === "amendment" ? t("corrected filing", "إقرار مُصحَّح") : t("filed", "قُدِّم")} {fmtDate(latest.filedOn)} · <span className="font-mono" dir="ltr">{latest.zatcaReference}</span> · {t("tax as filed", "الضريبة كما قُدِّمت")} <span className="font-mono" dir="ltr" data-testid="wht-filing-filed-tax">{money(latest.taxWithheld)}</span>
           </span>
         )}
       </div>
       {filing.status === "amendment_due" && latest && (
         <p className="text-xs" data-testid="wht-filing-differs">
-          {t(`The ledger now carries ${fmtNum(liveTax)} for ${period}; ${fmtNum(latest.taxWithheld)} was filed. A correction chose to amend this return: amend it on ZATCA's portal, then record the amendment here.`,
-             `تحمل الدفاتر الآن ${fmtNum(liveTax)} لشهر ${period}؛ وقُدِّم ${fmtNum(latest.taxWithheld)}. اختير تصحيح بتعديل هذا الإقرار: عدّله في بوابة الهيئة ثم سجّل التعديل هنا.`)}
+          {t(`The ledger now carries ${fmtNum(liveTax)} for ${period}; ${fmtNum(latest.taxWithheld)} was filed. A correction was prepared for this month. How the corrected figures reach ZATCA is for your tax adviser (there is no self-service amendment of a filed monthly return); record the corrected filing here once it is made. Any delay fine counts from this month's original due date.`,
+             `تحمل الدفاتر الآن ${fmtNum(liveTax)} لشهر ${period}؛ وقُدِّم ${fmtNum(latest.taxWithheld)}. أُعِدّ تصحيح لهذا الشهر. وطريقة إيصال الأرقام المصحَّحة إلى الهيئة يحدّدها مستشارك الضريبي (لا توجد خدمة ذاتية لتعديل إقرار شهري مُقدَّم)؛ سجّل الإقرار المصحَّح هنا عند تقديمه. وتُحتسب أي غرامة تأخير من تاريخ استحقاق هذا الشهر الأصلي.`)}
         </p>
       )}
       {filing.filings.length > 1 && (
@@ -130,7 +130,7 @@ export function WhtCorrectionPanel({ row, monthFilingStatus, onDone, onCancel }:
           <label className="flex items-center gap-2"><input type="radio" name={`wht-corr-treatment-${row.id}`} className="accent-primary" checked={treatment === "subsequent_period"} onChange={() => setTreatment("subsequent_period")} data-testid="wht-correct-subsequent" />
             {t("In the return of the correction's month (subsequent period — recommended by the accountant)", "في إقرار شهر التصحيح (فترة لاحقة — يوصي بها المحاسب)")}</label>
           <label className="flex items-center gap-2"><input type="radio" name={`wht-corr-treatment-${row.id}`} className="accent-primary" checked={treatment === "amendment"} onChange={() => setTreatment("amendment")} data-testid="wht-correct-amendment" />
-            {t("By amending the filed return", "بتعديل الإقرار المُقدَّم")}</label>
+            {t("By preparing a correction for the original month", "بإعداد تصحيح للشهر الأصلي")}</label>
         </div>
       )}
       <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="accent-primary" checked={reenter} onChange={(e) => setReenter(e.target.checked)} data-testid="wht-correct-reenter" />

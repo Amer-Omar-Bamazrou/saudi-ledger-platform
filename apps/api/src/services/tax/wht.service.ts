@@ -118,8 +118,8 @@ const filingOut = (f: FilingRow) => ({
 
 /**
  * Q1 (pack §14.1): a month's filing state, from its latest filing and its LIVE return figures:
- *   unfiled · filed · amended (the latest is an amendment matching the ledger) ·
- *   amendment_due (the ledger now differs from what was last filed — a correction chose to amend it, or a payment was
+ *   unfiled · filed · amended (the latest is a corrected filing matching the ledger) ·
+ *   amendment_due (the ledger now differs from what was last filed — a correction was prepared for the month, or a payment was
  *   entered into it with that treatment). Never a silent rewrite: the filed snapshot stays beside the live figure.
  */
 function filingState(latest: { kind: string; taxWithheld: number; paymentTotal: number } | null, live: { tax: number; base: number }) {
@@ -446,11 +446,11 @@ export const whtService = {
 
   // ── Q1: the filing record (pack §14.1) ──────────────────────────────────
   /**
-   * Record that a month's Form 06 was FILED with ZATCA — or an AMENDMENT of it.
+   * Record that a month's Form 06 was FILED with ZATCA — or a later, corrected filing of it.
    * The platform does not file (§2.5); a person records that they did. The
    * figures are the ledger's own at this moment (written by the database, not
    * typed), so a later correction is measured against what was filed. The first
-   * filing of a month is the original; every later one amends the latest.
+   * filing of a month is the original; every later one is recorded as a corrected filing of it.
    */
   async fileReturn(period: string, body: Record<string, unknown>, userId: number | null) {
     if (!PERIOD.test(period)) throw new BadRequestError("period must be YYYY-MM.");
@@ -465,12 +465,12 @@ export const whtService = {
     // 🔴 SEC-4 (final audit 2026-10-05): a ZATCA acknowledgement names ONE filing. The same reference again is that
     // filing REPLAYED (a retry, a second tab) — answered with the recorded return, nothing written — never a new
     // "amendment": filings are append-only, so a false amendment could never be removed. The same reference on another
-    // date is a contradiction, refused by name. A genuine amendment carries its own acknowledgement. The database holds
+    // date is a contradiction, refused by name. A genuine corrected filing carries its own acknowledgement. The database holds
     // the rule too (`wht_return_filings_reference_unq`), so two concurrent replays cannot both land.
     const sameReference = (await taxRepository.filings(period)).find((f) => f.zatcaReference === zatcaReference);
     if (sameReference) {
       if (sameReference.filedOn === filedOn) return this.monthlyReturn(period);
-      refuse(409, "wht_filing_reference_reused", `ZATCA reference ${zatcaReference} is already recorded for ${period}'s return, filed on ${sameReference.filedOn}. An amendment carries its own acknowledgement reference — record that one.`, "zatcaReference");
+      refuse(409, "wht_filing_reference_reused", `ZATCA reference ${zatcaReference} is already recorded for ${period}'s return, filed on ${sameReference.filedOn}. A later, corrected filing carries its own acknowledgement reference — record that one.`, "zatcaReference");
     }
     const prior = await latestFilingOf(period);
     const [row] = await taxRepository.insertFiling({
