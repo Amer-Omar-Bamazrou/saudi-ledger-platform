@@ -54,10 +54,10 @@ function runRefusal(e: Error, t: (en: string, ar: string) => string): { title: s
   }
   if (e.code === "gosi_rate_unknown_for_period") {
     return {
-      title: t("GOSI rate not established for this period", "نسبة التأمينات غير مثبتة لهذه الفترة"),
+      title: t("No GOSI rate for this period", "لا نسبة تأمينات لهذه الفترة"),
       description: t(
-        `The GOSI rate for ${e.body?.period ?? "this period"} is not established (an open question to a GOSI specialist), so the run is not computed at a guessed rate. Nothing was created.`,
-        `لم تثبت نسبة التأمينات للفترة ${e.body?.period ?? ""} (سؤال مفتوح لمختص التأمينات)، فلا يُحسب المسير بنسبة مُخمَّنة. لم يُنشأ شيء.`,
+        `No GOSI rate is recorded for ${e.body?.period ?? "this period"} under an employee's GOSI law (the 2024 law's rates start in July 2024, when it took effect), so the run is not computed at a guessed rate. Check the period and each employee's GOSI law. Nothing was created.`,
+        `لا نسبة تأمينات مسجلة للفترة ${e.body?.period ?? ""} وفق نظام التأمينات لأحد الموظفين (تبدأ نسب نظام 2024 من يوليو 2024، تاريخ نفاذه)، فلا يُحسب المسير بنسبة مُخمَّنة. تحقّق من الفترة ومن نظام التأمينات لكل موظف. لم يُنشأ شيء.`,
       ),
     };
   }
