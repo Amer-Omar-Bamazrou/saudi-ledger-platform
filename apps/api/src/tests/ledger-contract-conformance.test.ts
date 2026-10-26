@@ -187,7 +187,7 @@ describeMaybe("ledger contract conformance — journal entries, payroll, employe
 
   it("POST /employees — Saudi and non-Saudi, with DERIVED gross and GOSI", async () => {
     expect(CreateEmployeeBody.safeParse({ name: "x", basicSalary: "" }).success).toBe(false);
-    const sa = await inTenant(() => employeesService.create(CreateEmployeeBody.parse({ employeeNumber: "E-1", name: "Saudi Employee", nationality: "SA", basicSalary: 10000, housingAllowance: 2000, transportAllowance: 500 })));
+    const sa = await inTenant(() => employeesService.create(CreateEmployeeBody.parse({ employeeNumber: "E-1", name: "Saudi Employee", nationality: "SA", basicSalary: 10000, housingAllowance: 2000, transportAllowance: 500, gosiRegime: "law_1421h" })));
     employeeId = sa.id;
     expect(sa.grossSalary).toBe(12500);
     expect(sa.gosiEmployee).toBeCloseTo(975, 2);

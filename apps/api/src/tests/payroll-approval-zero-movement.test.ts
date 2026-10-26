@@ -84,8 +84,8 @@ describeMaybe("Payroll draft/approval — pre-approval states post nothing; appr
     ).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     await pool.query(
-      `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status)
-       VALUES ($1,$2,'E001','Salem Al-Otaibi','SA','10000.00','active')`,
+      `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status, gosi_regime)
+       VALUES ($1,$2,'E001','Salem Al-Otaibi','SA','10000.00','active','law_1421h')`,
       [orgId, companyId],
     );
   });

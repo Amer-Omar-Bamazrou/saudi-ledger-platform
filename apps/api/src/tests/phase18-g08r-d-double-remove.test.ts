@@ -83,7 +83,7 @@ describeMaybe("B-G08R-P (d) — two removals of one draft at once", () => {
     const accountOf = async (code: string) => Number((await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = $2 AND is_posting`, [orgId, code])).rows[0].id);
     debitAccount = await accountOf("RENT_UTILITIES");
     creditAccount = await accountOf("OTHER_INCOME");
-    await pool.query(`INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status) VALUES ($1,$2,'E1','G08R-d Employee','SA','8000.00','active')`, [orgId, companyId]);
+    await pool.query(`INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status, gosi_regime) VALUES ($1,$2,'E1','G08R-d Employee','SA','8000.00','active','law_1421h')`, [orgId, companyId]);
     for (const [who, role] of [["admin", "admin"], ["accountant", "accountant"], ["bookkeeper", "bookkeeper"]]) await h.mkUser(who, PW, orgId, role);
     await h.start();
     for (const who of ["admin", "accountant", "bookkeeper"]) expect(await h.login(who, h.email(who), PW), `login ${who}`).toBe(200);

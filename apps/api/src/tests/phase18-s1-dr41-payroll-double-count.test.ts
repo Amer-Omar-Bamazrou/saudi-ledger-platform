@@ -102,8 +102,8 @@ describeMaybe("Phase 18 S1 · DR-41 proof — payroll run, then the salary bank 
     await h.mkUser("bookkeeper", PW, orgId, "bookkeeper");
     // One Saudi employee on 10,000 basic: the fixture the existing payroll suite uses.
     await pool.query(
-      `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status)
-       VALUES ($1,$2,'S1-E001','Salem Al-Otaibi','SA','10000.00','active')`, [orgId, companyId],
+      `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status, gosi_regime)
+       VALUES ($1,$2,'S1-E001','Salem Al-Otaibi','SA','10000.00','active','law_1421h')`, [orgId, companyId],
     );
     await h.start();
     for (const who of ["admin", "bookkeeper"]) expect(await h.login(who, h.email(who), PW), `login ${who}`).toBe(200);
