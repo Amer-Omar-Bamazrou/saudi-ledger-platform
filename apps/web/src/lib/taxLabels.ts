@@ -79,13 +79,13 @@ export const whtFilingStatusLabel = (s: string | null | undefined, t: T) =>
   ({
     unfiled: t("Not filed", "غير مُقدَّم"),
     filed: t("Filed", "مُقدَّم"),
-    amended: t("Amended", "مُعدَّل"),
-    amendment_due: t("Amendment due — the ledger differs from what was filed", "تعديل مستحق — الدفاتر تختلف عمّا قُدِّم"),
+    amended: t("Correction recorded", "تصحيح مُسجَّل"),
+    amendment_due: t("Correction due — the ledger differs from what was filed", "تصحيح مستحق — الدفاتر تختلف عمّا قُدِّم"),
   } as Record<string, string>)[s ?? ""] ?? "—";
 export const whtTreatmentLabel = (s: string | null | undefined, t: T) =>
   ({
     subsequent_period: t("Reported in a later, unfiled return", "يُقرَّر في إقرار لاحق غير مُقدَّم"),
-    amendment: t("By amending the filed return", "بتعديل الإقرار المُقدَّم"),
+    amendment: t("By preparing a correction for the original month", "بإعداد تصحيح للشهر الأصلي"),
   } as Record<string, string>)[s ?? ""] ?? "—";
 
 /** The eight Zakat-base classes (1445H Regulations). */

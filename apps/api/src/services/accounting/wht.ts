@@ -92,8 +92,12 @@ export async function latestFilingOf(period: string) {
  *   · `subsequent_period` (the accountant's recommendation) — reported in a
  *     later, unfiled month: the correction's month for a re-entry, otherwise
  *     the month of `today` (a late-entered payment);
- *   · `amendment` — reported in its own month, which then shows the filed
- *     return differs and is to be amended (ZATCA supports amendment).
+ *   · `amendment` — a correction prepared for the original month: its live
+ *     figures then differ from what was filed (it reads "correction due"), and
+ *     any delay fine is counted from that month's original due date. There is
+ *     no taxpayer self-service amendment of a filed monthly statement (research
+ *     finding 13, register §11.18); how a correction reaches ZATCA is adviser
+ *     question T6.
  * Neither stated → 409 `wht_month_filed`, nothing written. The database
  * admits the same rule only (0117).
  */
@@ -107,7 +111,7 @@ export async function returnPeriodFor(
   if (!filed) return { returnPeriod: period, filedMonthTreatment: null, monthFiled: false };
   if (!treatment) {
     refuse(409, "wht_month_filed",
-      `${period}'s withholding return (Form 06) is recorded as FILED on ${filed.filedOn} (${filed.zatcaReference}). A withholding dated in it would change a filed return, so say where it is reported: in a later, unfiled return (subsequent period — the accountant's recommendation), or by amending ${period}'s return (amendment).`,
+      `${period}'s withholding return (Form 06) is recorded as FILED on ${filed.filedOn} (${filed.zatcaReference}). A withholding dated in it would change a filed return, so say where it is reported: in a later, unfiled return (subsequent period — the accountant's recommendation), or by preparing a correction for ${period} (amendment), with any delay fine counted from ${period}'s original due date.`,
       "whtFiledMonthTreatment");
   }
   if (!(WHT_FILED_MONTH_TREATMENTS as readonly string[]).includes(treatment!)) {
@@ -116,11 +120,11 @@ export async function returnPeriodFor(
   if (treatment === "amendment") return { returnPeriod: period, filedMonthTreatment: "amendment", monthFiled: true };
   const target = (ctx.correctionPeriod ?? ctx.today).slice(0, 7);
   if (target <= period) {
-    refuse(422, "wht_subsequent_period_unavailable", `A subsequent-period report goes in a month after ${period}; ${target} is not later. Date the correction in a later month, or amend ${period}'s return instead.`, "whtFiledMonthTreatment");
+    refuse(422, "wht_subsequent_period_unavailable", `A subsequent-period report goes in a month after ${period}; ${target} is not later. Date the correction in a later month, or prepare a correction for ${period} instead.`, "whtFiledMonthTreatment");
   }
   const targetFiled = await latestFilingOf(target);
   if (targetFiled) {
-    refuse(409, "wht_subsequent_period_unavailable", `${target}'s return is recorded as filed too; a subsequent-period report goes in a month whose return is not yet filed. Amend ${period}'s return instead, or record the correction in an unfiled month.`, "whtFiledMonthTreatment");
+    refuse(409, "wht_subsequent_period_unavailable", `${target}'s return is recorded as filed too; a subsequent-period report goes in a month whose return is not yet filed. Prepare a correction for ${period} instead, or record the correction in an unfiled month.`, "whtFiledMonthTreatment");
   }
   return { returnPeriod: target, filedMonthTreatment: "subsequent_period", monthFiled: true };
 }
