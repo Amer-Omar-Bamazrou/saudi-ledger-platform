@@ -25,6 +25,7 @@ import { and, asc, eq } from "drizzle-orm";
 import {
   ownerDb as db,
   beginTenantConnection,
+  CommitRolledBackError,
   organizationMembershipsTable,
   organizationsTable,
   companiesTable,
@@ -175,12 +176,17 @@ export async function resolveTenant(
     };
 
     /**
-     * Paged when a COMMIT fails. Two distinct conditions, deliberately keyed
+     * Paged when a COMMIT fails. Three distinct conditions, deliberately keyed
      * apart:
      *
      *  - `tenant-commit-failed` — we corrected the answer, so no write was
      *    silently lost, but the database or its connection is unhealthy and a
      *    tenant was refused a legitimate write.
+     *  - `tenant-commit-rolled-back` (B-O6) — the COMMIT was answered ROLLBACK
+     *    (`CommitRolledBackError`): a statement in the request failed and the
+     *    code caught it and carried on. The answer was corrected too, but the
+     *    cause is that catch, not the database, so it must not read as a
+     *    database-health page.
      *  - `tenant-commit-after-response` — the RESIDUAL case this queue item was
      *    written for: the response had already begun (a stream past its first
      *    chunk), so the answer could not be recalled. It keeps the original key
@@ -188,22 +194,40 @@ export async function resolveTenant(
      */
     const onCommitFailure = ({ error, responseAlreadyStarted }: CommitFailure): void => {
       req.log.error({ err: error, responseAlreadyStarted }, "tenant transaction commit failed");
-      const corrected = !responseAlreadyStarted;
+      const condition = responseAlreadyStarted ? "after-response" : error instanceof CommitRolledBackError ? "rolled-back" : "failed";
+      const page = {
+        failed: {
+          key: "tenant-commit-failed",
+          title: "A tenant transaction FAILED to commit; the request was answered 500",
+          detail:
+            `${req.method} ${req.path} could not commit its transaction. Nothing was written and the ` +
+            `client was told so, but the tenant was refused a legitimate write — check database health.`,
+        },
+        "rolled-back": {
+          key: "tenant-commit-rolled-back",
+          title: "A request caught a database error and carried on; its COMMIT was answered ROLLBACK and the request was answered 500",
+          detail:
+            `${req.method} ${req.path}: a statement in its transaction failed and the code caught the error and ` +
+            `carried on, so the COMMIT was answered ROLLBACK. Nothing was written and the client was told so. ` +
+            `The cause is that catch in the code, not the database's health.`,
+        },
+        "after-response": {
+          key: "tenant-commit-after-response",
+          title: "A response had already begun when its transaction FAILED to commit",
+          detail:
+            `${req.method} ${req.path} had already started sending when its transaction failed to commit, ` +
+            `so the answer could not be recalled — check what this request was meant to write and ` +
+            `whether the tenant must redo it.`,
+        },
+      }[condition];
       void (async () => {
         try {
           await alerter.fire({
             // The CONDITION, not the occurrence: every instance is the same bug.
-            key: corrected ? "tenant-commit-failed" : "tenant-commit-after-response",
+            key: page.key,
             severity: "critical",
-            title: corrected
-              ? "A tenant transaction FAILED to commit; the request was answered 500"
-              : "A response had already begun when its transaction FAILED to commit",
-            detail: corrected
-              ? `${req.method} ${req.path} could not commit its transaction. Nothing was written and the ` +
-                `client was told so, but the tenant was refused a legitimate write — check database health.`
-              : `${req.method} ${req.path} had already started sending when its transaction failed to commit, ` +
-                `so the answer could not be recalled — check what this request was meant to write and ` +
-                `whether the tenant must redo it.`,
+            title: page.title,
+            detail: page.detail,
             // 🔴 Metadata only. Never a body, never financial data (Alert's rule).
             context: {
               method: req.method,

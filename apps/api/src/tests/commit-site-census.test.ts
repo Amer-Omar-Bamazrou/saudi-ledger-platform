@@ -42,7 +42,7 @@ const rawCommit = (n: number, reaches: string, ifCommitThrows: string): Site => 
 
 const SITES: Record<string, Site> = {
   // ── beginTenantConnection().commit(): B-O6's seam covers these ───────────
-  "apps/api/src/lib/tenant.ts": tenant(1, "every business route (resolveTenant)", "settled before the first byte (lib/responseCommit.ts): a known refusal is its own 4xx, anything else 500 commit_failed and a page"),
+  "apps/api/src/lib/tenant.ts": tenant(1, "every business route (resolveTenant)", "settled before the first byte (lib/responseCommit.ts): a known refusal is its own 4xx; a COMMIT answered ROLLBACK is 500 commit_rolled_back (B-O6); anything else 500 commit_failed; each with its own page"),
   "apps/api/src/scripts/backfillTransferPostings.ts": tenant(1, "CLI", "logged as rolled back, next org; postMany's items each have a savepoint (B-O6-PRE)"),
   "apps/api/src/scripts/benchmark/benchmarkCategorizer.ts": tenant(1, "CLI (benchmark)", "counted as a failed case; the meter row has its own savepoint (B-O6-PRE)"),
   "apps/api/src/scripts/benchmark/benchmarkVision.ts": tenant(1, "CLI (benchmark)", "counted as a failed case; the meter row has its own savepoint (B-O6-PRE)"),
@@ -66,7 +66,7 @@ const SITES: Record<string, Site> = {
   "apps/api/src/services/einvoice/signing/vault.repository.ts": drizzleTx(1, "ZATCA onboarding and renewal (commits apart from the request)"),
   "packages/db/src/seed.ts": drizzleTx(3, "CLI seed"),
   // ── raw COMMIT: NOT covered by B-O6's seam (except the seam itself) ──────
-  "packages/db/src/index.ts": rawCommit(1, "`finish(\"COMMIT\")`: THE seam B-O6 changes", "rethrown to the caller (see tenant.ts above)"),
+  "packages/db/src/index.ts": rawCommit(1, "`finish(\"COMMIT\")`: THE seam; checks the COMMIT tag since B-O6", "rethrown to the caller (see tenant.ts above)"),
   "apps/api/src/services/demo/demoReset.service.ts": rawCommit(1, "demo reset job (DEMO_MODE)", "ROLLBACK, the run recorded failed; nothing inside catches"),
   "scripts/src/demo-seed.mts": rawCommit(2, "CLI demo seed", "the first reaches main().catch; the second rolls back and rethrows; nothing inside catches"),
 };
