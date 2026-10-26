@@ -59,6 +59,7 @@ import { postJournalEntry, type GLLine } from "./accounting/glPosting";
 import { journalEntriesService } from "./journalEntries.service";
 import { logger } from "../lib/logger";
 import { BankAccountRequiredError } from "../lib/errors";
+import { withSavepoint } from "../lib/savepoint";
 
 type Tx = typeof transactionsTable.$inferSelect;
 type Cat = typeof categoriesTable.$inferSelect;
@@ -179,14 +180,21 @@ export const transactionPostingService = {
    * list reached nothing that rendered it. `transactions.service.acceptPending`
    * now walks its rows itself — a lock refusal un-accepts the row and is
    * reported; anything else throws and rolls the acceptance back.
+   *
+   * 🔴 B-O6-PRE (Phase 18): each item in its own savepoint. A database error in
+   * one item used to abort the run's transaction: every later item failed with
+   * "current transaction is aborted", and the COMMIT answered ROLLBACK, so the
+   * items reported as posted were not. Now the failed item alone is undone.
    */
   async postMany(ids: number[]): Promise<{ posted: number; failed: Array<{ id: number; reason: string }> }> {
     let posted = 0;
     const failed: Array<{ id: number; reason: string }> = [];
     for (const id of ids) {
-      try {
-        if (await this.post(id)) posted++;
-      } catch (err) {
+      const outcome = await withSavepoint(() => this.post(id));
+      if (outcome.ok) {
+        if (outcome.value) posted++;
+      } else {
+        const err = outcome.error;
         // Logged and returned to the backfill's caller, which prints it.
         const reason = err instanceof Error ? err.message : String(err);
         logger.error({ err, transactionId: id }, "transaction accepted but could not post to the ledger");
