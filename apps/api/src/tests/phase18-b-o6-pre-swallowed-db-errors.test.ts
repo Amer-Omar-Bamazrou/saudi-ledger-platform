@@ -143,6 +143,39 @@ describeMaybe("B-O6-PRE — a database error caught inside a transaction leaves 
       expect(meter.rows.map((r) => r.prompt_tokens), "four rows; the refused one absent").toEqual([1, 2, 4, 5]);
     });
 
+    it("🔴 the MODEL calls still run side by side; only the meter's database write takes turns (/llm/compare's shape, owner 2026-10-26 A3)", async () => {
+      // llm.controller.ts compare: Promise.all over the items → categorizeWithLlm →
+      // meteredChat. The turn-taking is inside record() (the meter's insert), after
+      // provider.chat() has returned, so the model calls must still overlap.
+      const N = 5;
+      const DELAY_MS = 150;
+      let inFlight = 0;
+      let mostAtOnce = 0;
+      const slow: AiProvider = {
+        name: "b-o6-pre-slow",
+        chat: async () => {
+          inFlight += 1;
+          mostAtOnce = Math.max(mostAtOnce, inFlight);
+          await new Promise((r) => setTimeout(r, DELAY_MS));
+          inFlight -= 1;
+          return { text: "slow completion", model: "fake-model", provider: "b-o6-pre-slow", promptTokens: 1, completionTokens: 1, latencyMs: DELAY_MS };
+        },
+        vision: async () => {
+          throw new Error("not used");
+        },
+      };
+      const started = Date.now();
+      const settled = await h.inTenant(orgId, companyId, userId, () =>
+        Promise.allSettled(Array.from({ length: N }, (_, i) => meteredChat(slow, `b-o6-pre-parallel-${i}`, { prompt: "x", maxTokens: 5 }))),
+      );
+      const elapsedMs = Date.now() - started;
+      expect(settled.map((s) => s.status)).toEqual(Array(N).fill("fulfilled"));
+      expect(mostAtOnce, "all the model calls were in flight at the same time").toBe(N);
+      expect(elapsedMs, `${elapsedMs} ms against ${N * DELAY_MS} ms for the calls one after another`).toBeLessThan(N * DELAY_MS * 0.6);
+      const meter = await pool.query(`SELECT count(*)::int AS n FROM ai_usage WHERE organization_id = $1 AND operation LIKE 'b-o6-pre-parallel-%'`, [orgId]);
+      expect(meter.rows[0].n, "every call metered").toBe(N);
+    });
+
     it("outside any transaction (the findings explain pass calls its model there), the completion is still returned", async () => {
       const out = await meteredChat(provider(2), "b-o6-pre-outside-a-transaction", { prompt: "x", maxTokens: 5 });
       expect(out.text).toBe("fake completion");
