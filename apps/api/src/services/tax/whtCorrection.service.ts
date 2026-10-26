@@ -22,10 +22,14 @@
  * filed, the correction is reflected IN that month's return. After filing, a
  * filed return is never rewritten silently — the person states the treatment:
  * `subsequent_period` (the accountant's recommendation: reported in the
- * correction's own, unfiled month) or `amendment` (ZATCA supports amendment:
- * the filed month's live figure changes and it reads "amendment due" until an
- * amendment filing is recorded). Which the law requires when is the adviser's
- * call (§14.1, open W-13b) — the product records the choice, it does not make it.
+ * correction's own, unfiled month) or `amendment` (a correction prepared for
+ * the original month: its live figure changes and it reads "correction due"
+ * until a corrected filing is recorded; any delay fine runs from that month's
+ * original due date. There is no taxpayer self-service amendment of a filed
+ * monthly statement (research finding 13, register §11.18); how a correction
+ * reaches ZATCA is adviser question T6). Which the law requires when is the
+ * adviser's call (§14.1, open W-13b) — the product records the choice, it does
+ * not make it.
  *
  * Refused, never approximated: a payment touched since (a later allocation, a
  * refund, a moved balance), a cash line reconciled to the bank, a closed
@@ -177,16 +181,16 @@ export const whtCorrectionService = {
     if (filedOriginal) {
       if (!treatmentIn) {
         refuse(409, "wht_month_filed",
-          `${w.returnPeriod}'s withholding return (Form 06) is recorded as FILED on ${filedOriginal.filedOn} (${filedOriginal.zatcaReference}). The filed return is not rewritten: say how the correction is reported — in this month's own, unfiled return (subsequent period, the accountant's recommendation), or by amending ${w.returnPeriod}'s return (amendment).`,
+          `${w.returnPeriod}'s withholding return (Form 06) is recorded as FILED on ${filedOriginal.filedOn} (${filedOriginal.zatcaReference}). The filed return is not rewritten: say how the correction is reported — in this month's own, unfiled return (subsequent period, the accountant's recommendation), or by preparing a correction for ${w.returnPeriod} (amendment), with any delay fine counted from ${w.returnPeriod}'s original due date.`,
           "filedMonthTreatment");
       }
       treatment = treatmentIn as WhtFiledMonthTreatment;
       if (treatment === "subsequent_period") {
         if (correctionPeriod <= w.returnPeriod) {
-          refuse(422, "wht_subsequent_period_unavailable", `A subsequent-period correction is reported in the correction's month, which must be after ${w.returnPeriod}; ${date} is not. Date it in a later month, or amend ${w.returnPeriod}'s return.`, "date");
+          refuse(422, "wht_subsequent_period_unavailable", `A subsequent-period correction is reported in the correction's month, which must be after ${w.returnPeriod}; ${date} is not. Date it in a later month, or prepare a correction for ${w.returnPeriod}.`, "date");
         }
         if (await latestFilingOf(correctionPeriod)) {
-          refuse(409, "wht_subsequent_period_unavailable", `${correctionPeriod}'s return is recorded as filed too. Date the correction in a month whose return is not yet filed, or amend ${w.returnPeriod}'s return.`, "date");
+          refuse(409, "wht_subsequent_period_unavailable", `${correctionPeriod}'s return is recorded as filed too. Date the correction in a month whose return is not yet filed, or prepare a correction for ${w.returnPeriod}.`, "date");
         }
         reversalReturnPeriod = correctionPeriod;
       }

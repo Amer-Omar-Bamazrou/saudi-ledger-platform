@@ -928,6 +928,17 @@ makes the person **state the treatment** for a filed month — `subsequent_perio
 (below). **REQUIRED** (the record and its retention, 63(9)(c)) · **PRODUCT**
 (the mechanism).
 
+> **Correction (2026-10-26, owner decision of the same evening, item 4b).** The
+> sentence above, "ZATCA's portal supports amending a filed return", is not
+> supported. The owner's official-source research of 2026-10-26 (finding 13)
+> found **no taxpayer self-service amendment** of a filed monthly WHT
+> statement; one committee record shows ZATCA amending the forms itself. The
+> product's `amendment` treatment is therefore described as **preparing a
+> correction for the original month**, with any delay fine counted from that
+> month's original due date. How a correction reaches ZATCA is adviser
+> question T6. The mechanism is unchanged. The text above is kept as written,
+> as part of this dated record.
+
 **The four states, held explicitly** (the instruction's a–d):
 
 | State | Where it lives | What it does |
