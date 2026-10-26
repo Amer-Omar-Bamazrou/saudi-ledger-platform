@@ -14,9 +14,19 @@
  *
  * DB-backed (sl_test / CI); skips on the DB-free placeholder.
  */
+process.env.PORT ??= "3229";
+process.env.SESSION_SECRET ??= "tenant-handle-after-end-test-secret-01";
+process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import http from "node:http";
+import express from "express";
 import { sql } from "drizzle-orm";
 import { beginTenantConnection, db, pool } from "@workspace/db";
+import { resolveTenant } from "../lib/tenant";
+import { logger } from "../lib/logger";
+import { meteredChat } from "../services/ai/metered";
+import type { AiProvider } from "../services/ai/provider";
 import { g04Harness } from "./helpers/g04Harness";
 
 const url = process.env.DATABASE_URL;
@@ -112,6 +122,67 @@ describeMaybe("🔴 a tenant transaction's handle cannot be used after its trans
     const outcome = await errorName(connA.run(() => writeMarker("never-acquired")));
     expect(outcome).toBe("TenantTransactionEndedError");
     expect(checkedOut(), "no connection taken from the pool, so none left behind").toBe(before);
+  });
+
+  it("🔴 a request whose transaction ends while its handler is still running: the handler's later statement is refused", async () => {
+    const userId = await h.mkUser("abort", "HandleAfterEndPw1!", orgA, "admin");
+    const outcomes: string[] = [];
+    let atGate!: () => void;
+    const reachedGate = new Promise<void>((r) => (atGate = r));
+    let sawClose!: () => void;
+    const closed = new Promise<void>((r) => (sawClose = r));
+    let finished!: () => void;
+    const handlerDone = new Promise<void>((r) => (finished = r));
+
+    const app = express();
+    app.use((req, _res, next) => {
+      Object.assign(req, { session: { userId }, log: logger });
+      next();
+    });
+    app.get("/handle-after-end", resolveTenant, async (_req, res) => {
+      try {
+        // Registered after resolveTenant's own `close` listener, so it runs after the rollback began.
+        res.on("close", () => sawClose());
+        await db.execute(sql`SELECT 1`); // the request's connection is in use
+        atGate();
+        await closed; // the client has gone; the request's transaction has ended
+        outcomes.push(await errorName(db.execute(sql`SELECT current_user AS who`).then((r) => r)));
+      } finally {
+        finished();
+      }
+    });
+    const server = http.createServer(app);
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    try {
+      const { port } = server.address() as { port: number };
+      const client = new AbortController();
+      const request = fetch(`http://127.0.0.1:${port}/handle-after-end`, { signal: client.signal }).catch(() => "aborted");
+      await reachedGate;
+      client.abort();
+      await handlerDone;
+      expect(await request).toBe("aborted");
+      expect(outcomes).toEqual(["TenantTransactionEndedError"]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+
+  it("the AI meter through an ended transaction loses only its row: the completion is still returned", async () => {
+    const provider: AiProvider = {
+      name: "handle-after-end-fake",
+      chat: async () => ({ text: "completion", model: "m", provider: "handle-after-end-fake", promptTokens: 1, completionTokens: 1, latencyMs: 1 }),
+      vision: async () => {
+        throw new Error("not used");
+      },
+    };
+    const connA = await beginTenantConnection({ organizationId: orgA, companyId: coA, role: "authenticated" });
+    await connA.run(backendPid);
+    await connA.commit();
+    const out = await connA.run(() => meteredChat(provider, "handle-after-end-meter", { prompt: "x", maxTokens: 5 }));
+    expect(out.text).toBe("completion");
+    const rows = await pool.query(`SELECT count(*)::int AS n FROM ai_usage WHERE operation = 'handle-after-end-meter'`);
+    expect(rows.rows[0].n, "no meter row anywhere").toBe(0);
   });
 
   it("statements awaited before the end are committed (the guard refuses only what comes after)", async () => {
