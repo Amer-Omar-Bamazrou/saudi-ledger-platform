@@ -173,6 +173,23 @@ export class TenantTransactionEndedError extends Error {
   }
 }
 
+/**
+ * Raised when a tenant transaction's COMMIT is answered with any tag but
+ * COMMIT: a statement inside it failed, the error was caught, and Postgres
+ * rolled the whole transaction back. Nothing was written. The cause is the
+ * catch in the code, not the database's health (B-O6, contract O-6).
+ */
+export class CommitRolledBackError extends Error {
+  constructor(readonly answeredWith: string | undefined) {
+    super(
+      `The transaction's COMMIT was answered ${answeredWith ?? "(no tag)"}: a statement inside it failed and the ` +
+        `error was caught, so nothing was written.`,
+    );
+    this.name = "CommitRolledBackError";
+    Object.setPrototypeOf(this, CommitRolledBackError.prototype);
+  }
+}
+
 export const db: DB = new Proxy(baseDb, {
   get(target, prop) {
     const active = tenantStorage.getStore()?.db;
@@ -340,7 +357,11 @@ class LazyTenantClient {
     if (!client) return; // never acquired → nothing to do (the HIGH-1 win)
     this.client = null;
     try {
-      await client.query(action);
+      const result = (await client.query(action)) as { command?: string };
+      // 🔴 B-O6 (contract O-6): Postgres answers COMMIT on a transaction that a
+      // caught statement error aborted with the tag ROLLBACK, and raises nothing.
+      // That is a failed commit, so it is an error here, never a success.
+      if (action === "COMMIT" && result.command !== "COMMIT") throw new CommitRolledBackError(result.command);
     } catch (err) {
       // The connection may already be gone (the idle-in-transaction guardrail,
       // a restart, a failover). COMMIT/ROLLBACK on a dead client rejects; the
