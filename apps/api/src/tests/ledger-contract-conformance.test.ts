@@ -190,7 +190,9 @@ describeMaybe("ledger contract conformance — journal entries, payroll, employe
     const sa = await inTenant(() => employeesService.create(CreateEmployeeBody.parse({ employeeNumber: "E-1", name: "Saudi Employee", nationality: "SA", basicSalary: 10000, housingAllowance: 2000, transportAllowance: 500, gosiRegime: "law_1421h" })));
     employeeId = sa.id;
     expect(sa.grossSalary).toBe(12500);
-    expect(sa.gosiEmployee).toBeCloseTo(975, 2);
+    // GOSI (Phase 18, owner-approved 2026-10-26 night): 9.75% (the 1421H law) of basic + housing = 12,000.
+    // Was 975: 9.75% of basic alone (10,000).
+    expect(sa.gosiEmployee).toBeCloseTo(1170, 2);
     conforms(CreateEmployeeResponse, sa, "createEmployee(SA)");
     const other = await inTenant(() => employeesService.create(CreateEmployeeBody.parse({ employeeNumber: "E-2", name: "Expat Employee", nationality: "EG", basicSalary: 6000 })));
     expect(other.gosiEmployee).toBe(0);
