@@ -11,7 +11,7 @@
  * with the optional field untouched; reverting either `|| undefined` fix
  * turns the create into a 400 and fails here.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { E2E } from "./global-setup";
 
 test.use({ storageState: E2E.storageState });

@@ -11,7 +11,7 @@
  * Figures are read as deltas of the return, so other specs' rows in the same
  * months cannot make them vacuous or wrong.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 

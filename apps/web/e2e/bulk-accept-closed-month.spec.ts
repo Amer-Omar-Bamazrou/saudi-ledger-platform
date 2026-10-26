@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest, type APIRequestContext } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext } from "./fixtures";
 import { E2E } from "./global-setup";
 
 /**

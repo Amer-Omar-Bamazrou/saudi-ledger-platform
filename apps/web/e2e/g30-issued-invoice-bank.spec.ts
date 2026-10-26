@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 
 /**
  * G30 (pre-Phase-18 hardening, 2026-10-07) — an issued invoice keeps the bank

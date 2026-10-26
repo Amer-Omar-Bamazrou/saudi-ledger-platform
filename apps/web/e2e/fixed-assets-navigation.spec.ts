@@ -16,7 +16,7 @@
  * Arabic, on a desktop and on a phone, and asserts that each one RENDERED
  * rather than that a URL changed.
  */
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures";
 import { E2E } from "./global-setup";
 
 test.use({ storageState: E2E.storageState });

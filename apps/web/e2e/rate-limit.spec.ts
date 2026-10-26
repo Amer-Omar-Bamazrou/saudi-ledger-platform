@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest, type APIRequestContext, type Page, type Browser } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page, type Browser } from "./fixtures";
 import { createHash } from "node:crypto";
 import { E2E } from "./global-setup";
 
