@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { EmployeeGosiRegime } from './employeeGosiRegime';
 
 export interface Employee {
   id: number;
@@ -42,8 +43,33 @@ export interface Employee {
   createdAt: string;
   /** DERIVED — basic + the three allowances. */
   grossSalary: number;
-  /** DERIVED from nationality and basic salary (SA 9.75%; others 0). */
-  gosiEmployee: number;
-  /** DERIVED (SA 11.75%; others 2%). */
-  gosiEmployer: number;
+  /**
+     * DERIVED (Phase 18): the current period's employee rate for the employee's GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.
+     * @nullable
+     */
+  gosiEmployee: number | null;
+  /**
+     * DERIVED: the current period's employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.
+     * @nullable
+     */
+  gosiEmployer: number | null;
+  /**
+     * DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.
+     * @nullable
+     */
+  gosiWageBase: number | null;
+  /**
+     * GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.
+     * @nullable
+     */
+  gosiRegime: EmployeeGosiRegime;
+  /** @nullable */
+  gosiRegimeSetBy: number | null;
+  /** @nullable */
+  gosiRegimeSetAt: string | null;
+  /**
+     * What the statement rests on, e.g. the GOSI contribution certificate.
+     * @nullable
+     */
+  gosiRegimeBasis: string | null;
 }

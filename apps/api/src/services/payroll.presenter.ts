@@ -29,6 +29,10 @@ export const itemToOut = (i: PayrollItem) => ({
   grossSalary: toNum(i.grossSalary),
   gosiEmployee: toNum(i.gosiEmployee),
   gosiEmployer: toNum(i.gosiEmployer),
+  // GOSI (Phase 18): what the line was computed with; null on lines from before migration 0127.
+  gosiWageBase: i.gosiWageBase == null ? null : Number(i.gosiWageBase),
+  gosiEmployeeRate: i.gosiEmployeeRate == null ? null : Number(i.gosiEmployeeRate),
+  gosiEmployerRate: i.gosiEmployerRate == null ? null : Number(i.gosiEmployerRate),
   additions: toNum(i.additions),
   deductions: toNum(i.deductions),
   netPay: toNum(i.netPay),

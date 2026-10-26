@@ -39,6 +39,7 @@ export const sourceTypeLabel = (type: string, t: T) =>
     tax_zakat: t("Zakat", "الزكاة"),
     tax_income_tax: t("Income tax", "ضريبة الدخل"),
     tax_vat: t("VAT", "ضريبة القيمة المضافة"),
+    tax_gosi: t("GOSI contributions", "اشتراكات التأمينات الاجتماعية"),
     recurring_rule: t("Recurring rule", "قاعدة متكررة"),
     treasury_forecast_entry: t("Manual assumption", "افتراض يدوي"),
     gl_account: t("Payroll payable", "رواتب مستحقة"),
@@ -57,6 +58,7 @@ export function sourceHref(type: string): string | null {
     case "tax_zakat": return "/zakat";
     case "tax_income_tax": return "/tax/income-tax";
     case "tax_vat": return "/vat";
+    case "tax_gosi": return "/payroll";
     case "recurring_rule": return "/recurring";
     case "treasury_forecast_entry": return "/treasury?tab=assumptions";
     case "gl_account": return "/payroll";

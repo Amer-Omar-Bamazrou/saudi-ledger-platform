@@ -28,6 +28,12 @@ type T = (en: string, ar: string) => string;
 
 
 function ruleOf(o: TaxObligation, t: T) {
+  // GOSI (Phase 18): per approved payroll run, due the 15th of the following month.
+  if (o.kind === "gosi") {
+    if (!o.dueDate) return t("GOSI payable in the books that no approved payroll run explains (for example a migrated opening balance): its due date is not known here.", "تأمينات مستحقة في الدفاتر لا يفسّرها مسير رواتب معتمد (مثل رصيد افتتاحي مرحَّل): تاريخ استحقاقها غير معروف هنا.");
+    const partly = o.note ? t(" Part of this run's GOSI is already settled in the books (a bank line, taken as settling the oldest runs first).", " جزء من تأمينات هذا المسير مسوّى في الدفاتر (سطر بنكي يُعتبر مسوّيًا أقدم المسيرات أولًا).") : "";
+    return t("Due by the 15th of the month after the payroll period (Social Insurance Law Art. 9(1); Regulation Art. 24).", "تستحق بحلول اليوم 15 من الشهر التالي لفترة المسير (المادة 9(1) من نظام التأمينات الاجتماعية؛ المادة 24 من اللائحة).") + partly;
+  }
   if (o.kind === "wht") return o.dueDate
     ? t("Due the 10th of the month after the payments (IR Art. 63(9)(a)).", "تستحق في العاشر من الشهر التالي للدفعات (المادة 63(9)(أ) من اللائحة).")
     : t("The migrated opening WHT payable: its months are the previous system's, so its due date is not known here.", "رصيد الاستقطاع الافتتاحي المرحَّل: أشهره من النظام السابق، فتاريخ استحقاقه غير معروف هنا.");
@@ -89,6 +95,7 @@ export default function TaxObligations() {
                     <td className="py-2 pe-3 text-end">
                       <span className="font-mono" dir="ltr">{o.dueDate == null && o.amount === 0 ? "—" : fmtNum(o.amount)}</span>
                       {vatDetail(o, t) && <span className="block text-xs text-muted-foreground whitespace-nowrap" data-testid={`tax-obligation-vat-detail-${i}`}>{vatDetail(o, t)}</span>}
+                      {o.kind === "gosi" && (o.fineEstimate ?? 0) > 0 && <span className="block text-xs text-muted-foreground whitespace-nowrap" data-testid={`tax-obligation-gosi-fine-${i}`}>{t(`late-fine estimate ${fmtNum(o.fineEstimate ?? 0)} (2% per month or part, uncapped, never posted)`, `تقدير غرامة التأخير ${fmtNum(o.fineEstimate ?? 0)} (2% عن كل شهر أو جزء منه، بلا حد أعلى، لا يُرحَّل)`)}</span>}
                     </td>
                     <td className="py-2 pe-3 whitespace-nowrap">{o.dueDate ? <>{fmtDate(o.dueDate)}{o.overdue ? <span className="block text-xs">{t("past its due date", "تجاوز تاريخ استحقاقه")}</span> : o.kind === "vat" && o.amount === 0 && o.vatPosition && o.vatPosition !== "payable" ? <span className="block text-xs text-muted-foreground">{t("nothing owed", "لا شيء مستحق")}</span> : null}</> : t("not dated", "غير مؤرَّخ")}</td>
                     <td className="py-2 pe-3 text-xs text-muted-foreground max-w-md">{ruleOf(o, t)}</td>
@@ -98,7 +105,7 @@ export default function TaxObligations() {
               </table>
             </div>
           )}
-        <p className="text-xs text-muted-foreground mt-3">{t("Penalties and fines are not estimated here except the withholding-tax delay fine shown on its month (an estimate, never posted).", "لا تُقدَّر الغرامات هنا سوى غرامة تأخير الاستقطاع المعروضة في شهرها (تقدير لا يُرحَّل).")}</p>
+        <p className="text-xs text-muted-foreground mt-3">{t("Penalties and fines are not estimated here except the withholding-tax delay fine shown on its month and the GOSI late fine shown on its row (estimates, never posted).", "لا تُقدَّر الغرامات هنا سوى غرامة تأخير الاستقطاع المعروضة في شهرها وغرامة تأخير التأمينات المعروضة في صفّها (تقديرات لا تُرحَّل).")}</p>
       </CardContent></Card>
     </div>
   );

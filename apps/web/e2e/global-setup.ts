@@ -445,7 +445,8 @@ export default async function globalSetup(): Promise<void> {
     stockQty: 0,
   });
 
-  await api(ctx, "POST", "/employees", { employeeNumber: "E2E-EMP-001", name: "E2E Employee", basicSalary: 8000, status: "active" });
+  // GOSI (Phase 18): a Saudi employee (the default nationality) carries a stated GOSI law, or payroll refuses to run.
+  await api(ctx, "POST", "/employees", { employeeNumber: "E2E-EMP-001", name: "E2E Employee", basicSalary: 8000, status: "active", gosiRegime: "law_1421h" });
 
   // A payroll run: created from the employees, approved through the workflow
   // (which posts the GL — the old seed's "approved" run had none).

@@ -1,6 +1,6 @@
 /** Employees repository — tenant-scoped via RLS. */
 import { db, employeesTable } from "@workspace/db";
-import { GOSI_RATES } from "@workspace/shared";
+import { businessToday, gosiRatesFor, GOSI_WAGE_CEILING } from "@workspace/shared";
 import { and, eq, ilike, sql } from "drizzle-orm";
 import { DEFAULT_PAGE } from "../lib/httpParams";
 
@@ -40,18 +40,31 @@ export const employeesRepository = {
    * The rates are BOUND from @workspace/shared's single definition (2026-09-14
    * — this used to be the flagged second statement of the rule; now a rate
    * change edits one file and this query follows).
+   *
+   * 🔴 GOSI (Phase 18, 2026-10-26): the employer share is the CURRENT period's
+   * rate for each employee's regime, on basic + housing capped at SAR 45,000. A
+   * Saudi employee whose law is not stated has no figure: they are COUNTED in
+   * `gosiUnstatedCount` and left out of the sum, so the total never reads as
+   * complete when it is not.
    */
   async listTotals(filter: EmployeeListFilter) {
     const gross = sql`(${employeesTable.basicSalary} + ${employeesTable.housingAllowance}
       + ${employeesTable.transportAllowance} + ${employeesTable.otherAllowances})`;
-    const gosiEmployer = sql`(CASE WHEN ${employeesTable.nationality} = 'SA'
-      THEN ${employeesTable.basicSalary} * ${GOSI_RATES.saudiEmployer} ELSE ${employeesTable.basicSalary} * ${GOSI_RATES.nonSaudiEmployer} END)`;
+    const period = businessToday().slice(0, 7);
+    const rate = (r: "law_1421h" | "law_2024" | "non_saudi") => gosiRatesFor(r, period)?.employerRate ?? null;
+    const wage = sql`LEAST(${employeesTable.basicSalary} + ${employeesTable.housingAllowance}, ${GOSI_WAGE_CEILING})`;
+    const gosiEmployer = sql`(CASE
+      WHEN ${employeesTable.nationality} IS DISTINCT FROM 'SA' THEN ${wage} * ${rate("non_saudi")}::numeric
+      WHEN ${employeesTable.gosiRegime} = 'law_1421h' THEN ${wage} * ${rate("law_1421h")}::numeric
+      WHEN ${employeesTable.gosiRegime} = 'law_2024' THEN ${wage} * ${rate("law_2024")}::numeric
+      ELSE NULL END)`;
     const [row] = await db
       .select({
         total: sql<number>`count(*)::int`,
         saudiCount: sql<number>`COUNT(*) FILTER (WHERE ${employeesTable.nationality} = 'SA')::int`,
         grossSalary: sql<number>`COALESCE(SUM(${gross}), 0)::float8`,
         gosiEmployer: sql<number>`COALESCE(SUM(${gosiEmployer}), 0)::float8`,
+        gosiUnstatedCount: sql<number>`COUNT(*) FILTER (WHERE ${gosiEmployer} IS NULL)::int`,
       })
       .from(employeesTable)
       .where(employeeListConditions(filter));
@@ -60,6 +73,7 @@ export const employeesRepository = {
       saudiCount: Number(row?.saudiCount ?? 0),
       grossSalary: Number(row?.grossSalary ?? 0),
       gosiEmployer: Number(row?.gosiEmployer ?? 0),
+      gosiUnstatedCount: Number(row?.gosiUnstatedCount ?? 0),
     };
   },
   findById(id: number) {

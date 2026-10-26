@@ -232,9 +232,9 @@ export const transactionsService = {
     // Resolve every code the engine could emit ONCE, inside the tenant tx.
     // DR-41: SALARIES_PAYABLE is not an engine code, but a salary line in a company that runs payroll pays it.
     const resolvedCodes = autoCategrize
-      ? await resolveSystemCodes([...allEngineCodes(), "SALARIES_PAYABLE"])
+      ? await resolveSystemCodes([...allEngineCodes(), "SALARIES_PAYABLE", "GOSI_PAYABLE"])
       : new Map<string, ResolvedCategory>();
-    const payrollCtx = autoCategrize ? await payrollRepository.salaryPayableContext() : null;
+    const payrollCtx = autoCategrize ? { ...(await payrollRepository.salaryPayableContext()), openGosiPayable: await payrollRepository.gosiPayableOpen() } : null;
 
     for (const raw of rows) {
       let rowWasCategorized = false;
@@ -365,6 +365,7 @@ export const transactionsService = {
               catId = resolved.id;
               // the payable this line pays is no longer open to the next salary line of the same upload
               if (match.systemCode === "SALARIES_PAYABLE" && payrollCtx) payrollCtx.openPayable = Math.round((payrollCtx.openPayable - Number(row.amount)) * 100) / 100;
+              if (match.systemCode === "GOSI_PAYABLE" && payrollCtx) payrollCtx.openGosiPayable = Math.round((payrollCtx.openGosiPayable - Number(row.amount)) * 100) / 100;
               confidenceScore = String(match.confidence);
               // M16.2 — the treatment comes from the CATEGORY's default, and
               // VAT is extracted ONLY for 'S'. 'Z'/'E'/'O' record zero VAT AND

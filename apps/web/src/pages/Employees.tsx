@@ -1,4 +1,4 @@
-import { GOSI_RATES, gosiPercentLabel } from "@workspace/shared";
+import { gosiContributoryWage, gosiPercentLabel, gosiRatesFor, type GosiRegime } from "@workspace/shared";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -16,14 +16,34 @@ import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
 
-import type { CreateEmployeeInput, Employee, EmployeeTotals } from "@workspace/api-client-react";
+import type { CreateEmployeeInput, Employee, EmployeeTotals, UpdateEmployeeInput } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
-const json = { create: (b: CreateEmployeeInput) => JSON.stringify(b) };
+const json = { create: (b: CreateEmployeeInput) => JSON.stringify(b), update: (b: UpdateEmployeeInput) => JSON.stringify(b) };
+
+/**
+ * 🔴 GOSI (Phase 18, 2026-10-26): the Social Insurance law a SAUDI employee contributes under is the employer's
+ * statement, from the employee's contribution history — never inferred from the hire date. Not stated = payroll
+ * refuses to run for that employee (the server's rule; this page only lets the employer state it).
+ */
+type RegimeChoice = "" | "law_1421h" | "law_2024";
+const REGIME_LABELS: Record<Exclude<RegimeChoice, "">, [string, string]> = {
+  law_1421h: ["1421H law — contributed before 3 July 2024", "نظام 1421هـ — مشترك قبل 3 يوليو 2024"],
+  law_2024: ["2024 law — no contribution before 3 July 2024", "نظام 2024 — لا اشتراك قبل 3 يوليو 2024"],
+};
+
+/** The page's preview for the current period, from the one GOSI table: null when it cannot be computed. */
+function gosiPreview(nationality: string, regime: RegimeChoice, basic: number, housing: number) {
+  const r: GosiRegime | null = nationality === "SA" ? (regime || null) : "non_saudi";
+  const rates = r ? gosiRatesFor(r, businessToday().slice(0, 7)) : null;
+  if (!rates) return null;
+  const wage = gosiContributoryWage(basic, housing);
+  return { wage, employeeRate: rates.employeeRate, employerRate: rates.employerRate, employee: wage * rates.employeeRate, employer: wage * rates.employerRate };
+}
 
 
-const emptyForm = { employeeNumber: `EMP-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", nationalId: "", nationality: "SA", jobTitle: "", jobTitleAr: "", department: "", basicSalary: "", housingAllowance: "", transportAllowance: "", otherAllowances: "", iban: "", bank: "", joiningDate: businessToday(), status: "active" };
+const emptyForm = { employeeNumber: `EMP-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", nationalId: "", nationality: "SA", jobTitle: "", jobTitleAr: "", department: "", basicSalary: "", housingAllowance: "", transportAllowance: "", otherAllowances: "", iban: "", bank: "", joiningDate: businessToday(), status: "active", gosiRegime: "" as RegimeChoice, gosiRegimeBasis: "" };
 
 export default function Employees() {
   const [open, setOpen] = useState(false);
@@ -45,12 +65,21 @@ export default function Employees() {
     // 🔴 joiningDate is OPTIONAL and the input is clearable: the raw spread
     // sent "" and the server (rightly) refused it as not-a-date — the exact
     // Bills dueDate class, found by sweeping the spread-into-body shape.
-    mutationFn: (body: typeof emptyForm) => apiFetch("/employees", { method: "POST", body: json.create({ ...body, joiningDate: body.joiningDate || undefined, basicSalary: Number(body.basicSalary), housingAllowance: Number(body.housingAllowance || 0), transportAllowance: Number(body.transportAllowance || 0), otherAllowances: Number(body.otherAllowances || 0) }) }),
+    mutationFn: (body: typeof emptyForm) => apiFetch("/employees", { method: "POST", body: json.create({ ...body, joiningDate: body.joiningDate || undefined, basicSalary: Number(body.basicSalary), housingAllowance: Number(body.housingAllowance || 0), transportAllowance: Number(body.transportAllowance || 0), otherAllowances: Number(body.otherAllowances || 0), gosiRegime: body.nationality === "SA" && body.gosiRegime ? body.gosiRegime : null, gosiRegimeBasis: body.nationality === "SA" && body.gosiRegimeBasis.trim() ? body.gosiRegimeBasis.trim() : null }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["employees"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Employee added", "تمت إضافة الموظف") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const f = (k: string) => (e: any) => setForm(p => ({ ...p, [k]: e.target?.value ?? e }));
+
+  // GOSI (Phase 18): state an existing Saudi employee's law from the table.
+  const regimeMut = useMutation({
+    mutationFn: (v: { id: number; gosiRegime: RegimeChoice }) => apiFetch(`/employees/${v.id}`, { method: "PATCH", body: json.update({ gosiRegime: v.gosiRegime || null }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["employees"] }); toast({ title: t("GOSI law saved", "تم حفظ نظام التأمينات") }); },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+  const preview = gosiPreview(form.nationality, form.gosiRegime, Number(form.basicSalary || 0), Number(form.housingAllowance || 0));
+  const unstated = paged?.totals.gosiUnstatedCount ?? 0;
 
   // From the server, over every matching employee — never over the page.
   const totalPayroll = paged?.totals.grossSalary ?? 0;
@@ -63,7 +92,7 @@ export default function Employees() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("Employees", "الموظفون")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("HR register · GOSI auto-calculated per Saudi Labour Law", "سجل الموارد البشرية · يُحسب التأمين الاجتماعي تلقائيًا وفق نظام العمل السعودي")}</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("HR register · GOSI calculated under the Social Insurance Law", "سجل الموارد البشرية · يُحسب التأمين الاجتماعي وفق نظام التأمينات الاجتماعية")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("Add Employee", "إضافة موظف")}</Button></DialogTrigger>
@@ -82,6 +111,15 @@ export default function Employees() {
               <div><Label className="text-xs text-muted-foreground">{t("Status", "الحالة")}</Label>
                 <Select value={form.status} onValueChange={v=>setForm(p=>({...p,status:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["active","inactive"].map(s=><SelectItem key={s} value={s}>{s === "active" ? t("active","نشط") : t("inactive","غير نشط")}</SelectItem>)}</SelectContent></Select>
               </div>
+              {form.nationality === "SA" && (
+                <>
+                  <div><Label className="text-xs text-muted-foreground">{t("GOSI law", "نظام التأمينات")}</Label>
+                    <Select value={form.gosiRegime || "unstated"} onValueChange={v=>setForm(p=>({...p,gosiRegime:(v === "unstated" ? "" : v) as RegimeChoice}))}><SelectTrigger className="mt-1 h-8 text-sm" data-testid="employee-gosi-regime"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unstated">{t("Not stated yet", "لم يُحدَّد بعد")}</SelectItem>{(Object.keys(REGIME_LABELS) as Array<keyof typeof REGIME_LABELS>).map(r=><SelectItem key={r} value={r}>{t(...REGIME_LABELS[r])}</SelectItem>)}</SelectContent></Select>
+                  </div>
+                  <div><Label className="text-xs text-muted-foreground">{t("Basis (e.g. GOSI certificate)", "المستند (مثل شهادة التأمينات)")}</Label><Input value={form.gosiRegimeBasis} onChange={f("gosiRegimeBasis")} className="mt-1 h-8 text-sm" /></div>
+                  <p className="col-span-2 text-xs text-muted-foreground">{t("State it from the employee's GOSI contribution history, not the hire date. Payroll will not run for a Saudi employee whose law is not stated.", "حدّده من سجل اشتراكات الموظف في التأمينات، لا من تاريخ التعيين. لا يُنشأ مسير الرواتب لموظف سعودي لم يُحدَّد نظامه.")}</p>
+                </>
+              )}
               <div className="col-span-2 border-t border-border pt-3"><p className="text-xs text-muted-foreground uppercase tracking-wide mb-2 font-medium">{t("Compensation (SAR)", "المكافآت (ر.س)")}</p></div>
               {([["basicSalary",t("Basic Salary *","الراتب الأساسي *")],["housingAllowance",t("Housing Allowance","بدل السكن")],["transportAllowance",t("Transport Allowance","بدل النقل")],["otherAllowances",t("Other Allowances","بدلات أخرى")]] as [string,string][]).map(([k,l])=>(
                 <div key={k}><Label className="text-xs text-muted-foreground">{l}</Label><Input type="number" value={(form as any)[k]} onChange={f(k)} className="mt-1 h-8 text-sm font-mono" /></div>
@@ -89,8 +127,15 @@ export default function Employees() {
               {form.basicSalary && (
                 <div className="col-span-2 bg-secondary/30 rounded-lg p-3 text-xs space-y-1">
                   <p className="font-medium text-muted-foreground">{t("GOSI Preview", "معاينة التأمين الاجتماعي")} ({form.nationality === "SA" ? t("Saudi", "سعودي") : t("Expat", "وافد")})</p>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employee contribution", "مساهمة الموظف")} ({form.nationality==="SA"?gosiPercentLabel(GOSI_RATES.saudiEmployee):"0%"})</span><span className="font-mono text-attention">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?GOSI_RATES.saudiEmployee:0))}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t("Employer contribution", "مساهمة صاحب العمل")} ({gosiPercentLabel(form.nationality==="SA"?GOSI_RATES.saudiEmployer:GOSI_RATES.nonSaudiEmployer)})</span><span className="font-mono text-attention">{fmtNum(Number(form.basicSalary)*(form.nationality==="SA"?GOSI_RATES.saudiEmployer:GOSI_RATES.nonSaudiEmployer))}</span></div>
+                  {preview ? (
+                    <>
+                      <div className="flex justify-between"><span className="text-muted-foreground">{t("Contributory wage (basic + housing, up to 45,000)", "الأجر الخاضع (الأساسي + السكن، حتى 45,000)")}</span><span className="font-mono">{fmtNum(preview.wage)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">{t("Employee contribution", "مساهمة الموظف")} ({gosiPercentLabel(preview.employeeRate)})</span><span className="font-mono text-attention">{fmtNum(preview.employee)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">{t("Employer contribution", "مساهمة صاحب العمل")} ({gosiPercentLabel(preview.employerRate)})</span><span className="font-mono text-attention">{fmtNum(preview.employer)}</span></div>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">{t("State the employee's GOSI law to see the contribution.", "حدّد نظام التأمينات للموظف لعرض الاشتراك.")}</p>
+                  )}
                 </div>
               )}
             </div>
@@ -105,6 +150,10 @@ export default function Employees() {
         ))}
       </div>
 
+      {unstated > 0 && (
+        <p className="text-sm text-muted-foreground" data-testid="employees-gosi-unstated">{t(`${unstated} Saudi employee(s) have no GOSI law stated, so they are left out of the GOSI total, and payroll will not run until each one is set (the GOSI law column below).`, `لم يُحدَّد نظام التأمينات لـ ${unstated} من الموظفين السعوديين، فلم يُحتسبوا في إجمالي التأمينات، ولن يُنشأ مسير الرواتب حتى يُحدَّد لكل منهم (عمود نظام التأمينات أدناه).`)}</p>
+      )}
+
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
           <div className="flex gap-2">
@@ -116,7 +165,7 @@ export default function Employees() {
             <div className="text-center py-12 text-muted-foreground"><Users className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No employees found.", "لا يوجد موظفون.")}</p></div>
           ) : (
             <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Employee","الموظف"),t("Department","القسم"),t("Nationality","الجنسية"),t("Basic Salary","الراتب الأساسي"),t("Gross","الإجمالي"),t("GOSI Emp","تأمين الموظف"),t("GOSI Er","تأمين صاحب العمل"),t("Join Date","تاريخ الالتحاق"),t("Status","الحالة")].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Employee","الموظف"),t("Department","القسم"),t("Nationality","الجنسية"),t("Basic Salary","الراتب الأساسي"),t("Gross","الإجمالي"),t("GOSI law","نظام التأمينات"),t("GOSI Emp","تأمين الموظف"),t("GOSI Er","تأمين صاحب العمل"),t("Join Date","تاريخ الالتحاق"),t("Status","الحالة")].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
               <tbody>{employees.map(e=>(
                 <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="py-3 pe-3"><div className="font-medium">{e.name}</div><div className="text-xs text-muted-foreground font-mono">{e.employeeNumber}</div></td>
@@ -124,8 +173,14 @@ export default function Employees() {
                   <td className="py-3 pe-3"><Badge variant="outline" className={`text-xs ${e.nationality==="SA"?"border-primary/40 text-primary":"border-info-surface/40 text-info"}`}>{e.nationality==="SA" ? t("🇸🇦 Saudi","🇸🇦 سعودي") : t("Expat","وافد")}</Badge></td>
                   <td className="py-3 pe-3 font-mono text-sm">{fmtNum(e.basicSalary)}</td>
                   <td className="py-3 pe-3 font-mono text-sm font-semibold">{fmtNum(e.grossSalary)}</td>
-                  <td className="py-3 pe-3 font-mono text-xs text-attention">{fmtNum(e.gosiEmployee)}</td>
-                  <td className="py-3 pe-3 font-mono text-xs text-negative">{fmtNum(e.gosiEmployer)}</td>
+                  <td className="py-3 pe-3 text-xs">{e.nationality === "SA" ? (
+                    <Select value={e.gosiRegime ?? "unstated"} onValueChange={v => regimeMut.mutate({ id: e.id, gosiRegime: (v === "unstated" ? "" : v) as RegimeChoice })}>
+                      <SelectTrigger className="h-7 text-xs w-44" data-testid={`employee-gosi-regime-${e.id}`}><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="unstated">{t("Not stated", "غير محدَّد")}</SelectItem>{(Object.keys(REGIME_LABELS) as Array<keyof typeof REGIME_LABELS>).map(r=><SelectItem key={r} value={r}>{t(...REGIME_LABELS[r])}</SelectItem>)}</SelectContent>
+                    </Select>
+                  ) : <span className="text-muted-foreground">—</span>}</td>
+                  <td className="py-3 pe-3 font-mono text-xs text-attention">{e.gosiEmployee == null ? "—" : fmtNum(e.gosiEmployee)}</td>
+                  <td className="py-3 pe-3 font-mono text-xs text-negative">{e.gosiEmployer == null ? "—" : fmtNum(e.gosiEmployer)}</td>
                   <td className="py-3 pe-3 text-xs text-muted-foreground"><DualDate date={e.joiningDate} /></td>
                   <td className="py-3"><Badge className={`text-xs ${e.status==="active"?"bg-positive-surface/20 text-positive":"bg-secondary text-muted-foreground"}`}>{e.status === "active" ? t("active","نشط") : e.status === "inactive" ? t("inactive","غير نشط") : t("terminated","منتهي الخدمة")}</Badge></td>
                 </tr>

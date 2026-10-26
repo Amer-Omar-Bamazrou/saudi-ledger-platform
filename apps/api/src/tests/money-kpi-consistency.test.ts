@@ -123,8 +123,8 @@ describeMaybe("N2 — payroll approves at the measured failing salary; KPIs agre
     // example of the 10.3% class. Seeded and asserted, never hoped for.
     for (const n of [1, 2, 3]) {
       await pool.query(
-        `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status)
-         VALUES ($1,$2,'N2E00${n}','Employee ${n}','SA','3010.00','active')`,
+        `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status, gosi_regime)
+         VALUES ($1,$2,'N2E00${n}','Employee ${n}','SA','3010.00','active','law_1421h')`,
         [orgId, companyId],
       );
     }

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, numeric, uuid, index, integer } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -31,6 +31,17 @@ export const employeesTable = pgTable(
     transportAllowance: numeric("transport_allowance", { precision: 15, scale: 2 }).default("0"),
     otherAllowances: numeric("other_allowances", { precision: 15, scale: 2 }).default("0"),
     gosiNumber: text("gosi_number"),
+    /**
+     * 🔴 GOSI (Phase 18, 2026-10-26): which Social Insurance law a SAUDI employee
+     * contributes under — 'law_1421h' or 'law_2024'. Set by the employer FROM
+     * CONTRIBUTION HISTORY, never from the hire date. NULL = not stated: a payroll
+     * run that includes a Saudi employee without it is refused, never defaulted.
+     * CHECK `employees_gosi_regime_chk` (migration 0127, hand-written).
+     */
+    gosiRegime: text("gosi_regime"),
+    gosiRegimeSetBy: integer("gosi_regime_set_by"),
+    gosiRegimeSetAt: timestamp("gosi_regime_set_at", { withTimezone: true }),
+    gosiRegimeBasis: text("gosi_regime_basis"),
     iban: text("iban"),
     bank: text("bank"),
     joiningDate: text("joining_date"),

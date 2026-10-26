@@ -9,6 +9,8 @@ import type { TaxObligation } from "@workspace/api-client-react";
 
 /** Where the row's figure is answered — scoped to the row (the month, the period, the computation), never the tax's front page. */
 export function hrefOf(o: Pick<TaxObligation, "kind" | "source">): string {
+  // GOSI (Phase 18): its figure is answered by the payroll runs.
+  if (o.kind === "gosi") return "/payroll";
   if (o.kind === "wht") return o.source.period ? `/tax/withholding?tab=return&period=${encodeURIComponent(o.source.period)}` : "/tax/withholding";
   if (o.kind === "zakat" || o.kind === "income_tax") {
     if (o.source.computationId != null) return `/tax/computations/${o.source.computationId}`;

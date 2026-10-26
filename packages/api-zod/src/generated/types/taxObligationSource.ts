@@ -9,6 +9,11 @@ import type { TaxObligationSourceType } from './taxObligationSourceType';
 
 export type TaxObligationSource = {
   type: TaxObligationSourceType;
+  /**
+     * GOSI rows: the payroll run the contributions belong to.
+     * @nullable
+     */
+  payrollRunId?: number | null;
   /** @nullable */
   period?: string | null;
   systemCode?: string;

@@ -12,15 +12,10 @@
  */
 
 /**
- * GOSI contribution rates, as decimal fractions of BASIC salary.
- * Saudi nationals: 9.75% employee / 11.75% employer.
- * Non-Saudi: employer-only 2% (occupational hazards).
+ * 🔴 GOSI contribution rates moved to `gosi.ts` (Phase 18, 2026-10-26): one
+ * effective-dated table, by law regime and payroll period, on the
+ * contributory wage. `GOSI_RATES` is gone, so no second definition survives.
  */
-export const GOSI_RATES = {
-  saudiEmployee: 0.0975,
-  saudiEmployer: 0.1175,
-  nonSaudiEmployer: 0.02,
-} as const;
 
 /** "9.75%" from 0.0975 — the display form derived, never restated. */
 export function gosiPercentLabel(rate: number): string {

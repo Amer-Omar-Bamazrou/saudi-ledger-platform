@@ -125,8 +125,8 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
       )
     ).rows[0].id;
     await pool.query(
-      `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status)
-       VALUES ($1,$2,'N3E001','Employee One','SA','8000.00','active')`,
+      `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status, gosi_regime)
+       VALUES ($1,$2,'N3E001','Employee One','SA','8000.00','active','law_1421h')`,
       [orgId, companyId],
     );
   });

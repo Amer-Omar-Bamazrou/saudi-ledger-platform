@@ -188,15 +188,17 @@ export const treasuryService = {
     // tax — the obligations calendar (statutory due dates; undated when the rule cannot date it)
     for (const o of obligations.obligations) {
       if (!(o.amount > 0)) continue;
-      const nameEn = { wht: "Withholding tax", zakat: "Zakat", income_tax: "Income tax", vat: "VAT" }[o.kind];
-      const nameAr = { wht: "ضريبة الاستقطاع", zakat: "الزكاة", income_tax: "ضريبة الدخل", vat: "ضريبة القيمة المضافة" }[o.kind];
-      add({ kind: "expected", category: "tax", direction: "out", date: o.dueDate, amount: o.amount,
+      const nameEn = { wht: "Withholding tax", zakat: "Zakat", income_tax: "Income tax", vat: "VAT", gosi: "GOSI contributions" }[o.kind];
+      const nameAr = { wht: "ضريبة الاستقطاع", zakat: "الزكاة", income_tax: "ضريبة الدخل", vat: "ضريبة القيمة المضافة", gosi: "اشتراكات التأمينات الاجتماعية" }[o.kind];
+      // GOSI (Phase 18) comes from the calendar, dated; it is a payroll outflow, not a tax.
+      add({ kind: "expected", category: o.kind === "gosi" ? "payroll" : "tax", direction: "out", date: o.dueDate, amount: o.amount,
         label: `${nameEn} — ${o.reference}`, labelAr: `${nameAr} — ${o.reference}`,
         source: { type: `tax_${o.kind}`, id: o.reference, reference: o.note } });
     }
 
-    // payroll — the payable balances; no payroll payment path or pay date exists, so UNDATED
-    for (const [code, en, ar] of [[SYSTEM_ACCOUNTS.SALARIES_PAYABLE, "Salaries payable", "رواتب مستحقة"], [SYSTEM_ACCOUNTS.GOSI_PAYABLE, "GOSI payable", "تأمينات اجتماعية مستحقة"]] as const) {
+    // payroll — net salaries payable: a pay path exists (DR-41) but no pay date, so UNDATED. GOSI payable is NOT
+    // here: the obligations calendar dates it (the 15th of the next month, Phase 18), above.
+    for (const [code, en, ar] of [[SYSTEM_ACCOUNTS.SALARIES_PAYABLE, "Salaries payable", "رواتب مستحقة"]] as const) {
       const bal = round2(payroll.get(code) ?? 0);
       if (bal > 0) add({ kind: "expected", category: "payroll", direction: "out", date: null, amount: bal, label: en, labelAr: ar, source: { type: "gl_account", id: code, reference: null } });
     }

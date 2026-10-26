@@ -6061,6 +6061,45 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /payroll/{id}/gosi/pay:
+    post:
+      operationId: payPayrollRunGosi
+      tags: [payroll]
+      summary: Pay an approved payroll run's GOSI contributions from a bank account (settles GOSI Payable)
+      description: >
+        GOSI (Phase 18, owner 2026-10-26). The approval already expensed the employer share (Dr GOSI Expense) and
+        withheld the employee share, both into GOSI Payable; paying posts Dr GOSI Payable / Cr the bank's cash
+        account for the run's employee plus employer contributions and never touches GOSI Expense. Once per run
+        (`gosiPaidAt`), for an approved or paid run. Refused while GOSI Payable no longer owes them (a bank line
+        already paid them, or one is waiting in review against them). Dated the payment's own day (default
+        today). Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayPayrollRunInput"
+      responses:
+        "200":
+          description: The payroll run, its GOSI marked paid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "Not approved yet, GOSI already paid, no GOSI on the run, or GOSI Payable no longer owes it (`payroll_not_approved`, `payroll_gosi_already_paid`, `payroll_gosi_nothing_due`, `payroll_gosi_payable_already_settled`)"
   /payroll/{id}/pay:
     post:
       operationId: payPayrollRun
@@ -10800,7 +10839,7 @@ components:
 
     PayrollRun:
       type: object
-      required: [id, period, status, totalBasicSalary, totalAllowances, totalGosiEmployee, totalGosiEmployer, totalDeductions, totalNetPay, processedAt, reviewNote, notes, createdAt]
+      required: [id, period, status, totalBasicSalary, totalAllowances, totalGosiEmployee, totalGosiEmployer, totalDeductions, totalNetPay, processedAt, reviewNote, notes, gosiPaidAt, createdAt]
       properties:
         id:
           type: integer
@@ -10821,6 +10860,9 @@ components:
           type: number
         totalNetPay:
           type: number
+        gosiPaidAt:
+          type: ["string", "null"]
+          description: "GOSI (Phase 18): the day the run's GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way."
         processedAt:
           type: ["string", "null"]
         reviewNote:
@@ -12495,7 +12537,8 @@ components:
     PayrollItem:
       type: object
       required: [id, payrollRunId, employeeId, basicSalary, housingAllowance, transportAllowance, otherAllowances,
-                 grossSalary, gosiEmployee, gosiEmployer, additions, deductions, netPay, employeeName, employeeNumber]
+                 grossSalary, gosiEmployee, gosiEmployer, gosiRegime, gosiWageBase, gosiEmployeeRate, gosiEmployerRate,
+                 additions, deductions, netPay, employeeName, employeeNumber]
       properties:
         id: { type: integer }
         payrollRunId: { type: integer }
@@ -12507,6 +12550,13 @@ components:
         grossSalary: { type: number }
         gosiEmployee: { type: number }
         gosiEmployer: { type: number }
+        gosiRegime:
+          type: ["string", "null"]
+          enum: [law_1421h, law_2024, non_saudi, null]
+          description: "GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated)."
+        gosiWageBase: { type: ["number", "null"], description: "The contributory wage used: basic + housing, capped at SAR 45,000." }
+        gosiEmployeeRate: { type: ["number", "null"], description: "The employee rate used, as a fraction." }
+        gosiEmployerRate: { type: ["number", "null"], description: "The employer rate used, as a fraction." }
         additions: { type: number }
         deductions: { type: number }
         netPay: { type: number }
@@ -12554,7 +12604,8 @@ components:
       type: object
       required: [id, employeeNumber, name, nameAr, nationalId, nationality, jobTitle, jobTitleAr, department,
                  basicSalary, housingAllowance, transportAllowance, otherAllowances, gosiNumber, iban, bank,
-                 joiningDate, endDate, status, notes, createdAt, grossSalary, gosiEmployee, gosiEmployer]
+                 joiningDate, endDate, status, notes, createdAt, grossSalary, gosiEmployee, gosiEmployer,
+                 gosiRegime, gosiRegimeSetBy, gosiRegimeSetAt, gosiRegimeBasis, gosiWageBase]
       properties:
         id: { type: integer }
         employeeNumber: { type: string }
@@ -12581,19 +12632,30 @@ components:
           type: number
           description: DERIVED — basic + the three allowances.
         gosiEmployee:
-          type: number
-          description: DERIVED from nationality and basic salary (SA 9.75%; others 0).
+          type: ["number", "null"]
+          description: "DERIVED (Phase 18): the current period's employee rate for the employee's GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated."
         gosiEmployer:
-          type: number
-          description: DERIVED (SA 11.75%; others 2%).
+          type: ["number", "null"]
+          description: "DERIVED: the current period's employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated."
+        gosiWageBase:
+          type: ["number", "null"]
+          description: "DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are."
+        gosiRegime:
+          type: ["string", "null"]
+          enum: [law_1421h, law_2024, null]
+          description: "GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee."
+        gosiRegimeSetBy: { type: ["integer", "null"] }
+        gosiRegimeSetAt: { type: ["string", "null"] }
+        gosiRegimeBasis: { type: ["string", "null"], description: "What the statement rests on, e.g. the GOSI contribution certificate." }
 
     EmployeeTotals:
       type: object
-      required: [saudiCount, grossSalary, gosiEmployer]
+      required: [saudiCount, grossSalary, gosiEmployer, gosiUnstatedCount]
       properties:
         saudiCount: { type: integer }
         grossSalary: { type: number }
-        gosiEmployer: { type: number }
+        gosiEmployer: { type: number, description: "Employer GOSI for the current period over the employees whose law is stated." }
+        gosiUnstatedCount: { type: integer, description: "GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer." }
 
     EmployeeInputFields:
       type: object
@@ -12617,6 +12679,8 @@ components:
         endDate: { type: ["string", "null"] }
         status: { type: string }
         notes: { type: ["string", "null"] }
+        gosiRegime: { type: ["string", "null"], enum: [law_1421h, law_2024, null] }
+        gosiRegimeBasis: { type: ["string", "null"] }
 
     CreateEmployeeInput:
       type: object
@@ -12641,6 +12705,8 @@ components:
         endDate: { type: ["string", "null"] }
         status: { type: string }
         notes: { type: ["string", "null"] }
+        gosiRegime: { type: ["string", "null"], enum: [law_1421h, law_2024, null] }
+        gosiRegimeBasis: { type: ["string", "null"] }
 
     UpdateEmployeeInput:
       $ref: "#/components/schemas/EmployeeInputFields"
@@ -15383,7 +15449,7 @@ components:
       type: object
       required: [kind, reference, amount, dueDate, note, source, overdue]
       properties:
-        kind: { type: string, enum: [wht, zakat, income_tax, vat] }
+        kind: { type: string, enum: [wht, zakat, income_tax, vat, gosi] }
         reference: { type: string }
         amount:
           type: number
@@ -15394,7 +15460,8 @@ components:
           type: object
           required: [type]
           properties:
-            type: { type: string, enum: [wht_period, gl_account, vat_return] }
+            type: { type: string, enum: [wht_period, gl_account, vat_return, payroll_run] }
+            payrollRunId: { type: ["integer", "null"], description: "GOSI rows: the payroll run the contributions belong to." }
             period: { type: ["string", "null"] }
             systemCode: { type: string }
             from: { type: string }
@@ -15418,6 +15485,9 @@ components:
         paidSince:
           type: ["number", "null"]
           description: VAT payments booked since a completed VAT period ended (presumed for it); null on every other row.
+        fineEstimate:
+          type: ["number", "null"]
+          description: "GOSI rows (Phase 18): the late-fine ESTIMATE as of today — 2% of the contribution for each month or part of a month after the due date (Social Insurance Law Art. 9(3)), uncapped, never posted; 0 when not late. Absent or null on every other row."
 
     TaxObligationsReport:
       type: object

@@ -15,8 +15,14 @@
  *             since it ended; due the last day of the following month (VAT IR "Payment of Tax").
  *             Listed whatever its sign, with its position (payable · settled · nil · credit) —
  *             a zero or credit period owes 0 and is never projected as cash (QA-06)
+ *   GOSI      per approved payroll run not paid through the GOSI pay path; due the 15th of the next
+ *             month (Social Insurance Law Art. 9(1); Regulation Art. 24). The rows add up to the books'
+ *             GOSI_PAYABLE balance: a bank line that paid GOSI is taken as settling the OLDEST runs
+ *             first, and anything the runs do not explain is one undated row. A late row carries the
+ *             2%-per-month-or-part fine ESTIMATE (Law Art. 9(3)), uncapped, never posted (Phase 18).
  */
-import { businessToday } from "@workspace/shared";
+import { businessToday, gosiDueDate, gosiLateFineEstimate } from "@workspace/shared";
+import { payrollRepository } from "../../repositories/payroll.repository";
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import { fromHalalas, round2, toHalalas } from "../../lib/money";
 import { reportsRepository } from "../../repositories/reports.repository";
@@ -27,14 +33,14 @@ import { addDays } from "./taxComputations.service";
 import { whtDueDate } from "./wht.service";
 
 export type TaxObligation = {
-  kind: "wht" | "zakat" | "income_tax" | "vat";
+  kind: "wht" | "zakat" | "income_tax" | "vat" | "gosi";
   reference: string;
   amount: number;
   dueDate: string | null;
   /** Why the date is null, or what it assumes. */
   note: string | null;
   /** Where the figure comes from — every figure drills to its source. */
-  source: { type: "wht_period" | "gl_account" | "vat_return"; period?: string | null; systemCode?: string; from?: string; to?: string; computationId?: number | null };
+  source: { type: "wht_period" | "gl_account" | "vat_return" | "payroll_run"; period?: string | null; systemCode?: string; from?: string; to?: string; computationId?: number | null; payrollRunId?: number | null };
   overdue: boolean;
   /** A VAT period's position on its own return; null on every other row (QA-06). */
   vatPosition?: "payable" | "settled" | "nil" | "credit" | null;
@@ -42,6 +48,8 @@ export type TaxObligation = {
   returnNet?: number | null;
   /** VAT payments booked since a completed VAT period ended (presumed for it). */
   paidSince?: number | null;
+  /** GOSI only: the late-fine ESTIMATE as of today (2% per month or part, uncapped, never posted); 0 when not late. */
+  fineEstimate?: number | null;
 };
 
 /**
@@ -106,6 +114,29 @@ export const taxObligationsService = {
     }
     const opening = await taxRepository.unremitted(null);
     if (opening > 0) out.push({ kind: "wht", reference: "opening", amount: opening, dueDate: null, note: "Migrated opening WHT payable: its months are the previous system's, so its due date is not known here.", source: { type: "wht_period", period: null }, overdue: false });
+
+    // ── GOSI — per approved run not paid through the GOSI pay path, up to the books' GOSI_PAYABLE ──
+    const gosiBalanceH = toHalalas((await liabilityBalances([SYSTEM_ACCOUNTS.GOSI_PAYABLE], asOf)).get(SYSTEM_ACCOUNTS.GOSI_PAYABLE) ?? 0);
+    let leftH = Math.max(0, gosiBalanceH);
+    // Newest first: what the books still owe belongs to the most recent runs; a bank line settled the oldest.
+    for (const r of await payrollRepository.runsWithUnpaidGosi()) {
+      if (leftH <= 0) break;
+      const runH = toHalalas(Number(r.totalGosiEmployee ?? 0) + Number(r.totalGosiEmployer ?? 0));
+      const owedH = Math.min(runH, leftH);
+      leftH -= owedH;
+      if (owedH <= 0) continue;
+      const amount = fromHalalas(owedH);
+      const due = gosiDueDate(r.period);
+      out.push({
+        kind: "gosi", reference: r.period, amount, dueDate: due,
+        note: owedH < runH ? "Part of this run's GOSI is settled in the books (a bank line, taken as settling the oldest runs first)." : null,
+        source: { type: "payroll_run", period: r.period, payrollRunId: r.id }, overdue: due < today,
+        fineEstimate: gosiLateFineEstimate(amount, due, today).amount,
+      });
+    }
+    if (leftH > 0) {
+      out.push({ kind: "gosi", reference: "unattributed", amount: fromHalalas(leftH), dueDate: null, note: "GOSI payable in the books that no approved payroll run explains (for example a migrated opening balance): its due date is not known here.", source: { type: "gl_account", systemCode: SYSTEM_ACCOUNTS.GOSI_PAYABLE }, overdue: false, fineEstimate: null });
+    }
 
     // ── Zakat and income tax — the payable balances, dated by the latest approved computation ──
     const balances = await liabilityBalances([SYSTEM_ACCOUNTS.ZAKAT_PAYMENT, SYSTEM_ACCOUNTS.INCOME_TAX_PAYABLE], asOf);

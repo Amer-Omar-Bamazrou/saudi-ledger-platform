@@ -18,7 +18,7 @@ import { payrollApprovable } from "./payroll.approvable";
 import { runToOut, itemToOut, toNum } from "./payroll.presenter";
 import { payrollRepository } from "../repositories/payroll.repository";
 import { round2, money2 } from "../lib/money";
-import { GOSI_RATES, businessToday } from "@workspace/shared";
+import { businessToday, gosiContributoryWage, gosiRatesFor, type GosiRegime } from "@workspace/shared";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
 import { assertDateString } from "../lib/writeGuards";
@@ -79,15 +79,52 @@ export const payrollService = {
      * net_i = gross_i − gosiEmp_i holds exactly at 2dp per employee, so
      * Σnet = Σgross − ΣgosiEmp holds exactly for the headers too.
      */
+    /**
+     * 🔴 GOSI (Phase 18, owner 2026-10-26 night): each line is computed from the
+     * effective-dated table (`@workspace/shared` gosi.ts) for its regime and this
+     * run's period, on the contributory wage (basic + housing, capped at SAR
+     * 45,000), and RECORDS what it used. Two refusals, nothing written:
+     *  - a Saudi employee whose law is not stated (it is the employer's fact, from
+     *    contribution history; a guessed regime would be a precise, wrong figure);
+     *  - a period the table does not cover for a regime (2024-law periods before
+     *    July 2026 wait on question G1).
+     */
+    const regimeOf = (emp: (typeof employees)[number]): GosiRegime | null =>
+      emp.nationality === "SA" ? ((emp.gosiRegime as GosiRegime | null) ?? null) : "non_saudi";
+    const unstated = employees.filter((e) => regimeOf(e) === null);
+    if (unstated.length > 0) {
+      throw new BusinessRuleError(422, {
+        code: "gosi_regime_required",
+        error:
+          `GOSI cannot be computed for ${unstated.length} Saudi employee(s) whose Social Insurance law is not stated: ` +
+          `${unstated.map((e) => e.name).join(", ")}. Set each one's GOSI law (the 1421H law or the 2024 law, from their ` +
+          `contribution history — not their hire date) on the Employees page, then generate the run again. Nothing was created.`,
+        employees: unstated.map((e) => ({ id: e.id, name: e.name, nameAr: e.nameAr ?? null })),
+      });
+    }
+    const uncovered = [...new Set(employees.map((e) => regimeOf(e)!))].filter((r) => gosiRatesFor(r, period) === null);
+    if (uncovered.length > 0) {
+      throw new BusinessRuleError(422, {
+        code: "gosi_rate_unknown_for_period",
+        error:
+          `The GOSI rate for ${period} is not established for ${uncovered.join(", ")} (it waits on an open question to a ` +
+          `GOSI specialist), so the run is not computed at a guessed rate. Nothing was created.`,
+        period,
+        regimes: uncovered,
+      });
+    }
+
     const items = employees.map((emp) => {
       const basic = toNum(emp.basicSalary);
       const housing = toNum(emp.housingAllowance);
       const transport = toNum(emp.transportAllowance);
       const other = toNum(emp.otherAllowances);
       const gross = round2(basic + housing + transport + other);
-      const isSaudi = emp.nationality === "SA";
-      const gosiEmp = round2(isSaudi ? basic * GOSI_RATES.saudiEmployee : 0);
-      const gosiEr = round2(isSaudi ? basic * GOSI_RATES.saudiEmployer : basic * GOSI_RATES.nonSaudiEmployer);
+      const regime = regimeOf(emp)!;
+      const rates = gosiRatesFor(regime, period)!;
+      const wage = round2(gosiContributoryWage(basic, housing));
+      const gosiEmp = round2(wage * rates.employeeRate);
+      const gosiEr = round2(wage * rates.employerRate);
       const net = round2(gross - gosiEmp);
       totalBasic += basic;
       totalAllowances += housing + transport + other;
@@ -103,6 +140,10 @@ export const payrollService = {
         grossSalary: String(gross.toFixed(2)),
         gosiEmployee: String(gosiEmp.toFixed(2)),
         gosiEmployer: String(gosiEr.toFixed(2)),
+        gosiRegime: regime,
+        gosiWageBase: money2(wage),
+        gosiEmployeeRate: rates.employeeRate.toFixed(4),
+        gosiEmployerRate: rates.employerRate.toFixed(4),
         additions: "0",
         deductions: "0",
         netPay: String(net.toFixed(2)),
@@ -190,5 +231,55 @@ export const payrollService = {
     });
     await auditService.record({ action: "pay", entityType: "payroll_run", entityId: id, before: runToOut(run), after: { ...runToOut(paid), paidAt, bankAccountId, journalEntryId: entry?.id ?? null, by: userId } });
     return runToOut(paid);
+  },
+
+  /**
+   * 🔴 GOSI (Phase 18, owner 2026-10-26 night) — PAY a run's GOSI contributions (the employee share withheld plus
+   * the employer share) from a bank: Dr GOSI Payable / Cr the bank's cash account. The approval already expensed
+   * the employer share and withheld the employee share; nothing settled the payable, so a GOSI bank line was booked
+   * to the EXPENSE a second time (DR-41's shape). Paying never touches GOSI_EXPENSE.
+   *
+   * Once per run (`gosi_paid_at`, set by compare-and-set), for an approved or paid run (net pay and GOSI are paid
+   * separately). Refused while GOSI Payable no longer owes the run's contributions: a bank line already paid them,
+   * or one is waiting in review against them (`gosiPayableOpen`, the one definition the categoriser also reads).
+   * Dated the payment's day (default today). A closed period refuses through the posting seam (423).
+   */
+  async payGosi(id: number, body: { bankAccountId?: unknown; paidAt?: unknown }, userId: number | null) {
+    const bankAccountId = await assertBankAccount(body.bankAccountId, { what: "the GOSI contributions left from" });
+    const paidAt = body.paidAt == null || body.paidAt === "" ? businessToday() : assertDateString(body.paidAt, "paidAt");
+    await payrollRepository.lockRun(id);
+    const [run] = await payrollRepository.findRun(id);
+    if (!run) throw new NotFoundError("Payroll run not found");
+    if (run.gosiPaidAt) {
+      throw new BusinessRuleError(409, { code: "payroll_gosi_already_paid", error: `Payroll run ${run.period}'s GOSI contributions were already paid on ${run.gosiPaidAt}.` });
+    }
+    if (run.status !== "approved" && run.status !== "paid") {
+      throw new BusinessRuleError(409, { code: "payroll_not_approved", error: `Payroll run ${run.period} is not approved yet; its GOSI contributions are not in the books, so there is nothing to pay. Approve it first.` });
+    }
+    const amount = round2(toNum(run.totalGosiEmployee) + toNum(run.totalGosiEmployer));
+    if (!(amount > 0)) {
+      throw new BusinessRuleError(409, { code: "payroll_gosi_nothing_due", error: `Payroll run ${run.period} carries no GOSI contributions, so there is nothing to pay.` });
+    }
+    const openGosiPayable = await payrollRepository.gosiPayableOpen();
+    if (openGosiPayable + 0.005 < amount) {
+      throw new BusinessRuleError(409, {
+        code: "payroll_gosi_payable_already_settled",
+        error: `GOSI Payable owes ${openGosiPayable.toFixed(2)} (after statement lines waiting in review against it), less than this run's GOSI contributions of ${amount.toFixed(2)}: a bank line has already paid them, or is waiting to. Nothing was recorded. Reconcile that line instead.`,
+      });
+    }
+    const [marked] = await payrollRepository.markGosiPaidIfUnpaid(id, paidAt);
+    if (!marked) throw new BusinessRuleError(409, { code: "payroll_gosi_already_paid", error: `Payroll run ${run.period} changed while its GOSI was being paid. Nothing was recorded — reload and try again.` });
+    const entry = await postJournalEntry({
+      entryNumber: `PAY-${run.period}-R${run.id}-GOSI`,
+      date: paidAt,
+      description: `GOSI contributions for payroll run ${run.period}`,
+      reference: `Payroll-${run.id}`,
+      lines: [
+        { systemCode: "GOSI_PAYABLE", accountName: "GOSI Payable", description: `GOSI paid ${run.period}`, debitAmount: amount, creditAmount: 0 },
+        { bankAccountId, description: `GOSI ${run.period}`, debitAmount: 0, creditAmount: amount },
+      ],
+    });
+    await auditService.record({ action: "pay_gosi", entityType: "payroll_run", entityId: id, before: runToOut(run), after: { ...runToOut(marked), gosiPaidAt: paidAt, amount, bankAccountId, journalEntryId: entry?.id ?? null, by: userId } });
+    return runToOut(marked);
   },
 };

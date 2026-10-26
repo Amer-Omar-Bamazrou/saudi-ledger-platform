@@ -54,7 +54,7 @@ describeMaybe("B-G08R-P (c3) — the G08 races on PAYROLL RUNS", () => {
     orgId = await h.mkOrg("org");
     const companyId = await h.mkCompany(orgId, "G08R-c3 Co", "318181818181876");
     await pool.query(
-      `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status) VALUES ($1,$2,'E1','G08R Employee','SA','8000.00','active')`,
+      `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status, gosi_regime) VALUES ($1,$2,'E1','G08R Employee','SA','8000.00','active','law_1421h')`,
       [orgId, companyId],
     );
     for (const [who, role] of [["admin", "admin"], ["accountant", "accountant"], ["bookkeeper", "bookkeeper"]]) await h.mkUser(who, PW, orgId, role);

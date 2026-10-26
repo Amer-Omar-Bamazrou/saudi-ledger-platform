@@ -91,7 +91,7 @@ describeMaybe("cross-entity sweep — zero movement until approved, across all f
     customerId = (await pool.query(`INSERT INTO customers (organization_id,name,name_ar,tax_number) VALUES ($1,'Sweep Customer','عميل','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     expenseCatId = (await pool.query(`INSERT INTO categories (organization_id,name,name_ar,type) VALUES ($1,'Office Expense','مصروف','expense') RETURNING id`, [orgId])).rows[0].id;
     cashCatId = (await pool.query(`INSERT INTO categories (organization_id,name,name_ar,type) VALUES ($1,'Cash','نقد','asset') RETURNING id`, [orgId])).rows[0].id;
-    await pool.query(`INSERT INTO employees (organization_id,company_id,employee_number,name,nationality,basic_salary,status) VALUES ($1,$2,'E1','Emp One','SA','8000.00','active')`, [orgId, companyId]);
+    await pool.query(`INSERT INTO employees (organization_id,company_id,employee_number,name,nationality,basic_salary,status,gosi_regime) VALUES ($1,$2,'E1','Emp One','SA','8000.00','active','law_1421h')`, [orgId, companyId]);
   });
 
   afterAll(async () => {

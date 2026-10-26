@@ -35,6 +35,8 @@ export const payrollRunsTable = pgTable(
     processedAt: timestamp("processed_at"),
     notes: text("notes"),
     createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
+    /** 🔴 GOSI (Phase 18): the day the run's GOSI was paid through the GOSI pay path (YYYY-MM-DD); NULL = not paid that way. */
+    gosiPaidAt: text("gosi_paid_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("payroll_runs_org_idx").on(t.organizationId)],
@@ -60,9 +62,21 @@ export const payrollItemsTable = pgTable(
     transportAllowance: numeric("transport_allowance", { precision: 15, scale: 2 }).default("0"),
     otherAllowances: numeric("other_allowances", { precision: 15, scale: 2 }).default("0"),
     grossSalary: numeric("gross_salary", { precision: 15, scale: 2 }).notNull(),
-    // GOSI: employee pays 9.75%, employer pays 11.75% (Saudi nationals)
+    // GOSI (Phase 18, 2026-10-26): computed from @workspace/shared `gosi.ts` on the
+    // contributory wage; the four columns below record what each line USED.
     gosiEmployee: numeric("gosi_employee", { precision: 15, scale: 2 }).default("0"),
     gosiEmployer: numeric("gosi_employer", { precision: 15, scale: 2 }).default("0"),
+    /**
+     * 🔴 What this line was computed WITH (Phase 18): its regime, contributory
+     * wage and rates. A later change to the table or to the employee's flag can
+     * never change a line already computed. NULL on lines computed before
+     * migration 0127 — never back-filled; such a run is refused at approval
+     * until it is regenerated. CHECK `payroll_items_gosi_regime_chk` (0127).
+     */
+    gosiRegime: text("gosi_regime"),
+    gosiWageBase: numeric("gosi_wage_base", { precision: 15, scale: 2 }),
+    gosiEmployeeRate: numeric("gosi_employee_rate", { precision: 7, scale: 4 }),
+    gosiEmployerRate: numeric("gosi_employer_rate", { precision: 7, scale: 4 }),
     additions: numeric("additions", { precision: 15, scale: 2 }).default("0"),
     deductions: numeric("deductions", { precision: 15, scale: 2 }).default("0"),
     netPay: numeric("net_pay", { precision: 15, scale: 2 }).notNull(),
