@@ -50,6 +50,7 @@
  * sentence, and reported through `onRefusal`, never through `onFailure`.
  */
 import type { Response } from "express";
+import { CommitRolledBackError } from "@workspace/db";
 import { translateDbRefusal, type DbRefusal } from "./dbRefusals";
 
 /** Settle the request's transaction. `commit: false` means roll back. */
@@ -70,6 +71,18 @@ export const COMMIT_FAILED_BODY = {
   error:
     "The change could not be saved. Nothing was written — please try again, and if it keeps happening tell your administrator.",
   code: "commit_failed",
+} as const;
+
+/**
+ * 🔴 B-O6: the body when the COMMIT was answered ROLLBACK (`CommitRolledBackError`).
+ * Part of the request failed inside the transaction and the error was caught,
+ * so nothing was written. Trying again usually fails the same way, so it does
+ * not say "try again".
+ */
+export const COMMIT_ROLLED_BACK_BODY = {
+  error:
+    "The change could not be saved: part of it failed, so nothing was written. Tell your administrator — trying again is likely to fail the same way.",
+  code: "commit_rolled_back",
 } as const;
 
 type AnyFn = (...args: never[]) => unknown;
@@ -132,7 +145,7 @@ export function commitBeforeResponse(
           }
           // 🔴 Nothing has gone out yet: replace the success with the truth.
           originalStatus(500);
-          originalJson(COMMIT_FAILED_BODY);
+          originalJson(error instanceof CommitRolledBackError ? COMMIT_ROLLED_BACK_BODY : COMMIT_FAILED_BODY);
         },
       );
 
