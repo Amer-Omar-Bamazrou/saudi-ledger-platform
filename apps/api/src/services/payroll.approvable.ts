@@ -20,6 +20,7 @@
  * behind one set it back to draft or submitted, where a later reject deleted it.
  */
 import { postJournalEntry } from "./accounting/glPosting";
+import { BusinessRuleError } from "../lib/errors";
 import { payrollRepository } from "../repositories/payroll.repository";
 import { runToOut, toNum, type PayrollRunOut } from "./payroll.presenter";
 import { checkedState, TransitionNotApplied, type Approvable, type ApprovalState } from "./approval";
@@ -43,6 +44,23 @@ type PayrollRun = typeof payrollRunsTable.$inferSelect;
  * row.)
  */
 async function postPayrollGL(run: PayrollRun, from: "draft" | "submitted"): Promise<PayrollRunOut> {
+  /**
+   * 🔴 GOSI (Phase 18, owner 2026-10-26 night): a run computed before the GOSI
+   * table existed carries no record of the rates and wage it used, and its
+   * figures are the old rule's (1421H rates on basic pay alone, no ceiling). It
+   * is refused here, before anything is claimed or posted, until it is
+   * regenerated. Approved and paid runs are never touched.
+   */
+  if ((await payrollRepository.itemsWithoutGosiSnapshot(run.id)) > 0) {
+    throw new BusinessRuleError(422, {
+      code: "payroll_run_regenerate_required",
+      error:
+        `Payroll run ${run.period} was computed before GOSI contributions were brought up to date (the law regime, ` +
+        `basic pay plus housing up to SAR 45,000, the current rates), so it cannot be approved as it stands. Reject ` +
+        `it and generate the run for ${run.period} again. Nothing was posted.`,
+      period: run.period,
+    });
+  }
   const [approved] = await payrollRepository.updateRunIfStatus(run.id, from, {
     status: "approved",
     processedAt: new Date(),

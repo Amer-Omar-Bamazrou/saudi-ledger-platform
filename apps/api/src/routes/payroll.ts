@@ -13,5 +13,7 @@ router.post("/:id/send-back", payrollController.sendBack);
 router.post("/:id/reject", payrollController.reject);
 router.post("/:id/approve", payrollController.approve);
 router.post("/:id/pay", payrollController.pay);
+// GOSI (Phase 18): ends in /pay, so the RBAC activation-route rule makes it approver-only, like the net-pay path.
+router.post("/:id/gosi/pay", payrollController.payGosi);
 
 export default router;

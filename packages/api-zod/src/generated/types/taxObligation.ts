@@ -39,4 +39,9 @@ export interface TaxObligation {
      * @nullable
      */
   paidSince?: number | null;
+  /**
+     * GOSI rows (Phase 18): the late-fine ESTIMATE as of today — 2% of the contribution for each month or part of a month after the due date (Social Insurance Law Art. 9(3)), uncapped, never posted; 0 when not late. Absent or null on every other row.
+     * @nullable
+     */
+  fineEstimate?: number | null;
 }

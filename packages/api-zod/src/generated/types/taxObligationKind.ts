@@ -14,4 +14,5 @@ export const TaxObligationKind = {
   zakat: 'zakat',
   income_tax: 'income_tax',
   vat: 'vat',
+  gosi: 'gosi',
 } as const;

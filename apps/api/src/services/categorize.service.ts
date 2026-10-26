@@ -17,8 +17,9 @@ export const categorizeService = {
   async run({ transactionIds, overrideExisting }: RunInput) {
     const rows = await categorizeRepository.fetchTransactions(transactionIds ?? undefined, overrideExisting);
     // DR-41: SALARIES_PAYABLE is not an engine code, but a salary line in a company that runs payroll pays it.
-    const resolvedCodes = await resolveSystemCodes([...allEngineCodes(), "SALARIES_PAYABLE"]);
-    const payrollCtx = await payrollRepository.salaryPayableContext();
+    // GOSI (Phase 18): GOSI_PAYABLE likewise, for a GOSI line.
+    const resolvedCodes = await resolveSystemCodes([...allEngineCodes(), "SALARIES_PAYABLE", "GOSI_PAYABLE"]);
+    const payrollCtx = { ...(await payrollRepository.salaryPayableContext()), openGosiPayable: await payrollRepository.gosiPayableOpen() };
     const categories = await categorizeRepository.allCategories();
     const catMap = new Map(categories.map((c) => [c.id, c]));
 
@@ -133,6 +134,7 @@ export const categorizeService = {
       });
 
       if (match.systemCode === "SALARIES_PAYABLE") payrollCtx.openPayable = Math.round((payrollCtx.openPayable - Number(tx.amount)) * 100) / 100;
+      if (match.systemCode === "GOSI_PAYABLE") payrollCtx.openGosiPayable = Math.round((payrollCtx.openGosiPayable - Number(tx.amount)) * 100) / 100;
       const cat = catMap.get(resolvedId);
       results.push({
         transactionId: tx.id,

@@ -25,18 +25,42 @@ export interface PayrollSalaryContext {
   usesPayroll: boolean;
   /** Net pay its runs still owe and no statement line is already waiting against. Decremented by the caller. */
   openPayable: number;
+  /** 🔴 GOSI (Phase 18): GOSI contributions its runs still owe, on the same definition. Decremented by the caller. */
+  openGosiPayable: number;
 }
 
+/**
+ * 🔴 GOSI (Phase 18, owner 2026-10-26 night) — the same rule for a GOSI bank line. Approving a run already
+ * expensed the employer share (Dr GOSI_EXPENSE) and withheld the employee share, both into GOSI_PAYABLE; a GOSI
+ * line suggested against GOSI_EXPENSE would expense the employer share a second time and leave the payable open.
+ * Where the company runs payroll it is suggested against GOSI_PAYABLE if the open payable can absorb it, and
+ * otherwise not suggested at all.
+ */
 export function payrollAwareSalary(match: CategorizationMatch | null, amount: number, ctx: PayrollSalaryContext | null): CategorizationMatch | null {
-  if (!match || match.systemCode !== "SALARIES" || !ctx?.usesPayroll) return match;
-  if (ctx.openPayable + 0.005 >= amount) {
-    return {
-      ...match,
-      systemCode: "SALARIES_PAYABLE",
-      categoryName: "Salaries Payable",
-      categoryNameAr: "الرواتب المستحقة",
-      matchedRule: `${match.matchedRule} — paying an approved payroll run`,
-    };
+  if (!match || !ctx?.usesPayroll) return match;
+  if (match.systemCode === "SALARIES") {
+    if (ctx.openPayable + 0.005 >= amount) {
+      return {
+        ...match,
+        systemCode: "SALARIES_PAYABLE",
+        categoryName: "Salaries Payable",
+        categoryNameAr: "الرواتب المستحقة",
+        matchedRule: `${match.matchedRule} — paying an approved payroll run`,
+      };
+    }
+    return null;
   }
-  return null;
+  if (match.systemCode === "GOSI_EXPENSE") {
+    if (ctx.openGosiPayable + 0.005 >= amount) {
+      return {
+        ...match,
+        systemCode: "GOSI_PAYABLE",
+        categoryName: "GOSI Payable",
+        categoryNameAr: "التأمينات الاجتماعية المستحقة",
+        matchedRule: `${match.matchedRule} — paying an approved payroll run's GOSI`,
+      };
+    }
+    return null;
+  }
+  return match;
 }

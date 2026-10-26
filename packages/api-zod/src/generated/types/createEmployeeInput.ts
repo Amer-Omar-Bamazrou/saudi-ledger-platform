@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateEmployeeInputGosiRegime } from './createEmployeeInputGosiRegime';
 
 export interface CreateEmployeeInput {
   /** @minLength 1 */
@@ -42,4 +43,8 @@ export interface CreateEmployeeInput {
   status?: string;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  gosiRegime?: CreateEmployeeInputGosiRegime;
+  /** @nullable */
+  gosiRegimeBasis?: string | null;
 }

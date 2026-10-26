@@ -9,5 +9,8 @@
 export interface EmployeeTotals {
   saudiCount: number;
   grossSalary: number;
+  /** Employer GOSI for the current period over the employees whose law is stated. */
   gosiEmployer: number;
+  /** GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer. */
+  gosiUnstatedCount: number;
 }

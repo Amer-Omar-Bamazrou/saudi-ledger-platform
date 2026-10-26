@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { PayrollItemGosiRegime } from './payrollItemGosiRegime';
 
 export interface PayrollItem {
   id: number;
@@ -18,6 +19,26 @@ export interface PayrollItem {
   grossSalary: number;
   gosiEmployee: number;
   gosiEmployer: number;
+  /**
+     * GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated).
+     * @nullable
+     */
+  gosiRegime: PayrollItemGosiRegime;
+  /**
+     * The contributory wage used: basic + housing, capped at SAR 45,000.
+     * @nullable
+     */
+  gosiWageBase: number | null;
+  /**
+     * The employee rate used, as a fraction.
+     * @nullable
+     */
+  gosiEmployeeRate: number | null;
+  /**
+     * The employer rate used, as a fraction.
+     * @nullable
+     */
+  gosiEmployerRate: number | null;
   additions: number;
   deductions: number;
   netPay: number;

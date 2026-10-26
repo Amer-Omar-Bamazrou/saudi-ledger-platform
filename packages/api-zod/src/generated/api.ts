@@ -5555,6 +5555,7 @@ export const ListPayrollRunsResponseItem = zod.object({
   "totalGosiEmployer": zod.number(),
   "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
+  "gosiPaidAt": zod.string().nullable().describe('GOSI (Phase 18): the day the run\'s GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.'),
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5587,6 +5588,7 @@ export const CreatePayrollRunResponse = zod.object({
   "totalGosiEmployer": zod.number(),
   "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
+  "gosiPaidAt": zod.string().nullable().describe('GOSI (Phase 18): the day the run\'s GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.'),
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5611,6 +5613,7 @@ export const GetPayrollRunResponse = zod.object({
   "totalGosiEmployer": zod.number(),
   "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
+  "gosiPaidAt": zod.string().nullable().describe('GOSI (Phase 18): the day the run\'s GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.'),
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -5627,6 +5630,10 @@ export const GetPayrollRunResponse = zod.object({
   "grossSalary": zod.number(),
   "gosiEmployee": zod.number(),
   "gosiEmployer": zod.number(),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal('non_saudi'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated).'),
+  "gosiWageBase": zod.number().nullable().describe('The contributory wage used: basic + housing, capped at SAR 45,000.'),
+  "gosiEmployeeRate": zod.number().nullable().describe('The employee rate used, as a fraction.'),
+  "gosiEmployerRate": zod.number().nullable().describe('The employer rate used, as a fraction.'),
   "additions": zod.number(),
   "deductions": zod.number(),
   "netPay": zod.number(),
@@ -5680,8 +5687,13 @@ export const ListEmployeesResponse = zod.object({
   "notes": zod.string().nullable(),
   "createdAt": zod.string(),
   "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
-  "gosiEmployee": zod.number().describe('DERIVED from nationality and basic salary (SA 9.75%; others 0).'),
-  "gosiEmployer": zod.number().describe('DERIVED (SA 11.75%; others 2%).')
+  "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
+  "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
+  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
+  "gosiRegimeSetBy": zod.number().nullable(),
+  "gosiRegimeSetAt": zod.string().nullable(),
+  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.')
 })),
   "page": zod.object({
   "limit": zod.number(),
@@ -5691,7 +5703,8 @@ export const ListEmployeesResponse = zod.object({
   "totals": zod.object({
   "saudiCount": zod.number(),
   "grossSalary": zod.number(),
-  "gosiEmployer": zod.number()
+  "gosiEmployer": zod.number().describe('Employer GOSI for the current period over the employees whose law is stated.'),
+  "gosiUnstatedCount": zod.number().describe('GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer.')
 })
 })
 
@@ -5727,7 +5740,9 @@ export const CreateEmployeeBody = zod.object({
   "joiningDate": zod.string().nullish(),
   "endDate": zod.string().nullish(),
   "status": zod.string().optional(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish(),
+  "gosiRegimeBasis": zod.string().nullish()
 })
 
 export const CreateEmployeeResponse = zod.object({
@@ -5753,8 +5768,13 @@ export const CreateEmployeeResponse = zod.object({
   "notes": zod.string().nullable(),
   "createdAt": zod.string(),
   "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
-  "gosiEmployee": zod.number().describe('DERIVED from nationality and basic salary (SA 9.75%; others 0).'),
-  "gosiEmployer": zod.number().describe('DERIVED (SA 11.75%; others 2%).')
+  "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
+  "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
+  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
+  "gosiRegimeSetBy": zod.number().nullable(),
+  "gosiRegimeSetAt": zod.string().nullable(),
+  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.')
 })
 
 
@@ -5785,8 +5805,13 @@ export const GetEmployeeResponse = zod.object({
   "notes": zod.string().nullable(),
   "createdAt": zod.string(),
   "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
-  "gosiEmployee": zod.number().describe('DERIVED from nationality and basic salary (SA 9.75%; others 0).'),
-  "gosiEmployer": zod.number().describe('DERIVED (SA 11.75%; others 2%).')
+  "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
+  "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
+  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
+  "gosiRegimeSetBy": zod.number().nullable(),
+  "gosiRegimeSetAt": zod.string().nullable(),
+  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.')
 })
 
 
@@ -5825,7 +5850,9 @@ export const UpdateEmployeeBody = zod.object({
   "joiningDate": zod.string().nullish(),
   "endDate": zod.string().nullish(),
   "status": zod.string().optional(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish(),
+  "gosiRegimeBasis": zod.string().nullish()
 })
 
 export const UpdateEmployeeResponse = zod.object({
@@ -5851,8 +5878,13 @@ export const UpdateEmployeeResponse = zod.object({
   "notes": zod.string().nullable(),
   "createdAt": zod.string(),
   "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
-  "gosiEmployee": zod.number().describe('DERIVED from nationality and basic salary (SA 9.75%; others 0).'),
-  "gosiEmployer": zod.number().describe('DERIVED (SA 11.75%; others 2%).')
+  "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
+  "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
+  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
+  "gosiRegimeSetBy": zod.number().nullable(),
+  "gosiRegimeSetAt": zod.string().nullable(),
+  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.')
 })
 
 
@@ -13927,6 +13959,7 @@ export const SubmitPayrollRunResponse = zod.object({
   "totalGosiEmployer": zod.number(),
   "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
+  "gosiPaidAt": zod.string().nullable().describe('GOSI (Phase 18): the day the run\'s GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.'),
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -13956,6 +13989,7 @@ export const SendBackPayrollRunResponse = zod.object({
   "totalGosiEmployer": zod.number(),
   "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
+  "gosiPaidAt": zod.string().nullable().describe('GOSI (Phase 18): the day the run\'s GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.'),
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -13981,6 +14015,38 @@ export const ApprovePayrollRunResponse = zod.object({
   "totalGosiEmployer": zod.number(),
   "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
+  "gosiPaidAt": zod.string().nullable().describe('GOSI (Phase 18): the day the run\'s GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.'),
+  "processedAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * GOSI (Phase 18, owner 2026-10-26). The approval already expensed the employer share (Dr GOSI Expense) and withheld the employee share, both into GOSI Payable; paying posts Dr GOSI Payable / Cr the bank's cash account for the run's employee plus employer contributions and never touches GOSI Expense. Once per run (`gosiPaidAt`), for an approved or paid run. Refused while GOSI Payable no longer owes them (a bank line already paid them, or one is waiting in review against them). Dated the payment's own day (default today). Approver-only.
+ * @summary Pay an approved payroll run's GOSI contributions from a bank account (settles GOSI Payable)
+ */
+export const PayPayrollRunGosiParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PayPayrollRunGosiBody = zod.object({
+  "bankAccountId": zod.number().describe('The bank the net pay left from (D-3: every cash line names its bank)'),
+  "paidAt": zod.string().nullish().describe('YYYY-MM-DD; defaults to today')
+})
+
+export const PayPayrollRunGosiResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'paid']),
+  "totalBasicSalary": zod.number(),
+  "totalAllowances": zod.number(),
+  "totalGosiEmployee": zod.number(),
+  "totalGosiEmployer": zod.number(),
+  "totalDeductions": zod.number(),
+  "totalNetPay": zod.number(),
+  "gosiPaidAt": zod.string().nullable().describe('GOSI (Phase 18): the day the run\'s GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.'),
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -14011,6 +14077,7 @@ export const PayPayrollRunResponse = zod.object({
   "totalGosiEmployer": zod.number(),
   "totalDeductions": zod.number(),
   "totalNetPay": zod.number(),
+  "gosiPaidAt": zod.string().nullable().describe('GOSI (Phase 18): the day the run\'s GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.'),
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
@@ -14679,13 +14746,14 @@ export const ApplySupplierCreditNoteResponse = zod.object({
 export const GetTaxObligationsResponse = zod.object({
   "asOf": zod.string(),
   "obligations": zod.array(zod.object({
-  "kind": zod.enum(['wht', 'zakat', 'income_tax', 'vat']),
+  "kind": zod.enum(['wht', 'zakat', 'income_tax', 'vat', 'gosi']),
   "reference": zod.string(),
   "amount": zod.number().describe('What is owed now — never negative. A VAT period that nets to zero or to a credit, or whose payments already cover it, owes 0 and says which (`vatPosition`).'),
   "dueDate": zod.string().nullable(),
   "note": zod.string().nullable(),
   "source": zod.object({
-  "type": zod.enum(['wht_period', 'gl_account', 'vat_return']),
+  "type": zod.enum(['wht_period', 'gl_account', 'vat_return', 'payroll_run']),
+  "payrollRunId": zod.number().nullish().describe('GOSI rows: the payroll run the contributions belong to.'),
   "period": zod.string().nullish(),
   "systemCode": zod.string().optional(),
   "from": zod.string().optional(),
@@ -14695,7 +14763,8 @@ export const GetTaxObligationsResponse = zod.object({
   "overdue": zod.boolean(),
   "vatPosition": zod.union([zod.literal('payable'),zod.literal('settled'),zod.literal('nil'),zod.literal('credit'),zod.literal(null)]).nullish().describe('A VAT period\'s position on its own return (QA-06): `payable` (owed),\n`settled` (VAT payments booked since the period ended cover it),\n`nil` (the return nets to zero) or `credit` (input VAT exceeds output\nVAT — nothing is owed, and the credit is NOT projected as cash).\nNull on every other row.\n'),
   "returnNet": zod.number().nullish().describe('A VAT period\'s net VAT exactly as its return computes it (negative for a credit) — the return\'s own figure, never re-derived.'),
-  "paidSince": zod.number().nullish().describe('VAT payments booked since a completed VAT period ended (presumed for it); null on every other row.')
+  "paidSince": zod.number().nullish().describe('VAT payments booked since a completed VAT period ended (presumed for it); null on every other row.'),
+  "fineEstimate": zod.number().nullish().describe('GOSI rows (Phase 18): the late-fine ESTIMATE as of today — 2% of the contribution for each month or part of a month after the due date (Social Insurance Law Art. 9(3)), uncapped, never posted; 0 when not late. Absent or null on every other row.')
 })),
   "total": zod.number()
 })

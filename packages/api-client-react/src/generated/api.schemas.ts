@@ -3990,6 +3990,11 @@ export interface PayrollRun {
   totalGosiEmployer: number;
   totalDeductions: number;
   totalNetPay: number;
+  /**
+     * GOSI (Phase 18): the day the run's GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.
+     * @nullable
+     */
+  gosiPaidAt: string | null;
   /** @nullable */
   processedAt: string | null;
   /** @nullable */
@@ -6103,6 +6108,19 @@ export interface JournalEntryReversal {
   reversal: JournalEntry;
 }
 
+/**
+ * GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated).
+ * @nullable
+ */
+export type PayrollItemGosiRegime = typeof PayrollItemGosiRegime[keyof typeof PayrollItemGosiRegime] | null;
+
+
+export const PayrollItemGosiRegime = {
+  law_1421h: 'law_1421h',
+  law_2024: 'law_2024',
+  non_saudi: 'non_saudi',
+} as const;
+
 export interface PayrollItem {
   id: number;
   payrollRunId: number;
@@ -6115,6 +6133,26 @@ export interface PayrollItem {
   grossSalary: number;
   gosiEmployee: number;
   gosiEmployer: number;
+  /**
+     * GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated).
+     * @nullable
+     */
+  gosiRegime: PayrollItemGosiRegime;
+  /**
+     * The contributory wage used: basic + housing, capped at SAR 45,000.
+     * @nullable
+     */
+  gosiWageBase: number | null;
+  /**
+     * The employee rate used, as a fraction.
+     * @nullable
+     */
+  gosiEmployeeRate: number | null;
+  /**
+     * The employer rate used, as a fraction.
+     * @nullable
+     */
+  gosiEmployerRate: number | null;
   additions: number;
   deductions: number;
   netPay: number;
@@ -6154,6 +6192,18 @@ export interface PayPayrollRunInput {
   paidAt?: string | null;
 }
 
+/**
+ * GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.
+ * @nullable
+ */
+export type EmployeeGosiRegime = typeof EmployeeGosiRegime[keyof typeof EmployeeGosiRegime] | null;
+
+
+export const EmployeeGosiRegime = {
+  law_1421h: 'law_1421h',
+  law_2024: 'law_2024',
+} as const;
+
 export interface Employee {
   id: number;
   employeeNumber: string;
@@ -6190,17 +6240,56 @@ export interface Employee {
   createdAt: string;
   /** DERIVED — basic + the three allowances. */
   grossSalary: number;
-  /** DERIVED from nationality and basic salary (SA 9.75%; others 0). */
-  gosiEmployee: number;
-  /** DERIVED (SA 11.75%; others 2%). */
-  gosiEmployer: number;
+  /**
+     * DERIVED (Phase 18): the current period's employee rate for the employee's GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.
+     * @nullable
+     */
+  gosiEmployee: number | null;
+  /**
+     * DERIVED: the current period's employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.
+     * @nullable
+     */
+  gosiEmployer: number | null;
+  /**
+     * DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.
+     * @nullable
+     */
+  gosiWageBase: number | null;
+  /**
+     * GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.
+     * @nullable
+     */
+  gosiRegime: EmployeeGosiRegime;
+  /** @nullable */
+  gosiRegimeSetBy: number | null;
+  /** @nullable */
+  gosiRegimeSetAt: string | null;
+  /**
+     * What the statement rests on, e.g. the GOSI contribution certificate.
+     * @nullable
+     */
+  gosiRegimeBasis: string | null;
 }
 
 export interface EmployeeTotals {
   saudiCount: number;
   grossSalary: number;
+  /** Employer GOSI for the current period over the employees whose law is stated. */
   gosiEmployer: number;
+  /** GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer. */
+  gosiUnstatedCount: number;
 }
+
+/**
+ * @nullable
+ */
+export type EmployeeInputFieldsGosiRegime = typeof EmployeeInputFieldsGosiRegime[keyof typeof EmployeeInputFieldsGosiRegime] | null;
+
+
+export const EmployeeInputFieldsGosiRegime = {
+  law_1421h: 'law_1421h',
+  law_2024: 'law_2024',
+} as const;
 
 export interface EmployeeInputFields {
   /** @minLength 1 */
@@ -6240,7 +6329,22 @@ export interface EmployeeInputFields {
   status?: string;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  gosiRegime?: EmployeeInputFieldsGosiRegime;
+  /** @nullable */
+  gosiRegimeBasis?: string | null;
 }
+
+/**
+ * @nullable
+ */
+export type CreateEmployeeInputGosiRegime = typeof CreateEmployeeInputGosiRegime[keyof typeof CreateEmployeeInputGosiRegime] | null;
+
+
+export const CreateEmployeeInputGosiRegime = {
+  law_1421h: 'law_1421h',
+  law_2024: 'law_2024',
+} as const;
 
 export interface CreateEmployeeInput {
   /** @minLength 1 */
@@ -6278,6 +6382,10 @@ export interface CreateEmployeeInput {
   status?: string;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  gosiRegime?: CreateEmployeeInputGosiRegime;
+  /** @nullable */
+  gosiRegimeBasis?: string | null;
 }
 
 export type UpdateEmployeeInput = EmployeeInputFields;
@@ -10772,6 +10880,7 @@ export const TaxObligationKind = {
   zakat: 'zakat',
   income_tax: 'income_tax',
   vat: 'vat',
+  gosi: 'gosi',
 } as const;
 
 export type TaxObligationSourceType = typeof TaxObligationSourceType[keyof typeof TaxObligationSourceType];
@@ -10781,10 +10890,16 @@ export const TaxObligationSourceType = {
   wht_period: 'wht_period',
   gl_account: 'gl_account',
   vat_return: 'vat_return',
+  payroll_run: 'payroll_run',
 } as const;
 
 export type TaxObligationSource = {
   type: TaxObligationSourceType;
+  /**
+     * GOSI rows: the payroll run the contributions belong to.
+     * @nullable
+     */
+  payrollRunId?: number | null;
   /** @nullable */
   period?: string | null;
   systemCode?: string;
@@ -10845,6 +10960,11 @@ export interface TaxObligation {
      * @nullable
      */
   paidSince?: number | null;
+  /**
+     * GOSI rows (Phase 18): the late-fine ESTIMATE as of today — 2% of the contribution for each month or part of a month after the due date (Social Insurance Law Art. 9(3)), uncapped, never posted; 0 when not late. Absent or null on every other row.
+     * @nullable
+     */
+  fineEstimate?: number | null;
 }
 
 export interface TaxObligationsReport {

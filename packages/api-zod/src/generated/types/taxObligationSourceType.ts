@@ -13,4 +13,5 @@ export const TaxObligationSourceType = {
   wht_period: 'wht_period',
   gl_account: 'gl_account',
   vat_return: 'vat_return',
+  payroll_run: 'payroll_run',
 } as const;

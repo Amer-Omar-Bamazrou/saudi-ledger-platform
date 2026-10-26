@@ -3,6 +3,24 @@ import { db, payrollRunsTable, payrollItemsTable, employeesTable, journalEntries
 import { and, desc, eq, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 
+/**
+ * What a payable still owes in this company: its books balance (credit − debit, in the books), less the statement
+ * lines already waiting in review against it. Each company predicate sits in a FROM with exactly one table carrying
+ * company_id, so it binds there however the column renders. One definition for SALARIES_PAYABLE (DR-41) and
+ * GOSI_PAYABLE (Phase 18).
+ */
+const openPayableOf = (code: "SALARIES_PAYABLE" | "GOSI_PAYABLE") => sql`
+    (SELECT coalesce(sum((SELECT coalesce(sum(l.credit_amount - l.debit_amount), 0) FROM journal_entry_lines l
+                            WHERE l.journal_entry_id = journal_entries.id
+                              AND l.account_id IN (SELECT id FROM categories WHERE system_code = ${code}))), 0)
+       FROM journal_entries
+      WHERE journal_entries.status IN ('posted', 'reversed') AND ${companyScoped(journalEntriesTable.companyId)})
+    - (SELECT coalesce(sum(transactions.amount), 0)
+       FROM transactions
+      WHERE transactions.review_status = 'pending_review'
+        AND transactions.category_id IN (SELECT id FROM categories WHERE system_code = ${code})
+        AND ${companyScoped(transactionsTable.companyId)})`;
+
 export const payrollRepository = {
   listRuns() {
     return db.select().from(payrollRunsTable).orderBy(desc(payrollRunsTable.period));
@@ -82,20 +100,47 @@ export const payrollRepository = {
   async salaryPayableContext(): Promise<{ usesPayroll: boolean; openPayable: number }> {
     // Each company predicate sits in a FROM with exactly one table carrying company_id, so it binds there however
     // the column renders (a bare name inside a join of two such tables would be ambiguous).
-    const { rows } = await db.execute<{ uses: boolean; gl: string; pending: string }>(sql`
+    const { rows } = await db.execute<{ uses: boolean; open: string }>(sql`
       SELECT
         EXISTS (SELECT 1 FROM payroll_runs WHERE payroll_runs.status IN ('approved', 'paid') AND ${companyScoped(payrollRunsTable.companyId)}) AS uses,
-        (SELECT coalesce(sum((SELECT coalesce(sum(l.credit_amount - l.debit_amount), 0) FROM journal_entry_lines l
-                                WHERE l.journal_entry_id = journal_entries.id
-                                  AND l.account_id IN (SELECT id FROM categories WHERE system_code = 'SALARIES_PAYABLE'))), 0)::text
-           FROM journal_entries
-          WHERE journal_entries.status IN ('posted', 'reversed') AND ${companyScoped(journalEntriesTable.companyId)}) AS gl,
-        (SELECT coalesce(sum(transactions.amount), 0)::text
-           FROM transactions
-          WHERE transactions.review_status = 'pending_review'
-            AND transactions.category_id IN (SELECT id FROM categories WHERE system_code = 'SALARIES_PAYABLE')
-            AND ${companyScoped(transactionsTable.companyId)}) AS pending`);
+        (${openPayableOf("SALARIES_PAYABLE")})::text AS open`);
     const r = rows[0];
-    return { usesPayroll: !!r?.uses, openPayable: Math.round((Number(r?.gl ?? 0) - Number(r?.pending ?? 0)) * 100) / 100 };
+    return { usesPayroll: !!r?.uses, openPayable: Math.round(Number(r?.open ?? 0) * 100) / 100 };
+  },
+
+  /**
+   * 🔴 GOSI (Phase 18, owner 2026-10-26 night) — the same definition for GOSI_PAYABLE: the books' balance, less the
+   * statement lines already waiting in review against it. Read by the GOSI pay path and the categoriser alike.
+   */
+  async gosiPayableOpen(): Promise<number> {
+    const { rows } = await db.execute<{ open: string }>(sql`SELECT (${openPayableOf("GOSI_PAYABLE")})::text AS open`);
+    return Math.round(Number(rows[0]?.open ?? 0) * 100) / 100;
+  },
+
+  /** 🔴 GOSI (Phase 18): approved or paid runs whose GOSI was not paid through the GOSI pay path, newest first. */
+  runsWithUnpaidGosi() {
+    return db
+      .select()
+      .from(payrollRunsTable)
+      .where(and(sql`${payrollRunsTable.status} IN ('approved', 'paid')`, sql`${payrollRunsTable.gosiPaidAt} IS NULL`))
+      .orderBy(desc(payrollRunsTable.period), desc(payrollRunsTable.id));
+  },
+
+  /** 🔴 GOSI (Phase 18): lines of a run computed before migration 0127 — no record of the rates and wage they used. */
+  async itemsWithoutGosiSnapshot(runId: number): Promise<number> {
+    const [r] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(payrollItemsTable)
+      .where(and(eq(payrollItemsTable.payrollRunId, runId), sql`${payrollItemsTable.gosiWageBase} IS NULL`));
+    return Number(r?.n ?? 0);
+  },
+
+  /** 🔴 GOSI (Phase 18): mark a run's GOSI paid ONCE — only while it is approved or paid and not yet marked. */
+  markGosiPaidIfUnpaid(id: number, paidAt: string) {
+    return db
+      .update(payrollRunsTable)
+      .set({ gosiPaidAt: paidAt })
+      .where(and(eq(payrollRunsTable.id, id), sql`${payrollRunsTable.status} IN ('approved', 'paid')`, sql`${payrollRunsTable.gosiPaidAt} IS NULL`))
+      .returning();
   },
 };

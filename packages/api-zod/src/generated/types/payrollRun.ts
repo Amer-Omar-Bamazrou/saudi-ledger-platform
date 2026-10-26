@@ -17,6 +17,11 @@ export interface PayrollRun {
   totalGosiEmployer: number;
   totalDeductions: number;
   totalNetPay: number;
+  /**
+     * GOSI (Phase 18): the day the run's GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way.
+     * @nullable
+     */
+  gosiPaidAt: string | null;
   /** @nullable */
   processedAt: string | null;
   /** @nullable */
