@@ -157,6 +157,22 @@ export class UnscopedDatabaseAccessError extends Error {
   }
 }
 
+/**
+ * Raised when a statement is attempted through a tenant transaction's handle
+ * after that transaction has ended (committed or rolled back). Named so it can
+ * be asserted on, and never mistaken for a connection error.
+ */
+export class TenantTransactionEndedError extends Error {
+  constructor() {
+    super(
+      "This tenant transaction has already ended, so its handle cannot run another statement. " +
+        "Work that must happen afterwards needs a tenant transaction of its own.",
+    );
+    this.name = "TenantTransactionEndedError";
+    Object.setPrototypeOf(this, TenantTransactionEndedError.prototype);
+  }
+}
+
 export const db: DB = new Proxy(baseDb, {
   get(target, prop) {
     const active = tenantStorage.getStore()?.db;
@@ -241,10 +257,18 @@ const IDLE_IN_TX_TIMEOUT = "15s";
 class LazyTenantClient {
   private client: pg.PoolClient | null = null;
   private opening: Promise<pg.PoolClient> | null = null;
+  /**
+   * 🔴 Set when `finish()` begins, and never cleared: a transaction's handle
+   * cannot be used after its transaction has ended. Its pooled client goes back
+   * to the pool at the end, so a later statement must be refused here, by name,
+   * before it can reach any connection (Phase 18, owner 2026-10-26, CRITICAL).
+   */
+  private ended = false;
 
   constructor(private readonly scope: TenantScope) {}
 
   private acquire(): Promise<pg.PoolClient> {
+    if (this.ended) return Promise.reject(new TenantTransactionEndedError());
     if (this.client) return Promise.resolve(this.client);
     if (!this.opening) {
       this.opening = (async () => {
@@ -292,11 +316,18 @@ class LazyTenantClient {
 
   /** drizzle-orm/node-postgres invokes this for every query. */
   query(...args: unknown[]): unknown {
-    return this.acquire().then((client) => (client.query as (...a: unknown[]) => unknown)(...args));
+    return this.acquire().then((client) => {
+      // Checked again here: a statement issued just before `finish()` reaches
+      // this point only after the COMMIT/ROLLBACK is already queued on the
+      // client, so it would otherwise run after the end, outside the transaction.
+      if (this.ended) throw new TenantTransactionEndedError();
+      return (client.query as (...a: unknown[]) => unknown)(...args);
+    });
   }
 
   /** Commit/rollback + release ONLY if a connection was actually acquired. */
   async finish(action: "COMMIT" | "ROLLBACK"): Promise<void> {
+    this.ended = true;
     if (!this.client && this.opening) {
       // An acquisition is in flight — wait for it so we don't leak the client.
       try {

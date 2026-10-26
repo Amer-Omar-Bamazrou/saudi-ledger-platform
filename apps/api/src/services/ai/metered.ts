@@ -21,10 +21,18 @@
  * restored inside a transaction still throws — the transaction is then
  * unusable and the request must fail (lib/savepoint.ts).
  */
-import { db, aiUsageTable, UnscopedDatabaseAccessError } from "@workspace/db";
+import { db, aiUsageTable, UnscopedDatabaseAccessError, TenantTransactionEndedError } from "@workspace/db";
 import { logger } from "../../lib/logger";
 import { withSavepoint } from "../../lib/savepoint";
 import type { AiProvider, AiChatRequest, AiVisionRequest, AiCompletion } from "./provider";
+
+/** drizzle wraps what the client throws, with the original in `cause`. */
+function isTransactionEnded(err: unknown): boolean {
+  for (let c = err as { cause?: unknown } | undefined; c; c = c.cause as typeof c) {
+    if (c instanceof TenantTransactionEndedError) return true;
+  }
+  return false;
+}
 
 async function record(row: {
   operation: string;
@@ -42,10 +50,11 @@ async function record(row: {
     err = saved.error;
   } catch (savepointErr) {
     // Outside any tenant transaction (the findings explain pass calls its model
-    // outside one, by design) there is no transaction to protect and the row
-    // cannot be written either: logged below, as it always was. Any other
-    // failure of the savepoint itself means the transaction is unusable.
-    if (!(savepointErr instanceof UnscopedDatabaseAccessError)) throw savepointErr;
+    // outside one, by design), or after the transaction it ran in has ended,
+    // there is no transaction to protect and the row cannot be written either:
+    // logged below, as it always was. Any other failure of the savepoint itself
+    // means the transaction is unusable.
+    if (!(savepointErr instanceof UnscopedDatabaseAccessError) && !isTransactionEnded(savepointErr)) throw savepointErr;
     err = savepointErr;
   }
   /**
