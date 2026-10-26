@@ -208,6 +208,17 @@ export const db: DB = new Proxy(baseDb, {
   },
 });
 
+/**
+ * Which tenant transaction is current: an IDENTITY, or `undefined` outside one.
+ * Never a query handle — queries go through {@link db}. It exists for code that
+ * must coordinate per transaction: `apps/api/src/lib/savepoint.ts` serialises
+ * savepoint scopes on it, because savepoints on one connection are a stack and
+ * two opened at once would release or roll back each other (B-O6-PRE, Phase 18).
+ */
+export function currentTenantTransaction(): object | undefined {
+  return tenantStorage.getStore()?.db;
+}
+
 export interface TenantScope {
   organizationId: string;
   companyId?: string | null;

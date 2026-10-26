@@ -15,6 +15,7 @@ import {
   AcceptPendingTransactionsResponse,
 } from "@workspace/api-zod";
 import { AppError, BadRequestError, BankAccountRequiredError, BusinessRuleError, ConflictError, NotFoundError, PeriodLockedError } from "../lib/errors";
+import { withSavepoint } from "../lib/savepoint";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { assertBankAccount } from "./accounting/bankIdentity";
 import { bankStatementsService } from "./accounting/bankStatements.service";
@@ -237,7 +238,16 @@ export const transactionsService = {
 
     for (const raw of rows) {
       let rowWasCategorized = false;
-      try {
+      /**
+       * 🔴 B-O6-PRE (Phase 18): EACH ROW IN ITS OWN SAVEPOINT. A database error on
+       * one row (an impossible date reaches the insert, and the 0102 trigger's
+       * `date::date` refuses it) used to abort the WHOLE transaction: every later
+       * row then failed with "current transaction is aborted", the summary audit
+       * row threw, and the COMMIT came back ROLLBACK. Now only that row is undone
+       * and named, and the rows around it are imported. A savepoint that cannot
+       * be set or restored still fails the request (lib/savepoint.ts).
+       */
+      const outcome = await withSavepoint(async () => {
         // 🔴 Audit finding #5: NORMALISE THE DESCRIPTION ON INGEST.
         // The duplicate key is exact string equality, so ONE TRAILING SPACE
         // defeated it — the same statement re-exported with different spacing
@@ -246,7 +256,7 @@ export const transactionsService = {
         const description = String(raw.description ?? "").trim().replace(/\s+/g, " ");
         if (!description) {
           errors.push("A row with an empty description could not be imported.");
-          continue;
+          return;
         }
         const row = { ...raw, description, descriptionAr: raw.descriptionAr?.trim() || null };
 
@@ -263,7 +273,7 @@ export const transactionsService = {
             `Row "${description.slice(0, 60)}" is in ${currency}. Multi-currency statements are not supported yet — ` +
               `convert it to SAR and re-import, or enter it manually at the SAR amount that left your account.`,
           );
-          continue;
+          return;
         }
         /**
          * M15: an identical row is skipped and REPORTED — uploading the same
@@ -305,7 +315,7 @@ export const transactionsService = {
         seenState.seen += 1;
         if (seenState.seen <= seenState.alreadyHeld) {
           duplicates.push({ date: row.date, description, amount: Number(row.amount) });
-          continue;
+          return;
         }
 
         let catId: number | null = row.categoryId ?? null;
@@ -423,7 +433,9 @@ export const transactionsService = {
           notes: row.notes ?? null,
         });
         inserted++;
-      } catch (err) {
+      });
+      if (!outcome.ok) {
+        const err = outcome.error;
         // 🔴 If this row had been counted as categorized, uncount it: a count of
         // work that did not persist is a lie about state. The pre-M15 response
         // reported categorized:1 / inserted:0 — claiming success while inserting
