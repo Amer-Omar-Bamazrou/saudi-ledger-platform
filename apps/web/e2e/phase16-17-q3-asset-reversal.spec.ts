@@ -11,7 +11,7 @@
  *   · a replacement migration (API) names it, and the lineage is FOLLOWED by clicking, both ways;
  *   · the reversed page in Arabic, right to left.
  */
-import { test, expect, request as pwRequest, type APIRequestContext } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext } from "./fixtures";
 import { E2E_ANSWERS } from "./global-setup";
 
 test.use({ storageState: E2E_ANSWERS.adminState });

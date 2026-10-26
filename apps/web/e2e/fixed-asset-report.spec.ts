@@ -11,7 +11,7 @@
  *   · changing the window changes the answer, by clicking the date fields;
  *   · Arabic under dir=rtl, and a phone at 390 px.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { E2E } from "./global-setup";
 import { businessToday } from "@workspace/shared";
 

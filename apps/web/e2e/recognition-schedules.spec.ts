@@ -11,7 +11,7 @@
  *   · the figures the page shows are the SERVER's derived ones;
  *   · Arabic under dir=rtl and a phone at 390 px.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { E2E } from "./global-setup";
 
 test.use({ storageState: E2E.storageState });

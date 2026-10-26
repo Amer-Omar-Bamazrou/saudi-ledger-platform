@@ -106,7 +106,8 @@ export const E2E = {
   storageState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "state.json"),
 };
 
-const API = "http://localhost:3000";
+// The one origin: the API serves the web build and `/api` on the same port (playwright.config.ts).
+const API = "http://localhost:5173";
 
 /** ids the crawl needs for parameterised routes; written out by the seed. */
 export interface SeededIds {

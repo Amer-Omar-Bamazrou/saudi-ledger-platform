@@ -1,4 +1,4 @@
-import { test, expect, type Page, type ConsoleMessage } from "@playwright/test";
+import { test, expect, type Page, type ConsoleMessage } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";

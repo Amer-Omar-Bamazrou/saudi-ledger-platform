@@ -13,7 +13,7 @@
  * back from the API (E5's GL, the note's document, the 386 untouched). Then
  * a phone, then Arabic on both.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 import { businessToday } from "@workspace/shared";

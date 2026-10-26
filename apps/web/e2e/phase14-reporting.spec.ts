@@ -20,7 +20,7 @@
  * Every figure here was written by the product's own posting paths
  * (`global-setup.ts`), so a figure that matches is a real one (§3 standing rule 2).
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E } from "./global-setup";
 

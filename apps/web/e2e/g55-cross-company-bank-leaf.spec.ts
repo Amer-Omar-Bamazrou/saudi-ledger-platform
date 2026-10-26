@@ -1,4 +1,4 @@
-import { test, expect, request as pwRequest, type APIRequestContext, type Browser, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Browser, type Page } from "./fixtures";
 
 /**
  * G55 / DR-42 (2026-10-14) — ANOTHER COMPANY'S BANK ACCOUNT, refused where a

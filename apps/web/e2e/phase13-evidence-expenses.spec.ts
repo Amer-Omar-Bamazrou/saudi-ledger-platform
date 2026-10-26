@@ -22,7 +22,7 @@
  *    phone — no sideways scroll.
  * Money is asserted exactly from the API, never by substring.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 

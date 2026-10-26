@@ -18,7 +18,7 @@
  *   Q-d    a relief at the statutory rate is flagged before it is recorded;
  *   Q-e    an existing computation stays listed whatever today's ownership.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Page } from "./fixtures";
 import { businessToday } from "@workspace/shared";
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";

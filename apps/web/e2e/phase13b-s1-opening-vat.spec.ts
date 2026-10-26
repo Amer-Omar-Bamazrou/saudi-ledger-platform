@@ -18,7 +18,7 @@
  * The migration is committed through the API (the migration workspace spec
  * proves the commit by clicking); everything S1 adds is clicked.
  */
-import { test, expect, request as pwRequest, type APIRequestContext, type Browser, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type APIRequestContext, type Browser, type Page } from "./fixtures";
 import { E2E_S1 } from "./global-setup";
 
 const PHONE = { width: 390, height: 844 };
