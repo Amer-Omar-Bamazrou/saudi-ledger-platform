@@ -9,13 +9,16 @@
  * `gosiRatesFor` returns null and the payroll run is refused, never computed
  * at a guessed rate.
  *
+ * The 2024-law pension steps (Royal Decree M/273 item 3): 9% each side from
+ * July 2024, 9.5% from July 2025 (owner, 2026-10-26 late), then 10%, 10.5% and
+ * 11%. Each step takes effect on 1 July (Saudi Press Agency, 30 June 2025, as
+ * the owner directed). A 2024-law period before July 2024, when the law took
+ * effect, has no entry and is refused.
+ *
  * What is NOT settled, by name (question G1, register §11.18 E):
- *  - the 2024-law pension for periods before July 2026 (G1: 19% or 20% for
- *    July 2026). Steps take effect on 1 July each year (Saudi Press Agency,
- *    30 June 2025, as the owner directed). Royal Decree M/273 item 3, read
- *    literally, says "one year later" and "after that" without a calendar day;
- *    that literal reading is part of G1. 2024-law periods before 2026-07 are
- *    therefore absent;
+ *  - the 2024-law pension for July 2026 (G1: 19% or 20% in total), and the
+ *    step timing: the decree, read literally, says "one year later" and "after
+ *    that" without a calendar day;
  *  - the 1421H-law SANED split: 0.75% each side, per GOSI guidance, UNVERIFIED
  *    against the binding text (the totals 9.75% / 11.75% are settled);
  *  - a riyal floor for the contributory wage under the 2024 law (none applied);
@@ -65,6 +68,20 @@ export const GOSI_SCHEDULE: readonly GosiRateEntry[] = [
     employer: { pension: 0.09, occupationalHazards: 0.02, saned: 0.0075 },
     sources: ["Saudi under the 1421H law: employer 11.75%, employee 9.75% in total (research finding 3, register §11.18 B)"],
     unverified: ["SANED 0.75% each side (and so pension 9% each side): GOSI guidance, not verified against the binding text (question G1)"],
+  },
+  {
+    regime: "law_2024",
+    from: "2024-07",
+    employee: { pension: 0.09, saned: 0.0075 },
+    employer: { pension: 0.09, occupationalHazards: 0.02, saned: 0.0075 },
+    sources: [...LAW_2024_SOURCES, "Pension 18% in total, 9% each side, from July 2024 (owner, 2026-10-26 late)"],
+  },
+  {
+    regime: "law_2024",
+    from: "2025-07",
+    employee: { pension: 0.095, saned: 0.0075 },
+    employer: { pension: 0.095, occupationalHazards: 0.02, saned: 0.0075 },
+    sources: [...LAW_2024_SOURCES, "Pension 19% in total, 9.5% each side, from July 2025 (owner, 2026-10-26 late)"],
   },
   {
     regime: "law_2024",

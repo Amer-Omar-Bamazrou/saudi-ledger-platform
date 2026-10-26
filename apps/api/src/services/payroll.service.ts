@@ -86,8 +86,8 @@ export const payrollService = {
      * 45,000), and RECORDS what it used. Two refusals, nothing written:
      *  - a Saudi employee whose law is not stated (it is the employer's fact, from
      *    contribution history; a guessed regime would be a precise, wrong figure);
-     *  - a period the table does not cover for a regime (2024-law periods before
-     *    July 2026 wait on question G1).
+     *  - a period the table does not cover for a regime (a 2024-law period before
+     *    July 2024, when that law took effect).
      */
     const regimeOf = (emp: (typeof employees)[number]): GosiRegime | null =>
       emp.nationality === "SA" ? ((emp.gosiRegime as GosiRegime | null) ?? null) : "non_saudi";
@@ -107,8 +107,9 @@ export const payrollService = {
       throw new BusinessRuleError(422, {
         code: "gosi_rate_unknown_for_period",
         error:
-          `The GOSI rate for ${period} is not established for ${uncovered.join(", ")} (it waits on an open question to a ` +
-          `GOSI specialist), so the run is not computed at a guessed rate. Nothing was created.`,
+          `No GOSI rate is recorded for ${period} under ${uncovered.join(", ")} (a 2024-law rate starts in July 2024, when ` +
+          `that law took effect), so the run is not computed at a guessed rate. Check the period and each employee's GOSI law. ` +
+          `Nothing was created.`,
         period,
         regimes: uncovered,
       });
