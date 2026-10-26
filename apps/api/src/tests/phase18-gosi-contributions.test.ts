@@ -103,14 +103,14 @@ describeMaybe("GOSI — the law, the period, the contributory wage; paid from a 
     expect(await runCount()).toBe(before);
   });
 
-  it("🔴 a period no rate covers for a law (2024-law periods before July 2026 wait on question G1): refused, nothing created", async () => {
+  it("🔴 a period no rate covers for a law (a 2024-law period before July 2024, when that law took effect): refused, nothing created", async () => {
     await employee("G3-A-2024", "SA", "law_2024", 9_000, 1_000);
     const before = await runCount();
-    const res = await h.api("admin", "POST", "/payroll", { period: "2026-06" });
+    const res = await h.api("admin", "POST", "/payroll", { period: "2024-06" });
     expect([res.status, res.body?.code], JSON.stringify(res.body)).toEqual([422, "gosi_rate_unknown_for_period"]);
     expect(await runCount()).toBe(before);
     // The control: the same employee in a covered period is computed.
-    expect((await h.api("admin", "POST", "/payroll", { period: "2026-07" })).status).toBe(201);
+    expect((await h.api("admin", "POST", "/payroll", { period: "2024-07" })).status).toBe(201);
   });
 
   it("🔴 a run computed before the change (lines without a GOSI record) is refused at approval until regenerated, and posts nothing", async () => {
