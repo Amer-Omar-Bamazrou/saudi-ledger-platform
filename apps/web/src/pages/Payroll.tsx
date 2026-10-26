@@ -27,6 +27,52 @@ const PAY_REFUSALS: Record<string, [string, string]> = {
   payroll_not_approved: ["Approve the payroll run before paying it", "اعتمد مسير الرواتب قبل دفعه"],
 };
 
+/** GOSI (Phase 18): the GOSI pay path's refusals, titled by their CODE in both languages. */
+const GOSI_PAY_REFUSALS: Record<string, [string, string]> = {
+  payroll_gosi_payable_already_settled: ["Not paid — a bank line already paid this run's GOSI, or is waiting to", "لم يُدفع — سطر بنكي دفع تأمينات هذا المسير بالفعل أو بانتظار ذلك"],
+  payroll_gosi_already_paid: ["This run's GOSI is already paid", "تأمينات هذا المسير مدفوعة بالفعل"],
+  payroll_gosi_nothing_due: ["This run carries no GOSI to pay", "لا توجد تأمينات مستحقة على هذا المسير"],
+  payroll_not_approved: ["Approve the payroll run before paying its GOSI", "اعتمد مسير الرواتب قبل دفع تأميناته"],
+};
+
+/**
+ * 🔴 GOSI (Phase 18): generating or approving a run can be refused for a GOSI reason. The refusal is titled AND
+ * explained here in both languages (the server's sentence is English), keyed on the code; the employees a
+ * `gosi_regime_required` refusal names come from its body.
+ */
+function runRefusal(e: Error, t: (en: string, ar: string) => string): { title: string; description: string } | null {
+  if (!(e instanceof ApiError)) return null;
+  if (e.code === "gosi_regime_required") {
+    const names = ((e.body?.employees ?? []) as Array<{ name: string; nameAr: string | null }>);
+    return {
+      title: t("GOSI law not stated", "نظام التأمينات غير محدَّد"),
+      description: t(
+        `Set the GOSI law (from contribution history, not the hire date) for: ${names.map((n) => n.name).join(", ")} — on the Employees page, then generate again. Nothing was created.`,
+        `حدّد نظام التأمينات (من سجل الاشتراكات، لا من تاريخ التعيين) للموظفين: ${names.map((n) => n.nameAr || n.name).join("، ")} — من صفحة الموظفين، ثم أنشئ المسير مجددًا. لم يُنشأ شيء.`,
+      ),
+    };
+  }
+  if (e.code === "gosi_rate_unknown_for_period") {
+    return {
+      title: t("GOSI rate not established for this period", "نسبة التأمينات غير مثبتة لهذه الفترة"),
+      description: t(
+        `The GOSI rate for ${e.body?.period ?? "this period"} is not established (an open question to a GOSI specialist), so the run is not computed at a guessed rate. Nothing was created.`,
+        `لم تثبت نسبة التأمينات للفترة ${e.body?.period ?? ""} (سؤال مفتوح لمختص التأمينات)، فلا يُحسب المسير بنسبة مُخمَّنة. لم يُنشأ شيء.`,
+      ),
+    };
+  }
+  if (e.code === "payroll_run_regenerate_required") {
+    return {
+      title: t("Generate this run again", "أعد إنشاء هذا المسير"),
+      description: t(
+        `Payroll run ${e.body?.period ?? ""} was computed before GOSI contributions were brought up to date (the law regime, basic pay plus housing up to SAR 45,000, the current rates). Reject it and generate the run for that period again. Nothing was posted.`,
+        `حُسب مسير الرواتب ${e.body?.period ?? ""} قبل تحديث اشتراكات التأمينات (نظام التأمينات، والأساسي مع السكن حتى 45,000 ريال، والنسب الحالية). ارفضه وأنشئ مسير تلك الفترة مجددًا. لم يُرحَّل شيء.`,
+      ),
+    };
+  }
+  return null;
+}
+
 const STATUS_STYLES: Record<string, string> = { draft: "bg-attention-surface/20 text-attention", approved: "bg-positive-surface/20 text-positive", paid: "bg-info-surface/20 text-info" };
 
 export default function Payroll() {
@@ -37,6 +83,10 @@ export default function Payroll() {
   const [payRun, setPayRun] = useState<PayrollRunListItem | null>(null);
   const [payBank, setPayBank] = useState("");
   const [paidAt, setPaidAt] = useState(businessToday());
+  // GOSI (Phase 18): paying a run's GOSI (Dr GOSI Payable / Cr the bank) — never the GOSI expense again
+  const [gosiRun, setGosiRun] = useState<PayrollRunListItem | null>(null);
+  const [gosiBank, setGosiBank] = useState("");
+  const [gosiPaidAt, setGosiPaidAt] = useState(businessToday());
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t, lang } = useLanguage();
@@ -47,13 +97,13 @@ export default function Payroll() {
   const generateMut = useMutation({
     mutationFn: (p: string) => apiFetch("/payroll", { method: "POST", body: json.create({ period: p }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll"] }); setOpen(false); toast({ title: t("Payroll run generated", "تم إنشاء مسير الرواتب") }); },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => { const r = runRefusal(e, t); toast({ title: r?.title ?? t("Error", "خطأ"), description: r?.description ?? e.message, variant: "destructive" }); },
   });
 
   const approveMut = useMutation({
     mutationFn: (id: number) => apiFetch(`/payroll/${id}/approve`, { method: "POST" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll"] }); toast({ title: t("Payroll approved", "تمت الموافقة على مسير الرواتب") }); },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => { const r = runRefusal(e, t); toast({ title: r?.title ?? t("Error", "خطأ"), description: r?.description ?? e.message, variant: "destructive" }); },
   });
 
   const payMut = useMutation({
@@ -61,6 +111,15 @@ export default function Payroll() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll"] }); setPayRun(null); toast({ title: t("Net pay recorded — Salaries Payable settled", "سُجِّل صافي الرواتب — سُوِّيت الرواتب المستحقة") }); },
     onError: (e: Error) => {
       const pair = e instanceof ApiError && e.code ? PAY_REFUSALS[e.code] : undefined;
+      toast({ title: pair ? t(pair[0], pair[1]) : t("Error", "خطأ"), description: e.message, variant: "destructive" });
+    },
+  });
+
+  const gosiMut = useMutation({
+    mutationFn: (v: { id: number; body: PayPayrollRunInput }) => apiFetch(`/payroll/${v.id}/gosi/pay`, { method: "POST", body: json.pay(v.body) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll"] }); setGosiRun(null); toast({ title: t("GOSI payment recorded — GOSI Payable settled", "سُجِّلت دفعة التأمينات — سُوِّيت التأمينات المستحقة") }); },
+    onError: (e: Error) => {
+      const pair = e instanceof ApiError && e.code ? GOSI_PAY_REFUSALS[e.code] : undefined;
       toast({ title: pair ? t(pair[0], pair[1]) : t("Error", "خطأ"), description: e.message, variant: "destructive" });
     },
   });
@@ -78,7 +137,7 @@ export default function Payroll() {
             <DialogHeader><DialogTitle>{t("Generate Payroll Run", "إنشاء مسير رواتب")}</DialogTitle></DialogHeader>
             <div className="mt-2 space-y-3">
               <div><Label className="text-xs text-muted-foreground">{t("Period (YYYY-MM)", "الفترة (YYYY-MM)")}</Label><Input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1 h-8 text-sm" /></div>
-              <p className="text-xs text-muted-foreground">{t("This will generate payroll items for all active employees based on their current salary setup and GOSI rates.", "سيُنشئ هذا بنود الرواتب لجميع الموظفين النشطين بناءً على إعداد الراتب الحالي ونسب GOSI.")}</p>
+              <p className="text-xs text-muted-foreground">{t("This will generate payroll items for all active employees from their current salary setup. GOSI is computed for the period from each employee's GOSI law, on basic pay plus housing up to SAR 45,000.", "سيُنشئ هذا بنود الرواتب لجميع الموظفين النشطين من إعداد الراتب الحالي. وتُحسب التأمينات للفترة وفق نظام التأمينات لكل موظف، على الأساسي مع السكن حتى 45,000 ريال.")}</p>
             </div>
             <Button className="w-full mt-4" onClick={()=>generateMut.mutate(period)} disabled={generateMut.isPending}>{generateMut.isPending ? t("Generating...", "جارٍ الإنشاء...") : t("Generate Payroll", "إنشاء مسير الرواتب")}</Button>
           </DialogContent>
@@ -93,6 +152,18 @@ export default function Payroll() {
               <p className="text-xs text-muted-foreground">{t("The salaries were expensed when the run was approved; paying settles Salaries Payable from the bank. If the bank's salary line is imported later, reconcile it to this payment rather than categorising it.", "سُجِّلت الرواتب مصروفًا عند اعتماد المسير؛ والدفع يسوّي الرواتب المستحقة من البنك. وإذا استُورد سطر الرواتب البنكي لاحقًا فطابقه مع هذه الدفعة بدل تصنيفه.")}</p>
             </div>
             <Button className="w-full mt-4" data-testid="payroll-pay-submit" disabled={!payBank || !paidAt || payMut.isPending} onClick={()=>payRun && payMut.mutate({ id: payRun.id, body: { bankAccountId: Number(payBank), paidAt } })}>{payMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record payment", "تسجيل الدفعة")}</Button>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={gosiRun !== null} onOpenChange={(o)=>{ if (!o) setGosiRun(null); }}>
+          <DialogContent className="max-w-sm" data-testid="payroll-gosi-dialog">
+            <DialogHeader><DialogTitle>{t("Pay GOSI", "دفع التأمينات")} — {gosiRun?.period}</DialogTitle></DialogHeader>
+            <div className="mt-2 space-y-3">
+              <p className="text-sm">{t("Employee + employer contributions", "اشتراكات الموظف وصاحب العمل")}: <span className="font-mono font-semibold" dir="ltr">{gosiRun ? fmtNum(gosiRun.totalGosiEmployee + gosiRun.totalGosiEmployer) : ""}</span></p>
+              <BankPicker value={gosiBank} onChange={setGosiBank} testId="payroll-gosi-bank" label={t("Paid from", "دُفع من")} />
+              <div><Label className="text-xs text-muted-foreground">{t("Paid on", "تاريخ الدفع")}</Label><Input type="date" dir="ltr" value={gosiPaidAt} onChange={e=>setGosiPaidAt(e.target.value)} className="mt-1 h-8 text-sm" data-testid="payroll-gosi-date" /></div>
+              <p className="text-xs text-muted-foreground">{t("The employer share was expensed and the employee share withheld when the run was approved; paying settles GOSI Payable from the bank. GOSI is due by the 15th of the following month. If the bank's GOSI line is imported later, reconcile it to this payment rather than categorising it.", "سُجِّلت حصة صاحب العمل مصروفًا واستُقطعت حصة الموظف عند اعتماد المسير؛ والدفع يسوّي التأمينات المستحقة من البنك. وتستحق التأمينات بحلول اليوم 15 من الشهر التالي. وإذا استُورد سطر التأمينات البنكي لاحقًا فطابقه مع هذه الدفعة بدل تصنيفه.")}</p>
+            </div>
+            <Button className="w-full mt-4" data-testid="payroll-gosi-submit" disabled={!gosiBank || !gosiPaidAt || gosiMut.isPending} onClick={()=>gosiRun && gosiMut.mutate({ id: gosiRun.id, body: { bankAccountId: Number(gosiBank), paidAt: gosiPaidAt } })}>{gosiMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record GOSI payment", "تسجيل دفعة التأمينات")}</Button>
           </DialogContent>
         </Dialog>
       </div>
@@ -130,6 +201,8 @@ export default function Payroll() {
                       <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
                       {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();approveMut.mutate(r.id);}}>{t("Approve", "موافقة")}</Button>}
                       {r.status==="approved"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setPayRun(r);setPayBank("");setPaidAt(businessToday());}}>{t("Pay", "دفع")}</Button>}
+                      {(r.status==="approved"||r.status==="paid")&&!r.gosiPaidAt&&(r.totalGosiEmployee+r.totalGosiEmployer)>0&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-gosi-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setGosiRun(r);setGosiBank("");setGosiPaidAt(businessToday());}}>{t("Pay GOSI", "دفع التأمينات")}</Button>}
+                      {r.gosiPaidAt&&<span className="text-xs text-muted-foreground" data-testid={`payroll-gosi-paid-${r.id}`}>{t("GOSI paid", "التأمينات مدفوعة")} {r.gosiPaidAt}</span>}
                     </div>
                   </div>
                 ))}

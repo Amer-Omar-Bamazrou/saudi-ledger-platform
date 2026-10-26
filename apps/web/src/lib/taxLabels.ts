@@ -256,4 +256,4 @@ export const priorityLabel = (p: string, t: T) => ({ high: t("High", "عالية
 export const assumptionCategoryLabel = (c: string, t: T) =>
   ({ financing: t("Financing", "تمويل"), capex: t("Capital expenditure", "إنفاق رأسمالي"), tax: t("Tax", "ضرائب"), payroll: t("Payroll", "رواتب"), receipt: t("Receipt", "مقبوضات"), payment: t("Payment", "مدفوعات"), other: t("Other", "أخرى") } as Record<string, string>)[c] ?? c;
 export const obligationKindLabel = (k: string, t: T) =>
-  ({ wht: t("Withholding tax", "ضريبة الاستقطاع"), zakat: t("Zakat", "الزكاة"), income_tax: t("Income tax", "ضريبة الدخل"), vat: t("VAT", "ضريبة القيمة المضافة") } as Record<string, string>)[k] ?? k;
+  ({ wht: t("Withholding tax", "ضريبة الاستقطاع"), zakat: t("Zakat", "الزكاة"), income_tax: t("Income tax", "ضريبة الدخل"), vat: t("VAT", "ضريبة القيمة المضافة"), gosi: t("GOSI contributions", "اشتراكات التأمينات الاجتماعية") } as Record<string, string>)[k] ?? k;
