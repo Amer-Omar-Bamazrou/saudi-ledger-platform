@@ -2,10 +2,13 @@
  * Employees service — GOSI (Saudi social insurance) computation + view.
  * GOSI comes from @workspace/shared `gosi.ts` (Phase 18, 2026-10-26): the
  * employee's law regime, the current period's rates, and the contributory wage
- * (basic + housing, capped at SAR 45,000). A Saudi employee whose law is not
+ * (basic + cash housing + in-kind housing's value, capped at SAR 45,000; GO-13),
+ * with the 1421H-law pension floor (GO-10). A Saudi employee whose law is not
  * stated has NO preview figure (null), never a guessed one.
  */
-import { businessToday, gosiContributoryWage, gosiRatesFor, GOSI_EMPLOYEE_REGIMES, type GosiRegime } from "@workspace/shared";
+import {
+  businessToday, gosiContributoryWage, gosiInKindHousingValue, gosiLineAmounts, gosiRatesFor, GOSI_EMPLOYEE_REGIMES, type GosiRegime,
+} from "@workspace/shared";
 import { BusinessRuleError, NotFoundError } from "../lib/errors";
 import { auditContext } from "../lib/auditContext";
 import { round2 } from "../lib/money";
@@ -16,8 +19,24 @@ const EMPLOYEE_FIELDS = [
   "employeeNumber", "name", "nameAr", "nationalId", "nationality", "jobTitle",
   "jobTitleAr", "department", "basicSalary", "housingAllowance", "transportAllowance",
   "otherAllowances", "gosiNumber", "iban", "bank", "joiningDate", "endDate", "status", "notes",
-  "gosiRegime", "gosiRegimeBasis",
+  "gosiRegime", "gosiRegimeBasis", "gosiInKindHousing", "gosiInKindHousingExempt",
 ] as const;
+
+/**
+ * 🔴 GO-13 (Phase 18, owner 2026-10-27): "exempt" is the Governor's exemption of IN-KIND housing, so it means
+ * nothing without it — refused by name rather than stored (the database CHECK is the backstop).
+ */
+function assertInKindHousing(data: Record<string, unknown>, before: Employee | null) {
+  const inKind = data.gosiInKindHousing === undefined ? (before?.gosiInKindHousing ?? false) : data.gosiInKindHousing === true;
+  const exempt = data.gosiInKindHousingExempt === undefined ? (before?.gosiInKindHousingExempt ?? false) : data.gosiInKindHousingExempt === true;
+  if (exempt && !inKind) {
+    throw new BusinessRuleError(422, {
+      code: "gosi_in_kind_exempt_without_in_kind",
+      error: "An in-kind housing exemption needs in-kind housing: only housing the employer provides in kind can be exempted from GOSI. Set in-kind housing, or clear the exemption. Nothing was saved.",
+      field: "gosiInKindHousingExempt",
+    });
+  }
+}
 
 /**
  * 🔴 GOSI (Phase 18): the law a Saudi employee contributes under is the employer's
@@ -53,13 +72,20 @@ import type { employeesTable } from "@workspace/db";
 type Employee = typeof employeesTable.$inferSelect;
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 
-/** The GOSI preview for the CURRENT period; null where the regime is not stated or its rate not established. */
+/**
+ * The GOSI preview for the CURRENT period, from the employee's own figures: in-kind housing and the pension floor
+ * included (GO-10, GO-13); a fixed year's wage and a joining or leaving month's days are payroll facts, not
+ * previewed. Null where the regime is not stated or its rate not established.
+ */
 function gosiPreview(e: Employee) {
   const regime: GosiRegime | null = e.nationality === "SA" ? ((e.gosiRegime as GosiRegime | null) ?? null) : "non_saudi";
   const rates = regime ? gosiRatesFor(regime, businessToday().slice(0, 7)) : null;
   if (!rates) return { gosiWageBase: null, gosiEmployee: null, gosiEmployer: null };
-  const wage = round2(gosiContributoryWage(toNum(e.basicSalary), toNum(e.housingAllowance)));
-  return { gosiWageBase: wage, gosiEmployee: round2(wage * rates.employeeRate), gosiEmployer: round2(wage * rates.employerRate) };
+  const basic = toNum(e.basicSalary);
+  const inKind = e.gosiInKindHousing && !e.gosiInKindHousingExempt ? round2(gosiInKindHousingValue(basic)) : 0;
+  const wage = round2(gosiContributoryWage(basic, toNum(e.housingAllowance), inKind));
+  const amounts = gosiLineAmounts({ rates, wage });
+  return { gosiWageBase: wage, gosiEmployee: round2(amounts.employee), gosiEmployer: round2(amounts.employer) };
 }
 
 const toView = (e: Employee) => ({
@@ -98,6 +124,7 @@ export const employeesService = {
     // into payroll/GOSI math; `String(undefined)` → 500.
     const picked = nullifyEmptyText(pick<Record<string, unknown>>(data, EMPLOYEE_FIELDS), ["nameAr", "jobTitleAr"]);
     for (const f of ["joiningDate", "endDate"] as const) if (data[f] != null) assertDateString(data[f], f);
+    assertInKindHousing(data, null);
     const values = {
       ...picked,
       basicSalary: assertAmount(data.basicSalary, "basicSalary", { min: 0, allowZero: true }).toFixed(2),
@@ -116,6 +143,7 @@ export const employeesService = {
     if (!before) throw new NotFoundError("Not found");
     const updates = nullifyEmptyText(pick<Record<string, unknown>>(data, EMPLOYEE_FIELDS), ["nameAr", "jobTitleAr"]);
     for (const f of ["joiningDate", "endDate"] as const) if (updates[f] != null) assertDateString(updates[f], f);
+    assertInKindHousing(updates, before);
     for (const f of ["basicSalary", "housingAllowance", "transportAllowance", "otherAllowances"] as const) {
       if (updates[f] != null) updates[f] = assertAmount(updates[f], f, { min: 0, allowZero: true }).toFixed(2);
     }

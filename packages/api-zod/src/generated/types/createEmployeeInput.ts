@@ -47,4 +47,6 @@ export interface CreateEmployeeInput {
   gosiRegime?: CreateEmployeeInputGosiRegime;
   /** @nullable */
   gosiRegimeBasis?: string | null;
+  gosiInKindHousing?: boolean;
+  gosiInKindHousingExempt?: boolean;
 }

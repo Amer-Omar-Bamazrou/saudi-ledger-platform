@@ -49,4 +49,6 @@ export interface EmployeeInputFields {
   gosiRegime?: EmployeeInputFieldsGosiRegime;
   /** @nullable */
   gosiRegimeBasis?: string | null;
+  gosiInKindHousing?: boolean;
+  gosiInKindHousingExempt?: boolean;
 }

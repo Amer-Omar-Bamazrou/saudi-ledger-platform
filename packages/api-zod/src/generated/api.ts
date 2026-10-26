@@ -5634,6 +5634,11 @@ export const GetPayrollRunResponse = zod.object({
   "gosiWageBase": zod.number().nullable().describe('The contributory wage used: basic + housing, capped at SAR 45,000.'),
   "gosiEmployeeRate": zod.number().nullable().describe('The employee rate used, as a fraction.'),
   "gosiEmployerRate": zod.number().nullable().describe('The employer rate used, as a fraction.'),
+  "gosiInKindHousing": zod.number().nullable().describe('GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none.'),
+  "gosiPensionFloorWage": zod.number().nullable().describe('GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply.'),
+  "gosiServiceDays": zod.number().nullable().describe('GO-12 (2024 law): the days of service in a joining or leaving month. Null for a full month.'),
+  "gosiPeriodDays": zod.number().nullable().describe('GO-12: the month\'s actual days, the divisor of gosiServiceDays. Null for a full month.'),
+  "gosiWageFixedPeriod": zod.string().nullable().describe('GO-12 (1421H law): the period whose line fixed the year\'s contributory wage, which this line used. Null for other laws.'),
   "additions": zod.number(),
   "deductions": zod.number(),
   "netPay": zod.number(),
@@ -5689,11 +5694,13 @@ export const ListEmployeesResponse = zod.object({
   "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
   "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
   "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
-  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
   "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
   "gosiRegimeSetBy": zod.number().nullable(),
   "gosiRegimeSetAt": zod.string().nullable(),
-  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.')
+  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
+  "gosiInKindHousing": zod.boolean().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
+  "gosiInKindHousingExempt": zod.boolean().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
 })),
   "page": zod.object({
   "limit": zod.number(),
@@ -5742,7 +5749,9 @@ export const CreateEmployeeBody = zod.object({
   "status": zod.string().optional(),
   "notes": zod.string().nullish(),
   "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish(),
-  "gosiRegimeBasis": zod.string().nullish()
+  "gosiRegimeBasis": zod.string().nullish(),
+  "gosiInKindHousing": zod.boolean().optional(),
+  "gosiInKindHousingExempt": zod.boolean().optional()
 })
 
 export const CreateEmployeeResponse = zod.object({
@@ -5770,11 +5779,13 @@ export const CreateEmployeeResponse = zod.object({
   "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
   "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
   "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
-  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
   "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
   "gosiRegimeSetBy": zod.number().nullable(),
   "gosiRegimeSetAt": zod.string().nullable(),
-  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.')
+  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
+  "gosiInKindHousing": zod.boolean().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
+  "gosiInKindHousingExempt": zod.boolean().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
 })
 
 
@@ -5807,11 +5818,13 @@ export const GetEmployeeResponse = zod.object({
   "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
   "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
   "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
-  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
   "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
   "gosiRegimeSetBy": zod.number().nullable(),
   "gosiRegimeSetAt": zod.string().nullable(),
-  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.')
+  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
+  "gosiInKindHousing": zod.boolean().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
+  "gosiInKindHousingExempt": zod.boolean().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
 })
 
 
@@ -5852,7 +5865,9 @@ export const UpdateEmployeeBody = zod.object({
   "status": zod.string().optional(),
   "notes": zod.string().nullish(),
   "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish(),
-  "gosiRegimeBasis": zod.string().nullish()
+  "gosiRegimeBasis": zod.string().nullish(),
+  "gosiInKindHousing": zod.boolean().optional(),
+  "gosiInKindHousingExempt": zod.boolean().optional()
 })
 
 export const UpdateEmployeeResponse = zod.object({
@@ -5880,11 +5895,13 @@ export const UpdateEmployeeResponse = zod.object({
   "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
   "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
   "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
-  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
   "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
   "gosiRegimeSetBy": zod.number().nullable(),
   "gosiRegimeSetAt": zod.string().nullable(),
-  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.')
+  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
+  "gosiInKindHousing": zod.boolean().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
+  "gosiInKindHousingExempt": zod.boolean().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
 })
 
 

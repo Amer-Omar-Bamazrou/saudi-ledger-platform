@@ -42,6 +42,16 @@ export const employeesTable = pgTable(
     gosiRegimeSetBy: integer("gosi_regime_set_by"),
     gosiRegimeSetAt: timestamp("gosi_regime_set_at", { withTimezone: true }),
     gosiRegimeBasis: text("gosi_regime_basis"),
+    /**
+     * 🔴 GO-13 (Phase 18, owner 2026-10-27): housing is provided IN KIND, so its
+     * value counts in the GOSI contributory wage (1421H Regulation Art. 16(c);
+     * 2024 Regulation Art. 17(c)) — `gosiInKindHousingValue` in @workspace/shared.
+     * EXEMPT = a case the Governor has exempted (it then adds nothing); only
+     * meaningful with in-kind housing — CHECK `employees_gosi_in_kind_exempt_chk`
+     * (migration 0128, hand-written).
+     */
+    gosiInKindHousing: boolean("gosi_in_kind_housing").notNull().default(false),
+    gosiInKindHousingExempt: boolean("gosi_in_kind_housing_exempt").notNull().default(false),
     iban: text("iban"),
     bank: text("bank"),
     joiningDate: text("joining_date"),

@@ -6153,6 +6153,31 @@ export interface PayrollItem {
      * @nullable
      */
   gosiEmployerRate: number | null;
+  /**
+     * GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none.
+     * @nullable
+     */
+  gosiInKindHousing: number | null;
+  /**
+     * GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply.
+     * @nullable
+     */
+  gosiPensionFloorWage: number | null;
+  /**
+     * GO-12 (2024 law): the days of service in a joining or leaving month. Null for a full month.
+     * @nullable
+     */
+  gosiServiceDays: number | null;
+  /**
+     * GO-12: the month's actual days, the divisor of gosiServiceDays. Null for a full month.
+     * @nullable
+     */
+  gosiPeriodDays: number | null;
+  /**
+     * GO-12 (1421H law): the period whose line fixed the year's contributory wage, which this line used. Null for other laws.
+     * @nullable
+     */
+  gosiWageFixedPeriod: string | null;
   additions: number;
   deductions: number;
   netPay: number;
@@ -6251,7 +6276,7 @@ export interface Employee {
      */
   gosiEmployer: number | null;
   /**
-     * DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.
+     * DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.
      * @nullable
      */
   gosiWageBase: number | null;
@@ -6269,6 +6294,10 @@ export interface Employee {
      * @nullable
      */
   gosiRegimeBasis: string | null;
+  /** GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage. */
+  gosiInKindHousing: boolean;
+  /** GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing. */
+  gosiInKindHousingExempt: boolean;
 }
 
 export interface EmployeeTotals {
@@ -6333,6 +6362,8 @@ export interface EmployeeInputFields {
   gosiRegime?: EmployeeInputFieldsGosiRegime;
   /** @nullable */
   gosiRegimeBasis?: string | null;
+  gosiInKindHousing?: boolean;
+  gosiInKindHousingExempt?: boolean;
 }
 
 /**
@@ -6386,6 +6417,8 @@ export interface CreateEmployeeInput {
   gosiRegime?: CreateEmployeeInputGosiRegime;
   /** @nullable */
   gosiRegimeBasis?: string | null;
+  gosiInKindHousing?: boolean;
+  gosiInKindHousingExempt?: boolean;
 }
 
 export type UpdateEmployeeInput = EmployeeInputFields;

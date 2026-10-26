@@ -1,4 +1,4 @@
-import { gosiContributoryWage, gosiPercentLabel, gosiRatesFor, type GosiRegime } from "@workspace/shared";
+import { gosiContributoryWage, gosiInKindHousingValue, gosiLineAmounts, gosiPercentLabel, gosiRatesFor, type GosiRegime } from "@workspace/shared";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -33,17 +33,34 @@ const REGIME_LABELS: Record<Exclude<RegimeChoice, "">, [string, string]> = {
   law_2024: ["2024 law — no contribution before 3 July 2024", "نظام 2024 — لا اشتراك قبل 3 يوليو 2024"],
 };
 
-/** The page's preview for the current period, from the one GOSI table: null when it cannot be computed. */
-function gosiPreview(nationality: string, regime: RegimeChoice, basic: number, housing: number) {
+/**
+ * 🔴 GO-13 (Phase 18, owner 2026-10-27): housing provided IN KIND counts in the GOSI contributory wage at basic × 2 ÷ 12
+ * a month (an interpretation: the regulations say "two months' basic" with no time unit); a case the GOSI Governor
+ * exempted adds nothing. One control sets both flags, so "exempt without in-kind housing" cannot be chosen here.
+ */
+type HousingChoice = "cash" | "in_kind" | "in_kind_exempt";
+const HOUSING_LABELS: Record<HousingChoice, [string, string]> = {
+  cash: ["Housing: cash allowance or none", "السكن: بدل نقدي أو لا يوجد"],
+  in_kind: ["Housing in kind (GOSI: basic × 2 ÷ 12 a month)", "سكن عيني (التأمينات: الأساسي × 2 ÷ 12 شهرياً)"],
+  in_kind_exempt: ["Housing in kind, exempted by GOSI", "سكن عيني معفى من التأمينات"],
+};
+const housingOf = (e: { gosiInKindHousing: boolean; gosiInKindHousingExempt: boolean }): HousingChoice =>
+  !e.gosiInKindHousing ? "cash" : e.gosiInKindHousingExempt ? "in_kind_exempt" : "in_kind";
+const housingFlags = (h: HousingChoice) => ({ gosiInKindHousing: h !== "cash", gosiInKindHousingExempt: h === "in_kind_exempt" });
+
+/** The page's preview for the current period, from the one GOSI table and its rules (in-kind housing, the 1421H pension floor): null when it cannot be computed. */
+function gosiPreview(nationality: string, regime: RegimeChoice, basic: number, housing: number, housingChoice: HousingChoice) {
   const r: GosiRegime | null = nationality === "SA" ? (regime || null) : "non_saudi";
   const rates = r ? gosiRatesFor(r, businessToday().slice(0, 7)) : null;
   if (!rates) return null;
-  const wage = gosiContributoryWage(basic, housing);
-  return { wage, employeeRate: rates.employeeRate, employerRate: rates.employerRate, employee: wage * rates.employeeRate, employer: wage * rates.employerRate };
+  const inKind = housingChoice === "in_kind" ? Math.round(gosiInKindHousingValue(basic) * 100) / 100 : 0;
+  const wage = gosiContributoryWage(basic, housing, inKind);
+  const a = gosiLineAmounts({ rates, wage });
+  return { wage, inKind, pensionFloorWage: a.pensionFloorWage, employeeRate: rates.employeeRate, employerRate: rates.employerRate, employee: a.employee, employer: a.employer };
 }
 
 
-const emptyForm = { employeeNumber: `EMP-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", nationalId: "", nationality: "SA", jobTitle: "", jobTitleAr: "", department: "", basicSalary: "", housingAllowance: "", transportAllowance: "", otherAllowances: "", iban: "", bank: "", joiningDate: businessToday(), status: "active", gosiRegime: "" as RegimeChoice, gosiRegimeBasis: "" };
+const emptyForm = { employeeNumber: `EMP-${Date.now().toString().slice(-5)}`, name: "", nameAr: "", nationalId: "", nationality: "SA", jobTitle: "", jobTitleAr: "", department: "", basicSalary: "", housingAllowance: "", transportAllowance: "", otherAllowances: "", iban: "", bank: "", joiningDate: businessToday(), status: "active", gosiRegime: "" as RegimeChoice, gosiRegimeBasis: "", housing: "cash" as HousingChoice };
 
 export default function Employees() {
   const [open, setOpen] = useState(false);
@@ -65,7 +82,7 @@ export default function Employees() {
     // 🔴 joiningDate is OPTIONAL and the input is clearable: the raw spread
     // sent "" and the server (rightly) refused it as not-a-date — the exact
     // Bills dueDate class, found by sweeping the spread-into-body shape.
-    mutationFn: (body: typeof emptyForm) => apiFetch("/employees", { method: "POST", body: json.create({ ...body, joiningDate: body.joiningDate || undefined, basicSalary: Number(body.basicSalary), housingAllowance: Number(body.housingAllowance || 0), transportAllowance: Number(body.transportAllowance || 0), otherAllowances: Number(body.otherAllowances || 0), gosiRegime: body.nationality === "SA" && body.gosiRegime ? body.gosiRegime : null, gosiRegimeBasis: body.nationality === "SA" && body.gosiRegimeBasis.trim() ? body.gosiRegimeBasis.trim() : null }) }),
+    mutationFn: ({ housing, ...body }: typeof emptyForm) => apiFetch("/employees", { method: "POST", body: json.create({ ...body, ...housingFlags(housing), joiningDate: body.joiningDate || undefined, basicSalary: Number(body.basicSalary), housingAllowance: Number(body.housingAllowance || 0), transportAllowance: Number(body.transportAllowance || 0), otherAllowances: Number(body.otherAllowances || 0), gosiRegime: body.nationality === "SA" && body.gosiRegime ? body.gosiRegime : null, gosiRegimeBasis: body.nationality === "SA" && body.gosiRegimeBasis.trim() ? body.gosiRegimeBasis.trim() : null }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["employees"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Employee added", "تمت إضافة الموظف") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
@@ -78,7 +95,13 @@ export default function Employees() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["employees"] }); toast({ title: t("GOSI law saved", "تم حفظ نظام التأمينات") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
-  const preview = gosiPreview(form.nationality, form.gosiRegime, Number(form.basicSalary || 0), Number(form.housingAllowance || 0));
+  // GO-13: how an employee's housing counts for GOSI, from the table.
+  const housingMut = useMutation({
+    mutationFn: (v: { id: number; housing: HousingChoice }) => apiFetch(`/employees/${v.id}`, { method: "PATCH", body: json.update(housingFlags(v.housing)) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["employees"] }); toast({ title: t("GOSI housing saved", "تم حفظ السكن في التأمينات") }); },
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+  });
+  const preview = gosiPreview(form.nationality, form.gosiRegime, Number(form.basicSalary || 0), Number(form.housingAllowance || 0), form.housing);
   const unstated = paged?.totals.gosiUnstatedCount ?? 0;
 
   // From the server, over every matching employee — never over the page.
@@ -124,12 +147,17 @@ export default function Employees() {
               {([["basicSalary",t("Basic Salary *","الراتب الأساسي *")],["housingAllowance",t("Housing Allowance","بدل السكن")],["transportAllowance",t("Transport Allowance","بدل النقل")],["otherAllowances",t("Other Allowances","بدلات أخرى")]] as [string,string][]).map(([k,l])=>(
                 <div key={k}><Label className="text-xs text-muted-foreground">{l}</Label><Input type="number" value={(form as any)[k]} onChange={f(k)} className="mt-1 h-8 text-sm font-mono" /></div>
               ))}
+              <div className="col-span-2"><Label className="text-xs text-muted-foreground">{t("Housing for GOSI", "السكن في التأمينات")}</Label>
+                <Select value={form.housing} onValueChange={v=>setForm(p=>({...p,housing:v as HousingChoice}))}><SelectTrigger className="mt-1 h-8 text-sm" data-testid="employee-gosi-housing"><SelectValue /></SelectTrigger><SelectContent>{(Object.keys(HOUSING_LABELS) as HousingChoice[]).map(h=><SelectItem key={h} value={h}>{t(...HOUSING_LABELS[h])}</SelectItem>)}</SelectContent></Select>
+              </div>
               {form.basicSalary && (
                 <div className="col-span-2 bg-secondary/30 rounded-lg p-3 text-xs space-y-1">
                   <p className="font-medium text-muted-foreground">{t("GOSI Preview", "معاينة التأمين الاجتماعي")} ({form.nationality === "SA" ? t("Saudi", "سعودي") : t("Expat", "وافد")})</p>
                   {preview ? (
                     <>
                       <div className="flex justify-between"><span className="text-muted-foreground">{t("Contributory wage (basic + housing, up to 45,000)", "الأجر الخاضع (الأساسي + السكن، حتى 45,000)")}</span><span className="font-mono">{fmtNum(preview.wage)}</span></div>
+                      {preview.inKind > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("of which in-kind housing (basic × 2 ÷ 12)", "منها السكن العيني (الأساسي × 2 ÷ 12)")}</span><span className="font-mono">{fmtNum(preview.inKind)}</span></div>}
+                      {preview.pensionFloorWage != null && <p className="text-muted-foreground">{t(`The pension share is charged on ${fmtNum(preview.pensionFloorWage)}, the 1421H law's minimum wage for contributions.`, `تُحتسب حصة المعاشات على ${fmtNum(preview.pensionFloorWage)}، الحد الأدنى للاشتراك في نظام 1421هـ.`)}</p>}
                       <div className="flex justify-between"><span className="text-muted-foreground">{t("Employee contribution", "مساهمة الموظف")} ({gosiPercentLabel(preview.employeeRate)})</span><span className="font-mono text-attention">{fmtNum(preview.employee)}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">{t("Employer contribution", "مساهمة صاحب العمل")} ({gosiPercentLabel(preview.employerRate)})</span><span className="font-mono text-attention">{fmtNum(preview.employer)}</span></div>
                     </>
@@ -173,12 +201,16 @@ export default function Employees() {
                   <td className="py-3 pe-3"><Badge variant="outline" className={`text-xs ${e.nationality==="SA"?"border-primary/40 text-primary":"border-info-surface/40 text-info"}`}>{e.nationality==="SA" ? t("🇸🇦 Saudi","🇸🇦 سعودي") : t("Expat","وافد")}</Badge></td>
                   <td className="py-3 pe-3 font-mono text-sm">{fmtNum(e.basicSalary)}</td>
                   <td className="py-3 pe-3 font-mono text-sm font-semibold">{fmtNum(e.grossSalary)}</td>
-                  <td className="py-3 pe-3 text-xs">{e.nationality === "SA" ? (
+                  <td className="py-3 pe-3 text-xs space-y-1">{e.nationality === "SA" ? (
                     <Select value={e.gosiRegime ?? "unstated"} onValueChange={v => regimeMut.mutate({ id: e.id, gosiRegime: (v === "unstated" ? "" : v) as RegimeChoice })}>
                       <SelectTrigger className="h-7 text-xs w-44" data-testid={`employee-gosi-regime-${e.id}`}><SelectValue /></SelectTrigger>
                       <SelectContent><SelectItem value="unstated">{t("Not stated", "غير محدَّد")}</SelectItem>{(Object.keys(REGIME_LABELS) as Array<keyof typeof REGIME_LABELS>).map(r=><SelectItem key={r} value={r}>{t(...REGIME_LABELS[r])}</SelectItem>)}</SelectContent>
                     </Select>
-                  ) : <span className="text-muted-foreground">—</span>}</td>
+                  ) : <span className="text-muted-foreground">—</span>}
+                    <Select value={housingOf(e)} onValueChange={v => housingMut.mutate({ id: e.id, housing: v as HousingChoice })}>
+                      <SelectTrigger className="h-7 text-xs w-44" data-testid={`employee-gosi-housing-${e.id}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>{(Object.keys(HOUSING_LABELS) as HousingChoice[]).map(h=><SelectItem key={h} value={h}>{t(...HOUSING_LABELS[h])}</SelectItem>)}</SelectContent>
+                    </Select></td>
                   <td className="py-3 pe-3 font-mono text-xs text-attention">{e.gosiEmployee == null ? "—" : fmtNum(e.gosiEmployee)}</td>
                   <td className="py-3 pe-3 font-mono text-xs text-negative">{e.gosiEmployer == null ? "—" : fmtNum(e.gosiEmployer)}</td>
                   <td className="py-3 pe-3 text-xs text-muted-foreground"><DualDate date={e.joiningDate} /></td>

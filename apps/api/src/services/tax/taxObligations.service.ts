@@ -19,9 +19,10 @@
  *             month (Social Insurance Law Art. 9(1); Regulation Art. 24). The rows add up to the books'
  *             GOSI_PAYABLE balance: a bank line that paid GOSI is taken as settling the OLDEST runs
  *             first, and anything the runs do not explain is one undated row. A late row carries the
- *             2%-per-month-or-part fine ESTIMATE (Law Art. 9(3)), uncapped, never posted (Phase 18).
+ *             2%-per-month-or-part fine ESTIMATE (Law Art. 9(3)), never posted (Phase 18); its 1421H-law
+ *             part is capped at 100% of that part (GO-11, Regulation Art. 30(1)), the rest uncapped.
  */
-import { businessToday, gosiDueDate, gosiLateFineEstimate } from "@workspace/shared";
+import { businessToday, gosiDueDate, gosiLateFineEstimate, gosiRatesFor, type GosiRegime } from "@workspace/shared";
 import { payrollRepository } from "../../repositories/payroll.repository";
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import { fromHalalas, round2, toHalalas } from "../../lib/money";
@@ -118,20 +119,30 @@ export const taxObligationsService = {
     // ── GOSI — per approved run not paid through the GOSI pay path, up to the books' GOSI_PAYABLE ──
     const gosiBalanceH = toHalalas((await liabilityBalances([SYSTEM_ACCOUNTS.GOSI_PAYABLE], asOf)).get(SYSTEM_ACCOUNTS.GOSI_PAYABLE) ?? 0);
     let leftH = Math.max(0, gosiBalanceH);
+    const unpaidRuns = await payrollRepository.runsWithUnpaidGosi();
+    // GO-11: the part of each run whose late fine is capped at 100% of it — its lines under a regime whose entry says so.
+    const cappedH = new Map<number, number>();
+    for (const g of await payrollRepository.gosiByRegime(unpaidRuns.map((r) => r.id))) {
+      const run = unpaidRuns.find((r) => r.id === g.payrollRunId)!;
+      if (!g.regime || !gosiRatesFor(g.regime as GosiRegime, run.period)?.entry.lateFineCappedAtContribution) continue;
+      cappedH.set(run.id, (cappedH.get(run.id) ?? 0) + toHalalas(Number(g.total)));
+    }
     // Newest first: what the books still owe belongs to the most recent runs; a bank line settled the oldest.
-    for (const r of await payrollRepository.runsWithUnpaidGosi()) {
+    for (const r of unpaidRuns) {
       if (leftH <= 0) break;
       const runH = toHalalas(Number(r.totalGosiEmployee ?? 0) + Number(r.totalGosiEmployer ?? 0));
       const owedH = Math.min(runH, leftH);
       leftH -= owedH;
       if (owedH <= 0) continue;
       const amount = fromHalalas(owedH);
+      // A part-settled run keeps the capped part's share of what is still owed.
+      const cappedOwed = fromHalalas(runH > 0 ? Math.round(((cappedH.get(r.id) ?? 0) * owedH) / runH) : 0);
       const due = gosiDueDate(r.period);
       out.push({
         kind: "gosi", reference: r.period, amount, dueDate: due,
         note: owedH < runH ? "Part of this run's GOSI is settled in the books (a bank line, taken as settling the oldest runs first)." : null,
         source: { type: "payroll_run", period: r.period, payrollRunId: r.id }, overdue: due < today,
-        fineEstimate: gosiLateFineEstimate(amount, due, today).amount,
+        fineEstimate: gosiLateFineEstimate(amount, due, today, cappedOwed).amount,
       });
     }
     if (leftH > 0) {

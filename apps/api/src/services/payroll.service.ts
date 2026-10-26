@@ -18,7 +18,9 @@ import { payrollApprovable } from "./payroll.approvable";
 import { runToOut, itemToOut, toNum } from "./payroll.presenter";
 import { payrollRepository } from "../repositories/payroll.repository";
 import { round2, money2 } from "../lib/money";
-import { businessToday, gosiContributoryWage, gosiRatesFor, type GosiRegime } from "@workspace/shared";
+import {
+  businessToday, gosiContributoryWage, gosiInKindHousingValue, gosiLineAmounts, gosiRatesFor, gosiServiceDays, type GosiRegime,
+} from "@workspace/shared";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
 import { assertDateString } from "../lib/writeGuards";
@@ -115,6 +117,18 @@ export const payrollService = {
       });
     }
 
+    /**
+     * 🔴 GO-10..GO-13 (Phase 18, owner 2026-10-27): the rules on each regime's table entry. In-kind housing counts in
+     * the wage (both laws); a 1421H-law line takes the wage its year's first line fixed and the pension floor; a
+     * 2024-law joining or leaving month is charged by days. Each line records what it used.
+     */
+    const fixedWages = new Map<number, Awaited<ReturnType<typeof payrollRepository.firstLinesOfYear>>[number]>();
+    for (const regime of new Set(employees.map((e) => regimeOf(e)!))) {
+      if (!gosiRatesFor(regime, period)!.entry.wageFixedForYear) continue;
+      const ids = employees.filter((e) => regimeOf(e) === regime).map((e) => e.id);
+      for (const line of await payrollRepository.firstLinesOfYear(ids, period, regime)) fixedWages.set(line.employeeId!, line);
+    }
+
     const items = employees.map((emp) => {
       const basic = toNum(emp.basicSalary);
       const housing = toNum(emp.housingAllowance);
@@ -123,9 +137,15 @@ export const payrollService = {
       const gross = round2(basic + housing + transport + other);
       const regime = regimeOf(emp)!;
       const rates = gosiRatesFor(regime, period)!;
-      const wage = round2(gosiContributoryWage(basic, housing));
-      const gosiEmp = round2(wage * rates.employeeRate);
-      const gosiEr = round2(wage * rates.employerRate);
+      const fixed = rates.entry.wageFixedForYear ? fixedWages.get(emp.id) : undefined;
+      const inKind = fixed
+        ? (fixed.inKindHousing == null ? null : toNum(fixed.inKindHousing))
+        : emp.gosiInKindHousing && !emp.gosiInKindHousingExempt && basic > 0 ? round2(gosiInKindHousingValue(basic)) : null;
+      const wage = fixed ? toNum(fixed.wageBase) : round2(gosiContributoryWage(basic, housing, inKind ?? 0));
+      const days = rates.entry.prorateJoiningAndLeavingMonths ? gosiServiceDays(period, emp.joiningDate, emp.endDate) : null;
+      const amounts = gosiLineAmounts({ rates, wage, serviceDays: days?.serviceDays, periodDays: days?.periodDays });
+      const gosiEmp = round2(amounts.employee);
+      const gosiEr = round2(amounts.employer);
       const net = round2(gross - gosiEmp);
       totalBasic += basic;
       totalAllowances += housing + transport + other;
@@ -145,6 +165,11 @@ export const payrollService = {
         gosiWageBase: money2(wage),
         gosiEmployeeRate: rates.employeeRate.toFixed(4),
         gosiEmployerRate: rates.employerRate.toFixed(4),
+        gosiInKindHousing: inKind == null ? null : money2(inKind),
+        gosiPensionFloorWage: amounts.pensionFloorWage == null ? null : money2(amounts.pensionFloorWage),
+        gosiServiceDays: days?.serviceDays ?? null,
+        gosiPeriodDays: days?.periodDays ?? null,
+        gosiWageFixedPeriod: rates.entry.wageFixedForYear ? (fixed ? (fixed.fixedPeriod ?? fixed.period) : period) : null,
         additions: "0",
         deductions: "0",
         netPay: String(net.toFixed(2)),
