@@ -56,11 +56,15 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
       });
     }
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
+    await pool.query(`DELETE FROM users WHERE email = '${SLUG}-approver@test.local'`);
   };
 
+  // T1d (0129): a manual entry is posted by an approval that records its approver, so the approval names a user.
+  let approverId = 0;
   beforeAll(async () => {
     await cleanup();
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Tax JE Org','${SLUG}') RETURNING id`)).rows[0].id;
+    approverId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${SLUG}-approver@test.local', 'Tax JE approver', 'x', 'viewer', true) RETURNING id`)).rows[0].id;
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'TJ Co') RETURNING id`, [orgId])).rows[0].id;
     // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
     bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
@@ -81,7 +85,7 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
 
   const post = async (entryNumber: string, lines: Array<{ accountId: number; accountName: string; debitAmount: number; creditAmount: number }>) => {
     const je = await inTenant(() => journalEntriesService.create({ entryNumber, date: "2026-09-10", description: entryNumber, lines }, null));
-    await inTenant(() => journalEntriesService.post(je.id, null));
+    await inTenant(() => journalEntriesService.post(je.id, approverId));
     return je.id;
   };
 

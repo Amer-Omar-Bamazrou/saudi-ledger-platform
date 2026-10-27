@@ -152,10 +152,13 @@ const TAX_TREASURY_UNIQUE_MESSAGE: Record<string, string> = {
   zakat_account_classifications_account_unq: "This account was classified at the same moment — reload to see its class.",
   scheduled_payments_payment_unq: "This plan was paid at the same moment — reload to see it.",
   treasury_settings_company_unq: "The treasury settings were saved at the same moment — reload and try again.",
-  // Not a Phase 16/17 index, but every system-posted entry whose number carries a clock
-  // (SPAY-, BTR-, SALLOC-, RECLASS-…) can meet another request in the same millisecond:
-  // nothing duplicates (the index holds), and a retry passes — a conflict, not a fault.
-  journal_entries_company_number_unq: "Another entry was recorded at the same moment — reload and try again.",
+  // Not a Phase 16/17 index. 🔴 T1d (N-G): the number is TAKEN — by an entry that already
+  // exists, or (for a system number that carries a clock: SPAY-, BTR-, SALLOC-, RECLASS-…)
+  // by another request in the same millisecond. The old text named only the second case,
+  // so a number taken for good read as a race a retry would pass.
+  journal_entries_company_number_unq:
+    "That entry number is already used by another journal entry in this company, so nothing was saved. " +
+    "Reload: if another request took it at the same moment, trying again will pass.",
 };
 
 /**

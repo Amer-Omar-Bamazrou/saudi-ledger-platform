@@ -313,7 +313,7 @@ export const migrationCommitService = {
     for (const c of position.arByCustomer) lines.push({ systemCode: SYSTEM_ACCOUNTS.AR, accountName: "Accounts Receivable", debitAmount: c.total, creditAmount: 0, party: { type: "customer", customerId: customerIdBySource.get(c.partySourceId)! }, description: `${desc} — ${c.items} open item(s) of ${c.partyName ?? c.partySourceId}` });
     for (const v of position.apByVendor) lines.push({ systemCode: SYSTEM_ACCOUNTS.AP, accountName: "Accounts Payable", debitAmount: 0, creditAmount: v.total, party: { type: "vendor", vendorId: vendorIdBySource.get(v.partySourceId)! }, description: `${desc} — ${v.items} open item(s) of ${v.partyName ?? v.partySourceId}` });
     for (const d of position.depositsByCustomer) lines.push({ systemCode: SYSTEM_ACCOUNTS.CUSTOMER_DEPOSITS, accountName: "Customer deposits and advances", debitAmount: 0, creditAmount: d.total, party: { type: "customer", customerId: customerIdBySource.get(d.partySourceId)! }, description: `${desc} — ${d.items} advance(s) held for ${d.partyName ?? d.partySourceId}` });
-    const je = await postJournalEntry({ entryNumber: `MIG-${batch.id}-OPEN`, date: batch.openingDate, description: desc, reference: `migration:${batch.id}`, lines, source: "opening", migrationBatchId: batch.id });
+    const je = await postJournalEntry({ sourceType: "migration_opening", sourceId: batch.id, entryNumber: `MIG-${batch.id}-OPEN`, date: batch.openingDate, description: desc, reference: `migration:${batch.id}`, lines, source: "opening", migrationBatchId: batch.id });
 
     // 4b. FA-D: the migrated FIXED ASSETS become register rows on this entry.
     //     They add NO line of their own — their cost and accumulated
@@ -594,7 +594,7 @@ export const migrationCommitService = {
       if (lock) await auditService.deleted("period_lock", lock.id, lock);
     }
     // 2. The mirror, through the seam, dated the opening date.
-    const mirror = await postJournalEntry({
+    const mirror = await postJournalEntry({ sourceType: "migration_reversal", sourceId: batch.id,
       entryNumber: `${opening!.entryNumber}-REV`, date: batch.openingDate, description: `Reversal of ${opening!.description} — ${reason}`, reference: `migration:${batch.id}`,
       source: "opening_reversal", migrationBatchId: batch.id, reversalOf: opening!.id,
       lines: lines.map((l) => ({

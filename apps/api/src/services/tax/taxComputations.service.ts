@@ -380,7 +380,7 @@ export function taxComputationVersionApprovable(): Approvable<TaxComputationVers
         const payable = c.kind === "zakat" ? SYSTEM_ACCOUNTS.ZAKAT_PAYMENT : SYSTEM_ACCOUNTS.INCOME_TAX_PAYABLE;
         const what = c.kind === "zakat" ? "Zakat" : "Income tax";
         const amt = H(Math.abs(diffH));
-        const entry = await postJournalEntry({
+        const entry = await postJournalEntry({ sourceType: "tax_computation", sourceId: v.id,
           entryNumber: `${c.kind === "zakat" ? "ZAKAT" : "INCTAX"}-${c.fiscalLabel}-${c.id}-V${v.versionNo}`,
           date: when.date,
           description: `${what} for the fiscal year ${c.fiscalYearStart} – ${c.fiscalYearEnd} (computation v${v.versionNo}${accruedH !== 0 ? ", the difference from the earlier accrual" : ""})`,

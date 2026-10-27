@@ -232,7 +232,7 @@ export const vatEvidenceService = {
     if (amount > 0) {
       const [row] = await billsRepository.findWithVendor(billId);
       const label = `Input VAT evidenced — ${bill.billNumber}`;
-      const je = await postJournalEntry({
+      const je = await postJournalEntry({ sourceType: "vat_evidence", sourceId: bill.id,
         entryNumber: `VATEV-${bill.billNumber}`,
         date: claimedOn,
         description: `${label}${row?.vendor?.name ? ` – ${row.vendor.name}` : ""}`,

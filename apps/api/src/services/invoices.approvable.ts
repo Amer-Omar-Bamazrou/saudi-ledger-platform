@@ -430,7 +430,7 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
      */
     if (vatAmount > 0) {
       const party = { type: "customer" as const, customerId: inv.customerId! };
-      await postJournalEntry({
+      await postJournalEntry({ sourceType: "invoice", sourceId: inv.id,
         entryNumber: `GL-${inv.invoiceNumber}`,
         date: inv.date,
         description: `Advance tax invoice ${inv.invoiceNumber} — VAT on advance received (receipt RCPT-${inv.advancePaymentId})`,
@@ -462,7 +462,7 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
     const [original] = await invoicesRepository.findById(inv.originalInvoiceId!);
     if (vatAmount > 0) {
       const party = { type: "customer" as const, customerId: inv.customerId! };
-      await postJournalEntry({
+      await postJournalEntry({ sourceType: "invoice", sourceId: inv.id,
         entryNumber: `GL-${inv.invoiceNumber}`,
         date: inv.date,
         description: `Credit note ${inv.invoiceNumber} against advance tax invoice ${original?.invoiceNumber ?? inv.originalInvoiceId} — VAT returned to the deposit`,
@@ -519,7 +519,7 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
     }
     let je: { id: number } | null = null;
     if (lines.length > 0) {
-      je = await postJournalEntry({
+      je = await postJournalEntry({ sourceType: "invoice", sourceId: inv.id,
         entryNumber: `GL-${inv.invoiceNumber}`,
         date: inv.date,
         description: `Tax invoice ${inv.invoiceNumber} under Art. 40(9): ${total.toFixed(2)} received on ${payment.paidAt} against ${recovered.invoiceNumber} (bad-debt relief ${recovered.badDebtReliefClaimedOn})`,
@@ -578,7 +578,7 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
       if (excess > 0) {
         lines.push({ systemCode: CUSTOMER_CREDIT_ACCOUNT.credit_note, accountName: CUSTOMER_CREDIT_ACCOUNT_NAME.credit_note, description: `${label} ${inv.invoiceNumber} — balance owed to the customer`, debitAmount: 0, creditAmount: excess, party });
       }
-      const je = await postJournalEntry({ entryNumber: `GL-${inv.invoiceNumber}`, date: inv.date, description: `${label} ${inv.invoiceNumber}`, reference: inv.invoiceNumber, lines });
+      const je = await postJournalEntry({ sourceType: "invoice", sourceId: inv.id, entryNumber: `GL-${inv.invoiceNumber}`, date: inv.date, description: `${label} ${inv.invoiceNumber}`, reference: inv.invoiceNumber, lines });
       if (applied > 0) {
         await paymentsRepository.insertAllocation({ creditNoteId: inv.id, invoiceId: original.id, amount: applied.toFixed(2), journalEntryId: je.id, createdBy: null });
         await invoiceSettlementRepository.bumpSettled(original.id, { credited: applied });
@@ -603,7 +603,7 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
       ];
       if (vatAmount > 0.005 || !fresh) saleLines.push({ systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount });
       if (fresh) saleLines.push(...assetDisposalService.derecognitionLines(fresh));
-      const je = await postJournalEntry({
+      const je = await postJournalEntry({ sourceType: "invoice", sourceId: inv.id,
         entryNumber: `GL-${inv.invoiceNumber}`,
         date: inv.date,
         description: `${label} ${inv.invoiceNumber}${fresh ? ` — disposal of ${fresh.asset.assetNumber}` : ""}`,
@@ -645,7 +645,7 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
       // LESS VAT than was declared on the 386: the difference reverses here.
       if (vatNet > 0.005) lines.push({ systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber} net of advance`, debitAmount: 0, creditAmount: vatNet });
       else if (vatNet < -0.005) lines.push({ systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT declared on advance in excess of ${inv.invoiceNumber}`, debitAmount: -vatNet, creditAmount: 0 });
-      const je = await postJournalEntry({
+      const je = await postJournalEntry({ sourceType: "invoice", sourceId: inv.id,
         entryNumber: `GL-${inv.invoiceNumber}`,
         date: inv.date,
         description: `${label} ${inv.invoiceNumber} — adjusting advance tax invoice(s) ${prepayments.map((p) => p.advance.invoiceNumber).join(", ")}`,

@@ -46,7 +46,7 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
     return je.status === "draft" ? "draft" : "approved";
   },
 
-  async onApprove(je) {
+  async onApprove(je, actor) {
     // Approval is the ledger-affecting moment — enforce the period lock here.
     await checkPeriodOpen(je.date);
     // 🔴 And the balance — on the STORED lines, not on whatever request created
@@ -99,6 +99,17 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
         field: "lines",
       });
     }
+    /**
+     * 🔴 T1d (Phase 18, G07; owner 2026-10-24): the approver is recorded ON THE
+     * DRAFT, in this transaction, immediately before the flip. G16's flip check
+     * lets only `status` and `posted_at` change, so it cannot ride in the flip;
+     * and the database refuses to post a manual or recurring entry without it.
+     */
+    if (actor.userId == null) {
+      throw new BusinessRuleError(422, { code: "approver_unknown", error: "Journal entry cannot be posted: the approving user is not known. Nothing was posted." });
+    }
+    const [withApprover] = await journalEntriesRepository.updateEntryIfStatus(je.id, "draft", { approvedBy: actor.userId });
+    if (!withApprover) throw new TransitionNotApplied();
     // 🔴 G08 residuals (PR A): posted only while the entry is still a draft. Two
     // approvals both passed the engine's check and both answered 200.
     const [posted] = await journalEntriesRepository.updateEntryIfStatus(je.id, "draft", {

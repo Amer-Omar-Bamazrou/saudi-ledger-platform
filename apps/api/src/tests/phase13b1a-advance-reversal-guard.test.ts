@@ -146,12 +146,16 @@ describeMaybe("Phase 13B-1a — supplier advance VAT entries are owned (D-2)", (
     await inTenant(() => billsService.pay(bill.id, { amount: 115, paidAt: "2026-05-12", bankAccountId: bankA }, userA));
     id.billPayment = (await pool.query(`SELECT id FROM journal_entries WHERE organization_id = $1 AND entry_number LIKE 'BILL-P13B1A-B1-PAY-%'`, [orgA])).rows[0].id;
     // Precision: an entry whose NUMBER looks like an advance's but names an ordinary bill is not owned by it.
-    const fake = await inTenant(() => journalEntriesService.create({
-      entryNumber: "BILLADV-P13B1A-B1", date: "2026-05-16", description: "look-alike",
-      lines: [{ accountId: purchases.id, accountName: purchases.name, description: "x", debitAmount: 5, creditAmount: 0 },
-              { accountId: suspense.id, accountName: suspense.name, description: "x", debitAmount: 0, creditAmount: 5 }],
-    }, userA));
-    await inTenant(() => journalEntriesService.post(fake.id, userA));
+    // 🔴 T1d (0129): a manual entry can no longer TAKE a document's number (422 `entry_number_reserved`, and the
+    // database refuses it), so the look-alike is written as one written before 0129 stands in the ledger: no
+    // source_type, through no service. Historical rows like it are what this precision check still covers.
+    const { rows: [fake] } = await pool.query(
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, created_by)
+       VALUES ($1, $2, 'BILLADV-P13B1A-B1', '2026-05-16', 'look-alike', 'draft', $3) RETURNING id`, [orgA, coA, userA]);
+    await pool.query(
+      `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, description, debit_amount, credit_amount)
+       VALUES ($1, $2, $3, $4, $5, 'x', 5, 0), ($1, $2, $3, $6, $7, 'x', 0, 5)`, [orgA, coA, fake.id, purchases.id, purchases.name, suspense.id, suspense.name]);
+    await pool.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [fake.id]);
     id.fakeAdv = fake.id;
 
     const app = (await import("../app")).default;

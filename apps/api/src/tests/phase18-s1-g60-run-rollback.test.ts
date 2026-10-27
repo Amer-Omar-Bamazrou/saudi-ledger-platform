@@ -81,8 +81,23 @@ describeMaybe("Phase 18 S1 · G60 proof — a run that answers 2xx for work that
     (await pool.query(
       `SELECT entry_number, status FROM journal_entries WHERE organization_id = $1 AND entry_number LIKE $2 ORDER BY entry_number`, [orgId, pattern],
     )).rows as Array<{ entry_number: string; status: string }>;
-  /** A DRAFT manual journal entry with a caller-chosen number, entered by the bookkeeper over HTTP. */
+  /**
+   * A DRAFT manual journal entry with a caller-chosen number, entered by the bookkeeper over HTTP.
+   * 🔴 T1d (SG-11, 0129): a user can no longer TYPE a document's number (`DEP-…`: 422 `entry_number_reserved`),
+   * so that one is written the way a draft from before 0129 stands (no source_type). A recognition number
+   * (`<reference>-<period>`) is not reserved, and is still typed through the API.
+   */
   async function draftEntryNumbered(entryNumber: string, date: string) {
+    if (/^DEP-/i.test(entryNumber)) {
+      const { rows: [e] } = await pool.query(
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
+         VALUES ($1, $2, $3, $4, 'S1 G60 — a draft that happens to carry this number', 'draft') RETURNING id`, [orgId, companyId, entryNumber, date]);
+      await pool.query(
+        `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
+         VALUES ($1, $2, $3, $4, 'debit', 10, 0), ($1, $2, $3, $5, 'credit', 0, 10)`,
+        [orgId, companyId, e.id, await accountOf("RENT_UTILITIES"), await accountOf("OTHER_INCOME")]);
+      return e.id as number;
+    }
     const r = await h.api("bookkeeper", "POST", "/journal-entries", {
       entryNumber,
       date,

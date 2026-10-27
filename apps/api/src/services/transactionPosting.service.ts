@@ -158,7 +158,7 @@ export const transactionPostingService = {
       .select({ n: sql<number>`count(*)::int` })
       .from(journalEntriesTable)
       .where(sql`${journalEntriesTable.entryNumber} = ${base} OR ${journalEntriesTable.entryNumber} LIKE ${base + "-%"}`);
-    const je = await postJournalEntry({
+    const je = await postJournalEntry({ sourceType: "bank_transaction", sourceId: row.tx.id,
       entryNumber: n === 0 ? base : `${base}-P${n}`,
       date: row.tx.date,
       description: `Bank ${row.tx.kind === "transfer" ? "transfer" : row.tx.type === "debit" ? "payment" : "receipt"}: ${row.tx.description.slice(0, 80)}`,

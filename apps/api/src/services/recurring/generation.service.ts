@@ -124,7 +124,7 @@ async function generateOne(rule: DueRule): Promise<"generated" | "failed" | "alr
            * accrual rule most needs, because the alternative is a silent gap
            * in a series nobody is watching.
            */
-          return journalEntriesService.create(body as Record<string, unknown>, rule.createdBy);
+          return journalEntriesService.create(body as Record<string, unknown>, rule.createdBy, { sourceType: "recurring" });
         },
       ),
     );

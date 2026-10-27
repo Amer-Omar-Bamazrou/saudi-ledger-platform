@@ -74,7 +74,7 @@ async function postPayrollGL(run: PayrollRun, from: "draft" | "submitted"): Prom
   const netPay = toNum(run.totalNetPay);
   const approveDate = businessToday();
 
-  await postJournalEntry({
+  await postJournalEntry({ sourceType: "payroll_run", sourceId: run.id,
     // N3: suffixed with the run id — `PAY-<period>` alone collided the day a
     // period legitimately got a second run (a correction), and the unique
     // (company_id, entry_number) index would have made that approval a 500.

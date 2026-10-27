@@ -25,6 +25,9 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { translateDbRefusal } from "../lib/dbRefusals";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { JOURNAL_SOURCE_TYPES, RESERVED_ENTRY_NUMBER_PREFIXES } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
 
 const url = process.env.DATABASE_URL;
@@ -33,15 +36,58 @@ const describeMaybe = REAL_DB ? describe : describe.skip;
 const PW = "Phase18T1dProvenancePw1!";
 const DATE = "2026-10-05";
 
+type Client = { query: (text: string, values?: unknown[]) => Promise<{ rows: Array<Record<string, any>> }> };
 type Prov = { status: string; created_by: number | null; approved_by: number | null; source_type: string | null; source_id: number | null };
 
 describe("N-G: a taken journal entry number is reported as taken", () => {
-  it("🔴 a 23505 on journal_entries_company_number_unq says the number is already used, not that something happened at the same moment", () => {
+  it("🔴 a 23505 on journal_entries_company_number_unq says first that the number is already used; the race-only text is gone", () => {
     const r = translateDbRefusal(Object.assign(new Error("duplicate key"), { code: "23505", constraint: "journal_entries_company_number_unq" }));
     expect(r?.status).toBe(409);
     const text = String((r?.body as { error?: string }).error);
-    expect(text).toMatch(/already used/i);
-    expect(text).not.toMatch(/same moment/i);
+    expect(text).toMatch(/^That entry number is already used/);
+    expect(text).not.toBe("Another entry was recorded at the same moment — reload and try again.");
+  });
+});
+
+// Guards added WITH the change (not part of the red proof): they hold the census and the two lists.
+describe("T1d guards — every production call of the posting seam names its source; the database lists match the code's", () => {
+  const SRC = join(__dirname, "..");
+  const files = (dir: string): string[] => readdirSync(dir).flatMap((f) => {
+    const p = join(dir, f);
+    if (statSync(p).isDirectory()) return f === "tests" ? [] : files(p);
+    return p.endsWith(".ts") ? [p] : [];
+  });
+  /** Each `postJournalEntry({ … })` object literal, by balanced braces. */
+  const calls = files(SRC).flatMap((file) => {
+    const text = readFileSync(file, "utf8");
+    const out: Array<{ at: string; obj: string }> = [];
+    for (let i = text.indexOf("postJournalEntry({"); i !== -1; i = text.indexOf("postJournalEntry({", i + 1)) {
+      let depth = 0;
+      let j = i + "postJournalEntry(".length;
+      for (; j < text.length; j++) {
+        if (text[j] === "{") depth++;
+        else if (text[j] === "}" && --depth === 0) break;
+      }
+      out.push({ at: `${file.slice(SRC.length + 1)}:${text.slice(0, i).split("\n").length}`, obj: text.slice(i, j + 1) });
+    }
+    return out;
+  });
+
+  it("🔴 every production call names sourceType and sourceId (37 at T1d; a census that cannot see them is not a census)", () => {
+    expect(calls.length, "the instrument sees the calls").toBeGreaterThanOrEqual(37);
+    const missing = calls.filter((c) => !/\bsourceType:/.test(c.obj) || !/\bsourceId:/.test(c.obj)).map((c) => c.at);
+    expect(missing).toEqual([]);
+  });
+
+  const migration = readFileSync(join(SRC, "..", "..", "..", "packages", "db", "migrations", "0129_t1d_journal_provenance.sql"), "utf8");
+  it("🔴 the database's source types are JOURNAL_SOURCE_TYPES, exactly", () => {
+    const check = migration.slice(migration.indexOf('"journal_entries_source_type_chk"'), migration.indexOf('"journal_entries_source_id_chk"'));
+    expect([...check.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort()).toEqual([...JOURNAL_SOURCE_TYPES].sort());
+  });
+  it("🔴 the database's reserved prefixes are RESERVED_ENTRY_NUMBER_PREFIXES, exactly (in the CHECK and in the pre-check)", () => {
+    const lists = [...migration.matchAll(/\^\(([A-Z|]+)\)-\|-REV\$/g)].map((m) => m[1]!.split("|").sort());
+    expect(lists.length).toBe(2);
+    for (const l of lists) expect(l).toEqual([...RESERVED_ENTRY_NUMBER_PREFIXES].sort());
   });
 });
 
@@ -145,7 +191,7 @@ describeMaybe("T1d — every journal entry records who created it, who approved 
   });
 
   it("🔴 the database: a manual entry is not posted without its approver; the approver goes on the draft, never in the flip (G16 unchanged); a manual entry cannot take a document's number", async () => {
-    const draft = async (c: import("pg").PoolClient, n: string, approvedBy: number | null) => {
+    const draft = async (c: Client, n: string, approvedBy: number | null) => {
       const { rows: [e] } = await c.query(
         `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, created_by, approved_by, source_type)
          VALUES ($1, $2, $3, $4, 'T1d DB', 'draft', $5, $6, 'manual') RETURNING id`, [orgId, companyId, n, DATE, makerId, approvedBy]);
@@ -154,7 +200,7 @@ describeMaybe("T1d — every journal entry records who created it, who approved 
          VALUES ($1, $2, $3, $4, 'Office', 10, 0), ($1, $2, $3, $5, 'Income', 0, 10)`, [orgId, companyId, e.id, office, income]);
       return e.id as number;
     };
-    const attempt = async (fn: (c: import("pg").PoolClient) => Promise<void>) => {
+    const attempt = async (fn: (c: Client) => Promise<void>) => {
       const c = await pool.connect();
       try {
         await c.query("BEGIN");

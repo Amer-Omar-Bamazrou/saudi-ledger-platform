@@ -27,7 +27,37 @@ import { journalEntriesRepository, DEFAULT_PAGE as JE_PAGE, type JournalEntryOwn
 import { categoriesRepository } from "../repositories/categories.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
-import type { journalEntriesTable } from "@workspace/db";
+import { RESERVED_ENTRY_NUMBER_PREFIXES, type journalEntriesTable } from "@workspace/db";
+import { auditContext } from "../lib/auditContext";
+
+/**
+ * 🔴 T1d (Phase 18, SG-11 / G17): a TYPED entry number never takes a shape the
+ * system writes. A document's posting prefix (`GL-`, `BILL-`, `DEP-`…) let a
+ * manual entry pre-empt that document's posting and read as its entry; `-REV`
+ * blocked the reversal of the entry it names; and a typed `JE-000043` took a
+ * number the counter hands out next, so every later blank-numbered entry failed
+ * 409 until someone typed a number by hand. The database refuses the document
+ * shapes too (0129); the `JE-` shape only here, since an auto-numbered entry
+ * carries it.
+ */
+function assertEntryNumberNotReserved(typed: string): void {
+  const n = typed.trim().toUpperCase();
+  const prefix = RESERVED_ENTRY_NUMBER_PREFIXES.find((p) => n.startsWith(`${p}-`));
+  const why = /^JE-\d+$/.test(n)
+    ? "the shape of the automatic numbering (JE- and digits), so it would take a number the server hands out"
+    : prefix
+      ? `the prefix ${prefix}-, which the system uses for a document's own entry`
+      : n.endsWith("-REV")
+        ? "the -REV ending, which the system uses for a reversal"
+        : null;
+  if (why) {
+    throw new BusinessRuleError(422, {
+      code: "entry_number_reserved",
+      field: "entryNumber",
+      error: `The entry number "${typed}" uses ${why}. Choose another number, or leave it blank and the server numbers the entry. Nothing was saved.`,
+    });
+  }
+}
 import { businessToday, isCalendarDate } from "@workspace/shared";
 
 /**
@@ -91,7 +121,7 @@ export const journalEntriesService = {
     return buildJEOut(je, lines);
   },
 
-  async create(body: Record<string, unknown>, userId: number | null) {
+  async create(body: Record<string, unknown>, userId: number | null, origin?: { sourceType: "recurring" }) {
     const { lines = [] } = body as { lines?: unknown[] };
     // 🔴 H1 — ALLOWLIST, not a raw spread. `status`/`postedAt`/`reversalOf`
     // can NEVER come from the client: a POST with `{status:"posted"}` used to
@@ -110,6 +140,8 @@ export const journalEntriesService = {
      */
     if (!String(body.entryNumber ?? "").trim()) {
       body.entryNumber = await documentNumbersRepository.allocate("journal_entry");
+    } else {
+      assertEntryNumberNotReserved(String(body.entryNumber));
     }
 
     const jeData = pick<{ entryNumber: string; date: string; description: string; reference: string; notes: string }>(
@@ -285,6 +317,9 @@ export const journalEntriesService = {
       [je] = await journalEntriesRepository.insertEntry({
         ...(jeData as typeof journalEntriesTable.$inferInsert),
         createdBy: userId ?? null,
+        // 🔴 T1d: what produced it — the user (manual) or a recurring rule's run (a draft, approved like any other).
+        sourceType: origin?.sourceType ?? "manual",
+        sourceId: null,
       });
     } catch (err) {
       // N3: unique(company_id, entry_number) — a user-supplied duplicate is
@@ -444,6 +479,10 @@ export const journalEntriesService = {
       postedAt: null,
       reversalOf: id,
       reversalReason: reason === "" ? null : reason,
+      // 🔴 T1d: who reversed, and the entry reversed — on the draft, before the flip.
+      sourceType: "reversal",
+      sourceId: id,
+      createdBy: auditContext.get()?.userId ?? null,
     });
     const mirrorLines = await journalEntriesRepository.insertLines(
       lines.map((l) => ({

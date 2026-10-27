@@ -339,6 +339,11 @@ export const taxRepository = {
     const [row] = await db.select().from(whtRemittanceReversalsTable).where(eq(whtRemittanceReversalsTable.remittanceId, remittanceId)).limit(1);
     return row ?? null;
   },
+  /** 🔴 T1d: a remittance's id, drawn before its journal entry so the entry can name it. */
+  async nextRemittanceId(): Promise<number> {
+    const r = await db.execute<{ id: string }>(sql`SELECT nextval('wht_remittances_id_seq') AS id`);
+    return Number(r.rows[0]!.id);
+  },
   insertRemittance(values: typeof whtRemittancesTable.$inferInsert) {
     return db.insert(whtRemittancesTable).values(values).returning();
   },

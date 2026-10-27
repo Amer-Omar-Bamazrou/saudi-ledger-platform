@@ -163,7 +163,7 @@ export const assetCapitalisationService = {
     }
     await checkPeriodOpen(date);
     const caughtUp = date !== scheduled;
-    const je = await postJournalEntry({
+    const je = await postJournalEntry({ sourceType: "depreciation", sourceId: assetId,
       entryNumber: depreciationEntryNumber(asset.assetNumber, period),
       date,
       description: `Depreciation ${period} — ${asset.assetNumber} ${asset.name}${caughtUp ? ` (caught up: ${period} is closed, posted in an open month)` : ""}`,

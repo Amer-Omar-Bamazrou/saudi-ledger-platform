@@ -341,7 +341,7 @@ export const supplierAdvanceInvoicesService = {
     const vat = Number(bill.vatAmount);
     if (vat > 0) {
       const [vendor] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, payment.vendorId)).limit(1);
-      const je = await postJournalEntry({
+      const je = await postJournalEntry({ sourceType: "bill", sourceId: bill.id,
         entryNumber: `BILLADV-${bill.billNumber}`,
         date: bill.date,
         description: `Supplier advance tax invoice ${bill.vendorReference ?? bill.billNumber}${vendor ? ` – ${vendor.name}` : ""}`,
@@ -370,7 +370,7 @@ export const supplierAdvanceInvoicesService = {
     await checkPeriodOpen(bill.date);
     const vat = Number(bill.vatAmount);
     if (vat > 0) {
-      const je = await postJournalEntry({
+      const je = await postJournalEntry({ sourceType: "bill", sourceId: bill.id,
         entryNumber: `BILLADVCN-${bill.billNumber}`,
         date: bill.date,
         description: `Supplier credit note ${bill.vendorReference ?? bill.billNumber} against advance invoice ${again!.billNumber}`,

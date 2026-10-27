@@ -221,7 +221,7 @@ export const assetDisposalService = {
       costAccountId: cost.id, costAccountName: cost.name, accumulatedAccountId: category.accumulatedDepreciationAccountId,
       disposalAccountId: disposalAccount.id, disposalAccountName: disposalAccount.name,
     };
-    const je = await postJournalEntry({
+    const je = await postJournalEntry({ sourceType: "asset_disposal", sourceId: assetId,
       entryNumber: `DISP-${asset.assetNumber}`,
       date,
       description: `Disposal (${kind}) of ${asset.assetNumber} ${asset.name} — ${reason}`,

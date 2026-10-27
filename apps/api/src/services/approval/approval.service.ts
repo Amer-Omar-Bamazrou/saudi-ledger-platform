@@ -37,6 +37,7 @@
  * another request changed the record after this one loaded it. No lock is taken
  * here; the adapters keep their own lock order.
  */
+import { approverContext } from "../../lib/auditContext";
 import { ConflictError, NotFoundError } from "../../lib/errors";
 import { auditService } from "../audit.service";
 import { TransitionNotApplied, type Approvable, type ApprovalActor } from "./approvable";
@@ -165,7 +166,10 @@ export const approvalService = {
     const before = await adapter.snapshot(entity);
     let after: TSnapshot;
     try {
-      after = await adapter.onApprove(entity, actor, from);
+      // 🔴 T1d: every journal entry the approval posts records this approver (the seam reads it).
+      after = actor.userId == null
+        ? await adapter.onApprove(entity, actor, from)
+        : await approverContext.run(actor.userId, () => adapter.onApprove(entity, actor, from));
     } catch (err) {
       throw await lostRace(adapter, id, "approve", err);
     }

@@ -16,7 +16,8 @@
 import { db } from "@workspace/db";
 import { round2 } from "../../lib/money";
 import { journalEntriesTable, journalEntryLinesTable, categoriesTable, bankAccountsTable } from "@workspace/db";
-import type { SystemAccountCode } from "@workspace/db";
+import type { JournalSourceType, SystemAccountCode } from "@workspace/db";
+import { approverContext, auditContext } from "../../lib/auditContext";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { checkPeriodOpen } from "./periodLock";
 import { PARTY_REQUIRED_SYSTEM_CODES, isCalendarDate } from "@workspace/shared";
@@ -285,6 +286,17 @@ export async function postJournalEntry(opts: {
    * every reader keys on. Refused without a migration source.
    */
   reversalOf?: number;
+  /**
+   * 🔴 T1d (Phase 18, G07/G17): what produced the entry, and the row it came
+   * from (`JOURNAL_SOURCE_TYPES` says which table each type points at). Every
+   * production caller names both — `phase18-t1d-journal-provenance.test.ts`
+   * reads every call of this seam and fails on one that does not. The entry
+   * also records its creator (the request's actor) and, when an approval
+   * posted it, its approver (bound by the approval engine), on the draft,
+   * before the flip.
+   */
+  sourceType?: Exclude<JournalSourceType, "manual" | "recurring" | "reversal">;
+  sourceId?: number;
 }): Promise<typeof journalEntriesTable.$inferSelect> {
   if (opts.reversalOf != null && opts.source !== "opening_reversal") {
     throw new BusinessRuleError(422, { error: "reversalOf is only written by the migration's reversal.", code: "reversal_of_refused", field: "reversalOf" });
@@ -419,6 +431,11 @@ export async function postJournalEntry(opts: {
       source: opts.source ?? null,
       migrationBatchId: opts.migrationBatchId ?? null,
       reversalOf: opts.reversalOf ?? null,
+      // 🔴 T1d: on the DRAFT, before the flip — G16's flip check lets only status and posted_at change.
+      sourceType: opts.sourceType ?? null,
+      sourceId: opts.sourceId ?? null,
+      createdBy: auditContext.get()?.userId ?? null,
+      approvedBy: approverContext.get() ?? null,
     })
     .returning();
 
