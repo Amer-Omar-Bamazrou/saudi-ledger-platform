@@ -19,7 +19,10 @@
  * register §11.26) sit ON the entries, each where its own law states it:
  *  - 1421H law (Registration and Contributions Regulation): the pension floor
  *    of a SAR 1,500 wage (Art. 19(1)); the 100% cap on late fines (Art. 30(1));
- *    the contributory wage fixed for the year (Art. 21(2)(a),(b)).
+ *    the contributory wage fixed for the year (Art. 21(2)(a),(b)); the joining
+ *    and leaving months charged by days of service (Art. 21(3), owner
+ *    2026-10-27 morning), over the month's actual days — an INTERPRETATION, as
+ *    Art. 21(3) names no divisor.
  *  - 2024 law (2024 Implementing Regulation): the joining and leaving months
  *    charged by days of service (Art. 20(2)), over the month's actual days
  *    (its Arts. 36(1) and 53(3)).
@@ -35,8 +38,9 @@
  *    set by the competent authority", no figure), a cap or a holiday extension
  *    on the late fine, and a wage fixed for the year — none applied;
  *  - the in-kind housing valuation's time unit, and the Governor's exempt cases;
- *  - 1421H-law proration of the joining and leaving months: HELD by the owner
- *    (Art. 21(3) against GOSI's Employer FAQ #11) — not applied.
+ *  - 1421H law: whether GOSI invoices the joining and leaving months by days
+ *    (Art. 21(3), applied here) or as its Employer FAQ #11 says (the joining
+ *    month in full; the leaving month only when service ends on its last day).
  */
 
 /** The regime a payroll line is computed under. `non_saudi` follows from nationality. */
@@ -94,11 +98,16 @@ export const GOSI_SCHEDULE: readonly GosiRateEntry[] = [
       "Saudi under the 1421H law: employer 11.75%, employee 9.75% in total (research finding 3, register §11.18 B)",
       "1421H Registration and Contributions Regulation (GOSI-published): Art. 19(1) the pension floor of a SAR 1,500 wage; Art. 30(1) late fines at most 100% of the contributions; Art. 21(2)(a),(b) the wage due in January (or a joiner's first month) for the year",
       "Royal Decree M/273 item 4: the 1421H law continues to apply to members with earlier uncompensated contribution periods",
+      "1421H Registration and Contributions Regulation Art. 21(3): the joining and leaving months by days of service (owner, 2026-10-27 morning)",
     ],
-    unverified: ["SANED 0.75% each side (and so pension 9% each side): GOSI guidance, not verified against the binding text (question G1)"],
+    unverified: [
+      "SANED 0.75% each side (and so pension 9% each side): GOSI guidance, not verified against the binding text (question G1)",
+      "The proration divisor, the month's actual days: an INTERPRETATION matching the 2024 rule, as Art. 21(3) names none (owner, 2026-10-27 morning); GOSI's Employer FAQ #11 reads otherwise (question G1)",
+    ],
     pensionFloorWage: 1_500,
     lateFineCappedAtContribution: true,
     wageFixedForYear: true,
+    prorateJoiningAndLeavingMonths: true,
   },
   {
     regime: "law_2024",
@@ -190,10 +199,11 @@ export function gosiContributoryWage(basic: number, housing: number, inKindHousi
 }
 
 /**
- * 🔴 GO-12 (2024 law): the days of service in a payroll period for an employee
- * who joined or left in it, and the month's actual days; null for a full month
- * (neither date in the period, or the dates covering every day of it).
- * 2024 Regulation Art. 20(2), over the month's actual days (Arts. 36(1), 53(3)).
+ * 🔴 GO-12: the days of service in a payroll period for an employee who joined
+ * or left in it, and the month's actual days; null for a full month (neither
+ * date in the period, or the dates covering every day of it). 2024 Regulation
+ * Art. 20(2), over the month's actual days (Arts. 36(1), 53(3)); 1421H
+ * Regulation Art. 21(3), over the same divisor by interpretation (it names none).
  * A leaving date before the joining date in the same month is not a span of
  * service, and is left to the full month.
  */
@@ -216,7 +226,9 @@ export function gosiServiceDays(period: string, joiningDate: string | null, endD
  *  - GO-10: where the entry has a pension floor and the wage is below it, the
  *    pension share (both sides) is charged on the floor; the other branches stay
  *    on the actual wage. `pensionFloorWage` says when it applied.
- *  - GO-12: a joining or leaving month is wage × rate × days ÷ the month's days.
+ *  - GO-12: a joining or leaving month is wage × rate × days ÷ the month's days,
+ *    applied after the floor: the contribution for a SAR 1,500 wage over the
+ *    same days (an interpretation; Art. 19(1) speaks of the monthly contribution).
  * With neither, the figure is exactly `wage × rate`, as before.
  */
 export function gosiLineAmounts(input: {

@@ -13,7 +13,8 @@
  *    joiner's first month, for the whole year (Art. 21(2)(a),(b)). 2024 law: the
  *    joining and leaving months are charged by days of service (2024 Regulation
  *    Art. 20(2)), divided by the month's actual days (its Arts. 36(1), 53(3)).
- *    1421H proration is HELD by the owner; the 2024 texts state no annual wage (G1).
+ *    1421H proration followed (Art. 21(3), owner 2026-10-27 morning; proven in
+ *    phase18-gosi-1421h-proration.test.ts); the 2024 texts state no annual wage (G1).
  *  - GO-13, both laws: in-kind housing counts in the contributory wage (1421H
  *    Art. 16(c); 2024 Art. 17(c)) at basic × 2 ÷ 12 a month — an INTERPRETATION
  *    (owner, 2026-10-27): the texts say "two months' basic" with no time unit.
@@ -156,7 +157,7 @@ describeMaybe("GOSI GO-10..GO-13 — the 1421H floor and fine cap, the year's wa
     expectLines([...jan, ...feb, ...nextJan], want.flat());
   });
 
-  it("🔴 GO-12: a 2024-law joining or leaving month is charged by days of service over the month's actual days; 1421H is not (held)", async () => {
+  it("🔴 GO-12: a 2024-law joining or leaving month is charged by days of service over the month's actual days; a 1421H-law joiner too (Art. 21(3))", async () => {
     const base = { basicSalary: 9_300, gosiRegime: "law_2024" };
     await employee("P1-JOIN", { ...base, joiningDate: "2025-10-21" });                      // 21..31 = 11 days
     await employee("P2-LEAVE", { ...base, joiningDate: "2020-03-01", endDate: "2025-10-10" }); // 1..10 = 10 days
@@ -173,7 +174,8 @@ describeMaybe("GOSI GO-10..GO-13 — the 1421H floor and fine cap, the year's wa
       { num: "P2-LEAVE", ...by(10) },
       { num: "P3-BOTH", ...by(20) },
       { num: "P4-FULL", emp: r2(9_300 * L2024_2025_07.employee), er: r2(9_300 * L2024_2025_07.employer), wage: 9_300, ...plain, fixedFrom: null },
-      { num: "P5-1421-JOIN", emp: r2(9_300 * L1421H.employee), er: r2(9_300 * L1421H.employer), wage: 9_300, ...plain, fixedFrom: "2025-10" },
+      // Was the full month while 1421H proration was held; the owner's decision of 2026-10-27 morning makes it 11 of 31 days.
+      { num: "P5-1421-JOIN", emp: r2(9_300 * L1421H.employee * 11 / 31), er: r2(9_300 * L1421H.employer * 11 / 31), wage: 9_300, floor: null, inKind: null, days: 11, monthDays: 31, fixedFrom: "2025-10" },
     ]);
   });
 

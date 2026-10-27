@@ -6164,7 +6164,7 @@ export interface PayrollItem {
      */
   gosiPensionFloorWage: number | null;
   /**
-     * GO-12 (2024 law): the days of service in a joining or leaving month. Null for a full month.
+     * GO-12 (both laws: 2024 Regulation Art. 20(2); 1421H Regulation Art. 21(3)): the days of service in a joining or leaving month. Null for a full month.
      * @nullable
      */
   gosiServiceDays: number | null;
