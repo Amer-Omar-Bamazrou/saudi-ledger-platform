@@ -99,6 +99,15 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
         field: "lines",
       });
     }
+    // 🔴 Phase 18 (owner 2026-10-23, decision 2): never posted with blank or all-zero amounts —
+    // on the STORED lines, so a draft written before the rule, or by any other writer, is refused too.
+    if (!(totalDebit > 0)) {
+      throw new BusinessRuleError(422, {
+        code: "journal_entry_zero_amounts",
+        field: "lines",
+        error: "This journal entry cannot be posted: every amount on it is zero, so it records nothing. Delete the draft, or create the entry again with its amounts. Nothing was posted.",
+      });
+    }
     /**
      * 🔴 T1d (Phase 18, G07; owner 2026-10-24): the approver is recorded ON THE
      * DRAFT, in this transaction, immediately before the flip. G16's flip check
