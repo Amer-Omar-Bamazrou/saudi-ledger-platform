@@ -84,6 +84,12 @@ export interface InvoiceDocModel {
   termsAndConditions: string | null;
   bankDetails: DocBankDetails | null;
   noteReason: string | null;
+  /**
+   * 🔴 T1c (G32): true only for a document issued before its parties were
+   * captured (migration 0133): its parties are today's records, and the page
+   * says so rather than presenting them as what it originally printed.
+   */
+  partiesAsRecordedToday?: boolean;
 }
 
 const esc = (s: string): string =>
@@ -197,6 +203,11 @@ ${
       : ""
   }
 </div>
+${
+  m.partiesAsRecordedToday
+    ? `<p class="parties-note">${esc(t("Seller and buyer details are shown as recorded today: this invoice was issued before they were fixed at issue.", "بيانات البائع والمشتري معروضة كما هي مسجلة اليوم: صدرت هذه الفاتورة قبل تثبيت هذه البيانات عند الإصدار."))}</p>`
+    : ""
+}
 
 <table class="items">
   <thead><tr>

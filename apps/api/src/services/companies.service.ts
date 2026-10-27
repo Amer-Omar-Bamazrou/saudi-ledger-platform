@@ -23,6 +23,7 @@ import {
   POSTAL_CODE_RE, VAT_NUMBER_HELP, VAT_NUMBER_RE,
 } from "../lib/saudiIdentifiers";
 import { companiesRepository } from "../repositories/companies.repository";
+import { invoicesRepository } from "../repositories/invoices.repository";
 import { auditService } from "./audit.service";
 import {
   isFiscalCalendar,
@@ -300,9 +301,9 @@ export const companiesService = {
     await companiesRepository.update(company.id, { logoPath: objectPath });
     await auditService.updated("company", company.id, { logoPath: previous }, { logoPath: objectPath });
 
-    // The old object is unreferenced the moment the row points elsewhere;
-    // removal is best-effort by the seam's own contract.
-    if (previous) await storage.removeObject(previous);
+    // The old object is removed once the row points elsewhere (best-effort, by
+    // the seam's own contract) — unless an issued document prints it (T1c, G32).
+    if (previous && !(await invoicesRepository.anyIssuedPrintsLogo(previous))) await storage.removeObject(previous);
     return { hasLogo: true as const };
   },
 
@@ -320,7 +321,8 @@ export const companiesService = {
     if (!company.logoPath) return { hasLogo: false as const };
     await companiesRepository.update(company.id, { logoPath: null });
     await auditService.updated("company", company.id, { logoPath: company.logoPath }, { logoPath: null });
-    await storage.removeObject(company.logoPath);
+    // 🔴 T1c (G32): an issued document that prints this logo keeps it.
+    if (!(await invoicesRepository.anyIssuedPrintsLogo(company.logoPath))) await storage.removeObject(company.logoPath);
     return { hasLogo: false as const };
   },
 };

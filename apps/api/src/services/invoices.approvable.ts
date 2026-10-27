@@ -32,6 +32,7 @@ import { paymentsRepository, invoiceSettlementRepository } from "../repositories
 import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME, depositLiabilityAccount } from "./accounting/customerCreditPolicy";
 import { round2 } from "../lib/money";
 import { requireIssuanceSeller } from "./sellerIdentity";
+import { captureIssuedParties } from "./issuedParties";
 import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
 import { BusinessRuleError, ConflictError } from "../lib/errors";
 import { logger } from "../lib/logger";
@@ -239,6 +240,12 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
   // has already moved), so they capture none.
   const bank = inv.documentType === "invoice" ? await bankAccountsRepository.lockDefaultForIssue(inv.companyId) : null;
 
+  // 🔴 T1c (G32): the rest of what this document prints about its parties —
+  // the seller's Arabic name, CR, address and logo, and the whole buyer block —
+  // captured now from the records themselves. A reprint reads only this capture,
+  // and the database checks it against the records at this write (0133).
+  const parties = await captureIssuedParties(inv.companyId, inv.customerId ?? null);
+
   // M12.1a: the real issuance instant. `inv.date` is the ACCOUNTING date (what
   // the ledger and reports use); ZATCA needs date+time and the 24-hour
   // simplified-reporting clock runs off this. Previously a fabricated
@@ -336,6 +343,9 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
     issuedBankName: bank?.bankName ?? null,
     issuedBankIban: bank ? bank.iban : null,
     issuedBankAccountName: bank?.name ?? null,
+    issuedSeller: parties.seller,
+    issuedBuyer: parties.buyer,
+    partiesCapturedAt: issuedAt,
     issuedAt,
     icv,
     zatcaUuid,
