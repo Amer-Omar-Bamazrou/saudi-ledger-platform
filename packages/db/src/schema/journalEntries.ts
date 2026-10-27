@@ -9,6 +9,64 @@ import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
 // Forward-reference users table (avoid circular import — use integer FK directly)
 
+/**
+ * 🔴 T1d (Phase 18, G07/G17): what produced a journal entry, replacing
+ * provenance-by-number-prefix for every entry written from 0129 on. Each type
+ * names the row its `source_id` points at; `manual` has none (the entry is the
+ * document), nor `recurring` (the rule's run log links rule and entry). The database CHECK `journal_entries_source_type_chk` (0129) holds
+ * this same list; `phase18-t1d-journal-provenance.test.ts` fails if they drift.
+ */
+export const JOURNAL_SOURCE_TYPES = [
+  "manual",                            // no source_id: the entry itself
+  "recurring",                         // no source_id: a rule's id is a uuid; its run log names the rule and the entry
+  "reversal",                          // journal_entries.id (the entry reversed)
+  "invoice",                           // invoices.id (invoice, debit/credit note, advance, recovery)
+  "invoice_write_off",                 // invoices.id (bad-debt relief)
+  "credit_note_application",           // invoices.id (the credit note applied)
+  "customer_payment",                  // payments.id
+  "customer_payment_allocation",       // payments.id (the receipt allocated)
+  "customer_allocation_correction",    // payment_allocations.id (the allocation corrected)
+  "customer_refund",                   // customer_refunds.id
+  "customer_payment_reclassification", // payments.id
+  "bill",                              // bills.id (bill, supplier note, advance invoice and its note)
+  "bill_payment",                      // bill_payments.id
+  "vat_evidence",                      // bills.id (the bill whose input VAT the evidence claims)
+  "supplier_payment",                  // supplier_payments.id
+  "supplier_advance_allocation",       // supplier_payments.id (the advance allocated)
+  "supplier_allocation_reversal",      // supplier_payment_allocations.id
+  "supplier_payment_reclassification", // supplier_payments.id
+  "supplier_refund",                   // supplier_payments.id (the payment refunded)
+  "bank_transfer",                     // bank_transfers.id
+  "bank_transaction",                  // transactions.id
+  "payroll_run",                       // payroll_runs.id (the accrual)
+  "payroll_net_pay",                   // payroll_runs.id
+  "payroll_gosi_payment",              // payroll_runs.id
+  "depreciation",                      // fixed_assets.id (the asset depreciated; the period is in the number)
+  "asset_disposal",                    // fixed_assets.id (the asset disposed)
+  "recognition",                       // recognition_schedules.id (the period is in the number)
+  "tax_computation",                   // tax_computation_versions.id (the version approved)
+  "wht_remittance",                    // wht_remittances.id
+  "wht_remittance_reversal",           // wht_remittances.id (the remittance reversed)
+  "migration_opening",                 // migration_batches.id
+  "migration_reversal",                // migration_batches.id
+  "opening_correction",                // migration_open_items.id (the opening item corrected)
+] as const;
+export type JournalSourceType = (typeof JOURNAL_SOURCE_TYPES)[number];
+
+/**
+ * 🔴 T1d (SG-11 / G17): the entry-number prefixes the system writes for a
+ * document's posting. A user-written entry (manual or recurring) never takes
+ * one, in any letter case, nor a reversal's `-REV` suffix — the database CHECK
+ * `journal_entries_manual_number_reserved_chk` (0129) holds the same list.
+ * The manual auto-number `JE-NNNNNN` is refused TYPED by the service only
+ * (an auto-numbered manual entry carries it).
+ */
+export const RESERVED_ENTRY_NUMBER_PREFIXES = [
+  "GL", "BILL", "BILLCN", "BILLADV", "BILLADVCN", "DEP", "DISP", "WO", "PAY", "VATEV", "MIG", "OPEN",
+  "SPAY", "SALLOC", "SRECLASS", "SREFUND", "BTR", "TXN", "RCPT", "ALLOC", "UNALLOC", "REFUND", "RECLASS",
+  "ZAKAT", "INCTAX", "WHTREM", "WHTREMREV",
+] as const;
+
 
 export const journalEntriesTable = pgTable(
   "journal_entries",
@@ -64,6 +122,22 @@ export const journalEntriesTable = pgTable(
     source: text("source"),
     /** The migration batch that posted this entry (opening, reversal). */
     migrationBatchId: integer("migration_batch_id"),
+    /**
+     * 🔴 T1d (Phase 18, G07/G17; migration 0129): what produced the entry
+     * (`JOURNAL_SOURCE_TYPES`) and the row it came from. NULL on every entry
+     * written before 0129 (no back-fill: their provenance stays the number
+     * prefix). Every writer from 0129 on sets it.
+     */
+    sourceType: text("source_type"),
+    sourceId: integer("source_id"),
+    /**
+     * 🔴 T1d (G07): the user whose approval posted the entry; NULL where no
+     * approval posted it. Written on the DRAFT, immediately before the draft →
+     * posted flip (owner, 2026-10-24): G16's flip check allows only `status`
+     * and `posted_at` to change, so it can never be written in the flip. A
+     * manual or recurring entry cannot be posted without it (0129).
+     */
+    approvedBy: integer("approved_by"),
     notes: text("notes"),
     postedAt: timestamp("posted_at"),      // set when status transitions to posted; entry is locked after this
     createdBy: integer("created_by"),      // FK to users.id (nullable — pre-auth entries have no owner)

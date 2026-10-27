@@ -385,7 +385,10 @@ export const whtService = {
     const reference = typeof body.reference === "string" && body.reference.trim() ? body.reference.trim() : null;
     const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
     const label = period ?? "OPENING";
+    // 🔴 T1d: the remittance's id is drawn first, so its entry names it (the row is still written after the entry).
+    const remittanceId = await taxRepository.nextRemittanceId();
     const entry = await postJournalEntry({
+      sourceType: "wht_remittance", sourceId: remittanceId,
       // a random suffix, not the clock: two requests in one millisecond collided on the entry number (a 500)
       // before the remittance trigger could decide which one was owed (QA 2026-10-04)
       entryNumber: `WHTREM-${label}-${randomUUID().slice(0, 8)}`,
@@ -398,7 +401,7 @@ export const whtService = {
         { bankAccountId, description: `WHT remittance ${label}`, debitAmount: 0, creditAmount: round2(amount + fine) },
       ],
     });
-    const [row] = await taxRepository.insertRemittance({ period, amount: amount.toFixed(2), fineAmount: fine.toFixed(2), paidAt, bankAccountId, reference, notes, journalEntryId: entry.id, idempotencyKey, createdBy: userId });
+    const [row] = await taxRepository.insertRemittance({ id: remittanceId, period, amount: amount.toFixed(2), fineAmount: fine.toFixed(2), paidAt, bankAccountId, reference, notes, journalEntryId: entry.id, idempotencyKey, createdBy: userId });
     await auditService.created("wht_remittance", row!.id, row);
     return { remittance: remittanceOut((await taxRepository.remittances(period)).find((r) => r.id === row!.id)!), replayed: false };
   },
@@ -424,7 +427,7 @@ export const whtService = {
     const label = r.period ?? "OPENING";
     let row;
     try {
-      const entry = await postJournalEntry({
+      const entry = await postJournalEntry({ sourceType: "wht_remittance_reversal", sourceId: r.id,
         entryNumber: `WHTREMREV-${r.id}`,
         date,
         description: `Reversal of the WHT remittance for ${r.period ?? "the opening balance"}: ${reason}`,

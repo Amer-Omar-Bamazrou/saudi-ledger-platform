@@ -129,7 +129,7 @@ export const migrationCorrectionService = {
     // decrease of a receivable: Dr RE / Cr AR; increase: Dr AR / Cr RE. Payables mirror.
     const controlDebit = isAr ? (delta > 0 ? delta : 0) : delta < 0 ? -delta : 0;
     const controlCredit = isAr ? (delta < 0 ? -delta : 0) : delta > 0 ? delta : 0;
-    const je = await postJournalEntry({
+    const je = await postJournalEntry({ sourceType: "opening_correction", sourceId: item.id,
       entryNumber: `OPEN-CORR-${item.id}-${Date.now()}`,
       date,
       description: `Migration correction: ${item.documentNumber} (${number}) ${fmt(current)} → ${fmt(correct)} — ${reason}`,

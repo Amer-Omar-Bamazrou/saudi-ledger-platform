@@ -516,7 +516,7 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
       : { debitAmount: 0, creditAmount: amount };
 
   const entryNumber = isNote ? `BILLCN-${bill.billNumber}` : `BILL-${bill.billNumber}`;
-  const je = await postOwnEntry(bill, () => postJournalEntry({
+  const je = await postOwnEntry(bill, () => postJournalEntry({ sourceType: "bill", sourceId: bill.id,
     entryNumber,
     date: bill.date,
     description: `${isNote ? "Supplier credit note" : "Vendor bill"} ${bill.billNumber}${row.vendor?.name ? ` – ${row.vendor.name}` : ""}${plan ? ` (capitalised: ${plan.asset.assetNumber})` : ""}`,

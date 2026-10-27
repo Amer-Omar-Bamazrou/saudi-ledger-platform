@@ -508,7 +508,7 @@ export const paymentsService = {
       const liability = depositLiabilityAccount(classification?.classification ?? null);
       lines.push({ systemCode: liability.systemCode, accountName: liability.accountName, description: classification ? `Receipt on account — ${classification.classification.replace("_", " ")}` : "Receipt on account — not yet allocated", debitAmount: 0, creditAmount: unapplied, party });
     }
-    const je = await postJournalEntry({ entryNumber, date: paidAt, description, reference: single?.invoiceNumber ?? body.reference ?? undefined, lines });
+    const je = await postJournalEntry({ sourceType: "customer_payment", sourceId: paymentId, entryNumber, date: paidAt, description, reference: single?.invoiceNumber ?? body.reference ?? undefined, lines });
 
     let payment: Payment;
     try {
@@ -585,7 +585,7 @@ export const paymentsService = {
     const party = partyOf(payment.customerId ?? null);
     const ids: number[] = [];
     for (let i = 0; i < allocations.length; i++) ids.push(await paymentsRepository.nextAllocationId());
-    const je = await postJournalEntry({
+    const je = await postJournalEntry({ sourceType: "customer_payment_allocation", sourceId: paymentId,
       entryNumber: `ALLOC-${ids[0]}`,
       date: businessToday(),
       description: `Allocation of receipt ${paymentId} to ${allocations.length === 1 ? targets.get(allocations[0]!.invoiceId)!.invoiceNumber : `${allocations.length} invoices`}`,
@@ -643,7 +643,7 @@ export const paymentsService = {
     const party = partyOf(note.customerId);
     const ids: number[] = [];
     for (let i = 0; i < allocations.length; i++) ids.push(await paymentsRepository.nextAllocationId());
-    const je = await postJournalEntry({
+    const je = await postJournalEntry({ sourceType: "credit_note_application", sourceId: noteId,
       entryNumber: `GL-${note.invoiceNumber}-APP-${ids[0]}`,
       date: businessToday(),
       description: `Credit note ${note.invoiceNumber} applied to ${allocations.length === 1 ? targets.get(allocations[0]!.invoiceId)!.invoiceNumber : `${allocations.length} invoices`}`,
@@ -790,7 +790,7 @@ export const paymentsService = {
     const account = depositSide ? depositSide.systemCode : CUSTOMER_CREDIT_ACCOUNT[origin];
     const accountName = depositSide ? depositSide.accountName : CUSTOMER_CREDIT_ACCOUNT_NAME[origin];
     const what = origin === "deposit" ? `receipt ${alloc.paymentId}` : `credit note ${noteNumber}`;
-    const je = await postJournalEntry({
+    const je = await postJournalEntry({ sourceType: "customer_allocation_correction", sourceId: allocationId,
       entryNumber: `UNALLOC-${reversalId}`,
       date: businessToday(),
       description: `Correction: allocation ${allocationId} of ${what} to ${inv.invoiceNumber} unapplied — ${reason}`,
@@ -923,7 +923,7 @@ export const paymentsService = {
 
     const party = partyOf(customerId);
     const refundId = await paymentsRepository.nextRefundId();
-    const je = await postJournalEntry({
+    const je = await postJournalEntry({ sourceType: "customer_refund", sourceId: refundId,
       entryNumber: `REFUND-${refundId}`,
       date: refundedAt,
       description: `Refund to ${cust.name} of ${sourceLabel} — ${reason}`,
@@ -1008,7 +1008,7 @@ export const paymentsService = {
       if (available > 0.005) {
         await checkPeriodOpen(effectiveDate);
         const party = partyOf(payment.customerId ?? null);
-        const je = await postJournalEntry({
+        const je = await postJournalEntry({ sourceType: "customer_payment_reclassification", sourceId: paymentId,
           entryNumber: `RECLASS-${paymentId}-${Date.now()}`,
           date: effectiveDate,
           description: `Receipt ${paymentId} reclassified: ${before?.classification ?? "unstated"} → ${parsed.classification} (${fromAccount.accountName} → ${toAccount.accountName})`,

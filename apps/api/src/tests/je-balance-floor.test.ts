@@ -55,11 +55,15 @@ describeMaybe("journal entry balance — checked on the STORED values, and again
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
+    await pool.query(`DELETE FROM users WHERE email = '${SLUG}-approver@test.local'`);
   };
 
+  // T1d (0129): a manual entry is posted by an approval that records its approver, so the approval names a user.
+  let approverId = 0;
   beforeAll(async () => {
     await cleanup();
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('JBF Org','${SLUG}') RETURNING id`)).rows[0].id;
+    approverId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${SLUG}-approver@test.local', 'JBF approver', 'x', 'viewer', true) RETURNING id`)).rows[0].id;
     companyId = (
       await pool.query(
         `INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'JBF','1010101071','399999999999993') RETURNING id`,
@@ -131,7 +135,7 @@ describeMaybe("journal entry balance — checked on the STORED values, and again
         null,
       ),
     );
-    const posted = await inTenant(() => journalEntriesService.approve(out.id, null));
+    const posted = await inTenant(() => journalEntriesService.approve(out.id, approverId));
     expect(posted.status).toBe("posted");
     const lines = await pool.query(`SELECT debit_amount, credit_amount FROM journal_entry_lines WHERE journal_entry_id = $1 ORDER BY id`, [out.id]);
     // Stored values are the rounded ones, and they balance exactly.

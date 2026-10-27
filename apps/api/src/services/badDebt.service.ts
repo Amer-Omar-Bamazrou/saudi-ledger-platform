@@ -173,7 +173,7 @@ export const badDebtService = {
     const reliefVat = round2(unpaid * vatShare);
     const netPart = round2(unpaid - reliefVat);
     const party = { type: "customer" as const, customerId: inv.customerId };
-    const je = await postJournalEntry({
+    const je = await postJournalEntry({ sourceType: "invoice_write_off", sourceId: inv.id,
       entryNumber: `WO-${inv.invoiceNumber}`,
       date: claimedOn,
       description: `Bad debt written off: ${inv.invoiceNumber} (unpaid ${fmt(unpaid)}; VAT relief ${fmt(reliefVat)}, Art. 40(7))`,

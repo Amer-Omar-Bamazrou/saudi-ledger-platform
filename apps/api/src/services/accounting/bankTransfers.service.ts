@@ -154,7 +154,10 @@ export const bankTransfersService = {
     const [to] = await db.select({ name: bankAccountsTable.name }).from(bankAccountsTable).where(eq(bankAccountsTable.id, toId)).limit(1);
     const reference = text(body.reference);
     const description = `Transfer ${from!.name} → ${to!.name}`;
+    // 🔴 T1d: the transfer's id is drawn first, so its entry names it (the row is still written after the entry).
+    const transferId = Number((await db.execute<{ id: string }>(sql`SELECT nextval('bank_transfers_id_seq') AS id`)).rows[0]!.id);
     const entry = await postJournalEntry({
+      sourceType: "bank_transfer", sourceId: transferId,
       entryNumber: `BTR-${fromId}-${toId}-${Date.now()}`,
       date,
       description,
@@ -166,7 +169,7 @@ export const bankTransfersService = {
     });
 
     const [row] = await db.insert(bankTransfersTable).values({
-      fromBankAccountId: fromId, toBankAccountId: toId, amount: String(amount), transferDate: date,
+      id: transferId, fromBankAccountId: fromId, toBankAccountId: toId, amount: String(amount), transferDate: date,
       reference, memo: text(body.memo), journalEntryId: entry.id,
       duplicateConfirmationReason: duplicates.length > 0 ? confirmation : null,
       idempotencyKey, createdBy: userId,

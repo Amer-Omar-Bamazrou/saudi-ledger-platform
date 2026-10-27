@@ -155,7 +155,10 @@ export const supplierPaymentsService = {
     lines.push(...whtLine(withholding, `Withholding tax on payment to ${vendor!.name}`));
 
     const reference = typeof body.reference === "string" ? body.reference : null;
+    // 🔴 T1d: the payment's id is drawn first, so its entry names it (the row is still written after the entry).
+    const paymentId = Number((await db.execute<{ id: string }>(sql`SELECT nextval('supplier_payments_id_seq') AS id`)).rows[0]!.id);
     const entry = await postJournalEntry({
+      sourceType: "supplier_payment", sourceId: paymentId,
       entryNumber: `SPAY-${vendorId}-${Date.now()}`,
       date: paidAt,
       description: `Payment to ${vendor!.name}`,
@@ -164,7 +167,7 @@ export const supplierPaymentsService = {
     });
 
     const [payment] = await db.insert(supplierPaymentsTable).values({
-      vendorId, bankAccountId, amount: String(amount), paidAt,
+      id: paymentId, vendorId, bankAccountId, amount: String(amount), paidAt,
       method: (body.method as string) ?? null,
       reference, notes: (body.notes as string) ?? null,
       classification,
@@ -240,7 +243,7 @@ export const supplierPaymentsService = {
 
     const asset = supplierOnAccountAsset(cls);
     const [vendor] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, payment.vendorId)).limit(1);
-    const entry = await postJournalEntry({
+    const entry = await postJournalEntry({ sourceType: "supplier_advance_allocation", sourceId: id,
       entryNumber: `SALLOC-${id}-${Date.now()}`,
       date,
       description: `Advance applied for ${vendor?.name ?? "supplier"}`,
@@ -333,7 +336,7 @@ export const supplierPaymentsService = {
     const vendorId = payment.vendorId;
 
     // The mirror of the allocation: AP goes back up, the on-account asset returns.
-    const entry = await postJournalEntry({
+    const entry = await postJournalEntry({ sourceType: "supplier_allocation_reversal", sourceId: allocationId,
       entryNumber: `SALLOC-REV-${allocationId}-${Date.now()}`,
       date,
       description: `Allocation reversed: ${reason}`,
@@ -436,7 +439,7 @@ export const supplierPaymentsService = {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) refuse("date_invalid", "The effective date is a YYYY-MM-DD date.", "effectiveDate");
       if (effectiveDate < payment.paidAt) refuse("date_before_payment", `The payment was made on ${payment.paidAt}; it cannot be reclassified on an earlier date.`, "effectiveDate");
       await checkPeriodOpen(effectiveDate);
-      const entry = await postJournalEntry({
+      const entry = await postJournalEntry({ sourceType: "supplier_payment_reclassification", sourceId: id,
         entryNumber: `SRECLASS-${id}-${Date.now()}`,
         date: effectiveDate,
         description: `Reclassified ${current} → ${next}`,
@@ -491,7 +494,7 @@ export const supplierPaymentsService = {
 
     const asset = supplierOnAccountAsset(payment.classification as SupplierPaymentClassificationKind);
     const [vendor] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, payment.vendorId)).limit(1);
-    const entry = await postJournalEntry({
+    const entry = await postJournalEntry({ sourceType: "supplier_refund", sourceId: id,
       entryNumber: `SREFUND-${id}-${Date.now()}`,
       date: refundedAt,
       description: `Refund from ${vendor?.name ?? "supplier"}: ${reason}`,

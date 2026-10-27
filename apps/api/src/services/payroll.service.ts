@@ -245,7 +245,7 @@ export const payrollService = {
     }
     const [paid] = await payrollRepository.updateRunIfStatus(id, "approved", { status: "paid" });
     if (!paid) throw new BusinessRuleError(409, { code: "payroll_not_approved", error: `Payroll run ${run.period} changed while it was being paid. Nothing was recorded — reload and try again.` });
-    const entry = await postJournalEntry({
+    const entry = await postJournalEntry({ sourceType: "payroll_net_pay", sourceId: run.id,
       entryNumber: `PAY-${run.period}-R${run.id}-NET`,
       date: paidAt,
       description: `Net pay for payroll run ${run.period}`,
@@ -295,7 +295,7 @@ export const payrollService = {
     }
     const [marked] = await payrollRepository.markGosiPaidIfUnpaid(id, paidAt);
     if (!marked) throw new BusinessRuleError(409, { code: "payroll_gosi_already_paid", error: `Payroll run ${run.period} changed while its GOSI was being paid. Nothing was recorded — reload and try again.` });
-    const entry = await postJournalEntry({
+    const entry = await postJournalEntry({ sourceType: "payroll_gosi_payment", sourceId: run.id,
       entryNumber: `PAY-${run.period}-R${run.id}-GOSI`,
       date: paidAt,
       description: `GOSI contributions for payroll run ${run.period}`,

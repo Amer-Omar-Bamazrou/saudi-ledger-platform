@@ -28,3 +28,23 @@ export const auditContext = {
     return storage.getStore();
   },
 };
+
+/**
+ * 🔴 T1d (Phase 18, G07): the user approving a document, bound by the approval
+ * engine around the entity's on-approve action (`approvalService.approve`).
+ * The posting seam records it as `journal_entries.approved_by` on every entry
+ * an approval posts — so no on-approve path can forget it, and an entry posted
+ * outside an approval records none.
+ */
+const approverStorage = new AsyncLocalStorage<number>();
+
+export const approverContext = {
+  /** Run `fn` with `userId` bound as the approver. */
+  run<T>(userId: number, fn: () => T): T {
+    return approverStorage.run(userId, fn);
+  },
+  /** The approving user, or undefined outside an approval. */
+  get(): number | undefined {
+    return approverStorage.getStore();
+  },
+};

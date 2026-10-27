@@ -217,7 +217,7 @@ export const recognitionSchedulesService = {
      * `checkPeriodOpen`, LOUDLY, rather than silently landing in today.
      */
     const date = lastDayOf(row.period);
-    const entry = await postJournalEntry({
+    const entry = await postJournalEntry({ sourceType: "recognition", sourceId: schedule.id,
       entryNumber: recognitionEntryNumber(schedule.reference, row.period),
       date,
       description: `${schedule.kind === "accrual" ? "Accrual" : "Prepayment release"}: ${schedule.description} (${row.period})`,

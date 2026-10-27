@@ -151,8 +151,23 @@ describeMaybe("G60 — the month-end runs, each item in its own savepoint (real 
     return { id: s.id, ref, total };
   }
 
-  /** A bookkeeper's DRAFT journal entry carrying a number a run is about to generate (the natural fault; numbers are not reserved, SG-11). */
+  /**
+   * A bookkeeper's DRAFT journal entry carrying a number a run is about to generate (the natural fault).
+   * 🔴 T1d (SG-11, 0129): a user can no longer TYPE a document's number (`DEP-…`: 422 `entry_number_reserved`),
+   * so that one is written the way a draft from before 0129 stands (no source_type), in the HTTP company (coA).
+   * A recognition number (`<reference>-<period>`) is not reserved, and is still typed through the API.
+   */
   async function draftNumbered(orgId: string, entryNumber: string, date: string) {
+    if (/^DEP-/i.test(entryNumber)) {
+      const { rows: [e] } = await pool.query(
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
+         VALUES ($1, $2, $3, $4, 'G60 — a draft that happens to carry this number', 'draft') RETURNING id`, [orgId, coA, entryNumber, date]);
+      await pool.query(
+        `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
+         VALUES ($1, $2, $3, $4, 'debit', 10, 0), ($1, $2, $3, $5, 'credit', 0, 10)`,
+        [orgId, coA, e.id, await accountOf(orgId, "RENT_UTILITIES"), await accountOf(orgId, "OTHER_INCOME")]);
+      return;
+    }
     const r = await h.api("bookkeeper", "POST", "/journal-entries", {
       entryNumber, date, description: "G60 — a draft that happens to carry this number",
       lines: [

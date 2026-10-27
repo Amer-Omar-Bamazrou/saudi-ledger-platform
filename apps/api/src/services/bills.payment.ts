@@ -209,7 +209,7 @@ export async function payBill(
     }
 
     // ── GL: Dr Accounts Payable / Cr <the bank's own cash account> (/ Cr WHT_PAYABLE) ──
-    const payEntry = await postJournalEntry({
+    const payEntry = await postJournalEntry({ sourceType: "bill_payment", sourceId: payment.id,
       entryNumber: `BILL-${bill.billNumber}-PAY-${payment.id}`,
       date: payDate,
       description: `Payment to vendor for bill ${bill.billNumber}`,
