@@ -18,6 +18,7 @@ import { assertFileIsClean } from "../../lib/malwareScanner";
 import { capturedDocumentsRepository } from "../../repositories/capturedDocuments.repository";
 import { sha256Hex, verifyQrSignature } from "./signatureVerification";
 import { stagingStore } from "./stagingStore";
+import { withSavepoint } from "../../lib/savepoint";
 
 export interface CaptureInput {
   bytes: Buffer;
@@ -235,13 +236,28 @@ export const captureService = {
     if (row.stagingPath) {
       try {
         await stagingStore.remove(row.stagingPath);
-        await capturedDocumentsRepository.clearStagingPath(captureId);
       } catch (err) {
         imageDeleted = false;
         logger.error(
           { err, captureId },
           "capture discarded but its image could NOT be deleted — the row is kept so the purge job retries it",
         );
+      }
+      if (imageDeleted) {
+        /**
+         * 🔴 Phase 18 (B-O6 follow-up): a DATABASE error clearing the pointer
+         * used to be caught with the storage error and carried on in an aborted
+         * transaction, so the discard itself was lost. In its own savepoint it
+         * rolls back alone: the image is gone, the pointer stays, and the purge
+         * job finds it again (removal is idempotent).
+         */
+        const cleared = await withSavepoint(() => capturedDocumentsRepository.clearStagingPath(captureId));
+        if (!cleared.ok) {
+          logger.error(
+            { err: cleared.error, captureId },
+            "capture discarded and its image deleted, but its pointer could NOT be cleared — the purge job finds it again",
+          );
+        }
       }
     }
 
