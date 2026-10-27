@@ -23,6 +23,7 @@ import { postJournalEntry, AccountResolutionError } from "../services/accounting
 import { journalEntriesService } from "../services/journalEntries.service";
 import { summaryService } from "../services/summary.service";
 import { periodLocksService } from "../services/periodLocks.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -40,7 +41,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
   let customerId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.13" }, fn),
@@ -65,9 +66,9 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM period_locks WHERE organization_id IN ${org}`);
+    await replica(pool).query(`DELETE FROM period_locks WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
@@ -470,7 +471,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       // Company B must still be able to post into June. Before A4 the lookup
       // filtered on `period` alone, so one company's close froze every other
       // company in the organization.
-      const connB = await beginTenantConnection({ organizationId: orgId, companyId: companyB, role: "authenticated" });
+      const connB = await beginTenantConnection({ organizationId: orgId, companyId: companyB, role: "authenticated", actorUserId: userId });
       try {
         await connB.run(() =>
           auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.13" }, () =>
@@ -492,7 +493,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       }
 
       // And company A is still genuinely locked.
-      const connA = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+      const connA = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
       await expect(
         connA.run(() =>
           auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.13" }, () =>
@@ -530,7 +531,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       ).rows[0].id;
 
       const asCompany = async <T>(company: string, fn: () => Promise<T>): Promise<T> => {
-        const conn = await beginTenantConnection({ organizationId: orgId, companyId: company, role: "authenticated" });
+        const conn = await beginTenantConnection({ organizationId: orgId, companyId: company, role: "authenticated", actorUserId: userId });
         try {
           const out = await conn.run(() =>
             auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.13" }, fn),

@@ -51,7 +51,7 @@ describeMaybe("Phase 13B-3 — the reconstructed backfill and its reconciliation
   let recorded: Map<number, unknown[]> = new Map();
 
   const inTenant = async <T,>(fn: () => Promise<T>, org = orgA, co = coA): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();

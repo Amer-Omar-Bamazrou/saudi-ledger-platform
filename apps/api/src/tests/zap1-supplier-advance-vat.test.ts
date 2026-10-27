@@ -27,6 +27,7 @@ import { billsService } from "../services/bills.service";
 import { reportsService } from "../services/reports.service";
 import { supplierPaymentsService } from "../services/accounting/supplierPayments.service";
 import { supplierAdvanceInvoicesService } from "../services/accounting/supplierAdvanceInvoices.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -39,7 +40,7 @@ describeMaybe("Z-AP1 — supplier advance tax invoice: claimed once (real rows)"
   let orgB = "", companyB = "";
 
   const inTenant = async <T,>(fn: () => Promise<T>, org = orgId, co = companyId): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();
@@ -225,7 +226,7 @@ describeMaybe("Z-AP1 — supplier advance tax invoice: claimed once (real rows)"
     expect((await purchases("2025-01")).vat, "a draft files nothing").toBeCloseTo(0, 2);
     // A final bill dated into a closed month is refused as before.
     await expectRefusal(inTenant(() => billsService.create({ supplierDocumentKind: "tax_invoice", vendorReference: "SUP-INV-32", billNumber: "NS-L-F", date: "2025-02-15", vendorId, items: [{ description: "x", quantity: 1, unitPrice: 100, vatRate: 15 }] }, userId)), 423);
-    await pool.query(`DELETE FROM period_locks WHERE organization_id = $1 AND period IN ('2025-01','2025-02')`, [orgId]);
+    await replica(pool).query(`DELETE FROM period_locks WHERE organization_id = $1 AND period IN ('2025-01','2025-02')`, [orgId]);
   }, 90_000);
 
   it("🔴 the database freezes an approved bill's deductions, and refuses a deduction joined to the wrong documents", async () => {

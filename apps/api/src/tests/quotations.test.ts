@@ -30,6 +30,7 @@ import { reportsService } from "../services/reports.service";
 import { conversionState } from "../services/quotations.presenter";
 import { PERMISSION_MATRIX } from "@workspace/db";
 import { createApproved } from "./helpers/createApproved";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -50,7 +51,7 @@ describeMaybe("Quotations (M21.1)", () => {
   let customerId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.44" }, fn),
@@ -74,7 +75,7 @@ describeMaybe("Quotations (M21.1)", () => {
       await pool.query(`DELETE FROM invoice_items WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM invoices WHERE organization_id = $1`, [orgId]);
-      await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
+      await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM customers WHERE organization_id = $1`, [orgId]);
     }
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);
@@ -287,7 +288,7 @@ describeMaybe("Quotations (M21.1)", () => {
       quotationsService.create({ date: "2026-03-10", customerId, items: [{ description: "in a closed month", quantity: 1, unitPrice: 10 }] }, userId),
     );
     expect(quo.date).toBe("2026-03-10");
-    await pool.query(`DELETE FROM period_locks WHERE organization_id = $1`, [orgId]);
+    await replica(pool).query(`DELETE FROM period_locks WHERE organization_id = $1`, [orgId]);
   });
 
   /**

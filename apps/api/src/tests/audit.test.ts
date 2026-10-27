@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { customersService } from "../services/customers.service";
+import { replica } from "./helpers/replica";
 
 /**
  * Integration test (M7): a real service mutation, run inside a tenant scope +
@@ -26,7 +27,7 @@ describeMaybe("audit logging — service mutation produces audit records", () =>
   let userId = 0;
 
   const cleanup = async () => {
-    if (orgId) await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
+    if (orgId) await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
     await pool.query(`DELETE FROM customers WHERE name LIKE 'AUDIT-CUST%'`);
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);
     await pool.query(`DELETE FROM users WHERE email = 'audit-int@test.local'`);
@@ -55,7 +56,8 @@ describeMaybe("audit logging — service mutation produces audit records", () =>
   });
 
   it("records create then update with correct actor, org, action, and before/after", async () => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    // T1b: the connection declares who is acting, as the request path does (`resolveTenant`).
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     let customerId = 0;
     try {
       customerId = await conn.run(() =>
@@ -92,7 +94,7 @@ describeMaybe("audit logging — service mutation produces audit records", () =>
     const updateLog = rows.find((r) => r.action === "update");
     expect(createLog, "expected a create audit record").toBeDefined();
     expect(updateLog, "expected an update audit record").toBeDefined();
-    // create record — actor, tenant and IP come from the auditContext ALS.
+    // create record — tenant and IP come from the auditContext ALS; the actor from the connection (T1b).
     expect(createLog.user_id).toBe(userId);
     expect(createLog.organization_id).toBe(orgId);
     expect(createLog.ip_address).toBe("203.0.113.7");

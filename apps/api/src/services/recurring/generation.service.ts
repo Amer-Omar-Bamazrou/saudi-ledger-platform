@@ -82,6 +82,8 @@ async function generateOne(rule: DueRule): Promise<"generated" | "failed" | "alr
     organizationId: rule.organizationId,
     companyId: rule.companyId,
     role: "authenticated",
+    // 🔴 T1b: the job acts as the rule's creator, so its audit rows name them (as its audit context always said).
+    actorUserId: rule.createdBy,
   });
 
   try {

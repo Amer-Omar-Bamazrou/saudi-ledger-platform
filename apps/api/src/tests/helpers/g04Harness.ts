@@ -100,7 +100,7 @@ export function g04Harness(prefix: string) {
 
   /** Run `fn` inside a tenant transaction as the app role — the request's own conditions, without HTTP. */
   async function inTenant<T>(orgId: string, companyId: string, userId: number, fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

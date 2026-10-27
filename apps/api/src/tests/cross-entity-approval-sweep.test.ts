@@ -28,6 +28,7 @@ import { invoicesService } from "../services/invoices.service";
 import { payrollService } from "../services/payroll.service";
 import { reportsService } from "../services/reports.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -50,7 +51,7 @@ describeMaybe("cross-entity sweep — zero movement until approved, across all f
   const VAT_PERIOD = "2026-08";
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.14" }, fn),
@@ -72,7 +73,7 @@ describeMaybe("cross-entity sweep — zero movement until approved, across all f
         "journal_entry_lines", "journal_entries", "bill_items", "bills", "invoice_items", "invoices",
         "payroll_items", "payroll_runs", "employees", "audit_logs", "customers", "vendors", "categories",
       ]) {
-        await pool.query(`DELETE FROM ${t} WHERE organization_id = $1`, [orgId]);
+        await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id = $1`, [orgId]);
       }
     }
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);

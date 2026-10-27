@@ -16,6 +16,7 @@ import { pool } from "@workspace/db";
 import { membersService } from "../services/members.service";
 import { securityAuditService } from "../services/securityAudit.service";
 import { __setAlerterForTests, type Alert } from "../lib/alerter";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -36,7 +37,7 @@ describeMaybe("securityAuditService — records + org-scoped, authorized reads",
     // Clear security-audit rows FIRST (their FKs to users/orgs block the deletes
     // below). Match by the stable test email/slug patterns so leftovers from a
     // prior failed run — whose ids we no longer hold — are also removed.
-    await pool.query(
+    await replica(pool).query(
       `DELETE FROM security_audit_logs
          WHERE organization_id IN (SELECT id FROM organizations WHERE slug IN ('secaudit-a','secaudit-b'))
             OR actor_user_id  IN (SELECT id FROM users WHERE email LIKE 'secaudit-test-%')
@@ -144,7 +145,7 @@ describeMaybe("securityAuditService — records + org-scoped, authorized reads",
       // nothing — the alarm is failure-only, not a heartbeat.
       await securityAuditService.record({ action: "l1.write_ok", organizationId: orgA, actorUserId: adminA });
       expect(fired).toHaveLength(1);
-      await pool.query(`DELETE FROM security_audit_logs WHERE action = 'l1.write_ok'`);
+      await replica(pool).query(`DELETE FROM security_audit_logs WHERE action = 'l1.write_ok'`);
     } finally {
       __setAlerterForTests(null);
     }

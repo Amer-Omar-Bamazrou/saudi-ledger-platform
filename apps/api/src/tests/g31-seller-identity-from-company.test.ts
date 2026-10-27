@@ -119,7 +119,7 @@ describeMaybe("G31 — the seller identity on a tax invoice comes from the compa
   }
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: ids.admin });
     try {
       const out = await conn.run(() => auditContext.run({ userId: ids.admin, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

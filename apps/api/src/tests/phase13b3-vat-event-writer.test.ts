@@ -24,6 +24,7 @@ import { supplierPaymentsService } from "../services/accounting/supplierPayments
 import { supplierAdvanceInvoicesService } from "../services/accounting/supplierAdvanceInvoices.service";
 import { inputVatLedgerService } from "../services/accounting/inputVatLedger.service";
 import { billsRepository } from "../repositories/bills.repository";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -43,7 +44,7 @@ describeMaybe("Phase 13B-3 — the input-VAT event writer", () => {
   let vendorA = 0, vendorA2 = 0, vendorB = 0, bankA = 0, purchasesA = 0, mealsA = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>, org = orgA, co = coA): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();
@@ -584,7 +585,7 @@ describeMaybe("Phase 13B-3 — the input-VAT event writer", () => {
       expect(await events(h.id)).toEqual(before);
       expect(await cache(h.id)).toMatchObject({ state: "awaiting_evidence", pending: "150.00" });
     } finally {
-      await pool.query(`DELETE FROM period_locks WHERE organization_id = $1 AND period = '2026-08'`, [orgA]);
+      await replica(pool).query(`DELETE FROM period_locks WHERE organization_id = $1 AND period = '2026-08'`, [orgA]);
     }
     await approve(note.id);
     await claimEvidence(h.id, "2026-08-06");

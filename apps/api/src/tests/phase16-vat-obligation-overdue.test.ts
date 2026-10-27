@@ -38,7 +38,7 @@ describeMaybe("Phase 16 audit — an overdue VAT period stays on the calendar (q
   let orgId = "", coQ = "", coM = "", userId = 0, customerId = 0;
 
   const inCo = async <T,>(co: string, fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

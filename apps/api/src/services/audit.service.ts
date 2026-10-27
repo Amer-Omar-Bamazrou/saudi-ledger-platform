@@ -4,8 +4,9 @@
  * the request's tenant transaction, so an audit row commits atomically WITH the
  * mutation (a rolled-back request records nothing — we only log what committed).
  *
- * Actor/org/IP come from the request's {@link auditContext} (AsyncLocalStorage),
- * so callers only describe WHAT changed, never WHO/WHERE. The `action` is a free
+ * Org/IP come from the request's {@link auditContext} (AsyncLocalStorage), and
+ * the actor from the transaction itself (T1b), so callers only describe WHAT
+ * changed, never WHO/WHERE. The `action` is a free
  * string (create | update | delete today; the future draft/approval workflow can
  * emit `submit`/`approve`/`reject`/`post` through this same service unchanged).
  *
@@ -35,7 +36,10 @@ export const auditService = {
     }
     await db.insert(auditLogsTable).values({
       organizationId: ctx.organizationId,
-      userId: ctx.userId,
+      // 🔴 T1b (G25): NO `userId`. The row names the connection's declared
+      // actor (`TenantScope.actorUserId`; the column defaults to it, and the
+      // database refuses any other user — migration 0132), so this service
+      // cannot write a user it was handed.
       action: input.action,
       entityType: input.entityType,
       entityId: String(input.entityId),

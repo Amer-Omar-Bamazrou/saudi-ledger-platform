@@ -127,7 +127,7 @@ describeDb("AP correction — the product's OWN rows at the LIVE sandbox", () =>
   let advId = 0, recId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try { const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn)); await conn.commit(); return out; } catch (err) { await conn.rollback(); throw err; }
   };
   const cleanup = async () => {

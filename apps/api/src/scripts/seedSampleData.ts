@@ -104,7 +104,8 @@ async function main() {
   // has already printed. That exact failure happened, and it is the
   // "no-op reporting success" shape: a seed that says done and wrote nothing.
   const inTenant = async <T>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId, companyId, role: "authenticated" });
+    // 🔴 T1b: the seed acts as its user; its audit rows name them.
+    const conn = await beginTenantConnection({ organizationId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId, ipAddress: null }, fn),

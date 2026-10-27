@@ -28,6 +28,7 @@ import { requirePlatformOperator } from "../lib/operator";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { resolveTenant } from "../lib/tenant";
 import { operatorService } from "../services/operator.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -51,7 +52,7 @@ describeMaybe("platform operator + verification review boundary (M11.3)", () => 
   const USER_FILTER = `(SELECT id FROM users WHERE email LIKE 'optest-%')`;
 
   const cleanup = async () => {
-    await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`);
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM verification_reviews WHERE organization_id IN ${ORG_FILTER} OR operator_user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${ORG_FILTER}`);

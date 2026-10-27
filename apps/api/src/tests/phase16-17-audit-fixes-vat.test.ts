@@ -39,7 +39,7 @@ describeMaybe("OB-1 — the VAT obligation = the VAT return, day 1 included (pin
   const docs: Array<{ co: string; date: string; vat: number }> = [];
 
   const inCo = async <T,>(company: string, fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: company, role: "authenticated", actorUserId: userId });
     try { const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn)); await conn.commit(); return out; }
     catch (err) { await conn.rollback(); throw err; }
   };

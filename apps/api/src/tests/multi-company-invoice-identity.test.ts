@@ -33,6 +33,7 @@ import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { invoicesService } from "../services/invoices.service";
 import { auditContext } from "../lib/auditContext";
 import { createApproved } from "./helpers/createApproved";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -60,8 +61,8 @@ describeMaybe("M12.1a — multi-company invoice identity + hash chain", () => {
     const U = `(SELECT id FROM users WHERE email LIKE 'm121a-%')`;
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${O}`);
     await pool.query(`DELETE FROM einvoice_documents WHERE organization_id IN ${O}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O}`);
-    await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${O} OR actor_user_id IN ${U}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${O}`);
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE organization_id IN ${O} OR actor_user_id IN ${U}`);
     await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${O}`);
@@ -77,7 +78,7 @@ describeMaybe("M12.1a — multi-company invoice identity + hash chain", () => {
 
   /** Run `fn` as the tenant, with a SPECIFIC company active. */
   async function asCompany<T>(companyId: string, fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const result = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: null }, () => fn()),

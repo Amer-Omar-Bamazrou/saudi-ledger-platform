@@ -34,7 +34,7 @@ describeMaybe("Phase 11 A2/A3 — accruals and prepayments (real rows)", () => {
   let expenseId = 0, accruedId = 0, prepaidId = 0, apId = 0, salesId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

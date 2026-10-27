@@ -35,6 +35,7 @@ import { paymentsService } from "../services/payments.service";
 import { findingsRepository } from "../repositories/findings.repository";
 import { postJournalEntry } from "../services/accounting/glPosting";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -51,7 +52,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
   let existingAlpha = 0, existingVendor = 0;
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();
@@ -445,10 +446,10 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     await expectRefusal(inTenant(() => migrationCommitService.reverse(committedId, { reason: "opening AR was wrong by 5,000" }, userId)), 422, "migration_reversal_blocked", /INV-1001/);
     await pool.query(`UPDATE invoices SET paid_amount = 0 WHERE id = $1`, [invId]);
     // A month closed by someone ELSE since the migration blocks too.
-    await pool.query(`DELETE FROM period_locks WHERE id = (SELECT period_lock_id FROM migration_batches WHERE id = $1)`, [committedId]);
+    await replica(pool).query(`DELETE FROM period_locks WHERE id = (SELECT period_lock_id FROM migration_batches WHERE id = $1)`, [committedId]);
     const foreign = (await pool.query(`INSERT INTO period_locks (organization_id, company_id, period, notes) VALUES ($1,$2,'2026-06','closed by the accountant') RETURNING id`, [orgId, companyId])).rows[0].id;
     expect((await inTenant(() => migrationCommitService.reversalPreview(committedId))).blockers).toEqual([expect.stringMatching(/2026-06 was closed by someone else/)]);
-    await pool.query(`DELETE FROM period_locks WHERE id = $1`, [foreign]);
+    await replica(pool).query(`DELETE FROM period_locks WHERE id = $1`, [foreign]);
     const own = (await pool.query(`INSERT INTO period_locks (organization_id, company_id, period, notes) VALUES ($1,$2,'2026-06','restored') RETURNING id`, [orgId, companyId])).rows[0].id;
     await pool.query(`UPDATE migration_batches SET period_lock_id = $2 WHERE id = $1`, [committedId, own]);
     const preview = await inTenant(() => migrationCommitService.reversalPreview(committedId));

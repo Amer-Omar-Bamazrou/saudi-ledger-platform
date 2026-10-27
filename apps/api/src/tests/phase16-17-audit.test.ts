@@ -31,6 +31,7 @@ import { taxComputationsService } from "../services/tax/taxComputations.service"
 import { zakatClassificationService } from "../services/tax/zakatClassification.service";
 import { paymentPlansService } from "../services/treasury/paymentPlans.service";
 import { addDays } from "../services/tax/taxComputations.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -46,7 +47,7 @@ describeMaybe("Phase 16 + 17 — the joint audit's regressions", () => {
   const today = businessToday();
 
   const inCo = async <T,>(co: string, fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -162,7 +163,7 @@ describeMaybe("Phase 16 + 17 — the joint audit's regressions", () => {
     expect(e.statusCode).toBe(423);
     expect(await entries(coW)).toBe(before);
     expect((await pool.query(`SELECT count(*)::int n FROM wht_remittances WHERE company_id = $1`, [coW])).rows[0].n).toBe(0);
-    await pool.query(`DELETE FROM period_locks WHERE id = $1`, [lock]);
+    await replica(pool).query(`DELETE FROM period_locks WHERE id = $1`, [lock]);
   });
 
   it("🔴 A-2 — two remittances of the same month RACE: exactly one lands, the other is refused by name; GL WHT_PAYABLE = the WHT ledger, exactly", async () => {

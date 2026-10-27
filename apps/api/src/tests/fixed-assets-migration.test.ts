@@ -42,7 +42,7 @@ describeMaybe("FA-D — migrated fixed assets (real rows)", () => {
   let orgId = "", companyId = "", userId = 0, bank = 0, batchId = 0, catId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

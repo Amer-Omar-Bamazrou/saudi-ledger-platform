@@ -20,6 +20,7 @@ import { auditContext } from "../lib/auditContext";
 import { __setMailerForTests, type MailMessage } from "../lib/mailer";
 import { findingsService } from "../services/findings.service";
 import { findingsScheduleService, periodKeyFor } from "../services/findings.schedule.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -51,7 +52,7 @@ describeMaybe("AI-5 — scheduled findings", () => {
   let sent: MailMessage[] = [];
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: adminId });
     try {
       const out = await conn.run(() => auditContext.run({ userId: adminId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -70,7 +71,7 @@ describeMaybe("AI-5 — scheduled findings", () => {
     await pool.query(`DELETE FROM findings WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bills WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usrs}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usrs}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usrs} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email IN ('${ADMIN_EMAIL}','${GONE_EMAIL}','${KEEPER_EMAIL}')`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);

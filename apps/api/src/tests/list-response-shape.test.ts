@@ -46,6 +46,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -287,7 +288,7 @@ describeMaybe("a page's declared list type matches the real response", () => {
       "customers",
       "vendors",
     ]) {
-      await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+      await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
     await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
     await pool.query(

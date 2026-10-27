@@ -28,6 +28,7 @@ import { logger } from "../lib/logger";
 import { meteredChat } from "../services/ai/metered";
 import type { AiProvider } from "../services/ai/provider";
 import { g04Harness } from "./helpers/g04Harness";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -62,12 +63,12 @@ describeMaybe("🔴 a tenant transaction's handle cannot be used after its trans
     );
 
   beforeEach(async () => {
-    await pool.query(`DELETE FROM audit_logs WHERE entity_type = 'handle_after_end'`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE entity_type = 'handle_after_end'`);
   });
 
   beforeAll(async () => {
     await h.cleanup();
-    await pool.query(`DELETE FROM audit_logs WHERE entity_type = 'handle_after_end'`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE entity_type = 'handle_after_end'`);
     orgA = await h.mkOrg("a");
     orgB = await h.mkOrg("b");
     coA = await h.mkCompany(orgA, "Handle End A", "318181818181898");
@@ -75,7 +76,7 @@ describeMaybe("🔴 a tenant transaction's handle cannot be used after its trans
   });
 
   afterAll(async () => {
-    await pool.query(`DELETE FROM audit_logs WHERE entity_type = 'handle_after_end'`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE entity_type = 'handle_after_end'`);
     await h.cleanup();
   });
 

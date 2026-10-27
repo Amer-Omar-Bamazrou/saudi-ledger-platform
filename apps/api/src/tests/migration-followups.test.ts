@@ -27,6 +27,7 @@ import { badDebtService } from "../services/badDebt.service";
 import { loadEInvoiceInput } from "../services/einvoice/einvoiceInput.loader";
 import { buildInvoiceXml } from "../services/einvoice/ubl/buildInvoiceXml";
 import { createApproved } from "./helpers/createApproved";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -44,7 +45,7 @@ describeMaybe("Migration follow-ups — identity, item-level correction to retai
   const stagingRefusals: any[] = [];
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -238,7 +239,7 @@ describeMaybe("Migration follow-ups — identity, item-level correction to retai
     const rowsBefore = (await pool.query(`SELECT count(*)::int n FROM invoices WHERE migration_open_item_id = $1`, [items.S1])).rows[0].n;
     await expectRefusal(inTenant(() => migrationCorrectionService.correctOpenItem(items.S1!, { correctOutstanding: 96_000, reason: "x", date: "2026-07-15" }, userId)), 423, "period_closed");
     expect((await pool.query(`SELECT count(*)::int n FROM invoices WHERE migration_open_item_id = $1`, [items.S1])).rows[0].n).toBe(rowsBefore);
-    await pool.query(`DELETE FROM period_locks WHERE organization_id = $1`, [orgId]);
+    await replica(pool).query(`DELETE FROM period_locks WHERE organization_id = $1`, [orgId]);
     // nothing deleted: every row ever created is still there
     expect((await pool.query(`SELECT count(*)::int n FROM invoices WHERE migration_open_item_id = $1`, [items.S1])).rows[0].n).toBe(3);
     // every journal balances

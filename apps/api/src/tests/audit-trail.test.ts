@@ -13,6 +13,7 @@ import { auditContext } from "../lib/auditContext";
 import { membersRepository } from "../repositories/members.repository";
 import { auditLogsService } from "../services/auditLogs.service";
 import { periodLocksService } from "../services/periodLocks.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -29,7 +30,8 @@ describeMaybe("M23 — audit-trail actor resolution", () => {
   let outsiderId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    // T1b: the connection declares who is acting, as the request path does (`resolveTenant`).
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.99" }, fn),
@@ -44,8 +46,8 @@ describeMaybe("M23 — audit-trail actor resolution", () => {
 
   const cleanup = async () => {
     if (orgId) {
-      await pool.query(`DELETE FROM period_locks WHERE organization_id = $1`, [orgId]);
-      await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
+      await replica(pool).query(`DELETE FROM period_locks WHERE organization_id = $1`, [orgId]);
+      await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
     }
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);
     await pool.query(`DELETE FROM users WHERE email IN ('audit-trail@test.local','audit-outsider@test.local')`);

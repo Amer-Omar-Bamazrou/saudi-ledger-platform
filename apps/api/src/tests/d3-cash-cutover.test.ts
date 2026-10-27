@@ -41,6 +41,7 @@ import { journalEntriesService } from "../services/journalEntries.service";
 import { reportsService } from "../services/reports.service";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { cashService } from "../services/cash.service";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -106,7 +107,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
   let customerId = 0; let vendorId = 0;
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();
@@ -129,7 +130,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
         "invoice_items", "invoices", "bill_items", "bills", "customers", "vendors",
         "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies",
       ]) {
-        await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await pool.query(`DELETE FROM organizations WHERE slug = '${slug}'`);
     }
@@ -598,7 +599,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
 
   it("🔴 ROLLBACK: a failure after the attribution inside the caller's transaction leaves NOTHING — no attribution, no run", async () => {
     const before = await snapshot();
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: c4, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: c4, role: "authenticated", actorUserId: userId });
     await expect(
       conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: null }, async () => {
@@ -614,7 +615,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
 
   it("🔴 CONCURRENCY: two commits of the same company at once — one attributes, the other finds nothing to do; exactly one attribution per line, no duplicate, no failure", async () => {
     const run = async () => {
-      const conn = await beginTenantConnection({ organizationId: orgId, companyId: c4, role: "authenticated" });
+      const conn = await beginTenantConnection({ organizationId: orgId, companyId: c4, role: "authenticated", actorUserId: userId });
       try {
         const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, () => cashCutoverService.commit()));
         await conn.commit();

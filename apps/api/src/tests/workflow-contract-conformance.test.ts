@@ -59,6 +59,7 @@ import { purchaseOrderConversionService } from "../services/purchaseOrderConvers
 import { budgetsService } from "../services/budgets.service";
 import { recurringService } from "../services/recurring/recurring.service";
 import { approvalsQueueService } from "../services/approvalsQueue.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -89,7 +90,7 @@ describeMaybe("workflow contract conformance — quotations, POs, budgets, recur
   let jeId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -128,7 +129,7 @@ describeMaybe("workflow contract conformance — quotations, POs, budgets, recur
         if (!/does not exist/.test(e.message)) throw e;
       });
     }
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);

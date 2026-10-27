@@ -213,6 +213,7 @@ export async function seedDemoTenant(opts: {
       organizationId,
       companyId,
       role: "authenticated",
+      actorUserId: userId, // 🔴 T1b: the seed acts as the demo reviewer; its audit rows name them
     });
     try {
       const out = await conn.run(() =>

@@ -28,6 +28,7 @@ import { hashToken } from "../lib/tokens";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { invitationsService } from "../services/invitations.service";
 import { membersService } from "../services/members.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -56,7 +57,7 @@ describeMaybe("M11.7 — organization invitations", () => {
   const USER_FILTER = `(SELECT id FROM users WHERE email LIKE 'invtest-%')`;
 
   const cleanup = async () => {
-    await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`);
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM organization_invitations WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${ORG_FILTER}`);

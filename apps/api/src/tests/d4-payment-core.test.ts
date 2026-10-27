@@ -29,6 +29,7 @@ import { periodLocksService } from "../services/periodLocks.service";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { createApproved } from "./helpers/createApproved";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -55,7 +56,7 @@ describeMaybe("D-4 — customer payments, allocations, deposits, credit applicat
   let bankOther = 0;
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();
@@ -80,7 +81,7 @@ describeMaybe("D-4 — customer payments, allocations, deposits, credit applicat
         "invoice_items", "einvoice_documents", "invoices", "customers", "period_locks",
         "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies",
       ]) {
-        await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await pool.query(`DELETE FROM organizations WHERE slug = '${slug}'`);
     }

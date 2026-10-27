@@ -24,6 +24,7 @@ import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { createApproved } from "./helpers/createApproved";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -40,7 +41,7 @@ describeMaybe("ZATCA hash chain — drafts consume no sequence number, no gaps",
   let customerId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.12" }, fn),
@@ -64,7 +65,7 @@ describeMaybe("ZATCA hash chain — drafts consume no sequence number, no gaps",
       await pool.query(`DELETE FROM invoice_items WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = $1)`, [orgId]);
       await pool.query(`DELETE FROM invoices WHERE organization_id = $1`, [orgId]);
-      await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
+      await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM customers WHERE organization_id = $1`, [orgId]);
     }
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);

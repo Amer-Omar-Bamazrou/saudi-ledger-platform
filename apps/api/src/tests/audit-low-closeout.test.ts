@@ -13,6 +13,7 @@ import { pool } from "@workspace/db";
 import { sanitizeBody } from "../services/einvoice/onboarding/zatcaOnboardingClient";
 import { errorHandler } from "../middleware/errorHandler";
 import { signupService } from "../services/signup.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -83,7 +84,7 @@ describeMaybe("M-3 — the signup email race resolves to 409, decided by the uni
     await pool.query(
       `DELETE FROM organization_memberships WHERE user_id IN (SELECT id FROM users WHERE email = '${EMAIL}')`,
     );
-    await pool.query(
+    await replica(pool).query(
       `DELETE FROM security_audit_logs WHERE actor_user_id IN (SELECT id FROM users WHERE email = '${EMAIL}')
         OR target_user_id IN (SELECT id FROM users WHERE email = '${EMAIL}')`,
     );

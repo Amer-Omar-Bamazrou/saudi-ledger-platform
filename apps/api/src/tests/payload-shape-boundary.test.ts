@@ -46,6 +46,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pool } from "@workspace/db";
 import { createApproved } from "./helpers/createApproved";
+import { replica } from "./helpers/replica";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..", "..");
 const url = process.env.DATABASE_URL;
@@ -57,7 +58,7 @@ const SLUG = "payload-shape-boundary";
 async function inTenant<T>(orgId: string, companyId: string, userId: number, fn: () => Promise<T>): Promise<T> {
   const { beginTenantConnection } = await import("@workspace/db");
   const { auditContext } = await import("../lib/auditContext");
-  const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+  const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
   try {
     const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
     await conn.commit();
@@ -108,7 +109,7 @@ describeMaybe("the payload-shape boundary, across every create path", () => {
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     const { rows } = await pool.query(`SELECT user_id FROM organization_memberships WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organization_memberships WHERE organization_id IN ${org}`);

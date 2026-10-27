@@ -47,7 +47,7 @@ describeMaybe("F-25 — today's ageing never counts a settlement dated after tod
   const ids: Record<string, number> = {};
 
   const inCo = async <R,>(fn: () => Promise<R>): Promise<R> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: coId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: coId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

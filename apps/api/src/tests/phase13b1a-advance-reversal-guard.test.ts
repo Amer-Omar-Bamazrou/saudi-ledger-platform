@@ -66,7 +66,7 @@ describeMaybe("Phase 13B-1a — supplier advance VAT entries are owned (D-2)", (
     } catch (err) { await c.query("ROLLBACK"); throw err; } finally { c.release(); }
   };
   const inTenant = async <T,>(fn: () => Promise<T>, org = orgA, co = coA): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: userA });
     try {
       const out = await conn.run(() => auditContext.run({ userId: userA, organizationId: org, ipAddress: null }, fn));
       await conn.commit();

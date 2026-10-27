@@ -35,6 +35,7 @@ import { reportsService } from "../services/reports.service";
 import { periodLocksService } from "../services/periodLocks.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -46,7 +47,7 @@ describeMaybe("FA-B — capitalisation, the monthly run, the estimate change (re
   let orgId = "", companyId = "", userId = 0, vendorId = 0, catId = 0, laptopId = 0, vanId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -61,7 +62,7 @@ describeMaybe("FA-B — capitalisation, the monthly run, the estimate change (re
       await client.query("BEGIN");
       const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
       for (const t of ["asset_events", "asset_depreciation_schedule", "bill_items", "bills", "fixed_assets", "asset_categories", "journal_entry_lines", "journal_entries", "period_locks", "audit_logs", "organization_memberships", "vendors", "bank_accounts", "categories", "companies"]) {
-        await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(client, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await client.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
       await client.query(`DELETE FROM users WHERE email = '${EMAIL}'`);

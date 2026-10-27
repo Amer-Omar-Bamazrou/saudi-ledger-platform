@@ -65,7 +65,7 @@ describeMaybe("Phase 13B-1 — generic reversal protection (A-5)", () => {
     } catch (err) { await c.query("ROLLBACK"); throw err; } finally { c.release(); }
   };
   const inTenant = async <T,>(fn: () => Promise<T>, org = orgA, co = coA, user = userA): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: user });
     try {
       const out = await conn.run(() => auditContext.run({ userId: user, organizationId: org, ipAddress: null }, fn));
       await conn.commit();

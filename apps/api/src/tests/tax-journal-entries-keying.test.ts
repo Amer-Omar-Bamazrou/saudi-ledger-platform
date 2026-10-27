@@ -21,6 +21,7 @@ import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { reportsService } from "../services/reports.service";
+import { deleterFor } from "./helpers/replica";
 
 const connectionString = process.env.DATABASE_URL;
 const describeMaybe = connectionString ? describe : describe.skip;
@@ -51,7 +52,7 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await releasePostedJournalsForTeardown(`organization_id IN ${O}`); // G16: posted entries back to draft for the deletes below
     for (const t of ["journal_entry_lines", "journal_entries", "audit_logs", "bank_accounts", "categories", "companies"]) {
-      await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
+      await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
         if (!/does not exist/.test(e.message)) throw e;
       });
     }

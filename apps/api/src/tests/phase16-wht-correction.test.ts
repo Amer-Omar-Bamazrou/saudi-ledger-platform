@@ -42,7 +42,7 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
   let seq = 0;
 
   const inCo = async <T,>(org: string, co: string, fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();

@@ -149,6 +149,8 @@ export async function resolveTenant(
       organizationId: tenant.organizationId,
       companyId: tenant.companyId,
       role: DB_APP_ROLE,
+      // 🔴 T1b (G25): the session's user is the transaction's declared actor; every audit row names them.
+      actorUserId: tenant.userId,
     });
 
     /**

@@ -31,6 +31,7 @@ import { postJournalEntry, MissingPartyError } from "../services/accounting/glPo
 import { ConflictError } from "../lib/errors";
 import { createApproved } from "./helpers/createApproved";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -50,7 +51,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
   let vendorId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.88" }, fn),
@@ -82,7 +83,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
     await pool.query(`DELETE FROM bill_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bill_payments WHERE bill_id IN (SELECT id FROM bills WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM bills WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);

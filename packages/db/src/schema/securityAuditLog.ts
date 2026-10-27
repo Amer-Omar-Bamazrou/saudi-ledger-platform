@@ -25,7 +25,9 @@ import { usersTable } from "./users";
  *     (`securityAuditService`); the RLS app role is granted NOTHING on it, which
  *     keeps it entirely off the tenant-scoped path (proven by a DB boundary test),
  *   - is append-only by construction — the service exposes only insert + read;
- *     there is no update/delete path.
+ *     there is no update/delete path — and, since T1b (migration 0132), at the
+ *     database for EVERY role, the owner included: UPDATE, DELETE and TRUNCATE
+ *     are refused by trigger, with replica mode the only bypass.
  *
  * `action` is a free dotted string (e.g. `user.created`, `membership.role_changed`,
  * and — from M11.2+ — `verification.approved`). `metadata` carries event-specific
