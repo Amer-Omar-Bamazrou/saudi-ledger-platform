@@ -47,6 +47,7 @@ import { financeHubService } from "./financeHub.service";
 import { reportsService } from "./reports.service";
 import { verifyExplanation } from "./findings.explanationVerifier";
 import { businessToday } from "@workspace/shared";
+import { withSavepoint } from "../lib/savepoint";
 
 const TRAILING_MONTHS = 6;
 
@@ -324,13 +325,15 @@ export const askService = {
     const args = (sel.args ?? {}) as Record<string, unknown>;
 
     // ── 2. The deterministic computation ─────────────────────────────────────
-    let result: Record<string, unknown>;
-    try {
-      result = await def.run(args);
-    } catch (err) {
-      logger.warn({ err, tool: sel.tool }, "ask: tool execution failed");
+    // 🔴 Phase 18 (B-O6 follow-up): the tool runs in its own savepoint, so a
+    // DATABASE error inside it rolls back alone and the refusal below can still
+    // be stored; caught bare, it aborted the transaction the store needs.
+    const ran = await withSavepoint(() => def.run(args));
+    if (!ran.ok) {
+      logger.warn({ err: ran.error, tool: sel.tool }, "ask: tool execution failed");
       return store({ tool: sel.tool, toolArgs: args, refused: true, refusalReason: "tool_failed" });
     }
+    const result: Record<string, unknown> = ran.value;
 
     // ── 3. Composition ───────────────────────────────────────────────────────
     const ansRaw = await chat(composePrompt(q, sel.tool, result, def));

@@ -28,6 +28,7 @@ import { assertNotReversedOpening } from "../accounting/openingReversed";
 import { decideWithholding } from "../accounting/wht";
 import { payBill } from "../bills.payment";
 import { auditService } from "../audit.service";
+import { withSavepoint } from "../../lib/savepoint";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_ID = 2_147_483_647;
@@ -52,12 +53,11 @@ async function planOut(p: PlanRow) {
   const open = p.status === "planned" || p.status === "approved";
   let whtEstimate: number | null = null;
   if (open && p.vendor_residency === "non_resident" && amount > 0) {
-    try {
-      const d = await decideWithholding({ vendorId: p.vendor_id, paymentDate: p.planned_date < today ? today : p.planned_date, base: amount, paymentClass: "bill_payment", declared: { paymentType: p.wht_payment_type } });
-      whtEstimate = d.kind === "withheld" ? fromHalalas(d.whtH) : d.kind === "not_subject" ? 0 : null;
-    } catch {
-      whtEstimate = null; // undecidable until the payment states its nature — said so on the page, never a guessed rate
-    }
+    // 🔴 Phase 18 (B-O6 follow-up): in its own savepoint, so a DATABASE error in
+    // the decision rolls back alone instead of aborting the listing's transaction.
+    const decided = await withSavepoint(() => decideWithholding({ vendorId: p.vendor_id, paymentDate: p.planned_date < today ? today : p.planned_date, base: amount, paymentClass: "bill_payment", declared: { paymentType: p.wht_payment_type } }));
+    // undecidable until the payment states its nature — said so on the page, never a guessed rate
+    whtEstimate = !decided.ok ? null : decided.value.kind === "withheld" ? fromHalalas(decided.value.whtH) : decided.value.kind === "not_subject" ? 0 : null;
   }
   const whtWithheld = p.status === "paid" && p.paid_wht != null ? Number(p.paid_wht) : null;
   return {
