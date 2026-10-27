@@ -82,8 +82,8 @@ async function generateOne(rule: DueRule): Promise<"generated" | "failed" | "alr
     organizationId: rule.organizationId,
     companyId: rule.companyId,
     role: "authenticated",
-    // 🔴 T1b: the job acts as the rule's creator, so its audit rows name them (as its audit context always said).
-    actorUserId: rule.createdBy,
+    // 🔴 T1b (owner 2026-10-27, check d): no actor. The job runs with no signed-in user, so its audit rows
+    // record as SYSTEM; agreeing to a rule in January is not acting on what it produces in November.
   });
 
   try {
