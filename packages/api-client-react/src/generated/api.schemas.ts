@@ -981,16 +981,206 @@ export interface PeriodLock {
   lockedBy: number | null;
   /** @nullable */
   notes: string | null;
+  /**
+     * T1e: set when the month was reopened (the row is kept); NULL while it is closed.
+     * @nullable
+     */
+  reopenedAt?: string | null;
+  /** @nullable */
+  reopenedBy?: number | null;
+  /** @nullable */
+  reopenReason?: string | null;
 }
 
 export interface PeriodLockInput {
   /**
-     * The month to close, `YYYY-MM` (e.g. 2026-06).
-     * @pattern ^\d{4}-\d{2}$
+     * The month to close, `YYYY-MM` (e.g. 2026-06). T1e — a real month (2026-13 is refused).
+     * @pattern ^\d{4}-(0[1-9]|1[0-2])$
      */
   period: string;
   /** @nullable */
   notes?: string | null;
+}
+
+export interface PeriodReopenInput {
+  /** Why the month is reopened. Required, kept in the month's history. */
+  reason: string;
+}
+
+export interface PeriodReopenResult {
+  reopened: boolean;
+  lock: PeriodLock | null;
+}
+
+export type PeriodLockEventEvent = typeof PeriodLockEventEvent[keyof typeof PeriodLockEventEvent];
+
+
+export const PeriodLockEventEvent = {
+  close: 'close',
+  reopen: 'reopen',
+} as const;
+
+export interface PeriodLockEvent {
+  id: number;
+  period: string;
+  event: PeriodLockEventEvent;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  actor: number | null;
+  at: string;
+}
+
+export interface StatementAuthorisation {
+  id: number;
+  fiscalYearStart: string;
+  fiscalYearEnd: string;
+  authorisedOn: string;
+  /** Who authorised the statements for issue (IAS 10.17), as the tenant states it. */
+  authorisedBy: string;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  recordedBy: number | null;
+  createdAt: string;
+}
+
+export interface StatementAuthorisationInput {
+  /** The last day of a fiscal year as the company declares it (YYYY-MM-DD). */
+  fiscalYearEnd: string;
+  /** After the year's end, and not in the future. */
+  authorisedOn: string;
+  authorisedBy: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type VatReturnFilingKind = typeof VatReturnFilingKind[keyof typeof VatReturnFilingKind];
+
+
+export const VatReturnFilingKind = {
+  original: 'original',
+  amendment: 'amendment',
+} as const;
+
+export interface VatReturnFiling {
+  id: number;
+  periodFrom: string;
+  periodTo: string;
+  kind: VatReturnFilingKind;
+  /** @nullable */
+  amendsZatcaReference: string | null;
+  filedOn: string;
+  zatcaReference: string;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+}
+
+export type VatReturnFilingInputKind = typeof VatReturnFilingInputKind[keyof typeof VatReturnFilingInputKind];
+
+
+export const VatReturnFilingInputKind = {
+  original: 'original',
+  amendment: 'amendment',
+} as const;
+
+export interface VatReturnFilingInput {
+  /** The first month of the return (YYYY-MM). */
+  periodFrom: string;
+  /** The last month (YYYY-MM); one to three months after periodFrom. */
+  periodTo: string;
+  filedOn: string;
+  zatcaReference: string;
+  kind?: VatReturnFilingInputKind;
+  /** @nullable */
+  amendsZatcaReference?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type ZakatIncomeTaxFilingTax = typeof ZakatIncomeTaxFilingTax[keyof typeof ZakatIncomeTaxFilingTax];
+
+
+export const ZakatIncomeTaxFilingTax = {
+  zakat: 'zakat',
+  income_tax: 'income_tax',
+} as const;
+
+export type ZakatIncomeTaxFilingKind = typeof ZakatIncomeTaxFilingKind[keyof typeof ZakatIncomeTaxFilingKind];
+
+
+export const ZakatIncomeTaxFilingKind = {
+  original: 'original',
+  amendment: 'amendment',
+} as const;
+
+export interface ZakatIncomeTaxFiling {
+  id: number;
+  tax: ZakatIncomeTaxFilingTax;
+  fiscalYearEnd: string;
+  kind: ZakatIncomeTaxFilingKind;
+  /** @nullable */
+  amendsZatcaReference: string | null;
+  filedOn: string;
+  zatcaReference: string;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+}
+
+/**
+ * Which tax the return is for.
+ */
+export type ZakatIncomeTaxFilingInputKind = typeof ZakatIncomeTaxFilingInputKind[keyof typeof ZakatIncomeTaxFilingInputKind];
+
+
+export const ZakatIncomeTaxFilingInputKind = {
+  zakat: 'zakat',
+  income_tax: 'income_tax',
+} as const;
+
+export type ZakatIncomeTaxFilingInputFilingKind = typeof ZakatIncomeTaxFilingInputFilingKind[keyof typeof ZakatIncomeTaxFilingInputFilingKind];
+
+
+export const ZakatIncomeTaxFilingInputFilingKind = {
+  original: 'original',
+  amendment: 'amendment',
+} as const;
+
+export interface ZakatIncomeTaxFilingInput {
+  /** Which tax the return is for. */
+  kind: ZakatIncomeTaxFilingInputKind;
+  fiscalYearEnd: string;
+  filedOn: string;
+  zatcaReference: string;
+  filingKind?: ZakatIncomeTaxFilingInputFilingKind;
+  /** @nullable */
+  amendsZatcaReference?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface ReverseJournalEntryInput {
+  reason?: string;
+  /** The posting date of the reversal; today when omitted. */
+  date?: string;
+  /**
+     * T1e — the ACTUAL date the error was discovered.
+     * @nullable
+     */
+  discoveredOn?: string | null;
+  /**
+     * T1e — any earlier date on which it arguably became apparent (kept apart; on or before discoveredOn).
+     * @nullable
+     */
+  apparentOn?: string | null;
+  /** @nullable */
+  discoveryEvidence?: string | null;
 }
 
 export type CategoryType = typeof CategoryType[keyof typeof CategoryType];

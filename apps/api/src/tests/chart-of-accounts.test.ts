@@ -550,7 +550,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       expect(await asCompany(companyC, () => periodLocksService.list())).toHaveLength(1);
 
       // 🔴 And C unlocking must NOT reopen A's books.
-      await asCompany(companyC, () => periodLocksService.unlock("2026-06"));
+      await asCompany(companyC, () => periodLocksService.reopen("2026-06", { reason: "test: reopen the month the case closed" }, null));
       expect(await asCompany(companyC, () => periodLocksService.list())).toHaveLength(0);
 
       const stillLocked = await pool.query(

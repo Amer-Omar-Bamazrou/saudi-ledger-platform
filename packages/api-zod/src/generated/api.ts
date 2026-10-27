@@ -4266,7 +4266,10 @@ export const ListPeriodLocksResponseItem = zod.object({
   "period": zod.string().describe('The closed month, `YYYY-MM`.'),
   "lockedAt": zod.string(),
   "lockedBy": zod.number().nullable(),
-  "notes": zod.string().nullable()
+  "notes": zod.string().nullable(),
+  "reopenedAt": zod.string().nullish().describe('T1e: set when the month was reopened (the row is kept); NULL while it is closed.'),
+  "reopenedBy": zod.number().nullish(),
+  "reopenReason": zod.string().nullish()
 })
 export const ListPeriodLocksResponse = zod.array(ListPeriodLocksResponseItem)
 
@@ -4275,11 +4278,11 @@ export const ListPeriodLocksResponse = zod.array(ListPeriodLocksResponseItem)
  * @summary Close an accounting period. Nothing may afterwards be posted into it — a correction posts in the current open period instead, never re-dated backwards.
 
  */
-export const lockPeriodBodyPeriodRegExp = new RegExp('^\\d{4}-\\d{2}$');
+export const lockPeriodBodyPeriodRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 
 
 export const LockPeriodBody = zod.object({
-  "period": zod.string().regex(lockPeriodBodyPeriodRegExp).describe('The month to close, `YYYY-MM` (e.g. 2026-06).'),
+  "period": zod.string().regex(lockPeriodBodyPeriodRegExp).describe('The month to close, `YYYY-MM` (e.g. 2026-06). T1e — a real month (2026-13 is refused).'),
   "notes": zod.string().nullish()
 })
 
@@ -4288,12 +4291,15 @@ export const LockPeriodResponse = zod.object({
   "period": zod.string().describe('The closed month, `YYYY-MM`.'),
   "lockedAt": zod.string(),
   "lockedBy": zod.number().nullable(),
-  "notes": zod.string().nullable()
+  "notes": zod.string().nullable(),
+  "reopenedAt": zod.string().nullish().describe('T1e: set when the month was reopened (the row is kept); NULL while it is closed.'),
+  "reopenedBy": zod.number().nullish(),
+  "reopenReason": zod.string().nullish()
 })
 
 
 /**
- * @summary Reopen a closed period (admin only). Company-scoped — reopening one company's period leaves every other company's locks untouched.
+ * @summary 🔴 T1e (PER-2): REFUSED. A closed month is reopened with a reason through POST /period-locks/{period}/reopen, and its lock and history are kept.
 
  */
 export const UnlockPeriodParams = zod.object({
@@ -4301,6 +4307,182 @@ export const UnlockPeriodParams = zod.object({
 })
 
 export const UnlockPeriodResponse = zod.void()
+
+
+/**
+ * @summary 🔴 T1e (PER-2, G57, DR-30): reopen a closed month (admin only), with a REASON. The lock row is kept (who, when, why) and the reopen is appended to the month's history. Refused for the opening month of a committed migration, and for any month of a fiscal year whose statements are recorded as authorised for issue. A month that is not closed is a no-op.
+
+ */
+export const ReopenPeriodParams = zod.object({
+  "period": zod.coerce.string()
+})
+
+export const ReopenPeriodBody = zod.object({
+  "reason": zod.string().describe('Why the month is reopened. Required, kept in the month\'s history.')
+})
+
+export const ReopenPeriodResponse = zod.object({
+  "reopened": zod.boolean(),
+  "lock": zod.union([zod.object({
+  "id": zod.number(),
+  "period": zod.string().describe('The closed month, `YYYY-MM`.'),
+  "lockedAt": zod.string(),
+  "lockedBy": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "reopenedAt": zod.string().nullish().describe('T1e: set when the month was reopened (the row is kept); NULL while it is closed.'),
+  "reopenedBy": zod.number().nullish(),
+  "reopenReason": zod.string().nullish()
+}),zod.null()])
+})
+
+
+/**
+ * @summary 🔴 T1e (PER-2) — every close and reopen of the month, oldest first; a reopen carries its reason.
+ */
+export const ListPeriodLockHistoryParams = zod.object({
+  "period": zod.coerce.string()
+})
+
+export const ListPeriodLockHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "event": zod.enum(['close', 'reopen']),
+  "reason": zod.string().nullable(),
+  "actor": zod.number().nullable(),
+  "at": zod.string()
+})
+export const ListPeriodLockHistoryResponse = zod.array(ListPeriodLockHistoryResponseItem)
+
+
+/**
+ * @summary 🔴 T1e (DR-10) — fiscal years whose financial statements are recorded as authorised for issue (IAS 10.17).
+ */
+export const ListStatementAuthorisationsResponseItem = zod.object({
+  "id": zod.number(),
+  "fiscalYearStart": zod.string(),
+  "fiscalYearEnd": zod.string(),
+  "authorisedOn": zod.string(),
+  "authorisedBy": zod.string().describe('Who authorised the statements for issue (IAS 10.17), as the tenant states it.'),
+  "notes": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+export const ListStatementAuthorisationsResponse = zod.array(ListStatementAuthorisationsResponseItem)
+
+
+/**
+ * @summary 🔴 T1e (DR-10, DR-30): record the date a fiscal year's statements were authorised for issue, and who authorised them. Append-only. No month of that year can be reopened afterwards.
+
+ */
+export const RecordStatementAuthorisationBody = zod.object({
+  "fiscalYearEnd": zod.string().describe('The last day of a fiscal year as the company declares it (YYYY-MM-DD).'),
+  "authorisedOn": zod.string().describe('After the year\'s end, and not in the future.'),
+  "authorisedBy": zod.string(),
+  "notes": zod.string().nullish()
+})
+
+export const RecordStatementAuthorisationResponse = zod.object({
+  "id": zod.number(),
+  "fiscalYearStart": zod.string(),
+  "fiscalYearEnd": zod.string(),
+  "authorisedOn": zod.string(),
+  "authorisedBy": zod.string().describe('Who authorised the statements for issue (IAS 10.17), as the tenant states it.'),
+  "notes": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary 🔴 T1e (DR-10) — the VAT returns this company recorded as filed.
+ */
+export const ListVatReturnFilingsResponseItem = zod.object({
+  "id": zod.number(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsZatcaReference": zod.string().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+export const ListVatReturnFilingsResponse = zod.array(ListVatReturnFilingsResponseItem)
+
+
+/**
+ * @summary 🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends. Recording changes no figure.
+
+ */
+export const RecordVatReturnFilingBody = zod.object({
+  "periodFrom": zod.string().describe('The first month of the return (YYYY-MM).'),
+  "periodTo": zod.string().describe('The last month (YYYY-MM); one to three months after periodFrom.'),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "kind": zod.enum(['original', 'amendment']).optional(),
+  "amendsZatcaReference": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const RecordVatReturnFilingResponse = zod.object({
+  "id": zod.number(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsZatcaReference": zod.string().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary 🔴 T1e (DR-10) — the Zakat and income-tax returns this company recorded as filed.
+ */
+export const ListZakatIncomeTaxFilingsResponseItem = zod.object({
+  "id": zod.number(),
+  "tax": zod.enum(['zakat', 'income_tax']),
+  "fiscalYearEnd": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsZatcaReference": zod.string().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+export const ListZakatIncomeTaxFilingsResponse = zod.array(ListZakatIncomeTaxFilingsResponseItem)
+
+
+/**
+ * @summary 🔴 T1e (DR-10): record a filed Zakat or income-tax return for a fiscal year, with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends.
+
+ */
+export const RecordZakatIncomeTaxFilingBody = zod.object({
+  "kind": zod.enum(['zakat', 'income_tax']).describe('Which tax the return is for.'),
+  "fiscalYearEnd": zod.string(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "filingKind": zod.enum(['original', 'amendment']).optional(),
+  "amendsZatcaReference": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const RecordZakatIncomeTaxFilingResponse = zod.object({
+  "id": zod.number(),
+  "tax": zod.enum(['zakat', 'income_tax']),
+  "fiscalYearEnd": zod.string(),
+  "kind": zod.enum(['original', 'amendment']),
+  "amendsZatcaReference": zod.string().nullable(),
+  "filedOn": zod.string(),
+  "zatcaReference": zod.string(),
+  "notes": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
 
 
 /**
@@ -5508,6 +5690,14 @@ export const PostJournalEntryResponse = zod.object({
  */
 export const ReverseJournalEntryParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const ReverseJournalEntryBody = zod.object({
+  "reason": zod.string().optional(),
+  "date": zod.string().optional().describe('The posting date of the reversal; today when omitted.'),
+  "discoveredOn": zod.string().nullish().describe('T1e — the ACTUAL date the error was discovered.'),
+  "apparentOn": zod.string().nullish().describe('T1e — any earlier date on which it arguably became apparent (kept apart; on or before discoveredOn).'),
+  "discoveryEvidence": zod.string().nullish()
 })
 
 export const ReverseJournalEntryResponse = zod.object({

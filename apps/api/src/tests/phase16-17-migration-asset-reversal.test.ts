@@ -321,7 +321,7 @@ describeMaybe("Q3 — a reversed migration takes its fixed assets and every open
     const e = await refusal(inA(() => migrationCommitService.reverse(batchA, { reason: "withdrawing the opening position" }, userId)));
     expect([e.statusCode, e.payload?.code]).toEqual([422, "migration_reversal_blocked"]);
     expect((await one<{ status: string }>(`SELECT status FROM fixed_assets WHERE id = $1`, [fa1])).status).toBe("in_service");
-    await inA(() => periodLocksService.unlock("2026-08"));
+    await inA(() => periodLocksService.reopen("2026-08", { reason: "test: reopen the month the case closed" }, null));
     expect((await inA(() => migrationCommitService.reversalPreview(batchA))).blockers).toEqual([]);
   }, 60_000);
 

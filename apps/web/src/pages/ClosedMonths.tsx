@@ -32,6 +32,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { DualDate } from "@/components/DualDate";
 import { businessToday } from "@workspace/shared";
+import { useListPeriodLockHistory } from "@workspace/api-client-react";
+import { PeriodRecords } from "@/components/PeriodRecords";
 
 interface PeriodLock {
   id: number;
@@ -70,6 +72,8 @@ export default function ClosedMonths() {
 
   const [confirmClose, setConfirmClose] = useState<string | null>(null);
   const [confirmReopen, setConfirmReopen] = useState<string | null>(null);
+  const [reopenReason, setReopenReason] = useState("");
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [pickedMonth, setPickedMonth] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -96,9 +100,11 @@ export default function ClosedMonths() {
   });
 
   const reopenMut = useMutation({
-    mutationFn: (period: string) => apiFetch(`/period-locks/${period}`, { method: "DELETE" }),
+    // 🔴 T1e (PER-2): a reopen needs a reason; the lock and its history are kept.
+    mutationFn: (period: string) => apiFetch(`/period-locks/${period}/reopen`, { method: "POST", body: JSON.stringify({ reason: reopenReason.trim() }) }),
     onSuccess: (_d, period) => {
       setConfirmReopen(null);
+      setReopenReason("");
       qc.invalidateQueries({ queryKey: ["period-locks"] });
       toast({
         title: t("Month reopened", "أُعيد فتح الشهر"),
@@ -212,12 +218,17 @@ export default function ClosedMonths() {
                       {l.notes && <> · {l.notes}</>}
                     </p>
                   </div>
-                  {isAdmin && (
-                    <Button size="sm" variant="outline" onClick={() => setConfirmReopen(l.period)}>
-                      <LockOpen className="w-3.5 h-3.5 me-1" />
-                      {t("Reopen", "إعادة فتح")}
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="ghost" data-testid={`history-${l.period}`} onClick={() => setHistoryFor(l.period)}>
+                      {t("History", "السجل")}
                     </Button>
-                  )}
+                    {isAdmin && (
+                      <Button size="sm" variant="outline" data-testid={`reopen-${l.period}`} onClick={() => setConfirmReopen(l.period)}>
+                        <LockOpen className="w-3.5 h-3.5 me-1" />
+                        {t("Reopen", "إعادة فتح")}
+                      </Button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -277,21 +288,55 @@ export default function ClosedMonths() {
           <div className="space-y-3 text-sm">
             <p>
               {t(
-                "Figures for this month will be able to change again — new entries dated in it will go through. This is recorded in the audit trail.",
-                "سيصبح بالإمكان تغيير أرقام هذا الشهر مجددًا — وستمرّ القيود الجديدة المؤرخة فيه. يُسجّل هذا في سجل التدقيق.",
+                "Figures for this month will be able to change again — new entries dated in it will go through. The reason is kept in the month's history.",
+                "سيصبح بالإمكان تغيير أرقام هذا الشهر مجددًا — وستمرّ القيود الجديدة المؤرخة فيه. يُحفظ السبب في سجل الشهر.",
               )}
             </p>
+            <div className="grid gap-1">
+              <Label htmlFor="reopen-reason">{t("Why is it being reopened?", "لماذا يُعاد فتحه؟")}</Label>
+              <Input id="reopen-reason" data-testid="reopen-reason" value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} />
+            </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="ghost" size="sm" onClick={() => setConfirmReopen(null)}>
                 {t("Cancel", "إلغاء")}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => confirmReopen && reopenMut.mutate(confirmReopen)} disabled={reopenMut.isPending}>
+              <Button size="sm" variant="outline" data-testid="reopen-confirm" onClick={() => confirmReopen && reopenMut.mutate(confirmReopen)} disabled={reopenMut.isPending || !reopenReason.trim()}>
                 {reopenMut.isPending ? t("Reopening…", "جارٍ إعادة الفتح…") : t("Reopen", "إعادة فتح")}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── A month's history: every close and reopen, with each reopen's reason (T1e, PER-2) ── */}
+      <Dialog open={!!historyFor} onOpenChange={(o) => !o && setHistoryFor(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("History of", "سجل")} {historyFor ? monthLabel(historyFor, lang) : ""}</DialogTitle>
+          </DialogHeader>
+          {historyFor && <MonthHistory period={historyFor} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 🔴 T1e (DR-10): the period records ── */}
+      <PeriodRecords canRecord={isAdmin} />
     </div>
+  );
+}
+
+function MonthHistory({ period }: { period: string }) {
+  const { t } = useLanguage();
+  const { data = [], isLoading } = useListPeriodLockHistory(period);
+  if (isLoading) return <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>;
+  return (
+    <ul className="text-sm divide-y divide-border/60" data-testid="month-history">
+      {data.map((e) => (
+        <li key={e.id} className="py-1.5">
+          {e.event === "close" ? t("Closed", "أُقفل") : t("Reopened", "أُعيد فتحه")} · <DualDate date={e.at.slice(0, 10)} />
+          {e.reason && <> · {e.reason}</>}
+        </li>
+      ))}
+      {data.length === 0 && <li className="py-1.5 text-muted-foreground">{t("No history recorded.", "لا يوجد سجل.")}</li>}
+    </ul>
   );
 }

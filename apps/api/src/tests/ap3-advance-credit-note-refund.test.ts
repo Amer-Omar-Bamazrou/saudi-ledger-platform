@@ -425,13 +425,13 @@ describeMaybe("AP-3 — credit note against an advance tax invoice, and the refu
       await expectRefusal(inTenant(() => invoicesService.approve(d.id, userId)), 423);
       expect(await gl("VAT_OUTPUT")).toBe(vatBefore);
       expect((await getPayment(p.id)).uninvoicedAmount).toBe(0);
-      await inTenant(() => periodLocksService.unlock(businessToday().slice(0, 7)));
+      await inTenant(() => periodLocksService.reopen(businessToday().slice(0, 7), { reason: "test: reopen the month the case closed" }, null));
       await inTenant(() => invoicesService.approve(d.id, userId));
       expect((await getPayment(p.id)).uninvoicedAmount).toBe(1_150);
       await expectRefusal(refund(p.id, custB, 1_150, { refundedAt: NOTE_DATE }), 423);
       await refund(p.id, custB, 1_150, { refundedAt: businessToday() });
     } finally {
-      await inTenant(() => periodLocksService.unlock("2026-07"));
+      await inTenant(() => periodLocksService.reopen("2026-07", { reason: "test: reopen the month the case closed" }, null));
     }
   });
 

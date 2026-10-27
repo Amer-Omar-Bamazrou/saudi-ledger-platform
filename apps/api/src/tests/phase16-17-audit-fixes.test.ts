@@ -236,7 +236,7 @@ describeMaybe("Phase 16 + 17 — the final audit's fixes (real rows)", () => {
     await inA(() => periodLocksService.lock({ period: "2026-06", userId }));
     const e3 = await refusal(inA(async () => reconciliationService.settle(await statementLine(coA, bankA, 950, "2026-06-20"), { billId: locked }, userId)));
     expect(e3.status).toBe(423);
-    await inA(() => periodLocksService.unlock("2026-06"));
+    await inA(() => periodLocksService.reopen("2026-06", { reason: "test: reopen the month the case closed" }, null));
     const after = await counts(coA);
     expect([after.je, after.bp, after.ww]).toEqual([before.je, before.bp, before.ww]);
     // backdated (an earlier, unfiled month): the withholding belongs to the line's own month

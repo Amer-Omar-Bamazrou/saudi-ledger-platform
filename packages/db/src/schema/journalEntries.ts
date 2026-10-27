@@ -1,4 +1,4 @@
-import { uniqueIndex, pgTable, serial, text, timestamp, integer, numeric, uuid, index, foreignKey } from "drizzle-orm/pg-core";
+import { uniqueIndex, pgTable, serial, text, timestamp, integer, numeric, uuid, index, foreignKey, date } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -138,6 +138,16 @@ export const journalEntriesTable = pgTable(
      * manual or recurring entry cannot be posted without it (0129).
      */
     approvedBy: integer("approved_by"),
+    /**
+     * 🔴 T1e (DR-10; owner decision 10, 2026-10-27 afternoon): on a CORRECTION
+     * (the generic reverse's mirror), the ACTUAL date the error was discovered,
+     * any earlier date on which it arguably became apparent (kept apart), and
+     * the evidence. Written on the draft before the flip (G16 unchanged). NULL
+     * on every other entry.
+     */
+    discoveredOn: date("discovered_on"),
+    apparentOn: date("apparent_on"),
+    discoveryEvidence: text("discovery_evidence"),
     notes: text("notes"),
     postedAt: timestamp("posted_at"),      // set when status transitions to posted; entry is locked after this
     createdBy: integer("created_by"),      // FK to users.id (nullable — pre-auth entries have no owner)

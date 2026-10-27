@@ -271,7 +271,7 @@ describeMaybe("D-4 Part 2 — unallocation (superseding record) and customer ref
       expect((await pool.query(`SELECT count(*)::int AS n FROM payment_allocation_reversals WHERE allocation_id = $1`, [p.allocations[0]!.id])).rows[0].n).toBe(0);
       expect((await row(a.id)).status).toBe("paid");
     } finally {
-      await inTenant(() => periodLocksService.unlock(month));
+      await inTenant(() => periodLocksService.reopen(month, { reason: "test: reopen the month the case closed" }, null));
     }
   });
 
@@ -388,7 +388,7 @@ describeMaybe("D-4 Part 2 — unallocation (superseding record) and customer ref
       await expect(inTenant(() => paymentsService.refund({ customerId: custA, origin: "deposit", paymentId: p.id, amount: 100, bankAccountId: bank, refundedAt: "2026-05-10", reason: "closed" }, userId))).rejects.toMatchObject({ statusCode: 423 });
       expect((await pool.query(`SELECT count(*)::int AS n FROM customer_refunds WHERE payment_id = $1`, [p.id])).rows[0].n).toBe(0);
     } finally {
-      await inTenant(() => periodLocksService.unlock("2026-05"));
+      await inTenant(() => periodLocksService.reopen("2026-05", { reason: "test: reopen the month the case closed" }, null));
     }
     const r = await inTenant(() => paymentsService.refund({ customerId: custA, origin: "deposit", paymentId: p.id, amount: 100, bankAccountId: bank, refundedAt: "2026-06-10", reason: "open" }, userId));
     expect(r.amount).toBe(100);

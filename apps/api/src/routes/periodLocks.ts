@@ -11,5 +11,7 @@ const router = Router();
 router.get("/", periodLocksController.list);
 router.post("/", periodLocksController.create);
 router.delete("/:period", periodLocksController.remove);
+router.post("/:period/reopen", periodLocksController.reopen);
+router.get("/:period/history", periodLocksController.history);
 
 export default router;

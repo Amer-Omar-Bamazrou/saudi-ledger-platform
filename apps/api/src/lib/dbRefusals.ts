@@ -178,8 +178,17 @@ const TENANT_REFERENCE_KEYS: Record<string, { field: string; error: string }> = 
   bills_capitalises_asset_tenant_fk: { field: "capitalisesAssetId", error: "The asset to capitalise does not exist for this company." },
 };
 
+/** 🔴 T1e (DR-10): a period record that already exists — the fact is recorded once; an amendment is its own record. */
+const PERIOD_RECORD_UNIQUE_MESSAGE: Record<string, string> = {
+  vat_return_filings_one_original_unq: "The original VAT return for that period is already recorded. A later filing for it is recorded as an amendment, naming the reference it amends.",
+  vat_return_filings_reference_unq: "That ZATCA reference is already recorded for a VAT return of this company.",
+  zakat_income_tax_filings_one_original_unq: "The original return for that tax and fiscal year is already recorded. A later filing is recorded as an amendment, naming the reference it amends.",
+  zakat_income_tax_filings_reference_unq: "That ZATCA reference is already recorded for a Zakat or income-tax return of this company.",
+  statement_authorisations_year_unq: "That fiscal year's statements are already recorded as authorised for issue.",
+};
+
 export interface DbRefusal {
-  status: 409 | 422;
+  status: 409 | 422 | 423;
   body: { code: string; error: string; constraint?: string; field?: string };
 }
 
@@ -206,6 +215,12 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   const pgMessage = pg?.cause?.message ?? pg?.message ?? "";
   const constraint = pg?.constraint ?? pg?.cause?.constraint;
 
+  // 🔴 T1e (PER-1, 0130): a posting into a closed month, refused by the database (a race with the close, or a
+  // writer that skipped `checkPeriodOpen`) answers exactly as the service's own refusal does: 423 `period_closed`.
+  if (pgCode === "23514" && constraint === "journal_entry_period_closed") {
+    const period = /books for (\d{4}-\d{2})/.exec(pgMessage)?.[1];
+    return { status: 423, body: { code: "period_closed", error: pgMessage, ...(period ? { period } : {}) } as DbRefusal["body"] };
+  }
   // Phase 12C/12D: the banking triggers (keyed on their sentence — they raise no constraint name).
   if (pgCode === "23514" && /is reconciled through/.test(pgMessage)) return { status: 409, body: { code: "bank_reconciled_through", error: pgMessage } };
   if (pgCode === "23514" && /is reconciled to a bank statement line/.test(pgMessage)) return { status: 409, body: { code: "entry_reconciled", error: pgMessage } };
@@ -225,6 +240,8 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
     if (budget) return { status: 409, body: { code: "budget_conflict", constraint, error: budget } };
     const taxTreasury = TAX_TREASURY_UNIQUE_MESSAGE[constraint];
     if (taxTreasury) return { status: 409, body: { code: "concurrent_conflict", constraint, error: taxTreasury } };
+    const record = PERIOD_RECORD_UNIQUE_MESSAGE[constraint];
+    if (record) return { status: 409, body: { code: "record_exists", constraint, error: record } };
   }
   return null;
 }

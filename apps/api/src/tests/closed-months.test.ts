@@ -164,7 +164,7 @@ describeMaybe("M22 — the 423 the client explains", () => {
   });
 
   it("reopening lifts the refusal", async () => {
-    await inTenant(() => periodLocksService.unlock(CLOSED));
+    await inTenant(() => periodLocksService.reopen(CLOSED, { reason: "test: reopen the month the case closed" }, null));
     const inv = await inTenant(() =>
       invoicesService.create(
         { date: `${CLOSED}-25`, customerId, items: [{ description: "after reopen", quantity: 1, unitPrice: 10 }] },

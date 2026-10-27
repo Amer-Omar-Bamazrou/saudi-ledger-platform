@@ -354,7 +354,7 @@ describeMaybe("G60 — the month-end runs, each item in its own savepoint (real 
       expect(await count(`SELECT count(*) n FROM asset_depreciation_schedule WHERE asset_id = ANY($1::int[]) AND period = '2026-08' AND journal_entry_id IS NOT NULL`, [assetsA.map((a) => a.id)])).toBe(0);
       expect(await count(`SELECT count(*) n FROM asset_events WHERE asset_id = ANY($1::int[]) AND kind = 'depreciated' AND payload->>'period' = '2026-08'`, [assetsA.map((a) => a.id)])).toBe(0);
     } finally {
-      await h.inTenant(orgX, coA, adminX, () => periodLocksService.unlock("2026-08"));
+      await h.inTenant(orgX, coA, adminX, () => periodLocksService.reopen("2026-08", { reason: "test: reopen the month the case closed" }, null));
     }
 
     await h.inTenant(orgX, coA, adminX, () => periodLocksService.lock({ period: "2026-11", userId: adminX }));
@@ -370,7 +370,7 @@ describeMaybe("G60 — the month-end runs, each item in its own savepoint (real 
       expect(reasons[rb.ref], "RB's October is still unposted — its own refusal, unchanged").toMatch(/^Recognise 2026-10 first/);
       expect(await count(`SELECT count(*) n FROM recognition_schedule_rows WHERE schedule_id = ANY($1::int[]) AND period = '2026-11' AND journal_entry_id IS NOT NULL`, [schedulesA.map((s) => s.id)])).toBe(0);
     } finally {
-      await h.inTenant(orgX, coA, adminX, () => periodLocksService.unlock("2026-11"));
+      await h.inTenant(orgX, coA, adminX, () => periodLocksService.reopen("2026-11", { reason: "test: reopen the month the case closed" }, null));
     }
   });
 

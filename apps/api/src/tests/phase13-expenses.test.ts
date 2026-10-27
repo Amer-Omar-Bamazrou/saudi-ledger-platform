@@ -141,7 +141,7 @@ describeMaybe("Phase 13C — expenses: paid when recorded, through the bill path
       expect(await gl("VAT_INPUT")).toBe(before.vat);
       expect(Number((await pool.query(`SELECT count(*) n FROM bill_payments WHERE bill_id = $1`, [d.id])).rows[0].n)).toBe(0);
     } finally {
-      await inTenant(() => periodLocksService.unlock("2026-08"));
+      await inTenant(() => periodLocksService.reopen("2026-08", { reason: "test: reopen the month the case closed" }, null));
     }
   });
 
@@ -186,7 +186,7 @@ describeMaybe("Phase 13C — expenses: paid when recorded, through the bill path
     try {
       await expectRefusal(expense({ date: "2026-10-01", expensePaidAt: "2026-09-30" }), 423);
     } finally {
-      await inTenant(() => periodLocksService.unlock("2026-09"));
+      await inTenant(() => periodLocksService.reopen("2026-09", { reason: "test: reopen the month the case closed" }, null));
     }
     // a DRAFT bill can become an expense later ("reuse"), judged as it will stand
     const plain = await expense({ recordedAsExpense: false, expensePaidFromBankAccountId: null, expensePaidAt: null });

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, uuid, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, uuid, unique, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
@@ -27,8 +27,21 @@ export const periodLocksTable = pgTable(
     lockedAt: timestamp("locked_at").defaultNow().notNull(),
     lockedBy: integer("locked_by"),    // FK to users.id
     notes: text("notes"),
+    /**
+     * 🔴 T1e (PER-2; DR-30, owner 2026-10-24): a reopen KEEPS the row, with who
+     * reopened it, when and why; a re-close clears these and closes it again.
+     * Every close and reopen is also appended to `period_lock_events`, the
+     * history. The request's role cannot DELETE a lock (0130). A month is CLOSED
+     * while `reopened_at` is NULL — every reader keys on that.
+     */
+    reopenedAt: timestamp("reopened_at"),
+    reopenedBy: integer("reopened_by"),
+    reopenReason: text("reopen_reason"),
   },
   (t) => [
+    // 🔴 T1e: a real month (2026-13 used to pass the old `^\d{4}-\d{2}$`).
+    check("period_locks_period_chk", sql`${t.period} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+    check("period_locks_reopen_chk", sql`(${t.reopenedAt} is null and ${t.reopenedBy} is null and ${t.reopenReason} is null) or (${t.reopenedAt} is not null and length(btrim(${t.reopenReason})) > 0)`),
     // Leading with organization_id, this composite unique also serves as the
     // tenant-scoped lookup index for period-lock checks.
     unique("period_locks_org_company_period_key").on(

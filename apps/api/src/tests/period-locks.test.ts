@@ -132,7 +132,7 @@ describeMaybe("M18.4 — period locks, per company", () => {
     // (organization_id, period) across the board, so company B reopening March
     // silently reopened company A's closed books too. RLS does not prevent it —
     // both rows belong to the same organization.
-    await inCompany(companyB, () => periodLocksService.unlock("2026-03"));
+    await inCompany(companyB, () => periodLocksService.reopen("2026-03", { reason: "test: reopen the month the case closed" }, null));
 
     const b = await inCompany(companyB, () => periodLocksService.list());
     expect(b.map((l) => l.period)).not.toContain("2026-03");
@@ -146,7 +146,8 @@ describeMaybe("M18.4 — period locks, per company", () => {
 
     // …and directly, so the check does not depend on `list()` being correct.
     const { rows } = await pool.query(
-      `SELECT company_id FROM period_locks WHERE organization_id = $1 AND period = '2026-03'`,
+      // T1e (PER-2): a reopen KEEPS company B's row (reopened); the CLOSED locks are what must be untouched.
+      `SELECT company_id FROM period_locks WHERE organization_id = $1 AND period = '2026-03' AND reopened_at IS NULL`,
       [orgId],
     );
     expect(rows.map((r) => r.company_id)).toEqual([companyA]);
@@ -162,11 +163,12 @@ describeMaybe("M18.4 — period locks, per company", () => {
       [orgId],
     );
     const actions = rows.map((r) => String(r.action).toLowerCase()).join(",");
-    expect(actions).toMatch(/delete/);
+    // T1e (PER-2): a reopen UPDATES the lock (who, when, why) and appends to its history; nothing deletes it.
+    expect(actions).toMatch(/updat/);
     expect(actions).toMatch(/creat/);
   });
 
   it("reopening a month that was never closed is a no-op, not an error", async () => {
-    await expect(inCompany(companyA, () => periodLocksService.unlock("2019-01"))).resolves.toBeUndefined();
+    await expect(inCompany(companyA, () => periodLocksService.reopen("2019-01", { reason: "test: reopen the month the case closed" }, null))).resolves.toBeUndefined();
   });
 });
