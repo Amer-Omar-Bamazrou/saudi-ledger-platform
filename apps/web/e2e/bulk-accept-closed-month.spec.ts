@@ -77,7 +77,8 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   // Unlock whatever happened above — a lock left behind would refuse the next spec's writes.
-  await api.delete(`/api/period-locks/${CLOSED}`);
+  // T1e (PER-2): a month is reopened with a reason (the lock and its history are kept), never deleted.
+  await api.post(`/api/period-locks/${CLOSED}/reopen`, { data: { reason: "e2e: reopen the month this spec closed" } });
   await api.dispose();
 });
 

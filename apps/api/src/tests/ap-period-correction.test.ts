@@ -222,7 +222,7 @@ describeMaybe("Advance payments — tax point, the four liabilities, bad-debt re
       expect((await pool.query(`SELECT count(*)::int n FROM invoices WHERE organization_id = $1 AND advance_payment_id = $2`, [orgId, p.id])).rows[0].n).toBe(0);
       expect((await box("2026-01")).box6).toBe(before.box6);
     } finally {
-      await inTenant(() => periodLocksService.unlock("2026-01"));
+      await inTenant(() => periodLocksService.reopen("2026-01", { reason: "test: reopen the month the case closed" }, null));
     }
     // reopened: the 386 issues at its tax point
     const adv = await issueAdvance(p.id, 5_750);
@@ -284,7 +284,7 @@ describeMaybe("Advance payments — tax point, the four liabilities, bad-debt re
     try {
       await expectRefusal(classify(unstated.id, "erroneous", { effectiveDate: "2026-02-10" }), 423);
     } finally {
-      await inTenant(() => periodLocksService.unlock("2026-02"));
+      await inTenant(() => periodLocksService.reopen("2026-02", { reason: "test: reopen the month the case closed" }, null));
     }
     expect(await depositsInvariantViolations()).toEqual([]);
   });

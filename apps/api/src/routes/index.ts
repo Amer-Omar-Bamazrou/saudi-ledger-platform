@@ -50,6 +50,7 @@ import tax from "./tax.js";
 import treasury from "./treasury.js";
 import reports from "./reports/index.js";
 import periodLocks from "./periodLocks.js";
+import statementAuthorisations from "./statementAuthorisations.js";
 import financeHub from "./financeHub.js";
 import analytics from "./analytics.js";
 import llm from "./llm.js";
@@ -169,6 +170,8 @@ router.use("/tax", requirePermission("tax"), tax);
 router.use("/treasury", requirePermission("treasury"), treasury);
 router.use("/reports", requirePermission("reports"), reports);
 router.use("/period-locks", requirePermission("period_locks"), periodLocks);
+// 🔴 T1e (DR-10, DR-30): the year's statements authorised for issue — the same authority as closing its months.
+router.use("/statement-authorisations", requirePermission("period_locks"), statementAuthorisations);
 // M18.3 — read-only derived figures; gated on reports, which every role may read.
 router.use("/finance-hub", requirePermission("reports"), financeHub);
 router.use("/analytics", requirePermission("reports"), analytics);

@@ -15,4 +15,13 @@ export interface PeriodLock {
   lockedBy: number | null;
   /** @nullable */
   notes: string | null;
+  /**
+     * T1e: set when the month was reopened (the row is kept); NULL while it is closed.
+     * @nullable
+     */
+  reopenedAt?: string | null;
+  /** @nullable */
+  reopenedBy?: number | null;
+  /** @nullable */
+  reopenReason?: string | null;
 }

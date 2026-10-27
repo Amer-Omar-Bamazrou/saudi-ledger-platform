@@ -22,7 +22,7 @@ import { migrationCommitService } from "../services/migrationCommit.service";
 import { readStagedContent } from "../services/migrationStaging.service";
 import { contentHashOf, computeOpeningPosition } from "../services/migrationValidation.service";
 import { migrationRepository } from "../repositories/migration.repository";
-import { periodLocksRepository } from "../repositories/periodLocks.repository";
+import { periodLocksService } from "../services/periodLocks.service";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { customersService } from "../services/customers.service";
 import { vendorsService } from "../services/vendors.service";
@@ -199,7 +199,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
   const counts = async () => (await pool.query(
     `SELECT (SELECT count(*) FROM journal_entries WHERE company_id = $1)::int je, (SELECT count(*) FROM invoices WHERE company_id = $1)::int inv, (SELECT count(*) FROM bills WHERE company_id = $1)::int bil,
             (SELECT count(*) FROM payments WHERE company_id = $1)::int pay, (SELECT count(*) FROM customers WHERE organization_id = $2)::int cus, (SELECT count(*) FROM vendors WHERE organization_id = $2)::int ven,
-            (SELECT count(*) FROM categories WHERE organization_id = $2)::int cat, (SELECT count(*) FROM period_locks WHERE company_id = $1)::int locks,
+            (SELECT count(*) FROM categories WHERE organization_id = $2)::int cat, (SELECT count(*) FROM period_locks WHERE company_id = $1 AND reopened_at IS NULL)::int locks,
             (SELECT count(*) FROM bank_accounts WHERE company_id = $1 AND opening_journal_entry_id IS NOT NULL)::int banks`, [companyId, orgId])).rows[0];
 
   let committedId = 0;
@@ -389,7 +389,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     const co2Counts = async () => (await pool.query(
       `SELECT (SELECT count(*) FROM journal_entries WHERE company_id = $1 AND status <> 'reversed' AND source IS DISTINCT FROM 'opening_reversal')::int je, (SELECT count(*) FROM invoices WHERE company_id = $1)::int inv,
               (SELECT count(*) FROM payments WHERE company_id = $1)::int pay, (SELECT count(*) FROM customers WHERE organization_id = $2)::int cus,
-              (SELECT count(*) FROM categories WHERE organization_id = $2)::int cat, (SELECT count(*) FROM period_locks WHERE company_id = $1)::int locks,
+              (SELECT count(*) FROM categories WHERE organization_id = $2)::int cat, (SELECT count(*) FROM period_locks WHERE company_id = $1 AND reopened_at IS NULL)::int locks,
               (SELECT count(*) FROM bank_accounts WHERE company_id = $1 AND opening_journal_entry_id IS NOT NULL)::int banks`, [company2Id, orgId])).rows[0];
     const existingCo2 = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND account_code = '3100'`, [orgId])).rows[0].id;
     await mapChart(b.id, [
@@ -415,7 +415,8 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     expect(await state()).toEqual({ status: "validated", opening_journal_entry_id: null, period_lock_id: null });
     expect((await pool.query(`SELECT resolved_customer_id FROM migration_parties WHERE batch_id = $1`, [b.id])).rows[0].resolved_customer_id).toBeNull();
     // (b) after everything is written — the period lock fails.
-    const lockFail = vi.spyOn(periodLocksRepository, "insert").mockRejectedValueOnce(new Error("injected: lock failed"));
+    // T1e: at the lock STEP — a close inserts the row, or re-closes the one an earlier reversal reopened (PER-2 keeps it).
+    const lockFail = vi.spyOn(periodLocksService, "lock").mockRejectedValueOnce(new Error("injected: lock failed"));
     await expect(inCompany2(() => migrationCommitService.commit(b.id, userId))).rejects.toThrow(/injected: lock failed/);
     lockFail.mockRestore();
     expect(await co2Counts()).toEqual(before);

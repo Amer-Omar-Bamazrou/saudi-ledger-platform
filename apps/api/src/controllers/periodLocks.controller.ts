@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { LockPeriodBody } from "@workspace/api-zod";
-import { BadRequestError } from "../lib/errors";
+import { BadRequestError, BusinessRuleError } from "../lib/errors";
 import { periodLocksService } from "../services/periodLocks.service";
 
 export const periodLocksController = {
@@ -28,8 +28,20 @@ export const periodLocksController = {
     res.status(201).json(lock);
   },
 
-  async remove(req: Request, res: Response) {
-    await periodLocksService.unlock(String(req.params.period));
-    res.status(204).send();
+  /** 🔴 T1e (PER-2): the old reopen door names the new one — a reopen needs a reason and keeps the row. */
+  async remove(_req: Request, _res: Response) {
+    throw new BusinessRuleError(422, {
+      code: "reopen_requires_reason",
+      error: "A closed month is reopened with a reason (POST /period-locks/{period}/reopen), and its lock and history are kept. Nothing was reopened.",
+    });
+  },
+
+  async reopen(req: Request, res: Response) {
+    const lock = await periodLocksService.reopen(String(req.params.period), (req.body ?? {}) as { reason?: unknown }, req.session?.userId ?? null);
+    res.json({ reopened: lock != null, lock });
+  },
+
+  async history(req: Request, res: Response) {
+    res.json(await periodLocksService.history(String(req.params.period)));
   },
 };

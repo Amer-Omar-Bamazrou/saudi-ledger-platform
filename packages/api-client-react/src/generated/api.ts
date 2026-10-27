@@ -297,7 +297,10 @@ import type {
   PendingReviewCounts,
   PendingReviewTransaction,
   PeriodLock,
+  PeriodLockEvent,
   PeriodLockInput,
+  PeriodReopenInput,
+  PeriodReopenResult,
   PnlTrend,
   PreviewWhtParams,
   PurchaseOrder,
@@ -323,6 +326,7 @@ import type {
   ReopenBankReconciliationInput,
   ReplaceBudgetLinesInput,
   ReverseBankTransferInput,
+  ReverseJournalEntryInput,
   ReverseMigrationBatchInput,
   ReverseReconciliationLinkInput,
   ReverseSupplierAllocationInput,
@@ -332,6 +336,8 @@ import type {
   SendBackInput,
   SetZakatClassificationInput,
   SettleTransactionInput,
+  StatementAuthorisation,
+  StatementAuthorisationInput,
   StatementMatch,
   StatementRowClassification,
   SupplierAdvanceCreditNoteInput,
@@ -379,6 +385,8 @@ import type {
   VatEvidencePreviewInput,
   VatEvidenceVerdict,
   VatReturn,
+  VatReturnFiling,
+  VatReturnFilingInput,
   VatSummary,
   Vendor,
   VendorCreated,
@@ -400,6 +408,8 @@ import type {
   WhtRemittanceResult,
   WriteOffBadDebtInput,
   ZakatAccountClassification,
+  ZakatIncomeTaxFiling,
+  ZakatIncomeTaxFilingInput,
   ZatcaOnboardInput,
   ZatcaOnboardResult,
   ZatcaOnboardingStatus
@@ -8335,12 +8345,12 @@ export const getUnlockPeriodUrl = (period: string,) => {
 }
 
 /**
- * @summary Reopen a closed period (admin only). Company-scoped — reopening one company's period leaves every other company's locks untouched.
+ * @summary 🔴 T1e (PER-2): REFUSED. A closed month is reopened with a reason through POST /period-locks/{period}/reopen, and its lock and history are kept.
 
  */
-export const unlockPeriod = async (period: string, options?: RequestInit): Promise<void> => {
+export const unlockPeriod = async (period: string, options?: RequestInit): Promise<unknown> => {
 
-  return customFetch<void>(getUnlockPeriodUrl(period),
+  return customFetch<unknown>(getUnlockPeriodUrl(period),
   {
     ...options,
     method: 'DELETE'
@@ -8353,7 +8363,7 @@ export const unlockPeriod = async (period: string, options?: RequestInit): Promi
 
 
 
-export const getUnlockPeriodMutationOptions = <TError = ErrorType<unknown>,
+export const getUnlockPeriodMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockPeriod>>, TError,{period: string}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof unlockPeriod>>, TError,{period: string}, TContext> => {
 
@@ -8382,13 +8392,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UnlockPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof unlockPeriod>>>
 
-    export type UnlockPeriodMutationError = ErrorType<unknown>
+    export type UnlockPeriodMutationError = ErrorType<void>
 
     /**
- * @summary Reopen a closed period (admin only). Company-scoped — reopening one company's period leaves every other company's locks untouched.
+ * @summary 🔴 T1e (PER-2): REFUSED. A closed month is reopened with a reason through POST /period-locks/{period}/reopen, and its lock and history are kept.
 
  */
-export const useUnlockPeriod = <TError = ErrorType<unknown>,
+export const useUnlockPeriod = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockPeriod>>, TError,{period: string}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof unlockPeriod>>,
@@ -8397,6 +8407,607 @@ export const useUnlockPeriod = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUnlockPeriodMutationOptions(options));
+    }
+
+export const getReopenPeriodUrl = (period: string,) => {
+
+
+
+
+  return `/api/period-locks/${period}/reopen`
+}
+
+/**
+ * @summary 🔴 T1e (PER-2, G57, DR-30): reopen a closed month (admin only), with a REASON. The lock row is kept (who, when, why) and the reopen is appended to the month's history. Refused for the opening month of a committed migration, and for any month of a fiscal year whose statements are recorded as authorised for issue. A month that is not closed is a no-op.
+
+ */
+export const reopenPeriod = async (period: string,
+    periodReopenInput: PeriodReopenInput, options?: RequestInit): Promise<PeriodReopenResult> => {
+
+  return customFetch<PeriodReopenResult>(getReopenPeriodUrl(period),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(periodReopenInput)
+  }
+);}
+
+
+
+
+
+export const getReopenPeriodMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenPeriod>>, TError,{period: string;data: BodyType<PeriodReopenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenPeriod>>, TError,{period: string;data: BodyType<PeriodReopenInput>}, TContext> => {
+
+const mutationKey = ['reopenPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenPeriod>>, {period: string;data: BodyType<PeriodReopenInput>}> = (props) => {
+          const {period,data} = props ?? {};
+
+          return  reopenPeriod(period,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof reopenPeriod>>>
+    export type ReopenPeriodMutationBody = BodyType<PeriodReopenInput>
+    export type ReopenPeriodMutationError = ErrorType<void>
+
+    /**
+ * @summary 🔴 T1e (PER-2, G57, DR-30): reopen a closed month (admin only), with a REASON. The lock row is kept (who, when, why) and the reopen is appended to the month's history. Refused for the opening month of a committed migration, and for any month of a fiscal year whose statements are recorded as authorised for issue. A month that is not closed is a no-op.
+
+ */
+export const useReopenPeriod = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenPeriod>>, TError,{period: string;data: BodyType<PeriodReopenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reopenPeriod>>,
+        TError,
+        {period: string;data: BodyType<PeriodReopenInput>},
+        TContext
+      > => {
+      return useMutation(getReopenPeriodMutationOptions(options));
+    }
+
+export const getListPeriodLockHistoryUrl = (period: string,) => {
+
+
+
+
+  return `/api/period-locks/${period}/history`
+}
+
+/**
+ * @summary 🔴 T1e (PER-2) — every close and reopen of the month, oldest first; a reopen carries its reason.
+ */
+export const listPeriodLockHistory = async (period: string, options?: RequestInit): Promise<PeriodLockEvent[]> => {
+
+  return customFetch<PeriodLockEvent[]>(getListPeriodLockHistoryUrl(period),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPeriodLockHistoryQueryKey = (period: string,) => {
+    return [
+    `/api/period-locks/${period}/history`
+    ] as const;
+    }
+
+
+export const getListPeriodLockHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listPeriodLockHistory>>, TError = ErrorType<unknown>>(period: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPeriodLockHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPeriodLockHistoryQueryKey(period);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPeriodLockHistory>>> = ({ signal }) => listPeriodLockHistory(period, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: period !== null && period !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPeriodLockHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPeriodLockHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listPeriodLockHistory>>>
+export type ListPeriodLockHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 🔴 T1e (PER-2) — every close and reopen of the month, oldest first; a reopen carries its reason.
+ */
+
+export function useListPeriodLockHistory<TData = Awaited<ReturnType<typeof listPeriodLockHistory>>, TError = ErrorType<unknown>>(
+ period: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPeriodLockHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPeriodLockHistoryQueryOptions(period,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStatementAuthorisationsUrl = () => {
+
+
+
+
+  return `/api/statement-authorisations`
+}
+
+/**
+ * @summary 🔴 T1e (DR-10) — fiscal years whose financial statements are recorded as authorised for issue (IAS 10.17).
+ */
+export const listStatementAuthorisations = async ( options?: RequestInit): Promise<StatementAuthorisation[]> => {
+
+  return customFetch<StatementAuthorisation[]>(getListStatementAuthorisationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStatementAuthorisationsQueryKey = () => {
+    return [
+    `/api/statement-authorisations`
+    ] as const;
+    }
+
+
+export const getListStatementAuthorisationsQueryOptions = <TData = Awaited<ReturnType<typeof listStatementAuthorisations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStatementAuthorisations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStatementAuthorisationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStatementAuthorisations>>> = ({ signal }) => listStatementAuthorisations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStatementAuthorisations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStatementAuthorisationsQueryResult = NonNullable<Awaited<ReturnType<typeof listStatementAuthorisations>>>
+export type ListStatementAuthorisationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 🔴 T1e (DR-10) — fiscal years whose financial statements are recorded as authorised for issue (IAS 10.17).
+ */
+
+export function useListStatementAuthorisations<TData = Awaited<ReturnType<typeof listStatementAuthorisations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStatementAuthorisations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStatementAuthorisationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordStatementAuthorisationUrl = () => {
+
+
+
+
+  return `/api/statement-authorisations`
+}
+
+/**
+ * @summary 🔴 T1e (DR-10, DR-30): record the date a fiscal year's statements were authorised for issue, and who authorised them. Append-only. No month of that year can be reopened afterwards.
+
+ */
+export const recordStatementAuthorisation = async (statementAuthorisationInput: StatementAuthorisationInput, options?: RequestInit): Promise<StatementAuthorisation> => {
+
+  return customFetch<StatementAuthorisation>(getRecordStatementAuthorisationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(statementAuthorisationInput)
+  }
+);}
+
+
+
+
+
+export const getRecordStatementAuthorisationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordStatementAuthorisation>>, TError,{data: BodyType<StatementAuthorisationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordStatementAuthorisation>>, TError,{data: BodyType<StatementAuthorisationInput>}, TContext> => {
+
+const mutationKey = ['recordStatementAuthorisation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordStatementAuthorisation>>, {data: BodyType<StatementAuthorisationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordStatementAuthorisation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordStatementAuthorisationMutationResult = NonNullable<Awaited<ReturnType<typeof recordStatementAuthorisation>>>
+    export type RecordStatementAuthorisationMutationBody = BodyType<StatementAuthorisationInput>
+    export type RecordStatementAuthorisationMutationError = ErrorType<void>
+
+    /**
+ * @summary 🔴 T1e (DR-10, DR-30): record the date a fiscal year's statements were authorised for issue, and who authorised them. Append-only. No month of that year can be reopened afterwards.
+
+ */
+export const useRecordStatementAuthorisation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordStatementAuthorisation>>, TError,{data: BodyType<StatementAuthorisationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordStatementAuthorisation>>,
+        TError,
+        {data: BodyType<StatementAuthorisationInput>},
+        TContext
+      > => {
+      return useMutation(getRecordStatementAuthorisationMutationOptions(options));
+    }
+
+export const getListVatReturnFilingsUrl = () => {
+
+
+
+
+  return `/api/tax/vat-return-filings`
+}
+
+/**
+ * @summary 🔴 T1e (DR-10) — the VAT returns this company recorded as filed.
+ */
+export const listVatReturnFilings = async ( options?: RequestInit): Promise<VatReturnFiling[]> => {
+
+  return customFetch<VatReturnFiling[]>(getListVatReturnFilingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVatReturnFilingsQueryKey = () => {
+    return [
+    `/api/tax/vat-return-filings`
+    ] as const;
+    }
+
+
+export const getListVatReturnFilingsQueryOptions = <TData = Awaited<ReturnType<typeof listVatReturnFilings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVatReturnFilings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVatReturnFilingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVatReturnFilings>>> = ({ signal }) => listVatReturnFilings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVatReturnFilings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVatReturnFilingsQueryResult = NonNullable<Awaited<ReturnType<typeof listVatReturnFilings>>>
+export type ListVatReturnFilingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 🔴 T1e (DR-10) — the VAT returns this company recorded as filed.
+ */
+
+export function useListVatReturnFilings<TData = Awaited<ReturnType<typeof listVatReturnFilings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVatReturnFilings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVatReturnFilingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordVatReturnFilingUrl = () => {
+
+
+
+
+  return `/api/tax/vat-return-filings`
+}
+
+/**
+ * @summary 🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends. Recording changes no figure.
+
+ */
+export const recordVatReturnFiling = async (vatReturnFilingInput: VatReturnFilingInput, options?: RequestInit): Promise<VatReturnFiling> => {
+
+  return customFetch<VatReturnFiling>(getRecordVatReturnFilingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(vatReturnFilingInput)
+  }
+);}
+
+
+
+
+
+export const getRecordVatReturnFilingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordVatReturnFiling>>, TError,{data: BodyType<VatReturnFilingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordVatReturnFiling>>, TError,{data: BodyType<VatReturnFilingInput>}, TContext> => {
+
+const mutationKey = ['recordVatReturnFiling'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordVatReturnFiling>>, {data: BodyType<VatReturnFilingInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordVatReturnFiling(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordVatReturnFilingMutationResult = NonNullable<Awaited<ReturnType<typeof recordVatReturnFiling>>>
+    export type RecordVatReturnFilingMutationBody = BodyType<VatReturnFilingInput>
+    export type RecordVatReturnFilingMutationError = ErrorType<void>
+
+    /**
+ * @summary 🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends. Recording changes no figure.
+
+ */
+export const useRecordVatReturnFiling = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordVatReturnFiling>>, TError,{data: BodyType<VatReturnFilingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordVatReturnFiling>>,
+        TError,
+        {data: BodyType<VatReturnFilingInput>},
+        TContext
+      > => {
+      return useMutation(getRecordVatReturnFilingMutationOptions(options));
+    }
+
+export const getListZakatIncomeTaxFilingsUrl = () => {
+
+
+
+
+  return `/api/tax/zakat-income-tax-filings`
+}
+
+/**
+ * @summary 🔴 T1e (DR-10) — the Zakat and income-tax returns this company recorded as filed.
+ */
+export const listZakatIncomeTaxFilings = async ( options?: RequestInit): Promise<ZakatIncomeTaxFiling[]> => {
+
+  return customFetch<ZakatIncomeTaxFiling[]>(getListZakatIncomeTaxFilingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListZakatIncomeTaxFilingsQueryKey = () => {
+    return [
+    `/api/tax/zakat-income-tax-filings`
+    ] as const;
+    }
+
+
+export const getListZakatIncomeTaxFilingsQueryOptions = <TData = Awaited<ReturnType<typeof listZakatIncomeTaxFilings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZakatIncomeTaxFilings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListZakatIncomeTaxFilingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listZakatIncomeTaxFilings>>> = ({ signal }) => listZakatIncomeTaxFilings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listZakatIncomeTaxFilings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListZakatIncomeTaxFilingsQueryResult = NonNullable<Awaited<ReturnType<typeof listZakatIncomeTaxFilings>>>
+export type ListZakatIncomeTaxFilingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 🔴 T1e (DR-10) — the Zakat and income-tax returns this company recorded as filed.
+ */
+
+export function useListZakatIncomeTaxFilings<TData = Awaited<ReturnType<typeof listZakatIncomeTaxFilings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZakatIncomeTaxFilings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListZakatIncomeTaxFilingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordZakatIncomeTaxFilingUrl = () => {
+
+
+
+
+  return `/api/tax/zakat-income-tax-filings`
+}
+
+/**
+ * @summary 🔴 T1e (DR-10): record a filed Zakat or income-tax return for a fiscal year, with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends.
+
+ */
+export const recordZakatIncomeTaxFiling = async (zakatIncomeTaxFilingInput: ZakatIncomeTaxFilingInput, options?: RequestInit): Promise<ZakatIncomeTaxFiling> => {
+
+  return customFetch<ZakatIncomeTaxFiling>(getRecordZakatIncomeTaxFilingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(zakatIncomeTaxFilingInput)
+  }
+);}
+
+
+
+
+
+export const getRecordZakatIncomeTaxFilingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordZakatIncomeTaxFiling>>, TError,{data: BodyType<ZakatIncomeTaxFilingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordZakatIncomeTaxFiling>>, TError,{data: BodyType<ZakatIncomeTaxFilingInput>}, TContext> => {
+
+const mutationKey = ['recordZakatIncomeTaxFiling'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordZakatIncomeTaxFiling>>, {data: BodyType<ZakatIncomeTaxFilingInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordZakatIncomeTaxFiling(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordZakatIncomeTaxFilingMutationResult = NonNullable<Awaited<ReturnType<typeof recordZakatIncomeTaxFiling>>>
+    export type RecordZakatIncomeTaxFilingMutationBody = BodyType<ZakatIncomeTaxFilingInput>
+    export type RecordZakatIncomeTaxFilingMutationError = ErrorType<void>
+
+    /**
+ * @summary 🔴 T1e (DR-10): record a filed Zakat or income-tax return for a fiscal year, with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends.
+
+ */
+export const useRecordZakatIncomeTaxFiling = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordZakatIncomeTaxFiling>>, TError,{data: BodyType<ZakatIncomeTaxFilingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordZakatIncomeTaxFiling>>,
+        TError,
+        {data: BodyType<ZakatIncomeTaxFilingInput>},
+        TContext
+      > => {
+      return useMutation(getRecordZakatIncomeTaxFilingMutationOptions(options));
     }
 
 export const getListFiscalYearsUrl = () => {
@@ -10999,14 +11610,15 @@ export const getReverseJournalEntryUrl = (id: number,) => {
  * The original keeps `status = reversed` and STAYS IN THE BOOKS (§4); the mirror is a new posted entry.
  * @summary Reverse a posted entry with a mirror entry in the current open period
  */
-export const reverseJournalEntry = async (id: number, options?: RequestInit): Promise<JournalEntryReversal> => {
+export const reverseJournalEntry = async (id: number,
+    reverseJournalEntryInput?: ReverseJournalEntryInput, options?: RequestInit): Promise<JournalEntryReversal> => {
 
   return customFetch<JournalEntryReversal>(getReverseJournalEntryUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reverseJournalEntryInput)
   }
 );}
 
@@ -11015,8 +11627,8 @@ export const reverseJournalEntry = async (id: number, options?: RequestInit): Pr
 
 
 export const getReverseJournalEntryMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof reverseJournalEntry>>, TError,{id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseJournalEntry>>, TError,{id: number;data?: BodyType<ReverseJournalEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reverseJournalEntry>>, TError,{id: number;data?: BodyType<ReverseJournalEntryInput>}, TContext> => {
 
 const mutationKey = ['reverseJournalEntry'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -11028,10 +11640,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reverseJournalEntry>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reverseJournalEntry>>, {id: number;data?: BodyType<ReverseJournalEntryInput>}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  reverseJournalEntry(id,requestOptions)
+          return  reverseJournalEntry(id,data,requestOptions)
         }
 
 
@@ -11042,18 +11654,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ReverseJournalEntryMutationResult = NonNullable<Awaited<ReturnType<typeof reverseJournalEntry>>>
-
+    export type ReverseJournalEntryMutationBody = BodyType<ReverseJournalEntryInput> | undefined
     export type ReverseJournalEntryMutationError = ErrorType<void>
 
     /**
  * @summary Reverse a posted entry with a mirror entry in the current open period
  */
 export const useReverseJournalEntry = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseJournalEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseJournalEntry>>, TError,{id: number;data?: BodyType<ReverseJournalEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof reverseJournalEntry>>,
         TError,
-        {id: number},
+        {id: number;data?: BodyType<ReverseJournalEntryInput>},
         TContext
       > => {
       return useMutation(getReverseJournalEntryMutationOptions(options));

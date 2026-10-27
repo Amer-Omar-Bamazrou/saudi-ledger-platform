@@ -201,7 +201,7 @@ describeMaybe("FA-B — capitalisation, the monthly run, the estimate change (re
     expect([row.period, row.journal_entry_id]).toEqual(["2026-04", out.journalEntryId]);
     // a catch-up cannot be dated BEFORE the period it depreciates
     await expectRefusal(inTenant(() => assetCapitalisationService.depreciate(laptopId, { period: "2026-05", postingDate: "2026-01-31" }, userId)), 422, "posting_date_before_period");
-    await inTenant(() => periodLocksService.unlock("2026-04"));
+    await inTenant(() => periodLocksService.reopen("2026-04", { reason: "test: reopen the month the case closed" }, null));
   }, 60_000);
 
   it("🔴 the estimate change is PROSPECTIVE (IAS 16.51): posted rows untouched, the tail regenerated over the remaining life, Σ still the depreciable amount; a life below what is booked is refused", async () => {

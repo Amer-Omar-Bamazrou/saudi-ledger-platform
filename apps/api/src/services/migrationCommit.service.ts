@@ -99,7 +99,7 @@ import { migrationRepository } from "../repositories/migration.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
 import { categoriesRepository } from "../repositories/categories.repository";
-import { periodLocksRepository } from "../repositories/periodLocks.repository";
+import { periodLocksService } from "./periodLocks.service";
 import { auditService } from "./audit.service";
 import { postJournalEntry, type GLLine } from "./accounting/glPosting";
 import { migratedAssetsService } from "./assets/migratedAssets.service";
@@ -345,8 +345,8 @@ export const migrationCommitService = {
     const period = batch.openingDate.slice(0, 7);
     const [existingLock] = await migrationRepository.periodLockByPeriod(period);
     if (existingLock) refuse(423, { code: "period_locked", error: `${period} is already closed; the opening journal could not have posted.` });
-    const [lock] = await periodLocksRepository.insert({ period, lockedBy: userId ?? null, notes: `Opening balances — migration batch ${batch.id} from ${batch.sourceSystem}` });
-    await auditService.created("period_lock", lock.id, lock);
+    // T1e: through the close itself — the month's guard, the same row if it was reopened before, and the history.
+    const lock = await periodLocksService.lock({ period, userId: userId ?? null, notes: `Opening balances — migration batch ${batch.id} from ${batch.sourceSystem}` });
 
     // 8. THE GATES, against the posted ledger.
     const reconciliation = await this.reconcile(batch, content, position, je.id, { invoiceIds, billIds, paymentIds, customersCreated, vendorsCreated, accountsCreated });
@@ -589,9 +589,8 @@ export const migrationCommitService = {
 
     // 1. The migration's own lock comes off.
     if (preview.wouldReverse.periodLock) {
-      const [lock] = await migrationRepository.periodLock(preview.wouldReverse.periodLock.id);
-      await periodLocksRepository.removeByPeriod(preview.wouldReverse.periodLock.period);
-      if (lock) await auditService.deleted("period_lock", lock.id, lock);
+      // T1e (PER-2): the lock is never deleted — the reversal reopens it, with its reason, in the month's history.
+      await periodLocksService.reopenForMigrationReversal(preview.wouldReverse.periodLock.id, preview.wouldReverse.periodLock.period, batch.id, userId ?? null);
     }
     // 2. The mirror, through the seam, dated the opening date.
     const mirror = await postJournalEntry({ sourceType: "migration_reversal", sourceId: batch.id,

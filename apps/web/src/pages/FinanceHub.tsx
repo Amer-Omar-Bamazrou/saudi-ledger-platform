@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListPeriodLocks,
   useLockPeriod,
-  useUnlockPeriod,
+  useReopenPeriod,
   useGetLiquidity,
   useGetBooksStatus,
   useGetTaxCompliance,
@@ -90,6 +90,7 @@ export default function FinanceHub() {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [reopening, setReopening] = useState<string | null>(null);
+  const [reopenReason, setReopenReason] = useState("");
 
   const { data: locks, isLoading } = useListPeriodLocks();
   const { data: liq } = useGetLiquidity();
@@ -110,11 +111,13 @@ export default function FinanceHub() {
     },
   });
 
-  const unlock = useUnlockPeriod({
+  // 🔴 T1e (PER-2): a reopen needs a reason; the lock row and the month's history are kept.
+  const unlock = useReopenPeriod({
     mutation: {
       onSuccess: () => {
         setError("");
         setReopening(null);
+        setReopenReason("");
         invalidate();
         toast({ title: t("Period reopened", "تم إعادة فتح الفترة") });
       },
@@ -455,16 +458,20 @@ export default function FinanceHub() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                "Entries can be recorded in this month again, so figures you have already reported may change. This is recorded in the audit trail.",
-                "سيصبح بالإمكان تسجيل قيود في هذا الشهر مجدداً، وقد تتغير أرقام سبق أن أبلغت عنها. ويُسجَّل هذا الإجراء في سجل التدقيق.",
+                "Entries can be recorded in this month again, so figures you have already reported may change. The reason is kept in the month's history.",
+                "سيصبح بالإمكان تسجيل قيود في هذا الشهر مجدداً، وقد تتغير أرقام سبق أن أبلغت عنها. ويُحفظ السبب في سجل الشهر.",
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="grid gap-1">
+            <Label htmlFor="hub-reopen-reason">{t("Why is it being reopened?", "لماذا يُعاد فتحه؟")}</Label>
+            <Input id="hub-reopen-reason" data-testid="hub-reopen-reason" value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("Cancel", "إلغاء")}</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => reopening && unlock.mutate({ period: reopening })}
-              disabled={unlock.isPending}
+              onClick={() => reopening && unlock.mutate({ period: reopening, data: { reason: reopenReason.trim() } })}
+              disabled={unlock.isPending || !reopenReason.trim()}
             >
               {t("Reopen month", "إعادة فتح الشهر")}
             </AlertDialogAction>

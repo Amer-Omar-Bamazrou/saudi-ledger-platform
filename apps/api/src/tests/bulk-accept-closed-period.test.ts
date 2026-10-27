@@ -270,7 +270,7 @@ describeMaybe("bulk accept into a closed month is refused truthfully", () => {
     )).rows.map((r: { id: number }) => r.id);
     expect(closedIds.length).toBeGreaterThanOrEqual(4);
 
-    await inTenant(() => periodLocksService.unlock(CLOSED));
+    await inTenant(() => periodLocksService.reopen(CLOSED, { reason: "test: reopen the month the case closed" }, null));
     const r = await inTenant(() => transactionsService.acceptPending(closedIds));
     expect(r).toMatchObject({ accepted: closedIds.length, posted: closedIds.length, rejected: [] });
     for (const id of closedIds) {

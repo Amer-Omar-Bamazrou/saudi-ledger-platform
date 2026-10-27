@@ -117,6 +117,23 @@ describeMaybe("T1e — closed months at the database; reopen with a reason and h
     }
   });
 
+  it("🔴 PER-1: a close over HTTP waits for an in-flight posting into that month, and only then closes it", async () => {
+    const poster = await connect();
+    try {
+      await poster.query("BEGIN");
+      await flip(poster, await draft(poster, "T1E-INFLIGHT", "2026-09-10")); // posted, not yet committed: holds the month's shared guard
+      let settled = false;
+      const closing = h.api("admin", "POST", "/period-locks", { period: "2026-09" }).then((r) => { settled = true; return r; });
+      await new Promise((r) => setTimeout(r, 400));
+      const waitedForPosting = !settled;
+      await poster.query("COMMIT");
+      const closed = await closing;
+      expect([waitedForPosting, closed.status], JSON.stringify(closed.body)).toEqual([true, 201]);
+    } finally {
+      poster.release();
+    }
+  });
+
   it("🔴 PER-2: a reopen needs a reason, keeps the lock row and its history, and a re-close adds to it; nothing deletes a lock", async () => {
     await lock("2026-05");
     const noReason = await h.api("admin", "POST", "/period-locks/2026-05/reopen", {});
@@ -128,6 +145,13 @@ describeMaybe("T1e — closed months at the database; reopen with a reason and h
     expect(((await h.api("admin", "GET", "/period-locks")).body as Array<{ period: string }>).map((l) => l.period), "a reopened month is not closed").not.toContain("2026-05");
     const row = (await pool.query(`SELECT reopened_by, reopen_reason FROM period_locks WHERE company_id = $1 AND period = '2026-05'`, [companyId])).rows[0];
     expect(row, "the lock row stays").toEqual({ reopened_by: adminId, reopen_reason: "Late supplier invoice for May" });
+    // A reopened month takes postings again (the service check and the database guard both read the reopen).
+    const may = await h.api("admin", "POST", "/journal-entries", { date: "2026-05-20", description: "T1e into a reopened month", lines: [
+      { accountId: office, accountName: "Office", debitAmount: 5, creditAmount: 0 },
+      { accountId: income, accountName: "Income", debitAmount: 0, creditAmount: 5 },
+    ] });
+    expect(may.status, JSON.stringify(may.body)).toBe(201);
+    expect((await h.api("admin", "POST", `/journal-entries/${may.body.id}/approve`, {})).status, "posted into the reopened month").toBe(200);
     await lock("2026-05");
     const hist = await h.api("admin", "GET", "/period-locks/2026-05/history");
     expect(hist.status, JSON.stringify(hist.body)).toBe(200);

@@ -396,7 +396,7 @@ export const journalEntriesService = {
    */
   async reverse(
     id: number,
-    body: { reason?: unknown; date?: unknown } = {},
+    body: { reason?: unknown; date?: unknown; discoveredOn?: unknown; apparentOn?: unknown; discoveryEvidence?: unknown } = {},
     owner: {
       document?: "bank_transfer" | "statement_line" | "wht_withholding";
       /**
@@ -457,6 +457,22 @@ export const journalEntriesService = {
     if (!isCalendarDate(date)) {
       throw new BadRequestError("The reversal date must be a real calendar date (YYYY-MM-DD).");
     }
+    /**
+     * 🔴 T1e (DR-10; owner decision 10, 2026-10-27): a correction may record the ACTUAL date the error was
+     * discovered, any earlier date on which it arguably became apparent (kept apart), and the evidence. Optional;
+     * each is a fact the tenant states, checked only to be a real past date in a sensible order.
+     */
+    const optDate = (v: unknown, field: string, what: string): string | null => {
+      if (v === undefined || v === null || v === "") return null;
+      if (typeof v !== "string" || !isCalendarDate(v)) throw new BusinessRuleError(422, { code: "date_invalid", field, error: `${what} is a real calendar date (YYYY-MM-DD).` });
+      if (v > businessToday()) throw new BusinessRuleError(422, { code: "date_in_future", field, error: `${what} has already happened: it is never in the future.` });
+      return v;
+    };
+    const discoveredOn = optDate(body.discoveredOn, "discoveredOn", "The discovery date");
+    const apparentOn = optDate(body.apparentOn, "apparentOn", "The date the error became apparent");
+    if (apparentOn && !discoveredOn) throw new BusinessRuleError(422, { code: "discovered_on_required", field: "discoveredOn", error: "Record the actual discovery date first; the earlier apparent date is kept beside it." });
+    if (apparentOn && discoveredOn && apparentOn > discoveredOn) throw new BusinessRuleError(422, { code: "apparent_after_discovery", field: "apparentOn", error: "The date the error arguably became apparent is on or before the date it was discovered." });
+    const discoveryEvidence = typeof body.discoveryEvidence === "string" && body.discoveryEvidence.trim() ? body.discoveryEvidence.trim() : null;
     // 🔴 Throws the structured PeriodLockedError (423) that names the month.
     await checkPeriodOpen(date);
 
@@ -483,6 +499,10 @@ export const journalEntriesService = {
       sourceType: "reversal",
       sourceId: id,
       createdBy: auditContext.get()?.userId ?? null,
+      // 🔴 T1e: the awareness record, on the draft before the flip (G16 unchanged).
+      discoveredOn,
+      apparentOn,
+      discoveryEvidence,
     });
     const mirrorLines = await journalEntriesRepository.insertLines(
       lines.map((l) => ({

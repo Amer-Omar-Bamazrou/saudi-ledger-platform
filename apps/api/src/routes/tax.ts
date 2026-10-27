@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { taxController } from "../controllers/tax.controller";
+import { periodRecordsController } from "../controllers/periodRecords.controller";
 
 /**
  * Phase 16 — Saudi tax (docs/product/phase-16-17-tax-treasury-decision-pack.md).
@@ -21,6 +22,11 @@ router.get("/wht/annual", taxController.annual);
 router.get("/wht/beneficiaries/:vendorId", taxController.beneficiary);
 router.get("/wht/exceptions", taxController.exceptions);
 router.post("/wht/periods/:period/pay", taxController.remit);
+// 🔴 T1e (DR-10): filed VAT and Zakat/income-tax returns — recorded and read, never changed.
+router.get("/vat-return-filings", periodRecordsController.vatFilings);
+router.post("/vat-return-filings", periodRecordsController.recordVatFiling);
+router.get("/zakat-income-tax-filings", periodRecordsController.zakatIncomeTaxFilings);
+router.post("/zakat-income-tax-filings", periodRecordsController.recordZakatIncomeTaxFiling);
 // Q1 (pack §14.1): a month's Form 06 recorded FILED, or amended (`…/file` → approve)
 router.post("/wht/returns/:period/file", taxController.fileReturn);
 // Q1: one withholding's lineage (original → reversal → corrected), and its correction (`…/reverse` → approve)

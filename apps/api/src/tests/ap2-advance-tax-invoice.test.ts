@@ -556,7 +556,7 @@ describeMaybe("AP-2 — advance tax invoice 386 and the prepayment adjustment (r
       expect(lockedApproval.body.period).toBe("2026-06");
       expect((await getInvoice(dOpen.id)).icv).toBeNull();
       // the remedy: reopen, issue at the tax point, close again
-      await inTenant(() => periodLocksService.unlock("2026-06"));
+      await inTenant(() => periodLocksService.reopen("2026-06", { reason: "test: reopen the month the case closed" }, null));
       adv = await inTenant(() => invoicesService.approve(dOpen.id, userId));
       expect(adv.date).toBe(RECEIPT_DATE);
       expect((await journalOf(`GL-${adv.invoiceNumber}`)).date).toBe(RECEIPT_DATE);
@@ -570,7 +570,7 @@ describeMaybe("AP-2 — advance tax invoice 386 and the prepayment adjustment (r
       const inv = await issueFinal(custB, 3_000, [{ advanceInvoiceId: adv.id }]);
       expect(inv.status).toBe("paid");
     } finally {
-      await inTenant(() => periodLocksService.unlock("2026-06"));
+      await inTenant(() => periodLocksService.reopen("2026-06", { reason: "test: reopen the month the case closed" }, null));
     }
   });
 

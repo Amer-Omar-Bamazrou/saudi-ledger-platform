@@ -426,8 +426,9 @@ export const migrationRepository = {
   periodLock(id: number) {
     return db.select().from(periodLocksTable).where(eq(periodLocksTable.id, id)).limit(1);
   },
+  /** The month's CLOSED lock (T1e: a reopened row is kept, and is not a closed month). */
   periodLockByPeriod(period: string) {
-    return db.select().from(periodLocksTable).where(and(eq(periodLocksTable.period, period), companyScoped(periodLocksTable.companyId))).limit(1);
+    return db.select().from(periodLocksTable).where(and(eq(periodLocksTable.period, period), companyScoped(periodLocksTable.companyId), isNull(periodLocksTable.reopenedAt))).limit(1);
   },
 
   // ── lookups the mapping validates against (all RLS-scoped) ──

@@ -4,7 +4,7 @@
  */
 import { db } from "@workspace/db";
 import { periodLocksTable } from "@workspace/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { PeriodLockedError } from "../../lib/errors";
 import { businessDate } from "@workspace/shared";
 
@@ -41,6 +41,8 @@ export async function checkPeriodOpen(date: string | Date): Promise<void> {
         // Matched against the request's active company GUC — the same value the
         // row's own default uses, so a lock and its check always agree.
         eq(periodLocksTable.companyId, sql`(nullif(current_setting('app.current_company_id', true), ''))::uuid`),
+        // 🔴 T1e (PER-2): a reopen keeps the row; a month is closed while it has no reopen.
+        isNull(periodLocksTable.reopenedAt),
       ),
     )
     .limit(1);

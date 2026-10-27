@@ -486,7 +486,7 @@ describeMaybe("D-4 — customer payments, allocations, deposits, credit applicat
     expect((await invoiceRow(inv.id)).paid_amount).toBe("0.00");
     const p = await inTenant(() => paymentsService.receive({ customerId: custA, amount: 100, paidAt: "2026-06-10", bankAccountId: bank, allocations: [{ invoiceId: inv.id, amount: 100 }] }, userId));
     expect(p.amount).toBe(100);
-    await inTenant(() => periodLocksService.unlock("2026-05"));
+    await inTenant(() => periodLocksService.reopen("2026-05", { reason: "test: reopen the month the case closed" }, null));
   });
 
   it("a receipt with no bank, an inactive bank, or a draft target fails closed", async () => {

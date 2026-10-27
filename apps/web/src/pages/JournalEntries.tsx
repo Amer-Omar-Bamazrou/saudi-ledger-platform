@@ -37,6 +37,9 @@ export default function JournalEntries() {
   const [page, setPage] = useState(0);
   /** Two-step delete: the second click is the confirmation (draft only). */
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  // 🔴 T1e (DR-10; owner decision 10): a correction may record the ACTUAL discovery date, any earlier apparent date, and the evidence.
+  const [reversing, setReversing] = useState<number | null>(null);
+  const [rev, setRev] = useState({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "" });
   // `?entry=<id>` opens one entry directly (the migration workspace links its opening journal this way).
   const [selectedId, setSelectedId] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
@@ -116,8 +119,13 @@ export default function JournalEntries() {
   });
 
   const reverseMut = useMutation({
-    mutationFn: (id: number) => apiFetch(`/journal-entries/${id}/reverse`, { method: "POST" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry reversed", "تم عكس القيد") }); },
+    mutationFn: (id: number) => apiFetch(`/journal-entries/${id}/reverse`, { method: "POST", body: JSON.stringify({
+      reason: rev.reason.trim() || undefined,
+      discoveredOn: rev.discoveredOn || undefined,
+      apparentOn: rev.apparentOn || undefined,
+      discoveryEvidence: rev.discoveryEvidence.trim() || undefined,
+    }) }),
+    onSuccess: () => { setReversing(null); setRev({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "" }); qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry reversed", "تم عكس القيد") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -318,7 +326,7 @@ export default function JournalEntries() {
                           be removed. A POSTED entry is corrected by a reversing
                           entry — the service refuses it and says so. */}
                       {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-negative" onClick={ev=>{ev.stopPropagation();if(confirmDelete!==e.id){setConfirmDelete(e.id);}else{deleteMut.mutate(e.id);}}}>{confirmDelete===e.id?t("Confirm delete", "تأكيد الحذف"):t("Delete", "حذف")}</Button>}
-                      {e.status==="posted"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={ev=>{ev.stopPropagation();reverseMut.mutate(e.id);}}>{t("Reverse", "عكس")}</Button>}
+                      {e.status==="posted"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={ev=>{ev.stopPropagation();setReversing(e.id);}} data-testid={`reverse-${e.id}`}>{t("Reverse", "عكس")}</Button>}
                     </td>
                   </tr>
                 ))}</tbody>
@@ -355,6 +363,26 @@ export default function JournalEntries() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Reverse: the optional correction facts (T1e) ── */}
+      <Dialog open={reversing !== null} onOpenChange={(o) => !o && setReversing(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{t("Reverse this entry?", "عكس هذا القيد؟")}</DialogTitle></DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">{t("A mirror entry is posted today; the original stays in the books, marked reversed.", "يُرحَّل قيد معاكس اليوم، ويبقى القيد الأصلي في الدفاتر معلَّمًا بأنه معكوس.")}</p>
+            <div className="grid gap-1"><Label htmlFor="rev-reason">{t("Reason", "السبب")}</Label><Input id="rev-reason" data-testid="rev-reason" value={rev.reason} onChange={(ev) => setRev({ ...rev, reason: ev.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-1"><Label htmlFor="rev-discovered">{t("Error discovered on", "تاريخ اكتشاف الخطأ")}</Label><Input id="rev-discovered" data-testid="rev-discovered" type="date" value={rev.discoveredOn} onChange={(ev) => setRev({ ...rev, discoveredOn: ev.target.value })} /></div>
+              <div className="grid gap-1"><Label htmlFor="rev-apparent">{t("Apparent from (if earlier)", "ظاهر منذ (إن كان أبكر)")}</Label><Input id="rev-apparent" data-testid="rev-apparent" type="date" value={rev.apparentOn} onChange={(ev) => setRev({ ...rev, apparentOn: ev.target.value })} /></div>
+            </div>
+            <div className="grid gap-1"><Label htmlFor="rev-evidence">{t("Evidence of the discovery", "دليل الاكتشاف")}</Label><Input id="rev-evidence" data-testid="rev-evidence" value={rev.discoveryEvidence} onChange={(ev) => setRev({ ...rev, discoveryEvidence: ev.target.value })} /></div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setReversing(null)}>{t("Cancel", "إلغاء")}</Button>
+              <Button size="sm" data-testid="rev-confirm" disabled={reverseMut.isPending} onClick={() => reversing !== null && reverseMut.mutate(reversing)}>{t("Reverse", "عكس")}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

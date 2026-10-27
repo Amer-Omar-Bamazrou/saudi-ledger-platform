@@ -8,8 +8,8 @@
 
 export interface PeriodLockInput {
   /**
-     * The month to close, `YYYY-MM` (e.g. 2026-06).
-     * @pattern ^\d{4}-\d{2}$
+     * The month to close, `YYYY-MM` (e.g. 2026-06). T1e — a real month (2026-13 is refused).
+     * @pattern ^\d{4}-(0[1-9]|1[0-2])$
      */
   period: string;
   /** @nullable */
