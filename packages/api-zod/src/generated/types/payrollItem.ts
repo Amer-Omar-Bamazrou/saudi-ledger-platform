@@ -39,6 +39,31 @@ export interface PayrollItem {
      * @nullable
      */
   gosiEmployerRate: number | null;
+  /**
+     * GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none.
+     * @nullable
+     */
+  gosiInKindHousing: number | null;
+  /**
+     * GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply.
+     * @nullable
+     */
+  gosiPensionFloorWage: number | null;
+  /**
+     * GO-12 (2024 law): the days of service in a joining or leaving month. Null for a full month.
+     * @nullable
+     */
+  gosiServiceDays: number | null;
+  /**
+     * GO-12: the month's actual days, the divisor of gosiServiceDays. Null for a full month.
+     * @nullable
+     */
+  gosiPeriodDays: number | null;
+  /**
+     * GO-12 (1421H law): the period whose line fixed the year's contributory wage, which this line used. Null for other laws.
+     * @nullable
+     */
+  gosiWageFixedPeriod: string | null;
   additions: number;
   deductions: number;
   netPay: number;

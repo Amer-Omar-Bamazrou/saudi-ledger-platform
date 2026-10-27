@@ -33,6 +33,9 @@ export const itemToOut = (i: PayrollItem) => ({
   gosiWageBase: i.gosiWageBase == null ? null : Number(i.gosiWageBase),
   gosiEmployeeRate: i.gosiEmployeeRate == null ? null : Number(i.gosiEmployeeRate),
   gosiEmployerRate: i.gosiEmployerRate == null ? null : Number(i.gosiEmployerRate),
+  // GO-10..GO-13 (Phase 18): null where the rule did not apply, and on lines from before migration 0128.
+  gosiInKindHousing: i.gosiInKindHousing == null ? null : Number(i.gosiInKindHousing),
+  gosiPensionFloorWage: i.gosiPensionFloorWage == null ? null : Number(i.gosiPensionFloorWage),
   additions: toNum(i.additions),
   deductions: toNum(i.deductions),
   netPay: toNum(i.netPay),

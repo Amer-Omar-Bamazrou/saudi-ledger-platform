@@ -12538,6 +12538,7 @@ components:
       type: object
       required: [id, payrollRunId, employeeId, basicSalary, housingAllowance, transportAllowance, otherAllowances,
                  grossSalary, gosiEmployee, gosiEmployer, gosiRegime, gosiWageBase, gosiEmployeeRate, gosiEmployerRate,
+                 gosiInKindHousing, gosiPensionFloorWage, gosiServiceDays, gosiPeriodDays, gosiWageFixedPeriod,
                  additions, deductions, netPay, employeeName, employeeNumber]
       properties:
         id: { type: integer }
@@ -12557,6 +12558,11 @@ components:
         gosiWageBase: { type: ["number", "null"], description: "The contributory wage used: basic + housing, capped at SAR 45,000." }
         gosiEmployeeRate: { type: ["number", "null"], description: "The employee rate used, as a fraction." }
         gosiEmployerRate: { type: ["number", "null"], description: "The employer rate used, as a fraction." }
+        gosiInKindHousing: { type: ["number", "null"], description: "GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none." }
+        gosiPensionFloorWage: { type: ["number", "null"], description: "GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply." }
+        gosiServiceDays: { type: ["integer", "null"], description: "GO-12 (2024 law): the days of service in a joining or leaving month. Null for a full month." }
+        gosiPeriodDays: { type: ["integer", "null"], description: "GO-12: the month's actual days, the divisor of gosiServiceDays. Null for a full month." }
+        gosiWageFixedPeriod: { type: ["string", "null"], description: "GO-12 (1421H law): the period whose line fixed the year's contributory wage, which this line used. Null for other laws." }
         additions: { type: number }
         deductions: { type: number }
         netPay: { type: number }
@@ -12605,7 +12611,8 @@ components:
       required: [id, employeeNumber, name, nameAr, nationalId, nationality, jobTitle, jobTitleAr, department,
                  basicSalary, housingAllowance, transportAllowance, otherAllowances, gosiNumber, iban, bank,
                  joiningDate, endDate, status, notes, createdAt, grossSalary, gosiEmployee, gosiEmployer,
-                 gosiRegime, gosiRegimeSetBy, gosiRegimeSetAt, gosiRegimeBasis, gosiWageBase]
+                 gosiRegime, gosiRegimeSetBy, gosiRegimeSetAt, gosiRegimeBasis, gosiWageBase,
+                 gosiInKindHousing, gosiInKindHousingExempt]
       properties:
         id: { type: integer }
         employeeNumber: { type: string }
@@ -12639,7 +12646,7 @@ components:
           description: "DERIVED: the current period's employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated."
         gosiWageBase:
           type: ["number", "null"]
-          description: "DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are."
+          description: "DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are."
         gosiRegime:
           type: ["string", "null"]
           enum: [law_1421h, law_2024, null]
@@ -12647,6 +12654,8 @@ components:
         gosiRegimeSetBy: { type: ["integer", "null"] }
         gosiRegimeSetAt: { type: ["string", "null"] }
         gosiRegimeBasis: { type: ["string", "null"], description: "What the statement rests on, e.g. the GOSI contribution certificate." }
+        gosiInKindHousing: { type: boolean, description: "GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage." }
+        gosiInKindHousingExempt: { type: boolean, description: "GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing." }
 
     EmployeeTotals:
       type: object
@@ -12681,6 +12690,8 @@ components:
         notes: { type: ["string", "null"] }
         gosiRegime: { type: ["string", "null"], enum: [law_1421h, law_2024, null] }
         gosiRegimeBasis: { type: ["string", "null"] }
+        gosiInKindHousing: { type: boolean }
+        gosiInKindHousingExempt: { type: boolean }
 
     CreateEmployeeInput:
       type: object
@@ -12707,6 +12718,8 @@ components:
         notes: { type: ["string", "null"] }
         gosiRegime: { type: ["string", "null"], enum: [law_1421h, law_2024, null] }
         gosiRegimeBasis: { type: ["string", "null"] }
+        gosiInKindHousing: { type: boolean }
+        gosiInKindHousingExempt: { type: boolean }
 
     UpdateEmployeeInput:
       $ref: "#/components/schemas/EmployeeInputFields"

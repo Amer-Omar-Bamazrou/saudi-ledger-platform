@@ -54,7 +54,7 @@ export interface Employee {
      */
   gosiEmployer: number | null;
   /**
-     * DERIVED: basic + housing, capped at SAR 45,000. Null where the GOSI figures are.
+     * DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.
      * @nullable
      */
   gosiWageBase: number | null;
@@ -72,4 +72,8 @@ export interface Employee {
      * @nullable
      */
   gosiRegimeBasis: string | null;
+  /** GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage. */
+  gosiInKindHousing: boolean;
+  /** GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing. */
+  gosiInKindHousingExempt: boolean;
 }

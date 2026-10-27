@@ -1,6 +1,6 @@
 /** Payroll repository — tenant-scoped via RLS. */
 import { db, payrollRunsTable, payrollItemsTable, employeesTable, journalEntriesTable, transactionsTable } from "@workspace/db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 
 /**
@@ -124,6 +124,47 @@ export const payrollRepository = {
       .from(payrollRunsTable)
       .where(and(sql`${payrollRunsTable.status} IN ('approved', 'paid')`, sql`${payrollRunsTable.gosiPaidAt} IS NULL`))
       .orderBy(desc(payrollRunsTable.period), desc(payrollRunsTable.id));
+  },
+
+  /** 🔴 GO-11 (Phase 18): each run's GOSI (both shares) by the regime its lines were computed under. */
+  gosiByRegime(runIds: number[]) {
+    if (runIds.length === 0) return Promise.resolve([]);
+    return db
+      .select({
+        payrollRunId: payrollItemsTable.payrollRunId,
+        regime: payrollItemsTable.gosiRegime,
+        total: sql<string>`COALESCE(SUM(${payrollItemsTable.gosiEmployee} + ${payrollItemsTable.gosiEmployer}), 0)::text`,
+      })
+      .from(payrollItemsTable)
+      .where(inArray(payrollItemsTable.payrollRunId, runIds))
+      .groupBy(payrollItemsTable.payrollRunId, payrollItemsTable.gosiRegime);
+  },
+
+  /**
+   * 🔴 GO-12 (Phase 18, 1421H law): each employee's FIRST line under `regime` in `period`'s calendar year, before
+   * `period`, from any run still standing (a rejected run is deleted) — the line that fixed the year's contributory
+   * wage. Earliest period first, then the earliest line.
+   */
+  firstLinesOfYear(employeeIds: number[], period: string, regime: string) {
+    if (employeeIds.length === 0) return Promise.resolve([]);
+    return db
+      .selectDistinctOn([payrollItemsTable.employeeId], {
+        employeeId: payrollItemsTable.employeeId,
+        period: payrollRunsTable.period,
+        wageBase: payrollItemsTable.gosiWageBase,
+        inKindHousing: payrollItemsTable.gosiInKindHousing,
+        fixedPeriod: payrollItemsTable.gosiWageFixedPeriod,
+      })
+      .from(payrollItemsTable)
+      .innerJoin(payrollRunsTable, eq(payrollRunsTable.id, payrollItemsTable.payrollRunId))
+      .where(and(
+        inArray(payrollItemsTable.employeeId, employeeIds),
+        eq(payrollItemsTable.gosiRegime, regime),
+        isNotNull(payrollItemsTable.gosiWageBase),
+        gte(payrollRunsTable.period, `${period.slice(0, 4)}-01`),
+        lt(payrollRunsTable.period, period),
+      ))
+      .orderBy(payrollItemsTable.employeeId, asc(payrollRunsTable.period), asc(payrollItemsTable.id));
   },
 
   /** 🔴 GOSI (Phase 18): lines of a run computed before migration 0127 — no record of the rates and wage they used. */

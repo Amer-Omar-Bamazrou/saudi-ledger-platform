@@ -1,6 +1,6 @@
 /** Employees repository — tenant-scoped via RLS. */
 import { db, employeesTable } from "@workspace/db";
-import { businessToday, gosiRatesFor, GOSI_WAGE_CEILING } from "@workspace/shared";
+import { businessToday, gosiRatesFor, GOSI_IN_KIND_HOUSING_MONTHS_A_YEAR, GOSI_WAGE_CEILING, type GosiRegime } from "@workspace/shared";
 import { and, eq, ilike, sql } from "drizzle-orm";
 import { DEFAULT_PAGE } from "../lib/httpParams";
 
@@ -46,17 +46,30 @@ export const employeesRepository = {
    * Saudi employee whose law is not stated has no figure: they are COUNTED in
    * `gosiUnstatedCount` and left out of the sum, so the total never reads as
    * complete when it is not.
+   *
+   * 🔴 GO-10/GO-13 (Phase 18, 2026-10-27): the wage includes in-kind housing's
+   * value, and a regime whose entry has a pension floor adds the employer's
+   * pension rate on what the wage falls short of it — `gosiLineAmounts`' rule,
+   * every number bound from the same entry. The employee previews and this total
+   * are compared figure for figure by `phase18-gosi-go10-go13.test.ts`.
    */
   async listTotals(filter: EmployeeListFilter) {
     const gross = sql`(${employeesTable.basicSalary} + ${employeesTable.housingAllowance}
       + ${employeesTable.transportAllowance} + ${employeesTable.otherAllowances})`;
     const period = businessToday().slice(0, 7);
-    const rate = (r: "law_1421h" | "law_2024" | "non_saudi") => gosiRatesFor(r, period)?.employerRate ?? null;
-    const wage = sql`LEAST(${employeesTable.basicSalary} + ${employeesTable.housingAllowance}, ${GOSI_WAGE_CEILING})`;
+    const inKind = sql`(CASE WHEN ${employeesTable.gosiInKindHousing} AND NOT ${employeesTable.gosiInKindHousingExempt}
+      THEN ROUND(${employeesTable.basicSalary} * ${GOSI_IN_KIND_HOUSING_MONTHS_A_YEAR}::numeric / 12, 2) ELSE 0 END)`;
+    const wage = sql`LEAST(${employeesTable.basicSalary} + ${employeesTable.housingAllowance} + ${inKind}, ${GOSI_WAGE_CEILING})`;
+    const employerOf = (r: GosiRegime) => {
+      const rates = gosiRatesFor(r, period);
+      if (!rates) return sql`NULL::numeric`;
+      const floor = rates.entry.pensionFloorWage ?? 0;
+      return sql`(${wage} * ${rates.employerRate}::numeric + GREATEST(${floor}::numeric - ${wage}, 0) * ${rates.entry.employer.pension}::numeric)`;
+    };
     const gosiEmployer = sql`(CASE
-      WHEN ${employeesTable.nationality} IS DISTINCT FROM 'SA' THEN ${wage} * ${rate("non_saudi")}::numeric
-      WHEN ${employeesTable.gosiRegime} = 'law_1421h' THEN ${wage} * ${rate("law_1421h")}::numeric
-      WHEN ${employeesTable.gosiRegime} = 'law_2024' THEN ${wage} * ${rate("law_2024")}::numeric
+      WHEN ${employeesTable.nationality} IS DISTINCT FROM 'SA' THEN ${employerOf("non_saudi")}
+      WHEN ${employeesTable.gosiRegime} = 'law_1421h' THEN ${employerOf("law_1421h")}
+      WHEN ${employeesTable.gosiRegime} = 'law_2024' THEN ${employerOf("law_2024")}
       ELSE NULL END)`;
     const [row] = await db
       .select({

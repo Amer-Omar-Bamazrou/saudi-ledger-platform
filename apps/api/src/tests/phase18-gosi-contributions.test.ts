@@ -13,7 +13,7 @@
  *  - GOSI is paid from a bank (Dr GOSI Payable / Cr bank), once, never to the expense;
  *  - a GOSI bank line is never suggested as the expense while the run's GOSI is owed;
  *  - the obligations calendar dates GOSI to the 15th of the next month, with the
- *    uncapped 2%-per-month-or-part estimate when late.
+ *    2%-per-month-or-part estimate when late (its 1421H-law cap, GO-11, binds only after 50 months).
  *
  * DB-backed (sl_test / CI); skips on the DB-free placeholder.
  */
@@ -164,7 +164,7 @@ describeMaybe("GOSI — the law, the period, the contributory wage; paid from a 
     expect(row.system_code).toBe("GOSI_PAYABLE");
   });
 
-  it("🔴 the obligations calendar dates a run's GOSI to the 15th of the next month, with the uncapped late-fine estimate", async () => {
+  it("🔴 the obligations calendar dates a run's GOSI to the 15th of the next month, with the 2%-a-month late-fine estimate", async () => {
     await employee("G7-A-1421", "SA", "law_1421h", 12_000, 0);
     const created = await h.api("admin", "POST", "/payroll", { period: "2026-08" });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
@@ -174,7 +174,7 @@ describeMaybe("GOSI — the law, the period, the contributory wage; paid from a 
     const row = (res.body.obligations as Array<{ kind: string; reference: string; amount: number; dueDate: string; fineEstimate: number }>).find((o) => o.kind === "gosi" && o.reference === "2026-08");
     const amount = r2(r2(12_000 * LAW_1421H.employee) + r2(12_000 * LAW_1421H.employer));
     expect(row && [row.amount, row.dueDate], JSON.stringify(res.body.obligations)).toEqual([amount, "2026-09-15"]);
-    // Months or parts of months after 2026-09-15, as of today; 2% each, uncapped.
+    // Months or parts of months after 2026-09-15, as of today; 2% each (fewer than 50 months, so the 1421H cap cannot bind).
     const today = businessToday();
     const [y, m, d] = today.split("-").map(Number) as [number, number, number];
     const months = Math.max(0, (y - 2026) * 12 + (m - 9) + (d > 15 ? 1 : 0));

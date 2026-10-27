@@ -77,6 +77,23 @@ export const payrollItemsTable = pgTable(
     gosiWageBase: numeric("gosi_wage_base", { precision: 15, scale: 2 }),
     gosiEmployeeRate: numeric("gosi_employee_rate", { precision: 7, scale: 4 }),
     gosiEmployerRate: numeric("gosi_employer_rate", { precision: 7, scale: 4 }),
+    /**
+     * 🔴 GO-10..GO-13 (Phase 18, owner 2026-10-27): the rest of what the line
+     * used, each NULL where its rule did not apply (and on every line computed
+     * before migration 0128). CHECKs in 0128, hand-written.
+     *  - in-kind housing: the value counted inside `gosiWageBase` (GO-13);
+     *  - pension floor wage: the wage the pension share was charged on, when the
+     *    actual wage was below it (GO-10, 1421H law);
+     *  - service days / period days: a joining or leaving month charged by days
+     *    (GO-12, 2024 law) — both or neither;
+     *  - wage fixed period: the period whose line fixed the year's contributory
+     *    wage, which this line used (GO-12, 1421H law).
+     */
+    gosiInKindHousing: numeric("gosi_in_kind_housing", { precision: 15, scale: 2 }),
+    gosiPensionFloorWage: numeric("gosi_pension_floor_wage", { precision: 15, scale: 2 }),
+    gosiServiceDays: integer("gosi_service_days"),
+    gosiPeriodDays: integer("gosi_period_days"),
+    gosiWageFixedPeriod: text("gosi_wage_fixed_period"),
     additions: numeric("additions", { precision: 15, scale: 2 }).default("0"),
     deductions: numeric("deductions", { precision: 15, scale: 2 }).default("0"),
     netPay: numeric("net_pay", { precision: 15, scale: 2 }).notNull(),
