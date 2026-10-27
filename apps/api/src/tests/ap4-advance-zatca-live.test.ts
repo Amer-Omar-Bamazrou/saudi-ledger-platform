@@ -321,7 +321,7 @@ describeDb("AP-4 part 2 — the lifecycle from REAL ROWS, field by field and at 
   const inputOf: Record<string, EInvoiceInput> = {};
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

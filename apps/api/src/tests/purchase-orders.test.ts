@@ -24,6 +24,7 @@ import { reportsService } from "../services/reports.service";
 import { billingState } from "../services/purchaseOrders.presenter";
 import { PERMISSION_MATRIX } from "@workspace/db";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -44,7 +45,7 @@ describeMaybe("Purchase orders (M21.3)", () => {
   let vendorId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.66" }, fn),
@@ -70,7 +71,7 @@ describeMaybe("Purchase orders (M21.3)", () => {
       await pool.query(`DELETE FROM purchase_orders WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM bill_items WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM bills WHERE organization_id = $1`, [orgId]);
-      await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
+      await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM vendors WHERE organization_id = $1`, [orgId]);
     }
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);

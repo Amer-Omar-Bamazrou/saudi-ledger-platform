@@ -30,6 +30,7 @@ import { resolveTenant } from "../lib/tenant";
 import { logger } from "../lib/logger";
 import { __setAlerterForTests, type Alerter } from "../lib/alerter";
 import { g04Harness } from "./helpers/g04Harness";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -89,7 +90,7 @@ describeMaybe("B-O6 — a COMMIT answered ROLLBACK is an error, never a success"
   });
 
   beforeEach(async () => {
-    await pool.query(`DELETE FROM audit_logs WHERE entity_type = 'b_o6_marker'`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE entity_type = 'b_o6_marker'`);
     pages.length = 0;
     const recording: Alerter = {
       fire: async (a) => {
@@ -104,7 +105,7 @@ describeMaybe("B-O6 — a COMMIT answered ROLLBACK is an error, never a success"
   afterEach(() => __setAlerterForTests(null));
 
   afterAll(async () => {
-    await pool.query(`DELETE FROM audit_logs WHERE entity_type = 'b_o6_marker'`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE entity_type = 'b_o6_marker'`);
     await h.cleanup();
   });
 

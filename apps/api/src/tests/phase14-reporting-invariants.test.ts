@@ -58,7 +58,7 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
   const ids: Record<string, number> = {};
 
   const inCo = async <T,>(org: string, co: string, fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();

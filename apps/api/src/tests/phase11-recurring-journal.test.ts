@@ -23,6 +23,7 @@ import { recurringService } from "../services/recurring/recurring.service";
 import { recurringGenerationService } from "../services/recurring/generation.service";
 import { periodLocksService } from "../services/periodLocks.service";
 import { reportsService } from "../services/reports.service";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -34,7 +35,7 @@ describeMaybe("Phase 11 A1 — recurring journal entries (real rows)", () => {
   let orgId = "", companyId = "", userId = 0, expenseId = 0, accrualId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -49,7 +50,7 @@ describeMaybe("Phase 11 A1 — recurring journal entries (real rows)", () => {
       await client.query(`DELETE FROM recurring_runs WHERE organization_id IN ${org}`);
       await client.query(`DELETE FROM recurring_rules WHERE organization_id IN ${org}`);
       for (const t of ["journal_entry_lines", "journal_entries", "period_locks", "findings", "finding_runs", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies"]) {
-        await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(client, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await client.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
       await client.query(`DELETE FROM users WHERE email = '${EMAIL}'`);

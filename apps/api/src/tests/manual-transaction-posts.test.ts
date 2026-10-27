@@ -22,6 +22,7 @@ import { transactionsService } from "../services/transactions.service";
 import { transactionPostingService } from "../services/transactionPosting.service";
 import { periodLocksService } from "../services/periodLocks.service";
 import { PeriodLockedError } from "../lib/errors";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -41,7 +42,7 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
   const bankByOrg: Record<string, number> = {};
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();
@@ -58,7 +59,7 @@ describeMaybe("a manually created transaction posts to the ledger", () => {
       const org = `(SELECT id FROM organizations WHERE slug = '${slug}')`;
       await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
       for (const t of ["journal_entry_lines", "journal_entries", "transactions", "period_locks", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies"]) {
-        await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await pool.query(`DELETE FROM organizations WHERE slug = '${slug}'`);
     }

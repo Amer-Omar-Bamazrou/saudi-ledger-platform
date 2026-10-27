@@ -37,6 +37,7 @@ import { hashPassword } from "../lib/password";
 import { capturedDocumentsRepository } from "../repositories/capturedDocuments.repository";
 import { resetArchiveStoreForTests } from "../services/einvoice/archive/resolveArchiveStore";
 import { resetStagingBackendForTests } from "../services/capture/stagingBackend";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -103,7 +104,7 @@ describeMaybe("DEF-1 — uploads keep the request's tenant context at real sizes
   const USERS = `(SELECT id FROM users WHERE email IN ('${EMAIL_A}','${EMAIL_B}'))`;
   const cleanup = async () => {
     await pool.query(`DELETE FROM captured_documents WHERE organization_id IN ${ORGS}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${ORGS} OR user_id IN ${USERS}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${ORGS} OR user_id IN ${USERS}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${USERS} OR organization_id IN ${ORGS}`);
     await pool.query(`DELETE FROM users WHERE email IN ('${EMAIL_A}','${EMAIL_B}')`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${ORGS}`);

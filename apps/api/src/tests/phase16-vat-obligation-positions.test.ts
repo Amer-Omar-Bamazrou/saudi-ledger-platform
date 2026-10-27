@@ -46,7 +46,7 @@ describeMaybe("Phase 16 — every VAT period has its row and its position; a cre
   const co: Record<"nil" | "credit" | "payable" | "settled" | "part", string> = { nil: "", credit: "", payable: "", settled: "", part: "" };
 
   const inCo = async <T,>(company: string, fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: company, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

@@ -30,6 +30,7 @@ import { pool } from "@workspace/db";
 import { documentsService } from "../services/documents.service";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { storage } from "../lib/storage";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -56,7 +57,7 @@ describeMaybe("verification documents (M11.4)", () => {
   const cleanup = async () => {
     const paths = await pool.query(`SELECT storage_path FROM verification_documents WHERE organization_id IN ${ORG_FILTER}`);
     for (const r of paths.rows) await storage.removeObject(r.storage_path);
-    await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`);
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM verification_documents WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM platform_operators WHERE user_id IN ${USER_FILTER}`);

@@ -53,7 +53,7 @@ describeMaybe("Phase 11 Part 2 — the AP subledger's edges, hardened (real rows
   let billA = 0, billB = 0, billC = 0, advanceId = 0, noteId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

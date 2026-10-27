@@ -121,6 +121,11 @@ describeMaybe("demo seed", () => {
     expect(DEMO_VAT_NUMBER).toContain("99999999999");
   });
 
+  it("🔴 T1b (owner 2026-10-27, check d): the demo seed acts for no signed-in user, so every audit row it writes records as system", async () => {
+    const { rows } = await pool.query(`SELECT user_id FROM audit_logs WHERE organization_id = $1`, [organizationId]);
+    expect([rows.length > 0, rows.filter((r) => r.user_id !== null).length]).toEqual([true, 0]);
+  });
+
   it("seeds a month of documents per month of history, all APPROVED", async () => {
     expect(seeded.invoices).toBe(seeded.months);
     expect(seeded.bills).toBe(seeded.months);

@@ -26,6 +26,7 @@ import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 import { BusinessRuleError } from "../lib/errors";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -43,7 +44,7 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
   let rentId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -58,7 +59,7 @@ describeMaybe("a bank transaction cannot be categorised to a party-required cont
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     for (const t of ["journal_entry_lines", "journal_entries", "transactions", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies"]) {
-      await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+      await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);

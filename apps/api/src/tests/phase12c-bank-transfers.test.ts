@@ -39,7 +39,7 @@ describeMaybe("Phase 12C — bank-to-bank transfers (real rows)", () => {
   let orgB = "", companyB = "", otherBank1 = 0, otherBank2 = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>, org = orgId, co = companyId): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();

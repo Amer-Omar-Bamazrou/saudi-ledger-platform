@@ -65,7 +65,7 @@ describeMaybe("Phase 13B S1 — opening-payable historical VAT and single-state 
   const jar: Record<string, string> = {};
 
   const inTenant = async <T,>(fn: () => Promise<T>, co = coA, uid = userId): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated", actorUserId: uid });
     try {
       const out = await conn.run(() => auditContext.run({ userId: uid, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -555,7 +555,7 @@ describeMaybe("Phase 13B S1 — opening-payable historical VAT and single-state 
     // B must come back as the named conflict, never a raw 23505 / 500.
     const capA = await capture(), capB = await capture();
     const body = (cap: string) => ({ itemId: item.RACE!, state: "NOT_DEDUCTED", notDeductedReason: "race", carriedInCost: true, evidence: [{ kind: "ORIGINAL_TAX_INVOICE", captureId: cap }] });
-    const connA = await beginTenantConnection({ organizationId: orgId, companyId: coA, role: "authenticated" });
+    const connA = await beginTenantConnection({ organizationId: orgId, companyId: coA, role: "authenticated", actorUserId: adminId });
     let aCommitted = false;
     try {
       const a = await connA.run(() => auditContext.run({ userId: adminId, organizationId: orgId, ipAddress: null },

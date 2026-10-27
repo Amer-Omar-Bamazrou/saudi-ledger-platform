@@ -73,7 +73,7 @@ describeMaybe("Batch 1C — Issue 1: opening receivables collect through D-4 and
   let bankA = 0, bankB = 0;
 
   const tenant = (company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: company, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

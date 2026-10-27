@@ -15,6 +15,7 @@ import { pool, beginTenantConnection } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { companiesService } from "../services/companies.service";
 import { isOwnershipType, zakatScopeFor } from "../lib/zakatScope";
+import { replica } from "./helpers/replica";
 
 describe("M17.1 — the scope rule", () => {
   it("🔴 an UNDECLARED company is 'not_declared' — not eligible, and not refused", () => {
@@ -66,7 +67,7 @@ describeMaybe("M17.1 — ownership through the real write path", () => {
   let userId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn),
@@ -82,7 +83,7 @@ describeMaybe("M17.1 — ownership through the real write path", () => {
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const U = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);

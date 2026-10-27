@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { membersService } from "../services/members.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -30,7 +31,7 @@ describeMaybe("membersService — provisioning + explicit cross-org authorizatio
     // users/orgs block the deletes below. Clear them FIRST by the stable test
     // email/slug patterns (not captured ids, which are 0 on the beforeAll run and
     // wouldn't catch leftovers from a prior failed run).
-    await pool.query(
+    await replica(pool).query(
       `DELETE FROM security_audit_logs
          WHERE organization_id IN (SELECT id FROM organizations WHERE slug IN ('members-a','members-b'))
             OR actor_user_id  IN (SELECT id FROM users WHERE email LIKE 'members-test-%')

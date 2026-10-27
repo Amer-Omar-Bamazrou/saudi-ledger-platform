@@ -40,10 +40,23 @@ describeMaybe("audit_logs — tenant isolation + append-only", () => {
     }
   }
 
+  /** 🔴 T1b (0132): audit rows are append-only for every role; a cleanup deletes them the one sanctioned way, replica mode. */
+  async function deleteAsReplica(sql: string): Promise<void> {
+    await client.query("BEGIN");
+    try {
+      await client.query("SET LOCAL session_replication_role = replica");
+      await client.query(sql);
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    }
+  }
+
   beforeAll(async () => {
     client = new pg.Client({ connectionString });
     await client.connect();
-    await client.query(`DELETE FROM audit_logs WHERE entity_id IN ('ISO-AUDIT-A','ISO-AUDIT-B')`);
+    await deleteAsReplica(`DELETE FROM audit_logs WHERE entity_id IN ('ISO-AUDIT-A','ISO-AUDIT-B')`);
     await client.query(`DELETE FROM organizations WHERE slug IN ('iso-audit-a','iso-audit-b')`);
 
     orgA = (await client.query(`INSERT INTO organizations (name, slug) VALUES ('ISO Audit A','iso-audit-a') RETURNING id`)).rows[0].id;
@@ -61,7 +74,7 @@ describeMaybe("audit_logs — tenant isolation + append-only", () => {
 
   afterAll(async () => {
     if (!client) return;
-    await client.query(`DELETE FROM audit_logs WHERE entity_id IN ('ISO-AUDIT-A','ISO-AUDIT-B')`);
+    await deleteAsReplica(`DELETE FROM audit_logs WHERE entity_id IN ('ISO-AUDIT-A','ISO-AUDIT-B')`);
     await client.query(`DELETE FROM organizations WHERE slug IN ('iso-audit-a','iso-audit-b')`);
     await client.end();
   });

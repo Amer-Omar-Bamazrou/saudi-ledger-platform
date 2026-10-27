@@ -18,6 +18,7 @@ import { auditContext } from "../lib/auditContext";
 import { payrollService } from "../services/payroll.service";
 import { reportsService } from "../services/reports.service";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -39,7 +40,7 @@ describeMaybe("Payroll draft/approval — pre-approval states post nothing; appr
   const TOTAL_DEBIT = 11175;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.13" }, fn),
@@ -60,7 +61,7 @@ describeMaybe("Payroll draft/approval — pre-approval states post nothing; appr
       await pool.query(`DELETE FROM payroll_items WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM payroll_runs WHERE organization_id = $1`, [orgId]);
       await pool.query(`DELETE FROM employees WHERE organization_id = $1`, [orgId]);
-      await pool.query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
+      await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id = $1`, [orgId]);
     }
     if (userId) await pool.query(`DELETE FROM organization_memberships WHERE user_id = $1`, [userId]);
     await pool.query(`DELETE FROM users WHERE email = 'pay-approval@test.local'`);

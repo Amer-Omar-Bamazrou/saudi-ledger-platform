@@ -91,7 +91,7 @@ describeMaybe("Phase 16 + 17 gap closure — the approvals inbox, classification
   };
   const find = (rows: Row[], entity: string, id: number) => rows.find((r) => r.entity === entity && r.id === id);
   const inCo = async <T,>(company: string, fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgX, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgX, companyId: company, role: "authenticated", actorUserId: adminX });
     try {
       const out = await conn.run(() => auditContext.run({ userId: adminX, organizationId: orgX, ipAddress: null }, fn));
       await conn.commit();

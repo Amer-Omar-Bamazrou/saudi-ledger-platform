@@ -188,7 +188,7 @@ describeMaybe("Phase 13A — evidence integrity on real rows", () => {
   let archiveDir = "";
 
   const inTenant = async <T,>(fn: () => Promise<T>, org = orgId, co = companyId): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();
@@ -685,7 +685,7 @@ describeMaybe("Phase 13A — evidence integrity on real rows", () => {
     // through, so a query WITHOUT its own predicate would return both
     // companies' ISO-1 bills. With it, the answer is EMPTY — withheld, never
     // merged (CLAUDE.md §3, "make the layers disagree").
-    const orgWide = await beginTenantConnection({ organizationId: orgId, companyId: null, role: "authenticated" });
+    const orgWide = await beginTenantConnection({ organizationId: orgId, companyId: null, role: "authenticated", actorUserId: userId });
     try {
       const wide = await orgWide.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, () =>
         billsService.duplicates({ vendorId: vendorA, vendorReference: "ISO-1" })));

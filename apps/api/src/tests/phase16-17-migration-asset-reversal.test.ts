@@ -70,7 +70,7 @@ describeMaybe("Q3 — a reversed migration takes its fixed assets and every open
   const depJe: Record<string, number> = {}; // `${assetId}:${period}` → its depreciation entry
 
   const tenant = (org: () => string, co: () => string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org(), companyId: co(), role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org(), companyId: co(), role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org(), ipAddress: null }, fn));
       await conn.commit();

@@ -59,6 +59,10 @@ describeMaybe("security_audit_logs — owner-only (app role has no access)", () 
       `INSERT INTO security_audit_logs (action) VALUES ('boundary.owner.test') RETURNING id`,
     );
     expect(ins.rowCount).toBe(1);
+    // 🔴 T1b (0132): the row is append-only for every role; the cleanup takes replica mode, the one bypass.
+    await client.query("BEGIN");
+    await client.query("SET LOCAL session_replication_role = replica");
     await client.query(`DELETE FROM security_audit_logs WHERE id = $1`, [ins.rows[0].id]);
+    await client.query("COMMIT");
   });
 });

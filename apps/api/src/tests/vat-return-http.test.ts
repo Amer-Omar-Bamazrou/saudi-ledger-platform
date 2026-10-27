@@ -25,6 +25,7 @@ import bcrypt from "bcryptjs";
 import { pool, PERMISSION_MATRIX } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { __resetRateLimitsForTests } from "../routes/auth";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -45,7 +46,7 @@ describeMaybe("M16.1 — /reports/vat-return over HTTP: reachable, documents-onl
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);

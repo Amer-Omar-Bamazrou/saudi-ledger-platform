@@ -25,6 +25,7 @@ import { auditContext } from "../lib/auditContext";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { invoicesService } from "../services/invoices.service";
 import { buildInvoiceDocModel } from "../services/invoiceDocument/invoiceDocument.service";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -42,7 +43,7 @@ describeMaybe("one default bank account, set by the tenant, printed on the invoi
   let customerId = 0;
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();
@@ -61,7 +62,7 @@ describeMaybe("one default bank account, set by the tenant, printed on the invoi
       await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
       await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
       for (const t of ["journal_entry_lines", "journal_entries", "invoice_items", "einvoice_documents", "invoices", "customers", "bank_accounts", "audit_logs", "organization_memberships", "categories", "companies"]) {
-        await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await pool.query(`DELETE FROM organizations WHERE slug = '${slug}'`);
     }

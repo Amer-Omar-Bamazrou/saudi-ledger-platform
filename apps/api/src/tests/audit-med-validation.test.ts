@@ -29,6 +29,7 @@ import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
 import { quotationsService } from "../services/quotations.service";
 import { transactionsService } from "../services/transactions.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -132,7 +133,7 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
   let orgBCustomerId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -157,11 +158,11 @@ describeMaybe("MED validation — reference ids, tax enum, vat bounds, re-dating
       await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM bill_items WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM bills WHERE organization_id IN ${org}`);
-      await pool.query(`DELETE FROM period_locks WHERE organization_id IN ${org}`);
+      await replica(pool).query(`DELETE FROM period_locks WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM invoice_number_counters WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
-      await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
+      await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
       await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);

@@ -20,6 +20,7 @@ import { pool } from "@workspace/db";
 import { operatorService } from "../services/operator.service";
 import { verifyPassword, hashPassword } from "../lib/password";
 import { ForbiddenError } from "../lib/errors";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -36,7 +37,7 @@ describeMaybe("break-glass password reset", () => {
 
   const cleanup = async () => {
     await pool.query(`DELETE FROM user_sessions WHERE (sess ->> 'userId')::int IN (SELECT id FROM users WHERE email IN ($1, $2))`, [TARGET_EMAIL, OPERATOR_EMAIL]);
-    await pool.query(`DELETE FROM security_audit_logs WHERE actor_email IN ($1, $2) OR target_user_id IN (SELECT id FROM users WHERE email IN ($1, $2))`, [TARGET_EMAIL, OPERATOR_EMAIL]);
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE actor_email IN ($1, $2) OR target_user_id IN (SELECT id FROM users WHERE email IN ($1, $2))`, [TARGET_EMAIL, OPERATOR_EMAIL]);
     await pool.query(`DELETE FROM platform_operators WHERE user_id IN (SELECT id FROM users WHERE email IN ($1, $2))`, [TARGET_EMAIL, OPERATOR_EMAIL]);
     await pool.query(`DELETE FROM users WHERE email IN ($1, $2)`, [TARGET_EMAIL, OPERATOR_EMAIL]);
   };

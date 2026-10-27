@@ -31,6 +31,7 @@ import { captureService } from "../services/capture/capture.service";
 import { capturePromotionService } from "../services/capture/promotion.service";
 import { capturedDocumentsJobRepository } from "../repositories/capturedDocuments.repository";
 import { resetArchiveStoreForTests } from "../services/einvoice/archive/resolveArchiveStore";
+import { replica } from "./helpers/replica";
 import {
   StagingDeleteFailed,
   resetStagingBackendForTests,
@@ -96,7 +97,7 @@ describeMaybe("B3 — the row never outlives the bytes", () => {
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bill_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bills WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
     await pool.query(
       `DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`,

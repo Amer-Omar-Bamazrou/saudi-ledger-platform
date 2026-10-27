@@ -52,7 +52,7 @@ describeMaybe("Batch 1C — Phase 2: parties, open items, advances, opening posi
   let existingAlpha = 0, existingBetaByName = 0, existingVendor = 0, otherOrgCustomer = 0;
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();

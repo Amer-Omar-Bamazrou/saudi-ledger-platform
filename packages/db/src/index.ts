@@ -244,6 +244,15 @@ export interface TenantScope {
    * enforced. Must be a plain SQL identifier the login role is a member of.
    */
   role: string;
+  /**
+   * 🔴 T1b (G25): who is acting — the session's user on the request path, a
+   * job's own principal, or none (`null`/omitted) for a system action. Set
+   * once, here, as the transaction-local `app.current_user_id`: every
+   * `audit_logs` row of this transaction names exactly this user (the column
+   * defaults to it, and the database refuses any other — migration 0132), so
+   * the code that writes an audit row never chooses who acted.
+   */
+  actorUserId?: number | null;
 }
 
 export interface TenantConnection {
@@ -318,6 +327,7 @@ class LazyTenantClient {
           await client.query(`SET LOCAL idle_in_transaction_session_timeout = '${IDLE_IN_TX_TIMEOUT}'`);
           await client.query("SELECT set_config('app.current_org_id', $1, true)", [this.scope.organizationId]);
           await client.query("SELECT set_config('app.current_company_id', $1, true)", [this.scope.companyId ?? ""]);
+          await client.query("SELECT set_config('app.current_user_id', $1, true)", [this.scope.actorUserId == null ? "" : String(this.scope.actorUserId)]);
         } catch (err) {
           this.opening = null;
           client.off("error", onClientError);

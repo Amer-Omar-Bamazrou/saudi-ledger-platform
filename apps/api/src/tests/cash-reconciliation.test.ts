@@ -26,6 +26,7 @@ import { monthsBetween } from "../services/analytics.service";
 import { invoicesService } from "../services/invoices.service";
 import { transactionPostingService } from "../services/transactionPosting.service";
 import { createApproved } from "./helpers/createApproved";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -82,7 +83,7 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
     ]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(
       `DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`,
     );

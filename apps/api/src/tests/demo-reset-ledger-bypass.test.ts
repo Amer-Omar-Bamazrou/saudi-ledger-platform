@@ -87,7 +87,7 @@ describeMaybe("demo reset — the production path cannot pass the append-only le
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1, $2, 'admin', 'active')`, [userId, orgId]);
     const vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1, 'Real Supplier', '399999999999993') RETURNING id`, [orgId])).rows[0].id;
     // A real bill, approved through the product: its input-VAT event is the row that must survive.
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, async () => {
         const b = await billsService.create({ billNumber: "REAL-1", vendorId, vendorReference: "SUP-REAL-1", date: "2026-06-01", subtotal: 1000, vatAmount: 150, total: 1150, supplierDocumentKind: "tax_invoice", items: [] }, userId);

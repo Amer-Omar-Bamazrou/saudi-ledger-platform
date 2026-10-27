@@ -71,7 +71,7 @@ describeMaybe("D-4a — a debit note on an Art. 50-blocked supply, on real rows"
   let blockedDn = { id: 0, billNumber: "" };
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

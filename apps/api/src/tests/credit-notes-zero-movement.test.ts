@@ -28,6 +28,7 @@ import { invoicesService } from "../services/invoices.service";
 import { customersService } from "../services/customers.service";
 import { reportsService } from "../services/reports.service";
 import { createApproved } from "./helpers/createApproved";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -53,7 +54,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
   const CN_TOTAL = 230;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.44" }, fn),
@@ -93,10 +94,10 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
     );
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM period_locks WHERE organization_id IN ${org}`);
+    await replica(pool).query(`DELETE FROM period_locks WHERE organization_id IN ${org}`);
     // audit_logs references BOTH the org and the user — clear by either, or the
     // user delete below hits a foreign key.
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = 'cn-approval@test.local'`);
@@ -441,7 +442,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
       );
       expect(ok.status).toBe("sent");
     } finally {
-      await pool.query(`DELETE FROM period_locks WHERE organization_id = $1`, [orgId]);
+      await replica(pool).query(`DELETE FROM period_locks WHERE organization_id = $1`, [orgId]);
     }
   });
 

@@ -46,6 +46,7 @@ import { billsService } from "../services/bills.service";
 import { invoicesService } from "../services/invoices.service";
 import { quotationsService } from "../services/quotations.service";
 import { purchaseOrdersService } from "../services/purchaseOrders.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -69,7 +70,7 @@ describeMaybe("party contract conformance — customers, vendors, bills list on 
   let vendorId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -87,7 +88,7 @@ describeMaybe("party contract conformance — customers, vendors, bills list on 
     for (const t of ["quotation_items", "quotations", "purchase_order_items", "purchase_orders", "invoice_items", "invoices", "bill_items", "bills", "customers", "vendors"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`);
     }
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);

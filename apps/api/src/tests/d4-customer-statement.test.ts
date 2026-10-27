@@ -26,6 +26,7 @@ import { bankAccountsService } from "../services/bankAccounts.service";
 import { reportsService } from "../services/reports.service";
 import { createApproved } from "./helpers/createApproved";
 import { businessToday } from "@workspace/shared";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -55,7 +56,7 @@ describeMaybe("D-4 Part 2 Phase E — customer statement, position and AR ageing
   let custOther = 0;
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();
@@ -79,7 +80,7 @@ describeMaybe("D-4 Part 2 Phase E — customer statement, position and AR ageing
         "invoice_items", "einvoice_documents", "invoices", "customers", "period_locks", "audit_logs", "organization_memberships",
         "bank_accounts", "categories", "companies",
       ]) {
-        await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await pool.query(`DELETE FROM organizations WHERE slug = '${slug}'`);
     }

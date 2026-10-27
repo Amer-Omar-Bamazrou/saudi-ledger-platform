@@ -35,6 +35,7 @@ import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { resolveTenant } from "../lib/tenant";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { primePermissionCache } from "../lib/rbac";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -61,8 +62,8 @@ describeMaybe("verification gate — pending orgs are fully locked out (M11.2)",
   const cleanup = async () => {
     const orgFilter = `(SELECT id FROM organizations WHERE slug LIKE 'vgate-%')`;
     const userFilter = `(SELECT id FROM users WHERE email LIKE 'vgate-test-%')`;
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${orgFilter}`);
-    await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${orgFilter} OR actor_user_id IN ${userFilter} OR target_user_id IN ${userFilter}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${orgFilter}`);
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE organization_id IN ${orgFilter} OR actor_user_id IN ${userFilter} OR target_user_id IN ${userFilter}`);
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${orgFilter}`);
     // A manual transaction POSTS since 2026-09-15 (workflow audit W7 B3), so the
     // org now owns journal entries that reference its company.

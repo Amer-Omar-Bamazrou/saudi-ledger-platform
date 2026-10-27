@@ -19,6 +19,7 @@ import { invoicesService } from "../services/invoices.service";
 import { signingService } from "../services/einvoice/signing/signing.service";
 import type { ZatcaCsrInput } from "../services/einvoice/crypto/csr";
 import { selfSignedCertificate } from "./helpers/selfSignedCert";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -49,7 +50,7 @@ describeMaybe("C5 — a blocked issuance is diagnosable, and rolls back complete
   let b2bCustomerId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -72,7 +73,7 @@ describeMaybe("C5 — a blocked issuance is diagnosable, and rolls back complete
     ]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);

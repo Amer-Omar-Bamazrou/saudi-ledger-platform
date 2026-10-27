@@ -20,6 +20,7 @@ import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
 import { summaryService } from "../services/summary.service";
 import { categorizeTransaction, looksForeignDigitalSupplier } from "../services/categorization/categorizer";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -65,7 +66,7 @@ describeMaybe("flaw #6 — extraction requires standard-rated AND charged", () =
   let accountId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -84,7 +85,7 @@ describeMaybe("flaw #6 — extraction requires standard-rated AND charged", () =
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);

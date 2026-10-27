@@ -77,7 +77,7 @@ describeMaybe("Phase 16 + 17 — the final audit's fixes (real rows)", () => {
   let seq = 0;
 
   const tenant = (org: () => string, co: () => string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org(), companyId: co(), role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org(), companyId: co(), role: "authenticated", actorUserId: userId });
     try { const out = await conn.run(() => auditContext.run({ userId, organizationId: org(), ipAddress: null }, fn)); await conn.commit(); return out; }
     catch (err) { await conn.rollback(); throw err; }
   };
@@ -393,7 +393,7 @@ describeMaybe("Phase 16 + 17 — the final audit's fixes (real rows)", () => {
     // (1) a REAL depreciation of August, written but not yet committed (its trigger holds the asset FOR SHARE) → the
     //     REVERSAL waits BEFORE it reads what was depreciated, then sees and mirrors August too. Without the reversal's
     //     up-front lock it would read July only, wait at its final update, and leave August unmirrored.
-    const dep1 = await beginTenantConnection({ organizationId: orgId, companyId: coN, role: "authenticated" });
+    const dep1 = await beginTenantConnection({ organizationId: orgId, companyId: coN, role: "authenticated", actorUserId: userId });
     let reversal: Promise<unknown>;
     try {
       await dep1.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, () => assetCapitalisationService.depreciate(asset, { period: "2026-08" }, userId)));

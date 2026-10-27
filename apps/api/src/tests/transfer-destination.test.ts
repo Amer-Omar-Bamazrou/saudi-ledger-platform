@@ -25,6 +25,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { transactionsService } from "../services/transactions.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -68,7 +69,7 @@ describeMaybe("B5 — where a transfer went", () => {
     for (const t of ["transactions", "journal_entry_lines", "journal_entries", "bank_accounts", "categories"]) {
       await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(
       `DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`,
     );

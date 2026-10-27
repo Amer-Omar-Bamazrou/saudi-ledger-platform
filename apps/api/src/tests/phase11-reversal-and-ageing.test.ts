@@ -29,6 +29,7 @@ import { journalEntriesService } from "../services/journalEntries.service";
 import { periodLocksService } from "../services/periodLocks.service";
 import { reportsService } from "../services/reports.service";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -41,7 +42,7 @@ describeMaybe("Phase 11 batch 1 — reversal period lock and business-day ageing
   let cashId = 0, equityId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -55,7 +56,7 @@ describeMaybe("Phase 11 batch 1 — reversal period lock and business-day ageing
       await client.query("BEGIN");
       const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
       for (const t of ["bill_payments", "bill_items", "bills", "journal_entry_lines", "journal_entries", "period_locks", "findings", "finding_runs", "audit_logs", "organization_memberships", "vendors", "bank_accounts", "categories", "companies"]) {
-        await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(client, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await client.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
       await client.query(`DELETE FROM users WHERE email = '${EMAIL}'`);

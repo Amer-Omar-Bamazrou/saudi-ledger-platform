@@ -53,7 +53,7 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
   const entry = { C: 0, H: 0, H2: 0, H2claim: 0, H3: 0, CB: 0 };
 
   const inTenant = async <T,>(fn: () => Promise<T>, org = orgA, co = coA): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: org, ipAddress: null }, fn));
       await conn.commit();

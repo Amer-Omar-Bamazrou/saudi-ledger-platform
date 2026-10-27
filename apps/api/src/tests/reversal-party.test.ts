@@ -21,6 +21,7 @@ import { journalEntriesService } from "../services/journalEntries.service";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { createApproved } from "./helpers/createApproved";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -40,7 +41,7 @@ describeMaybe("Phase B — a journal reversal preserves the party on control-acc
   let expenseId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -61,7 +62,7 @@ describeMaybe("Phase B — a journal reversal preserves the party on control-acc
       "payment_allocations", "payments", "journal_entry_lines", "journal_entries", "invoice_items", "einvoice_documents", "invoices",
       "bill_items", "bills", "customers", "vendors", "audit_logs", "organization_memberships", "bank_accounts", "categories", "companies",
     ]) {
-      await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+      await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
     }
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);

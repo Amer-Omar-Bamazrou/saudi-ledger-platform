@@ -20,6 +20,7 @@ import { invoicesService } from "../services/invoices.service";
 import { vatCapitalAssetService } from "../services/assets/vatCapitalAsset.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -32,7 +33,7 @@ describeMaybe("FA-F — the VAT IR Art. 52 capital-asset adjustment (real rows)"
   let machineId = 0, vanId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -48,7 +49,7 @@ describeMaybe("FA-F — the VAT IR Art. 52 capital-asset adjustment (real rows)"
       const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
       await releaseIssuedInvoicesForTeardown(`organization_id IN ${org}`);
       for (const t of ["asset_vat_use_records", "asset_disposals", "asset_events", "asset_depreciation_schedule", "bill_items", "bills", "fixed_assets", "asset_categories", "invoice_items", "invoices", "journal_entry_lines", "journal_entries", "audit_logs", "organization_memberships", "customers", "vendors", "bank_accounts", "categories", "companies"]) {
-        await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(client, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await client.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
       await client.query(`DELETE FROM users WHERE email = '${EMAIL}'`);

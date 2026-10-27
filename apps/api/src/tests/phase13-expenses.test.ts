@@ -38,7 +38,7 @@ describeMaybe("Phase 13C — expenses: paid when recorded, through the bill path
   let orgId = "", companyId = "", company2 = "", userId = 0, vendorId = 0, bankId = 0, bank2 = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>, co = companyId): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

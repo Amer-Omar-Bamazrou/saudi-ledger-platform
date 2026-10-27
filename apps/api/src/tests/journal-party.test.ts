@@ -22,6 +22,7 @@ import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { postJournalEntry, MissingPartyError } from "../services/accounting/glPosting";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -58,7 +59,7 @@ describeMaybe("N3 — the manual-JE party gate", () => {
     await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);

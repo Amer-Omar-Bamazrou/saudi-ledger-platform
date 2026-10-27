@@ -25,6 +25,7 @@ import { pool, beginTenantConnection } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { reportsService } from "../services/reports.service";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -43,7 +44,7 @@ describeMaybe("M18.2 — the balance sheet splits current from non-current", () 
   let entryNo = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn),
@@ -101,7 +102,7 @@ describeMaybe("M18.2 — the balance sheet splits current from non-current", () 
     await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${O}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);

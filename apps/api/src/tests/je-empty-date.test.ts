@@ -18,6 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -48,7 +49,7 @@ describeMaybe("journal entry date — required at the write boundary", () => {
     const org = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);

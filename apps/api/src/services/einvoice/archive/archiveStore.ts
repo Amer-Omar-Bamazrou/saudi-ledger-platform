@@ -28,8 +28,9 @@
  * altered by any user", and the solution must protect them "from any alteration
  * or undetected deletion". Immutability is a property of the archive, not a
  * retention duration. Following the discipline already proven on `audit_logs`
- * and `security_audit_logs` — where append-only is enforced by REVOKE in the
- * database rather than by convention — the interface simply cannot express
+ * and `security_audit_logs` — where append-only is enforced in the database
+ * (REVOKE for the app role; since T1b, migration 0132, a trigger binding every
+ * role) rather than by convention — the interface simply cannot express
  * deletion. Adding a `delete` here would silently make every implementation
  * capable of destroying legally-required records.
  */

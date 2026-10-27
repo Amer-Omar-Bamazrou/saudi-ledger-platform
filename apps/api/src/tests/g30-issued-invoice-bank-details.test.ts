@@ -103,7 +103,7 @@ describeMaybe("G30 — an issued invoice keeps the bank details in force when it
   }
 
   const tenant = (org: string, company: string) => async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: org, companyId: company, role: "authenticated", actorUserId: ids.admin });
     try {
       const out = await conn.run(() => auditContext.run({ userId: ids.admin, organizationId: org, ipAddress: null }, fn));
       await conn.commit();

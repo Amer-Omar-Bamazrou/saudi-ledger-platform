@@ -136,7 +136,7 @@ describeMaybe("Phase 16 — Zakat and income-tax computations on real rows", () 
   let seq = 0;
 
   const inCo = async <T,>(co: string, fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId: co, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();

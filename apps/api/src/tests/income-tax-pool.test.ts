@@ -25,6 +25,7 @@ import { billsService } from "../services/bills.service";
 import { incomeTaxPoolService } from "../services/assets/incomeTaxPool.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { deleterFor } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -37,7 +38,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
   let pressId = 0, deskId = 0;
 
   const inTenant = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() => auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn));
       await conn.commit();
@@ -55,7 +56,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
       await client.query("BEGIN");
       const org = `(SELECT id FROM organizations WHERE slug IN ${SLUGS})`;
       for (const t of ["asset_tax_pool_declarations", "asset_disposals", "asset_events", "asset_depreciation_schedule", "bill_items", "bills", "fixed_assets", "asset_categories", "journal_entry_lines", "journal_entries", "period_locks", "audit_logs", "organization_memberships", "vendors", "bank_accounts", "categories", "companies"]) {
-        await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+        await deleterFor(client, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
       }
       await client.query(`DELETE FROM organizations WHERE slug IN ${SLUGS}`);
       await client.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
@@ -265,7 +266,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
     const otherCompany = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_year_start, foreign_ownership_pct, ownership_type) VALUES ($1,'Other Co',1,100,'FOREIGN') RETURNING id`, [otherOrg])).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, otherOrg]);
     const inOther = async <T,>(fn: () => Promise<T>): Promise<T> => {
-      const conn = await beginTenantConnection({ organizationId: otherOrg, companyId: otherCompany, role: "authenticated" });
+      const conn = await beginTenantConnection({ organizationId: otherOrg, companyId: otherCompany, role: "authenticated", actorUserId: userId });
       try { const out = await conn.run(() => auditContext.run({ userId, organizationId: otherOrg, ipAddress: null }, fn)); await conn.commit(); return out; }
       catch (err) { await conn.rollback(); throw err; }
     };
@@ -311,7 +312,7 @@ describeMaybe("FA-E — the Income Tax Law Art. 17 pool (real rows)", () => {
         await client.query("BEGIN");
         const org = `(SELECT id FROM organizations WHERE slug = '${otherSlug}')`;
         for (const t of ["asset_tax_pool_declarations", "asset_events", "asset_depreciation_schedule", "bill_items", "bills", "fixed_assets", "asset_categories", "journal_entry_lines", "journal_entries", "audit_logs", "organization_memberships", "vendors", "bank_accounts", "categories", "companies"]) {
-          await client.query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
+          await deleterFor(client, t).query(`DELETE FROM ${t} WHERE organization_id IN ${org}`);
         }
         await client.query(`DELETE FROM organizations WHERE slug = '${otherSlug}'`);
         await client.query("COMMIT");

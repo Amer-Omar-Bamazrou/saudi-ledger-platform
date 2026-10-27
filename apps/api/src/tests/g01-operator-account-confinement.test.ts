@@ -43,6 +43,7 @@ import { __resetRateLimitsForTests } from "../routes/auth";
 import { assertAccountConfinedTo } from "../lib/accountScope";
 import { membersService } from "../services/members.service";
 import { userAdminService } from "../services/userAdmin.service";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -67,8 +68,8 @@ describeMaybe("G01 — a tenant admin cannot gain control of a platform-operator
   const USER_FILTER = `(SELECT id FROM users WHERE email LIKE '${P}-%')`;
 
   const cleanup = async () => {
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${ORG_FILTER}`);
-    await pool.query(
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${ORG_FILTER}`);
+    await replica(pool).query(
       `DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`,
     );
     await pool.query(`DELETE FROM organization_invitations WHERE organization_id IN ${ORG_FILTER}`);

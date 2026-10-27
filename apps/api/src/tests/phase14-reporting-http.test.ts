@@ -27,6 +27,7 @@ import { __resetRateLimitsForTests } from "../routes/auth";
 import { errorHandler } from "../middleware/errorHandler";
 import { RendererUnavailableError } from "../services/document/htmlToPdf";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -49,7 +50,7 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
     const U = `(SELECT id FROM users WHERE email LIKE '${P}-%@test.local')`;
     await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     for (const t of ["journal_entry_lines", "journal_entries"]) await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email LIKE '${P}-%@test.local'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);

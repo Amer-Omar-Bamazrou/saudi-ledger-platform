@@ -23,6 +23,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { replica } from "./helpers/replica";
 
 const connectionString = process.env.DATABASE_URL;
 const describeMaybe = connectionString ? describe : describe.skip;
@@ -51,7 +52,7 @@ describeMaybe("journal entry balance — checked on the STORED values, and again
     await releasePostedJournalsForTeardown(`organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);

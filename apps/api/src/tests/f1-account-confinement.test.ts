@@ -37,6 +37,7 @@ import http from "node:http";
 import bcrypt from "bcryptjs";
 import { pool } from "@workspace/db";
 import { __resetRateLimitsForTests } from "../routes/auth";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -66,8 +67,8 @@ describeMaybe("F1 — an org admin cannot take over an account that reaches anot
   const USER_FILTER = `(SELECT id FROM users WHERE email LIKE 'f1test-%')`;
 
   const cleanup = async () => {
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${ORG_FILTER}`);
-    await pool.query(
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${ORG_FILTER}`);
+    await replica(pool).query(
       `DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`,
     );
     await pool.query(`DELETE FROM verification_reviews WHERE organization_id IN ${ORG_FILTER}`);

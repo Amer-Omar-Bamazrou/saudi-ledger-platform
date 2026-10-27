@@ -24,6 +24,7 @@ import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { primePermissionCache } from "../lib/rbac";
 import { signupService } from "../services/signup.service";
 import { __resetRateLimitsForTests } from "../routes/auth";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -49,8 +50,8 @@ describeMaybe("public signup + applicant resubmit (M11.5)", () => {
   const cleanup = async () => {
     // Business audit rows too: the post-approval transaction write is audited,
     // and audit_logs.organization_id FKs to organizations.
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${ORG_FILTER}`);
-    await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${ORG_FILTER}`);
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE organization_id IN ${ORG_FILTER} OR actor_user_id IN ${USER_FILTER} OR target_user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM verification_reviews WHERE organization_id IN ${ORG_FILTER} OR operator_user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM verification_documents WHERE organization_id IN ${ORG_FILTER}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${USER_FILTER}`);

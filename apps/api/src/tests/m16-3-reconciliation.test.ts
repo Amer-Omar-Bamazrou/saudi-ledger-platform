@@ -36,6 +36,7 @@ import { reconciliationService, referencesDocumentNumber } from "../services/rec
 import { summaryService } from "../services/summary.service";
 import { reportsService } from "../services/reports.service";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -54,7 +55,7 @@ describeMaybe("M16.3 — bank reconciliation", () => {
   let accountId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: null }, fn),
@@ -91,7 +92,7 @@ describeMaybe("M16.3 — bank reconciliation", () => {
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bank_accounts WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);

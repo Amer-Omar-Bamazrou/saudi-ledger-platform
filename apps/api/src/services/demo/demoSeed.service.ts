@@ -213,6 +213,7 @@ export async function seedDemoTenant(opts: {
       organizationId,
       companyId,
       role: "authenticated",
+      // 🔴 T1b (owner 2026-10-27, check d): no actor. The seed runs with no signed-in user, so its audit rows record as SYSTEM.
     });
     try {
       const out = await conn.run(() =>

@@ -47,6 +47,7 @@ import {
 } from "../lib/operatorJobs";
 import { operatorZatcaService } from "../services/operatorZatca.service";
 import { __resetRateLimitsForTests } from "../routes/auth";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -131,7 +132,7 @@ describeMaybe("F2/B — refused, permitted, and audited", () => {
 
   const USER_FILTER = `(SELECT id FROM users WHERE email LIKE 'jobreach-%')`;
   const cleanup = async () => {
-    await pool.query(`DELETE FROM security_audit_logs WHERE actor_user_id IN ${USER_FILTER}`);
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE actor_user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM platform_operators WHERE user_id IN ${USER_FILTER}`);
     await pool.query(`DELETE FROM users WHERE email LIKE 'jobreach-%'`);
   };

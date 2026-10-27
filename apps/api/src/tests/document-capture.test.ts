@@ -23,6 +23,7 @@ import { verifyQrSignature } from "../services/capture/signatureVerification";
 import { resetArchiveStoreForTests } from "../services/einvoice/archive/resolveArchiveStore";
 import { resetStagingBackendForTests } from "../services/capture/stagingBackend";
 import { resetEnvCache } from "@workspace/config";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -46,7 +47,7 @@ describeMaybe("A1 — document capture, provenance and promotion", () => {
   let archiveDir = "";
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const out = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.1" }, fn),
@@ -68,7 +69,7 @@ describeMaybe("A1 — document capture, provenance and promotion", () => {
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bill_items WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM bills WHERE organization_id IN ${org}`);
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
     await pool.query(`DELETE FROM vendors WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
@@ -285,7 +286,7 @@ describeMaybe("A1 — document capture, provenance and promotion", () => {
 
       // Attach, then fail the surrounding transaction. The capture must not be
       // left claiming to be evidence for a bill that was never posted.
-      const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+      const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
       await conn
         .run(() =>
           auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.1" }, async () => {

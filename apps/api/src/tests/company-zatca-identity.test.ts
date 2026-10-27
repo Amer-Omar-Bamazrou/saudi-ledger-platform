@@ -23,6 +23,7 @@ import { invoicesService } from "../services/invoices.service";
 import { companiesService } from "../services/companies.service";
 import { auditContext } from "../lib/auditContext";
 import { createApproved } from "./helpers/createApproved";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -60,8 +61,8 @@ describeMaybe("M11.6 — issued invoices carry the COMPANY's ZATCA identity", ()
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = 'zatca-identity')`;
     const U = `(SELECT id FROM users WHERE email LIKE 'zatca-id-%')`;
-    await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${O}`);
-    await pool.query(`DELETE FROM security_audit_logs WHERE organization_id IN ${O} OR actor_user_id IN ${U}`);
+    await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${O}`);
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE organization_id IN ${O} OR actor_user_id IN ${U}`);
     await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entry_lines WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM journal_entries WHERE organization_id IN ${O}`);
@@ -80,7 +81,7 @@ describeMaybe("M11.6 — issued invoices carry the COMPANY's ZATCA identity", ()
   async function asTenant<T>(fn: () => Promise<T>): Promise<T> {
     // Same non-owner RLS role the API drops to per request (matches the other
     // approval tests, which hardcode it rather than loading full app config).
-    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+    const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
     try {
       const result = await conn.run(() =>
         auditContext.run({ userId, organizationId: orgId, ipAddress: null }, () => fn()),

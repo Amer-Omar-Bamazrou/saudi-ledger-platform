@@ -35,6 +35,7 @@ import { assembleSignedInvoice } from "../services/einvoice/crypto/assembleSigne
 import { generateZatcaKeyPair } from "../services/einvoice/crypto/keys";
 import { buildZatcaCsr } from "../services/einvoice/crypto/csr";
 import { createApproved } from "./helpers/createApproved";
+import { replica } from "./helpers/replica";
 
 const BASE =
   process.env.ZATCA_SANDBOX_BASE ?? "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal";
@@ -62,7 +63,7 @@ let creditNoteId = 0;
 let debitNoteId = 0;
 
 async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-  const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
+  const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: userId });
   try {
     const out = await conn.run(() =>
       auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.55" }, fn),
@@ -86,7 +87,7 @@ const cleanup = async () => {
   await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org} AND document_type <> 'invoice'`);
   await pool.query(`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${org})`);
   await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
-  await pool.query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+  await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
   await pool.query(`DELETE FROM customers WHERE organization_id IN ${org}`);
   await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
   await pool.query(`DELETE FROM users WHERE email = 'cn-live@test.local'`);
