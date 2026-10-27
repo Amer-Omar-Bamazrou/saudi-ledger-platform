@@ -964,6 +964,17 @@ export const ConvertQuotationResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -8500,6 +8511,17 @@ export const ListInvoicesResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -8639,6 +8661,17 @@ export const CreateInvoiceResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -8723,6 +8756,17 @@ export const GetInvoiceResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -8851,6 +8895,17 @@ export const UpdateInvoiceResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -9680,6 +9735,17 @@ export const CreateAdvanceInvoiceResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -12627,6 +12693,17 @@ export const WriteOffBadDebtResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -12729,6 +12806,138 @@ export const CreateBadDebtRecoveryResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceInvoiceId": zod.number(),
+  "advanceInvoiceNumber": zod.string(),
+  "advanceInvoiceDate": zod.string(),
+  "amount": zod.number().describe('VAT inclusive — the part of the 386 this invoice adjusts.'),
+  "taxableAmount": zod.number().describe('KSA-31.'),
+  "taxAmount": zod.number().describe('KSA-32.'),
+  "taxCategoryCode": zod.enum(['S', 'Z', 'E']).describe('KSA-33.'),
+  "vatRate": zod.number().describe('KSA-34 — the advance invoice\'s rate.'),
+  "allocationId": zod.number().nullable().describe('The receipt → invoice allocation folded into the issue entry; null while a draft.')
+}).describe('AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386.')).describe('AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing.'),
+  "prepaidAmount": zod.number().describe('BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount.'),
+  "amountDue": zod.number().describe('total − prepaidAmount: what the customer still owes at issue (BT-115). The outstanding after cash is total − paidAmount − creditedAmount as before (the folded advance sits in paidAmount once issued).'),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "discount": zod.number().optional(),
+  "total": zod.number()
+})).optional()
+})
+
+
+/**
+ * Phase 18 (owner decision 2 of 2026-10-27). Until the live response mapping exists, an approver records a rejection by hand with ZATCA's response attached. The record is append-only. Nothing is posted and nothing on the invoice or its entry changes; the invoice is corrected by a NEW invoice (POST /invoices/{id}/correction). Refused for an invoice with no submission, one ZATCA accepted, one already rejected, and one with payments or credits applied.
+ * @summary Record that ZATCA rejected this invoice's submission (an approver, with ZATCA's response attached)
+ */
+export const RecordInvoiceRejectionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RecordInvoiceRejectionBody = zod.object({
+  "zatcaResponse": zod.string().optional().describe('ZATCA\'s response to the submission, verbatim (required, non-blank; checked by the service).'),
+  "reason": zod.string().optional().describe('Why it was rejected, in the approver\'s words (required, non-blank; checked by the service).'),
+  "zatcaRejectedAt": zod.string().nullish().describe('When ZATCA rejected it, as ZATCA reported it (ISO date-time), when known.')
+})
+
+export const RecordInvoiceRejectionResponse = zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+})
+
+
+/**
+ * Phase 18 (owner decision 2 of 2026-10-27). A rejected invoice is corrected by a NEW invoice with its own number, counter, hash and UUID, never by a credit note. The draft carries the same customer and date (the supply's tax point) and the rejected invoice's lines, for the user to correct; it is issued by the ordinary approval, which also posts a new entry mirroring the rejected invoice's entry, so the sale is recorded once. Approver-only.
+ * @summary Create the DRAFT invoice that corrects a rejected invoice (linked from the new invoice)
+ */
+export const CreateInvoiceCorrectionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateInvoiceCorrectionResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening receivable migrated at cut-off (amount-only; no VAT, ICV, hash or QR). Its number is the previous system\'s for a first migration, or OPEN-<batch>-<seq> for a replacement.'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed. The row is history — frozen, excluded from every receivable figure and from the live list, readable by id. NULL otherwise.'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesInvoiceId": zod.number().nullish().describe('Policy C: the reversed opening invoice this replacement item stands in for (provenance).'),
+  "date": zod.string(),
+  "dueDate": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "status": zod.enum(['draft', 'submitted', 'sent', 'paid', 'overdue', 'cancelled']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "discount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullable(),
+  "paidAmount": zod.number(),
+  "creditedAmount": zod.number().describe('D-4 — the part settled by credit notes (Σ credit-note allocations to this invoice). Outstanding = total − paidAmount − creditedAmount.'),
+  "paidAt": zod.string().nullable(),
+  "reviewNote": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "invoiceHash": zod.string().nullable().describe('ZATCA hash-chain link; null until the invoice is approved.'),
+  "previousHash": zod.string().nullable(),
+  "qrCode": zod.string().nullable().describe('ZATCA Phase-1 QR (base64 TLV); null until approved.'),
+  "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
+  "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
+  "noteReason": zod.string().nullable(),
+  "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
+  "zatcaUuid": zod.string().nullable(),
+  "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C (2026-09-22): the fixed asset this tax invoice SELLS. Its revenue line then credits the disposal gain\/loss account instead of SALES (IAS 16.68 — a disposal is not revenue) and approval derecognises the asset on the same entry. A restricted motor vehicle bought without deduction must be sold with NO VAT (Art. 50(3)) — a VAT-bearing invoice is refused.\n'),
+  "openingEinvoicingStatus": zod.union([zod.literal('cleared'),zod.literal('reported'),zod.literal('pre_einvoicing'),zod.literal(null)]).nullish().describe('2026-09-22, opening items only: the previous solution\'s e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).'),
+  "openingSourceUuid": zod.string().nullish().describe('2026-09-22, opening items only: the previous solution\'s document UUID.'),
+  "openingCorrectionJournalEntryId": zod.number().nullish().describe('2026-09-22: on a reversed ORIGINAL corrected item-by-item (A4 + answer 5), the correction entry whose other side is retained earnings.'),
+  "writtenOffAmount": zod.number().describe('2026-09-22: the unpaid consideration written off as a bad debt (Art. 40(7)(d)); every outstanding figure subtracts it. 0 when none.'),
+  "badDebtRelief": zod.union([zod.object({
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD. The date the Art. 40(7) conditions were met; the return period the relief belongs to. Null on a migrated relief whose date the previous system did not record.'),
+  "vatAmount": zod.number().nullable().describe('The Output Tax relieved (the VAT share of the unpaid consideration). Null on a migrated relief whose amount was not recorded.'),
+  "returnPeriod": zod.string().nullable().describe('YYYY-MM of the return the relief was (or is to be) claimed in.'),
+  "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
+  "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
+  "source": zod.enum(['recorded', 'migrated']),
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+}),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
+  "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
+  "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -12830,6 +13039,17 @@ export const CreateAdvanceCreditNoteResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -12927,6 +13147,17 @@ export const PayInvoiceResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -13943,6 +14174,17 @@ export const SubmitInvoiceResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -14032,6 +14274,17 @@ export const SendBackInvoiceResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),
@@ -14117,6 +14370,17 @@ export const ApproveInvoiceResponse = zod.object({
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
+  "correctsInvoiceId": zod.number().nullable().describe('Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.'),
+  "correctedByInvoiceId": zod.number().nullish().describe('Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.'),
+  "rejection": zod.union([zod.object({
+  "id": zod.number(),
+  "invoiceId": zod.number(),
+  "zatcaResponse": zod.string(),
+  "reason": zod.string(),
+  "zatcaRejectedAt": zod.string().nullable(),
+  "recordedBy": zod.number().nullable(),
+  "recordedAt": zod.string()
+}),zod.null()]).optional().describe('Phase 18, on a single-invoice read: ZATCA\'s rejection of this invoice as recorded, or null.'),
   "prepayments": zod.array(zod.object({
   "id": zod.number(),
   "advanceInvoiceId": zod.number(),

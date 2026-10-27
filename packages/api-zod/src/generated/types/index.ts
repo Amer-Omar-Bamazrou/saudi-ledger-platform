@@ -443,6 +443,8 @@ export * from './invoiceLineInput';
 export * from './invoiceOpeningEinvoicingStatus';
 export * from './invoicePrepayment';
 export * from './invoicePrepaymentTaxCategoryCode';
+export * from './invoiceRejection';
+export * from './invoiceRejectionInput';
 export * from './invoiceStatus';
 export * from './journalEntry';
 export * from './journalEntryLine';

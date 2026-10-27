@@ -17,6 +17,7 @@ export * from "./budgets";
 export * from "./users";
 export * from "./periodLocks";
 export * from "./periodControls";
+export * from "./invoiceRejections";
 export * from "./einvoiceDocuments";
 export * from "./einvoiceArchive";
 export * from "./capturedDocuments";

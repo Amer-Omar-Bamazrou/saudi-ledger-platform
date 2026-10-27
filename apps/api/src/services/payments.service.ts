@@ -43,6 +43,7 @@ import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from
 import { round2 } from "../lib/money";
 import { assertDateString } from "../lib/writeGuards";
 import { businessToday, isReceivableInBooks } from "@workspace/shared";
+import { assertNotRejected } from "./invoiceCorrections.service";
 import { paymentsRepository, invoiceSettlementRepository } from "../repositories/payments.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { customerStatementRepository } from "../repositories/customerStatement.repository";
@@ -367,6 +368,7 @@ async function lockAndCheckTargets(
     if (!isReceivableInBooks(inv)) {
       throw new ConflictError(`Invoice ${inv.invoiceNumber} has not been issued (status: ${inv.status}); only an invoice in the books — issued here, or migrated as an opening item — has a receivable to settle.`);
     }
+    await assertNotRejected(inv); // Phase 18: a rejected invoice is never settled; its correction is
     if ((inv.customerId ?? null) !== party.customerId) {
       throw new BusinessRuleError(422, {
         error:

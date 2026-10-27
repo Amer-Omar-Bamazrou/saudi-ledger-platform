@@ -94,6 +94,7 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
       : null,
     recoversInvoiceId: inv.recoversInvoiceId ?? null,
     recoveryPaymentId: inv.recoveryPaymentId ?? null,
+    correctsInvoiceId: inv.correctsInvoiceId ?? null,
     prepayments: prepayments ?? [],
     prepaidAmount,
     amountDue: Math.round((toNum(inv.total) - prepaidAmount) * 100) / 100,

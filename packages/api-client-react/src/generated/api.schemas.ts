@@ -3039,6 +3039,18 @@ export interface BadDebtRelief {
   journalEntryId: number | null;
 }
 
+export interface InvoiceRejection {
+  id: number;
+  invoiceId: number;
+  zatcaResponse: string;
+  reason: string;
+  /** @nullable */
+  zatcaRejectedAt: string | null;
+  /** @nullable */
+  recordedBy: number | null;
+  recordedAt: string;
+}
+
 /**
  * KSA-33.
  */
@@ -3199,6 +3211,18 @@ export interface Invoice {
      * @nullable
      */
   recoveryPaymentId: number | null;
+  /**
+     * Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.
+     * @nullable
+     */
+  correctsInvoiceId: number | null;
+  /**
+     * Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.
+     * @nullable
+     */
+  correctedByInvoiceId?: number | null;
+  /** Phase 18, on a single-invoice read: ZATCA's rejection of this invoice as recorded, or null. */
+  rejection?: InvoiceRejection | null;
   /** AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing. */
   prepayments: InvoicePrepayment[];
   /** BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount. */
@@ -3967,6 +3991,18 @@ export interface CapturedDocument {
 export interface SendBackInput {
   /** @nullable */
   note?: string | null;
+}
+
+export interface InvoiceRejectionInput {
+  /** ZATCA's response to the submission, verbatim (required, non-blank; checked by the service). */
+  zatcaResponse?: string;
+  /** Why it was rejected, in the approver's words (required, non-blank; checked by the service). */
+  reason?: string;
+  /**
+     * When ZATCA rejected it, as ZATCA reported it (ISO date-time), when known.
+     * @nullable
+     */
+  zatcaRejectedAt?: string | null;
 }
 
 export interface PrepaymentInput {
