@@ -154,7 +154,14 @@ test.describe.serial("12B — the reconciliation workbench", () => {
     await page.getByTestId("rec-status").click();
     await page.getByRole("option", { name: /All lines/ }).click();
     await page.getByTestId(`rec-open-${lineIds.part}`).click();
-    await dialog.locator('[data-testid^="rec-cand-"]').filter({ hasText: "300.00" }).first().getByRole("button", { name: /Use/ }).click();
+    // TR-4 (2026-10-27): the candidate list can re-render as the reopened line's own list settles, and a "Use"
+    // that lands on the list it replaced is lost — the submit then stays disabled (main's run 40527661472).
+    // "Use" FILLS the amount it can answer, so pressing it until the selection holds is idempotent.
+    const partCand = dialog.locator('[data-testid^="rec-cand-"]').filter({ hasText: "300.00" }).first();
+    await expect(async () => {
+      await partCand.getByRole("button", { name: /Use/ }).click();
+      expect(await moneyOf(dialog.getByTestId("rec-selected-total"))).toBe(300);
+    }).toPass({ timeout: 15_000 });
     await dialog.getByTestId("rec-submit").click();
     await expect.poll(() => moneyOf(dialog.getByTestId("rec-dialog-remaining"))).toBe(200);
     await page.getByTestId("rec-close").click();
@@ -326,7 +333,11 @@ test.describe.serial("12C — transfers between own banks", () => {
     const dialog = page.getByTestId("rec-line-dialog");
     const cand = dialog.locator('[data-testid^="rec-cand-"]').filter({ hasText: "Bank transfer" }).first();
     await expect(cand, "the transfer is offered, labelled as a bank transfer").toBeVisible();
-    await cand.getByRole("button", { name: /Use/ }).click();
+    // TR-4: the same lost-"Use" race as the partly-answered line above; press it until the selection holds.
+    await expect(async () => {
+      await cand.getByRole("button", { name: /Use/ }).click();
+      expect(await moneyOf(dialog.getByTestId("rec-selected-total"))).toBeGreaterThan(0);
+    }).toPass({ timeout: 15_000 });
     await dialog.getByTestId("rec-submit").click();
     await expect.poll(() => moneyOf(dialog.getByTestId("rec-dialog-remaining"))).toBe(0);
     // The SERVER's word, before leaving the page (leaving aborts an in-flight request).
