@@ -6259,7 +6259,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PayPayrollRunInput"
+              $ref: "#/components/schemas/PayPayrollRunGosiInput"
       responses:
         "200":
           description: The payroll run, its GOSI marked paid
@@ -11136,7 +11136,7 @@ components:
 
     PayrollRun:
       type: object
-      required: [id, period, status, totalBasicSalary, totalAllowances, totalGosiEmployee, totalGosiEmployer, totalDeductions, totalNetPay, processedAt, reviewNote, notes, gosiPaidAt, createdAt]
+      required: [id, period, status, totalBasicSalary, totalAllowances, totalGosiEmployee, totalGosiEmployer, totalDeductions, totalNetPay, processedAt, reviewNote, notes, gosiPaidAt, gosiInvoicedAmount, gosiInvoiceReference, gosiReconcilingDifference, createdAt]
       properties:
         id:
           type: integer
@@ -11160,6 +11160,9 @@ components:
         gosiPaidAt:
           type: ["string", "null"]
           description: "GOSI (Phase 18): the day the run's GOSI contributions were paid through the GOSI pay path (YYYY-MM-DD); null when not paid that way."
+        gosiInvoicedAmount: { type: ["number", "null"], description: "GOSI decision 22: what GOSI invoiced and the bank paid, when the payment stated it; null when the accrual was paid." }
+        gosiInvoiceReference: { type: ["string", "null"], description: "GOSI's invoice reference, when stated." }
+        gosiReconcilingDifference: { type: ["number", "null"], description: "GOSI decision 22: invoiced − accrued (employee + employer contributions) — a reconciling item for the user to resolve, never posted. Null when no invoiced amount was stated." }
         processedAt:
           type: ["string", "null"]
         reviewNote:
@@ -12835,7 +12838,7 @@ components:
       type: object
       required: [id, payrollRunId, employeeId, basicSalary, housingAllowance, transportAllowance, otherAllowances,
                  grossSalary, gosiEmployee, gosiEmployer, gosiRegime, gosiWageBase, gosiEmployeeRate, gosiEmployerRate,
-                 gosiInKindHousing, gosiPensionFloorWage, gosiServiceDays, gosiPeriodDays, gosiWageFixedPeriod,
+                 gosiInKindHousing, gosiPensionFloorWage, gosiHazardsFloorOpen, gosiServiceDays, gosiPeriodDays, gosiWageFixedPeriod,
                  additions, deductions, netPay, employeeName, employeeNumber]
       properties:
         id: { type: integer }
@@ -12857,6 +12860,7 @@ components:
         gosiEmployerRate: { type: ["number", "null"], description: "The employer rate used, as a fraction." }
         gosiInKindHousing: { type: ["number", "null"], description: "GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none." }
         gosiPensionFloorWage: { type: ["number", "null"], description: "GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply." }
+        gosiHazardsFloorOpen: { type: boolean, description: "GOSI decision 21: a non-Saudi line below the 1421H Regulation Art. 19(1) SAR 400 occupational-hazards minimum — a WARNING only, an open GOSI question; the line's figures are never changed by it." }
         gosiServiceDays: { type: ["integer", "null"], description: "GO-12 (both laws: 2024 Regulation Art. 20(2); 1421H Regulation Art. 21(3)): the days of service in a joining or leaving month. Null for a full month." }
         gosiPeriodDays: { type: ["integer", "null"], description: "GO-12: the month's actual days, the divisor of gosiServiceDays. Null for a full month." }
         gosiWageFixedPeriod: { type: ["string", "null"], description: "GO-12 (1421H law): the period whose line fixed the year's contributory wage, which this line used. Null for other laws." }
@@ -12902,6 +12906,15 @@ components:
       properties:
         bankAccountId: { type: integer, description: "The bank the net pay left from (D-3: every cash line names its bank)" }
         paidAt: { type: ["string", "null"], description: "YYYY-MM-DD; defaults to today" }
+
+    PayPayrollRunGosiInput:
+      type: object
+      required: [bankAccountId]
+      properties:
+        bankAccountId: { type: integer, description: "The bank the GOSI contributions left from (D-3: every cash line names its bank)" }
+        paidAt: { type: ["string", "null"], description: "YYYY-MM-DD; defaults to today" }
+        invoicedAmount: { type: ["number", "null"], description: "GOSI decision 22: GOSI's invoiced amount for the run, when it differs from the accrual. The bank pays it; the difference is shown on the run as a reconciling item, never posted to another account. Omitted: the accrual is paid." }
+        gosiInvoiceReference: { type: ["string", "null"], description: "GOSI's invoice reference, as printed on its invoice." }
 
     Employee:
       type: object

@@ -177,10 +177,10 @@ export const payrollRepository = {
   },
 
   /** 🔴 GOSI (Phase 18): mark a run's GOSI paid ONCE — only while it is approved or paid and not yet marked. */
-  markGosiPaidIfUnpaid(id: number, paidAt: string) {
+  markGosiPaidIfUnpaid(id: number, paidAt: string, invoicedAmount: number | null = null, invoiceReference: string | null = null) {
     return db
       .update(payrollRunsTable)
-      .set({ gosiPaidAt: paidAt })
+      .set({ gosiPaidAt: paidAt, gosiInvoicedAmount: invoicedAmount == null ? null : invoicedAmount.toFixed(2), gosiInvoiceReference: invoiceReference })
       .where(and(eq(payrollRunsTable.id, id), sql`${payrollRunsTable.status} IN ('approved', 'paid')`, sql`${payrollRunsTable.gosiPaidAt} IS NULL`))
       .returning();
   },

@@ -4185,6 +4185,21 @@ export interface PayrollRun {
      * @nullable
      */
   gosiPaidAt: string | null;
+  /**
+     * GOSI decision 22: what GOSI invoiced and the bank paid, when the payment stated it; null when the accrual was paid.
+     * @nullable
+     */
+  gosiInvoicedAmount: number | null;
+  /**
+     * GOSI's invoice reference, when stated.
+     * @nullable
+     */
+  gosiInvoiceReference: string | null;
+  /**
+     * GOSI decision 22: invoiced − accrued (employee + employer contributions) — a reconciling item for the user to resolve, never posted. Null when no invoiced amount was stated.
+     * @nullable
+     */
+  gosiReconcilingDifference: number | null;
   /** @nullable */
   processedAt: string | null;
   /** @nullable */
@@ -6353,6 +6368,8 @@ export interface PayrollItem {
      * @nullable
      */
   gosiPensionFloorWage: number | null;
+  /** GOSI decision 21: a non-Saudi line below the 1421H Regulation Art. 19(1) SAR 400 occupational-hazards minimum — a WARNING only, an open GOSI question; the line's figures are never changed by it. */
+  gosiHazardsFloorOpen: boolean;
   /**
      * GO-12 (both laws: 2024 Regulation Art. 20(2); 1421H Regulation Art. 21(3)): the days of service in a joining or leaving month. Null for a full month.
      * @nullable
@@ -6405,6 +6422,26 @@ export interface PayPayrollRunInput {
      * @nullable
      */
   paidAt?: string | null;
+}
+
+export interface PayPayrollRunGosiInput {
+  /** The bank the GOSI contributions left from (D-3: every cash line names its bank) */
+  bankAccountId: number;
+  /**
+     * YYYY-MM-DD; defaults to today
+     * @nullable
+     */
+  paidAt?: string | null;
+  /**
+     * GOSI decision 22: GOSI's invoiced amount for the run, when it differs from the accrual. The bank pays it; the difference is shown on the run as a reconciling item, never posted to another account. Omitted: the accrual is paid.
+     * @nullable
+     */
+  invoicedAmount?: number | null;
+  /**
+     * GOSI's invoice reference, as printed on its invoice.
+     * @nullable
+     */
+  gosiInvoiceReference?: string | null;
 }
 
 /**

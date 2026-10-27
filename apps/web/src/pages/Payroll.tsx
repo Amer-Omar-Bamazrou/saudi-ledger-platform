@@ -14,11 +14,11 @@ import { useToast } from "@/hooks/use-toast";
 import { BankPicker } from "@/components/payments/shared";
 import { ApiError } from "@/lib/api";
 
-import type { CreatePayrollRunInput, PayPayrollRunInput, PayrollRunDetail, PayrollRunListItem } from "@workspace/api-client-react";
+import type { CreatePayrollRunInput, PayPayrollRunGosiInput, PayPayrollRunInput, PayrollRunDetail, PayrollRunListItem } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
-const json = { create: (b: CreatePayrollRunInput) => JSON.stringify(b), pay: (b: PayPayrollRunInput) => JSON.stringify(b) };
+const json = { create: (b: CreatePayrollRunInput) => JSON.stringify(b), pay: (b: PayPayrollRunInput) => JSON.stringify(b), payGosi: (b: PayPayrollRunGosiInput) => JSON.stringify(b) };
 
 /** DR-41: the pay path's refusals, titled by their CODE in both languages (the server's sentence is the description). */
 const PAY_REFUSALS: Record<string, [string, string]> = {
@@ -33,6 +33,7 @@ const GOSI_PAY_REFUSALS: Record<string, [string, string]> = {
   payroll_gosi_already_paid: ["This run's GOSI is already paid", "تأمينات هذا المسير مدفوعة بالفعل"],
   payroll_gosi_nothing_due: ["This run carries no GOSI to pay", "لا توجد تأمينات مستحقة على هذا المسير"],
   payroll_not_approved: ["Approve the payroll run before paying its GOSI", "اعتمد مسير الرواتب قبل دفع تأميناته"],
+  gosi_invoiced_amount_invalid: ["GOSI's invoiced amount must be a positive amount", "يجب أن يكون المبلغ المفوتر من التأمينات مبلغًا موجبًا"],
 };
 
 /**
@@ -87,6 +88,9 @@ export default function Payroll() {
   const [gosiRun, setGosiRun] = useState<PayrollRunListItem | null>(null);
   const [gosiBank, setGosiBank] = useState("");
   const [gosiPaidAt, setGosiPaidAt] = useState(businessToday());
+  // GOSI decision 22: GOSI's invoiced amount (optional) and its reference; the difference from the accrual is shown, never posted.
+  const [gosiInvoiced, setGosiInvoiced] = useState("");
+  const [gosiInvoiceRef, setGosiInvoiceRef] = useState("");
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t, lang } = useLanguage();
@@ -116,7 +120,7 @@ export default function Payroll() {
   });
 
   const gosiMut = useMutation({
-    mutationFn: (v: { id: number; body: PayPayrollRunInput }) => apiFetch(`/payroll/${v.id}/gosi/pay`, { method: "POST", body: json.pay(v.body) }),
+    mutationFn: (v: { id: number; body: PayPayrollRunGosiInput }) => apiFetch(`/payroll/${v.id}/gosi/pay`, { method: "POST", body: json.payGosi(v.body) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll"] }); setGosiRun(null); toast({ title: t("GOSI payment recorded — GOSI Payable settled", "سُجِّلت دفعة التأمينات — سُوِّيت التأمينات المستحقة") }); },
     onError: (e: Error) => {
       const pair = e instanceof ApiError && e.code ? GOSI_PAY_REFUSALS[e.code] : undefined;
@@ -160,10 +164,15 @@ export default function Payroll() {
             <div className="mt-2 space-y-3">
               <p className="text-sm">{t("Employee + employer contributions", "اشتراكات الموظف وصاحب العمل")}: <span className="font-mono font-semibold" dir="ltr">{gosiRun ? fmtNum(gosiRun.totalGosiEmployee + gosiRun.totalGosiEmployer) : ""}</span></p>
               <BankPicker value={gosiBank} onChange={setGosiBank} testId="payroll-gosi-bank" label={t("Paid from", "دُفع من")} />
+              <div><Label className="text-xs text-muted-foreground">{t("GOSI's invoiced amount (if it differs)", "المبلغ المفوتر من التأمينات (إن اختلف)")}</Label><Input type="number" dir="ltr" value={gosiInvoiced} onChange={e=>setGosiInvoiced(e.target.value)} className="mt-1 h-8 text-sm" data-testid="payroll-gosi-invoiced" /></div>
+              <div><Label className="text-xs text-muted-foreground">{t("GOSI invoice reference", "رقم فاتورة التأمينات")}</Label><Input dir="ltr" value={gosiInvoiceRef} onChange={e=>setGosiInvoiceRef(e.target.value)} className="mt-1 h-8 text-sm" /></div>
+              {gosiRun && gosiInvoiced !== "" && Number.isFinite(Number(gosiInvoiced)) && (
+                <p className="text-xs" data-testid="payroll-gosi-difference">{t("Difference from the accrual (a reconciling item, not posted)", "الفرق عن المستحق (بند تسوية، لا يُرحَّل)")}: <span className="font-mono" dir="ltr">{fmtNum(Math.round((Number(gosiInvoiced) - gosiRun.totalGosiEmployee - gosiRun.totalGosiEmployer) * 100) / 100)}</span></p>
+              )}
               <div><Label className="text-xs text-muted-foreground">{t("Paid on", "تاريخ الدفع")}</Label><Input type="date" dir="ltr" value={gosiPaidAt} onChange={e=>setGosiPaidAt(e.target.value)} className="mt-1 h-8 text-sm" data-testid="payroll-gosi-date" /></div>
               <p className="text-xs text-muted-foreground">{t("The employer share was expensed and the employee share withheld when the run was approved; paying settles GOSI Payable from the bank. GOSI is due by the 15th of the following month. If the bank's GOSI line is imported later, reconcile it to this payment rather than categorising it.", "سُجِّلت حصة صاحب العمل مصروفًا واستُقطعت حصة الموظف عند اعتماد المسير؛ والدفع يسوّي التأمينات المستحقة من البنك. وتستحق التأمينات بحلول اليوم 15 من الشهر التالي. وإذا استُورد سطر التأمينات البنكي لاحقًا فطابقه مع هذه الدفعة بدل تصنيفه.")}</p>
             </div>
-            <Button className="w-full mt-4" data-testid="payroll-gosi-submit" disabled={!gosiBank || !gosiPaidAt || gosiMut.isPending} onClick={()=>gosiRun && gosiMut.mutate({ id: gosiRun.id, body: { bankAccountId: Number(gosiBank), paidAt: gosiPaidAt } })}>{gosiMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record GOSI payment", "تسجيل دفعة التأمينات")}</Button>
+            <Button className="w-full mt-4" data-testid="payroll-gosi-submit" disabled={!gosiBank || !gosiPaidAt || gosiMut.isPending} onClick={()=>gosiRun && gosiMut.mutate({ id: gosiRun.id, body: { bankAccountId: Number(gosiBank), paidAt: gosiPaidAt, invoicedAmount: gosiInvoiced === "" ? null : Number(gosiInvoiced), gosiInvoiceReference: gosiInvoiceRef.trim() || null } })}>{gosiMut.isPending ? t("Recording...", "جارٍ التسجيل...") : t("Record GOSI payment", "تسجيل دفعة التأمينات")}</Button>
           </DialogContent>
         </Dialog>
       </div>
@@ -201,7 +210,7 @@ export default function Payroll() {
                       <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
                       {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();approveMut.mutate(r.id);}}>{t("Approve", "موافقة")}</Button>}
                       {r.status==="approved"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setPayRun(r);setPayBank("");setPaidAt(businessToday());}}>{t("Pay", "دفع")}</Button>}
-                      {(r.status==="approved"||r.status==="paid")&&!r.gosiPaidAt&&(r.totalGosiEmployee+r.totalGosiEmployer)>0&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-gosi-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setGosiRun(r);setGosiBank("");setGosiPaidAt(businessToday());}}>{t("Pay GOSI", "دفع التأمينات")}</Button>}
+                      {(r.status==="approved"||r.status==="paid")&&!r.gosiPaidAt&&(r.totalGosiEmployee+r.totalGosiEmployer)>0&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-gosi-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setGosiRun(r);setGosiBank("");setGosiPaidAt(businessToday());setGosiInvoiced("");setGosiInvoiceRef("");}}>{t("Pay GOSI", "دفع التأمينات")}</Button>}
                       {r.gosiPaidAt&&<span className="text-xs text-muted-foreground" data-testid={`payroll-gosi-paid-${r.id}`}>{t("GOSI paid", "التأمينات مدفوعة")} {r.gosiPaidAt}</span>}
                     </div>
                   </div>
@@ -219,7 +228,7 @@ export default function Payroll() {
                 <thead><tr className="border-b border-border text-muted-foreground uppercase">{[t("Employee", "الموظف"), t("Basic", "الأساسي"), t("GOSI (Emp)", "GOSI (موظف)"), t("GOSI (Er)", "GOSI (صاحب عمل)"), t("Net Pay", "صافي الراتب")].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
                 <tbody>{detail.items.map(item=>(
                   <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/10">
-                    <td className="py-2 pe-3"><div className="font-medium text-sm">{item.employeeName}</div><div className="text-muted-foreground font-mono">{item.employeeNumber}</div></td>
+                    <td className="py-2 pe-3"><div className="font-medium text-sm">{item.employeeName}</div><div className="text-muted-foreground font-mono">{item.employeeNumber}</div>{item.gosiHazardsFloorOpen && <div className="text-xs text-muted-foreground" data-testid={`payroll-hazards-note-${item.id}`}>{t("Below the SAR 400 occupational-hazards minimum of the 1421H Regulation Art. 19(1); whether it applies to this employee is an open question for GOSI. Nothing was changed.", "دون الحد الأدنى لفرع الأخطار المهنية (400 ريال) في المادة 19(1) من لائحة 1421هـ؛ وانطباقه على هذا الموظف مسألة مفتوحة لدى التأمينات. لم يُغيَّر شيء.")}</div>}</td>
                     <td className="py-2 pe-3 font-mono">{fmtNum(item.basicSalary)}</td>
                     <td className="py-2 pe-3 font-mono text-attention">{fmtNum(item.gosiEmployee)}</td>
                     <td className="py-2 pe-3 font-mono text-negative">{fmtNum(item.gosiEmployer)}</td>

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, numeric, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric, uuid, index, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -37,6 +37,15 @@ export const payrollRunsTable = pgTable(
     createdBy: integer("created_by"),    // FK to users.id (nullable for pre-auth records)
     /** 🔴 GOSI (Phase 18): the day the run's GOSI was paid through the GOSI pay path (YYYY-MM-DD); NULL = not paid that way. */
     gosiPaidAt: text("gosi_paid_at"),
+    /**
+     * 🔴 GOSI decision 22 (owner 2026-10-27): what GOSI INVOICED for this run's
+     * contributions, when it differs from the accrual, and GOSI's invoice
+     * reference. The bank paid the invoiced amount; the difference from the
+     * accrued amount is SHOWN as a reconciling item, never posted to a guessed
+     * account. NULL when the payment stated no invoiced amount (the accrual paid).
+     */
+    gosiInvoicedAmount: numeric("gosi_invoiced_amount", { precision: 15, scale: 2 }),
+    gosiInvoiceReference: text("gosi_invoice_reference"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("payroll_runs_org_idx").on(t.organizationId)],
@@ -91,6 +100,13 @@ export const payrollItemsTable = pgTable(
      */
     gosiInKindHousing: numeric("gosi_in_kind_housing", { precision: 15, scale: 2 }),
     gosiPensionFloorWage: numeric("gosi_pension_floor_wage", { precision: 15, scale: 2 }),
+    /**
+     * 🔴 GOSI decision 21 (owner 2026-10-27, scope corrected the same day): true
+     * for a non-Saudi line below the 1421H Regulation Art. 19(1) SAR 400
+     * occupational-hazards minimum — a WARNING only (an open GOSI question);
+     * the line's figures are never changed by it. `gosiHazardsMinimumOpen`.
+     */
+    gosiHazardsFloorOpen: boolean("gosi_hazards_floor_open").notNull().default(false),
     gosiServiceDays: integer("gosi_service_days"),
     gosiPeriodDays: integer("gosi_period_days"),
     gosiWageFixedPeriod: text("gosi_wage_fixed_period"),
