@@ -99,9 +99,10 @@ export const GOSI_SCHEDULE: readonly GosiRateEntry[] = [
       "1421H Registration and Contributions Regulation (GOSI-published): Art. 19(1) the pension floor of a SAR 1,500 wage; Art. 30(1) late fines at most 100% of the contributions; Art. 21(2)(a),(b) the wage due in January (or a joiner's first month) for the year",
       "Royal Decree M/273 item 4: the 1421H law continues to apply to members with earlier uncompensated contribution periods",
       "1421H Registration and Contributions Regulation Art. 21(3): the joining and leaving months by days of service (owner, 2026-10-27 morning)",
+      "SANED 1.5% borne equally (0.75% each side) from 01/01/2022: GOSI's own news of 13/1/2022 (gosi.gov.sa/GOSIOnline/news106en) — recorded as verified by the owner (2026-10-27, decision 19)",
     ],
     unverified: [
-      "SANED 0.75% each side (and so pension 9% each side): GOSI's own news of 13/1/2022 (gosi.gov.sa/GOSIOnline/news106en), 1.5% borne equally from 01/01/2022 — recorded as verified by the owner (2026-10-27, decision 19); the binding instrument for the 1421H-law split is still not found (question G1)",
+      "SANED 0.75% each side (and so pension 9% each side): the binding instrument for the 1421H-law split is still not found (question G1); GOSI's own news of 13/1/2022 is in the sources",
       "The proration divisor, the month's actual days: an INTERPRETATION matching the 2024 rule, as Art. 21(3) names none (owner, 2026-10-27 morning); GOSI's Employer FAQ #11 reads otherwise (question G1)",
     ],
     pensionFloorWage: 1_500,

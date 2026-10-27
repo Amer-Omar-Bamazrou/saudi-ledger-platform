@@ -117,6 +117,18 @@ export const payrollRepository = {
     return Math.round(Number(rows[0]?.open ?? 0) * 100) / 100;
   },
 
+  /**
+   * 🔴 GOSI decision 22: Σ(invoiced − accrued) over runs whose GOSI payment stated GOSI's invoiced amount. Each
+   * difference stays on GOSI Payable as a SHOWN reconciling item; it is explained, so the next payment's
+   * "already settled" check adds it back instead of reading it as a bank line that paid this run.
+   */
+  async gosiRecordedDifferences(): Promise<number> {
+    const { rows } = await db.execute<{ d: string }>(sql`
+      SELECT coalesce(sum(${payrollRunsTable.gosiInvoicedAmount} - ${payrollRunsTable.totalGosiEmployee} - ${payrollRunsTable.totalGosiEmployer}), 0)::text AS d
+        FROM ${payrollRunsTable} WHERE ${payrollRunsTable.gosiInvoicedAmount} IS NOT NULL AND ${payrollRunsTable.gosiPaidAt} IS NOT NULL`);
+    return Math.round(Number(rows[0]?.d ?? 0) * 100) / 100;
+  },
+
   /** 🔴 GOSI (Phase 18): approved or paid runs whose GOSI was not paid through the GOSI pay path, newest first. */
   runsWithUnpaidGosi() {
     return db

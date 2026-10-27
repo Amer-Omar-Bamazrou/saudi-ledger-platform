@@ -299,7 +299,8 @@ export const payrollService = {
     if (!(amount > 0)) {
       throw new BusinessRuleError(409, { code: "payroll_gosi_nothing_due", error: `Payroll run ${run.period} carries no GOSI contributions, so there is nothing to pay.` });
     }
-    const openGosiPayable = await payrollRepository.gosiPayableOpen();
+    // Decision 22: earlier runs' recorded reconciling differences are explained, not a bank line paying this run.
+    const openGosiPayable = Math.round(((await payrollRepository.gosiPayableOpen()) + (await payrollRepository.gosiRecordedDifferences())) * 100) / 100;
     if (openGosiPayable + 0.005 < amount) {
       throw new BusinessRuleError(409, {
         code: "payroll_gosi_payable_already_settled",
