@@ -10,6 +10,7 @@ import type { InvoiceDocumentType } from './invoiceDocumentType';
 import type { InvoiceItem } from './invoiceItem';
 import type { InvoiceOpeningEinvoicingStatus } from './invoiceOpeningEinvoicingStatus';
 import type { InvoicePrepayment } from './invoicePrepayment';
+import type { InvoiceRejection } from './invoiceRejection';
 import type { InvoiceStatus } from './invoiceStatus';
 
 export interface Invoice {
@@ -119,6 +120,18 @@ export interface Invoice {
      * @nullable
      */
   recoveryPaymentId: number | null;
+  /**
+     * Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise.
+     * @nullable
+     */
+  correctsInvoiceId: number | null;
+  /**
+     * Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none.
+     * @nullable
+     */
+  correctedByInvoiceId?: number | null;
+  /** Phase 18, on a single-invoice read: ZATCA's rejection of this invoice as recorded, or null. */
+  rejection?: InvoiceRejection | null;
   /** AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing. */
   prepayments: InvoicePrepayment[];
   /** BT-113 — Σ prepayments.amount (VAT inclusive). Computed from adjusted advance tax invoices only, never from paidAmount. */

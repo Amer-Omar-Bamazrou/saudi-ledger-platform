@@ -19,6 +19,9 @@ router.post("/:id/advance-credit-notes", invoicesController.creditAdvance);
 // 2026-09-22: bad debts — the Art. 40(7) write-off with relief, and the Art. 40(9) recovery document.
 router.post("/:id/bad-debt-relief", invoicesController.writeOffBadDebt);
 router.post("/:id/bad-debt-recoveries", invoicesController.createBadDebtRecovery);
+// Phase 18 — the PR C correction route: an approver records ZATCA's rejection; a NEW invoice corrects it.
+router.post("/:id/rejection", invoicesController.recordRejection);
+router.post("/:id/correction", invoicesController.createCorrection);
 router.patch("/:id", invoicesController.update);
 router.post("/:id/pay", invoicesController.pay);
 router.get("/:id/payments", invoicesController.payments);

@@ -281,6 +281,14 @@ export const invoicesTable = pgTable(
      * D-4 allocation instead.
      */
     recoversInvoiceId: integer("recovers_invoice_id"),
+    /**
+     * 🔴 Phase 18 (the PR C correction route, owner decision 2 of 2026-10-27):
+     * on a correction, the REJECTED invoice it corrects. The link lives on the
+     * NEW invoice, so the frozen rejected invoice is never touched. Fixed once
+     * issued; an issued correction must name a rejected invoice of the same
+     * company and customer and carry its date; one issued correction each (0134).
+     */
+    correctsInvoiceId: integer("corrects_invoice_id"),
     recoveryPaymentId: integer("recovery_payment_id"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -320,6 +328,7 @@ export const invoicesTable = pgTable(
     // AP-2: the 386s of a receipt (the receipt card, the advance figures) — declared here, per the rule above.
     index("invoices_advance_payment_idx").on(t.advancePaymentId),
     index("invoices_recovers_idx").on(t.recoversInvoiceId),
+    uniqueIndex("invoices_one_issued_correction_unq").on(t.correctsInvoiceId).where(sql`corrects_invoice_id IS NOT NULL AND invoice_is_issued(status, is_opening)`),
   ],
 );
 

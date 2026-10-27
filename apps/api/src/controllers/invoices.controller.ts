@@ -1,8 +1,9 @@
 import type { Request, Response } from "express";
-import { CreateInvoiceBody, CreateAdvanceCreditNoteBody, CreateBadDebtRecoveryBody, PayInvoiceBody, UpdateInvoiceBody, WriteOffBadDebtBody } from "@workspace/api-zod";
+import { CreateInvoiceBody, CreateAdvanceCreditNoteBody, CreateBadDebtRecoveryBody, PayInvoiceBody, RecordInvoiceRejectionBody, UpdateInvoiceBody, WriteOffBadDebtBody } from "@workspace/api-zod";
 import { invoicesService } from "../services/invoices.service";
 import { advanceInvoicesService } from "../services/advanceInvoices.service";
 import { badDebtService } from "../services/badDebt.service";
+import { invoiceCorrectionsService } from "../services/invoiceCorrections.service";
 import { can } from "../lib/rbac";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError, BusinessRuleError } from "../lib/errors";
@@ -164,6 +165,15 @@ export const invoicesController = {
   async createBadDebtRecovery(req: Request, res: Response) {
     const body = parseOr400(CreateBadDebtRecoveryBody.safeParse(req.body));
     res.status(201).json(await badDebtService.createRecovery(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  /** Phase 18 — the PR C correction route: ZATCA's rejection, recorded by an approver with ZATCA's response. */
+  async recordRejection(req: Request, res: Response) {
+    const body = parseOr400(RecordInvoiceRejectionBody.safeParse(req.body ?? {}));
+    res.status(201).json(await invoiceCorrectionsService.recordRejection(requireIdParam(req), body, req.session?.userId ?? null));
+  },
+  /** Phase 18 — the draft NEW invoice that corrects a rejected one. */
+  async createCorrection(req: Request, res: Response) {
+    res.status(201).json(await invoiceCorrectionsService.createCorrection(requireIdParam(req), req.session?.userId ?? null));
   },
   async pay(req: Request, res: Response) {
     const body = parseOr400(PayInvoiceBody.safeParse(req.body));

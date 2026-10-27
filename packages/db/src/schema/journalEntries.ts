@@ -21,6 +21,7 @@ export const JOURNAL_SOURCE_TYPES = [
   "recurring",                         // no source_id: a rule's id is a uuid; its run log names the rule and the entry
   "reversal",                          // journal_entries.id (the entry reversed)
   "invoice",                           // invoices.id (invoice, debit/credit note, advance, recovery)
+  "invoice_correction",                // invoices.id (the correction whose issue mirrors the rejected invoice's entry)
   "invoice_write_off",                 // invoices.id (bad-debt relief)
   "credit_note_application",           // invoices.id (the credit note applied)
   "customer_payment",                  // payments.id
