@@ -35,6 +35,7 @@ import { htmlToPdf } from "../document/htmlToPdf";
 import QRCode from "qrcode";
 import { invoicesRepository } from "../../repositories/invoices.repository";
 import { customersRepository } from "../../repositories/customers.repository";
+import type { IssuedBuyer, IssuedSeller } from "../issuedParties";
 import { companiesRepository } from "../../repositories/companies.repository";
 import { paymentsRepository } from "../../repositories/payments.repository";
 import { advanceInvoicesRepository } from "../../repositories/advanceInvoices.repository";
@@ -99,8 +100,14 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
   }
 
   const items = await invoicesRepository.itemsByInvoice(invoiceId);
-  const company = await companiesRepository.findCurrent();
-  const customer = inv.customerId != null ? (await customersRepository.findById(inv.customerId))[0] : undefined;
+  // 🔴 T1c (G32): an invoice issued with its parties captured prints ONLY the
+  // capture. The live company and customer are read solely for a row issued
+  // before 0133, which has none (never back-filled), and that document says so.
+  const captured = inv.partiesCapturedAt != null;
+  const sellerAtIssue = inv.issuedSeller as IssuedSeller | null;
+  const buyerAtIssue = inv.issuedBuyer as IssuedBuyer | null;
+  const company = captured ? undefined : await companiesRepository.findCurrent();
+  const customer = captured || inv.customerId == null ? undefined : (await customersRepository.findById(inv.customerId))[0];
   // AP-2: the receipt an advance tax invoice declares VAT for, and the advance invoice(s) a final invoice adjusts.
   const advanceReceipt = inv.advancePaymentId != null ? (await paymentsRepository.findPaymentById(inv.advancePaymentId))[0] ?? null : null;
   const prepayments = inv.documentType === "invoice"
@@ -136,15 +143,19 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
       // company (a later VAT correction or rename must not rewrite an issued
       // tax invoice). Only issued documents reach here, and issuance always
       // stamps both (the database refuses an issuing write without them), so
-      // there is no fallback to the live record. The live company still fills
-      // the fields the stamp does not carry (Arabic name, CR, address).
+      // there is no fallback to the live record. T1c's capture carries the
+      // rest (Arabic name, CR, address); only a row issued before it reads live.
       name: inv.sellerName ?? "",
-      nameAr: company?.nameAr ?? null,
+      nameAr: captured ? sellerAtIssue?.nameAr ?? null : company?.nameAr ?? null,
       vatNumber: inv.sellerVatNumber ?? null,
-      crNumber: company?.crNumber ?? null,
-      address: company ? partyAddress(company) : null,
+      crNumber: captured ? sellerAtIssue?.crNumber ?? null : company?.crNumber ?? null,
+      address: captured ? (sellerAtIssue ? partyAddress(sellerAtIssue) : null) : company ? partyAddress(company) : null,
     },
-    buyer: customer
+    buyer: captured
+      ? buyerAtIssue
+        ? { name: buyerAtIssue.name, nameAr: buyerAtIssue.nameAr, vatNumber: buyerAtIssue.vatNumber, crNumber: buyerAtIssue.crNumber, address: partyAddress(buyerAtIssue) }
+        : null
+      : customer
       ? {
           name: customer.name,
           nameAr: customer.nameAr,
@@ -162,7 +173,8 @@ export async function buildInvoiceDocModel(invoiceId: number, lang: DocLang): Pr
     advanceReceipt: advanceReceipt ? { number: `RCPT-${advanceReceipt.id}`, date: advanceReceipt.paidAt } : null,
     prepayments,
     qrDataUrl,
-    logoDataUrl: await loadLogoDataUrl(company?.logoPath),
+    logoDataUrl: await loadLogoDataUrl(captured ? sellerAtIssue?.logoPath : company?.logoPath),
+    partiesAsRecordedToday: !captured,
     termsAndConditions: inv.termsAndConditions ?? null,
     // 🔴 G30: the payment details captured AT ISSUE, never the bank account's
     // current values — re-rendering an issued invoice reproduces what it told
