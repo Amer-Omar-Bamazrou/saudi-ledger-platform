@@ -15,6 +15,7 @@ import { DualDate } from "@/components/DualDate";
 import { FilterScope } from "@/components/FilterScope";
 import { JOURNAL_ENTRY_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
 import { accountRefusalToast } from "@/lib/accountRefusals";
+import { journalRecordsNothing, journalRefusalToast } from "@/lib/journalRefusals";
 
 import type { Category, CreateJournalEntryInput, Customer, JournalEntry, JournalEntryLineInput, ListJournalEntries200, Vendor } from "@workspace/api-client-react";
 import { fetchPickerOptions } from "@/lib/pagedList";
@@ -98,8 +99,9 @@ export default function JournalEntries() {
   const createMut = useMutation({
     mutationFn: (body: CreateJournalEntryInput) => apiFetch("/journal-entries", { method: "POST", body: json.create(body) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["journal-entries"] }); setOpen(false); toast({ title: t("Journal entry created", "تم إنشاء قيد اليومية") }); },
-    // G55: a line on an account this company cannot post to (another company's bank) is explained in both languages.
-    onError: (e: Error) => toast(accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    // G55: a line on an account this company cannot post to (another company's bank) is explained in both languages;
+    // so are this screen's own refusals (all-zero amounts, a reserved entry number).
+    onError: (e: Error) => toast(journalRefusalToast(e, t) ?? accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -115,7 +117,7 @@ export default function JournalEntries() {
   const postMut = useMutation({
     mutationFn: (id: number) => apiFetch(`/journal-entries/${id}/post`, { method: "POST" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry posted to ledger", "تم ترحيل القيد إلى دفتر الأستاذ") }); },
-    onError: (e: Error) => toast(accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(journalRefusalToast(e, t) ?? accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   const reverseMut = useMutation({
@@ -132,6 +134,7 @@ export default function JournalEntries() {
   const totalDebit = lines.reduce((s, l) => s + Number(l.debitAmount || 0), 0);
   const totalCredit = lines.reduce((s, l) => s + Number(l.creditAmount || 0), 0);
   const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  const recordsNothing = journalRecordsNothing(totalDebit, totalCredit);
   // N3 — an AR/AP line without its party would only 422 on save; say so before.
   const partyMissing = lines.some((l) => {
     const code = systemCodeOf(l.accountId);
@@ -243,8 +246,9 @@ export default function JournalEntries() {
             )}
             </div>
 
+            {recordsNothing && <p className="text-xs text-muted-foreground mt-1" data-testid="je-zero-hint">{t("Enter the debit and credit amounts: an entry whose amounts are all blank or zero records nothing.", "أدخل مبالغ المدين والدائن: القيد الذي جميع مبالغه فارغة أو صفر لا يسجّل شيئاً.")}</p>}
             {partyMissing && <p className="text-xs text-negative mt-1">⚠ {t("A receivable/payable line must name its customer/vendor.", "سطر الذمم المدينة/الدائنة يجب أن يحدد العميل/المورّد.")}</p>}
-            <Button className="w-full mt-4" data-testid="je-save" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||partyMissing||createMut.isPending}>
+            <Button className="w-full mt-4" data-testid="je-save" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||recordsNothing||partyMissing||createMut.isPending}>
               {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
             </Button>
           </DialogContent>
