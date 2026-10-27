@@ -197,6 +197,21 @@ export const journalEntriesService = {
       });
     }
 
+    /**
+     * 🔴 Phase 18 (owner 2026-10-23, decision 2; register §11.11 P-4): an entry
+     * whose amounts are blank or all zero balances at 0 = 0 and records nothing,
+     * so it is refused here and again at posting (the approval reads the stored
+     * lines). The screen sends a blank amount as 0. A single 0.00 line beside
+     * real amounts stays allowed: issued invoices and payroll carry such lines.
+     */
+    if (!(totalDebit > 0)) {
+      throw new BusinessRuleError(422, {
+        code: "journal_entry_zero_amounts",
+        field: "lines",
+        error: "This journal entry records nothing: every amount is blank or zero. Enter the debit and credit amounts. Nothing was saved.",
+      });
+    }
+
     // 🔴 M13: every line must name an account. This is a BEHAVIOURAL CHANGE.
     //
     // A line with no `accountId` cannot be classified: the income statement and
