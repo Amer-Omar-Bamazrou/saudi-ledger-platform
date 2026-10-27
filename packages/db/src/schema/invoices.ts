@@ -1,5 +1,5 @@
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
-import { pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, numeric, uuid, index, uniqueIndex, foreignKey, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -94,6 +94,20 @@ export const invoicesTable = pgTable(
     issuedBankName: text("issued_bank_name"),
     issuedBankIban: text("issued_bank_iban"),
     issuedBankAccountName: text("issued_bank_account_name"),
+    /**
+     * 🔴 T1c (Phase 18, G32): the rest of what an issued document PRINTS about
+     * its parties, captured at issue from the records themselves, so a reprint
+     * never reads the live company or customer: the seller's Arabic name, CR,
+     * address and logo (`issued_seller`), and the whole buyer block
+     * (`issued_buyer`, NULL when the invoice names no customer). The issuing
+     * write must capture exactly what the records hold, and an issued capture
+     * never changes (migration 0133). NULL on drafts, on opening invoices, and
+     * on rows issued before 0133 (never back-filled: today's values are not
+     * what they printed). Shape: services/issuedParties.ts.
+     */
+    issuedSeller: jsonb("issued_seller"),
+    issuedBuyer: jsonb("issued_buyer"),
+    partiesCapturedAt: timestamp("parties_captured_at", { withTimezone: true }),
 
     // ── ZATCA PHASE 2 identity (M12.1a) ──────────────────────────────────────
     // Identity of the document itself, as opposed to transmission state (which
