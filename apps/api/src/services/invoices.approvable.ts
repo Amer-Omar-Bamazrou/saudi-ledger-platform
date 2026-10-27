@@ -33,6 +33,7 @@ import { CUSTOMER_CREDIT_ACCOUNT, CUSTOMER_CREDIT_ACCOUNT_NAME, depositLiability
 import { round2 } from "../lib/money";
 import { requireIssuanceSeller } from "./sellerIdentity";
 import { captureIssuedParties } from "./issuedParties";
+import { assertCorrectionIssuable, mirrorRejectedInvoiceEntries } from "./invoiceCorrections.service";
 import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
 import { BusinessRuleError, ConflictError } from "../lib/errors";
 import { logger } from "../lib/logger";
@@ -222,6 +223,8 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
   // consumed (a refused issuance is recoverable; an ICV gap is not).
   const isAdvance = inv.documentType === ADVANCE_INVOICE_TYPE;
   if (isAdvance) await assertAdvanceInvoiceIssuable(inv);
+  // Phase 18 (the PR C correction route): a correction names a rejected invoice of its own customer and date.
+  await assertCorrectionIssuable(inv);
   const prepayments = !isAdvance && !isNoteType(inv.documentType) ? await assertPrepaymentsIssuable(inv, total) : [];
 
   // The tenant's real ZATCA identity — fails closed if unconfigured, so an
@@ -411,6 +414,11 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
   if (queued.qrCode) {
     [updated] = await invoicesRepository.update(inv.id, { qrCode: queued.qrCode });
   }
+
+  // 🔴 Phase 18 (the PR C correction route): a correction's issue first mirrors
+  // its rejected predecessor's own posted entry in a NEW entry (the frozen one is
+  // never touched); with this invoice's own entry below, the sale stands once.
+  await mirrorRejectedInvoiceEntries(inv);
 
   // ── GL ────────────────────────────────────────────────────────────────────
   // A CREDIT note reverses; a DEBIT note does not.

@@ -19,6 +19,7 @@ import {
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 import { invoiceNotReversed, billNotReversed } from "./openingReversal";
+import { invoiceNotSuperseded } from "./invoiceSuperseded";
 import { billOutstandingSql } from "./billPosition";
 
 /**
@@ -93,7 +94,8 @@ const claimedInputVatIn = (dateFrom: string, dateTo: string) =>
 export const INVOICE_NOT_IN_BOOKS = ["draft", "submitted"];
 // N1: approved invoices OF THE SCOPED COMPANY — same inheritance as bills.
 // Policy C: a reversed opening invoice is out of every money report (openingReversal.ts).
-const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), invoiceNotReversed(), companyScoped(invoicesTable.companyId))!;
+// Phase 18 (the PR C correction route): a rejected invoice whose correction is issued is out too — the correction carries the sale.
+const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), invoiceNotReversed(), invoiceNotSuperseded(), companyScoped(invoicesTable.companyId))!;
 
 /**
  * The sign a document contributes to receivables, sales and output VAT (M12.1b).

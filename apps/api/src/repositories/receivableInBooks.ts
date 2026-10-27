@@ -8,6 +8,7 @@ import { invoicesTable } from "@workspace/db";
 import { and, eq, inArray, type SQL } from "drizzle-orm";
 import { INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
 import { invoiceNotReversed } from "./openingReversal";
+import { invoiceNotSuperseded } from "./invoiceSuperseded";
 
 /** Drizzle form — an invoice row that is a receivable in the books (outstanding NOT included; the caller adds its own tolerance). */
 export const receivableInBooks = (): SQL =>
@@ -15,6 +16,7 @@ export const receivableInBooks = (): SQL =>
     eq(invoicesTable.documentType, "invoice"),
     inArray(invoicesTable.status, [...INVOICE_IN_BOOKS_STATUSES]),
     invoiceNotReversed(),
+    invoiceNotSuperseded(), // Phase 18: a rejected invoice whose correction is issued owes nothing; the correction does
   ) as SQL;
 
 /**

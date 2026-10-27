@@ -125,6 +125,12 @@ const SEMANTICS: Record<string, { from: State[]; to: State }> = {
   // both act on an approved record and leave it approved.
   "bad-debt-relief": { from: ["approved"], to: "approved" },
   "bad-debt-recoveries": { from: ["approved"], to: "approved" },
+  // Phase 18 (the PR C correction route): `rejection` records ZATCA's rejection
+  // of an ISSUED invoice (it stays issued; nothing posts); `correction` creates
+  // a NEW draft invoice that corrects it, issued by the ordinary `approve`.
+  // Both act on an approved record and leave it approved.
+  rejection: { from: ["approved"], to: "approved" },
+  correction: { from: ["approved"], to: "approved" },
   // Phase 13A (2026-09-24): supply or re-check the VAT evidence of an UNPOSTED
   // bill — it links a captured document and re-decides the verdict, changing
   // no figure and no lifecycle state. Modelled on the draft, where the UI

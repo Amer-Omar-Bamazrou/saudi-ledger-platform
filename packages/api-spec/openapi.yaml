@@ -5628,6 +5628,102 @@ paths:
               schema: { $ref: "#/components/schemas/Invoice" }
         "404":
           description: Not found
+  /invoices/{id}/rejection:
+    post:
+      operationId: recordInvoiceRejection
+      tags: [invoices]
+      summary: Record that ZATCA rejected this invoice's submission (an approver, with ZATCA's response attached)
+      description: >
+        Phase 18 (owner decision 2 of 2026-10-27). Until the live response mapping exists, an approver
+        records a rejection by hand with ZATCA's response attached. The record is append-only. Nothing is
+        posted and nothing on the invoice or its entry changes; the invoice is corrected by a NEW invoice
+        (POST /invoices/{id}/correction). Refused for an invoice with no submission, one ZATCA accepted,
+        one already rejected, and one with payments or credits applied.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRejectionInput"
+      responses:
+        "201":
+          description: The rejection, as recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceRejection"
+        "403":
+          description: Not an approver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Not an issued tax invoice with a submission ZATCA did not accept; already rejected; or payments or credits are applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: ZATCA's response or the reason is missing or blank, or the rejection time is not a date-time
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /invoices/{id}/correction:
+    post:
+      operationId: createInvoiceCorrection
+      tags: [invoices]
+      summary: Create the DRAFT invoice that corrects a rejected invoice (linked from the new invoice)
+      description: >
+        Phase 18 (owner decision 2 of 2026-10-27). A rejected invoice is corrected by a NEW invoice with its
+        own number, counter, hash and UUID, never by a credit note. The draft carries the same customer and
+        date (the supply's tax point) and the rejected invoice's lines, for the user to correct; it is issued
+        by the ordinary approval, which also posts a new entry mirroring the rejected invoice's entry, so the
+        sale is recorded once. Approver-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: The correction, as a draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "403":
+          description: Not an approver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The invoice is not rejected, already has an issued correction or a draft one, or adjusts advance invoices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /invoices/{id}/advance-credit-notes:
     post:
       operationId: createAdvanceCreditNote
@@ -10898,7 +10994,7 @@ components:
 
     Invoice:
       type: object
-      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, creditedAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid, advancePaymentId, prepayments, prepaidAmount, amountDue, writtenOffAmount, badDebtRelief, recoversInvoiceId, recoveryPaymentId]
+      required: [id, invoiceNumber, date, dueDate, customerId, customerName, status, subtotal, vatAmount, discount, total, currency, paidAmount, creditedAmount, paidAt, reviewNote, notes, invoiceHash, previousHash, qrCode, documentType, originalInvoiceId, noteReason, icv, zatcaUuid, advancePaymentId, prepayments, prepaidAmount, amountDue, writtenOffAmount, badDebtRelief, recoversInvoiceId, recoveryPaymentId, correctsInvoiceId]
       properties:
         id:
           type: integer
@@ -10989,6 +11085,17 @@ components:
         recoveryPaymentId:
           type: ["integer", "null"]
           description: "On a recovery_invoice: the receipt whose money it declares; its date is the document's date (the tax point) and supply date."
+        correctsInvoiceId:
+          type: ["integer", "null"]
+          description: "Phase 18: on a correction, the rejected invoice it corrects (the link lives on the NEW invoice); null otherwise."
+        correctedByInvoiceId:
+          type: ["integer", "null"]
+          description: "Phase 18, on a single-invoice read: the correction that corrects this rejected invoice, issued or draft; null when none."
+        rejection:
+          description: "Phase 18, on a single-invoice read: ZATCA's rejection of this invoice as recorded, or null."
+          oneOf:
+            - $ref: "#/components/schemas/InvoiceRejection"
+            - { type: "null" }
         prepayments:
           type: array
           description: "AP-2: the advance tax invoices this FINAL invoice adjusts (XML Standard ¶9.5 — one row per 386; allocationId set once issued). Empty on a note, an advance invoice, or an invoice adjusting nothing."
@@ -11004,6 +11111,36 @@ components:
           items:
             $ref: "#/components/schemas/InvoiceItem"
 
+    InvoiceRejectionInput:
+      type: object
+      properties:
+        zatcaResponse:
+          type: string
+          description: ZATCA's response to the submission, verbatim (required, non-blank; checked by the service).
+        reason:
+          type: string
+          description: Why it was rejected, in the approver's words (required, non-blank; checked by the service).
+        zatcaRejectedAt:
+          type: ["string", "null"]
+          description: When ZATCA rejected it, as ZATCA reported it (ISO date-time), when known.
+    InvoiceRejection:
+      type: object
+      required: [id, invoiceId, zatcaResponse, reason, zatcaRejectedAt, recordedBy, recordedAt]
+      properties:
+        id:
+          type: integer
+        invoiceId:
+          type: integer
+        zatcaResponse:
+          type: string
+        reason:
+          type: string
+        zatcaRejectedAt:
+          type: ["string", "null"]
+        recordedBy:
+          type: ["integer", "null"]
+        recordedAt:
+          type: string
     InvoicePrepayment:
       type: object
       description: "AP-2 — one advance tax invoice (386) adjusted on a final invoice: the VAT-inclusive amount and its KSA-31…34 split copied from the 386."
