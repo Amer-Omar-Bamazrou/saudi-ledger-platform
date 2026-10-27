@@ -21,6 +21,7 @@ import { DualDate } from "@/components/DualDate";
 import { OpeningRecordBadge, OpeningRecordNote } from "@/components/migration/OpeningRecord";
 import { PaymentHistory } from "@/components/PaymentHistory";
 import { BadDebtRecoveryDialog, WriteOffBadDebtDialog } from "@/components/invoices/BadDebtDialogs";
+import { ZatcaRejectionDialog } from "@/components/invoices/ZatcaRejectionDialogs";
 
 const PAGE_SIZE = 50;
 
@@ -205,6 +206,7 @@ export default function Invoices() {
   // 2026-09-22: bad debts — the Art. 40(7) write-off with relief, and the Art. 40(9) recovery document.
   const [writeOffFor, setWriteOffFor] = useState<Invoice | null>(null);
   const [recoveryFor, setRecoveryFor] = useState<Invoice | null>(null);
+  const [rejectionFor, setRejectionFor] = useState<Invoice | null>(null);
 
   const payMut = useMutation({
     mutationFn: ({ id, amount, bankAccountId }: { id: number; amount: number; bankAccountId: number }) =>
@@ -646,6 +648,10 @@ export default function Invoices() {
                       {inv.status === "sent" && inv.documentType === "invoice" && !inv.isOpening && !inv.badDebtRelief && inv.total - inv.paidAmount - inv.creditedAmount > 0.005 && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-muted-foreground" onClick={() => setWriteOffFor(inv)} data-testid={`write-off-${inv.id}`}>{t("Write off", "شطب")}</Button>
                       )}
+                      {/* Phase 18 — the PR C correction route: ZATCA's rejection, recorded by an approver; then a NEW invoice corrects it. */}
+                      {(inv.status === "sent" || inv.status === "paid") && inv.documentType === "invoice" && !inv.isOpening && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-muted-foreground" onClick={() => setRejectionFor(inv)} data-testid={`zatca-rejection-${inv.id}`}>{t("ZATCA rejection", "رفض الهيئة")}</Button>
+                      )}
                       {inv.documentType === "invoice" && inv.badDebtRelief && (
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-primary" onClick={() => setRecoveryFor(inv)} data-testid={`declare-recovery-${inv.id}`}>{t("Declare recovery", "إفصاح عن استرداد")}</Button>
                       )}
@@ -732,6 +738,7 @@ export default function Invoices() {
 
       {writeOffFor && <WriteOffBadDebtDialog invoice={writeOffFor} open onClose={() => setWriteOffFor(null)} />}
       {recoveryFor && <BadDebtRecoveryDialog invoice={recoveryFor} open onClose={() => setRecoveryFor(null)} />}
+      {rejectionFor && <ZatcaRejectionDialog invoice={rejectionFor} open onClose={() => setRejectionFor(null)} />}
       <Dialog open={payOpen !== null} onOpenChange={()=>setPayOpen(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>{t("Record Payment", "تسجيل دفعة")}</DialogTitle></DialogHeader>

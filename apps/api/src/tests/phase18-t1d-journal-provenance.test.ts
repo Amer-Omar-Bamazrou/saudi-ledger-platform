@@ -79,9 +79,16 @@ describe("T1d guards — every production call of the posting seam names its sou
     expect(missing).toEqual([]);
   });
 
-  const migration = readFileSync(join(SRC, "..", "..", "..", "packages", "db", "migrations", "0129_t1d_journal_provenance.sql"), "utf8");
+  const migrationsDir = join(SRC, "..", "..", "..", "packages", "db", "migrations");
+  const migration = readFileSync(join(migrationsDir, "0129_t1d_journal_provenance.sql"), "utf8");
+  // The source-type CHECK as the database holds it NOW: the latest migration that (re)defines it
+  // (0129; 0134 added 'invoice_correction' for the PR C correction route).
+  const ADD_CHECK = 'ADD CONSTRAINT "journal_entries_source_type_chk"';
+  const definer = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()
+    .map((f) => readFileSync(join(migrationsDir, f), "utf8")).filter((s) => s.includes(ADD_CHECK)).pop()!;
   it("🔴 the database's source types are JOURNAL_SOURCE_TYPES, exactly", () => {
-    const check = migration.slice(migration.indexOf('"journal_entries_source_type_chk"'), migration.indexOf('"journal_entries_source_id_chk"'));
+    const from = definer.indexOf(ADD_CHECK);
+    const check = definer.slice(from, definer.indexOf("--> statement-breakpoint", from));
     expect([...check.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort()).toEqual([...JOURNAL_SOURCE_TYPES].sort());
   });
   it("🔴 the database's reserved prefixes are RESERVED_ENTRY_NUMBER_PREFIXES, exactly (in the CHECK and in the pre-check)", () => {

@@ -29,6 +29,7 @@ import { checkPeriodOpen } from "./accounting/periodLock";
 import { approvalService } from "./approval";
 import { invoiceApprovable, removeUnissuedInvoice } from "./invoices.approvable";
 import { buildInvoiceOut } from "./invoices.presenter";
+import { correctionStateOf } from "./invoiceCorrections.service";
 import { invoicesRepository, DEFAULT_PAGE, INVOICE_DRAFT_EDITABLE, type InvoiceListFilter } from "../repositories/invoices.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { paymentsService } from "./payments.service";
@@ -120,7 +121,8 @@ export const invoicesService = {
     const [row] = await invoicesRepository.findWithCustomer(id);
     if (!row) throw new NotFoundError("Not found");
     const items = await invoicesRepository.itemsByInvoice(id);
-    return buildInvoiceOut(row.inv, row.cust, items, await prepaymentsOf(row.inv));
+    // Phase 18: a single read also says whether ZATCA's rejection is recorded, and which invoice corrects it.
+    return { ...buildInvoiceOut(row.inv, row.cust, items, await prepaymentsOf(row.inv)), ...(await correctionStateOf(id)) };
   },
 
   /**

@@ -202,6 +202,8 @@ import type {
   IncomeTaxPoolDeclarationInput,
   IncomeTaxPoolReport,
   Invoice,
+  InvoiceRejection,
+  InvoiceRejectionInput,
   JournalEntry,
   JournalEntryReversal,
   JournalReport,
@@ -20313,6 +20315,151 @@ export const useCreateBadDebtRecovery = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateBadDebtRecoveryMutationOptions(options));
+    }
+
+export const getRecordInvoiceRejectionUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/rejection`
+}
+
+/**
+ * Phase 18 (owner decision 2 of 2026-10-27). Until the live response mapping exists, an approver records a rejection by hand with ZATCA's response attached. The record is append-only. Nothing is posted and nothing on the invoice or its entry changes; the invoice is corrected by a NEW invoice (POST /invoices/{id}/correction). Refused for an invoice with no submission, one ZATCA accepted, one already rejected, and one with payments or credits applied.
+ * @summary Record that ZATCA rejected this invoice's submission (an approver, with ZATCA's response attached)
+ */
+export const recordInvoiceRejection = async (id: number,
+    invoiceRejectionInput: InvoiceRejectionInput, options?: RequestInit): Promise<InvoiceRejection> => {
+
+  return customFetch<InvoiceRejection>(getRecordInvoiceRejectionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(invoiceRejectionInput)
+  }
+);}
+
+
+
+
+
+export const getRecordInvoiceRejectionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInvoiceRejection>>, TError,{id: number;data: BodyType<InvoiceRejectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordInvoiceRejection>>, TError,{id: number;data: BodyType<InvoiceRejectionInput>}, TContext> => {
+
+const mutationKey = ['recordInvoiceRejection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordInvoiceRejection>>, {id: number;data: BodyType<InvoiceRejectionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  recordInvoiceRejection(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordInvoiceRejectionMutationResult = NonNullable<Awaited<ReturnType<typeof recordInvoiceRejection>>>
+    export type RecordInvoiceRejectionMutationBody = BodyType<InvoiceRejectionInput>
+    export type RecordInvoiceRejectionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Record that ZATCA rejected this invoice's submission (an approver, with ZATCA's response attached)
+ */
+export const useRecordInvoiceRejection = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInvoiceRejection>>, TError,{id: number;data: BodyType<InvoiceRejectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordInvoiceRejection>>,
+        TError,
+        {id: number;data: BodyType<InvoiceRejectionInput>},
+        TContext
+      > => {
+      return useMutation(getRecordInvoiceRejectionMutationOptions(options));
+    }
+
+export const getCreateInvoiceCorrectionUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/correction`
+}
+
+/**
+ * Phase 18 (owner decision 2 of 2026-10-27). A rejected invoice is corrected by a NEW invoice with its own number, counter, hash and UUID, never by a credit note. The draft carries the same customer and date (the supply's tax point) and the rejected invoice's lines, for the user to correct; it is issued by the ordinary approval, which also posts a new entry mirroring the rejected invoice's entry, so the sale is recorded once. Approver-only.
+ * @summary Create the DRAFT invoice that corrects a rejected invoice (linked from the new invoice)
+ */
+export const createInvoiceCorrection = async (id: number, options?: RequestInit): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getCreateInvoiceCorrectionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateInvoiceCorrectionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvoiceCorrection>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createInvoiceCorrection>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['createInvoiceCorrection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInvoiceCorrection>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  createInvoiceCorrection(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateInvoiceCorrectionMutationResult = NonNullable<Awaited<ReturnType<typeof createInvoiceCorrection>>>
+
+    export type CreateInvoiceCorrectionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Create the DRAFT invoice that corrects a rejected invoice (linked from the new invoice)
+ */
+export const useCreateInvoiceCorrection = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvoiceCorrection>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createInvoiceCorrection>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCreateInvoiceCorrectionMutationOptions(options));
     }
 
 export const getCreateAdvanceCreditNoteUrl = (id: number,) => {

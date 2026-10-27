@@ -939,6 +939,13 @@
       "when": 1793107095099,
       "tag": "0133_t1c_issued_parties",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1793114153418,
+      "tag": "0134_rejected_invoice_correction",
+      "breakpoints": true
     }
   ]
 }
