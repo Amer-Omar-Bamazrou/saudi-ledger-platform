@@ -5636,7 +5636,7 @@ export const GetPayrollRunResponse = zod.object({
   "gosiEmployerRate": zod.number().nullable().describe('The employer rate used, as a fraction.'),
   "gosiInKindHousing": zod.number().nullable().describe('GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none.'),
   "gosiPensionFloorWage": zod.number().nullable().describe('GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply.'),
-  "gosiServiceDays": zod.number().nullable().describe('GO-12 (2024 law): the days of service in a joining or leaving month. Null for a full month.'),
+  "gosiServiceDays": zod.number().nullable().describe('GO-12 (both laws: 2024 Regulation Art. 20(2); 1421H Regulation Art. 21(3)): the days of service in a joining or leaving month. Null for a full month.'),
   "gosiPeriodDays": zod.number().nullable().describe('GO-12: the month\'s actual days, the divisor of gosiServiceDays. Null for a full month.'),
   "gosiWageFixedPeriod": zod.string().nullable().describe('GO-12 (1421H law): the period whose line fixed the year\'s contributory wage, which this line used. Null for other laws.'),
   "additions": zod.number(),

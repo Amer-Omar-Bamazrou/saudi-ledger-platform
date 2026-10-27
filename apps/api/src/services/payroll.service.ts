@@ -120,7 +120,7 @@ export const payrollService = {
     /**
      * 🔴 GO-10..GO-13 (Phase 18, owner 2026-10-27): the rules on each regime's table entry. In-kind housing counts in
      * the wage (both laws); a 1421H-law line takes the wage its year's first line fixed and the pension floor; a
-     * 2024-law joining or leaving month is charged by days. Each line records what it used.
+     * joining or leaving month is charged by days (both laws). Each line records what it used.
      */
     const fixedWages = new Map<number, Awaited<ReturnType<typeof payrollRepository.firstLinesOfYear>>[number]>();
     for (const regime of new Set(employees.map((e) => regimeOf(e)!))) {
