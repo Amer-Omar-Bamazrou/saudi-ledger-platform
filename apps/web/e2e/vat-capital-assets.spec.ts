@@ -109,7 +109,11 @@ test.describe.serial("the Art. 52 capital-asset adjustment, end to end", () => {
   test("🔴 the control the refusal names EXISTS: declare the tax period in Company Settings, and the working paper appears", async ({ page }) => {
     await page.goto("/company");
     await page.selectOption("#vatTaxPeriod", "quarterly");
+    // TR-3: wait for the save itself. The select already reads "quarterly" before anything is saved, so
+    // the server read below could race the save's commit (it did once, on #242's run 40477102737).
+    const saved = page.waitForResponse((r) => r.request().method() === "PATCH" && new URL(r.url()).pathname === "/api/companies/current");
     await page.getByTestId("button-save-company").click();
+    await saved;
     await expect(page.locator("#vatTaxPeriod")).toHaveValue("quarterly");
     const c = await (await api.get("/api/companies/current")).json();
     expect(c.vatTaxPeriod).toBe("quarterly");

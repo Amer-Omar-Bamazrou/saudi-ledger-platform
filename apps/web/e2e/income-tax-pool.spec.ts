@@ -80,7 +80,11 @@ test.describe.serial("the Art. 17 income-tax pool, end to end", () => {
     // and the server refuses a pair that says two different things.
     await page.selectOption("#ownershipType", "MIXED");
     await page.getByTestId("input-foreign-ownership-pct").fill("40");
+    // TR-3: wait for the save itself. The input already reads "40" before anything is saved, so the
+    // server read below could race the save's commit.
+    const savedStructure = page.waitForResponse((r) => r.request().method() === "PATCH" && new URL(r.url()).pathname === "/api/companies/current");
     await page.getByTestId("button-save-company").click();
+    await savedStructure;
     await expect(page.getByTestId("input-foreign-ownership-pct")).toHaveValue("40");
 
     // it round-tripped through the server, not merely the DOM
@@ -96,7 +100,10 @@ test.describe.serial("the Art. 17 income-tax pool, end to end", () => {
 
     await page.goto("/company");
     await page.selectOption("#fiscalYearStart", "1");
+    // TR-3: the same race — the select reads "1" before the save answers.
+    const savedYear = page.waitForResponse((r) => r.request().method() === "PATCH" && new URL(r.url()).pathname === "/api/companies/current");
     await page.getByTestId("button-save-company").click();
+    await savedYear;
     await expect(page.locator("#fiscalYearStart")).toHaveValue("1");
     c = await (await api.get("/api/companies/current")).json();
     expect(c.fiscalYearStart).toBe(1);
