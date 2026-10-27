@@ -257,6 +257,20 @@ export const invoicesRepository = {
   },
 
   /**
+   * 🔴 T1c (G32): does any issued document print this logo (its parties capture
+   * names it)? Such a logo object is kept when the company replaces or removes
+   * its logo, or the reprint would lose it.
+   */
+  async anyIssuedPrintsLogo(logoPath: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: invoicesTable.id })
+      .from(invoicesTable)
+      .where(sql`${invoicesTable.issuedSeller} ->> 'logoPath' = ${logoPath}`)
+      .limit(1);
+    return !!row;
+  },
+
+  /**
    * G30 — how many issued invoices print a bank account's details (their
    * capture names it). Any status, reversed or not: an issued document's
    * provenance does not lapse when the document is settled or reversed.
