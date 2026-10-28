@@ -45,9 +45,9 @@
  */
 import { and, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 import {
-  db, vendorsTable, whtRatesTable, vendorWhtTreatyReliefsTable, whtWithholdingsTable, whtReturnFilingsTable,
+  db, vendorsTable, whtRatesTable, vendorWhtTreatyReliefsTable, whtWithholdingsTable, whtReturnFilingsTable, whtContractsTable,
   WHT_PAYMENT_TYPES, WHT_DECLARABLE_NOT_SUBJECT_REASONS,
-  type WhtPaymentType, type WhtNotSubjectReason, type WhtPaymentClass, type WhtNatureBasis,
+  type WhtPaymentType, type WhtNotSubjectReason, type WhtPaymentClass, type WhtNatureBasis, type WhtTaxBearing,
 } from "@workspace/db";
 import { BadRequestError, BusinessRuleError } from "../../lib/errors.js";
 import { fromHalalas, toHalalas } from "../../lib/money.js";
@@ -62,14 +62,22 @@ export interface WhtDeclaration {
   notSubjectNote?: string | null;
   /** Q1 (pack §14.1): only when the payment's month is recorded FILED — where its tax is reported. */
   filedMonthTreatment?: string | null;
+  /** 🔴 G4c-1 (decision 15): the contract the payment is made under — who bears the tax is ITS setting. */
+  contractId?: number | null;
 }
 
 /** Read the WHT fields of a pay request — the same names on every pay path. */
 export function whtDeclarationFrom(body: Record<string, unknown> | null | undefined): WhtDeclaration {
   const s = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
+  const k = body?.whtContractId;
+  let contractId: number | null = null;
+  if (k != null && k !== "") {
+    contractId = typeof k === "number" ? k : typeof k === "string" && /^\d+$/.test(k.trim()) ? Number(k.trim()) : NaN;
+    if (!Number.isSafeInteger(contractId) || contractId <= 0 || contractId > 2_147_483_647) throw new BadRequestError("whtContractId must be a contract id.");
+  }
   return {
     paymentType: s(body?.whtPaymentType), notSubjectReason: s(body?.whtNotSubjectReason), notSubjectNote: s(body?.whtNotSubjectNote),
-    filedMonthTreatment: s(body?.whtFiledMonthTreatment),
+    filedMonthTreatment: s(body?.whtFiledMonthTreatment), contractId,
   };
 }
 
@@ -189,7 +197,27 @@ export type WhtDecision =
       kind: "withheld"; vendorId: number; paymentType: WhtPaymentType; baseH: number;
       rate: string; statutoryRate: string; rateId: number; treatyReliefId: number | null; whtH: number;
       legalReference: string; formRow: string; paymentClass: WhtPaymentClass; natureBasis: WhtNatureBasis;
+      /**
+       * 🔴 G4c-1 (decision 15): the contract named, and its setting — both or neither. `net_of_tax`: `netH` is the
+       * payment amount (what the supplier receives), `baseH` its gross (net ÷ (1 − rate)) and the tax the company's.
+       */
+      contract: { id: number; taxBearing: WhtTaxBearing; netH: number | null } | null;
     };
+
+/** True when the company bears this decision's tax (a net-of-tax contract): the supplier receives the full amount. */
+export const isBorne = (d: WhtDecision): boolean => d.kind === "withheld" && d.contract?.taxBearing === "net_of_tax";
+
+/**
+ * 🔴 G4c-1 — THE GROSS-UP, in integer halalas: round(net ÷ (1 − rate)), half up — the rate in basis points of a
+ * percent (4 decimals, its column's scale), so it equals the admit's `round(net_amount / (1 - rate), 2)` (0141).
+ */
+export function grossUpHalalas(netH: number, rate: string): number {
+  // e.g. 1,000.00 net at 5 %: 100000 × 10000 ÷ 9500 = 105263.16 → 105263 halalas (1,052.63); the tax 5 % of it, 52.63
+  const bp = Math.round(Number(rate) * 10_000);
+  if (!Number.isSafeInteger(netH) || netH <= 0 || !(bp >= 0 && bp < 10_000)) throw new Error(`grossUpHalalas: bad input ${netH}, ${rate}`);
+  const d = BigInt(10_000 - bp);
+  return Number((2n * BigInt(netH) * 10_000n + d) / (2n * d));
+}
 
 const refuse = (status: number, code: string, error: string, field?: string): never => {
   throw new BusinessRuleError(status, { code, error, ...(field ? { field } : {}) });
@@ -298,7 +326,8 @@ export async function decideWithholding(input: {
   declared: WhtDeclaration;
 }): Promise<WhtDecision> {
   const { declared, paymentClass } = input;
-  const anyDeclaration = !!(declared.paymentType || declared.notSubjectReason);
+  // a named contract is a WHT declaration too: on a payment nothing is withheld from, it is refused like the others
+  const anyDeclaration = !!(declared.paymentType || declared.notSubjectReason || declared.contractId);
   if (input.vendorId == null) {
     if (anyDeclaration) {
       refuse(422, "wht_vendor_required", "This payment names no supplier, so no withholding can be recorded against it. Link the bill to its supplier first.", "whtPaymentType");
@@ -308,6 +337,19 @@ export async function decideWithholding(input: {
   const [vendor] = await db.select({ id: vendorsTable.id, residency: vendorsTable.residency, whtDefaultPaymentType: vendorsTable.whtDefaultPaymentType })
     .from(vendorsTable).where(eq(vendorsTable.id, input.vendorId)).limit(1);
   if (!vendor) refuse(422, "vendor_unknown", "Name the supplier this payment went to.", "vendorId");
+
+  // 🔴 G4c-1 (decision 15): the contract named is this company's contract WITH THIS SUPPLIER — its setting decides who
+  // bears the tax. A foreign or missing one is not found; another supplier's is refused by name. Nothing is assumed.
+  let contract: { id: number; taxBearing: WhtTaxBearing } | null = null;
+  if (declared.contractId != null) {
+    const [k] = await db.select({ id: whtContractsTable.id, vendorId: whtContractsTable.vendorId, taxBearing: whtContractsTable.taxBearing })
+      .from(whtContractsTable).where(and(companyScoped(whtContractsTable.companyId), eq(whtContractsTable.id, declared.contractId))).limit(1);
+    if (!k) refuse(422, "reference_not_found", `Contract ${declared.contractId} was not found.`, "whtContractId");
+    if (k!.vendorId !== vendor!.id) {
+      refuse(422, "wht_contract_vendor_mismatch", "That contract is with another supplier. Name a contract with the supplier this payment goes to, or none.", "whtContractId");
+    }
+    contract = { id: k!.id, taxBearing: k!.taxBearing as WhtTaxBearing };
+  }
 
   // ── dimension 1: the recipient ─────────────────────────────────────────────
   if (vendor!.residency !== "non_resident") {
@@ -394,22 +436,39 @@ export async function decideWithholding(input: {
   }
   const relief = await reliefInForce(vendor!.id, paymentType, input.paymentDate);
   const applied = relief ? relief.reducedRate : rate!.rate;
+  // 🔴 G4c-1 (decision 15): under a NET-OF-TAX contract the payment amount is the NET the supplier receives; the
+  // base is its gross and the tax is on the gross. Any other payment's base is its amount, as before.
+  const borne = contract?.taxBearing === "net_of_tax";
+  const grossH = borne ? grossUpHalalas(baseH, applied) : baseH;
   return {
-    kind: "withheld", vendorId: vendor!.id, paymentType, baseH,
+    kind: "withheld", vendorId: vendor!.id, paymentType, baseH: grossH,
     rate: applied, statutoryRate: rate!.rate, rateId: rate!.id, treatyReliefId: relief?.id ?? null,
-    whtH: whtHalalas(baseH, applied),
+    whtH: whtHalalas(grossH, applied),
     legalReference: relief ? `Treaty relief (ZATCA approval ${relief.zatcaApprovalReference})` : rate!.legalReference,
     formRow: rate!.formRow, paymentClass, natureBasis,
+    contract: contract ? { ...contract, netH: borne ? baseH : null } : null,
   };
 }
 
 /** The WHT this decision withholds, in riyals (0 unless withheld). */
 export const whtOf = (d: WhtDecision): number => (d.kind === "withheld" ? fromHalalas(d.whtH) : 0);
 
-/** The GL line crediting WHT_PAYABLE, or none. */
+/**
+ * The cash that leaves the bank for a payment of `amount` under this decision: the amount less the tax withheld
+ * from it — or, when the company BEARS the tax (G4c-1), the full amount. The one rule both pay paths use.
+ */
+export const cashAfterWithholding = (amount: number, d: WhtDecision): number =>
+  isBorne(d) ? amount : fromHalalas(toHalalas(amount) - toHalalas(whtOf(d)));
+
+/**
+ * The GL lines of the tax: Cr WHT_PAYABLE — and, when the company bears it (a net-of-tax contract, G4c-1),
+ * Dr WHT_BORNE_EXPENSE for the same amount, since none of it came out of the supplier's payment. None otherwise.
+ */
 export function whtLine(d: WhtDecision, description: string) {
   if (d.kind !== "withheld" || d.whtH === 0) return [];
-  return [{ systemCode: "WHT_PAYABLE" as const, accountName: "Withholding tax payable", description, debitAmount: 0, creditAmount: fromHalalas(d.whtH) }];
+  const payable = { systemCode: "WHT_PAYABLE" as const, accountName: "Withholding tax payable", description, debitAmount: 0, creditAmount: fromHalalas(d.whtH) };
+  if (!isBorne(d)) return [payable];
+  return [payable, { systemCode: "WHT_BORNE_EXPENSE" as const, accountName: "Withholding tax borne by the company", description: `${description} (borne by the company)`, debitAmount: fromHalalas(d.whtH), creditAmount: 0 }];
 }
 
 // ── the determination, as words a person can check ────────────────────────────
@@ -516,6 +575,10 @@ export async function recordWithholding(
     returnPeriod: opts.returnPeriod ?? paymentDate.slice(0, 7),
     filedMonthTreatment: opts.filedMonthTreatment ?? null,
     correctionId: opts.correctionId ?? null,
+    // G4c-1: the contract and its setting, copied at the payment (the admit checks both against the contract)
+    contractId: d.kind === "withheld" ? (d.contract?.id ?? null) : null,
+    taxBearing: d.kind === "withheld" ? (d.contract?.taxBearing ?? null) : null,
+    netAmount: d.kind === "withheld" && d.contract?.netH != null ? fromHalalas(d.contract.netH).toFixed(2) : null,
     createdBy: userId,
   }).returning();
   return row!;

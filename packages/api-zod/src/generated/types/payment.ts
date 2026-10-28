@@ -25,7 +25,7 @@ export interface Payment {
      */
   withheld?: number | null;
   /**
-     * Bill payments: the cash that left the bank (amount − withheld).
+     * Bill payments: the cash that left the bank (amount − withheld; the full amount when the company bore the tax).
      * @nullable
      */
   cashPaid?: number | null;

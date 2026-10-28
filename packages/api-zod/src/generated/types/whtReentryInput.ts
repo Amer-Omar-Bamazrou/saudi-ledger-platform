@@ -32,6 +32,8 @@ export interface WhtReentryInput {
   /** @nullable */
   whtPaymentType?: string | null;
   /** @nullable */
+  whtContractId?: number | null;
+  /** @nullable */
   whtNotSubjectReason?: WhtReentryInputWhtNotSubjectReason;
   /**
      * @maxLength 2000

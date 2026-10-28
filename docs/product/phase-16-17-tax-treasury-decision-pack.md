@@ -204,8 +204,17 @@ Supplier payment of A to a non-resident (allocations + on account):
 - **Refunding on-account money from a payment that bore WHT is refused**
   (`wht_refund_unsupported`): the supplier returns what it received, and the
   withheld part is a claim on ZATCA, not on the supplier → OPEN W-12.
-- **Payer-borne WHT / gross-up is NOT built** → OPEN W-2. Only "withheld from
-  the payment" exists; the pay dialog says so.
+- **Payer-borne WHT — status (2026-10-28): built per contract (Phase 18
+  G4c-1; owner decision 15 of 2026-10-27, answering W-2; register §11.44).**
+  A non-resident supplier's contract records who bears the tax, as the user
+  confirms it (`wht_contracts`, append-only). A payment naming a NET-OF-TAX
+  contract is grossed up — base = round(net ÷ (1 − rate), 2), the tax on the
+  base; the supplier receives the full amount; Dr WHT_BORNE_EXPENSE / Cr
+  WHT_PAYABLE — and the income-tax computation adds the borne tax back (Law
+  Art. 13(e); IR Art. 10(5)). No contract, or a tax-inclusive one: withheld
+  from the payment, as before. For Zakat the borne tax stays in book profit
+  (an accepted expense once paid — Zakat FAQ Q19, reasoned-not-verified); the
+  timing question is OPEN W-19. Current state authority: CLAUDE.md §2.
 
 ### 2.5 Remittance, reversal, return (REQUIRED dates; PRODUCT workflow)
 
@@ -661,7 +670,8 @@ nothing interpretive):
 | Z-7 | Must an audit-exempt micro/small company attach audited statements to its Zakat return under the 1445H regime? | Not modelled (nothing filed) |
 | Z-8 | Is a sole-proprietorship tenant an account-holding payer or ZP-AA? | Base method only |
 | W-1 | Do accruals, set-offs and intercompany book entries trigger WHT now the 2021 guideline is withdrawn? | Only the cash pay paths withhold |
-| W-2 | When the payer bears the WHT, is the base the contract amount or grossed up? | Payer-borne not built |
+| W-2 | When the payer bears the WHT, is the base the contract amount or grossed up? | **DECIDED 2026-10-27 (owner decision 15) — built Phase 18 G4c-1**: a per-contract setting the user confirms; net-of-tax grosses up (net ÷ (1 − rate)) and the borne tax is added back for income tax |
+| W-19 | Borne WHT is an accepted Zakat expense "once paid" (Zakat FAQ Q19, as the 2026-10-09 research records it; the FAQ text not re-read): does "paid" mean paid to the supplier, or the tax remitted to ZATCA — and must borne tax still unremitted at the year end be added back? | No automatic Zakat adjustment: the borne tax stays in book profit; a person may declare an adjustment (G4c-1) |
 | W-3 | Is WHT computed excluding reverse-charge VAT; and on a VAT-registered non-resident's VAT-inclusive invoice? | Base = the amount settled with the supplier |
 | W-4 | After Res. 25, which Form 06 row (07/08 or its nature's row) carries a related-party service? | Its nature's row; rows 07/08 unused, stated |
 | W-5 | Is WHT due on payments to a non-resident's Saudi PE (IR 63(1) 1427H amendment vs ZATCA's 2026 RHQ guidance)? | No PE exemption offered |

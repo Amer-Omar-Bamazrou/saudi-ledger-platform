@@ -10,11 +10,16 @@ import type { BillPaymentInputWhtNotSubjectReason } from './billPaymentInputWhtN
 import type { PaymentInput } from './paymentInput';
 
 /**
- * A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier's declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.
+ * A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier's declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT (the full amount when a net-of-tax contract makes the company bear the tax — G4c-1).
  */
 export type BillPaymentInput = PaymentInput & ({
   /** @nullable */
   whtPaymentType?: string | null;
+  /**
+     * G4c-1 (decision 15): the contract the payment is made under.
+     * @nullable
+     */
+  whtContractId?: number | null;
   /** @nullable */
   whtNotSubjectReason?: BillPaymentInputWhtNotSubjectReason;
   /**

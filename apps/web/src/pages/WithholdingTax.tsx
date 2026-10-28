@@ -30,12 +30,15 @@ import { legalRef, notSubjectLabel, whtMonthStatusLabel, whtTypeLabel, whtNature
 import { WhtDeterminationLines } from "@/components/payments/WhtFields";
 import { WhtFilingCard, WhtCorrectionPanel, WhtLineageView } from "@/components/tax/WhtCorrection";
 import { WhtClaims } from "@/components/tax/WhtClaims";
+import { WhtContracts } from "@/components/tax/WhtContracts";
 import { businessToday } from "@workspace/shared";
 
 const money = (x: number | null | undefined) => (x == null ? "—" : fmtNum(x));
 const pct = (r: number) => `${(r * 100).toFixed(2)}%`;
 
-const TABS = ["months", "return", "annual", "exceptions", "reliefs", "rates"] as const;
+// 🔴 every tab the page renders is listed here, or `?tab=` falls back to months and the tab cannot be opened
+// (G4c-1 found `claims` missing since #257)
+const TABS = ["months", "return", "annual", "exceptions", "reliefs", "contracts", "claims", "rates"] as const;
 
 export default function WithholdingTax() {
   const { t, lang } = useLanguage();
@@ -110,6 +113,7 @@ export default function WithholdingTax() {
           <TabsTrigger value="annual" data-testid="wht-tab-annual">{t("Annual information", "البيانات السنوية")}</TabsTrigger>
           <TabsTrigger value="exceptions" data-testid="wht-tab-exceptions">{t("Exceptions", "الاستثناءات")}</TabsTrigger>
           <TabsTrigger value="reliefs" data-testid="wht-tab-reliefs">{t("Treaty reliefs", "إعفاءات الاتفاقيات")}</TabsTrigger>
+          <TabsTrigger value="contracts" data-testid="wht-tab-contracts">{t("Contracts — who bears the tax", "العقود — من يتحمّل الضريبة")}</TabsTrigger>
           <TabsTrigger value="claims" data-testid="wht-tab-claims">{t("Refund claims and instalments", "مطالبات الاسترداد والتقسيط")}</TabsTrigger>
           <TabsTrigger value="rates" data-testid="wht-tab-rates">{t("Rates", "النسب")}</TabsTrigger>
         </TabsList>
@@ -150,6 +154,7 @@ export default function WithholdingTax() {
         <TabsContent value="exceptions"><Exceptions /></TabsContent>
         <TabsContent value="reliefs"><Reliefs onChanged={refresh} /></TabsContent>
         {/* Phase 18 G4b (decisions 17, 18): records only — the server decides who may record them */}
+        <TabsContent value="contracts"><WhtContracts /></TabsContent>
         <TabsContent value="claims"><WhtClaims canRecord /></TabsContent>
         <TabsContent value="rates"><Rates /></TabsContent>
       </Tabs>

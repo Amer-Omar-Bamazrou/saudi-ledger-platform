@@ -182,7 +182,7 @@ async function incomeTaxInputs(c: TaxComputation, v: TaxComputationVersion, adju
   const ownEntries = await taxRepository.accrualEntryIds(c.id);
   const [is, mv] = await Promise.all([
     reportsService.incomeStatement(c.fiscalYearStart, c.fiscalYearEnd),
-    taxRepository.movementBySystemCode([SYSTEM_ACCOUNTS.ZAKAT_EXPENSE, SYSTEM_ACCOUNTS.INCOME_TAX_EXPENSE, SYSTEM_ACCOUNTS.DEPRECIATION_EXPENSE, SYSTEM_ACCOUNTS.ASSET_DISPOSAL_GAIN_LOSS], c.fiscalYearStart, c.fiscalYearEnd),
+    taxRepository.movementBySystemCode([SYSTEM_ACCOUNTS.ZAKAT_EXPENSE, SYSTEM_ACCOUNTS.INCOME_TAX_EXPENSE, SYSTEM_ACCOUNTS.DEPRECIATION_EXPENSE, SYSTEM_ACCOUNTS.ASSET_DISPOSAL_GAIN_LOSS, SYSTEM_ACCOUNTS.WHT_BORNE_EXPENSE], c.fiscalYearStart, c.fiscalYearEnd),
   ]);
   const taxesInPl = (mv.get(SYSTEM_ACCOUNTS.ZAKAT_EXPENSE) ?? 0) + (mv.get(SYSTEM_ACCOUNTS.INCOME_TAX_EXPENSE) ?? 0);
   // 🔴 A CONFIDENT ZERO (audit 2026-10-04): a year with no income-statement movement at all would compute
@@ -196,6 +196,8 @@ async function incomeTaxInputs(c: TaxComputation, v: TaxComputationVersion, adju
   const bookDepreciationH = toHalalas(mv.get(SYSTEM_ACCOUNTS.DEPRECIATION_EXPENSE) ?? 0)
     + toHalalas(await taxRepository.registerDepreciationOffSystemAccount(c.fiscalYearStart, c.fiscalYearEnd));
   const bookDisposalResultH = -toHalalas(mv.get(SYSTEM_ACCOUNTS.ASSET_DISPOSAL_GAIN_LOSS) ?? 0);
+  // 🔴 G4c-1 (decision 15): WHT the company bore under a net-of-tax contract is not deductible (Law Art. 13(e)) — added back
+  const bookBorneWhtH = toHalalas(mv.get(SYSTEM_ACCOUNTS.WHT_BORNE_EXPENSE) ?? 0);
 
   // Art. 17 — the pool the register computes (FA-1), for this fiscal year
   let poolDeductionH = 0, poolExcessIncomeH = 0, repairsOverCapH = 0;
@@ -217,7 +219,7 @@ async function incomeTaxInputs(c: TaxComputation, v: TaxComputationVersion, adju
   }
 
   const inputs = {
-    profitBeforeTaxesH, bookDepreciationH, bookDisposalResultH, poolDeductionH, poolExcessIncomeH, repairsOverCapH,
+    profitBeforeTaxesH, bookDepreciationH, bookDisposalResultH, poolDeductionH, poolExcessIncomeH, repairsOverCapH, bookBorneWhtH,
     adjustments: adjustments.map((a) => ({ effect: a.effect as "increase" | "decrease", amountH: toHalalas(a.amount) })),
     lossCarryforwardAvailableH: toHalalas(v.lossCarryforwardAvailable ?? 0),
     foreignShareBp,
@@ -287,7 +289,7 @@ function presentComputation(x: Awaited<ReturnType<typeof compute>>) {
     zakat: null,
     incomeTax: r == null ? null : {
       profitBeforeTaxes: H(r.profitBeforeTaxesH), bookDepreciationAddBack: H(r.bookDepreciationAddBackH), bookDisposalReversal: H(r.bookDisposalReversalH),
-      poolDeduction: H(r.poolDeductionH), poolExcessIncome: H(r.poolExcessIncomeH), repairsOverCap: H(r.repairsOverCapH),
+      poolDeduction: H(r.poolDeductionH), poolExcessIncome: H(r.poolExcessIncomeH), repairsOverCap: H(r.repairsOverCapH), borneWhtAddBack: H(r.borneWhtAddBackH),
       declaredAdjustments: H(r.declaredAdjustmentsH), taxableIncome: H(r.taxableIncomeH),
       lossCap: H(r.lossCapH), lossUsed: H(r.lossUsedH), taxableIncomeAfterLosses: H(r.taxableIncomeAfterLossesH),
       foreignSharePct: r.foreignShareBp / 100, taxableShare: H(r.taxableShareH), rate: r.rate, incomeTax: H(r.incomeTaxH), lossOfTheYear: H(r.lossOfTheYearH),

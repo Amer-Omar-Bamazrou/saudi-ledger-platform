@@ -18,4 +18,8 @@ whtPaymentType?: string;
 whtNotSubjectReason?: string;
 whtNotSubjectNote?: string;
 whtFiledMonthTreatment?: PreviewWhtWhtFiledMonthTreatment;
+/**
+ * G4c-1 (decision 15): the contract the payment is made under — its setting decides who bears the tax.
+ */
+whtContractId?: number;
 };

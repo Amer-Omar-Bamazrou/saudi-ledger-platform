@@ -113,6 +113,7 @@ import type {
   CreateSupplierPaymentInput,
   CreateTaxComputationInput,
   CreateVendorInput,
+  CreateWhtContractInput,
   CreateWhtReliefInput,
   CreditNoteApplications,
   Customer,
@@ -261,6 +262,7 @@ import type {
   ListTransactionsParams,
   ListVendors200,
   ListVendorsParams,
+  ListWhtContractsParams,
   ListWhtExceptionsParams,
   ListWhtReliefsParams,
   ListZakatClassificationsParams,
@@ -404,6 +406,7 @@ import type {
   VendorMatchResult,
   WhtAnnualReturn,
   WhtBeneficiaryStatement,
+  WhtContract,
   WhtCorrectionPack,
   WhtExceptions,
   WhtInstalmentRequest,
@@ -25132,6 +25135,161 @@ export const useReverseWhtRemittance = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReverseWhtRemittanceMutationOptions(options));
+    }
+
+export const getListWhtContractsUrl = (params?: ListWhtContractsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/tax/wht/contracts?${stringifiedParams}` : `/api/tax/wht/contracts`
+}
+
+/**
+ * @summary G4c-1 (decision 15): this company's contracts with non-resident suppliers and who bears the WHT under each.
+ */
+export const listWhtContracts = async (params?: ListWhtContractsParams, options?: RequestInit): Promise<WhtContract[]> => {
+
+  return customFetch<WhtContract[]>(getListWhtContractsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWhtContractsQueryKey = (params?: ListWhtContractsParams,) => {
+    return [
+    `/api/tax/wht/contracts`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListWhtContractsQueryOptions = <TData = Awaited<ReturnType<typeof listWhtContracts>>, TError = ErrorType<unknown>>(params?: ListWhtContractsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhtContracts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWhtContractsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWhtContracts>>> = ({ signal }) => listWhtContracts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWhtContracts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWhtContractsQueryResult = NonNullable<Awaited<ReturnType<typeof listWhtContracts>>>
+export type ListWhtContractsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary G4c-1 (decision 15): this company's contracts with non-resident suppliers and who bears the WHT under each.
+ */
+
+export function useListWhtContracts<TData = Awaited<ReturnType<typeof listWhtContracts>>, TError = ErrorType<unknown>>(
+ params?: ListWhtContractsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhtContracts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWhtContractsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateWhtContractUrl = () => {
+
+
+
+
+  return `/api/tax/wht/contracts`
+}
+
+/**
+ * @summary G4c-1 (decision 15): record a contract and its tax-bearing setting, as the user confirms it. Append-only: a changed setting is a new contract.
+ */
+export const createWhtContract = async (createWhtContractInput: CreateWhtContractInput, options?: RequestInit): Promise<WhtContract> => {
+
+  return customFetch<WhtContract>(getCreateWhtContractUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createWhtContractInput)
+  }
+);}
+
+
+
+
+
+export const getCreateWhtContractMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWhtContract>>, TError,{data: BodyType<CreateWhtContractInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWhtContract>>, TError,{data: BodyType<CreateWhtContractInput>}, TContext> => {
+
+const mutationKey = ['createWhtContract'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWhtContract>>, {data: BodyType<CreateWhtContractInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createWhtContract(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWhtContractMutationResult = NonNullable<Awaited<ReturnType<typeof createWhtContract>>>
+    export type CreateWhtContractMutationBody = BodyType<CreateWhtContractInput>
+    export type CreateWhtContractMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary G4c-1 (decision 15): record a contract and its tax-bearing setting, as the user confirms it. Append-only: a changed setting is a new contract.
+ */
+export const useCreateWhtContract = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWhtContract>>, TError,{data: BodyType<CreateWhtContractInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWhtContract>>,
+        TError,
+        {data: BodyType<CreateWhtContractInput>},
+        TContext
+      > => {
+      return useMutation(getCreateWhtContractMutationOptions(options));
     }
 
 export const getListWhtReliefsUrl = (params?: ListWhtReliefsParams,) => {

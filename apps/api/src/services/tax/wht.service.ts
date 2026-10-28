@@ -27,7 +27,7 @@ import { postJournalEntry } from "../accounting/glPosting";
 import { assertBankAccount } from "../accounting/bankIdentity";
 import {
   decideWithholding, whtDeclarationFrom, determinationOf, describeDetermination, supplierPaymentClassOf, assertSinglePurpose,
-  latestFilingOf, returnPeriodFor,
+  latestFilingOf, returnPeriodFor, cashAfterWithholding,
 } from "../accounting/wht";
 import type { AdjustmentRow } from "../../repositories/tax.repository";
 import { auditService } from "../audit.service";
@@ -81,7 +81,9 @@ const rowOut = (w: WithholdingRow) => ({
   paymentType: w.payment_type, formRow: w.form_row, notSubjectReason: w.not_subject_reason, notSubjectNote: w.not_subject_note,
   baseAmount: Number(w.base_amount), rate: Number(w.rate), statutoryRate: w.statutory_rate == null ? null : Number(w.statutory_rate),
   treatyReliefId: w.treaty_relief_id, treatyApprovalReference: w.treaty_approval_reference,
-  whtAmount: Number(w.wht_amount), cashPaid: round2(Number(w.base_amount) - Number(w.wht_amount)), journalEntryId: w.journal_entry_id,
+  // G4c-1: when the company bore the tax the supplier received the net — the base is its gross
+  whtAmount: Number(w.wht_amount), cashPaid: w.tax_bearing === "net_of_tax" ? Number(w.net_amount) : round2(Number(w.base_amount) - Number(w.wht_amount)), journalEntryId: w.journal_entry_id,
+  contractId: w.contract_id, taxBearing: w.tax_bearing as "tax_inclusive" | "net_of_tax" | null, netAmount: w.net_amount == null ? null : Number(w.net_amount),
   // Q1: the month whose return carries it, the filed-month treatment it was entered with, the correction it re-enters,
   // and its own correction (original → reversal → corrected)
   returnPeriod: w.return_period, filedMonthTreatment: w.filed_month_treatment as "subsequent_period" | "amendment" | null, reentryOfCorrectionId: w.correction_id,
@@ -180,7 +182,10 @@ export const whtService = {
       treatyReliefId: d.kind === "withheld" ? d.treatyReliefId : null,
       legalReference: d.kind === "withheld" ? d.legalReference : null,
       formRow: d.kind === "withheld" ? d.formRow : null,
-      withheld, cashPaid: round2(amount - withheld),
+      withheld, cashPaid: cashAfterWithholding(amount, d),
+      // G4c-1: the base the tax is on (the gross under a net-of-tax contract) and who bears it
+      base: d.kind === "withheld" || d.kind === "not_subject" || d.kind === "pending" ? fromHalalas(d.baseH) : null,
+      taxBearing: d.kind === "withheld" ? (d.contract?.taxBearing ?? null) : null,
       notSubjectReason: d.kind === "not_subject" ? d.reason : null,
       determination: determinationOf(d),
       monthFiled,

@@ -108,7 +108,12 @@ describeMaybe("Phase 18 G4c-1 — the payer bears the WHT: the per-contract gros
     // the month's return reports the GROSS base
     const ret = await h.api("admin", "GET", `/tax/wht/returns/${today.slice(0, 7)}`);
     expect(ret.status, JSON.stringify(ret.body)).toBe(200);
-    expect((ret.body.schedule as { baseAmount: number; whtAmount: number }[]).some((s) => s.baseAmount === 1_052.63 && s.whtAmount === 52.63)).toBe(true);
+    const row = (ret.body.schedule as { baseAmount: number; whtAmount: number; cashPaid: number; taxBearing: string | null; netAmount: number | null }[])
+      .find((s) => s.baseAmount === 1_052.63);
+    expect(row).toMatchObject({ whtAmount: 52.63, cashPaid: 1_000, taxBearing: "net_of_tax", netAmount: 1_000 });
+    // the bill's payment history reads the same cash: the supplier was paid in full
+    const hist = await h.api("admin", "GET", `/bills/${billId}/payments`);
+    expect((hist.body as { withheld: number | null; cashPaid: number | null }[]).map((p) => [p.withheld, p.cashPaid])).toEqual([[52.63, 1_000]]);
   });
 
   it("control: a payment naming NO contract is not grossed up — base = the amount, the supplier bears the tax, no borne-tax expense", async () => {
@@ -147,6 +152,39 @@ describeMaybe("Phase 18 G4c-1 — the payer bears the WHT: the per-contract gros
     const lines = await linesOf(w.journal_entry_id);
     expect(lines.find((l) => l.code === "BANK")).toEqual({ code: "BANK", dr: 0, cr: 2_000 });
     expect(lines.find((l) => l.code === "WHT_BORNE_EXPENSE")).toEqual({ code: "WHT_BORNE_EXPENSE", dr: 105.26, cr: 0 });
+  });
+
+  it("🔴 15: the DATABASE refuses a net-of-tax row whose base is not the gross of its payment, or whose setting is not its contract's — the correct row is admitted (0141, rolled back)", async () => {
+    const { paid, billId } = await payBill(1_000, today, { whtContractId: netContract });
+    expect(paid.status, JSON.stringify(paid.body)).toBe(200);
+    const id = (await pool.query(`SELECT id FROM wht_withholdings WHERE bill_id = $1`, [billId])).rows[0].id as number;
+    const c = await pool.connect();
+    const attempt = async (sql: string) => {
+      await c.query("SAVEPOINT a");
+      try { await c.query(sql); await c.query("RELEASE SAVEPOINT a"); return "admitted"; }
+      catch (e) { await c.query("ROLLBACK TO SAVEPOINT a"); return (e as { constraint?: string }).constraint ?? String(e); }
+    };
+    try {
+      await c.query("BEGIN");
+      // the payment's own row, copied aside and taken out (replica mode, inside this transaction only) so it can be re-entered
+      await c.query(`CREATE TEMP TABLE g4c1_row ON COMMIT DROP AS SELECT * FROM wht_withholdings WHERE id = $1`, [id]);
+      await c.query("SET LOCAL session_replication_role = replica");
+      await c.query(`DELETE FROM wht_withholdings WHERE id = $1`, [id]);
+      await c.query("SET LOCAL session_replication_role = origin");
+      // the base left at the NET (tax 5 % of it): every CHECK holds, only the admit's gross rule refuses it
+      await c.query(`UPDATE g4c1_row SET base_amount = 1000, wht_amount = 50`);
+      expect(await attempt(`INSERT INTO wht_withholdings SELECT * FROM g4c1_row`)).toBe("wht_withholding_payment");
+      // the setting changed from its contract's — a tax-inclusive row otherwise well formed (base = the payment amount)
+      await c.query(`UPDATE g4c1_row SET tax_bearing = 'tax_inclusive', net_amount = NULL`);
+      expect(await attempt(`INSERT INTO wht_withholdings SELECT * FROM g4c1_row`)).toBe("wht_withholding_contract");
+      // the row as the pay path wrote it: admitted
+      await c.query(`UPDATE g4c1_row SET base_amount = 1052.63, wht_amount = 52.63, tax_bearing = 'net_of_tax', net_amount = 1000`);
+      expect(await attempt(`INSERT INTO wht_withholdings SELECT * FROM g4c1_row`)).toBe("admitted");
+    } finally {
+      await c.query("ROLLBACK");
+      c.release();
+    }
+    expect((await pool.query(`SELECT base_amount::float AS base FROM wht_withholdings WHERE id = $1`, [id])).rows[0].base, "rolled back: the row stands").toBe(1_052.63);
   });
 
   it("🔴 15: the preview shows the gross-up before the payment is made", async () => {

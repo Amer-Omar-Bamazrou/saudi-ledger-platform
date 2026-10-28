@@ -988,6 +988,13 @@
       "when": 1793212238813,
       "tag": "0140_wht_g4b_claims_instalments",
       "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1793216117348,
+      "tag": "0141_wht_g4c1_payer_bears",
+      "breakpoints": true
     }
   ]
 }

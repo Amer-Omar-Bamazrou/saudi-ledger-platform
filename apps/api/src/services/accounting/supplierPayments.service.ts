@@ -47,7 +47,7 @@ import { assertNotReversedOpening } from "./openingReversed.js";
 import { billsRepository } from "../../repositories/bills.repository.js";
 import { supplierPaymentReversedSql } from "../../repositories/paymentReversal.js";
 import {
-  decideWithholding, recordWithholding, refuseLateWithholdingOnReentry, supplierPaymentWasWithheld, whtDeclarationFrom, whtLine, whtOf,
+  cashAfterWithholding, decideWithholding, recordWithholding, refuseLateWithholdingOnReentry, supplierPaymentWasWithheld, whtDeclarationFrom, whtLine, whtOf,
   supplierPaymentClassOf, liveWithholdingOfSupplierPayment, assertSinglePurpose, returnPeriodFor, type WhtDecision,
 } from "./wht.js";
 import {
@@ -131,7 +131,7 @@ export const supplierPaymentsService = {
     // Q1: which month's return carries it — a FILED month is never changed silently (refused before any write)
     const reported = await returnPeriodFor(withholding, paidAt, declared.filedMonthTreatment, { today: businessToday(), correctionPeriod: opts.correction?.correctionPeriod });
     const withheld = whtOf(withholding);
-    const cashPaid = round2(amount - withheld);
+    const cashPaid = cashAfterWithholding(amount, withholding); // G4c-1: the full amount when the company bears the tax
 
     const asset = supplierOnAccountAsset(classification);
     const lines = [];

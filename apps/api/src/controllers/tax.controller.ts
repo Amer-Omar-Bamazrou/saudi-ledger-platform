@@ -1,12 +1,13 @@
 import type { Request, Response } from "express";
 import {
   RemitWhtBody, ReverseWhtRemittanceBody, CreateWhtReliefBody, RevokeWhtReliefBody, SetZakatClassificationBody,
-  FileWhtReturnBody, CorrectWhtWithholdingBody,
+  FileWhtReturnBody, CorrectWhtWithholdingBody, CreateWhtContractBody,
   CreateTaxComputationBody, UpdateTaxComputationBody, AddTaxAdjustmentBody, UpdateTaxAdjustmentBody, SetTaxLossesBody,
   SendBackTaxComputationVersionBody,
 } from "@workspace/api-zod";
 import { whtService } from "../services/tax/wht.service";
 import { whtCorrectionService } from "../services/tax/whtCorrection.service";
+import { whtContractsService } from "../services/tax/whtContracts.service";
 import { taxComputationsService } from "../services/tax/taxComputations.service";
 import { zakatClassificationService } from "../services/tax/zakatClassification.service";
 import { taxObligationsService } from "../services/tax/taxObligations.service";
@@ -53,6 +54,11 @@ export const taxController = {
   },
   async reverseRemittance(req: Request, res: Response) {
     res.json(await whtService.reverseRemittance(intParam(req.params.id, "id"), parseOr400(ReverseWhtRemittanceBody.safeParse(req.body)), userOf(req)));
+  },
+  // G4c-1 (decision 15): who bears the tax, per contract — append-only
+  async contracts(req: Request, res: Response) { res.json(await whtContractsService.list(q(req).vendorId)); },
+  async createContract(req: Request, res: Response) {
+    res.status(201).json(await whtContractsService.create(parseOr400(CreateWhtContractBody.safeParse(req.body)) as Record<string, unknown>, userOf(req)));
   },
   async reliefs(req: Request, res: Response) { res.json(await whtService.reliefs(q(req).vendorId)); },
   async createRelief(req: Request, res: Response) {
