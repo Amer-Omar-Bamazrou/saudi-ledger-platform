@@ -35,6 +35,8 @@ export const taxController = {
   async preview(req: Request, res: Response) { res.json(await whtService.preview(q(req))); },
   async overview(_req: Request, res: Response) { res.json(await whtService.overview()); },
   async monthlyReturn(req: Request, res: Response) { res.json(await whtService.monthlyReturn(String(req.params.period))); },
+  /** Phase 18 G4a (owner decision 16): a filed month's correction pack. */
+  async correctionPack(req: Request, res: Response) { res.json(await whtService.correctionPack(String(req.params.period))); },
   async annual(req: Request, res: Response) { res.json(await whtService.annual(q(req).fiscal_year)); },
   async beneficiary(req: Request, res: Response) { res.json(await whtService.beneficiaryStatement(intParam(req.params.vendorId, "vendorId"), q(req).period)); },
   async exceptions(req: Request, res: Response) { res.json(await whtService.exceptions(q(req).kind)); },

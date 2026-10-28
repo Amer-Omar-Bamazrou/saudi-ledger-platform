@@ -101,9 +101,23 @@ export async function latestFilingOf(period: string) {
  * Neither stated → 409 `wht_month_filed`, nothing written. The database
  * admits the same rule only (0117).
  */
+/**
+ * 🔴 Phase 18 G4a — OWNER DECISION 16 (2026-10-27; with decision 17's "never
+ * reverse WHT in a later month"): a FILED WHT month is corrected in that month's
+ * own statement — an amendment — never carried in a later month's return and
+ * never offset against a later month. It answers DR-40 (T6/V-8) and replaces the
+ * subsequent-period route: refused on every path (the pay paths, the correction,
+ * and the database for a new row, 0139). #237's wording stands.
+ */
+export function refuseLaterMonth(period: string): never {
+  return refuse(409, "wht_correct_original_month",
+    `A filed WHT month is corrected in its own statement: ${period}'s withholding is reported by an amendment of ${period} (the month reads 'correction due', and its correction pack lists what changed). A later month's return never carries it, and months are never offset against each other.`,
+    "whtFiledMonthTreatment");
+}
+
 export async function returnPeriodFor(
   d: WhtDecision, paymentDate: string, treatment: string | null | undefined,
-  ctx: { today: string; correctionPeriod?: string | null },
+  _ctx: { today: string; correctionPeriod?: string | null },
 ): Promise<{ returnPeriod: string; filedMonthTreatment: WhtFiledMonthTreatment | null; monthFiled: boolean }> {
   const period = paymentDate.slice(0, 7);
   const filed = d.kind === "withheld" ? await latestFilingOf(period) : null;
@@ -111,22 +125,14 @@ export async function returnPeriodFor(
   if (!filed) return { returnPeriod: period, filedMonthTreatment: null, monthFiled: false };
   if (!treatment) {
     refuse(409, "wht_month_filed",
-      `${period}'s withholding return (Form 06) is recorded as FILED on ${filed.filedOn} (${filed.zatcaReference}). A withholding dated in it would change a filed return, so say where it is reported: in a later, unfiled return (subsequent period — the accountant's recommendation), or by preparing a correction for ${period} (amendment), with any delay fine counted from ${period}'s original due date.`,
+      `${period}'s withholding return (Form 06) is recorded as FILED on ${filed.filedOn} (${filed.zatcaReference}). A withholding dated in it changes a filed return, so it is corrected in ${period}'s own statement: state it as an amendment of ${period} (the month will read 'correction due'), with any delay fine counted from ${period}'s original due date.`,
       "whtFiledMonthTreatment");
   }
   if (!(WHT_FILED_MONTH_TREATMENTS as readonly string[]).includes(treatment!)) {
     refuse(400, "wht_filed_month_treatment_unknown", "The treatment of a filed month is subsequent_period or amendment.", "whtFiledMonthTreatment");
   }
-  if (treatment === "amendment") return { returnPeriod: period, filedMonthTreatment: "amendment", monthFiled: true };
-  const target = (ctx.correctionPeriod ?? ctx.today).slice(0, 7);
-  if (target <= period) {
-    refuse(422, "wht_subsequent_period_unavailable", `A subsequent-period report goes in a month after ${period}; ${target} is not later. Date the correction in a later month, or prepare a correction for ${period} instead.`, "whtFiledMonthTreatment");
-  }
-  const targetFiled = await latestFilingOf(target);
-  if (targetFiled) {
-    refuse(409, "wht_subsequent_period_unavailable", `${target}'s return is recorded as filed too; a subsequent-period report goes in a month whose return is not yet filed. Prepare a correction for ${period} instead, or record the correction in an unfiled month.`, "whtFiledMonthTreatment");
-  }
-  return { returnPeriod: target, filedMonthTreatment: "subsequent_period", monthFiled: true };
+  if (treatment === "subsequent_period") refuseLaterMonth(period); // decision 16
+  return { returnPeriod: period, filedMonthTreatment: "amendment", monthFiled: true };
 }
 
 const ON_ACCOUNT_CLASSES = ["advance", "security_deposit", "erroneous", "unknown"] as const;

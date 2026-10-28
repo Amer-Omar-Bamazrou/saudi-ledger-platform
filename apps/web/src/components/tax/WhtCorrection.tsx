@@ -11,8 +11,8 @@
  */
 import { useRef, useState } from "react";
 import {
-  useFileWhtReturn, useCorrectWhtWithholding, useGetWhtWithholdingLineage, useGetVendor, useListBills, useListVendors,
-  getGetWhtWithholdingLineageQueryKey, getGetVendorQueryKey, getListBillsQueryKey,
+  useFileWhtReturn, useCorrectWhtWithholding, useGetWhtWithholdingLineage, useGetVendor, useListBills, useListVendors, useGetWhtCorrectionPack,
+  getGetWhtWithholdingLineageQueryKey, getGetVendorQueryKey, getListBillsQueryKey, getGetWhtCorrectionPackQueryKey,
   type WhtWithholding, type WhtFilingState, type ListBillsParams,
 } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
@@ -57,6 +57,7 @@ export function WhtFilingCard({ period, filing, liveTax, onDone }: { period: str
              `تحمل الدفاتر الآن ${fmtNum(liveTax)} لشهر ${period}؛ وقُدِّم ${fmtNum(latest.taxWithheld)}. أُعِدّ تصحيح لهذا الشهر. وطريقة إيصال الأرقام المصحَّحة إلى الهيئة يحدّدها مستشارك الضريبي (لا توجد خدمة ذاتية لتعديل إقرار شهري مُقدَّم)؛ سجّل الإقرار المصحَّح هنا عند تقديمه. وتُحتسب أي غرامة تأخير من تاريخ استحقاق هذا الشهر الأصلي.`)}
         </p>
       )}
+      {filing.status === "amendment_due" && <WhtCorrectionPack period={period} />}
       {filing.filings.length > 1 && (
         <ul className="text-xs text-muted-foreground space-y-0.5" data-testid="wht-filing-history">
           {filing.filings.map((f) => <li key={f.id}>{f.kind === "amendment" ? t("Amendment", "تعديل") : t("Original", "أصلي")} · {fmtDate(f.filedOn)} · <span className="font-mono" dir="ltr">{f.zatcaReference}</span> · <span className="font-mono" dir="ltr">{money(f.taxWithheld)}</span></li>)}
@@ -80,6 +81,34 @@ export function WhtFilingCard({ period, filing, liveTax, onDone }: { period: str
 }
 
 /**
+ * 🔴 Phase 18 G4a (owner decision 16): the CORRECTION PACK of a filed month — what was filed, what the ledger holds
+ * now, the difference, and every change recorded since the filing. Shown when the month reads 'correction due'.
+ */
+function WhtCorrectionPack({ period }: { period: string }) {
+  const { t } = useLanguage();
+  const [open, setOpen] = useState(false);
+  const pack = useGetWhtCorrectionPack(period, { query: { enabled: open, queryKey: getGetWhtCorrectionPackQueryKey(period) } });
+  const kindLabel = (k: string) => k === "late_payment" ? t("Payment entered after the filing", "دفعة أُدخلت بعد التقديم")
+    : k === "correction_reversal" ? t("Correction — reversal", "تصحيح — عكس") : t("Correction — corrected payment", "تصحيح — الدفعة المصححة");
+  if (!open) return <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpen(true)} data-testid="wht-correction-pack-open">{t("Show the correction pack", "عرض حزمة التصحيح")}</Button>;
+  const p = pack.data;
+  return (
+    <div className="rounded bg-secondary/30 p-2 space-y-1 text-xs" data-testid="wht-correction-pack">
+      {!p ? <p>{t("Loading…", "جارٍ التحميل…")}</p> : (
+        <>
+          <p>{t("Filed", "المُقدَّم")} <span className="font-mono" dir="ltr">{money(p.filed.taxWithheld)}</span> · {t("now", "الآن")} <span className="font-mono" dir="ltr">{money(p.current.taxWithheld)}</span> · {t("difference", "الفرق")} <span className="font-mono" dir="ltr" data-testid="wht-correction-pack-difference">{money(p.difference.taxWithheld)}</span></p>
+          <ul className="space-y-0.5">
+            {p.changes.map((c) => <li key={`${c.kind}-${c.withholdingId}`}>{kindLabel(c.kind)} · {fmtDate(c.paymentDate)} · {c.vendorName} · <span className="font-mono" dir="ltr">{money(c.whtAmount)}</span></li>)}
+          </ul>
+          <p className="text-muted-foreground">{t(`Prepare ${period}'s corrected statement (Form 06) from these figures; how it reaches ZATCA is for your tax adviser. Any delay fine counts from ${period}'s original due date (${p.dueDate}). A later month never carries the change.`,
+            `أعدّ إقرار ${period} المصحَّح (النموذج 06) من هذه الأرقام؛ وطريقة إيصاله إلى الهيئة يحدّدها مستشارك الضريبي. وتُحتسب أي غرامة تأخير من تاريخ استحقاق ${period} الأصلي (${p.dueDate}). ولا يحمل شهر لاحق هذا التغيير.`)}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
  * Correct one withholding — reversal + re-entry (Q1). The original is never edited; the server records why, when and
  * by whom, and the corrected payment goes through the same pay path.
  */
@@ -88,7 +117,7 @@ export function WhtCorrectionPanel({ row, monthFilingStatus, onDone, onCancel }:
   const { toast } = useToast();
   const [reason, setReason] = useState("");
   const [date, setDate] = useState(businessToday());
-  const [treatment, setTreatment] = useState<"" | "subsequent_period" | "amendment">("");
+  const [treatment, setTreatment] = useState<"" | "amendment">("");
   const [reenter, setReenter] = useState(true);
   const [amount, setAmount] = useState(String(row.baseAmount));
   const [paidAt, setPaidAt] = useState(row.paymentDate);
@@ -126,9 +155,7 @@ export function WhtCorrectionPanel({ row, monthFilingStatus, onDone, onCancel }:
       </div>
       {needsTreatment && (
         <div className="rounded bg-secondary/30 p-2 space-y-1 text-xs" role="radiogroup" aria-label={t("Filed month treatment", "معالجة الشهر المُقدَّم")} data-testid="wht-correct-treatment">
-          <p className="font-medium">{t(`${row.returnPeriod}'s return is recorded as filed. It is not rewritten silently — how is this correction reported?`, `إقرار ${row.returnPeriod} مُسجَّل بأنه مُقدَّم. لا يُعاد كتابته بصمت — كيف يُقرَّر هذا التصحيح؟`)}</p>
-          <label className="flex items-center gap-2"><input type="radio" name={`wht-corr-treatment-${row.id}`} className="accent-primary" checked={treatment === "subsequent_period"} onChange={() => setTreatment("subsequent_period")} data-testid="wht-correct-subsequent" />
-            {t("In the return of the correction's month (subsequent period — recommended by the accountant)", "في إقرار شهر التصحيح (فترة لاحقة — يوصي بها المحاسب)")}</label>
+          <p className="font-medium">{t(`${row.returnPeriod}'s return is recorded as filed. A filed month is corrected in its own statement — a later month never carries it. Confirm that this correction amends ${row.returnPeriod}:`, `إقرار ${row.returnPeriod} مُسجَّل بأنه مُقدَّم. يُصحَّح الشهر المُقدَّم في إقراره نفسه — ولا يحمله شهر لاحق. أكّد أن هذا التصحيح يعدّل ${row.returnPeriod}:`)}</p>
           <label className="flex items-center gap-2"><input type="radio" name={`wht-corr-treatment-${row.id}`} className="accent-primary" checked={treatment === "amendment"} onChange={() => setTreatment("amendment")} data-testid="wht-correct-amendment" />
             {t("By preparing a correction for the original month", "بإعداد تصحيح للشهر الأصلي")}</label>
         </div>

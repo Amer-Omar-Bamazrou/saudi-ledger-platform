@@ -229,7 +229,7 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
     expect(await w1()).toMatchObject({ reconciles: true });
   });
 
-  it("🔴 FILED month, SUBSEQUENT PERIOD: refused without a treatment; with it, the filed May return is untouched and September carries −old +new", async () => {
+  it("🔴 FILED month: refused without a treatment; the SUBSEQUENT-PERIOD route is refused too (owner decision 16) — the filed May return and September are untouched", async () => {
     // DR-45 (I): this scenario tests the return mechanics; its re-entry changes the cash, so it carries the statement
     // that the recorded cash was wrong (without it, the correction is refused — see WRONG RATE).
     const b = await bill(inA, v.tech!, 8_000, "2026-05-01");
@@ -242,20 +242,20 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
     const e = await refusal(inA(() => whtCorrectionService.correct(orig.id, { reason: "royalty, not consulting", date: "2026-09-10", reentry: { amount: 8_000, paidAt: "2026-05-10", whtPaymentType: "royalty", recordedCashWasWrong: true, actualCash: 6_800 } }, userId)));
     expect([e.statusCode, e.payload?.code]).toEqual([409, "wht_month_filed"]);
     expect(await counts(), "refused: nothing written").toEqual(before);
+    // 🔴 Phase 18 G4a — owner decision 16 (2026-10-27): a filed month is corrected in its own statement; the
+    // subsequent-period route is REFUSED. Was: this correction succeeded — reversalReturnPeriod "2026-09", the re-entry
+    // reported in "2026-09" with treatment subsequent_period, and September's return carried −400 +1,200. Now: 409
+    // wht_correct_original_month, nothing written, May still as filed and September unchanged.
     const septBefore = await dbReturnTax(coA, "2026-09");
-    const out = await inA(() => whtCorrectionService.correct(orig.id, { reason: "royalty, not consulting", date: "2026-09-10", filedMonthTreatment: "subsequent_period", reentry: { amount: 8_000, paidAt: "2026-05-10", whtPaymentType: "royalty", recordedCashWasWrong: true, actualCash: 6_800 } }, userId));
-    expect(out.correction).toMatchObject({ reversalReturnPeriod: "2026-09", filedMonthTreatment: "subsequent_period", originalFilingId: filed.filing.latest!.id });
-    expect([out.reentry!.returnPeriod, out.reentry!.filedMonthTreatment, out.reentry!.paymentDate]).toEqual(["2026-09", "subsequent_period", "2026-05-10"]);
+    const later = await refusal(inA(() => whtCorrectionService.correct(orig.id, { reason: "royalty, not consulting", date: "2026-09-10", filedMonthTreatment: "subsequent_period", reentry: { amount: 8_000, paidAt: "2026-05-10", whtPaymentType: "royalty", recordedCashWasWrong: true, actualCash: 6_800 } }, userId)));
+    expect([later.statusCode, later.payload?.code]).toEqual([409, "wht_correct_original_month"]);
+    expect(await counts(), "refused: nothing written").toEqual(before);
     const may = await inA(() => whtService.monthlyReturn("2026-05"));
     expect([may.filing.status, may.totals.taxWithheld], "the filed return is NOT rewritten").toEqual(["filed", filed.totals.taxWithheld]);
     expect(may.schedule.map((s) => s.id), "the original stays on the return as filed").toContain(orig.id);
-    const sept = await inA(() => whtService.monthlyReturn("2026-09"));
-    expect(sept.adjustments.map((a) => [a.withholdingId, a.whtAmount, a.originalReturnPeriod])).toContainEqual([orig.id, -400, "2026-05"]);
-    expect(sept.schedule.map((s) => s.id)).toContain(out.reentry!.id);
-    expect(await dbReturnTax(coA, "2026-09") - septBefore).toBe(1_200 - 400);
-    expect(sept.totals.taxWithheld).toBe(await dbReturnTax(coA, "2026-09"));
+    expect(await dbReturnTax(coA, "2026-09"), "a later month carries nothing").toBe(septBefore);
     expect(await w1()).toMatchObject({ reconciles: true });
-    expectConforms(GetWhtReturnResponse, sept, "GET /tax/wht/returns/:period (adjustments)");
+    expectConforms(GetWhtReturnResponse, may, "GET /tax/wht/returns/:period");
   });
 
   it("🔴 FILED month, AMENDMENT: April's live return changes, reads AMENDMENT DUE beside the filed figure, and reads AMENDED once the amendment is recorded", async () => {
@@ -394,9 +394,15 @@ describeMaybe("Q1 — correcting a WHT-bearing payment: reversal + re-entry, the
     const e2 = await refusal(payA(b, 1_000, "2026-05-15"));
     expect([e2.statusCode, e2.payload?.code]).toEqual([409, "wht_month_filed"]);
     expect(await counts()).toEqual(before);
-    await payA(b, 1_000, "2026-05-15", { whtFiledMonthTreatment: "subsequent_period" });
+    // 🔴 Phase 18 G4a — owner decision 16 (2026-10-27): the subsequent-period route is refused, and the payment amends
+    // its own month. Was: paid with subsequent_period → return_period = today's (unfiled) month. Now: that is 409
+    // wht_correct_original_month (nothing written); stated as an amendment it is reported in 2026-05 itself.
+    const e3 = await refusal(payA(b, 1_000, "2026-05-15", { whtFiledMonthTreatment: "subsequent_period" }));
+    expect([e3.statusCode, e3.payload?.code]).toEqual([409, "wht_correct_original_month"]);
+    expect(await counts()).toEqual(before);
+    await payA(b, 1_000, "2026-05-15", { whtFiledMonthTreatment: "amendment" });
     const [late] = await whtOfBill(b);
-    expect([late.period, late.return_period, late.filed_month_treatment]).toEqual(["2026-05", businessToday().slice(0, 7), "subsequent_period"]); // reported in today's (unfiled) month
+    expect([late.period, late.return_period, late.filed_month_treatment]).toEqual(["2026-05", "2026-05", "amendment"]); // reported in its own, filed month
   });
 
   it("🔴 isolation — presence, absence, movement: another company and another organisation see none of A's corrections or filings, and cannot correct A's withholding", async () => {

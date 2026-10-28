@@ -35,7 +35,7 @@ export type WhtDeclarationValue = {
   whtNotSubjectReason?: "goods" | "not_kingdom_source";
   whtNotSubjectNote?: string;
   /** Q1 (pack §14.1): only when the payment's month is recorded FILED — chosen by the person, never preselected. */
-  whtFiledMonthTreatment?: "subsequent_period" | "amendment";
+  whtFiledMonthTreatment?: "amendment";
 };
 
 type WhtFieldsProps = {
@@ -86,7 +86,7 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
   const [reason, setReason] = useState<"" | "goods" | "not_kingdom_source">("");
   const [note, setNote] = useState("");
   // Q1: where a FILED month's withholding is reported — asked only when the server says the month is filed
-  const [treatment, setTreatment] = useState<"" | "subsequent_period" | "amendment">("");
+  const [treatment, setTreatment] = useState<"" | "amendment">("");
 
   // A different supplier (or its record arriving) starts the declaration again, from ITS declared default.
   useEffect(() => {
@@ -280,10 +280,8 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
             <WhtDeterminationLines d={p.determination} />
             {p.monthFiled && (
               <div className="mt-2 rounded border border-border p-2 space-y-1" data-testid="wht-filed-month">
-                <p className="font-medium">{t("This payment's month is recorded as FILED (Form 06). A filed return is not rewritten silently — say where this withholding is reported:", "شهر هذه الدفعة مُسجَّل بأنه مُقدَّم (النموذج 06). لا يُعاد كتابة إقرار مُقدَّم بصمت — حدّد أين يُقرَّر هذا الاستقطاع:")}</p>
+                <p className="font-medium">{t("This payment's month is recorded as FILED (Form 06). A filed month is corrected in its own statement — a later month never carries it. Confirm that this withholding amends that month:", "شهر هذه الدفعة مُسجَّل بأنه مُقدَّم (النموذج 06). يُصحَّح الشهر المُقدَّم في إقراره نفسه — ولا يحمله شهر لاحق. أكّد أن هذا الاستقطاع يعدّل ذلك الشهر:")}</p>
                 <div className="flex flex-col gap-1" role="radiogroup" aria-label={t("Filed month treatment", "معالجة الشهر المُقدَّم")}>
-                  <label className="flex items-center gap-2"><input type="radio" name="wht-filed-treatment" className="accent-primary" checked={treatment === "subsequent_period"} onChange={() => setTreatment("subsequent_period")} data-testid="wht-treatment-subsequent" />
-                    {t("In a later, unfiled return (subsequent period — recommended by the accountant)", "في إقرار لاحق غير مُقدَّم (فترة لاحقة — يوصي بها المحاسب)")}</label>
                   <label className="flex items-center gap-2"><input type="radio" name="wht-filed-treatment" className="accent-primary" checked={treatment === "amendment"} onChange={() => setTreatment("amendment")} data-testid="wht-treatment-amendment" />
                     {t("By preparing a correction for the original month (the month will read 'correction due'; any delay fine counts from that month's original due date)", "بإعداد تصحيح للشهر الأصلي (سيظهر الشهر «تصحيح مستحق»، وتُحتسب أي غرامة تأخير من تاريخ استحقاق ذلك الشهر الأصلي)")}</label>
                 </div>

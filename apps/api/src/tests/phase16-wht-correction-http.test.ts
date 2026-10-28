@@ -148,7 +148,7 @@ describeMaybe("Q1 + Q2 over HTTP — corrections and filings are an approver's a
     expect((await as.admin("POST", `/tax/wht/withholdings/${w2}/reverse`, { reason: "short" })).status).toBe(400);
   });
 
-  it("🔴 Q1 — FILE is an approver's act; a correction into the filed month without a treatment is a 409 naming the two choices", async () => {
+  it("🔴 Q1 — FILE is an approver's act; a correction into the filed month without a treatment is a 409 naming the amendment (owner decision 16)", async () => {
     const wId = await payBill(3_000, `${lastMonth}-05`);
     expect((await as.bookkeeper("POST", `/tax/wht/returns/${lastMonth}/file`, { zatcaReference: "BK-TRY", filedOn: today })).status).toBe(403);
     expect((await as.viewer("POST", `/tax/wht/returns/${lastMonth}/file`, { zatcaReference: "V-TRY", filedOn: today })).status).toBe(403);
@@ -156,7 +156,9 @@ describeMaybe("Q1 + Q2 over HTTP — corrections and filings are an approver's a
     expect([filed.status, filed.json.filing.status, filed.json.filing.latest.zatcaReference]).toEqual([200, "filed", "WHT-HTTP-001"]);
     const r = await as.accountant("POST", `/tax/wht/withholdings/${wId}/reverse`, { reason: "rate was wrong on the filed month" });
     expect([r.status, r.json.code]).toEqual([409, "wht_month_filed"]);
-    expect(r.json.error).toMatch(/subsequent period/i);
+    // Phase 18 G4a — owner decision 16 (2026-10-27): the refusal names ONE route, the amendment of the filed month.
+    // Was: expect(r.json.error).toMatch(/subsequent period/i). Now: it no longer offers a later month.
+    expect(r.json.error).not.toMatch(/subsequent period/i);
     expect(r.json.error).toMatch(/amend/i);
   });
 
