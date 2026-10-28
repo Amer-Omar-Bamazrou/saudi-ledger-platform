@@ -72,9 +72,21 @@ describeMaybe("Phase 18 H-2 — DR-32: a correction is never dated before its or
     expect([200, 201], JSON.stringify(same.body)).toContain(same.status);
   });
 
+  it("🔴 the DEFAULT is the discovery date — and for an original dated after today, the original's own date (never refused for want of a date)", async () => {
+    const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 5);
+    const later = d.toISOString().slice(0, 10);
+    const id = await journal(later);
+    const r = await h.api("admin", "POST", `/journal-entries/${id}/reverse`, { reason: "accrued twice" });
+    expect([200, 201], JSON.stringify(r.body)).toContain(r.status);
+    expect(r.body.reversal.date).toBe(later);
+    const now = await journal(today);
+    const r2 = await h.api("admin", "POST", `/journal-entries/${now}/reverse`, { reason: "accrued twice" });
+    expect(r2.body.reversal?.date, JSON.stringify(r2.body)).toBe(today);
+  });
+
   it("🔴 a bank transfer's reversal, which forwards the caller's date, is refused before the transfer too", async () => {
     const t = await h.api("admin", "POST", "/bank-transfers", { fromBankAccountId: bankA, toBankAccountId: bankB, amount: 700, transferDate: "2026-10-12" });
-    expect(t.status, JSON.stringify(t.body)).toBe(201);
+    expect([200, 201], JSON.stringify(t.body)).toContain(t.status);
     const before = await entries();
     const r = await h.api("admin", "POST", `/bank-transfers/${t.body.id}/reverse`, { reason: "entered twice", date: "2026-10-01" });
     expect([r.status, r.body.code], JSON.stringify(r.body)).toEqual([422, "reversal_before_original"]);

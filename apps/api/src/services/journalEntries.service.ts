@@ -465,12 +465,27 @@ export const journalEntriesService = {
     if (original.status !== "posted") throw new ConflictError("Only posted entries can be reversed.");
 
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-    // The date the reversal is POSTED on — today unless the caller names one.
-    const date = typeof body.date === "string" && body.date.trim() !== "" ? body.date.trim() : businessToday();
+    // The date the reversal is POSTED on — the DISCOVERY date (today) unless the caller names one; for an original
+    // dated later than today, its own date (DR-32: never earlier than the original).
+    const originalDate = String(original.date).slice(0, 10);
+    const discovered = businessToday() < originalDate ? originalDate : businessToday();
+    const date = typeof body.date === "string" && body.date.trim() !== "" ? body.date.trim() : discovered;
     // 🔴 G18: a day that EXISTS, not only one shaped like it — `2026-02-31` used to post a mirror dated in no month.
-    // (Which day a reversal may take — before its original? — is DR-32 / AQ-5, not decided here.)
     if (!isCalendarDate(date)) {
       throw new BadRequestError("The reversal date must be a real calendar date (YYYY-MM-DD).");
+    }
+    /**
+     * 🔴 Phase 18 H-2 — DR-32 (register §11.48; owner accepted the recommendation): a correction is NEVER dated
+     * before the entry it corrects. Commercial Books IR Art. 6 dates it when the error is discovered. Here, in the ONE
+     * mirror writer, so the generic reverse, the bank-transfer reversal (which forwards the caller's date) and
+     * every document-owned reversal are held alike. Refused before anything is written.
+     */
+    if (date < originalDate) {
+      throw new BusinessRuleError(422, {
+        code: "reversal_before_original",
+        error: `A reversal is never dated before the entry it reverses (${original.entryNumber ?? `#${id}`} is dated ${originalDate}). A correction is dated on the day the error is discovered (Commercial Books Regulation Art. 6) — today by default.`,
+        field: "date",
+      });
     }
     /**
      * 🔴 T1e (DR-10; owner decision 10, 2026-10-27): a correction may record the ACTUAL date the error was

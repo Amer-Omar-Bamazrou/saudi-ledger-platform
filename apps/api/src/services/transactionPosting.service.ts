@@ -60,6 +60,7 @@ import { journalEntriesService } from "./journalEntries.service";
 import { logger } from "../lib/logger";
 import { BankAccountRequiredError } from "../lib/errors";
 import { withSavepoint } from "../lib/savepoint";
+import { businessToday } from "@workspace/shared";
 
 type Tx = typeof transactionsTable.$inferSelect;
 type Cat = typeof categoriesTable.$inferSelect;
@@ -137,7 +138,7 @@ export const transactionPostingService = {
    * atomically with the acceptance — a row can never be accepted-but-unposted
    * or posted-but-unlinked.
    */
-  async post(txId: number): Promise<number | null> {
+  async post(txId: number, opts: { date?: string } = {}): Promise<number | null> {
     const [row] = await db
       .select({ tx: transactionsTable, cat: categoriesTable })
       .from(transactionsTable)
@@ -160,7 +161,8 @@ export const transactionPostingService = {
       .where(sql`${journalEntriesTable.entryNumber} = ${base} OR ${journalEntriesTable.entryNumber} LIKE ${base + "-%"}`);
     const je = await postJournalEntry({ sourceType: "bank_transaction", sourceId: row.tx.id,
       entryNumber: n === 0 ? base : `${base}-P${n}`,
-      date: row.tx.date,
+      // a first posting is the line's own date; a correction's new entry is the correction's date (DR-32, `repost`)
+      date: opts.date ?? row.tx.date,
       description: `Bank ${row.tx.kind === "transfer" ? "transfer" : row.tx.type === "debit" ? "payment" : "receipt"}: ${row.tx.description.slice(0, 80)}`,
       reference: `TXN-${row.tx.id}`,
       lines: linesFor(row.tx, row.cat),
@@ -219,13 +221,22 @@ export const transactionPostingService = {
       .limit(1);
     if (!row) return null;
 
+    /**
+     * 🔴 Phase 18 H-2 — DR-32 (register §11.48): the correction is dated at DISCOVERY — the reversal AND the new
+     * entry, never before the line's own date. The new entry used to be posted at the line's date while the
+     * reversal took today (the "split"), so the line's cash was counted twice in its own month (OBS-5). A row that
+     * had never posted is posted at its own date, as before — that is not a correction.
+     */
+    let correctionDate: string | undefined;
     if (row.tx.journalEntryId != null) {
-      await journalEntriesService.reverse(row.tx.journalEntryId, {}, { document: "statement_line" });
+      const lineDate = String(row.tx.date).slice(0, 10);
+      correctionDate = businessToday() < lineDate ? lineDate : businessToday();
+      await journalEntriesService.reverse(row.tx.journalEntryId, { date: correctionDate }, { document: "statement_line" });
       await db.update(transactionsTable).set({ journalEntryId: null }).where(eq(transactionsTable.id, txId));
     }
     // Re-read through `post`, which re-checks `shouldPost` — an edit that made
     // the row a transfer, or un-accepted it, correctly leaves it unposted.
-    return this.post(txId);
+    return this.post(txId, correctionDate ? { date: correctionDate } : {});
   },
 
   /**
