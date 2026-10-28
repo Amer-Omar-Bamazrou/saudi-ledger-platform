@@ -1063,6 +1063,17 @@ export const VatReturnFilingKind = {
   amendment: 'amendment',
 } as const;
 
+export interface VatFilingClearing {
+  entryId: number;
+  entryNumber: string;
+  /** The period's output VAT cleared (less what earlier filings of the period cleared). */
+  outputVat: number;
+  /** The period's input VAT cleared. */
+  inputVat: number;
+  /** outputVat − inputVat: > 0 payable (credited to VAT payable), < 0 receivable (debited). */
+  net: number;
+}
+
 export interface VatReturnFiling {
   id: number;
   periodFrom: string;
@@ -1077,6 +1088,8 @@ export interface VatReturnFiling {
   /** @nullable */
   createdBy: number | null;
   createdAt: string;
+  /** Phase 18 G2b (owner decision A5(c)), on the recording response only: the entry the filing posted, clearing the period's output and input VAT to VAT payable (net > 0) or receivable (net < 0), dated the filing date. Null when the period had nothing left to clear. */
+  clearing?: VatFilingClearing | null;
 }
 
 export type VatReturnFilingInputKind = typeof VatReturnFilingInputKind[keyof typeof VatReturnFilingInputKind];

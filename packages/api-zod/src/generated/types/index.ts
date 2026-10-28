@@ -937,6 +937,7 @@ export * from './vatEvidencePreviewInputSupplierDocumentKind';
 export * from './vatEvidenceVerdict';
 export * from './vatEvidenceVerdictBasis';
 export * from './vatEvidenceVerdictStatus';
+export * from './vatFilingClearing';
 export * from './vatReturn';
 export * from './vatReturnBadDebtRelief';
 export * from './vatReturnDepositReview';

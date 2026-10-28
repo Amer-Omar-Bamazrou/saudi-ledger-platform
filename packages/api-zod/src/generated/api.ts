@@ -4442,13 +4442,20 @@ export const ListVatReturnFilingsResponseItem = zod.object({
   "zatcaReference": zod.string(),
   "notes": zod.string().nullable(),
   "createdBy": zod.number().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "clearing": zod.union([zod.object({
+  "entryId": zod.number(),
+  "entryNumber": zod.string(),
+  "outputVat": zod.number().describe('The period\'s output VAT cleared (less what earlier filings of the period cleared).'),
+  "inputVat": zod.number().describe('The period\'s input VAT cleared.'),
+  "net": zod.number().describe('outputVat − inputVat: > 0 payable (credited to VAT payable), < 0 receivable (debited).')
+}),zod.null()]).optional().describe('Phase 18 G2b (owner decision A5(c)), on the recording response only: the entry the filing posted, clearing the period\'s output and input VAT to VAT payable (net > 0) or receivable (net < 0), dated the filing date. Null when the period had nothing left to clear.\n')
 })
 export const ListVatReturnFilingsResponse = zod.array(ListVatReturnFilingsResponseItem)
 
 
 /**
- * @summary 🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends. Recording changes no figure.
+ * @summary 🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends. Phase 18 G2b (A5(c)): recording it posts the entry clearing the period's output and input VAT to VAT payable (receivable), dated the filing date — refused with the filing when that month is closed.
 
  */
 export const RecordVatReturnFilingBody = zod.object({
@@ -4471,7 +4478,14 @@ export const RecordVatReturnFilingResponse = zod.object({
   "zatcaReference": zod.string(),
   "notes": zod.string().nullable(),
   "createdBy": zod.number().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "clearing": zod.union([zod.object({
+  "entryId": zod.number(),
+  "entryNumber": zod.string(),
+  "outputVat": zod.number().describe('The period\'s output VAT cleared (less what earlier filings of the period cleared).'),
+  "inputVat": zod.number().describe('The period\'s input VAT cleared.'),
+  "net": zod.number().describe('outputVat − inputVat: > 0 payable (credited to VAT payable), < 0 receivable (debited).')
+}),zod.null()]).optional().describe('Phase 18 G2b (owner decision A5(c)), on the recording response only: the entry the filing posted, clearing the period\'s output and input VAT to VAT payable (net > 0) or receivable (net < 0), dated the filing date. Null when the period had nothing left to clear.\n')
 })
 
 

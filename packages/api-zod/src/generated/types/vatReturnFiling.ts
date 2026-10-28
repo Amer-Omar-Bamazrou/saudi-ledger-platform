@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { VatFilingClearing } from './vatFilingClearing';
 import type { VatReturnFilingKind } from './vatReturnFilingKind';
 
 export interface VatReturnFiling {
@@ -21,4 +22,6 @@ export interface VatReturnFiling {
   /** @nullable */
   createdBy: number | null;
   createdAt: string;
+  /** Phase 18 G2b (owner decision A5(c)), on the recording response only: the entry the filing posted, clearing the period's output and input VAT to VAT payable (net > 0) or receivable (net < 0), dated the filing date. Null when the period had nothing left to clear. */
+  clearing?: VatFilingClearing | null;
 }

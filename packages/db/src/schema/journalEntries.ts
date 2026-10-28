@@ -51,6 +51,7 @@ export const JOURNAL_SOURCE_TYPES = [
   "migration_opening",                 // migration_batches.id
   "migration_reversal",                // migration_batches.id
   "opening_correction",                // migration_open_items.id (the opening item corrected)
+  "vat_return_filing",                 // vat_return_filings.id (Phase 18 G2b: the clearing entry a filing posts, A5(c))
 ] as const;
 export type JournalSourceType = (typeof JOURNAL_SOURCE_TYPES)[number];
 
@@ -65,7 +66,7 @@ export type JournalSourceType = (typeof JOURNAL_SOURCE_TYPES)[number];
 export const RESERVED_ENTRY_NUMBER_PREFIXES = [
   "GL", "BILL", "BILLCN", "BILLADV", "BILLADVCN", "DEP", "DISP", "WO", "PAY", "VATEV", "MIG", "OPEN",
   "SPAY", "SALLOC", "SRECLASS", "SREFUND", "BTR", "TXN", "RCPT", "ALLOC", "UNALLOC", "REFUND", "RECLASS",
-  "ZAKAT", "INCTAX", "WHTREM", "WHTREMREV",
+  "ZAKAT", "INCTAX", "WHTREM", "WHTREMREV", "VATFILE",
 ] as const;
 
 
