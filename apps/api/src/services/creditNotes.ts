@@ -9,7 +9,7 @@
 import { BusinessRuleError, NotFoundError } from "../lib/errors";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
-import { INVOICE_IN_BOOKS_STATUSES, ADVANCE_CREDIT_NOTE_TYPE, isAdvanceInvoiceType } from "@workspace/shared";
+import { INVOICE_IN_BOOKS_STATUSES, ADVANCE_CREDIT_NOTE_TYPE, isAdvanceInvoiceType, isRecoveryInvoiceType } from "@workspace/shared";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 import { migrationCorrectionService } from "./migrationCorrection.service";
 import { CHARGE_SUBSTANCES } from "@workspace/shared";
@@ -176,6 +176,22 @@ export async function assertNoteIsValid(input: {
     throw new BusinessRuleError(409, {
       code: "note_original_is_note",
       error: `A ${label} must reference an invoice, not another note.`,
+    });
+  }
+
+  // ── Phase 18 G3 (owner decision 3, 2026-10-27): a RECOVERY is never corrected by an ordinary note ──
+  // An Art. 40(9) recovery invoice carries no receivable (the debt was written off) and folds the receipt
+  // into its own issue entry, so an ordinary note would credit or charge a sale that is not there. Its
+  // correction adjusts the allocation, the receivable and the VAT together — a controlled workflow that
+  // is a design item, never automated. The G59 refusal (unapplying its receipt) stands beside this one.
+  if (isRecoveryInvoiceType(original.documentType)) {
+    throw new BusinessRuleError(409, {
+      code: "note_original_is_recovery_invoice",
+      error:
+        `${original.invoiceNumber} is a tax invoice for a recovered bad debt (VAT Art. 40(9)). It is never corrected with an ordinary ${label}: ` +
+        `a recovery's correction adjusts its receipt, the receivable and the VAT together, and that controlled correction is not available yet. ` +
+        `Record the facts and take advice; nothing was created.`,
+      field: "originalInvoiceId",
     });
   }
 
