@@ -650,6 +650,7 @@ export * from './paymentReversalRef';
 export * from './payPaymentPlanInput';
 export * from './payPaymentPlanInputWhtFiledMonthTreatment';
 export * from './payPaymentPlanInputWhtNotSubjectReason';
+export * from './payPayrollRunGosiInput';
 export * from './payPayrollRunInput';
 export * from './payrollItem';
 export * from './payrollItemGosiRegime';

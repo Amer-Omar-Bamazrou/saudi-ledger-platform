@@ -99,9 +99,10 @@ export const GOSI_SCHEDULE: readonly GosiRateEntry[] = [
       "1421H Registration and Contributions Regulation (GOSI-published): Art. 19(1) the pension floor of a SAR 1,500 wage; Art. 30(1) late fines at most 100% of the contributions; Art. 21(2)(a),(b) the wage due in January (or a joiner's first month) for the year",
       "Royal Decree M/273 item 4: the 1421H law continues to apply to members with earlier uncompensated contribution periods",
       "1421H Registration and Contributions Regulation Art. 21(3): the joining and leaving months by days of service (owner, 2026-10-27 morning)",
+      "SANED 1.5% borne equally (0.75% each side) from 01/01/2022: GOSI's own news of 13/1/2022 (gosi.gov.sa/GOSIOnline/news106en) — recorded as verified by the owner (2026-10-27, decision 19)",
     ],
     unverified: [
-      "SANED 0.75% each side (and so pension 9% each side): GOSI guidance, not verified against the binding text (question G1)",
+      "SANED 0.75% each side (and so pension 9% each side): the binding instrument for the 1421H-law split is still not found (question G1); GOSI's own news of 13/1/2022 is in the sources",
       "The proration divisor, the month's actual days: an INTERPRETATION matching the 2024 rule, as Art. 21(3) names none (owner, 2026-10-27 morning); GOSI's Employer FAQ #11 reads otherwise (question G1)",
     ],
     pensionFloorWage: 1_500,
@@ -248,6 +249,37 @@ export function gosiLineAmounts(input: {
     employer = (employer * input.serviceDays) / input.periodDays;
   }
   return { employee, employer, pensionFloorWage };
+}
+
+/**
+ * 🔴 GOSI decision 21 (owner 2026-10-27; scope corrected by the owner the same
+ * day). The 1421H Registration and Contributions Regulation Art. 19(1), as GOSI
+ * publishes it: «… وفي فرع الأخطار المهنية لغير الخاضعين لفرع المعاشات عن (400)
+ * ريال شهرياً، ويحسب الاشتراك الشهري على هذا الأساس إن كان الأجر الفعلي يقل عن
+ * ذلك سواء بالنسبة لحصة المشترك أو صاحب العمل» — an occupational-hazards
+ * minimum of a SAR 400 monthly wage for members OUTSIDE the pension branch.
+ *
+ * Its scope, from Royal Decree M/273 (26/12/1445H) items Second and Fourth: the
+ * 1421H law applies to contributors with earlier uncompensated periods and to
+ * existing pensioners; everyone else is under the 2024 law, whose Art. 8(1)
+ * floor is "the minimum wage set by the competent authority" with no figure
+ * identified. So:
+ *  - an employee whose RECORDED law is 1421H is a Saudi pension member: GO-10's
+ *    SAR 1,500 pension floor applies, and this hazards-only minimum does not;
+ *  - a 2024-law employee: no floor figure is built (none identified);
+ *  - a NON-SAUDI employee: the per-employee law flag does not cover them, and
+ *    the decree does not say whether their hazards-only periods count as
+ *    "earlier contribution periods" — an open GOSI question. The law is NOT
+ *    inferred from nationality or dates: a line below SAR 400 is WARNED, never
+ *    refused and never changed, until GOSI answers in writing.
+ * Unverified, recorded: footnote (1) of Art. 19 (not on the published page),
+ * and the Regulation's reach over today's non-Saudi members.
+ */
+export const GOSI_HAZARDS_ONLY_MINIMUM_WAGE = 400;
+
+/** Decision 21: does this line carry the open SAR 400 hazards-minimum warning? (A non-Saudi line below SAR 400.) */
+export function gosiHazardsMinimumOpen(regime: GosiRegime, wage: number): boolean {
+  return regime === "non_saudi" && wage < GOSI_HAZARDS_ONLY_MINIMUM_WAGE;
 }
 
 /** The due date of a period's contributions: the 15th of the following month (Law Art. 9(1); Regulation Art. 24). */

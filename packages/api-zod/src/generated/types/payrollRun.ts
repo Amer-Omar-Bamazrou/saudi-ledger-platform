@@ -22,6 +22,21 @@ export interface PayrollRun {
      * @nullable
      */
   gosiPaidAt: string | null;
+  /**
+     * GOSI decision 22: what GOSI invoiced and the bank paid, when the payment stated it; null when the accrual was paid.
+     * @nullable
+     */
+  gosiInvoicedAmount: number | null;
+  /**
+     * GOSI's invoice reference, when stated.
+     * @nullable
+     */
+  gosiInvoiceReference: string | null;
+  /**
+     * GOSI decision 22: invoiced − accrued (employee + employer contributions) — a reconciling item for the user to resolve, never posted. Null when no invoiced amount was stated.
+     * @nullable
+     */
+  gosiReconcilingDifference: number | null;
   /** @nullable */
   processedAt: string | null;
   /** @nullable */

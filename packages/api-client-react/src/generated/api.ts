@@ -286,6 +286,7 @@ import type {
   OpeningVatDeclaration,
   OwnerEquityReport,
   PayPaymentPlanInput,
+  PayPayrollRunGosiInput,
   PayPayrollRunInput,
   Payment,
   PaymentAllocationDetail,
@@ -22132,14 +22133,14 @@ export const getPayPayrollRunGosiUrl = (id: number,) => {
  * @summary Pay an approved payroll run's GOSI contributions from a bank account (settles GOSI Payable)
  */
 export const payPayrollRunGosi = async (id: number,
-    payPayrollRunInput: PayPayrollRunInput, options?: RequestInit): Promise<PayrollRun> => {
+    payPayrollRunGosiInput: PayPayrollRunGosiInput, options?: RequestInit): Promise<PayrollRun> => {
 
   return customFetch<PayrollRun>(getPayPayrollRunGosiUrl(id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(payPayrollRunInput)
+    body: JSON.stringify(payPayrollRunGosiInput)
   }
 );}
 
@@ -22148,8 +22149,8 @@ export const payPayrollRunGosi = async (id: number,
 
 
 export const getPayPayrollRunGosiMutationOptions = <TError = ErrorType<ErrorResponse | void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payPayrollRunGosi>>, TError,{id: number;data: BodyType<PayPayrollRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof payPayrollRunGosi>>, TError,{id: number;data: BodyType<PayPayrollRunInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payPayrollRunGosi>>, TError,{id: number;data: BodyType<PayPayrollRunGosiInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof payPayrollRunGosi>>, TError,{id: number;data: BodyType<PayPayrollRunGosiInput>}, TContext> => {
 
 const mutationKey = ['payPayrollRunGosi'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -22161,7 +22162,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof payPayrollRunGosi>>, {id: number;data: BodyType<PayPayrollRunInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof payPayrollRunGosi>>, {id: number;data: BodyType<PayPayrollRunGosiInput>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  payPayrollRunGosi(id,data,requestOptions)
@@ -22175,18 +22176,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PayPayrollRunGosiMutationResult = NonNullable<Awaited<ReturnType<typeof payPayrollRunGosi>>>
-    export type PayPayrollRunGosiMutationBody = BodyType<PayPayrollRunInput>
+    export type PayPayrollRunGosiMutationBody = BodyType<PayPayrollRunGosiInput>
     export type PayPayrollRunGosiMutationError = ErrorType<ErrorResponse | void>
 
     /**
  * @summary Pay an approved payroll run's GOSI contributions from a bank account (settles GOSI Payable)
  */
 export const usePayPayrollRunGosi = <TError = ErrorType<ErrorResponse | void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payPayrollRunGosi>>, TError,{id: number;data: BodyType<PayPayrollRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payPayrollRunGosi>>, TError,{id: number;data: BodyType<PayPayrollRunGosiInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof payPayrollRunGosi>>,
         TError,
-        {id: number;data: BodyType<PayPayrollRunInput>},
+        {id: number;data: BodyType<PayPayrollRunGosiInput>},
         TContext
       > => {
       return useMutation(getPayPayrollRunGosiMutationOptions(options));

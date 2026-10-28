@@ -1,6 +1,6 @@
 export { normalizeDigits } from "./digits";
 export { DEFAULT_VAT_RATE, gosiPercentLabel, PARTY_REQUIRED_SYSTEM_CODES } from "./saudi";
-export { GOSI_EMPLOYEE_REGIMES, GOSI_SCHEDULE, GOSI_WAGE_CEILING, GOSI_IN_KIND_HOUSING_MONTHS_A_YEAR, gosiRatesFor, gosiContributoryWage, gosiInKindHousingValue, gosiServiceDays, gosiLineAmounts, gosiDueDate, gosiLateFineEstimate, type GosiRegime, type GosiEmployeeRegime, type GosiRateEntry, type GosiRates } from "./gosi";
+export { GOSI_EMPLOYEE_REGIMES, GOSI_SCHEDULE, GOSI_WAGE_CEILING, GOSI_IN_KIND_HOUSING_MONTHS_A_YEAR, gosiRatesFor, gosiContributoryWage, gosiInKindHousingValue, gosiServiceDays, gosiLineAmounts, gosiDueDate, gosiLateFineEstimate, GOSI_HAZARDS_ONLY_MINIMUM_WAGE, gosiHazardsMinimumOpen, type GosiRegime, type GosiEmployeeRegime, type GosiRateEntry, type GosiRates } from "./gosi";
 export { BUSINESS_TIME_ZONE, businessDate, businessToday, businessDateShift, isCalendarDate } from "./businessDate";
 export { OPENING_NUMBER_PREFIX, OPENING_REPLACEMENT_NUMBER, openingReplacementNumber, isReservedOpeningNumber } from "./openingNumbers";
 export { INVOICE_IN_BOOKS_STATUSES, isReceivableInBooks, type ReceivableStateRow } from "./receivableState";

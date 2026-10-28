@@ -19,7 +19,7 @@ import { runToOut, itemToOut, toNum } from "./payroll.presenter";
 import { payrollRepository } from "../repositories/payroll.repository";
 import { round2, money2 } from "../lib/money";
 import {
-  businessToday, gosiContributoryWage, gosiInKindHousingValue, gosiLineAmounts, gosiRatesFor, gosiServiceDays, type GosiRegime,
+  businessToday, gosiContributoryWage, gosiHazardsMinimumOpen, gosiInKindHousingValue, gosiLineAmounts, gosiRatesFor, gosiServiceDays, type GosiRegime,
 } from "@workspace/shared";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
@@ -167,6 +167,7 @@ export const payrollService = {
         gosiEmployerRate: rates.employerRate.toFixed(4),
         gosiInKindHousing: inKind == null ? null : money2(inKind),
         gosiPensionFloorWage: amounts.pensionFloorWage == null ? null : money2(amounts.pensionFloorWage),
+        gosiHazardsFloorOpen: gosiHazardsMinimumOpen(regime, wage),
         gosiServiceDays: days?.serviceDays ?? null,
         gosiPeriodDays: days?.periodDays ?? null,
         gosiWageFixedPeriod: rates.entry.wageFixedForYear ? (fixed ? (fixed.fixedPeriod ?? fixed.period) : period) : null,
@@ -270,7 +271,19 @@ export const payrollService = {
    * or one is waiting in review against them (`gosiPayableOpen`, the one definition the categoriser also reads).
    * Dated the payment's day (default today). A closed period refuses through the posting seam (423).
    */
-  async payGosi(id: number, body: { bankAccountId?: unknown; paidAt?: unknown }, userId: number | null) {
+  async payGosi(id: number, body: { bankAccountId?: unknown; paidAt?: unknown; invoicedAmount?: unknown; gosiInvoiceReference?: unknown }, userId: number | null) {
+    // 🔴 GOSI decision 22 (owner 2026-10-27): GOSI's INVOICED amount, when stated, is what the bank pays.
+    // Its difference from the accrual is shown on the run as a reconciling item — never posted to an account
+    // the platform would have to guess (a fine, a wage change, a rounding: the user resolves it).
+    let invoiced: number | null = null;
+    if (body.invoicedAmount != null && body.invoicedAmount !== "") {
+      invoiced = Number(body.invoicedAmount);
+      if (!Number.isFinite(invoiced) || !(round2(invoiced) > 0)) {
+        throw new BusinessRuleError(422, { code: "gosi_invoiced_amount_invalid", field: "invoicedAmount", error: "GOSI's invoiced amount is a positive amount in riyals. Nothing was paid." });
+      }
+      invoiced = round2(invoiced);
+    }
+    const invoiceReference = typeof body.gosiInvoiceReference === "string" && body.gosiInvoiceReference.trim() ? body.gosiInvoiceReference.trim() : null;
     const bankAccountId = await assertBankAccount(body.bankAccountId, { what: "the GOSI contributions left from" });
     const paidAt = body.paidAt == null || body.paidAt === "" ? businessToday() : assertDateString(body.paidAt, "paidAt");
     await payrollRepository.lockRun(id);
@@ -286,14 +299,16 @@ export const payrollService = {
     if (!(amount > 0)) {
       throw new BusinessRuleError(409, { code: "payroll_gosi_nothing_due", error: `Payroll run ${run.period} carries no GOSI contributions, so there is nothing to pay.` });
     }
-    const openGosiPayable = await payrollRepository.gosiPayableOpen();
+    // Decision 22: earlier runs' recorded reconciling differences are explained, not a bank line paying this run.
+    const openGosiPayable = Math.round(((await payrollRepository.gosiPayableOpen()) + (await payrollRepository.gosiRecordedDifferences())) * 100) / 100;
     if (openGosiPayable + 0.005 < amount) {
       throw new BusinessRuleError(409, {
         code: "payroll_gosi_payable_already_settled",
         error: `GOSI Payable owes ${openGosiPayable.toFixed(2)} (after statement lines waiting in review against it), less than this run's GOSI contributions of ${amount.toFixed(2)}: a bank line has already paid them, or is waiting to. Nothing was recorded. Reconcile that line instead.`,
       });
     }
-    const [marked] = await payrollRepository.markGosiPaidIfUnpaid(id, paidAt);
+    const [marked] = await payrollRepository.markGosiPaidIfUnpaid(id, paidAt, invoiced, invoiceReference);
+    const paidAmount = invoiced ?? amount;
     if (!marked) throw new BusinessRuleError(409, { code: "payroll_gosi_already_paid", error: `Payroll run ${run.period} changed while its GOSI was being paid. Nothing was recorded — reload and try again.` });
     const entry = await postJournalEntry({ sourceType: "payroll_gosi_payment", sourceId: run.id,
       entryNumber: `PAY-${run.period}-R${run.id}-GOSI`,
@@ -301,11 +316,11 @@ export const payrollService = {
       description: `GOSI contributions for payroll run ${run.period}`,
       reference: `Payroll-${run.id}`,
       lines: [
-        { systemCode: "GOSI_PAYABLE", accountName: "GOSI Payable", description: `GOSI paid ${run.period}`, debitAmount: amount, creditAmount: 0 },
-        { bankAccountId, description: `GOSI ${run.period}`, debitAmount: 0, creditAmount: amount },
+        { systemCode: "GOSI_PAYABLE", accountName: "GOSI Payable", description: `GOSI paid ${run.period}${invoiceReference ? ` — GOSI invoice ${invoiceReference}` : ""}`, debitAmount: paidAmount, creditAmount: 0 },
+        { bankAccountId, description: `GOSI ${run.period}`, debitAmount: 0, creditAmount: paidAmount },
       ],
     });
-    await auditService.record({ action: "pay_gosi", entityType: "payroll_run", entityId: id, before: runToOut(run), after: { ...runToOut(marked), gosiPaidAt: paidAt, amount, bankAccountId, journalEntryId: entry?.id ?? null, by: userId } });
+    await auditService.record({ action: "pay_gosi", entityType: "payroll_run", entityId: id, before: runToOut(run), after: { ...runToOut(marked), gosiPaidAt: paidAt, amount: paidAmount, accrued: amount, bankAccountId, journalEntryId: entry?.id ?? null, by: userId } });
     return runToOut(marked);
   },
 };

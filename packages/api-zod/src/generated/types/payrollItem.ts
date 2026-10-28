@@ -49,6 +49,8 @@ export interface PayrollItem {
      * @nullable
      */
   gosiPensionFloorWage: number | null;
+  /** GOSI decision 21: a non-Saudi line below the 1421H Regulation Art. 19(1) SAR 400 occupational-hazards minimum — a WARNING only, an open GOSI question; the line's figures are never changed by it. */
+  gosiHazardsFloorOpen: boolean;
   /**
      * GO-12 (both laws: 2024 Regulation Art. 20(2); 1421H Regulation Art. 21(3)): the days of service in a joining or leaving month. Null for a full month.
      * @nullable

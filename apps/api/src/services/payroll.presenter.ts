@@ -18,6 +18,10 @@ export const runToOut = (r: PayrollRun) => ({
   totalGosiEmployer: toNum(r.totalGosiEmployer),
   totalDeductions: toNum(r.totalDeductions),
   totalNetPay: toNum(r.totalNetPay),
+  // GOSI decision 22: what GOSI invoiced, and its difference from the accrual — a reconciling item, never posted.
+  gosiInvoicedAmount: r.gosiInvoicedAmount == null ? null : Number(r.gosiInvoicedAmount),
+  gosiInvoiceReference: r.gosiInvoiceReference ?? null,
+  gosiReconcilingDifference: r.gosiInvoicedAmount == null ? null : Math.round((Number(r.gosiInvoicedAmount) - toNum(r.totalGosiEmployee) - toNum(r.totalGosiEmployer)) * 100) / 100,
 });
 
 export const itemToOut = (i: PayrollItem) => ({
