@@ -124,6 +124,7 @@ export const STEP_LABEL: Record<string, [string, string]> = {
   pool_deduction: ["Less: Art. 17 depreciation", "يُطرح: إهلاك المادة 17"],
   pool_excess: ["Add: Art. 17(g) excess of disposals", "يُضاف: فائض الاستبعاد المادة 17(ز)"],
   repairs_over_cap: ["Add: repairs above the Art. 18 cap", "يُضاف: إصلاحات تتجاوز سقف المادة 18"],
+  borne_wht: ["Add: withholding tax the company bore (not deductible, Art. 13(e))", "يُضاف: ضريبة الاستقطاع التي تحمّلتها المنشأة (غير قابلة للحسم، المادة 13(هـ))"],
   declared_adjustments: ["Declared adjustments", "التعديلات المُقرَّة"],
   taxable_income: ["Taxable income", "الدخل الخاضع للضريبة"],
   losses_used: ["Less: losses carried forward (≤ 25 %)", "يُطرح: الخسائر المرحلة (حتى 25%)"],

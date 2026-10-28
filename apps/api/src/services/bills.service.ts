@@ -582,7 +582,8 @@ export const billsService = {
         // D-4 covers customer payments only in Batch 1B Part 1; a bill payment is still the B4 row.
         paymentId: null as number | null,
         withheld: w ? Number(w.whtAmount) : null,
-        cashPaid: w ? round2(Number(p.amount) - Number(w.whtAmount)) : null,
+        // G4c-1: when the company bore the tax (a net-of-tax contract) the supplier received the full amount
+        cashPaid: w ? (w.taxBearing === "net_of_tax" ? Number(p.amount) : round2(Number(p.amount) - Number(w.whtAmount))) : null,
         whtPaymentType: w?.paymentType ?? null,
         reversal: c ? { correctionId: c.id, correctedOn: c.correctedOn, reason: c.reason, reversalJournalEntryId: c.reversalJournalEntryId } : null,
       };

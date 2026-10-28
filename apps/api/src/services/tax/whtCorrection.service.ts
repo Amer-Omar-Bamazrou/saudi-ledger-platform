@@ -232,6 +232,8 @@ export const whtCorrectionService = {
         whtPaymentType: r.whtPaymentType, whtNotSubjectReason: r.whtNotSubjectReason, whtNotSubjectNote: r.whtNotSubjectNote,
         // the person's one treatment applies to whichever leg falls in a filed month
         whtFiledMonthTreatment: r.whtFiledMonthTreatment ?? treatmentIn ?? undefined,
+        // G4c-1: the contract the corrected payment is made under (who bears its tax) — copied, or it is dropped
+        whtContractId: r.whtContractId,
       };
       if (w.sourceKind === "bill_payment") {
         const billId = r.billId == null || r.billId === "" ? billPayment!.bill_id : Number(r.billId);

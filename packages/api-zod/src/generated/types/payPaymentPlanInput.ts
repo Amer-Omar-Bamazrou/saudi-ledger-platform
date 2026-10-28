@@ -16,6 +16,8 @@ export interface PayPaymentPlanInput {
   /** @nullable */
   whtPaymentType?: string | null;
   /** @nullable */
+  whtContractId?: number | null;
+  /** @nullable */
   whtNotSubjectReason?: PayPaymentPlanInputWhtNotSubjectReason;
   /**
      * @maxLength 2000

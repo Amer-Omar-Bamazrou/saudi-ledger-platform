@@ -24,7 +24,7 @@ import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
-import { decideWithholding, recordWithholding, refuseLateWithholdingOnReentry, returnPeriodFor, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
+import { cashAfterWithholding, decideWithholding, recordWithholding, refuseLateWithholdingOnReentry, returnPeriodFor, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
 import { billsRepository } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { businessToday } from "@workspace/shared";
@@ -52,13 +52,17 @@ export class BillPaymentReplay extends Error {
   }
 }
 
-type PayBillBody = { amount: unknown; paidAt?: string; bankAccountId?: unknown; idempotencyKey?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown };
+type PayBillBody = { amount: unknown; paidAt?: string; bankAccountId?: unknown; idempotencyKey?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown; whtContractId?: unknown };
 
 /** G36-KEY: the request a key was first used with — a retry must repeat it to be the SAME payment. */
 function requestFingerprint(billId: number, body: PayBillBody): string {
   const n = (v: unknown) => (v === undefined || v === "" ? null : v);
+  const parts: unknown[] = [billId, round2(Number(body.amount)), n(body.paidAt), Number(body.bankAccountId), n(body.whtPaymentType), n(body.whtNotSubjectReason), n(body.whtNotSubjectNote), n(body.whtFiledMonthTreatment)];
+  // G4c-1: the contract decides who bears the tax, so it is part of the request — appended only when named, so a
+  // key first used without one fingerprints exactly as before
+  if (n(body.whtContractId) != null) parts.push(Number(body.whtContractId));
   return createHash("sha256")
-    .update(JSON.stringify([billId, round2(Number(body.amount)), n(body.paidAt), Number(body.bankAccountId), n(body.whtPaymentType), n(body.whtNotSubjectReason), n(body.whtNotSubjectNote), n(body.whtFiledMonthTreatment)]))
+    .update(JSON.stringify(parts))
     .digest("hex");
 }
 
@@ -181,7 +185,7 @@ export async function payBill(
     // Q1: which month's return carries it — a FILED month is never changed silently (refused here, before any write)
     const reported = await returnPeriodFor(withholding, payDate, declared.filedMonthTreatment, { today: businessToday(), correctionPeriod: opts.correction?.correctionPeriod });
     const withheld = whtOf(withholding);
-    const cashPaid = fromHalalas(toHalalas(paid) - toHalalas(withheld));
+    const cashPaid = cashAfterWithholding(paid, withholding); // G4c-1: the full amount when the company bears the tax
 
     const [bill] = await billsRepository.update(id, {
       paidAmount: String(newPaid),

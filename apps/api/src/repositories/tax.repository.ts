@@ -41,6 +41,8 @@ export type WithholdingRow = {
   payment_class: string | null; nature_basis: string | null; supersedes_withholding_id: number | null;
   // Q1 (0117): the return month, the filed-month treatment, the correction this row re-enters, and its own correction
   return_period: string; filed_month_treatment: string | null; correction_id: number | null;
+  // G4c-1 (0141): the contract the payment was made under, its setting, and the net when the company bore the tax
+  contract_id: number | null; tax_bearing: string | null; net_amount: string | null;
   corr_id: number | null; corr_corrected_on: string | null; corr_reason: string | null; corr_reversal_return_period: string | null;
   corr_filed_month_treatment: string | null; corr_reversal_entry_id: number | null; corr_corrected_withholding_id: number | null;
   corr_corrected_bill_payment_id: number | null; corr_corrected_supplier_payment_id: number | null;
@@ -84,6 +86,7 @@ export const taxRepository = {
              w.wht_amount::text, w.journal_entry_id, rt.form_row, w.created_at::text AS created_at,
              w.payment_class, w.nature_basis, w.supersedes_withholding_id,
              w.return_period, w.filed_month_treatment, w.correction_id,
+             w.contract_id, w.tax_bearing, w.net_amount::text,
              xc.id AS corr_id, xc.corrected_on::text AS corr_corrected_on, xc.reason AS corr_reason, xc.reversal_return_period AS corr_reversal_return_period,
              xc.filed_month_treatment AS corr_filed_month_treatment, xc.reversal_journal_entry_id AS corr_reversal_entry_id,
              (SELECT r.id FROM wht_withholdings r WHERE r.correction_id = xc.id) AS corr_corrected_withholding_id,

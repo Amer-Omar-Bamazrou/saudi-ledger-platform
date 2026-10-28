@@ -111,7 +111,7 @@ describe("Phase 16 — the Zakat engine (pure, Arts 15, 21–29)", () => {
 });
 
 describe("Phase 16 — the income-tax engine (pure)", () => {
-  const inp = { profitBeforeTaxesH: 0, bookDepreciationH: 0, bookDisposalResultH: 0, poolDeductionH: 0, poolExcessIncomeH: 0, repairsOverCapH: 0, adjustments: [], lossCarryforwardAvailableH: 0, foreignShareBp: 10000 };
+  const inp = { profitBeforeTaxesH: 0, bookDepreciationH: 0, bookDisposalResultH: 0, poolDeductionH: 0, poolExcessIncomeH: 0, repairsOverCapH: 0, bookBorneWhtH: 0, adjustments: [], lossCarryforwardAvailableH: 0, foreignShareBp: 10000 };
   it("book depreciation is replaced by the Art. 17 pool; 20 % of the non-Saudi share", () => {
     const r = computeIncomeTax({ ...inp, profitBeforeTaxesH: 10_000_000, bookDepreciationH: 2_000_000, poolDeductionH: 2_500_000 });
     expect([r.taxableIncomeH, r.incomeTaxH]).toEqual([9_500_000, 1_900_000]);

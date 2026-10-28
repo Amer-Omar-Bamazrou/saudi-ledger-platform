@@ -50,6 +50,8 @@ const DECIDED: Record<string, CashFlowLine | "cash"> = {
   INCOME_TAX_EXPENSE: "zakat_income_tax",
   // a tax FINE is a cost, not a tax (SYSTEM_ACCOUNTS; absent from TAX_ACCOUNT_SYSTEM_CODES): an operating expense paid
   TAX_PENALTIES: "payments_suppliers",
+  // G4c-1 (decision 15): WHT the company bears under a net-of-tax contract — a cost it agreed to bear, classified by its type
+  WHT_BORNE_EXPENSE: "payments_suppliers",
   // operating — refundable security deposits: not a sale or a purchase; operating, listed apart
   SECURITY_DEPOSITS_PAID: "other_operating",
   SECURITY_DEPOSITS_HELD: "other_operating",

@@ -29,6 +29,11 @@ export interface CreateSupplierPaymentInput {
      * @nullable
      */
   whtPaymentType?: string | null;
+  /**
+     * G4c-1 (decision 15): the contract the payment is made under; under a net-of-tax one the company bears the tax.
+     * @nullable
+     */
+  whtContractId?: number | null;
   /** @nullable */
   whtNotSubjectReason?: CreateSupplierPaymentInputWhtNotSubjectReason;
   /**

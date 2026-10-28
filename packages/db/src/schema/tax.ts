@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, smallint, numeric, uuid, date, jsonb, index, uniqueIndex, check, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, smallint, numeric, uuid, date, jsonb, index, uniqueIndex, unique, foreignKey, check, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { categoriesTable } from "./categories";
 import { organizationsTable } from "./organizations";
@@ -113,6 +113,50 @@ export const vendorWhtTreatyReliefsTable = pgTable(
 );
 
 /**
+ * 🔴 Phase 18 G4c-1 — WHO BEARS THE TAX, PER CONTRACT (owner decision 15,
+ * 2026-10-27; register §11.44), as the user CONFIRMED it on recording the
+ * contract. `tax_inclusive`: the tax is withheld from the amount paid (no
+ * gross-up). `net_of_tax`: the supplier receives the full amount and the payer
+ * bears the tax — gross = net ÷ (1 − rate), the tax on the gross
+ * (`decideWithholding`). A non-resident's contract only (the service).
+ * Append-only for the request's role (0141 grants SELECT and INSERT): a
+ * changed setting is a NEW contract, so a payment's record never moves.
+ */
+export const WHT_TAX_BEARINGS = ["tax_inclusive", "net_of_tax"] as const;
+export type WhtTaxBearing = (typeof WHT_TAX_BEARINGS)[number];
+
+export const whtContractsTable = pgTable(
+  "wht_contracts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .default(sql`(nullif(current_setting('app.current_org_id', true), ''))::uuid`)
+      .references(() => organizationsTable.id),
+    companyId: uuid("company_id")
+      .notNull()
+      .default(sql`(nullif(current_setting('app.current_company_id', true), ''))::uuid`)
+      .references(() => companiesTable.id),
+    vendorId: integer("vendor_id").notNull(),
+    /** The contract as the parties name it (an agreement number, a title). */
+    reference: text("reference").notNull(),
+    taxBearing: text("tax_bearing").notNull(),
+    note: text("note"),
+    /** The user who confirmed the setting, and when — the contract's own record of decision 15's confirmation. */
+    confirmedBy: integer("confirmed_by"),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    unique("wht_contracts_org_id_unq").on(t.organizationId, t.id),
+    index("wht_contracts_vendor_idx").on(t.companyId, t.vendorId),
+    // G04: a tenant→tenant key carries organization_id
+    foreignKey({ name: "wht_contracts_vendor_tenant_fk", columns: [t.organizationId, t.vendorId], foreignColumns: [vendorsTable.organizationId, vendorsTable.id] }).onDelete("restrict"),
+    check("wht_contracts_bearing_chk", sql`${t.taxBearing} in ('tax_inclusive', 'net_of_tax')`),
+    check("wht_contracts_reference_chk", sql`length(btrim(${t.reference})) > 0`),
+  ],
+);
+
+/**
  * ONE row per supplier payment to a NON-RESIDENT (pack §2.4): the WHT the pay
  * path withheld, or the recorded reason it withheld none. Append-only.
  *
@@ -188,6 +232,15 @@ export const whtWithholdingsTable = pgTable(
     filedMonthTreatment: text("filed_month_treatment"),
     /** The correction this withholding RE-ENTERS (the corrected transaction of original → reversal → corrected). */
     correctionId: integer("correction_id").references((): AnyPgColumn => whtCorrectionsTable.id, { onDelete: "restrict" }),
+    /**
+     * 🔴 G4c-1 (decision 15): the contract the payment was made under, and its tax-bearing setting, copied at the
+     * payment — both or neither (no contract: the base is the payment amount, as before). Recorded on a WITHHELD
+     * row only. `net_of_tax`: `net_amount` is the payment amount (what the supplier received) and the base is
+     * round(net ÷ (1 − rate), 2) — checked by the admit (0141).
+     */
+    contractId: integer("contract_id"),
+    taxBearing: text("tax_bearing"),
+    netAmount: numeric("net_amount", { precision: 15, scale: 2 }),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -223,6 +276,11 @@ export const whtWithholdingsTable = pgTable(
     check("wht_withholdings_filed_treatment_chk", sql`${t.filedMonthTreatment} is null or ${t.filedMonthTreatment} in ('subsequent_period', 'amendment')`),
     check("wht_withholdings_note_chk", sql`${t.notSubjectReason} is distinct from 'not_kingdom_source' or length(btrim(coalesce(${t.notSubjectNote}, ''))) >= 10`),
     check("wht_withholdings_treaty_chk", sql`${t.treatyReliefId} is null or ${t.rate} <= ${t.statutoryRate}`),
+    // 🔴 G4c-1: a setting only with its contract, a contract only on a withheld row; a net amount exactly when net-of-tax
+    foreignKey({ name: "wht_withholdings_contract_tenant_fk", columns: [t.organizationId, t.contractId], foreignColumns: [whtContractsTable.organizationId, whtContractsTable.id] }).onDelete("restrict"),
+    check("wht_withholdings_bearing_chk", sql`${t.taxBearing} is null or ${t.taxBearing} in ('tax_inclusive', 'net_of_tax')`),
+    check("wht_withholdings_contract_chk", sql`(${t.contractId} is null) = (${t.taxBearing} is null) and (${t.contractId} is null or ${t.status} = 'withheld')`),
+    check("wht_withholdings_net_chk", sql`(coalesce(${t.taxBearing}, '') = 'net_of_tax') = (${t.netAmount} is not null)`),
   ],
 );
 

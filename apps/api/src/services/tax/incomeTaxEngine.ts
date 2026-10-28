@@ -8,6 +8,7 @@
  *   + book depreciation, ∓ book disposal result                  Art. 17 replaces book depreciation
  *   − Art. 17 pool deduction (+ elections taken)                 Art. 17(d), (h), (i)
  *   + Art. 17(g) excess of disposals · + Art. 18 repairs over the 4 % cap
+ *   + WHT the company bore under a net-of-tax contract (G4c-1)    Art. 13(e); IR Art. 10(5)
  *   ± declared adjustments (each with its article)               Arts 12–15; IR Arts 9–10
  *   = taxable income
  *   − losses carried forward, at most 25 % of the year's income  Art. 21; IR Art. 11
@@ -25,6 +26,11 @@ export interface IncomeTaxInputs {
   poolDeductionH: number;
   poolExcessIncomeH: number;
   repairsOverCapH: number;
+  /**
+   * 🔴 G4c-1 (owner decision 15): the year's movement on WHT_BORNE_EXPENSE — withholding tax the company bore for a
+   * non-resident under a net-of-tax contract. Not deductible (Law Art. 13(e); Regulations Art. 10(5)): added back.
+   */
+  bookBorneWhtH: number;
   adjustments: { effect: "increase" | "decrease"; amountH: number }[];
   lossCarryforwardAvailableH: number;
   /** The non-Saudi share in basis points of a percent: 25.50 % → 2550; 100 % → 10000. */
@@ -38,6 +44,7 @@ export interface IncomeTaxResult {
   poolDeductionH: number;
   poolExcessIncomeH: number;
   repairsOverCapH: number;
+  borneWhtAddBackH: number;
   declaredAdjustmentsH: number;
   taxableIncomeH: number;
   lossCapH: number;
@@ -63,7 +70,7 @@ export function computeIncomeTax(i: IncomeTaxInputs): IncomeTaxResult {
   const bookDepreciationAddBackH = i.bookDepreciationH;
   const bookDisposalReversalH = -i.bookDisposalResultH;
   const taxableIncomeH = i.profitBeforeTaxesH + bookDepreciationAddBackH + bookDisposalReversalH
-    - i.poolDeductionH + i.poolExcessIncomeH + i.repairsOverCapH + declaredAdjustmentsH;
+    - i.poolDeductionH + i.poolExcessIncomeH + i.repairsOverCapH + i.bookBorneWhtH + declaredAdjustmentsH;
 
   // Art. 21 / IR Art. 11(1): at most 25 % of the year's profit — rounded DOWN, so the cap is never exceeded (product).
   const lossCapH = taxableIncomeH > 0 ? Math.floor(taxableIncomeH / 4) : 0;
@@ -79,7 +86,7 @@ export function computeIncomeTax(i: IncomeTaxInputs): IncomeTaxResult {
   return {
     profitBeforeTaxesH: i.profitBeforeTaxesH, bookDepreciationAddBackH, bookDisposalReversalH,
     poolDeductionH: i.poolDeductionH, poolExcessIncomeH: i.poolExcessIncomeH, repairsOverCapH: i.repairsOverCapH,
-    declaredAdjustmentsH, taxableIncomeH, lossCapH, lossUsedH, taxableIncomeAfterLossesH,
+    borneWhtAddBackH: i.bookBorneWhtH, declaredAdjustmentsH, taxableIncomeH, lossCapH, lossUsedH, taxableIncomeAfterLossesH,
     foreignShareBp: i.foreignShareBp, taxableShareH, rate, incomeTaxH, lossOfTheYearH,
     steps: [
       { key: "profit_before_taxes", article: "ledger", amountH: i.profitBeforeTaxesH },
@@ -88,6 +95,7 @@ export function computeIncomeTax(i: IncomeTaxInputs): IncomeTaxResult {
       { key: "pool_deduction", article: "17(d),(h),(i)", amountH: -i.poolDeductionH },
       { key: "pool_excess", article: "17(g)", amountH: i.poolExcessIncomeH },
       { key: "repairs_over_cap", article: "18", amountH: i.repairsOverCapH },
+      { key: "borne_wht", article: "13(e)", amountH: i.bookBorneWhtH },
       { key: "declared_adjustments", article: "12–15", amountH: declaredAdjustmentsH },
       { key: "taxable_income", article: "—", amountH: taxableIncomeH },
       { key: "losses_used", article: "21", amountH: -lossUsedH },

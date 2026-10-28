@@ -422,7 +422,7 @@ function PaymentDetailDialog({ payment, banks, vendorName, vendor, t, onDone, on
                    "لم يُستقطع شيء عند خروج هذا المبلغ. وبصفته دفعة مقدمة فهو مقابل لتوريد: اذكر سبب عدم خضوعه (سلع، أو دخل ليس من مصدر في المملكة). وإن كانت طبيعته خاضعة فسيرفض الخادم التغيير — ومن يتحمل تلك الضريبة سؤال لمستشارك.")}
               </p>
               <WhtFields vendorId={payment.vendorId} residency={vendor?.residency} defaultType={vendor?.whtDefaultPaymentType}
-                amount={payment.amount} date={payment.paidAt} classification="advance" allocatedAmount={0}
+                amount={payment.amount} date={payment.paidAt} classification="advance" allocatedAmount={0} contracts={false}
                 onChange={(declaration, ready) => setClassWht({ declaration, ready })} />
             </div>
           )}

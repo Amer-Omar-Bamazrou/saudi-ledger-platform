@@ -7,6 +7,7 @@
  */
 import type { WhtDetermination } from './whtDetermination';
 import type { WhtPreviewKind } from './whtPreviewKind';
+import type { WhtPreviewTaxBearing } from './whtPreviewTaxBearing';
 
 export interface WhtPreview {
   kind: WhtPreviewKind;
@@ -25,8 +26,18 @@ export interface WhtPreview {
   /** @nullable */
   formRow: string | null;
   withheld: number;
-  /** What leaves the bank: amount − withheld. */
+  /** What leaves the bank: amount − withheld; the full amount when the company bears the tax (G4c-1). */
   cashPaid: number;
+  /**
+     * G4c-1: the base the tax is on — the amount, or its gross (amount ÷ (1 − rate)) under a net-of-tax contract.
+     * @nullable
+     */
+  base: number | null;
+  /**
+     * G4c-1: the setting of the contract named, when tax is withheld.
+     * @nullable
+     */
+  taxBearing: WhtPreviewTaxBearing;
   /** @nullable */
   notSubjectReason: string | null;
   determination: WhtDetermination;

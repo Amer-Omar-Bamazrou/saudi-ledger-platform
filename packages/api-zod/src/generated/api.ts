@@ -13634,7 +13634,7 @@ export const ListInvoicePaymentsResponseItem = zod.object({
   "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.'),
   "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.'),
   "withheld": zod.number().nullish().describe('Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded).'),
-  "cashPaid": zod.number().nullish().describe('Bill payments: the cash that left the bank (amount − withheld).'),
+  "cashPaid": zod.number().nullish().describe('Bill payments: the cash that left the bank (amount − withheld; the full amount when the company bore the tax).'),
   "whtPaymentType": zod.string().nullish(),
   "reversal": zod.union([zod.object({
   "correctionId": zod.number(),
@@ -14643,10 +14643,11 @@ export const PayBillBody = zod.object({
   "bankAccountId": zod.number().describe('D-3 (2026-09-16): WHICH bank account the money moved through. The payment posts to that bank\'s own GL cash account — there is no shared cash account and no default. Validated against the tenant\'s own accounts; a missing or unknown id is a 422 (`bank_account_required` \/ `reference_not_found`). Recorded on the payment row as its bank evidence.\n')
 }).and(zod.object({
   "whtPaymentType": zod.string().nullish(),
+  "whtContractId": zod.number().nullish().describe('G4c-1 (decision 15): the contract the payment is made under.'),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
   "whtNotSubjectNote": zod.string().max(payBillBodyTwoWhtNotSubjectNoteMax).nullish(),
   "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1), as Phase 18 G4a \/ owner decision 16 (2026-10-27) changed it: only when the payment\'s month is recorded FILED and it withholds tax — the payment is corrected in that month\'s own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.')
-})).describe('A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier\'s declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.\n')
+})).describe('A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier\'s declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT (the full amount when a net-of-tax contract makes the company bear the tax — G4c-1).\n')
 
 export const PayBillResponse = zod.object({
   "id": zod.number(),
@@ -14764,7 +14765,7 @@ export const ListBillPaymentsResponseItem = zod.object({
   "backfilled": zod.boolean().describe('An AGGREGATE of pre-B4 payments whose split and dates were never recorded — not one precise payment.'),
   "paymentId": zod.number().nullable().describe('D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row.'),
   "withheld": zod.number().nullish().describe('Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded).'),
-  "cashPaid": zod.number().nullish().describe('Bill payments: the cash that left the bank (amount − withheld).'),
+  "cashPaid": zod.number().nullish().describe('Bill payments: the cash that left the bank (amount − withheld; the full amount when the company bore the tax).'),
   "whtPaymentType": zod.string().nullish(),
   "reversal": zod.union([zod.object({
   "correctionId": zod.number(),
@@ -15338,6 +15339,7 @@ export const CreateSupplierPaymentBody = zod.object({
   "amount": zod.number().describe('A positive amount')
 })).optional(),
   "whtPaymentType": zod.string().nullish().describe('Phase 16: a payment to a NON-RESIDENT states its nature (or the supplier\'s declared default applies) — never assumed.'),
+  "whtContractId": zod.number().nullish().describe('G4c-1 (decision 15): the contract the payment is made under; under a net-of-tax one the company bears the tax.'),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
   "whtNotSubjectNote": zod.string().max(createSupplierPaymentBodyWhtNotSubjectNoteMax).nullish(),
   "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1), as Phase 18 G4a \/ owner decision 16 (2026-10-27) changed it: only when the payment\'s month is recorded FILED and it withholds tax — the payment is corrected in that month\'s own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.')
@@ -15985,7 +15987,8 @@ export const PreviewWhtQueryParams = zod.object({
   "whtPaymentType": zod.coerce.string().optional(),
   "whtNotSubjectReason": zod.coerce.string().optional(),
   "whtNotSubjectNote": zod.coerce.string().optional(),
-  "whtFiledMonthTreatment": zod.enum(['subsequent_period', 'amendment']).optional()
+  "whtFiledMonthTreatment": zod.enum(['subsequent_period', 'amendment']).optional(),
+  "whtContractId": zod.coerce.number().optional().describe('G4c-1 (decision 15): the contract the payment is made under — its setting decides who bears the tax.')
 })
 
 export const PreviewWhtResponse = zod.object({
@@ -15999,7 +16002,9 @@ export const PreviewWhtResponse = zod.object({
   "legalReference": zod.string().nullable(),
   "formRow": zod.string().nullable(),
   "withheld": zod.number(),
-  "cashPaid": zod.number().describe('What leaves the bank: amount − withheld.'),
+  "cashPaid": zod.number().describe('What leaves the bank: amount − withheld; the full amount when the company bears the tax (G4c-1).'),
+  "base": zod.number().nullable().describe('G4c-1: the base the tax is on — the amount, or its gross (amount ÷ (1 − rate)) under a net-of-tax contract.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable().describe('G4c-1: the setting of the contract named, when tax is withheld.'),
   "notSubjectReason": zod.string().nullable(),
   "determination": zod.object({
   "outcome": zod.enum(['taxable_wht', 'exempt_relief', 'not_wht', 'pending_classification']),
@@ -16100,6 +16105,9 @@ export const GetWhtReturnResponse = zod.object({
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -16155,6 +16163,9 @@ export const GetWhtReturnResponse = zod.object({
   "excluded": zod.array(zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -16210,6 +16221,9 @@ export const GetWhtReturnResponse = zod.object({
   "pending": zod.array(zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -16265,6 +16279,9 @@ export const GetWhtReturnResponse = zod.object({
   "corrected": zod.array(zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -16851,6 +16868,9 @@ export const GetWhtBeneficiaryStatementResponse = zod.object({
   "payments": zod.array(zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -16985,6 +17005,9 @@ export const FileWhtReturnResponse = zod.object({
   "schedule": zod.array(zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17040,6 +17063,9 @@ export const FileWhtReturnResponse = zod.object({
   "excluded": zod.array(zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17095,6 +17121,9 @@ export const FileWhtReturnResponse = zod.object({
   "pending": zod.array(zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17150,6 +17179,9 @@ export const FileWhtReturnResponse = zod.object({
   "corrected": zod.array(zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17283,6 +17315,9 @@ export const GetWhtWithholdingLineageResponse = zod.object({
   "withholding": zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17374,6 +17409,9 @@ export const GetWhtWithholdingLineageResponse = zod.object({
   "reentry": zod.union([zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17429,6 +17467,9 @@ export const GetWhtWithholdingLineageResponse = zod.object({
   "corrects": zod.union([zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17523,6 +17564,7 @@ export const CorrectWhtWithholdingBody = zod.object({
 })).optional(),
   "reference": zod.string().nullish(),
   "whtPaymentType": zod.string().nullish(),
+  "whtContractId": zod.number().nullish(),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
   "whtNotSubjectNote": zod.string().max(correctWhtWithholdingBodyReentryOneWhtNotSubjectNoteMax).nullish(),
   "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish(),
@@ -17535,6 +17577,9 @@ export const CorrectWhtWithholdingResponse = zod.object({
   "withholding": zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17626,6 +17671,9 @@ export const CorrectWhtWithholdingResponse = zod.object({
   "reentry": zod.union([zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17681,6 +17729,9 @@ export const CorrectWhtWithholdingResponse = zod.object({
   "corrects": zod.union([zod.object({
   "id": zod.number(),
   "sourceKind": zod.enum(['bill_payment', 'supplier_payment']),
+  "contractId": zod.number().nullable().describe('G4c-1: the contract the payment was made under.'),
+  "taxBearing": zod.union([zod.literal('tax_inclusive'),zod.literal('net_of_tax'),zod.literal(null)]).nullable(),
+  "netAmount": zod.number().nullable().describe('G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.'),
   "billPaymentId": zod.number().nullable(),
   "supplierPaymentId": zod.number().nullable(),
   "vendorId": zod.number(),
@@ -17820,6 +17871,53 @@ export const ReverseWhtRemittanceResponse = zod.object({
   "reversedOn": zod.string(),
   "journalEntryId": zod.number()
 }),zod.null()])
+})
+
+
+/**
+ * @summary G4c-1 (decision 15): this company's contracts with non-resident suppliers and who bears the WHT under each.
+ */
+export const ListWhtContractsQueryParams = zod.object({
+  "vendorId": zod.coerce.number().optional()
+})
+
+export const ListWhtContractsResponseItem = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "reference": zod.string(),
+  "taxBearing": zod.enum(['tax_inclusive', 'net_of_tax']).describe('tax_inclusive: the tax is withheld from the amount paid (no gross-up). net_of_tax: the payer bears the WHT — the supplier receives the full amount; base = net ÷ (1 − rate), the tax on it the company\'s expense.'),
+  "note": zod.string().nullable(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date()
+})
+export const ListWhtContractsResponse = zod.array(ListWhtContractsResponseItem)
+
+
+/**
+ * @summary G4c-1 (decision 15): record a contract and its tax-bearing setting, as the user confirms it. Append-only: a changed setting is a new contract.
+ */
+export const createWhtContractBodyReferenceMax = 200;
+
+export const createWhtContractBodyNoteMax = 2000;
+
+
+
+export const CreateWhtContractBody = zod.object({
+  "vendorId": zod.number(),
+  "reference": zod.string().min(1).max(createWhtContractBodyReferenceMax),
+  "taxBearing": zod.enum(['tax_inclusive', 'net_of_tax']),
+  "confirmed": zod.boolean().optional().describe('Decision 15: the user confirms the setting per contract — anything but true is refused (422 wht_contract_confirmation_required).'),
+  "note": zod.string().max(createWhtContractBodyNoteMax).nullish()
+})
+
+export const CreateWhtContractResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "reference": zod.string(),
+  "taxBearing": zod.enum(['tax_inclusive', 'net_of_tax']).describe('tax_inclusive: the tax is withheld from the amount paid (no gross-up). net_of_tax: the payer bears the WHT — the supplier receives the full amount; base = net ÷ (1 − rate), the tax on it the company\'s expense.'),
+  "note": zod.string().nullable(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date()
 })
 
 
@@ -18306,6 +18404,7 @@ export const CreateTaxComputationResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -18459,6 +18558,7 @@ export const CreateTaxComputationResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -18682,6 +18782,7 @@ export const GetTaxComputationResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -18835,6 +18936,7 @@ export const GetTaxComputationResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -19062,6 +19164,7 @@ export const UpdateTaxComputationResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -19215,6 +19318,7 @@ export const UpdateTaxComputationResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -19444,6 +19548,7 @@ export const ReviseTaxComputationResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -19597,6 +19702,7 @@ export const ReviseTaxComputationResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -19837,6 +19943,7 @@ export const AddTaxAdjustmentResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -19990,6 +20097,7 @@ export const AddTaxAdjustmentResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -20231,6 +20339,7 @@ export const UpdateTaxAdjustmentResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -20384,6 +20493,7 @@ export const UpdateTaxAdjustmentResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -20605,6 +20715,7 @@ export const RemoveTaxAdjustmentResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -20758,6 +20869,7 @@ export const RemoveTaxAdjustmentResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -20989,6 +21101,7 @@ export const SetTaxLossesResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -21142,6 +21255,7 @@ export const SetTaxLossesResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -21362,6 +21476,7 @@ export const SubmitTaxComputationVersionResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -21515,6 +21630,7 @@ export const SubmitTaxComputationVersionResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -21735,6 +21851,7 @@ export const ApproveTaxComputationVersionResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -21888,6 +22005,7 @@ export const ApproveTaxComputationVersionResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -22116,6 +22234,7 @@ export const SendBackTaxComputationVersionResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -22269,6 +22388,7 @@ export const SendBackTaxComputationVersionResponse = zod.object({
   "poolDeduction": zod.number(),
   "poolExcessIncome": zod.number(),
   "repairsOverCap": zod.number(),
+  "borneWhtAddBack": zod.number().describe('G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)).'),
   "declaredAdjustments": zod.number(),
   "taxableIncome": zod.number(),
   "lossCap": zod.number(),
@@ -22839,6 +22959,7 @@ export const PayPaymentPlanBody = zod.object({
   "paidAt": zod.string().nullish(),
   "bankAccountId": zod.number().nullish(),
   "whtPaymentType": zod.string().nullish(),
+  "whtContractId": zod.number().nullish(),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
   "whtNotSubjectNote": zod.string().max(payPaymentPlanBodyWhtNotSubjectNoteMax).nullish(),
   "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1), as Phase 18 G4a \/ owner decision 16 (2026-10-27) changed it: only when the payment\'s month is recorded FILED and it withholds tax — the payment is corrected in that month\'s own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.')

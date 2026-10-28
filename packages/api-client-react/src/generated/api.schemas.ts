@@ -232,6 +232,11 @@ export interface CreateSupplierPaymentInput {
      * @nullable
      */
   whtPaymentType?: string | null;
+  /**
+     * G4c-1 (decision 15): the contract the payment is made under; under a net-of-tax one the company bears the tax.
+     * @nullable
+     */
+  whtContractId?: number | null;
   /** @nullable */
   whtNotSubjectReason?: CreateSupplierPaymentInputWhtNotSubjectReason;
   /**
@@ -5858,7 +5863,7 @@ export interface Payment {
      */
   withheld?: number | null;
   /**
-     * Bill payments: the cash that left the bank (amount − withheld).
+     * Bill payments: the cash that left the bank (amount − withheld; the full amount when the company bore the tax).
      * @nullable
      */
   cashPaid?: number | null;
@@ -6541,11 +6546,16 @@ export const BillPaymentInputWhtFiledMonthTreatment = {
 } as const;
 
 /**
- * A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier's declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.
+ * A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier's declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT (the full amount when a net-of-tax contract makes the company bear the tax — G4c-1).
  */
 export type BillPaymentInput = PaymentInput & ({
   /** @nullable */
   whtPaymentType?: string | null;
+  /**
+     * G4c-1 (decision 15): the contract the payment is made under.
+     * @nullable
+     */
+  whtContractId?: number | null;
   /** @nullable */
   whtNotSubjectReason?: BillPaymentInputWhtNotSubjectReason;
   /**
@@ -10854,6 +10864,18 @@ export const WhtPreviewKind = {
   pending: 'pending',
 } as const;
 
+/**
+ * G4c-1: the setting of the contract named, when tax is withheld.
+ * @nullable
+ */
+export type WhtPreviewTaxBearing = typeof WhtPreviewTaxBearing[keyof typeof WhtPreviewTaxBearing] | null;
+
+
+export const WhtPreviewTaxBearing = {
+  tax_inclusive: 'tax_inclusive',
+  net_of_tax: 'net_of_tax',
+} as const;
+
 export interface WhtPreview {
   kind: WhtPreviewKind;
   amount: number;
@@ -10871,8 +10893,18 @@ export interface WhtPreview {
   /** @nullable */
   formRow: string | null;
   withheld: number;
-  /** What leaves the bank: amount − withheld. */
+  /** What leaves the bank: amount − withheld; the full amount when the company bears the tax (G4c-1). */
   cashPaid: number;
+  /**
+     * G4c-1: the base the tax is on — the amount, or its gross (amount ÷ (1 − rate)) under a net-of-tax contract.
+     * @nullable
+     */
+  base: number | null;
+  /**
+     * G4c-1: the setting of the contract named, when tax is withheld.
+     * @nullable
+     */
+  taxBearing: WhtPreviewTaxBearing;
   /** @nullable */
   notSubjectReason: string | null;
   determination: WhtDetermination;
@@ -10993,6 +11025,17 @@ export const WhtWithholdingSourceKind = {
   supplier_payment: 'supplier_payment',
 } as const;
 
+/**
+ * @nullable
+ */
+export type WhtWithholdingTaxBearing = typeof WhtWithholdingTaxBearing[keyof typeof WhtWithholdingTaxBearing] | null;
+
+
+export const WhtWithholdingTaxBearing = {
+  tax_inclusive: 'tax_inclusive',
+  net_of_tax: 'net_of_tax',
+} as const;
+
 export type WhtWithholdingStatus = typeof WhtWithholdingStatus[keyof typeof WhtWithholdingStatus];
 
 
@@ -11044,6 +11087,18 @@ export interface WhtCorrectionRef {
 export interface WhtWithholding {
   id: number;
   sourceKind: WhtWithholdingSourceKind;
+  /**
+     * G4c-1: the contract the payment was made under.
+     * @nullable
+     */
+  contractId: number | null;
+  /** @nullable */
+  taxBearing: WhtWithholdingTaxBearing;
+  /**
+     * G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.
+     * @nullable
+     */
+  netAmount: number | null;
   /** @nullable */
   billPaymentId: number | null;
   /** @nullable */
@@ -11272,6 +11327,8 @@ export interface WhtReentryInput {
   reference?: string | null;
   /** @nullable */
   whtPaymentType?: string | null;
+  /** @nullable */
+  whtContractId?: number | null;
   /** @nullable */
   whtNotSubjectReason?: WhtReentryInputWhtNotSubjectReason;
   /**
@@ -11663,6 +11720,55 @@ export interface WhtRelief {
   revokedAt: string | null;
   /** @nullable */
   revokeReason: string | null;
+}
+
+/**
+ * tax_inclusive: the tax is withheld from the amount paid (no gross-up). net_of_tax: the payer bears the WHT — the supplier receives the full amount; base = net ÷ (1 − rate), the tax on it the company's expense.
+ */
+export type WhtContractTaxBearing = typeof WhtContractTaxBearing[keyof typeof WhtContractTaxBearing];
+
+
+export const WhtContractTaxBearing = {
+  tax_inclusive: 'tax_inclusive',
+  net_of_tax: 'net_of_tax',
+} as const;
+
+export interface WhtContract {
+  id: number;
+  vendorId: number;
+  reference: string;
+  /** tax_inclusive: the tax is withheld from the amount paid (no gross-up). net_of_tax: the payer bears the WHT — the supplier receives the full amount; base = net ÷ (1 − rate), the tax on it the company's expense. */
+  taxBearing: WhtContractTaxBearing;
+  /** @nullable */
+  note: string | null;
+  /** @nullable */
+  confirmedBy: number | null;
+  confirmedAt: string;
+}
+
+export type CreateWhtContractInputTaxBearing = typeof CreateWhtContractInputTaxBearing[keyof typeof CreateWhtContractInputTaxBearing];
+
+
+export const CreateWhtContractInputTaxBearing = {
+  tax_inclusive: 'tax_inclusive',
+  net_of_tax: 'net_of_tax',
+} as const;
+
+export interface CreateWhtContractInput {
+  vendorId: number;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  reference: string;
+  taxBearing: CreateWhtContractInputTaxBearing;
+  /** Decision 15: the user confirms the setting per contract — anything but true is refused (422 wht_contract_confirmation_required). */
+  confirmed?: boolean;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  note?: string | null;
 }
 
 export interface CreateWhtReliefInput {
@@ -12121,6 +12227,8 @@ export interface IncomeTaxResultOut {
   poolDeduction: number;
   poolExcessIncome: number;
   repairsOverCap: number;
+  /** G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)). */
+  borneWhtAddBack: number;
   declaredAdjustments: number;
   taxableIncome: number;
   lossCap: number;
@@ -12753,6 +12861,8 @@ export interface PayPaymentPlanInput {
   bankAccountId?: number | null;
   /** @nullable */
   whtPaymentType?: string | null;
+  /** @nullable */
+  whtContractId?: number | null;
   /** @nullable */
   whtNotSubjectReason?: PayPaymentPlanInputWhtNotSubjectReason;
   /**
@@ -13919,6 +14029,10 @@ whtPaymentType?: string;
 whtNotSubjectReason?: string;
 whtNotSubjectNote?: string;
 whtFiledMonthTreatment?: PreviewWhtWhtFiledMonthTreatment;
+/**
+ * G4c-1 (decision 15): the contract the payment is made under — its setting decides who bears the tax.
+ */
+whtContractId?: number;
 };
 
 export type PreviewWhtClassification = typeof PreviewWhtClassification[keyof typeof PreviewWhtClassification];
@@ -13959,6 +14073,10 @@ export const ListWhtExceptionsKind = {
   possibly_missed: 'possibly_missed',
   pending_classification: 'pending_classification',
 } as const;
+
+export type ListWhtContractsParams = {
+vendorId?: number;
+};
 
 export type ListWhtReliefsParams = {
 vendorId?: number;

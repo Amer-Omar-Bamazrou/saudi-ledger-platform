@@ -10,10 +10,23 @@ import type { WhtDetermination } from './whtDetermination';
 import type { WhtWithholdingFiledMonthTreatment } from './whtWithholdingFiledMonthTreatment';
 import type { WhtWithholdingSourceKind } from './whtWithholdingSourceKind';
 import type { WhtWithholdingStatus } from './whtWithholdingStatus';
+import type { WhtWithholdingTaxBearing } from './whtWithholdingTaxBearing';
 
 export interface WhtWithholding {
   id: number;
   sourceKind: WhtWithholdingSourceKind;
+  /**
+     * G4c-1: the contract the payment was made under.
+     * @nullable
+     */
+  contractId: number | null;
+  /** @nullable */
+  taxBearing: WhtWithholdingTaxBearing;
+  /**
+     * G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross.
+     * @nullable
+     */
+  netAmount: number | null;
   /** @nullable */
   billPaymentId: number | null;
   /** @nullable */

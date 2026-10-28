@@ -15,6 +15,8 @@ export interface IncomeTaxResultOut {
   poolDeduction: number;
   poolExcessIncome: number;
   repairsOverCap: number;
+  /** G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5)). */
+  borneWhtAddBack: number;
   declaredAdjustments: number;
   taxableIncome: number;
   lossCap: number;

@@ -13,12 +13,15 @@
  *   - a nature nobody declared is never assumed — the server refuses it in
  *     words, and the words are shown.
  *
- * Only "withheld FROM the payment" exists: payer-borne WHT / gross-up is not
- * built (pack §2.4, OPEN W-2), and the copy says so.
+ * 🔴 G4c-1 (owner decision 15, answering W-2): who bears the tax is the
+ * CONTRACT's setting. Naming a net-of-tax contract makes the server gross the
+ * payment up — the supplier receives the full amount, the company bears the
+ * tax; the figures are still the server's preview, never computed here.
  */
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { usePreviewWht, getPreviewWhtQueryKey, type PreviewWhtParams, type WhtDetermination } from "@workspace/api-client-react";
+import { usePreviewWht, getPreviewWhtQueryKey, useListWhtContracts, getListWhtContractsQueryKey, type PreviewWhtParams, type WhtDetermination } from "@workspace/api-client-react";
+import { taxBearingLabel } from "@/components/tax/WhtContracts";
 import { fmtNum } from "@/lib/api";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,6 +39,8 @@ export type WhtDeclarationValue = {
   whtNotSubjectNote?: string;
   /** Q1 (pack §14.1): only when the payment's month is recorded FILED — chosen by the person, never preselected. */
   whtFiledMonthTreatment?: "amendment";
+  /** G4c-1: the contract the payment is made under — its setting decides who bears the tax. */
+  whtContractId?: number;
 };
 
 type WhtFieldsProps = {
@@ -64,6 +69,8 @@ type WhtFieldsProps = {
    * apply the supplier's default nature — the opposite of what the screen says.
    */
   onChange: (declaration: WhtDeclarationValue, ready: boolean) => void;
+  /** G4c-1: offer the supplier's contracts (default). Off where no tax can be withheld (a reclassification). */
+  contracts?: boolean;
 };
 
 /** A primitive held still for `ms` — so typing an amount asks the server once, not per keystroke. */
@@ -79,7 +86,7 @@ function useDebounced<T extends string | number>(value: T, ms = 300): T {
 /** A rate the server sent (a fraction) as a percentage — display only. */
 const pct = (r: number) => `${Number((r * 100).toFixed(2))}%`;
 
-export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supplier", amount, date, classification, allocatedAmount, onChange }: WhtFieldsProps) {
+export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supplier", amount, date, classification, allocatedAmount, onChange, contracts = true }: WhtFieldsProps) {
   const { t, lang } = useLanguage();
   const [mode, setMode] = useState<"withhold" | "not_subject">("withhold");
   const [nature, setNature] = useState<string>(defaultType ?? "");
@@ -87,6 +94,8 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
   const [note, setNote] = useState("");
   // Q1: where a FILED month's withholding is reported — asked only when the server says the month is filed
   const [treatment, setTreatment] = useState<"" | "amendment">("");
+  // G4c-1: the contract named ("" = none: the tax is withheld from the payment)
+  const [contract, setContract] = useState("");
 
   // A different supplier (or its record arriving) starts the declaration again, from ITS declared default.
   useEffect(() => {
@@ -95,6 +104,7 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
     setReason("");
     setNote("");
     setTreatment("");
+    setContract("");
   }, [vendorId, defaultType]);
 
   const isNonResident = residency === "non_resident";
@@ -103,6 +113,10 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
   const classDecides = onAccount && classification !== "advance";
   const trimmedNote = note.trim();
   const declarationReady = classDecides || !(isNonResident && mode === "not_subject" && !reason);
+  const contractList = useListWhtContracts(vendorId != null ? { vendorId } : undefined, {
+    query: { queryKey: getListWhtContractsQueryKey(vendorId != null ? { vendorId } : undefined), enabled: contracts && isNonResident && vendorId != null },
+  });
+  const contractId = contracts && !classDecides && mode === "withhold" && contract ? Number(contract) : null;
 
   const debouncedAmount = useDebounced(amount);
   const debouncedNote = useDebounced(trimmedNote);
@@ -118,6 +132,7 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
           ...(reason === "not_kingdom_source" && debouncedNote ? { whtNotSubjectNote: debouncedNote } : {}),
         }),
     ...(treatment ? { whtFiledMonthTreatment: treatment } : {}),
+    ...(contractId != null ? { whtContractId: contractId } : {}),
   };
   const previewEnabled = isNonResident && vendorId != null && debouncedAmount > 0 && declarationReady;
   const preview = usePreviewWht(params, {
@@ -134,14 +149,14 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
     const base: WhtDeclarationValue = !isNonResident || classDecides
       ? {}
       : mode === "withhold"
-        ? (nature ? { whtPaymentType: nature } : {})
+        ? { ...(nature ? { whtPaymentType: nature } : {}), ...(contractId != null ? { whtContractId: contractId } : {}) }
         : {
             ...(reason ? { whtNotSubjectReason: reason } : {}),
             ...(reason === "not_kingdom_source" && trimmedNote ? { whtNotSubjectNote: trimmedNote } : {}),
           };
     const declaration: WhtDeclarationValue = monthFiled && treatment ? { ...base, whtFiledMonthTreatment: treatment } : base;
     onChangeRef.current(declaration, ready);
-  }, [isNonResident, classDecides, mode, nature, reason, trimmedNote, ready, monthFiled, treatment]);
+  }, [isNonResident, classDecides, mode, nature, reason, trimmedNote, ready, monthFiled, treatment, contractId]);
 
   if (residency === "unknown") {
     return (
@@ -166,8 +181,8 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
     <div className="mt-3 space-y-2 rounded border border-border p-3 text-start" data-testid="wht-fields">
       <p className="text-sm font-medium">{t("Withholding tax — non-resident supplier", "ضريبة الاستقطاع — مورد غير مقيم")}</p>
       <p className="text-[11px] text-muted-foreground">
-        {t("This supplier is declared non-resident, so tax is withheld FROM this payment (Income Tax Law Art. 68): the supplier is credited with the full amount, the bank pays the amount less the tax, and the tax is owed to ZATCA by the 10th of next month. The rate is the regulation's for the nature you declare. Paying the tax on the supplier's behalf (grossing up) is not supported.",
-           "هذا المورد مُصرَّح بأنه غير مقيم، لذا تُستقطع الضريبة من هذه الدفعة (نظام ضريبة الدخل المادة 68): يُقيَّد للمورد كامل المبلغ، ويدفع البنك المبلغ ناقصًا الضريبة، وتُستحق الضريبة للهيئة بحلول العاشر من الشهر التالي. والنسبة هي ما تحدده اللائحة للطبيعة التي تصرّح بها. ولا يُدعم تحمّل الضريبة عن المورد (تغطيتها).")}
+        {t("This supplier is declared non-resident, so tax is withheld FROM this payment (Income Tax Law Art. 68): the supplier is credited with the full amount, the bank pays the amount less the tax, and the tax is owed to ZATCA by the 10th of next month. The rate is the regulation's for the nature you declare. If a contract makes the company bear the tax, name it: the payment is grossed up and the supplier receives the full amount.",
+           "هذا المورد مُصرَّح بأنه غير مقيم، لذا تُستقطع الضريبة من هذه الدفعة (نظام ضريبة الدخل المادة 68): يُقيَّد للمورد كامل المبلغ، ويدفع البنك المبلغ ناقصًا الضريبة، وتُستحق الضريبة للهيئة بحلول العاشر من الشهر التالي. والنسبة هي ما تحدده اللائحة للطبيعة التي تصرّح بها. وإن كان العقد يحمّل المنشأة الضريبة فاذكره: تُغطّى الدفعة ويستلم المورد كامل المبلغ.")}
       </p>
 
       {classDecides ? (
@@ -207,6 +222,24 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
               ? t("The supplier's declared default is preselected; change it if this payment is for something else.", "الطبيعة الافتراضية المُصرَّح بها للمورد مختارة مسبقًا؛ غيّرها إن كانت هذه الدفعة لغير ذلك.")
               : t("This supplier has no declared default nature — choose one; it is never assumed.", "لا توجد للمورد طبيعة افتراضية مُصرَّح بها — اختر واحدة؛ فلا تُفترض أبدًا.")}
           </p>
+          {contracts && (
+            <div className="mt-2">
+              <Label className="text-xs text-muted-foreground">{t("Contract — who bears the tax", "العقد — من يتحمّل الضريبة")}</Label>
+              <Select value={contract || "none"} onValueChange={(v) => setContract(v === "none" ? "" : v)}>
+                <SelectTrigger className="h-8 text-sm mt-1" data-testid="wht-contract"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" className="text-xs">{t("No contract named — the tax is withheld from the payment", "دون عقد — تُستقطع الضريبة من الدفعة")}</SelectItem>
+                  {(contractList.data ?? []).map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)} className="text-xs">{c.reference} — {taxBearingLabel(c.taxBearing, t)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {t("Contracts are recorded, with their confirmed setting, on the Withholding tax page.", "تُسجَّل العقود، مع إعدادها المؤكَّد، في صفحة ضريبة الاستقطاع.")}{" "}
+                <Link href="/tax/withholding?tab=contracts" className="text-primary underline">{t("Contracts", "العقود")}</Link>
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -269,8 +302,16 @@ export function WhtFields({ vendorId, residency, defaultType, presetFrom = "supp
               <span className="text-muted-foreground">{t("Credited to the supplier", "المقيَّد للمورد")}</span>
               <span className="font-mono" dir="ltr">{fmtNum(p.amount)}</span>
             </div>
+            {p.taxBearing === "net_of_tax" && p.base != null && (
+              <div className="flex flex-wrap justify-between gap-x-3" data-testid="wht-preview-gross">
+                <span className="text-muted-foreground">{t("Grossed-up base (amount ÷ (1 − rate))", "الوعاء بعد التغطية (المبلغ ÷ (1 − النسبة))")}</span>
+                <span className="font-mono" dir="ltr" data-testid="wht-preview-base">{fmtNum(p.base)}</span>
+              </div>
+            )}
             <div className="flex flex-wrap justify-between gap-x-3">
-              <span className="text-muted-foreground">{t("Tax withheld from the payment", "الضريبة المستقطعة من الدفعة")}</span>
+              <span className="text-muted-foreground">{p.taxBearing === "net_of_tax"
+                ? t("Tax borne by the company (its expense, not deductible for income tax)", "ضريبة تتحمّلها المنشأة (مصروف عليها، غير قابل للحسم لأغراض ضريبة الدخل)")
+                : t("Tax withheld from the payment", "الضريبة المستقطعة من الدفعة")}</span>
               <span className="font-mono" dir="ltr" data-testid="wht-preview-withheld">{fmtNum(p.withheld)}</span>
             </div>
             <div className="flex flex-wrap justify-between gap-x-3 font-medium">

@@ -49,6 +49,8 @@ router.post("/wht/refund-claims/:id/events", whtClaimsController.addRefundClaimE
 router.get("/wht/instalment-requests", whtClaimsController.instalmentRequests);
 router.post("/wht/instalment-requests", whtClaimsController.createInstalmentRequest);
 router.post("/wht/instalment-requests/:id/events", whtClaimsController.addInstalmentRequestEvent);
+router.get("/wht/contracts", taxController.contracts);
+router.post("/wht/contracts", taxController.createContract);
 router.get("/wht/reliefs", taxController.reliefs);
 router.post("/wht/reliefs", taxController.createRelief);
 router.delete("/wht/reliefs/:id", taxController.removeRelief);

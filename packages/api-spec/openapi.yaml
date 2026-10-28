@@ -6928,6 +6928,7 @@ paths:
         - { in: query, name: whtNotSubjectReason, schema: { type: string } }
         - { in: query, name: whtNotSubjectNote, schema: { type: string } }
         - { in: query, name: whtFiledMonthTreatment, schema: { type: string, enum: [subsequent_period, amendment] } }
+        - { in: query, name: whtContractId, schema: { type: integer }, description: "G4c-1 (decision 15): the contract the payment is made under — its setting decides who bears the tax." }
       responses:
         "200":
           description: The decision
@@ -7205,6 +7206,42 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/WhtRemittance" }
         "409": { description: "Already reversed, or reconciled" }
+
+  /tax/wht/contracts:
+    get:
+      operationId: listWhtContracts
+      tags: [tax]
+      summary: "G4c-1 (decision 15): this company's contracts with non-resident suppliers and who bears the WHT under each."
+      parameters:
+        - { in: query, name: vendorId, schema: { type: integer } }
+      responses:
+        "200":
+          description: The contracts, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WhtContract" }
+    post:
+      operationId: createWhtContract
+      tags: [tax]
+      summary: "G4c-1 (decision 15): record a contract and its tax-bearing setting, as the user confirms it. Append-only: a changed setting is a new contract."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWhtContractInput" }
+      responses:
+        "201":
+          description: The contract
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtContract" }
+        "422":
+          description: "Not confirmed (wht_contract_confirmation_required), or the supplier is not non-resident (wht_contract_vendor_not_non_resident)"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
   /tax/wht/reliefs:
     get:
@@ -8001,6 +8038,7 @@ components:
           type: array
           items: { $ref: "#/components/schemas/SupplierPaymentAllocationInput" }
         whtPaymentType: { type: ["string", "null"], description: "Phase 16: a payment to a NON-RESIDENT states its nature (or the supplier's declared default applies) — never assumed." }
+        whtContractId: { type: ["integer", "null"], description: "G4c-1 (decision 15): the contract the payment is made under; under a net-of-tax one the company bears the tax." }
         whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
         whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
         whtFiledMonthTreatment:
@@ -12798,7 +12836,7 @@ components:
           type: ["integer", "null"]
           description: "D-4 — the `payments` row behind this history line; null for a legacy invoice_payments row."
         withheld: { type: ["number", "null"], description: "Bill payments, Phase 16: the WHT withheld from this payment (null when none was recorded)." }
-        cashPaid: { type: ["number", "null"], description: "Bill payments: the cash that left the bank (amount − withheld)." }
+        cashPaid: { type: ["number", "null"], description: "Bill payments: the cash that left the bank (amount − withheld; the full amount when the company bore the tax)." }
         whtPaymentType: { type: ["string", "null"] }
         reversal:
           description: "Q1 (pack §14.1): a bill payment a WHT correction reversed — kept in the history, marked; absent/null otherwise."
@@ -13220,12 +13258,14 @@ components:
       description: >
         A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature
         (`whtPaymentType`, or the supplier's declared default) or the reason it is not subject — never assumed.
-        `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.
+        `amount` is what the supplier is credited with; the cash that leaves is amount − WHT (the full amount when a
+        net-of-tax contract makes the company bear the tax — G4c-1).
       allOf:
         - { $ref: "#/components/schemas/PaymentInput" }
         - type: object
           properties:
             whtPaymentType: { type: ["string", "null"] }
+            whtContractId: { type: ["integer", "null"], description: "G4c-1 (decision 15): the contract the payment is made under." }
             whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
             whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
             whtFiledMonthTreatment:
@@ -15881,7 +15921,7 @@ components:
 
     WhtPreview:
       type: object
-      required: [kind, amount, date, paymentType, rate, statutoryRate, treatyReliefId, legalReference, formRow, withheld, cashPaid, notSubjectReason, determination, monthFiled, returnPeriod]
+      required: [kind, amount, date, paymentType, rate, statutoryRate, treatyReliefId, legalReference, formRow, withheld, cashPaid, base, taxBearing, notSubjectReason, determination, monthFiled, returnPeriod]
       properties:
         kind: { type: string, enum: [no_vendor, resident, unknown_residency, not_subject, withheld, pending] }
         amount: { type: number }
@@ -15893,7 +15933,9 @@ components:
         legalReference: { type: ["string", "null"] }
         formRow: { type: ["string", "null"] }
         withheld: { type: number }
-        cashPaid: { type: number, description: "What leaves the bank: amount − withheld." }
+        cashPaid: { type: number, description: "What leaves the bank: amount − withheld; the full amount when the company bears the tax (G4c-1)." }
+        base: { type: ["number", "null"], description: "G4c-1: the base the tax is on — the amount, or its gross (amount ÷ (1 − rate)) under a net-of-tax contract." }
+        taxBearing: { type: ["string", "null"], enum: [tax_inclusive, net_of_tax, null], description: "G4c-1: the setting of the contract named, when tax is withheld." }
         notSubjectReason: { type: ["string", "null"] }
         determination: { $ref: "#/components/schemas/WhtDetermination" }
         monthFiled: { type: boolean, description: "Q1: the payment month's Form 06 is recorded filed and this payment withholds — a treatment is required." }
@@ -15973,10 +16015,13 @@ components:
       required: [id, sourceKind, billPaymentId, supplierPaymentId, vendorId, vendorName, vendorNameAr, vendorCountry, vendorAddress, vendorForeignTaxId,
                  billId, document, paymentDate, period, status, paymentType, formRow, notSubjectReason, notSubjectNote, baseAmount, rate, statutoryRate,
                  treatyReliefId, treatyApprovalReference, whtAmount, cashPaid, journalEntryId, paymentClass, natureBasis, supersedesWithholdingId, determination,
-                 returnPeriod, filedMonthTreatment, reentryOfCorrectionId, correction]
+                 returnPeriod, filedMonthTreatment, reentryOfCorrectionId, correction, contractId, taxBearing, netAmount]
       properties:
         id: { type: integer }
         sourceKind: { type: string, enum: [bill_payment, supplier_payment] }
+        contractId: { type: ["integer", "null"], description: "G4c-1: the contract the payment was made under." }
+        taxBearing: { type: ["string", "null"], enum: [tax_inclusive, net_of_tax, null] }
+        netAmount: { type: ["number", "null"], description: "G4c-1: under a net-of-tax contract, what the supplier received (the payment amount); the base is its gross." }
         billPaymentId: { type: ["integer", "null"] }
         supplierPaymentId: { type: ["integer", "null"] }
         vendorId: { type: integer }
@@ -16120,6 +16165,7 @@ components:
         allocations: { type: array, items: { $ref: "#/components/schemas/SupplierPaymentAllocationInput" } }
         reference: { type: ["string", "null"] }
         whtPaymentType: { type: ["string", "null"] }
+        whtContractId: { type: ["integer", "null"] }
         whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
         whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
         whtFiledMonthTreatment: { type: ["string", "null"], enum: [subsequent_period, amendment, null] }
@@ -16411,6 +16457,31 @@ components:
         revokedBy: { type: ["integer", "null"] }
         revokedAt: { type: ["string", "null"] }
         revokeReason: { type: ["string", "null"] }
+
+    WhtContract:
+      type: object
+      required: [id, vendorId, reference, taxBearing, note, confirmedBy, confirmedAt]
+      properties:
+        id: { type: integer }
+        vendorId: { type: integer }
+        reference: { type: string }
+        taxBearing:
+          type: string
+          enum: [tax_inclusive, net_of_tax]
+          description: "tax_inclusive: the tax is withheld from the amount paid (no gross-up). net_of_tax: the payer bears the WHT — the supplier receives the full amount; base = net ÷ (1 − rate), the tax on it the company's expense."
+        note: { type: ["string", "null"] }
+        confirmedBy: { type: ["integer", "null"] }
+        confirmedAt: { type: string, format: date-time }
+
+    CreateWhtContractInput:
+      type: object
+      required: [vendorId, reference, taxBearing]
+      properties:
+        vendorId: { type: integer }
+        reference: { type: string, minLength: 1, maxLength: 200 }
+        taxBearing: { type: string, enum: [tax_inclusive, net_of_tax] }
+        confirmed: { type: boolean, description: "Decision 15: the user confirms the setting per contract — anything but true is refused (422 wht_contract_confirmation_required)." }
+        note: { type: ["string", "null"], maxLength: 2000 }
 
     CreateWhtReliefInput:
       type: object
@@ -16720,7 +16791,7 @@ components:
 
     IncomeTaxResultOut:
       type: object
-      required: [profitBeforeTaxes, bookDepreciationAddBack, bookDisposalReversal, poolDeduction, poolExcessIncome, repairsOverCap, declaredAdjustments,
+      required: [profitBeforeTaxes, bookDepreciationAddBack, bookDisposalReversal, poolDeduction, poolExcessIncome, repairsOverCap, borneWhtAddBack, declaredAdjustments,
                  taxableIncome, lossCap, lossUsed, taxableIncomeAfterLosses, foreignSharePct, taxableShare, rate, incomeTax, lossOfTheYear, steps]
       properties:
         profitBeforeTaxes: { type: number }
@@ -16729,6 +16800,7 @@ components:
         poolDeduction: { type: number }
         poolExcessIncome: { type: number }
         repairsOverCap: { type: number }
+        borneWhtAddBack: { type: number, description: "G4c-1: WHT the company bore under a net-of-tax contract, added back — not deductible (Law Art. 13(e); Regulations Art. 10(5))." }
         declaredAdjustments: { type: number }
         taxableIncome: { type: number }
         lossCap: { type: number }
@@ -17163,6 +17235,7 @@ components:
         paidAt: { type: ["string", "null"] }
         bankAccountId: { type: ["integer", "null"] }
         whtPaymentType: { type: ["string", "null"] }
+        whtContractId: { type: ["integer", "null"] }
         whtNotSubjectReason: { type: ["string", "null"], enum: [goods, not_kingdom_source, null] }
         whtNotSubjectNote: { type: ["string", "null"], maxLength: 2000 }
         whtFiledMonthTreatment:

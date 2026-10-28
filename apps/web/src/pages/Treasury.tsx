@@ -1099,7 +1099,12 @@ function PlanPayPanel({ p, onClose, onTab }: { p: PaymentPlan; onClose: () => vo
       if (decl.value.whtNotSubjectReason) {
         data.whtNotSubjectReason = decl.value.whtNotSubjectReason;
         data.whtNotSubjectNote = decl.value.whtNotSubjectNote ?? null;
-      } else data.whtPaymentType = decl.value.whtPaymentType ?? null;
+      } else {
+        data.whtPaymentType = decl.value.whtPaymentType ?? null;
+        // G4c-1: the contract named on the screen travels with the payment — this body is built field by field, so a
+        // field not copied here is silently dropped (the TR-1 shape)
+        if (decl.value.whtContractId != null) data.whtContractId = decl.value.whtContractId;
+      }
       // TR-1 (final audit 2026-10-05): a FILED month's treatment, chosen on the screen, travels with the payment — as the
       // bill's pay dialog sends it — or every plan paid into a filed month is refused (409 wht_month_filed)
       if (decl.value.whtFiledMonthTreatment) data.whtFiledMonthTreatment = decl.value.whtFiledMonthTreatment;

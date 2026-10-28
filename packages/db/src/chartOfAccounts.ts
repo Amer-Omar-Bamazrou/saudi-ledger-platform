@@ -149,6 +149,15 @@ export const SYSTEM_ACCOUNTS = {
   INCOME_TAX_EXPENSE: "INCOME_TAX_EXPENSE",
   INCOME_TAX_PAYABLE: "INCOME_TAX_PAYABLE",
   TAX_PENALTIES: "TAX_PENALTIES",
+  /**
+   * Phase 18 G4c-1 (migration 0141; owner decision 15): WHT the company BEARS
+   * under a net-of-tax contract — the supplier receives the full amount and the
+   * tax on the grossed-up base is the company's cost. Not deductible for income
+   * tax (Law Art. 13(e); Regulations Art. 10(5)): the income-tax computation
+   * adds this account's movement back. A cost the company agreed to bear, not
+   * its own tax, so — like TAX_PENALTIES — not a tax line (WHT_PAYABLE is).
+   */
+  WHT_BORNE_EXPENSE: "WHT_BORNE_EXPENSE",
 } as const;
 
 export type SystemAccountCode = (typeof SYSTEM_ACCOUNTS)[keyof typeof SYSTEM_ACCOUNTS];
@@ -311,6 +320,8 @@ export const SYSTEM_CHART_OF_ACCOUNTS: SystemAccountDef[] = [
   { code: "ZAKAT_EXPENSE", name: "Zakat expense", nameAr: "مصروف الزكاة", type: "expense", legacyNames: [] },
   { code: "INCOME_TAX_EXPENSE", name: "Income tax expense", nameAr: "مصروف ضريبة الدخل", type: "expense", legacyNames: [] },
   { code: "TAX_PENALTIES", name: "Tax fines and penalties", nameAr: "غرامات ضريبية", type: "expense", legacyNames: [] },
+  // Phase 18 G4c-1 (0141): the WHT a net-of-tax contract makes the company bear.
+  { code: "WHT_BORNE_EXPENSE", name: "Withholding tax borne by the company", nameAr: "ضريبة استقطاع تتحملها المنشأة", type: "expense", legacyNames: [] },
 ];
 
 /**
