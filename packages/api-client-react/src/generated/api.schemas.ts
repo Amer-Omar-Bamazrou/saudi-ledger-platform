@@ -1124,6 +1124,245 @@ export interface WhtCorrectionPack {
   note: string;
 }
 
+export type WhtRefundChecklistContractAndInvoice = {
+  held: boolean;
+  note: string;
+};
+
+export type WhtRefundChecklistCorrectCategoryAndRate = {
+  held: boolean;
+  note: string;
+};
+
+export type WhtRefundChecklistOriginalStatementAndReceipt = {
+  held: boolean;
+  note: string;
+};
+
+export type WhtRefundChecklistReconciliation = {
+  held: boolean;
+  note: string;
+};
+
+export type WhtRefundChecklistWhoBoreTheExcess = {
+  held: boolean;
+  note: string;
+};
+
+export type WhtRefundChecklistBeneficiaryAuthorisation = {
+  held: boolean;
+  note: string;
+};
+
+/**
+ * Owner decision 17's evidence checklist — exactly these six items, each held or not, with a note.
+ */
+export interface WhtRefundChecklist {
+  contractAndInvoice: WhtRefundChecklistContractAndInvoice;
+  correctCategoryAndRate: WhtRefundChecklistCorrectCategoryAndRate;
+  originalStatementAndReceipt: WhtRefundChecklistOriginalStatementAndReceipt;
+  reconciliation: WhtRefundChecklistReconciliation;
+  whoBoreTheExcess: WhtRefundChecklistWhoBoreTheExcess;
+  beneficiaryAuthorisation: WhtRefundChecklistBeneficiaryAuthorisation;
+}
+
+export type WhtRefundClaimInputBorneBy = typeof WhtRefundClaimInputBorneBy[keyof typeof WhtRefundClaimInputBorneBy];
+
+
+export const WhtRefundClaimInputBorneBy = {
+  payer: 'payer',
+  beneficiary: 'beneficiary',
+} as const;
+
+export interface WhtRefundClaimInput {
+  /** The WHT month the excess was withheld in (YYYY-MM). */
+  period: string;
+  vendorId: number;
+  overpaidTaxYear: number;
+  excessAmount: number;
+  borneBy: WhtRefundClaimInputBorneBy;
+  /** @maxLength 2000 */
+  reason: string;
+  checklist: WhtRefundChecklist;
+}
+
+export type WhtRefundClaimEventInputKind = typeof WhtRefundClaimEventInputKind[keyof typeof WhtRefundClaimEventInputKind];
+
+
+export const WhtRefundClaimEventInputKind = {
+  evidence_updated: 'evidence_updated',
+  submitted: 'submitted',
+  refunded: 'refunded',
+  refused: 'refused',
+} as const;
+
+export interface WhtRefundClaimEventInput {
+  kind: WhtRefundClaimEventInputKind;
+  onDate: string;
+  /** @nullable */
+  reference?: string | null;
+  /**
+     * refunded only — the amount refunded.
+     * @nullable
+     */
+  amount?: number | null;
+  /** @nullable */
+  note?: string | null;
+  checklist?: WhtRefundChecklist;
+}
+
+export type WhtRefundClaimBorneBy = typeof WhtRefundClaimBorneBy[keyof typeof WhtRefundClaimBorneBy];
+
+
+export const WhtRefundClaimBorneBy = {
+  payer: 'payer',
+  beneficiary: 'beneficiary',
+} as const;
+
+export type WhtRefundClaimState = typeof WhtRefundClaimState[keyof typeof WhtRefundClaimState];
+
+
+export const WhtRefundClaimState = {
+  open: 'open',
+  submitted: 'submitted',
+  refunded: 'refunded',
+  refused: 'refused',
+} as const;
+
+export type WhtRefundClaimEventsItemKind = typeof WhtRefundClaimEventsItemKind[keyof typeof WhtRefundClaimEventsItemKind];
+
+
+export const WhtRefundClaimEventsItemKind = {
+  evidence_updated: 'evidence_updated',
+  submitted: 'submitted',
+  refunded: 'refunded',
+  refused: 'refused',
+} as const;
+
+export type WhtRefundClaimEventsItem = {
+  id: number;
+  kind: WhtRefundClaimEventsItemKind;
+  onDate: string;
+  /** @nullable */
+  reference: string | null;
+  /** @nullable */
+  amount: number | null;
+  /** @nullable */
+  note: string | null;
+  createdAt: string;
+};
+
+export interface WhtRefundClaim {
+  id: number;
+  period: string;
+  vendorId: number;
+  overpaidTaxYear: number;
+  excessAmount: number;
+  borneBy: WhtRefundClaimBorneBy;
+  reason: string;
+  checklist: WhtRefundChecklist;
+  evidenceHeld: number;
+  evidenceItems: number;
+  /** 31 December of the overpaid tax year + 5 (Law Art. 65(c), a reasoned reading). */
+  deadline: string;
+  pastDeadline: boolean;
+  state: WhtRefundClaimState;
+  events: WhtRefundClaimEventsItem[];
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+}
+
+export interface WhtRefundClaimList {
+  items: WhtRefundClaim[];
+}
+
+export interface WhtInstalmentRequestInput {
+  periodFrom: string;
+  /** Up to 2026-05 (Resolution 1117: returns due before 1 July 2026). */
+  periodTo: string;
+  principal: number;
+  requestedOn: string;
+  reference: string;
+  /** @nullable */
+  note?: string | null;
+}
+
+export type WhtInstalmentRequestEventInputKind = typeof WhtInstalmentRequestEventInputKind[keyof typeof WhtInstalmentRequestEventInputKind];
+
+
+export const WhtInstalmentRequestEventInputKind = {
+  accepted: 'accepted',
+  refused: 'refused',
+} as const;
+
+export interface WhtInstalmentRequestEventInput {
+  kind: WhtInstalmentRequestEventInputKind;
+  onDate: string;
+  /**
+     * Required for accepted: the reference of ZATCA's written acceptance.
+     * @nullable
+     */
+  reference?: string | null;
+  /** @nullable */
+  note?: string | null;
+}
+
+export type WhtInstalmentRequestState = typeof WhtInstalmentRequestState[keyof typeof WhtInstalmentRequestState];
+
+
+export const WhtInstalmentRequestState = {
+  requested: 'requested',
+  accepted: 'accepted',
+  refused: 'refused',
+} as const;
+
+export type WhtInstalmentRequestAcceptance = {
+  onDate: string;
+  reference: string;
+} | null;
+
+export type WhtInstalmentRequestEventsItemKind = typeof WhtInstalmentRequestEventsItemKind[keyof typeof WhtInstalmentRequestEventsItemKind];
+
+
+export const WhtInstalmentRequestEventsItemKind = {
+  accepted: 'accepted',
+  refused: 'refused',
+} as const;
+
+export type WhtInstalmentRequestEventsItem = {
+  id: number;
+  kind: WhtInstalmentRequestEventsItemKind;
+  onDate: string;
+  /** @nullable */
+  reference: string | null;
+  /** @nullable */
+  note: string | null;
+  createdAt: string;
+};
+
+export interface WhtInstalmentRequest {
+  id: number;
+  periodFrom: string;
+  periodTo: string;
+  principal: number;
+  requestedOn: string;
+  reference: string;
+  state: WhtInstalmentRequestState;
+  /** True only once ZATCA's written acceptance is recorded. */
+  counts: boolean;
+  acceptance: WhtInstalmentRequestAcceptance;
+  events: WhtInstalmentRequestEventsItem[];
+  note: string;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+}
+
+export interface WhtInstalmentRequestList {
+  items: WhtInstalmentRequest[];
+}
+
 export type VatReturnFilingKind = typeof VatReturnFilingKind[keyof typeof VatReturnFilingKind];
 
 

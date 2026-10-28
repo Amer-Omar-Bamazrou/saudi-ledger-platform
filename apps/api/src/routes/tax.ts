@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { taxController } from "../controllers/tax.controller";
 import { periodRecordsController } from "../controllers/periodRecords.controller";
+import { whtClaimsController } from "../controllers/whtClaims.controller";
 
 /**
  * Phase 16 — Saudi tax (docs/product/phase-16-17-tax-treasury-decision-pack.md).
@@ -40,6 +41,14 @@ router.post("/wht/returns/:period/file", taxController.fileReturn);
 router.get("/wht/withholdings/:id", taxController.withholdingLineage);
 router.post("/wht/withholdings/:id/reverse", taxController.correctWithholding);
 router.post("/wht/remittances/:id/reverse", taxController.reverseRemittance);
+// 🔴 Phase 18 G4b (decisions 17, 18): records only — an over-withheld amount's refund claim, and an instalment request
+// under Resolution 1117 that counts only once ZATCA's written acceptance is recorded. Append-only; events record their life.
+router.get("/wht/refund-claims", whtClaimsController.refundClaims);
+router.post("/wht/refund-claims", whtClaimsController.createRefundClaim);
+router.post("/wht/refund-claims/:id/events", whtClaimsController.addRefundClaimEvent);
+router.get("/wht/instalment-requests", whtClaimsController.instalmentRequests);
+router.post("/wht/instalment-requests", whtClaimsController.createInstalmentRequest);
+router.post("/wht/instalment-requests/:id/events", whtClaimsController.addInstalmentRequestEvent);
 router.get("/wht/reliefs", taxController.reliefs);
 router.post("/wht/reliefs", taxController.createRelief);
 router.delete("/wht/reliefs/:id", taxController.removeRelief);

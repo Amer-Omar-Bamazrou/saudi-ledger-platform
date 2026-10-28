@@ -406,11 +406,19 @@ import type {
   WhtBeneficiaryStatement,
   WhtCorrectionPack,
   WhtExceptions,
+  WhtInstalmentRequest,
+  WhtInstalmentRequestEventInput,
+  WhtInstalmentRequestInput,
+  WhtInstalmentRequestList,
   WhtLineage,
   WhtMonthlyReturn,
   WhtOverview,
   WhtPreview,
   WhtRate,
+  WhtRefundClaim,
+  WhtRefundClaimEventInput,
+  WhtRefundClaimInput,
+  WhtRefundClaimList,
   WhtRelief,
   WhtRemitInput,
   WhtRemittance,
@@ -24059,6 +24067,450 @@ export function useGetWhtCorrectionPack<TData = Awaited<ReturnType<typeof getWht
 
 
 
+
+export const getListWhtRefundClaimsUrl = () => {
+
+
+
+
+  return `/api/tax/wht/refund-claims`
+}
+
+/**
+ * @summary 🔴 Phase 18 G4b (owner decision 17): the refund claims for over-withheld WHT — records only.
+ */
+export const listWhtRefundClaims = async ( options?: RequestInit): Promise<WhtRefundClaimList> => {
+
+  return customFetch<WhtRefundClaimList>(getListWhtRefundClaimsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWhtRefundClaimsQueryKey = () => {
+    return [
+    `/api/tax/wht/refund-claims`
+    ] as const;
+    }
+
+
+export const getListWhtRefundClaimsQueryOptions = <TData = Awaited<ReturnType<typeof listWhtRefundClaims>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhtRefundClaims>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWhtRefundClaimsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWhtRefundClaims>>> = ({ signal }) => listWhtRefundClaims({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWhtRefundClaims>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWhtRefundClaimsQueryResult = NonNullable<Awaited<ReturnType<typeof listWhtRefundClaims>>>
+export type ListWhtRefundClaimsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 🔴 Phase 18 G4b (owner decision 17): the refund claims for over-withheld WHT — records only.
+ */
+
+export function useListWhtRefundClaims<TData = Awaited<ReturnType<typeof listWhtRefundClaims>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhtRefundClaims>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWhtRefundClaimsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateWhtRefundClaimUrl = () => {
+
+
+
+
+  return `/api/tax/wht/refund-claims`
+}
+
+/**
+ * @summary Record a refund claim for an over-withheld amount: the month and supplier, the overpaid tax year, the excess, who bore it, and the six-item evidence checklist. The five-year clock (Law Art. 65(c)) is shown as 31 December of the overpaid tax year + 5 (a reasoned reading). Records only: nothing posts and no month is reversed.
+
+ */
+export const createWhtRefundClaim = async (whtRefundClaimInput: WhtRefundClaimInput, options?: RequestInit): Promise<WhtRefundClaim> => {
+
+  return customFetch<WhtRefundClaim>(getCreateWhtRefundClaimUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(whtRefundClaimInput)
+  }
+);}
+
+
+
+
+
+export const getCreateWhtRefundClaimMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWhtRefundClaim>>, TError,{data: BodyType<WhtRefundClaimInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWhtRefundClaim>>, TError,{data: BodyType<WhtRefundClaimInput>}, TContext> => {
+
+const mutationKey = ['createWhtRefundClaim'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWhtRefundClaim>>, {data: BodyType<WhtRefundClaimInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createWhtRefundClaim(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWhtRefundClaimMutationResult = NonNullable<Awaited<ReturnType<typeof createWhtRefundClaim>>>
+    export type CreateWhtRefundClaimMutationBody = BodyType<WhtRefundClaimInput>
+    export type CreateWhtRefundClaimMutationError = ErrorType<void>
+
+    /**
+ * @summary Record a refund claim for an over-withheld amount: the month and supplier, the overpaid tax year, the excess, who bore it, and the six-item evidence checklist. The five-year clock (Law Art. 65(c)) is shown as 31 December of the overpaid tax year + 5 (a reasoned reading). Records only: nothing posts and no month is reversed.
+
+ */
+export const useCreateWhtRefundClaim = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWhtRefundClaim>>, TError,{data: BodyType<WhtRefundClaimInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWhtRefundClaim>>,
+        TError,
+        {data: BodyType<WhtRefundClaimInput>},
+        TContext
+      > => {
+      return useMutation(getCreateWhtRefundClaimMutationOptions(options));
+    }
+
+export const getAddWhtRefundClaimEventUrl = (id: number,) => {
+
+
+
+
+  return `/api/tax/wht/refund-claims/${id}/events`
+}
+
+/**
+ * @summary Record a step of a refund claim: the evidence updated, submitted to ZATCA, refunded or refused. Append-only.
+ */
+export const addWhtRefundClaimEvent = async (id: number,
+    whtRefundClaimEventInput: WhtRefundClaimEventInput, options?: RequestInit): Promise<WhtRefundClaim> => {
+
+  return customFetch<WhtRefundClaim>(getAddWhtRefundClaimEventUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(whtRefundClaimEventInput)
+  }
+);}
+
+
+
+
+
+export const getAddWhtRefundClaimEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addWhtRefundClaimEvent>>, TError,{id: number;data: BodyType<WhtRefundClaimEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addWhtRefundClaimEvent>>, TError,{id: number;data: BodyType<WhtRefundClaimEventInput>}, TContext> => {
+
+const mutationKey = ['addWhtRefundClaimEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addWhtRefundClaimEvent>>, {id: number;data: BodyType<WhtRefundClaimEventInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addWhtRefundClaimEvent(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddWhtRefundClaimEventMutationResult = NonNullable<Awaited<ReturnType<typeof addWhtRefundClaimEvent>>>
+    export type AddWhtRefundClaimEventMutationBody = BodyType<WhtRefundClaimEventInput>
+    export type AddWhtRefundClaimEventMutationError = ErrorType<void>
+
+    /**
+ * @summary Record a step of a refund claim: the evidence updated, submitted to ZATCA, refunded or refused. Append-only.
+ */
+export const useAddWhtRefundClaimEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addWhtRefundClaimEvent>>, TError,{id: number;data: BodyType<WhtRefundClaimEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addWhtRefundClaimEvent>>,
+        TError,
+        {id: number;data: BodyType<WhtRefundClaimEventInput>},
+        TContext
+      > => {
+      return useMutation(getAddWhtRefundClaimEventMutationOptions(options));
+    }
+
+export const getListWhtInstalmentRequestsUrl = () => {
+
+
+
+
+  return `/api/tax/wht/instalment-requests`
+}
+
+/**
+ * @summary 🔴 Phase 18 G4b (owner decision 18): instalment requests under Resolution 1117 — records only.
+ */
+export const listWhtInstalmentRequests = async ( options?: RequestInit): Promise<WhtInstalmentRequestList> => {
+
+  return customFetch<WhtInstalmentRequestList>(getListWhtInstalmentRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWhtInstalmentRequestsQueryKey = () => {
+    return [
+    `/api/tax/wht/instalment-requests`
+    ] as const;
+    }
+
+
+export const getListWhtInstalmentRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listWhtInstalmentRequests>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhtInstalmentRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWhtInstalmentRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWhtInstalmentRequests>>> = ({ signal }) => listWhtInstalmentRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWhtInstalmentRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWhtInstalmentRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listWhtInstalmentRequests>>>
+export type ListWhtInstalmentRequestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 🔴 Phase 18 G4b (owner decision 18): instalment requests under Resolution 1117 — records only.
+ */
+
+export function useListWhtInstalmentRequests<TData = Awaited<ReturnType<typeof listWhtInstalmentRequests>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWhtInstalmentRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWhtInstalmentRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateWhtInstalmentRequestUrl = () => {
+
+
+
+
+  return `/api/tax/wht/instalment-requests`
+}
+
+/**
+ * @summary Record a request to ZATCA for an instalment plan for WHT principal under Resolution 1117 (months up to 2026-05, whose returns were due before 1 July 2026). It counts only once ZATCA's written acceptance is recorded; Regulations Art. 65(1)(c) normally excludes withheld tax from instalments.
+
+ */
+export const createWhtInstalmentRequest = async (whtInstalmentRequestInput: WhtInstalmentRequestInput, options?: RequestInit): Promise<WhtInstalmentRequest> => {
+
+  return customFetch<WhtInstalmentRequest>(getCreateWhtInstalmentRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(whtInstalmentRequestInput)
+  }
+);}
+
+
+
+
+
+export const getCreateWhtInstalmentRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWhtInstalmentRequest>>, TError,{data: BodyType<WhtInstalmentRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWhtInstalmentRequest>>, TError,{data: BodyType<WhtInstalmentRequestInput>}, TContext> => {
+
+const mutationKey = ['createWhtInstalmentRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWhtInstalmentRequest>>, {data: BodyType<WhtInstalmentRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createWhtInstalmentRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWhtInstalmentRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createWhtInstalmentRequest>>>
+    export type CreateWhtInstalmentRequestMutationBody = BodyType<WhtInstalmentRequestInput>
+    export type CreateWhtInstalmentRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Record a request to ZATCA for an instalment plan for WHT principal under Resolution 1117 (months up to 2026-05, whose returns were due before 1 July 2026). It counts only once ZATCA's written acceptance is recorded; Regulations Art. 65(1)(c) normally excludes withheld tax from instalments.
+
+ */
+export const useCreateWhtInstalmentRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWhtInstalmentRequest>>, TError,{data: BodyType<WhtInstalmentRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWhtInstalmentRequest>>,
+        TError,
+        {data: BodyType<WhtInstalmentRequestInput>},
+        TContext
+      > => {
+      return useMutation(getCreateWhtInstalmentRequestMutationOptions(options));
+    }
+
+export const getAddWhtInstalmentRequestEventUrl = (id: number,) => {
+
+
+
+
+  return `/api/tax/wht/instalment-requests/${id}/events`
+}
+
+/**
+ * @summary Record ZATCA's WRITTEN acceptance (with its reference) or its refusal. Append-only; the plan counts only on acceptance.
+ */
+export const addWhtInstalmentRequestEvent = async (id: number,
+    whtInstalmentRequestEventInput: WhtInstalmentRequestEventInput, options?: RequestInit): Promise<WhtInstalmentRequest> => {
+
+  return customFetch<WhtInstalmentRequest>(getAddWhtInstalmentRequestEventUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(whtInstalmentRequestEventInput)
+  }
+);}
+
+
+
+
+
+export const getAddWhtInstalmentRequestEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addWhtInstalmentRequestEvent>>, TError,{id: number;data: BodyType<WhtInstalmentRequestEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addWhtInstalmentRequestEvent>>, TError,{id: number;data: BodyType<WhtInstalmentRequestEventInput>}, TContext> => {
+
+const mutationKey = ['addWhtInstalmentRequestEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addWhtInstalmentRequestEvent>>, {id: number;data: BodyType<WhtInstalmentRequestEventInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addWhtInstalmentRequestEvent(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddWhtInstalmentRequestEventMutationResult = NonNullable<Awaited<ReturnType<typeof addWhtInstalmentRequestEvent>>>
+    export type AddWhtInstalmentRequestEventMutationBody = BodyType<WhtInstalmentRequestEventInput>
+    export type AddWhtInstalmentRequestEventMutationError = ErrorType<void>
+
+    /**
+ * @summary Record ZATCA's WRITTEN acceptance (with its reference) or its refusal. Append-only; the plan counts only on acceptance.
+ */
+export const useAddWhtInstalmentRequestEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addWhtInstalmentRequestEvent>>, TError,{id: number;data: BodyType<WhtInstalmentRequestEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addWhtInstalmentRequestEvent>>,
+        TError,
+        {id: number;data: BodyType<WhtInstalmentRequestEventInput>},
+        TContext
+      > => {
+      return useMutation(getAddWhtInstalmentRequestEventMutationOptions(options));
+    }
 
 export const getGetWhtAnnualUrl = (params?: GetWhtAnnualParams,) => {
   const normalizedParams = new URLSearchParams();

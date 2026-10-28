@@ -16432,6 +16432,367 @@ export const GetWhtCorrectionPackResponse = zod.object({
 
 
 /**
+ * @summary 🔴 Phase 18 G4b (owner decision 17): the refund claims for over-withheld WHT — records only.
+ */
+export const ListWhtRefundClaimsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "vendorId": zod.number(),
+  "overpaidTaxYear": zod.number(),
+  "excessAmount": zod.number(),
+  "borneBy": zod.enum(['payer', 'beneficiary']),
+  "reason": zod.string(),
+  "checklist": zod.object({
+  "contractAndInvoice": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "correctCategoryAndRate": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "originalStatementAndReceipt": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "reconciliation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "whoBoreTheExcess": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "beneficiaryAuthorisation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+})
+}).describe('Owner decision 17\'s evidence checklist — exactly these six items, each held or not, with a note.'),
+  "evidenceHeld": zod.number(),
+  "evidenceItems": zod.number(),
+  "deadline": zod.string().describe('31 December of the overpaid tax year + 5 (Law Art. 65(c), a reasoned reading).'),
+  "pastDeadline": zod.boolean(),
+  "state": zod.enum(['open', 'submitted', 'refunded', 'refused']),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['evidence_updated', 'submitted', 'refunded', 'refused']),
+  "onDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "amount": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.string()
+})),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Record a refund claim for an over-withheld amount: the month and supplier, the overpaid tax year, the excess, who bore it, and the six-item evidence checklist. The five-year clock (Law Art. 65(c)) is shown as 31 December of the overpaid tax year + 5 (a reasoned reading). Records only: nothing posts and no month is reversed.
+
+ */
+export const createWhtRefundClaimBodyReasonMax = 2000;
+
+
+
+export const CreateWhtRefundClaimBody = zod.object({
+  "period": zod.string().describe('The WHT month the excess was withheld in (YYYY-MM).'),
+  "vendorId": zod.number(),
+  "overpaidTaxYear": zod.number(),
+  "excessAmount": zod.number(),
+  "borneBy": zod.enum(['payer', 'beneficiary']),
+  "reason": zod.string().max(createWhtRefundClaimBodyReasonMax),
+  "checklist": zod.object({
+  "contractAndInvoice": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "correctCategoryAndRate": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "originalStatementAndReceipt": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "reconciliation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "whoBoreTheExcess": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "beneficiaryAuthorisation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+})
+}).describe('Owner decision 17\'s evidence checklist — exactly these six items, each held or not, with a note.')
+})
+
+export const CreateWhtRefundClaimResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "vendorId": zod.number(),
+  "overpaidTaxYear": zod.number(),
+  "excessAmount": zod.number(),
+  "borneBy": zod.enum(['payer', 'beneficiary']),
+  "reason": zod.string(),
+  "checklist": zod.object({
+  "contractAndInvoice": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "correctCategoryAndRate": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "originalStatementAndReceipt": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "reconciliation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "whoBoreTheExcess": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "beneficiaryAuthorisation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+})
+}).describe('Owner decision 17\'s evidence checklist — exactly these six items, each held or not, with a note.'),
+  "evidenceHeld": zod.number(),
+  "evidenceItems": zod.number(),
+  "deadline": zod.string().describe('31 December of the overpaid tax year + 5 (Law Art. 65(c), a reasoned reading).'),
+  "pastDeadline": zod.boolean(),
+  "state": zod.enum(['open', 'submitted', 'refunded', 'refused']),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['evidence_updated', 'submitted', 'refunded', 'refused']),
+  "onDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "amount": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.string()
+})),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Record a step of a refund claim: the evidence updated, submitted to ZATCA, refunded or refused. Append-only.
+ */
+export const AddWhtRefundClaimEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AddWhtRefundClaimEventBody = zod.object({
+  "kind": zod.enum(['evidence_updated', 'submitted', 'refunded', 'refused']),
+  "onDate": zod.string(),
+  "reference": zod.string().nullish(),
+  "amount": zod.number().nullish().describe('refunded only — the amount refunded.'),
+  "note": zod.string().nullish(),
+  "checklist": zod.object({
+  "contractAndInvoice": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "correctCategoryAndRate": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "originalStatementAndReceipt": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "reconciliation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "whoBoreTheExcess": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "beneficiaryAuthorisation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+})
+}).optional().describe('Owner decision 17\'s evidence checklist — exactly these six items, each held or not, with a note.')
+})
+
+export const AddWhtRefundClaimEventResponse = zod.object({
+  "id": zod.number(),
+  "period": zod.string(),
+  "vendorId": zod.number(),
+  "overpaidTaxYear": zod.number(),
+  "excessAmount": zod.number(),
+  "borneBy": zod.enum(['payer', 'beneficiary']),
+  "reason": zod.string(),
+  "checklist": zod.object({
+  "contractAndInvoice": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "correctCategoryAndRate": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "originalStatementAndReceipt": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "reconciliation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "whoBoreTheExcess": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+}),
+  "beneficiaryAuthorisation": zod.object({
+  "held": zod.boolean(),
+  "note": zod.string()
+})
+}).describe('Owner decision 17\'s evidence checklist — exactly these six items, each held or not, with a note.'),
+  "evidenceHeld": zod.number(),
+  "evidenceItems": zod.number(),
+  "deadline": zod.string().describe('31 December of the overpaid tax year + 5 (Law Art. 65(c), a reasoned reading).'),
+  "pastDeadline": zod.boolean(),
+  "state": zod.enum(['open', 'submitted', 'refunded', 'refused']),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['evidence_updated', 'submitted', 'refunded', 'refused']),
+  "onDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "amount": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.string()
+})),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary 🔴 Phase 18 G4b (owner decision 18): instalment requests under Resolution 1117 — records only.
+ */
+export const ListWhtInstalmentRequestsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "principal": zod.number(),
+  "requestedOn": zod.string(),
+  "reference": zod.string(),
+  "state": zod.enum(['requested', 'accepted', 'refused']),
+  "counts": zod.boolean().describe('True only once ZATCA\'s written acceptance is recorded.'),
+  "acceptance": zod.union([zod.object({
+  "onDate": zod.string(),
+  "reference": zod.string()
+}),zod.null()]),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['accepted', 'refused']),
+  "onDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.string()
+})),
+  "note": zod.string(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Record a request to ZATCA for an instalment plan for WHT principal under Resolution 1117 (months up to 2026-05, whose returns were due before 1 July 2026). It counts only once ZATCA's written acceptance is recorded; Regulations Art. 65(1)(c) normally excludes withheld tax from instalments.
+
+ */
+export const CreateWhtInstalmentRequestBody = zod.object({
+  "periodFrom": zod.string(),
+  "periodTo": zod.string().describe('Up to 2026-05 (Resolution 1117: returns due before 1 July 2026).'),
+  "principal": zod.number(),
+  "requestedOn": zod.string(),
+  "reference": zod.string(),
+  "note": zod.string().nullish()
+})
+
+export const CreateWhtInstalmentRequestResponse = zod.object({
+  "id": zod.number(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "principal": zod.number(),
+  "requestedOn": zod.string(),
+  "reference": zod.string(),
+  "state": zod.enum(['requested', 'accepted', 'refused']),
+  "counts": zod.boolean().describe('True only once ZATCA\'s written acceptance is recorded.'),
+  "acceptance": zod.union([zod.object({
+  "onDate": zod.string(),
+  "reference": zod.string()
+}),zod.null()]),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['accepted', 'refused']),
+  "onDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.string()
+})),
+  "note": zod.string(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Record ZATCA's WRITTEN acceptance (with its reference) or its refusal. Append-only; the plan counts only on acceptance.
+ */
+export const AddWhtInstalmentRequestEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AddWhtInstalmentRequestEventBody = zod.object({
+  "kind": zod.enum(['accepted', 'refused']),
+  "onDate": zod.string(),
+  "reference": zod.string().nullish().describe('Required for accepted: the reference of ZATCA\'s written acceptance.'),
+  "note": zod.string().nullish()
+})
+
+export const AddWhtInstalmentRequestEventResponse = zod.object({
+  "id": zod.number(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "principal": zod.number(),
+  "requestedOn": zod.string(),
+  "reference": zod.string(),
+  "state": zod.enum(['requested', 'accepted', 'refused']),
+  "counts": zod.boolean().describe('True only once ZATCA\'s written acceptance is recorded.'),
+  "acceptance": zod.union([zod.object({
+  "onDate": zod.string(),
+  "reference": zod.string()
+}),zod.null()]),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['accepted', 'refused']),
+  "onDate": zod.string(),
+  "reference": zod.string().nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.string()
+})),
+  "note": zod.string(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary The annual withholding information for a fiscal year (IR Art. 63(9)(b)) — per beneficiary and nature.
  */
 export const GetWhtAnnualQueryParams = zod.object({
