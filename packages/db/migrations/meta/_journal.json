@@ -967,6 +967,13 @@
       "when": 1793198149502,
       "tag": "0137_vat_g2a_corrections",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1793201991666,
+      "tag": "0138_vat_g2b_filing_clearing",
+      "breakpoints": true
     }
   ]
 }

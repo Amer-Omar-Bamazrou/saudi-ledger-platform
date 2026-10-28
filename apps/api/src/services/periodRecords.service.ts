@@ -15,6 +15,7 @@ import { fiscalYearContaining, isFiscalCalendar, type FiscalCalendar } from "../
 import { companiesRepository } from "../repositories/companies.repository";
 import { periodRecordsRepository } from "../repositories/periodRecords.repository";
 import { auditService } from "./audit.service";
+import { postVatFilingClearing } from "./accounting/vatFilingClearing";
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const refuse = (code: string, error: string, field?: string): never => {
@@ -147,7 +148,10 @@ export const periodRecordsService = {
       filedOn, zatcaReference: zatcaReference!, notes: text(body.notes), createdBy: userId,
     });
     await auditService.created("vat_return_filing", row!.id, row);
-    return row!;
+    // 🔴 Phase 18 G2b (A5(c)): the filing posts the entry clearing output and input VAT to VAT payable
+    // (receivable) — in this same transaction, so a refused posting (a closed month) records no filing.
+    const clearing = await postVatFilingClearing({ ...row!, filedOn: String(row!.filedOn) });
+    return { ...row!, clearing };
   },
 
   /** Phase 18 G2a: every error found in a filed return, and the route of each return's corrections. */

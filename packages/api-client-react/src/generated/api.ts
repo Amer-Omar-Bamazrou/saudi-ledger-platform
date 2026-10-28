@@ -8804,7 +8804,7 @@ export const getRecordVatReturnFilingUrl = () => {
 }
 
 /**
- * @summary 🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends. Recording changes no figure.
+ * @summary 🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends. Phase 18 G2b (A5(c)): recording it posts the entry clearing the period's output and input VAT to VAT payable (receivable), dated the filing date — refused with the filing when that month is closed.
 
  */
 export const recordVatReturnFiling = async (vatReturnFilingInput: VatReturnFilingInput, options?: RequestInit): Promise<VatReturnFiling> => {
@@ -8854,7 +8854,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RecordVatReturnFilingMutationError = ErrorType<void>
 
     /**
- * @summary 🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends. Recording changes no figure.
+ * @summary 🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its ZATCA reference. Append-only; a later filing is an amendment naming the reference it amends. Phase 18 G2b (A5(c)): recording it posts the entry clearing the period's output and input VAT to VAT payable (receivable), dated the filing date — refused with the filing when that month is closed.
 
  */
 export const useRecordVatReturnFiling = <TError = ErrorType<void>,

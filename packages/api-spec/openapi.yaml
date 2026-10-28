@@ -2309,7 +2309,9 @@ paths:
       summary: >
         🔴 T1e (DR-10): record a filed VAT return (a month or a quarter) with its
         ZATCA reference. Append-only; a later filing is an amendment naming the
-        reference it amends. Recording changes no figure.
+        reference it amends. Phase 18 G2b (A5(c)): recording it posts the entry
+        clearing the period's output and input VAT to VAT payable (receivable),
+        dated the filing date — refused with the filing when that month is closed.
       requestBody:
         required: true
         content:
@@ -2327,6 +2329,8 @@ paths:
           description: The original for that period, or that reference, is already recorded
         "422":
           description: Invalid
+        "423":
+          description: "`period_closed` — the filing date's month is closed, so its clearing entry cannot post; nothing is recorded"
 
   /tax/vat-return-filings/entries-after-filing:
     get:
@@ -8804,6 +8808,25 @@ components:
         notes: { type: ["string", "null"] }
         createdBy: { type: ["integer", "null"] }
         createdAt: { type: string }
+        clearing:
+          description: >
+            Phase 18 G2b (owner decision A5(c)), on the recording response only: the
+            entry the filing posted, clearing the period's output and input VAT to
+            VAT payable (net > 0) or receivable (net < 0), dated the filing date.
+            Null when the period had nothing left to clear.
+          oneOf:
+            - { $ref: "#/components/schemas/VatFilingClearing" }
+            - { type: "null" }
+
+    VatFilingClearing:
+      type: object
+      required: [entryId, entryNumber, outputVat, inputVat, net]
+      properties:
+        entryId: { type: integer }
+        entryNumber: { type: string }
+        outputVat: { type: number, description: "The period's output VAT cleared (less what earlier filings of the period cleared)." }
+        inputVat: { type: number, description: "The period's input VAT cleared." }
+        net: { type: number, description: "outputVat − inputVat: > 0 payable (credited to VAT payable), < 0 receivable (debited)." }
 
     VatReturnFilingInput:
       type: object

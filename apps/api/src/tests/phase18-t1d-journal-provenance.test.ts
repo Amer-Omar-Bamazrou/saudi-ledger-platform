@@ -80,7 +80,6 @@ describe("T1d guards — every production call of the posting seam names its sou
   });
 
   const migrationsDir = join(SRC, "..", "..", "..", "packages", "db", "migrations");
-  const migration = readFileSync(join(migrationsDir, "0129_t1d_journal_provenance.sql"), "utf8");
   // The source-type CHECK as the database holds it NOW: the latest migration that (re)defines it
   // (0129; 0134 added 'invoice_correction' for the PR C correction route).
   const ADD_CHECK = 'ADD CONSTRAINT "journal_entries_source_type_chk"';
@@ -91,10 +90,18 @@ describe("T1d guards — every production call of the posting seam names its sou
     const check = definer.slice(from, definer.indexOf("--> statement-breakpoint", from));
     expect([...check.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort()).toEqual([...JOURNAL_SOURCE_TYPES].sort());
   });
-  it("🔴 the database's reserved prefixes are RESERVED_ENTRY_NUMBER_PREFIXES, exactly (in the CHECK and in the pre-check)", () => {
-    const lists = [...migration.matchAll(/\^\(([A-Z|]+)\)-\|-REV\$/g)].map((m) => m[1]!.split("|").sort());
-    expect(lists.length).toBe(2);
-    for (const l of lists) expect(l).toEqual([...RESERVED_ENTRY_NUMBER_PREFIXES].sort());
+  // The reserved-prefix CHECK as the database holds it NOW: the latest migration that (re)defines it
+  // (0129; 0138 added 'VATFILE' for the VAT filing's clearing entry, Phase 18 G2b). 0129's own pre-check
+  // copy of the list is history — the data it checked was the data of that day.
+  const ADD_RESERVED = 'ADD CONSTRAINT "journal_entries_manual_number_reserved_chk"';
+  const reservedDefiner = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()
+    .map((f) => readFileSync(join(migrationsDir, f), "utf8")).filter((s) => s.includes(ADD_RESERVED)).pop()!;
+  it("🔴 the database's reserved prefixes are RESERVED_ENTRY_NUMBER_PREFIXES, exactly (the CHECK as it stands)", () => {
+    const from = reservedDefiner.indexOf(ADD_RESERVED);
+    const check = reservedDefiner.slice(from, reservedDefiner.indexOf(");", from));
+    const lists = [...check.matchAll(/\^\(([A-Z|]+)\)-\|-REV\$/g)].map((m) => m[1]!.split("|").sort());
+    expect(lists.length).toBe(1);
+    expect(lists[0]).toEqual([...RESERVED_ENTRY_NUMBER_PREFIXES].sort());
   });
 });
 

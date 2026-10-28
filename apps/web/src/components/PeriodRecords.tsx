@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { VatCorrections } from "./VatCorrections";
+import { fmtNum } from "@/lib/api";
 
 const field = "grid gap-1";
 
@@ -39,7 +40,18 @@ export function PeriodRecords({ canRecord }: { canRecord: boolean }) {
   const [z, setZ] = useState({ kind: "zakat" as "zakat" | "income_tax", fiscalYearEnd: "", filedOn: "", zatcaReference: "", amendsZatcaReference: "" });
 
   const recordAuth = useRecordStatementAuthorisation({ mutation: { onSuccess: () => { setA({ fiscalYearEnd: "", authorisedOn: "", authorisedBy: "" }); done(getListStatementAuthorisationsQueryKey()); }, onError: fail } });
-  const recordVat = useRecordVatReturnFiling({ mutation: { onSuccess: () => { setV({ periodFrom: "", periodTo: "", filedOn: "", zatcaReference: "", amendsZatcaReference: "" }); done(getListVatReturnFilingsQueryKey()); }, onError: fail } });
+  // Phase 18 G2b (A5(c)): the filing posts the entry clearing the period's output and input VAT — the toast names it.
+  const recordVat = useRecordVatReturnFiling({ mutation: { onSuccess: (filing) => {
+    setV({ periodFrom: "", periodTo: "", filedOn: "", zatcaReference: "", amendsZatcaReference: "" });
+    qc.invalidateQueries({ queryKey: getListVatReturnFilingsQueryKey() });
+    const c = filing.clearing;
+    toast(c
+      ? { title: t("Recorded — VAT cleared", "سُجِّل — وأُقفلت الضريبة"),
+          description: c.net >= 0
+            ? t(`Entry ${c.entryNumber}: output VAT ${fmtNum(c.outputVat)} less input VAT ${fmtNum(c.inputVat)} = ${fmtNum(c.net)} payable.`, `القيد ${c.entryNumber}: ضريبة المخرجات ${fmtNum(c.outputVat)} ناقص ضريبة المدخلات ${fmtNum(c.inputVat)} = ${fmtNum(c.net)} مستحقة الدفع.`)
+            : t(`Entry ${c.entryNumber}: input VAT ${fmtNum(c.inputVat)} exceeds output VAT ${fmtNum(c.outputVat)} — ${fmtNum(-c.net)} receivable.`, `القيد ${c.entryNumber}: ضريبة المدخلات ${fmtNum(c.inputVat)} تتجاوز ضريبة المخرجات ${fmtNum(c.outputVat)} — ${fmtNum(-c.net)} مستردة.`) }
+      : { title: t("Recorded", "سُجِّل"), description: t("Nothing was left to clear for this period.", "لم يتبقَّ ما يُقفل لهذه الفترة.") });
+  }, onError: fail } });
   const recordZit = useRecordZakatIncomeTaxFiling({ mutation: { onSuccess: () => { setZ({ kind: "zakat", fiscalYearEnd: "", filedOn: "", zatcaReference: "", amendsZatcaReference: "" }); done(getListZakatIncomeTaxFilingsQueryKey()); }, onError: fail } });
 
   return (
