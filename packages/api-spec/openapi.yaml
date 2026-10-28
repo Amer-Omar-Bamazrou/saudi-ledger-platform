@@ -6746,6 +6746,47 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
 
+  /supplier-payments/{id}/forfeitures:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listSupplierDepositForfeitures
+      tags: [accounting]
+      summary: "G4c-2 (decision 14): the forfeitures recorded on a security deposit"
+      responses:
+        "200":
+          description: The forfeitures, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SupplierDepositForfeiture" }
+    post:
+      operationId: forfeitSupplierDeposit
+      tags: [accounting]
+      summary: "G4c-2 (decision 14): record a security deposit forfeited to the supplier, as the user classifies it — a record; nothing posts"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForfeitSupplierDepositInput" }
+      responses:
+        "201":
+          description: The forfeiture record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierDepositForfeiture" }
+        "409":
+          description: "Not a security deposit, or more than the deposit still held (forfeiture_exceeds_available)"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: "No classification (deposit_forfeiture_classification_required), no reason, or a date before the deposit was paid"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
   /supplier-statements:
     get:
       operationId: listSupplierPositions
@@ -8080,6 +8121,43 @@ components:
         bankAccountId: { type: integer, description: Defaults to the bank the payment left from }
         refundedAt: { type: string, format: date }
         reason: { type: string }
+
+    ForfeitSupplierDepositInput:
+      type: object
+      required: [classification, reason]
+      properties:
+        forfeitedOn: { type: string, format: date, description: "The forfeiture date — its own field, apart from the cash date. Defaults to today." }
+        amount: { type: number, description: Defaults to everything the supplier still holds }
+        classification:
+          type: string
+          enum: [consideration, not_consideration]
+          description: "Decision 14: the user's classification. consideration — the supplier keeps the deposit as payment for a supply; not_consideration — compensation or a penalty."
+        reason: { type: string, minLength: 1 }
+        paymentType: { type: ["string", "null"], description: "The nature (IR Art. 63(1)) of a non-resident's consideration; the supplier's declared default applies when absent." }
+
+    SupplierDepositForfeiture:
+      type: object
+      required: [id, supplierPaymentId, forfeitedOn, amount, classification, reason, paymentType, whtDue, createdBy, createdAt]
+      properties:
+        id: { type: integer }
+        supplierPaymentId: { type: integer }
+        forfeitedOn: { type: string, format: date }
+        amount: { type: number }
+        classification: { type: string, enum: [consideration, not_consideration] }
+        reason: { type: string }
+        paymentType: { type: ["string", "null"] }
+        whtDue:
+          description: "A non-resident's consideration: the WHT due in the forfeiture month at the rate in force that day — shown, never withheld or posted (W-16). Null otherwise."
+          oneOf:
+            - type: object
+              required: [month, rate, amount]
+              properties:
+                month: { type: string }
+                rate: { type: number }
+                amount: { type: number }
+            - { type: "null" }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string, format: date-time }
 
     ReverseSupplierAllocationInput:
       type: object

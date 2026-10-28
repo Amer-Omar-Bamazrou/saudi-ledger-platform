@@ -33,11 +33,11 @@ import { and, eq, sql } from "drizzle-orm";
 import {
   db, supplierPaymentsTable, supplierPaymentAllocationsTable,
   supplierPaymentAllocationReversalsTable, supplierPaymentClassificationsTable,
-  supplierRefundsTable, billsTable, vendorsTable,
-  type SupplierPayment,
+  supplierRefundsTable, billsTable, vendorsTable, supplierDepositForfeituresTable, DEPOSIT_FORFEITURE_CLASSIFICATIONS,
+  type SupplierPayment, type SupplierDepositForfeiture,
 } from "@workspace/db";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
-import { round2 } from "../../lib/money.js";
+import { fromHalalas, round2 } from "../../lib/money.js";
 import { businessToday } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";
@@ -58,6 +58,14 @@ import {
 const refuse = (code: string, error: string, field?: string, status = 422): never => {
   throw new BusinessRuleError(status, { code, error, ...(field ? { field } : {}) });
 };
+
+/** G4c-2: a forfeiture record as the API shows it — the WHT due, when there is any, in its month. */
+const forfeitureOut = (f: SupplierDepositForfeiture) => ({
+  id: f.id, supplierPaymentId: f.supplierPaymentId, forfeitedOn: f.forfeitedOn, amount: Number(f.amount),
+  classification: f.classification as "consideration" | "not_consideration", reason: f.reason, paymentType: f.paymentType ?? null,
+  whtDue: f.whtDueRate == null ? null : { month: f.forfeitedOn.slice(0, 7), rate: Number(f.whtDueRate), amount: Number(f.whtDueAmount) },
+  createdBy: f.createdBy ?? null, createdAt: new Date(f.createdAt).toISOString(),
+});
 
 export interface AllocationInput { billId: number; amount: number }
 
@@ -378,6 +386,22 @@ export const supplierPaymentsService = {
       refuse("classification_unknown", "Classify the payment as an advance, a refundable security deposit, an erroneous payment, or not yet known.", "classification");
     }
     const current = payment.classification as SupplierPaymentClassificationKind;
+    // 🔴 G4c-2 (decision 14): what is recorded FORFEITED stays the supplier's — a reclassification would move it
+    if (next !== current && (await this.forfeitedOf(id)) > 0.005) {
+      refuse("deposit_forfeited_cannot_reclassify", "Part of this deposit is recorded as forfeited to the supplier, so the deposit is not reclassified: the forfeited part is no longer ours to set off or move.", "classification", 409);
+    }
+    /**
+     * 🔴 G4c-2 (owner decision 14): a genuine refundable deposit SET OFF — reclassified to an advance — triggers
+     * WHT in the SET-OFF month: judged at the set-off date (the effective date, its own field), on the amount set
+     * off — not at the cash date on the whole payment. Who funds it is still open (W-16), so it stays refused.
+     */
+    const setOffDate = current === "security_deposit" && next === "advance"
+      ? (typeof body.effectiveDate === "string" && body.effectiveDate ? body.effectiveDate : businessToday())
+      : null;
+    if (setOffDate != null) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(setOffDate)) refuse("date_invalid", "The effective date is a YYYY-MM-DD date.", "effectiveDate");
+      if (setOffDate < payment.paidAt) refuse("date_before_payment", `The payment was made on ${payment.paidAt}; it cannot be reclassified on an earlier date.`, "effectiveDate");
+    }
     // Z-AP1: an advance the supplier has invoiced has had its VAT claimed; it
     // stays an advance until their credit note (or the final bill) clears it.
     if (current === "advance" && next !== "advance") {
@@ -420,7 +444,13 @@ export const supplierPaymentsService = {
       } else {
         const nextClass = supplierPaymentClassOf(next, Number(payment.amount), await this.inEntryAllocatedOf(payment));
         if (nextClass !== live.payment_class) {
-          const d = await decideWithholding({ vendorId: payment.vendorId, paymentDate: payment.paidAt, base: Number(payment.amount), paymentClass: nextClass, declared: whtDeclarationFrom(body as Record<string, unknown>) });
+          const setOffBase = setOffDate != null && available > 0.005 ? available : Number(payment.amount);
+          const d = await decideWithholding({ vendorId: payment.vendorId, paymentDate: setOffDate ?? payment.paidAt, base: setOffBase, paymentClass: nextClass, declared: whtDeclarationFrom(body as Record<string, unknown>) });
+          if (d.kind === "withheld" && setOffDate != null) {
+            refuse("wht_late_withholding_open",
+              `This refundable deposit was paid with nothing withheld. Set off on ${setOffDate} as an advance for ${d.paymentType}, ${whtOf(d).toFixed(2)} falls due in ${setOffDate.slice(0, 7)} — the month of the set-off (owner decision 14) — at ${(Number(d.rate) * 100).toFixed(2)} % of the ${setOffBase.toFixed(2)} set off: tax the payer is liable for (Income Tax Law Art. 68(C)). Whether it is recovered from the supplier or borne by the payer (grossed up) is open question W-16 for your adviser, so a non-resident's deposit is not set off here yet. Nothing was changed.`,
+              "whtPaymentType", 409);
+          }
           if (d.kind === "withheld") {
             refuse("wht_late_withholding_open",
               `This payment was made with nothing withheld (it was recorded as ${live.status === "pending" ? "not yet identified" : live.not_subject_reason === "refundable_deposit" ? "a refundable deposit" : live.not_subject_reason === "erroneous_payment" ? "an erroneous payment" : "not subject"}). As an advance for ${d.paymentType}, ${whtOf(d).toFixed(2)} would have been withheld at ${(Number(d.rate) * 100).toFixed(2)} % — tax the payer is liable for (Income Tax Law Art. 68(C)). Whether it is recovered from the supplier or borne by the payer (grossed up) is open question W-16 for your adviser, so a reclassification never records it. Nothing was changed. If the supply is goods, or its income has no source in the Kingdom, declare that instead.`,
@@ -477,7 +507,8 @@ export const supplierPaymentsService = {
     }
     // Z-AP1: money the supplier has invoiced (its VAT claimed) comes back only
     // after their credit note against that advance invoice reverses the claim.
-    const available = await this.uninvoicedOf(id);
+    // 🔴 G4c-2: nor does what is recorded FORFEITED — the supplier keeps it.
+    const available = round2((await this.uninvoicedOf(id)) - (await this.forfeitedOf(id)));
     const amount = round2(Number(body.amount ?? available));
     if (!Number.isFinite(amount) || amount <= 0) refuse("amount_invalid", "A refund returns a positive amount.", "amount");
     if (amount > available + 0.005) {
@@ -527,6 +558,65 @@ export const supplierPaymentsService = {
   async assertNotReversed(id: number) {
     const { rows } = await db.execute<{ id: number; corrected_on: string }>(sql`SELECT id, corrected_on::text FROM wht_corrections WHERE supplier_payment_id = ${id} LIMIT 1`);
     if (rows[0]) refuse("supplier_payment_reversed", `This payment was reversed on ${rows[0].corrected_on} by WHT correction #${rows[0].id}; it is history. Act on its corrected re-entry instead.`, undefined, 409);
+  },
+
+  /**
+   * 🔴 Phase 18 G4c-2 — WHT owner decision 14 (2026-10-27; register §11.46): a security deposit FORFEITED to the
+   * supplier, as the user CLASSIFIED it, on its own date (the cash, set-off and forfeiture dates are separate
+   * fields). A RECORD: nothing posts — the posting is open W-20. For a non-resident's forfeiture that is
+   * CONSIDERATION the WHT due in the forfeiture month is decided by the one engine (`decideWithholding`, at the
+   * forfeiture date) and frozen on the record — shown, never withheld or posted: who funds it is open W-16.
+   */
+  async forfeit(id: number, body: Record<string, unknown>, userId: number | null) {
+    const payment = await this.findOrThrow(id, { lock: true });
+    await this.assertNotReversed(id);
+    if (payment.classification !== "security_deposit") {
+      refuse("deposit_forfeiture_not_deposit", "Only a refundable security deposit is forfeited. Classify the payment as a security deposit first if that is what it is.", "classification", 409);
+    }
+    const classification = String(body.classification ?? "");
+    if (!(DEPOSIT_FORFEITURE_CLASSIFICATIONS as readonly string[]).includes(classification)) {
+      refuse("deposit_forfeiture_classification_required",
+        "Classify the forfeiture: CONSIDERATION (the supplier keeps the deposit as payment for a supply) or NOT CONSIDERATION (compensation or a penalty). It decides whether withholding tax arises, so it is never assumed.",
+        "classification");
+    }
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    if (!reason) refuse("reason_required", "Say why the supplier keeps the deposit.", "reason");
+    const forfeitedOn = typeof body.forfeitedOn === "string" && body.forfeitedOn ? body.forfeitedOn : businessToday();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(forfeitedOn)) refuse("date_invalid", "The forfeiture date is a YYYY-MM-DD date.", "forfeitedOn");
+    if (forfeitedOn < payment.paidAt) refuse("date_before_payment", `The deposit was paid on ${payment.paidAt}; it cannot be forfeited before it was paid.`, "forfeitedOn");
+    const held = round2((await this.uninvoicedOf(id)) - (await this.forfeitedOf(id)));
+    const amount = round2(Number(body.amount ?? held));
+    if (!Number.isFinite(amount) || amount <= 0) refuse("amount_invalid", "A forfeiture is a positive amount.", "amount");
+    if (amount > held + 0.005) {
+      refuse("forfeiture_exceeds_available", `Only ${held.toFixed(2)} of this deposit is still held by the supplier; ${amount.toFixed(2)} was asked for.`, "amount", 409);
+    }
+    let paymentType: string | null = null, whtDueRate: string | null = null, whtDueAmount: string | null = null;
+    if (classification === "consideration") {
+      // consideration for a supply is judged as one — the recipient, the nature, the rate in force on the forfeiture date
+      const d = await decideWithholding({ vendorId: payment.vendorId, paymentDate: forfeitedOn, base: amount, paymentClass: "advance",
+        declared: whtDeclarationFrom({ whtPaymentType: body.paymentType }) });
+      if (d.kind === "withheld") {
+        paymentType = d.paymentType; whtDueRate = d.rate; whtDueAmount = fromHalalas(d.whtH).toFixed(2);
+      }
+    }
+    const [row] = await db.insert(supplierDepositForfeituresTable).values({
+      supplierPaymentId: id, forfeitedOn, amount: amount.toFixed(2), classification, reason, paymentType, whtDueRate, whtDueAmount, createdBy: userId,
+    }).returning();
+    await auditService.created("supplier_deposit_forfeiture", row!.id, row);
+    return forfeitureOut(row!);
+  },
+
+  async forfeitures(id: number) {
+    await this.findOrThrow(id);
+    const rows = await db.select().from(supplierDepositForfeituresTable)
+      .where(eq(supplierDepositForfeituresTable.supplierPaymentId, id)).orderBy(supplierDepositForfeituresTable.id);
+    return rows.map(forfeitureOut);
+  },
+
+  /** G4c-2: what of a deposit is recorded forfeited — the supplier keeps it, so nothing may refund or move it. */
+  async forfeitedOf(id: number): Promise<number> {
+    const { rows } = await db.execute<{ v: string }>(sql`SELECT coalesce(sum(amount), 0)::text v FROM supplier_deposit_forfeitures WHERE supplier_payment_id = ${id}`);
+    return round2(Number(rows[0]?.v ?? 0));
   },
 
   async findOrThrow(id: number, opts: { lock?: boolean } = {}): Promise<SupplierPayment> {

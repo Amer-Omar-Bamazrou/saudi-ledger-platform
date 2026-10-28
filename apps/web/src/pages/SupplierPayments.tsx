@@ -36,11 +36,13 @@ import {
   createSupplierPayment, allocateSupplierPayment, classifySupplierPayment,
   refundSupplierPayment, reverseSupplierAllocation,
   createSupplierAdvanceInvoice, approveBill, type SupplierAdvanceCreditNoteInput,
+  useListSupplierDepositForfeitures, forfeitSupplierDeposit,
   type SupplierPaymentDetail, type Vendor, type Bill, type ListBillsParams,
   type SupplierPaymentClassification,
 } from "@workspace/api-client-react";
 import { useBankOptions } from "@/components/payments/shared";
 import { WhtFields, type WhtDeclarationValue } from "@/components/payments/WhtFields";
+import { WHT_TYPES, whtTypeLabel } from "@/lib/taxLabels";
 
 /**
  * Every response shape on this page is the GENERATED one — none is declared
@@ -431,6 +433,9 @@ function PaymentDetailDialog({ payment, banks, vendorName, vendor, t, onDone, on
         {payment.classification === "advance" && (
           <AdvanceInvoicesSection payment={payment} t={t} post={(act) => post.mutate(act)} />
         )}
+        {payment.classification === "security_deposit" && (
+          <DepositForfeitureSection payment={payment} nonResident={vendor?.residency === "non_resident"} t={t} post={(act) => post.mutate(act)} />
+        )}
 
         <section className="space-y-2">
           <h3 className="text-sm font-medium">{t("Apply to bills", "التخصيص على الفواتير")}</h3>
@@ -540,6 +545,82 @@ function PaymentDetailDialog({ payment, banks, vendorName, vendor, t, onDone, on
         )}
       </div>
     </DialogContent>
+  );
+}
+
+/**
+ * 🔴 Phase 18 G4c-2 (owner decision 14) — a security deposit FORFEITED to the supplier, as the user CLASSIFIES it,
+ * on its own date (the cash, set-off and forfeiture dates are separate fields). A RECORD: nothing posts (the posting
+ * is an open adviser question, W-20). For a non-resident's forfeiture that is consideration, the SERVER shows the WHT
+ * due in the forfeiture month — never withheld or posted here (who bears it is open, W-16).
+ */
+function DepositForfeitureSection({ payment, nonResident, t, post }: {
+  payment: SupplierPaymentDetail;
+  nonResident: boolean;
+  t: (en: string, ar: string) => string;
+  post: (act: () => Promise<unknown>) => void;
+}) {
+  const list = useListSupplierDepositForfeitures(payment.id);
+  const [date, setDate] = useState(businessToday());
+  const [amount, setAmount] = useState("");
+  const [cls, setCls] = useState<"" | "consideration" | "not_consideration">("");
+  const [nature, setNature] = useState("");
+  const [why, setWhy] = useState("");
+  const clsLabel = (c: string) => c === "consideration"
+    ? t("Consideration — kept as payment for a supply", "مقابل — احتُفظ به ثمنًا لتوريد")
+    : t("Not consideration — compensation or a penalty", "ليس مقابلًا — تعويض أو غرامة");
+  return (
+    <section className="space-y-2" data-testid="deposit-forfeitures">
+      <h3 className="text-sm font-medium">{t("Forfeited to the supplier", "مُصادَر لصالح المورد")}</h3>
+      <p className="text-xs text-muted-foreground">
+        {t("A record only: nothing is posted yet — how a forfeiture is booked is an open question for your adviser. It has its own date, apart from the day the deposit was paid. Classify it: whether withholding tax arises depends on it.",
+           "سجلّ فقط: لا يُرحَّل شيء بعد — فطريقة قيد المصادرة مسألة مفتوحة لمستشارك. ولها تاريخها الخاص، مستقلًا عن يوم دفع التأمين. صنّفها: فنشوء ضريبة الاستقطاع يتوقف على ذلك.")}
+      </p>
+      <ul className="text-xs space-y-1">
+        {(list.data ?? []).map((f) => (
+          <li key={f.id} className="rounded border border-border/60 p-2" data-testid={`deposit-forfeiture-${f.id}`}>
+            <span dir="ltr">{f.forfeitedOn}</span> · <span className="font-mono" dir="ltr">{fmtNum(f.amount)}</span> · {clsLabel(f.classification)} · {f.reason}
+            {f.whtDue && (
+              <span className="block text-muted-foreground" data-testid={`deposit-forfeiture-wht-${f.id}`}>
+                {t("Withholding tax due in", "ضريبة استقطاع مستحقة في")} <span dir="ltr">{f.whtDue.month}</span>: <span className="font-mono" dir="ltr">{fmtNum(f.whtDue.amount)}</span> ({Number((f.whtDue.rate * 100).toFixed(2))}%) — {t("not withheld and not posted: who bears it is an open question for your adviser.", "لم تُستقطع ولم تُرحَّل: من يتحمّلها مسألة مفتوحة لمستشارك.")}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="grid gap-2 sm:grid-cols-2" data-testid="deposit-forfeiture-form">
+        <div><Label className="text-xs">{t("Forfeited on", "تاريخ المصادرة")}</Label><Input type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} data-testid="forfeiture-date" /></div>
+        <div><Label className="text-xs">{t("Amount (empty = everything still held)", "المبلغ (فارغ = كل ما يزال محتجزًا)")}</Label><Input type="number" step="0.01" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} data-testid="forfeiture-amount" /></div>
+        <div className="sm:col-span-2 flex flex-col gap-1" role="radiogroup" aria-label={t("What the forfeiture is", "طبيعة المصادرة")}>
+          {(["consideration", "not_consideration"] as const).map((c) => (
+            <label key={c} className="flex items-center gap-2 text-xs">
+              <input type="radio" name={`forfeiture-class-${payment.id}`} className="accent-primary" checked={cls === c} onChange={() => setCls(c)} data-testid={`forfeiture-class-${c}`} />
+              {clsLabel(c)}
+            </label>
+          ))}
+        </div>
+        {nonResident && cls === "consideration" && (
+          <div className="sm:col-span-2">
+            <Label className="text-xs">{t("Nature of the supply (the supplier's declared default applies when none is chosen)", "طبيعة التوريد (تُطبَّق الطبيعة الافتراضية المُصرَّح بها للمورد إن لم تُختر)")}</Label>
+            <Select value={nature || "default"} onValueChange={(v) => setNature(v === "default" ? "" : v)}>
+              <SelectTrigger className="h-8 text-sm" data-testid="forfeiture-nature"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default" className="text-xs">{t("The supplier's declared default", "الطبيعة الافتراضية للمورد")}</SelectItem>
+                {WHT_TYPES.map((code) => <SelectItem key={code} value={code} className="text-xs">{whtTypeLabel(code, t)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="sm:col-span-2"><Label className="text-xs">{t("Why the supplier keeps it", "سبب احتفاظ المورد به")}</Label><Input value={why} onChange={(e) => setWhy(e.target.value)} data-testid="forfeiture-reason" /></div>
+        <Button size="sm" variant="secondary" data-testid="forfeiture-submit" disabled={!cls || !why.trim() || !date}
+          onClick={() => post(() => forfeitSupplierDeposit(payment.id, {
+            forfeitedOn: date, classification: cls as "consideration" | "not_consideration", reason: why.trim(),
+            ...(amount ? { amount: Number(amount) } : {}),
+            ...(nonResident && cls === "consideration" && nature ? { paymentType: nature } : {}),
+          }))}
+        >{t("Record the forfeiture", "تسجيل المصادرة")}</Button>
+      </div>
+    </section>
   );
 }
 

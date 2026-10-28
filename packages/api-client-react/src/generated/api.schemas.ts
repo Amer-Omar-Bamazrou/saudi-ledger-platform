@@ -286,6 +286,66 @@ export interface RefundSupplierPaymentInput {
   reason: string;
 }
 
+/**
+ * Decision 14: the user's classification. consideration — the supplier keeps the deposit as payment for a supply; not_consideration — compensation or a penalty.
+ */
+export type ForfeitSupplierDepositInputClassification = typeof ForfeitSupplierDepositInputClassification[keyof typeof ForfeitSupplierDepositInputClassification];
+
+
+export const ForfeitSupplierDepositInputClassification = {
+  consideration: 'consideration',
+  not_consideration: 'not_consideration',
+} as const;
+
+export interface ForfeitSupplierDepositInput {
+  /** The forfeiture date — its own field, apart from the cash date. Defaults to today. */
+  forfeitedOn?: string;
+  /** Defaults to everything the supplier still holds */
+  amount?: number;
+  /** Decision 14: the user's classification. consideration — the supplier keeps the deposit as payment for a supply; not_consideration — compensation or a penalty. */
+  classification: ForfeitSupplierDepositInputClassification;
+  /** @minLength 1 */
+  reason: string;
+  /**
+     * The nature (IR Art. 63(1)) of a non-resident's consideration; the supplier's declared default applies when absent.
+     * @nullable
+     */
+  paymentType?: string | null;
+}
+
+export type SupplierDepositForfeitureClassification = typeof SupplierDepositForfeitureClassification[keyof typeof SupplierDepositForfeitureClassification];
+
+
+export const SupplierDepositForfeitureClassification = {
+  consideration: 'consideration',
+  not_consideration: 'not_consideration',
+} as const;
+
+/**
+ * A non-resident's consideration: the WHT due in the forfeiture month at the rate in force that day — shown, never withheld or posted (W-16). Null otherwise.
+ */
+export type SupplierDepositForfeitureWhtDue = {
+  month: string;
+  rate: number;
+  amount: number;
+} | null;
+
+export interface SupplierDepositForfeiture {
+  id: number;
+  supplierPaymentId: number;
+  forfeitedOn: string;
+  amount: number;
+  classification: SupplierDepositForfeitureClassification;
+  reason: string;
+  /** @nullable */
+  paymentType: string | null;
+  /** A non-resident's consideration: the WHT due in the forfeiture month at the rate in force that day — shown, never withheld or posted (W-16). Null otherwise. */
+  whtDue: SupplierDepositForfeitureWhtDue;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+}
+
 export interface ReverseSupplierAllocationInput {
   /** The supplier balance moves */
   reason: string;

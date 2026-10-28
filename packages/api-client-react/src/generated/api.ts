@@ -149,6 +149,7 @@ import type {
   FixedAssetReport,
   ForecastAssumption,
   ForecastAssumptionInput,
+  ForfeitSupplierDepositInput,
   GeneralLedgerReport,
   GetAccountStatementParams,
   GetAccountSummaryParams,
@@ -350,6 +351,7 @@ import type {
   SupplierAdvanceInvoiceInput,
   SupplierAllocationReversal,
   SupplierCreditNote,
+  SupplierDepositForfeiture,
   SupplierPaymentDetail,
   SupplierRefund,
   SupplierStatement,
@@ -23185,6 +23187,155 @@ export const useRefundSupplierPayment = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRefundSupplierPaymentMutationOptions(options));
+    }
+
+export const getListSupplierDepositForfeituresUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-payments/${id}/forfeitures`
+}
+
+/**
+ * @summary G4c-2 (decision 14): the forfeitures recorded on a security deposit
+ */
+export const listSupplierDepositForfeitures = async (id: number, options?: RequestInit): Promise<SupplierDepositForfeiture[]> => {
+
+  return customFetch<SupplierDepositForfeiture[]>(getListSupplierDepositForfeituresUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSupplierDepositForfeituresQueryKey = (id: number,) => {
+    return [
+    `/api/supplier-payments/${id}/forfeitures`
+    ] as const;
+    }
+
+
+export const getListSupplierDepositForfeituresQueryOptions = <TData = Awaited<ReturnType<typeof listSupplierDepositForfeitures>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierDepositForfeitures>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSupplierDepositForfeituresQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupplierDepositForfeitures>>> = ({ signal }) => listSupplierDepositForfeitures(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupplierDepositForfeitures>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSupplierDepositForfeituresQueryResult = NonNullable<Awaited<ReturnType<typeof listSupplierDepositForfeitures>>>
+export type ListSupplierDepositForfeituresQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary G4c-2 (decision 14): the forfeitures recorded on a security deposit
+ */
+
+export function useListSupplierDepositForfeitures<TData = Awaited<ReturnType<typeof listSupplierDepositForfeitures>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSupplierDepositForfeitures>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSupplierDepositForfeituresQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getForfeitSupplierDepositUrl = (id: number,) => {
+
+
+
+
+  return `/api/supplier-payments/${id}/forfeitures`
+}
+
+/**
+ * @summary G4c-2 (decision 14): record a security deposit forfeited to the supplier, as the user classifies it — a record; nothing posts
+ */
+export const forfeitSupplierDeposit = async (id: number,
+    forfeitSupplierDepositInput: ForfeitSupplierDepositInput, options?: RequestInit): Promise<SupplierDepositForfeiture> => {
+
+  return customFetch<SupplierDepositForfeiture>(getForfeitSupplierDepositUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(forfeitSupplierDepositInput)
+  }
+);}
+
+
+
+
+
+export const getForfeitSupplierDepositMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forfeitSupplierDeposit>>, TError,{id: number;data: BodyType<ForfeitSupplierDepositInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof forfeitSupplierDeposit>>, TError,{id: number;data: BodyType<ForfeitSupplierDepositInput>}, TContext> => {
+
+const mutationKey = ['forfeitSupplierDeposit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof forfeitSupplierDeposit>>, {id: number;data: BodyType<ForfeitSupplierDepositInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  forfeitSupplierDeposit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ForfeitSupplierDepositMutationResult = NonNullable<Awaited<ReturnType<typeof forfeitSupplierDeposit>>>
+    export type ForfeitSupplierDepositMutationBody = BodyType<ForfeitSupplierDepositInput>
+    export type ForfeitSupplierDepositMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary G4c-2 (decision 14): record a security deposit forfeited to the supplier, as the user classifies it — a record; nothing posts
+ */
+export const useForfeitSupplierDeposit = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forfeitSupplierDeposit>>, TError,{id: number;data: BodyType<ForfeitSupplierDepositInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof forfeitSupplierDeposit>>,
+        TError,
+        {id: number;data: BodyType<ForfeitSupplierDepositInput>},
+        TContext
+      > => {
+      return useMutation(getForfeitSupplierDepositMutationOptions(options));
     }
 
 export const getListSupplierPositionsUrl = (params?: ListSupplierPositionsParams,) => {
