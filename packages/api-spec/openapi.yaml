@@ -6985,6 +6985,69 @@ paths:
               schema: { $ref: "#/components/schemas/WhtCorrectionPack" }
         "409": { description: "`wht_month_not_filed` — the month's return is not recorded as filed" }
 
+  /tax/wht/refund-claims:
+    get:
+      operationId: listWhtRefundClaims
+      tags: [tax]
+      summary: "🔴 Phase 18 G4b (owner decision 17): the refund claims for over-withheld WHT — records only."
+      responses:
+        "200": { description: "The claims (newest first)", content: { application/json: { schema: { $ref: "#/components/schemas/WhtRefundClaimList" } } } }
+    post:
+      operationId: createWhtRefundClaim
+      tags: [tax]
+      summary: >
+        Record a refund claim for an over-withheld amount: the month and supplier, the overpaid tax year, the excess,
+        who bore it, and the six-item evidence checklist. The five-year clock (Law Art. 65(c)) is shown as 31 December
+        of the overpaid tax year + 5 (a reasoned reading). Records only: nothing posts and no month is reversed.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/WhtRefundClaimInput" } } } }
+      responses:
+        "201": { description: Recorded, content: { application/json: { schema: { $ref: "#/components/schemas/WhtRefundClaim" } } } }
+        "400": { description: "`period_invalid` · `tax_year_invalid` · `wht_refund_borne_by_invalid` · `reason_required` · `wht_refund_checklist_invalid`" }
+        "422": { description: "`reference_not_found` (the supplier) · `wht_refund_excess_invalid`" }
+
+  /tax/wht/refund-claims/{id}/events:
+    parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+    post:
+      operationId: addWhtRefundClaimEvent
+      tags: [tax]
+      summary: "Record a step of a refund claim: the evidence updated, submitted to ZATCA, refunded or refused. Append-only."
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/WhtRefundClaimEventInput" } } } }
+      responses:
+        "201": { description: The claim with its events, content: { application/json: { schema: { $ref: "#/components/schemas/WhtRefundClaim" } } } }
+        "404": { description: Not found }
+        "409": { description: "`wht_refund_claim_not_submitted` · `wht_refund_claim_closed`" }
+
+  /tax/wht/instalment-requests:
+    get:
+      operationId: listWhtInstalmentRequests
+      tags: [tax]
+      summary: "🔴 Phase 18 G4b (owner decision 18): instalment requests under Resolution 1117 — records only."
+      responses:
+        "200": { description: "The requests (newest first)", content: { application/json: { schema: { $ref: "#/components/schemas/WhtInstalmentRequestList" } } } }
+    post:
+      operationId: createWhtInstalmentRequest
+      tags: [tax]
+      summary: >
+        Record a request to ZATCA for an instalment plan for WHT principal under Resolution 1117 (months up to 2026-05,
+        whose returns were due before 1 July 2026). It counts only once ZATCA's written acceptance is recorded;
+        Regulations Art. 65(1)(c) normally excludes withheld tax from instalments.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/WhtInstalmentRequestInput" } } } }
+      responses:
+        "201": { description: Recorded, content: { application/json: { schema: { $ref: "#/components/schemas/WhtInstalmentRequest" } } } }
+        "422": { description: "`wht_instalment_month_ineligible` · `wht_instalment_principal_invalid`" }
+
+  /tax/wht/instalment-requests/{id}/events:
+    parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+    post:
+      operationId: addWhtInstalmentRequestEvent
+      tags: [tax]
+      summary: "Record ZATCA's WRITTEN acceptance (with its reference) or its refusal. Append-only; the plan counts only on acceptance."
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/WhtInstalmentRequestEventInput" } } } }
+      responses:
+        "201": { description: The request with its events, content: { application/json: { schema: { $ref: "#/components/schemas/WhtInstalmentRequest" } } } }
+        "404": { description: Not found }
+        "409": { description: "`wht_instalment_request_closed`" }
+
   /tax/wht/annual:
     get:
       operationId: getWhtAnnual
@@ -8851,6 +8914,137 @@ components:
               whtAmount: { type: number }
               recordedAt: { type: ["string", "null"] }
         note: { type: string }
+
+    WhtRefundChecklist:
+      type: object
+      description: "Owner decision 17's evidence checklist — exactly these six items, each held or not, with a note."
+      required: [contractAndInvoice, correctCategoryAndRate, originalStatementAndReceipt, reconciliation, whoBoreTheExcess, beneficiaryAuthorisation]
+      additionalProperties: false
+      properties:
+        contractAndInvoice: { type: object, required: [held, note], properties: { held: { type: boolean }, note: { type: string } } }
+        correctCategoryAndRate: { type: object, required: [held, note], properties: { held: { type: boolean }, note: { type: string } } }
+        originalStatementAndReceipt: { type: object, required: [held, note], properties: { held: { type: boolean }, note: { type: string } } }
+        reconciliation: { type: object, required: [held, note], properties: { held: { type: boolean }, note: { type: string } } }
+        whoBoreTheExcess: { type: object, required: [held, note], properties: { held: { type: boolean }, note: { type: string } } }
+        beneficiaryAuthorisation: { type: object, required: [held, note], properties: { held: { type: boolean }, note: { type: string } } }
+
+    WhtRefundClaimInput:
+      type: object
+      required: [period, vendorId, overpaidTaxYear, excessAmount, borneBy, reason, checklist]
+      properties:
+        period: { type: string, description: "The WHT month the excess was withheld in (YYYY-MM)." }
+        vendorId: { type: integer }
+        overpaidTaxYear: { type: integer }
+        excessAmount: { type: number }
+        borneBy: { type: string, enum: [payer, beneficiary] }
+        reason: { type: string, maxLength: 2000 }
+        checklist: { $ref: "#/components/schemas/WhtRefundChecklist" }
+
+    WhtRefundClaimEventInput:
+      type: object
+      required: [kind, onDate]
+      properties:
+        kind: { type: string, enum: [evidence_updated, submitted, refunded, refused] }
+        onDate: { type: string }
+        reference: { type: ["string", "null"] }
+        amount: { type: ["number", "null"], description: "refunded only — the amount refunded." }
+        note: { type: ["string", "null"] }
+        checklist: { $ref: "#/components/schemas/WhtRefundChecklist" }
+
+    WhtRefundClaim:
+      type: object
+      required: [id, period, vendorId, overpaidTaxYear, excessAmount, borneBy, reason, checklist, evidenceHeld, evidenceItems, deadline, pastDeadline, state, events, createdBy, createdAt]
+      properties:
+        id: { type: integer }
+        period: { type: string }
+        vendorId: { type: integer }
+        overpaidTaxYear: { type: integer }
+        excessAmount: { type: number }
+        borneBy: { type: string, enum: [payer, beneficiary] }
+        reason: { type: string }
+        checklist: { $ref: "#/components/schemas/WhtRefundChecklist" }
+        evidenceHeld: { type: integer }
+        evidenceItems: { type: integer }
+        deadline: { type: string, description: "31 December of the overpaid tax year + 5 (Law Art. 65(c), a reasoned reading)." }
+        pastDeadline: { type: boolean }
+        state: { type: string, enum: [open, submitted, refunded, refused] }
+        events:
+          type: array
+          items:
+            type: object
+            required: [id, kind, onDate, reference, amount, note, createdAt]
+            properties:
+              id: { type: integer }
+              kind: { type: string, enum: [evidence_updated, submitted, refunded, refused] }
+              onDate: { type: string }
+              reference: { type: ["string", "null"] }
+              amount: { type: ["number", "null"] }
+              note: { type: ["string", "null"] }
+              createdAt: { type: string }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+
+    WhtRefundClaimList:
+      type: object
+      required: [items]
+      properties: { items: { type: array, items: { $ref: "#/components/schemas/WhtRefundClaim" } } }
+
+    WhtInstalmentRequestInput:
+      type: object
+      required: [periodFrom, periodTo, principal, requestedOn, reference]
+      properties:
+        periodFrom: { type: string }
+        periodTo: { type: string, description: "Up to 2026-05 (Resolution 1117: returns due before 1 July 2026)." }
+        principal: { type: number }
+        requestedOn: { type: string }
+        reference: { type: string }
+        note: { type: ["string", "null"] }
+
+    WhtInstalmentRequestEventInput:
+      type: object
+      required: [kind, onDate]
+      properties:
+        kind: { type: string, enum: [accepted, refused] }
+        onDate: { type: string }
+        reference: { type: ["string", "null"], description: "Required for accepted: the reference of ZATCA's written acceptance." }
+        note: { type: ["string", "null"] }
+
+    WhtInstalmentRequest:
+      type: object
+      required: [id, periodFrom, periodTo, principal, requestedOn, reference, state, counts, acceptance, events, note, createdBy, createdAt]
+      properties:
+        id: { type: integer }
+        periodFrom: { type: string }
+        periodTo: { type: string }
+        principal: { type: number }
+        requestedOn: { type: string }
+        reference: { type: string }
+        state: { type: string, enum: [requested, accepted, refused] }
+        counts: { type: boolean, description: "True only once ZATCA's written acceptance is recorded." }
+        acceptance:
+          oneOf:
+            - { type: object, required: [onDate, reference], properties: { onDate: { type: string }, reference: { type: string } } }
+            - { type: "null" }
+        events:
+          type: array
+          items:
+            type: object
+            required: [id, kind, onDate, reference, note, createdAt]
+            properties:
+              id: { type: integer }
+              kind: { type: string, enum: [accepted, refused] }
+              onDate: { type: string }
+              reference: { type: ["string", "null"] }
+              note: { type: ["string", "null"] }
+              createdAt: { type: string }
+        note: { type: string }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+
+    WhtInstalmentRequestList:
+      type: object
+      required: [items]
+      properties: { items: { type: array, items: { $ref: "#/components/schemas/WhtInstalmentRequest" } } }
 
     VatReturnFiling:
       type: object

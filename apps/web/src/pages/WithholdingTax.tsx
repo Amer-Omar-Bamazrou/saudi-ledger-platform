@@ -29,6 +29,7 @@ import { BankPicker } from "@/components/payments/shared";
 import { legalRef, notSubjectLabel, whtMonthStatusLabel, whtTypeLabel, whtNatureBasisLabel, whtFilingStatusLabel, whtTreatmentLabel, WHT_TYPES } from "@/lib/taxLabels";
 import { WhtDeterminationLines } from "@/components/payments/WhtFields";
 import { WhtFilingCard, WhtCorrectionPanel, WhtLineageView } from "@/components/tax/WhtCorrection";
+import { WhtClaims } from "@/components/tax/WhtClaims";
 import { businessToday } from "@workspace/shared";
 
 const money = (x: number | null | undefined) => (x == null ? "—" : fmtNum(x));
@@ -109,6 +110,7 @@ export default function WithholdingTax() {
           <TabsTrigger value="annual" data-testid="wht-tab-annual">{t("Annual information", "البيانات السنوية")}</TabsTrigger>
           <TabsTrigger value="exceptions" data-testid="wht-tab-exceptions">{t("Exceptions", "الاستثناءات")}</TabsTrigger>
           <TabsTrigger value="reliefs" data-testid="wht-tab-reliefs">{t("Treaty reliefs", "إعفاءات الاتفاقيات")}</TabsTrigger>
+          <TabsTrigger value="claims" data-testid="wht-tab-claims">{t("Refund claims and instalments", "مطالبات الاسترداد والتقسيط")}</TabsTrigger>
           <TabsTrigger value="rates" data-testid="wht-tab-rates">{t("Rates", "النسب")}</TabsTrigger>
         </TabsList>
 
@@ -147,6 +149,8 @@ export default function WithholdingTax() {
         <TabsContent value="annual"><Annual /></TabsContent>
         <TabsContent value="exceptions"><Exceptions /></TabsContent>
         <TabsContent value="reliefs"><Reliefs onChanged={refresh} /></TabsContent>
+        {/* Phase 18 G4b (decisions 17, 18): records only — the server decides who may record them */}
+        <TabsContent value="claims"><WhtClaims canRecord /></TabsContent>
         <TabsContent value="rates"><Rates /></TabsContent>
       </Tabs>
     </div>
