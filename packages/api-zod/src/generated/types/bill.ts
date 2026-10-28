@@ -13,6 +13,7 @@ import type { BillPrepayment } from './billPrepayment';
 import type { BillStatus } from './billStatus';
 import type { BillSupplierDocumentKind } from './billSupplierDocumentKind';
 import type { BillVatEvidence } from './billVatEvidence';
+import type { BillVatFiguresConfirmation } from './billVatFiguresConfirmation';
 
 export interface Bill {
   id: number;
@@ -98,6 +99,8 @@ export interface Bill {
      */
   vendorTaxNumber?: string | null;
   vatEvidence?: BillVatEvidence;
+  /** Phase 18 G1 (decision 6): the user's confirmation of VAT shown below 15 %; null when none was given. */
+  vatFiguresConfirmation?: BillVatFiguresConfirmation | null;
   inputVat?: BillInputVat;
   /** Phase 13C: paid when recorded — approval posts AND pays it. */
   recordedAsExpense?: boolean;

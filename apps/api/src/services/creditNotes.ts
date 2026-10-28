@@ -12,6 +12,7 @@ import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { INVOICE_IN_BOOKS_STATUSES, ADVANCE_CREDIT_NOTE_TYPE, isAdvanceInvoiceType } from "@workspace/shared";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
 import { migrationCorrectionService } from "./migrationCorrection.service";
+import { CHARGE_SUBSTANCES } from "@workspace/shared";
 
 /**
  * AP-3: `advance_credit_note` is a note (ZATCA 381 with a billing reference
@@ -40,6 +41,64 @@ const ISSUED_STATUSES: readonly string[] = INVOICE_IN_BOOKS_STATUSES;
 const money = (v: unknown): number => Number(v ?? 0);
 const fmt = (n: number): string => n.toFixed(2);
 
+/** Decision 8 (`@workspace/shared` debitNoteCharge): what a debit note's extra charge IS — refused by name unless a price change. */
+function assertChargeSubstance(substance: string | null | undefined): void {
+  if (substance == null || substance === "") {
+    throw new BusinessRuleError(400, {
+      code: "debit_note_substance_required",
+      error: "State what the extra charge IS: a change to the price of the original supply, a new supply, compensation for damage or loss, or a late-payment fee. There is no default.",
+      field: "chargeSubstance",
+    });
+  }
+  if (!(CHARGE_SUBSTANCES as readonly string[]).includes(substance)) {
+    throw new BusinessRuleError(400, { code: "charge_substance_invalid", error: `chargeSubstance must be one of: ${CHARGE_SUBSTANCES.join(", ")}.`, field: "chargeSubstance" });
+  }
+  if (substance === "new_supply") {
+    throw new BusinessRuleError(422, {
+      code: "extra_charge_is_new_supply",
+      error: "A distinct new supply is not a debit note: issue a new tax invoice for it.",
+      field: "chargeSubstance",
+    });
+  }
+  if (substance === "compensation") {
+    throw new BusinessRuleError(422, {
+      code: "extra_charge_is_compensation",
+      error: "Compensation for damage or loss is not consideration for a supply, so it takes no VAT document (committee decision IR-2024-192725). Record it outside the VAT documents.",
+      field: "chargeSubstance",
+    });
+  }
+  if (substance === "late_payment_fee") {
+    throw new BusinessRuleError(422, {
+      code: "late_payment_fee_needs_substance",
+      error: "A late-payment fee has no default treatment: classify it by what it is — a change to the price of the original supply, a new supply, or compensation.",
+      field: "chargeSubstance",
+    });
+  }
+}
+
+function assertChargeEventDate(eventDate: string | null | undefined, original: { date: string; invoiceNumber: string }, noteDate: string | null | undefined): void {
+  if (!eventDate) {
+    throw new BusinessRuleError(400, { code: "charge_event_date_required", error: "Enter the date the price changed: the Art. 54(6) deadline runs from it.", field: "chargeEventDate" });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+    throw new BusinessRuleError(400, { code: "invalid_date", error: "chargeEventDate must be YYYY-MM-DD.", field: "chargeEventDate" });
+  }
+  if (eventDate < original.date) {
+    throw new BusinessRuleError(422, {
+      code: "charge_event_date_before_original",
+      error: `The price of invoice ${original.invoiceNumber} cannot have changed on ${eventDate}, before the invoice itself (${original.date}).`,
+      field: "chargeEventDate",
+    });
+  }
+  if (noteDate && eventDate > noteDate) {
+    throw new BusinessRuleError(422, {
+      code: "charge_event_date_after_note",
+      error: `The price change (${eventDate}) cannot come after the debit note recording it (${noteDate}).`,
+      field: "chargeEventDate",
+    });
+  }
+}
+
 /**
  * Validate a note against its original.
  *
@@ -54,6 +113,10 @@ export async function assertNoteIsValid(input: {
   total: number;
   /** Set when re-checking an existing note, so it does not count against itself. */
   excludeNoteId?: number;
+  /** Decision 8 — a DEBIT note's substance, the day the price changed, and the note's own date. */
+  chargeSubstance?: string | null;
+  chargeEventDate?: string | null;
+  noteDate?: string | null;
 }): Promise<void> {
   const label = LABEL[input.documentType];
 
@@ -159,6 +222,13 @@ export async function assertNoteIsValid(input: {
       });
     }
     return;
+  }
+
+  // ── Decision 8: what a debit note's extra charge IS, and when the price changed ──
+  // After every refusal about the ORIGINAL, so those keep their order and meaning.
+  if (input.documentType === "debit_note") {
+    assertChargeSubstance(input.chargeSubstance);
+    assertChargeEventDate(input.chargeEventDate, original, input.noteDate);
   }
 
   // ── Over-crediting guard ────────────────────────────────────────────────

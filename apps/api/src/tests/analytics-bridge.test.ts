@@ -224,6 +224,7 @@ describeMaybe("M19.6 — the receivables bridge", () => {
           documentType: "debit_note",
           originalInvoiceId: inv1.id,
           noteReason: "Undercharged freight",
+          chargeSubstance: "price_change", chargeEventDate: "2026-04-08",
           items: [{ description: "Freight", quantity: 1, unitPrice: 1_000, vatRate: 15 }],
         },
         userId),

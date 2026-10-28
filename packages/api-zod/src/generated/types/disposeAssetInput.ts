@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DisposeAssetInputKind } from './disposeAssetInputKind';
+import type { DisposeAssetInputWithdrawalReason } from './disposeAssetInputWithdrawalReason';
 
 export interface DisposeAssetInput {
   /** YYYY-MM-DD — the day it left. Must be in an open month and on or after the available-for-use date. */
@@ -17,4 +18,9 @@ export interface DisposeAssetInput {
      * @maxLength 1000
      */
   reason: string;
+  /**
+     * Phase 18 G1 (owner decision 13): WHY a withdrawn asset left — required for `withdrawn`, with no default (400 `withdrawal_reason_required`); refused on any other kind (400 `withdrawal_reason_invalid`).
+     * @nullable
+     */
+  withdrawalReason?: DisposeAssetInputWithdrawalReason;
 }

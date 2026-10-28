@@ -269,6 +269,22 @@ export const billsRepository = {
     return row?.d ?? null;
   },
 
+  /**
+   * Phase 18 G1 (decision 6) — the figures of every POSTED supplier credit note
+   * against this bill: a note that takes back VAT charged above the rate is
+   * the supplier's correction that releases it.
+   */
+  postedCreditNoteFigures(originalId: number) {
+    return db
+      .select({ subtotal: billsTable.subtotal, vatAmount: billsTable.vatAmount })
+      .from(billsTable)
+      .where(and(
+        eq(billsTable.creditNoteAgainstBillId, originalId),
+        eq(billsTable.documentType, "credit_note"),
+        sql`${billsTable.status} NOT IN ('draft','submitted')`,
+      ));
+  },
+
   claimNotesFollowing(originalId: number, claimedOn: string, entryId: number | null) {
     return db
       .update(billsTable)

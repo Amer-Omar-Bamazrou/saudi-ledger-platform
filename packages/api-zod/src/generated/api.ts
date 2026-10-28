@@ -945,6 +945,10 @@ export const ConvertQuotationResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -1705,10 +1709,19 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -6514,6 +6527,20 @@ export const CreateAssetResponse = zod.object({
   "carryingAmountAtDisposal": zod.number(),
   "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
   "nominalSupplyValue": zod.number().nullable(),
+  "withdrawalReason": zod.union([zod.literal('private_use'),zod.literal('gift'),zod.literal('cessation_of_taxable_use'),zod.literal(null)]).nullable(),
+  "nominalSupplyCalculation": zod.union([zod.object({
+  "rule": zod.string(),
+  "route": zod.enum(['art_52_8_formula']),
+  "purchaseValue": zod.number(),
+  "initialRecoveryPct": zod.number(),
+  "adjustmentPeriodYears": zod.number(),
+  "yearsElapsed": zod.number(),
+  "yearsRemaining": zod.number(),
+  "nominalSupplyValue": zod.number(),
+  "vatRatePct": zod.number(),
+  "vatOnNominalSupply": zod.number(),
+  "note": zod.string().optional()
+}).describe('Phase 18 G1 (owner decision 13): the full VAT IR Art. 52(8) calculation behind a withdrawal\'s nominal-supply value — purchase value × initial recovery % × years remaining ÷ adjustment period (part years count as one, 52(2)), the applicable rate (15 %) and the VAT on it. `note` names the open question when the reason is private use or a gift (decision 13\'s purchase-cost route is not applied: its Guideline passage is not in any saved source).\n'),zod.null()]),
   "journalEntryId": zod.number(),
   "invoiceId": zod.number().nullable(),
   "reason": zod.string().nullable()
@@ -6618,6 +6645,20 @@ export const GetAssetResponse = zod.object({
   "carryingAmountAtDisposal": zod.number(),
   "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
   "nominalSupplyValue": zod.number().nullable(),
+  "withdrawalReason": zod.union([zod.literal('private_use'),zod.literal('gift'),zod.literal('cessation_of_taxable_use'),zod.literal(null)]).nullable(),
+  "nominalSupplyCalculation": zod.union([zod.object({
+  "rule": zod.string(),
+  "route": zod.enum(['art_52_8_formula']),
+  "purchaseValue": zod.number(),
+  "initialRecoveryPct": zod.number(),
+  "adjustmentPeriodYears": zod.number(),
+  "yearsElapsed": zod.number(),
+  "yearsRemaining": zod.number(),
+  "nominalSupplyValue": zod.number(),
+  "vatRatePct": zod.number(),
+  "vatOnNominalSupply": zod.number(),
+  "note": zod.string().optional()
+}).describe('Phase 18 G1 (owner decision 13): the full VAT IR Art. 52(8) calculation behind a withdrawal\'s nominal-supply value — purchase value × initial recovery % × years remaining ÷ adjustment period (part years count as one, 52(2)), the applicable rate (15 %) and the VAT on it. `note` names the open question when the reason is private use or a gift (decision 13\'s purchase-cost route is not applied: its Guideline passage is not in any saved source).\n'),zod.null()]),
   "journalEntryId": zod.number(),
   "invoiceId": zod.number().nullable(),
   "reason": zod.string().nullable()
@@ -6778,6 +6819,20 @@ export const UpdateAssetResponse = zod.object({
   "carryingAmountAtDisposal": zod.number(),
   "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
   "nominalSupplyValue": zod.number().nullable(),
+  "withdrawalReason": zod.union([zod.literal('private_use'),zod.literal('gift'),zod.literal('cessation_of_taxable_use'),zod.literal(null)]).nullable(),
+  "nominalSupplyCalculation": zod.union([zod.object({
+  "rule": zod.string(),
+  "route": zod.enum(['art_52_8_formula']),
+  "purchaseValue": zod.number(),
+  "initialRecoveryPct": zod.number(),
+  "adjustmentPeriodYears": zod.number(),
+  "yearsElapsed": zod.number(),
+  "yearsRemaining": zod.number(),
+  "nominalSupplyValue": zod.number(),
+  "vatRatePct": zod.number(),
+  "vatOnNominalSupply": zod.number(),
+  "note": zod.string().optional()
+}).describe('Phase 18 G1 (owner decision 13): the full VAT IR Art. 52(8) calculation behind a withdrawal\'s nominal-supply value — purchase value × initial recovery % × years remaining ÷ adjustment period (part years count as one, 52(2)), the applicable rate (15 %) and the VAT on it. `note` names the open question when the reason is private use or a gift (decision 13\'s purchase-cost route is not applied: its Guideline passage is not in any saved source).\n'),zod.null()]),
   "journalEntryId": zod.number(),
   "invoiceId": zod.number().nullable(),
   "reason": zod.string().nullable()
@@ -6890,6 +6945,20 @@ export const CancelAssetResponse = zod.object({
   "carryingAmountAtDisposal": zod.number(),
   "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
   "nominalSupplyValue": zod.number().nullable(),
+  "withdrawalReason": zod.union([zod.literal('private_use'),zod.literal('gift'),zod.literal('cessation_of_taxable_use'),zod.literal(null)]).nullable(),
+  "nominalSupplyCalculation": zod.union([zod.object({
+  "rule": zod.string(),
+  "route": zod.enum(['art_52_8_formula']),
+  "purchaseValue": zod.number(),
+  "initialRecoveryPct": zod.number(),
+  "adjustmentPeriodYears": zod.number(),
+  "yearsElapsed": zod.number(),
+  "yearsRemaining": zod.number(),
+  "nominalSupplyValue": zod.number(),
+  "vatRatePct": zod.number(),
+  "vatOnNominalSupply": zod.number(),
+  "note": zod.string().optional()
+}).describe('Phase 18 G1 (owner decision 13): the full VAT IR Art. 52(8) calculation behind a withdrawal\'s nominal-supply value — purchase value × initial recovery % × years remaining ÷ adjustment period (part years count as one, 52(2)), the applicable rate (15 %) and the VAT on it. `note` names the open question when the reason is private use or a gift (decision 13\'s purchase-cost route is not applied: its Guideline passage is not in any saved source).\n'),zod.null()]),
   "journalEntryId": zod.number(),
   "invoiceId": zod.number().nullable(),
   "reason": zod.string().nullable()
@@ -7008,10 +7077,19 @@ export const CreateSupplierAdvanceInvoiceResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -7110,10 +7188,19 @@ export const CreateSupplierAdvanceCreditNoteResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -7230,10 +7317,19 @@ export const SubmitBillResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -7329,10 +7425,19 @@ export const SendBackBillResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -7431,10 +7536,19 @@ export const ApproveBillResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -8218,10 +8332,19 @@ export const ListBillsResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -8372,10 +8495,19 @@ export const CreateBillResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -8492,6 +8624,10 @@ export const ListInvoicesResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -8595,7 +8731,9 @@ export const CreateInvoiceBody = zod.object({
   "termsAndConditions": zod.string().nullish(),
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note']).optional(),
   "originalInvoiceId": zod.number().nullish().describe('Required for a credit or debit note; refused on an invoice (400 note_fields_on_invoice).'),
-  "noteReason": zod.string().nullish()
+  "noteReason": zod.string().nullish(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal('new_supply'),zod.literal('compensation'),zod.literal('late_payment_fee'),zod.literal(null)]).nullish().describe('Phase 18 G1 (owner decision 8) — a DEBIT note states what its extra charge IS, with no default (400 `debit_note_substance_required`). Only `price_change` (VAT IR Art. 54(2)) is a debit note; `new_supply` (422 `extra_charge_is_new_supply`: issue a tax invoice), `compensation` (422 `extra_charge_is_compensation`: no VAT document) and `late_payment_fee` (422 `late_payment_fee_needs_substance`: classify it by substance) are refused. Refused on any other document (400 `charge_substance_only_on_debit_note`).\n'),
+  "chargeEventDate": zod.string().nullish().describe('A price change\'s day (YYYY-MM-DD): required (400 `charge_event_date_required`), not before the original invoice (422 `charge_event_date_before_original`), not after the note (422 `charge_event_date_after_note`).')
 }).describe('The seller\'s name and VAT number are NOT inputs (G31): they come from\nthe invoice\'s company record, read when the invoice is issued, and are\nfixed on it from then on. A create or update body that names\n`sellerName` or `sellerVatNumber` is refused with 400\n`seller_identity_not_settable`.\n').and(zod.object({
   "items": zod.array(zod.object({
   "description": zod.string().min(1),
@@ -8642,6 +8780,10 @@ export const CreateInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -8737,6 +8879,10 @@ export const GetInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -8876,6 +9022,10 @@ export const UpdateInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -9716,6 +9866,10 @@ export const CreateAdvanceInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -11842,6 +11996,20 @@ export const ChangeAssetEstimateResponse = zod.object({
   "carryingAmountAtDisposal": zod.number(),
   "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
   "nominalSupplyValue": zod.number().nullable(),
+  "withdrawalReason": zod.union([zod.literal('private_use'),zod.literal('gift'),zod.literal('cessation_of_taxable_use'),zod.literal(null)]).nullable(),
+  "nominalSupplyCalculation": zod.union([zod.object({
+  "rule": zod.string(),
+  "route": zod.enum(['art_52_8_formula']),
+  "purchaseValue": zod.number(),
+  "initialRecoveryPct": zod.number(),
+  "adjustmentPeriodYears": zod.number(),
+  "yearsElapsed": zod.number(),
+  "yearsRemaining": zod.number(),
+  "nominalSupplyValue": zod.number(),
+  "vatRatePct": zod.number(),
+  "vatOnNominalSupply": zod.number(),
+  "note": zod.string().optional()
+}).describe('Phase 18 G1 (owner decision 13): the full VAT IR Art. 52(8) calculation behind a withdrawal\'s nominal-supply value — purchase value × initial recovery % × years remaining ÷ adjustment period (part years count as one, 52(2)), the applicable rate (15 %) and the VAT on it. `note` names the open question when the reason is private use or a gift (decision 13\'s purchase-cost route is not applied: its Guideline passage is not in any saved source).\n'),zod.null()]),
   "journalEntryId": zod.number(),
   "invoiceId": zod.number().nullable(),
   "reason": zod.string().nullable()
@@ -11864,7 +12032,8 @@ export const disposeAssetBodyReasonMax = 1000;
 export const DisposeAssetBody = zod.object({
   "date": zod.string().describe('YYYY-MM-DD — the day it left. Must be in an open month and on or after the available-for-use date.'),
   "kind": zod.enum(['scrapped', 'destroyed', 'stolen', 'withdrawn']),
-  "reason": zod.string().min(1).max(disposeAssetBodyReasonMax).describe('The disposal\'s evidence (VAT IR Art. 66 records).')
+  "reason": zod.string().min(1).max(disposeAssetBodyReasonMax).describe('The disposal\'s evidence (VAT IR Art. 66 records).'),
+  "withdrawalReason": zod.union([zod.literal('private_use'),zod.literal('gift'),zod.literal('cessation_of_taxable_use'),zod.literal(null)]).nullish().describe('Phase 18 G1 (owner decision 13): WHY a withdrawn asset left — required for `withdrawn`, with no default (400 `withdrawal_reason_required`); refused on any other kind (400 `withdrawal_reason_invalid`).')
 })
 
 export const DisposeAssetResponse = zod.object({
@@ -11958,6 +12127,20 @@ export const DisposeAssetResponse = zod.object({
   "carryingAmountAtDisposal": zod.number(),
   "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']),
   "nominalSupplyValue": zod.number().nullable(),
+  "withdrawalReason": zod.union([zod.literal('private_use'),zod.literal('gift'),zod.literal('cessation_of_taxable_use'),zod.literal(null)]).nullable(),
+  "nominalSupplyCalculation": zod.union([zod.object({
+  "rule": zod.string(),
+  "route": zod.enum(['art_52_8_formula']),
+  "purchaseValue": zod.number(),
+  "initialRecoveryPct": zod.number(),
+  "adjustmentPeriodYears": zod.number(),
+  "yearsElapsed": zod.number(),
+  "yearsRemaining": zod.number(),
+  "nominalSupplyValue": zod.number(),
+  "vatRatePct": zod.number(),
+  "vatOnNominalSupply": zod.number(),
+  "note": zod.string().optional()
+}).describe('Phase 18 G1 (owner decision 13): the full VAT IR Art. 52(8) calculation behind a withdrawal\'s nominal-supply value — purchase value × initial recovery % × years remaining ÷ adjustment period (part years count as one, 52(2)), the applicable rate (15 %) and the VAT on it. `note` names the open question when the reason is private use or a gift (decision 13\'s purchase-cost route is not applied: its Guideline passage is not in any saved source).\n'),zod.null()]),
   "journalEntryId": zod.number(),
   "invoiceId": zod.number().nullable(),
   "reason": zod.string().nullable()
@@ -11973,6 +12156,20 @@ export const DisposeAssetResponse = zod.object({
   "carryingAmountAtDisposal": zod.number(),
   "vatTreatment": zod.enum(['taxable_supply', 'out_of_scope_restricted_vehicle', 'no_adjustment', 'nominal_supply']).describe('Art. 3(5) a taxable supply · Art. 50(3) a restricted motor vehicle sold outside the activity · Art. 52(7) no adjustment · Art. 52(8) a nominal supply.'),
   "nominalSupplyValue": zod.number().nullable().describe('Art. 52(8): purchase value × initial recovery % × remaining useful life ÷ adjustment period. Stored for a withdrawal; declaring it is the Art. 52 engine\'s business.'),
+  "withdrawalReason": zod.union([zod.literal('private_use'),zod.literal('gift'),zod.literal('cessation_of_taxable_use'),zod.literal(null)]).nullable(),
+  "nominalSupplyCalculation": zod.union([zod.object({
+  "rule": zod.string(),
+  "route": zod.enum(['art_52_8_formula']),
+  "purchaseValue": zod.number(),
+  "initialRecoveryPct": zod.number(),
+  "adjustmentPeriodYears": zod.number(),
+  "yearsElapsed": zod.number(),
+  "yearsRemaining": zod.number(),
+  "nominalSupplyValue": zod.number(),
+  "vatRatePct": zod.number(),
+  "vatOnNominalSupply": zod.number(),
+  "note": zod.string().optional()
+}).describe('Phase 18 G1 (owner decision 13): the full VAT IR Art. 52(8) calculation behind a withdrawal\'s nominal-supply value — purchase value × initial recovery % × years remaining ÷ adjustment period (part years count as one, 52(2)), the applicable rate (15 %) and the VAT on it. `note` names the open question when the reason is private use or a gift (decision 13\'s purchase-cost route is not applied: its Guideline passage is not in any saved source).\n'),zod.null()]),
   "journalEntryId": zod.number(),
   "entryNumber": zod.string(),
   "invoiceId": zod.number().nullable(),
@@ -12674,6 +12871,10 @@ export const WriteOffBadDebtResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -12787,6 +12988,10 @@ export const CreateBadDebtRecoveryResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -12908,6 +13113,10 @@ export const CreateInvoiceCorrectionResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -13020,6 +13229,10 @@ export const CreateAdvanceCreditNoteResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -13128,6 +13341,10 @@ export const PayInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -13285,10 +13502,19 @@ export const GetBillResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -13415,10 +13641,19 @@ export const UpdateBillResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -13526,10 +13761,19 @@ export const PostBillResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -13589,7 +13833,8 @@ export const PreviewBillVatEvidenceResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 }))
 }).describe('Every purchase document posts whatever this says (accountant X1\/X5); the status decides where its VAT goes — evidenced \/ not_required: Input VAT; awaiting_evidence: the holding asset \"Input VAT awaiting evidence\", never on a return until the evidence is held; not_deductible: the cost.\n')
 
@@ -13690,10 +13935,19 @@ export const ListBillsHeldForVatEvidenceResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -13809,10 +14063,132 @@ export const AttachBillEvidenceResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
+  "inputVat": zod.object({
+  "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
+  "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
+  "claimedOn": zod.string().nullable().describe('YYYY-MM-DD — the date whose VAT period claims it.'),
+  "claimEntryId": zod.number().nullable().describe('The evidence entry (Dr Input VAT \/ Cr awaiting); null when claimed on the document\'s own entry.')
+}).optional().describe('Phase 13A (accountant X1\/X3\/X5) — where a POSTED document\'s input VAT sits; `state` is null on a draft (and on a row posted before Phase 13 outside the approval, which reads as claimed on its own date). claimed: in Input VAT, on the return for the period of `claimedOn`. awaiting_evidence: `pending` is held in \"Input VAT awaiting evidence\" — no return claims it until the evidence entry moves it into Input VAT, dated when the evidence is held (that date is the claim period). not_deductible: part of the cost (Art. 50, 0 %-recovery asset).\n'),
+  "recordedAsExpense": zod.boolean().optional().describe('Phase 13C: paid when recorded — approval posts AND pays it.'),
+  "expensePaidFromBankAccountId": zod.number().nullish(),
+  "expensePaidAt": zod.string().nullish(),
+  "evidenceDocument": zod.union([zod.object({
+  "captureId": zod.string(),
+  "status": zod.string().describe('staged (the draft\'s evidence, still deletable) | promotion_pending | promoted'),
+  "contentType": zod.string(),
+  "source": zod.enum(['qr', 'ocr', 'manual']),
+  "signatureStatus": zod.string().nullish(),
+  "fieldSources": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reviewCorrections": zod.array(zod.record(zod.string(), zod.unknown())).optional().describe('What the reviewer changed against the extraction — beside it, never over it.'),
+  "capturedAt": zod.string().optional()
+}),zod.null()]).optional().describe('On a single-bill read — the document linked as this bill\'s evidence.'),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "billId": zod.number(),
+  "productId": zod.number().nullish(),
+  "description": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * The user's decision on a supplier bill or debit note whose VAT is non-zero and below 15 % of its taxable amount: the figures AS SHOWN are confirmed with an evidence note (the order, the delivery note, the supplier's correspondence). Who, when and which figures are kept; a changed figure voids it. The VAT shown is then claimed, never more — at approval for an unposted bill, on `evidenceDate` for a posted bill whose VAT is held. VAT ABOVE the rate is never confirmed here: only the supplier's credit note corrects it.
+ * @summary Confirm a supplier invoice's VAT shown BELOW 15 % (Phase 18 G1, owner decision 6)
+ */
+export const ConfirmBillVatFiguresParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const confirmBillVatFiguresBodyNoteMax = 2000;
+
+
+
+export const ConfirmBillVatFiguresBody = zod.object({
+  "note": zod.string().max(confirmBillVatFiguresBodyNoteMax).describe('The evidence the figures were checked against — the order, the delivery note, the supplier\'s correspondence. Blank is refused (400 `vat_figures_confirmation_note_required`).'),
+  "evidenceDate": zod.string().nullish().describe('POSTED bill whose VAT is held only: the day the evidence is held — the claim\'s period (YYYY-MM-DD; defaults to today).')
+})
+
+export const ConfirmBillVatFiguresResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string(),
+  "documentType": zod.enum(['bill', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note']).describe('B7: a purchase-side note is the SUPPLIER\'S document; its date is the supplier\'s issue date (Art. 40(6)). Z-AP1: advance_invoice is the supplier\'s advance-payment tax invoice (its VAT claimed in its period); advance_credit_note their credit note against it.'),
+  "creditNoteAgainstBillId": zod.number().nullish().describe('B7: the bill this note adjusts. Z-AP1: on an advance_credit_note, the advance invoice it credits.'),
+  "advanceSupplierPaymentId": zod.number().nullish().describe('Z-AP1: on an advance_invoice, the supplier payment it invoices.'),
+  "prepaidAmount": zod.number().describe('Z-AP1: Σ the supplier advance deductions on this bill (BT-113)'),
+  "amountDue": zod.number().describe('Z-AP1: total less the advance deducted; 0 on notes and advance documents'),
+  "prepayments": zod.array(zod.object({
+  "id": zod.number(),
+  "advanceBillId": zod.number(),
+  "advanceBillNumber": zod.string(),
+  "supplierReference": zod.string().nullable(),
+  "amount": zod.number(),
+  "taxableAmount": zod.number().describe('KSA-31'),
+  "taxAmount": zod.number().describe('KSA-32 — the input VAT the advance invoice already claimed, which this bill does NOT claim again'),
+  "vatRate": zod.number(),
+  "finalised": zod.boolean().describe('Set at the bill\'s approval, when the deduction posted')
+})).optional().describe('Z-AP1: present on a single-bill read'),
+  "isOpening": zod.boolean().optional().describe('Batch 1C: an opening payable migrated at cut-off (see Invoice.isOpening).'),
+  "reversedAt": zod.string().nullish().describe('Policy C: set when the migration that created this opening item was reversed (see Invoice.reversedAt).'),
+  "reversedByMigrationBatchId": zod.number().nullish(),
+  "replacesBillId": zod.number().nullish().describe('Policy C: the reversed opening bill this replacement item stands in for (provenance).'),
+  "vendorReference": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "status": zod.enum(['draft', 'submitted', 'received', 'approved', 'paid', 'overdue']),
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string().nullish(),
+  "paidAmount": zod.number().describe('The LEGACY per-bill counter written by `POST \/bills\/{id}\/pay` only. Not what the bill owes — see `outstanding`.'),
+  "outstanding": zod.number().nullish().describe('What this document still owes (Phase 11 Part 2): total less `paidAmount` less live AP-subledger allocations (supplier payments, applied advances, applied credit notes); always 0 for a credit note. Present on list and detail reads; null on a write response that did not read it back — never re-derive it as total − paidAmount.\n'),
+  "paidAt": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
+  "notes": zod.string().nullish(),
+  "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
+  "vendorTaxNumber": zod.string().nullish().describe('The supplier\'s VAT number, as recorded on the supplier.'),
+  "vatEvidence": zod.object({
+  "status": zod.enum(['not_evaluated', 'not_required', 'evidenced', 'awaiting_evidence', 'not_deductible']),
+  "basis": zod.string().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
+  "severity": zod.enum(['blocking', 'warning', 'info']),
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
+})),
+  "checkedAt": zod.string().nullish()
+}).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -13916,10 +14292,19 @@ export const ListExpensesResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -14054,10 +14439,19 @@ export const PayBillResponse = zod.object({
   "flags": zod.array(zod.object({
   "code": zod.string().describe('A structured reason — the UI keys its wording on this, never on the message.'),
   "severity": zod.enum(['blocking', 'warning', 'info']),
-  "message": zod.string()
+  "message": zod.string(),
+  "amounts": zod.record(zod.string(), zod.number()).optional().describe('The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown \/ supported \/ disputed VAT; the below-rate flags carry shown \/ atRate.')
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "vatFiguresConfirmation": zod.union([zod.object({
+  "subtotal": zod.number(),
+  "vatAmount": zod.number(),
+  "note": zod.string(),
+  "confirmedBy": zod.number().nullable(),
+  "confirmedAt": zod.string(),
+  "current": zod.boolean()
+}).describe('Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice\'s VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).\n'),zod.null()]).optional().describe('Phase 18 G1 (decision 6): the user\'s confirmation of VAT shown below 15 %; null when none was given.'),
   "inputVat": zod.object({
   "state": zod.union([zod.literal('claimed'),zod.literal('awaiting_evidence'),zod.literal('not_deductible'),zod.literal(null)]).nullable(),
   "pending": zod.number().describe('Input VAT still held for evidence (net of credit notes against it).'),
@@ -14155,6 +14549,10 @@ export const SubmitInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -14255,6 +14653,10 @@ export const SendBackInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),
@@ -14351,6 +14753,10 @@ export const ApproveInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
+  "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
+  "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
+  "issuedAfterDeadline": zod.boolean().nullish().describe('Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.'),
   "icv": zod.number().nullable().describe('ZATCA invoice counter value; null until approved.'),
   "zatcaUuid": zod.string().nullable(),
   "advancePaymentId": zod.number().nullable().describe('AP-2: on an advance tax invoice, the receipt (payment id) whose deposit it declares VAT for; null otherwise.'),

@@ -9,7 +9,7 @@
 type T = (en: string, ar: string) => string;
 
 export type EvidenceStatus = "not_evaluated" | "not_required" | "evidenced" | "awaiting_evidence" | "not_deductible";
-export interface EvidenceFlag { code: string; severity: string; message: string }
+export interface EvidenceFlag { code: string; severity: string; message: string; amounts?: Record<string, number> }
 
 export const SUPPLIER_DOCUMENT_KINDS = ["tax_invoice", "simplified_tax_invoice", "no_tax_invoice"] as const;
 export type SupplierDocumentKind = (typeof SUPPLIER_DOCUMENT_KINDS)[number];
@@ -79,6 +79,23 @@ export function flagText(f: EvidenceFlag, t: T): string {
     case "vat_capitalised_fixed_asset": return t("A fixed asset with 0 % VAT recovery: its VAT is part of the asset's cost and no input VAT is claimed.", "أصل ثابت بنسبة استرداد 0%: تُضاف ضريبته إلى تكلفة الأصل ولا تُخصم ضريبة مدخلات.");
     case "vat_rate_not_standard": return t("The VAT is not 15 % of the subtotal — check the figures.", "الضريبة ليست 15% من المجموع قبل الضريبة — راجع الأرقام.");
     case "totals_do_not_reconcile": return t("The subtotal plus VAT does not equal the total.", "المجموع قبل الضريبة زائد الضريبة لا يساوي الإجمالي.");
+    // Phase 18 G1 (owner decision 6) — VAT off the 15 % rate.
+    case "supplier_vat_above_rate": {
+      const a = f.amounts ?? {};
+      const n = (k: string) => (a[k] ?? 0).toFixed(2);
+      return t(
+        `The supplier charged VAT of ${n("shown")}, but 15 % of the taxable amount supports only ${n("supported")}: ${n("disputed")} is charged above the rate. VAT charged incorrectly is never claimed — the whole VAT is held until the supplier issues a credit note correcting it.`,
+        `فرض المورد ضريبة قدرها ${n("shown")}، بينما لا يسند 15% من المبلغ الخاضع للضريبة إلا ${n("supported")}: أي أن ${n("disputed")} مفروضة بأعلى من النسبة. لا تُخصم الضريبة المفروضة خطأً أبدًا — تُحتجز الضريبة كاملةً حتى يصدر المورد إشعارًا دائنًا يصححها.`,
+      );
+    }
+    case "supplier_vat_below_rate_unconfirmed": return t(
+      "The VAT shown is below 15 % of its taxable amount. Check it against the order, the delivery note and the supplier's correspondence, then confirm the figures with a note — or leave it held until the supplier corrects the invoice.",
+      "الضريبة الظاهرة أقل من 15% من المبلغ الخاضع لها. طابقها مع أمر الشراء ومذكرة التسليم ومراسلات المورد، ثم أكّد الأرقام مع ملاحظة — أو اتركها محتجزة حتى يصحح المورد الفاتورة.",
+    );
+    case "supplier_vat_figures_confirmed": return t(
+      "The VAT shown is below 15 % of its taxable amount; you confirmed these figures with your evidence note. The VAT shown is claimed, never more.",
+      "الضريبة الظاهرة أقل من 15% من المبلغ الخاضع لها، وقد أكّدت هذه الأرقام بملاحظة الإثبات. تُخصم الضريبة الظاهرة فقط، دون زيادة.",
+    );
     default: return f.message;
   }
 }
@@ -110,6 +127,8 @@ export function flagShort(code: string, t: T): string {
     case "qr_vat_mismatch": return t("QR: VAT differs", "الرمز: الضريبة مختلفة");
     case "qr_signature_failed": return t("Signature failed", "فشل التحقق من التوقيع");
     case "art50_blocked_expense_account": return t("Blocked VAT (Art. 50)", "ضريبة محظورة الخصم (المادة 50)");
+    case "supplier_vat_above_rate": return t("VAT above 15 %", "ضريبة أعلى من 15%");
+    case "supplier_vat_below_rate_unconfirmed": return t("VAT below 15 % — to confirm", "ضريبة أقل من 15% — بانتظار التأكيد");
     default: return code;
   }
 }

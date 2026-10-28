@@ -204,7 +204,7 @@ describeMaybe("PR C — the issued-invoice freeze (migration 0125)", () => {
     const simplified = await issue({ customerId: b2c, items: line(2_000) });
     const standard = await issue({ customerId: b2b, items: line(3_000) });
     const credit = await issue({ customerId: b2c, documentType: "credit_note", originalInvoiceId: simplified, noteReason: "Price reduced after delivery", items: line(500) });
-    const debit = await issue({ customerId: b2c, documentType: "debit_note", originalInvoiceId: simplified, noteReason: "Additional freight", items: line(300) });
+    const debit = await issue({ customerId: b2c, documentType: "debit_note", originalInvoiceId: simplified, noteReason: "Additional freight", chargeSubstance: "price_change", chargeEventDate: DATE, items: line(300) });
     const receipt = await h.api("admin", "POST", "/payments", { customerId: b2c, amount: 2_300, paidAt: DATE, bankAccountId: bank, classification: "advance", vatCategory: "S" });
     expect(receipt.status, JSON.stringify(receipt.body)).toBe(201);
     const adv = await h.api("admin", "POST", `/payments/${receipt.body.id}/advance-invoices`, { amount: 2_300 });

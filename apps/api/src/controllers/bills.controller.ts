@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { AttachBillEvidenceBody, CreateBillBody, PayBillBody, PostBillBody, PreviewBillVatEvidenceBody, UpdateBillBody } from "@workspace/api-zod";
+import { AttachBillEvidenceBody, ConfirmBillVatFiguresBody, CreateBillBody, PayBillBody, PostBillBody, PreviewBillVatEvidenceBody, UpdateBillBody } from "@workspace/api-zod";
 import { billsService } from "../services/bills.service";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
@@ -108,6 +108,11 @@ export const billsController = {
       vendorReference: body.vendorReference ?? null,
       evidenceDate: body.evidenceDate ?? null,
     }, req.session?.userId ?? null));
+  },
+  /** Phase 18 G1 (decision 6) — the user's confirmation of a supplier's VAT shown below 15 %. */
+  async confirmVatFigures(req: Request, res: Response) {
+    const body = parseOr400(ConfirmBillVatFiguresBody.safeParse(req.body ?? {}));
+    res.json(await billsService.confirmVatFigures(requireIdParam(req), { note: body.note, evidenceDate: body.evidenceDate ?? null }, req.session?.userId ?? null));
   },
   async remove(req: Request, res: Response) {
     await billsService.deleteDraft(requireIdParam(req));

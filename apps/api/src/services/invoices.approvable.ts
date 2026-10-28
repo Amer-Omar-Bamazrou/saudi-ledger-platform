@@ -210,6 +210,9 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
       noteReason: inv.noteReason,
       total: toNum(inv.total),
       excludeNoteId: inv.id,
+      chargeSubstance: inv.chargeSubstance,
+      chargeEventDate: inv.chargeEventDate,
+      noteDate: inv.date,
     });
   }
 

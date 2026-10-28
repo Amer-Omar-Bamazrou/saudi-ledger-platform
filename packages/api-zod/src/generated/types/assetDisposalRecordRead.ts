@@ -7,6 +7,8 @@
  */
 import type { AssetDisposalRecordReadKind } from './assetDisposalRecordReadKind';
 import type { AssetDisposalRecordReadVatTreatment } from './assetDisposalRecordReadVatTreatment';
+import type { AssetDisposalRecordReadWithdrawalReason } from './assetDisposalRecordReadWithdrawalReason';
+import type { NominalSupplyCalculation } from './nominalSupplyCalculation';
 
 export interface AssetDisposalRecordRead {
   id: number;
@@ -19,6 +21,9 @@ export interface AssetDisposalRecordRead {
   vatTreatment: AssetDisposalRecordReadVatTreatment;
   /** @nullable */
   nominalSupplyValue: number | null;
+  /** @nullable */
+  withdrawalReason: AssetDisposalRecordReadWithdrawalReason;
+  nominalSupplyCalculation: NominalSupplyCalculation | null;
   journalEntryId: number;
   /** @nullable */
   invoiceId: number | null;

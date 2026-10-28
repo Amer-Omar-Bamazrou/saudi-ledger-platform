@@ -138,6 +138,22 @@ export const billsTable = pgTable(
     vatEvidenceFlags: jsonb("vat_evidence_flags"),
     vatEvidenceCheckedAt: timestamp("vat_evidence_checked_at", { withTimezone: true }),
     /**
+     * 🔴 Phase 18 G1, owner decision 6 (2026-10-27) — the USER'S DECISION on a
+     * supplier invoice whose VAT is non-zero and BELOW 15 % of the taxable
+     * amount: who confirmed the figures as shown, when, with what evidence (the
+     * order, the delivery note, the correspondence), and WHICH figures. It
+     * counts only while the bill still shows those figures — a changed figure
+     * voids it (`supplierVatDiscrepancy` in services/purchaseEvidence). VAT ABOVE
+     * the rate is never confirmed by a user: only the supplier's credit note
+     * corrects it. CHECK `bills_vat_figures_confirmation_chk` (0136,
+     * hand-written): all NULL, or the figures, the time and a non-blank note.
+     */
+    vatFiguresConfirmedSubtotal: numeric("vat_figures_confirmed_subtotal", { precision: 15, scale: 2 }),
+    vatFiguresConfirmedVat: numeric("vat_figures_confirmed_vat", { precision: 15, scale: 2 }),
+    vatFiguresConfirmationNote: text("vat_figures_confirmation_note"),
+    vatFiguresConfirmedBy: integer("vat_figures_confirmed_by"),
+    vatFiguresConfirmedAt: timestamp("vat_figures_confirmed_at", { withTimezone: true }),
+    /**
      * 🔴 PHASE 13A (accountant answers X1/X3/X5, 2026-09-27) — WHERE this
      * posted document's input VAT sits. Written by the approval, in the same
      * UPDATE that posts it; NULL on a draft.

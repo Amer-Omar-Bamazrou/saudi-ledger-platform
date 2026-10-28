@@ -27,6 +27,17 @@ import { ArrowLeft, TrendingDown, Pencil, Trash2 } from "lucide-react";
 import { statusLabel } from "./Assets";
 import type { AssetDetail as AssetDetailShape, DepreciateAssetInput, ChangeAssetEstimateInput, DisposeAssetInput } from "@workspace/api-client-react";
 
+/** Phase 18 G1 (owner decision 13): why a withdrawn asset left the business — stated, never defaulted. */
+const WITHDRAWAL_REASONS = ["private_use", "gift", "cessation_of_taxable_use"] as const;
+function withdrawalReasonLabel(r: string, t: (en: string, ar: string) => string): string {
+  switch (r) {
+    case "private_use": return t("Private use", "استخدام خاص");
+    case "gift": return t("Given as a gift", "إهداء");
+    case "cessation_of_taxable_use": return t("Taxable use ceased permanently", "توقف الاستخدام الخاضع للضريبة نهائيًا");
+    default: return r;
+  }
+}
+
 export default function AssetDetail() {
   const [, params] = useRoute("/assets/:id");
   const id = Number(params?.id);
@@ -38,7 +49,8 @@ export default function AssetDetail() {
   const [estimateOpen, setEstimateOpen] = useState(false);
   const [estimate, setEstimate] = useState({ usefulLifeMonths: "", residualValue: "", reason: "" });
   const [disposeOpen, setDisposeOpen] = useState(false);
-  const [disposal, setDisposal] = useState({ date: businessToday(), kind: "scrapped", reason: "" });
+  // Phase 18 G1 (decision 13): a withdrawal states WHY it left — no default, so "" until the user chooses.
+  const [disposal, setDisposal] = useState({ date: businessToday(), kind: "scrapped", reason: "", withdrawalReason: "" });
 
   const { data: asset, isLoading, error } = useQuery<AssetDetailShape>({
     queryKey: ["asset", id],
@@ -77,7 +89,10 @@ export default function AssetDetail() {
 
   const disposeMut = useMutation({
     mutationFn: () => {
-      const body: DisposeAssetInput = { date: disposal.date, kind: disposal.kind as DisposeAssetInput["kind"], reason: disposal.reason.trim() };
+      const body: DisposeAssetInput = {
+        date: disposal.date, kind: disposal.kind as DisposeAssetInput["kind"], reason: disposal.reason.trim(),
+        ...(disposal.kind === "withdrawn" ? { withdrawalReason: disposal.withdrawalReason as NonNullable<DisposeAssetInput["withdrawalReason"]> } : {}),
+      };
       return apiFetch(`/assets/${id}/dispose`, { method: "POST", body: JSON.stringify(body) });
     },
     onSuccess: (out: { disposal: { gainLoss: number }; depreciatedFirst: Array<{ period: string }> }) => {
@@ -141,6 +156,23 @@ export default function AssetDetail() {
             )}
             {asset.disposal.reason && <span className="block text-muted-foreground text-xs mt-1">{asset.disposal.reason}</span>}
           </p>
+          {asset.disposal.nominalSupplyCalculation && (() => {
+            const c = asset.disposal.nominalSupplyCalculation;
+            return (
+              <div className="mt-2 text-xs text-muted-foreground space-y-0.5" data-testid="nominal-supply-calculation">
+                {asset.disposal.withdrawalReason && <p>{t("Why it left", "سبب الخروج")}: <span className="text-foreground">{withdrawalReasonLabel(asset.disposal.withdrawalReason, t)}</span></p>}
+                <p dir="ltr" className="font-mono">
+                  {fmtNum(c.purchaseValue)} × {c.initialRecoveryPct}% × {c.yearsRemaining} ÷ {c.adjustmentPeriodYears} = {fmtNum(c.nominalSupplyValue)}
+                </p>
+                <p>
+                  {t(`Purchase value × initial recovery × years remaining (${c.yearsElapsed} elapsed, part years as one) ÷ adjustment period — ${c.rule}. VAT at ${c.vatRatePct} %: `,
+                     `قيمة الشراء × نسبة الاسترداد الأولية × السنوات المتبقية (${c.yearsElapsed} منقضية، وجزء السنة سنة كاملة) ÷ فترة التعديل — المادة 52(8) من اللائحة. الضريبة بنسبة ${c.vatRatePct}%: `)}
+                  <span className="font-mono" dir="ltr">{fmtNum(c.vatOnNominalSupply)}</span>
+                </p>
+                {c.note && <p data-testid="nominal-supply-open-question">{t(c.note, "لم يُطبَّق مسار قيمة الشراء الوارد في القرار 13 للاستخدام الخاص أو الهدية: نص دليل الأصول الرأسمالية الذي يستند إليه غير موجود في أي مصدر محفوظ، والبحث المحفوظ يقرأ البند 6.6 والسؤال 6 من الدليل على أنهما معادلة المادة 52(8) للاستخدام الخاص. سؤال مفتوح للمستشار.")}</p>}
+              </div>
+            );
+          })()}
         </CardContent></Card>
       )}
 
@@ -268,6 +300,18 @@ export default function AssetDetail() {
                 </p>
               )}
             </div>
+            {disposal.kind === "withdrawn" && (
+              <div>
+                <Label className="text-xs text-muted-foreground">{t("Why it left the business", "سبب خروجه من النشاط")}</Label>
+                <Select value={disposal.withdrawalReason || "unset"} onValueChange={(v) => setDisposal((p) => ({ ...p, withdrawalReason: v === "unset" ? "" : v }))}>
+                  <SelectTrigger className="mt-1 h-9" data-testid="dispose-withdrawal-reason"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unset">{t("— Choose —", "— اختر —")}</SelectItem>
+                    {WITHDRAWAL_REASONS.map((r) => <SelectItem key={r} value={r}>{withdrawalReasonLabel(r, t)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={disposal.date} onChange={(e) => setDisposal((p) => ({ ...p, date: e.target.value }))} className="mt-1 h-9" data-testid="dispose-date" /></div>
             <div><Label className="text-xs text-muted-foreground">{t("Reason and evidence", "السبب والإثبات")}</Label><Textarea rows={2} value={disposal.reason} onChange={(e) => setDisposal((p) => ({ ...p, reason: e.target.value }))} className="mt-1" data-testid="dispose-reason" /></div>
             <div className="rounded-md border border-border p-3 text-sm flex justify-between">
@@ -277,7 +321,7 @@ export default function AssetDetail() {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setDisposeOpen(false)}>{t("Cancel", "إلغاء")}</Button>
-            <Button onClick={() => disposeMut.mutate()} disabled={!disposal.reason.trim() || disposeMut.isPending} data-testid="dispose-submit">{disposeMut.isPending ? t("Posting…", "جارٍ الترحيل…") : t("Dispose", "استبعاد")}</Button>
+            <Button onClick={() => disposeMut.mutate()} disabled={!disposal.reason.trim() || (disposal.kind === "withdrawn" && !disposal.withdrawalReason) || disposeMut.isPending} data-testid="dispose-submit">{disposeMut.isPending ? t("Posting…", "جارٍ الترحيل…") : t("Dispose", "استبعاد")}</Button>
           </div>
         </DialogContent>
       </Dialog>

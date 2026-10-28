@@ -21,11 +21,12 @@ import { listBillsHeldForVatEvidence, type Bill, type ListBillsHeldForVatEvidenc
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { businessToday } from "@workspace/shared";
-import type { AttachEvidenceInput } from "@workspace/api-client-react";
+import type { AttachEvidenceInput, ConfirmBillVatFiguresInput } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
@@ -135,6 +136,74 @@ function PostedEvidenceDialog({ bill, onClose }: { bill: Bill; onClose: () => vo
   );
 }
 
+/**
+ * 🔴 Phase 18 G1 — OWNER DECISION 6: the supplier's VAT is non-zero and BELOW
+ * 15 % of its taxable amount, so it waits for the USER'S DECISION. The figures
+ * are confirmed AS SHOWN with an evidence note (the order, the delivery note,
+ * the supplier's correspondence); the VAT shown is then claimed, never more —
+ * for a posted bill on the evidence date below. A changed figure voids it. The
+ * alternative is to leave it held until the supplier corrects the invoice.
+ * VAT ABOVE the rate never comes here: only the supplier's credit note corrects it.
+ */
+function ConfirmFiguresDialog({ bill, onClose }: { bill: Bill; onClose: () => void }) {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState(businessToday());
+  const [saving, setSaving] = useState(false);
+  const posted = isPosted(bill);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const body: ConfirmBillVatFiguresInput = { note: note.trim(), ...(posted ? { evidenceDate: date } : {}) };
+      const b = await apiFetch<Bill>(`/bills/${bill.id}/vat-figures-confirmation`, { method: "POST", body: JSON.stringify(body) });
+      qc.invalidateQueries({ queryKey: ["vat-evidence"] });
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      toast(b.inputVat?.state === "claimed"
+        ? { title: t(`${b.billNumber}: figures confirmed, input VAT claimed`, `${b.billNumber}: أُكّدت الأرقام وخُصمت ضريبة المدخلات`), description: t(`Claimed on ${b.inputVat.claimedOn}.`, `خُصمت بتاريخ ${b.inputVat.claimedOn}.`) }
+        : { title: t(`${b.billNumber}: figures confirmed`, `${b.billNumber}: أُكّدت الأرقام`), description: statusLabel(b.vatEvidence?.status, t) });
+      onClose();
+    } catch (e) {
+      toast({ title: t("Could not confirm the figures", "تعذّر تأكيد الأرقام"), description: (e as Error).message, variant: "destructive" } as never);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md" data-testid="confirm-figures-dialog">
+        <DialogHeader><DialogTitle>{t("Confirm the VAT figures", "تأكيد أرقام الضريبة")} — <span dir="ltr">{bill.billNumber}</span></DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          {t(`The VAT shown (${fmtNum(bill.vatAmount)}) is below 15 % of the taxable amount (${fmtNum(bill.subtotal)}). Confirm these figures only after checking them against your evidence. The VAT shown is claimed — never more — and a later change to a figure voids this confirmation. Otherwise, leave the bill held until the supplier corrects the invoice.`,
+             `الضريبة الظاهرة (${fmtNum(bill.vatAmount)}) أقل من 15% من المبلغ الخاضع لها (${fmtNum(bill.subtotal)}). لا تؤكّد هذه الأرقام إلا بعد مطابقتها مع ما لديك من إثبات. تُخصم الضريبة الظاهرة فقط — دون زيادة — وأي تغيير لاحق في الأرقام يُبطل هذا التأكيد. وإلا فاترك الفاتورة محتجزة حتى يصحح المورد الفاتورة.`)}
+        </p>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs text-muted-foreground">{t("Evidence checked (order, delivery note, supplier's correspondence)", "الإثبات الذي رُوجع (أمر الشراء، مذكرة التسليم، مراسلات المورد)")}</Label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 text-sm" rows={3} maxLength={2000} data-testid="confirm-figures-note" />
+          </div>
+          {posted && (
+            <div>
+              <Label className="text-xs text-muted-foreground">{t("Date the evidence is held", "تاريخ حيازة الإثبات")}</Label>
+              <Input type="date" value={date} max={businessToday()} onChange={(e) => setDate(e.target.value)} className="mt-1 h-8 text-sm" data-testid="confirm-figures-date" />
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={onClose}>{t("Leave it held", "إبقاؤها محتجزة")}</Button>
+          <Button size="sm" disabled={saving || !note.trim()} onClick={submit} data-testid="confirm-figures-submit">
+            {saving ? t("Confirming…", "جارٍ التأكيد…") : t("Confirm the figures", "تأكيد الأرقام")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function VatEvidence() {
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -147,6 +216,7 @@ export default function VatEvidence() {
   const [page, setPage] = useState(0);
   const [checking, setChecking] = useState<number | null>(null);
   const [supplying, setSupplying] = useState<Bill | null>(null);
+  const [confirming, setConfirming] = useState<Bill | null>(null);
 
   const params: ListBillsHeldForVatEvidenceParams = {
     limit: PAGE, offset: page * PAGE,
@@ -274,6 +344,11 @@ export default function VatEvidence() {
                           {t("Open and add evidence", "فتح واستكمال الإثبات")}
                         </Button>
                       )}
+                      {reasons.some((f) => f.code === "supplier_vat_below_rate_unconfirmed") && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setConfirming(b)} data-testid={`held-confirm-figures-${b.id}`}>
+                          {t("Confirm the figures", "تأكيد الأرقام")}
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" className="h-7 text-xs" disabled={checking === b.id} onClick={() => recheck(b.id)} data-testid={`held-recheck-${b.id}`}>
                         {checking === b.id ? t("Checking…", "جارٍ التحقق…") : t("Re-check", "إعادة التحقق")}
                       </Button>
@@ -299,6 +374,7 @@ export default function VatEvidence() {
         </CardContent>
       </Card>
       {supplying && <PostedEvidenceDialog bill={supplying} onClose={() => setSupplying(null)} />}
+      {confirming && <ConfirmFiguresDialog bill={confirming} onClose={() => setConfirming(null)} />}
     </div>
   );
 }

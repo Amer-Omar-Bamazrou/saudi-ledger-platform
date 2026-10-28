@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BadDebtRelief } from './badDebtRelief';
+import type { InvoiceChargeSubstance } from './invoiceChargeSubstance';
 import type { InvoiceDocumentType } from './invoiceDocumentType';
 import type { InvoiceItem } from './invoiceItem';
 import type { InvoiceOpeningEinvoicingStatus } from './invoiceOpeningEinvoicingStatus';
@@ -74,6 +75,26 @@ export interface Invoice {
   originalInvoiceId: number | null;
   /** @nullable */
   noteReason: string | null;
+  /**
+     * Phase 18 G1 (decision 8): a debit note's extra charge, classified by substance — only a price change is a debit note. Null on every other document.
+     * @nullable
+     */
+  chargeSubstance?: InvoiceChargeSubstance;
+  /**
+     * Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).
+     * @nullable
+     */
+  chargeEventDate?: string | null;
+  /**
+     * Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.
+     * @nullable
+     */
+  art54Deadline?: string | null;
+  /**
+     * Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.
+     * @nullable
+     */
+  issuedAfterDeadline?: boolean | null;
   /**
      * ZATCA invoice counter value; null until approved.
      * @nullable

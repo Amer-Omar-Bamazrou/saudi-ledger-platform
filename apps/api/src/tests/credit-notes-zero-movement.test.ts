@@ -275,6 +275,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
           documentType: "debit_note",
           originalInvoiceId: originalId,
           noteReason: "Price correction — undercharged freight",
+          chargeSubstance: "price_change", chargeEventDate: DATE,
           items: [{ description: "Freight adjustment", quantity: 1, unitPrice: 100, vatRate: 15 }],
         },
         userId),

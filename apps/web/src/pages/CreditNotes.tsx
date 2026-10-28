@@ -1,5 +1,6 @@
-import { DEFAULT_VAT_RATE } from "@workspace/shared";
+import { DEFAULT_VAT_RATE, CHARGE_SUBSTANCES, art54Deadline, type ChargeSubstance } from "@workspace/shared";
 import { useState } from "react";
+import { chargeSubstanceLabel, chargeSubstanceRoute, debitNoteRefusalText } from "@/lib/debitNoteRefusals";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -64,6 +65,9 @@ const makeEmpty = () => ({
   originalInvoiceId: "",
   date: businessToday(),
   noteReason: "",
+  // Phase 18 G1 (decision 8): a debit note's substance — "" until the user chooses (no default) — and the day the price changed.
+  chargeSubstance: "" as ChargeSubstance | "",
+  chargeEventDate: "",
   description: "",
   quantity: "1",
   unitPrice: "",
@@ -113,6 +117,7 @@ export default function CreditNotes() {
           documentType: form.documentType as CreateInvoiceInput["documentType"],
           originalInvoiceId: Number(form.originalInvoiceId),
           noteReason: form.noteReason,
+          ...(form.documentType === "debit_note" ? { chargeSubstance: form.chargeSubstance || null, chargeEventDate: form.chargeEventDate || null } : {}),
           customerId: correctable.find((i) => i.id === Number(form.originalInvoiceId))?.customerId,
           items: [
             {
@@ -135,10 +140,14 @@ export default function CreditNotes() {
     },
     // The server's message is the useful one — it names the ZATCA rule or the
     // remaining creditable amount.
-    onError: (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => setError(debitNoteRefusalText(e, t) ?? (e instanceof Error ? e.message : String(e))),
   });
 
   const isCredit = form.documentType === "credit_note";
+  // Decision 8: only a price change is a debit note; any other substance names its route and is not sent.
+  const substanceRoute = !isCredit && form.chargeSubstance ? chargeSubstanceRoute(form.chargeSubstance, t) : null;
+  const deadline = !isCredit && form.chargeSubstance === "price_change" && /^\d{4}-\d{2}-\d{2}$/.test(form.chargeEventDate) ? art54Deadline(form.chargeEventDate) : null;
+  const debitNoteReady = isCredit || (form.chargeSubstance === "price_change" && !!form.chargeEventDate);
   const totalCredited = notes
     .filter((n) => n.documentType === "credit_note")
     .reduce((s, n) => s + n.total, 0);
@@ -241,6 +250,42 @@ export default function CreditNotes() {
                 </p>
               </div>
 
+              {!isCredit && (
+                <div className="space-y-2" data-testid="debit-note-substance">
+                  <div>
+                    <Label>{t("What is the extra charge?", "ما ماهية المبلغ الإضافي؟")}</Label>
+                    <Select value={form.chargeSubstance || "unset"} onValueChange={(v) => setForm({ ...form, chargeSubstance: v === "unset" ? "" : (v as ChargeSubstance) })}>
+                      <SelectTrigger data-testid="note-charge-substance"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unset">{t("— Choose —", "— اختر —")}</SelectItem>
+                        {CHARGE_SUBSTANCES.map((s) => <SelectItem key={s} value={s}>{chargeSubstanceLabel(s, t)}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {substanceRoute && (
+                    <Alert data-testid="note-charge-route">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>{substanceRoute}</AlertDescription>
+                    </Alert>
+                  )}
+                  {form.chargeSubstance === "price_change" && (
+                    <div>
+                      <Label>{t("Date the price changed", "تاريخ تغيّر السعر")}</Label>
+                      <Input type="date" value={form.chargeEventDate} max={form.date} onChange={(e) => setForm({ ...form, chargeEventDate: e.target.value })} data-testid="note-charge-event-date" />
+                      {deadline && (
+                        <p className="text-xs text-muted-foreground mt-1" data-testid="note-art54-deadline">
+                          {form.date > deadline
+                            ? t(`Due by ${deadline} (VAT IR Art. 54(6)) — this note is late. Issue it anyway: the obligation to issue it stands.`,
+                                `كان موعده ${deadline} (المادة 54(6) من اللائحة) — هذا الإشعار متأخر. أصدره مع ذلك، فالالتزام بإصداره قائم.`)
+                            : t(`Due by ${deadline} — the 15th of the month after the price changed (VAT IR Art. 54(6)).`,
+                                `موعده ${deadline} — اليوم الخامس عشر من الشهر التالي لتغيّر السعر (المادة 54(6) من اللائحة).`)}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-3">
                   <Label>{t("Description", "الوصف")}</Label>
@@ -269,7 +314,7 @@ export default function CreditNotes() {
 
               <Button
                 className="w-full"
-                disabled={!form.originalInvoiceId || !form.noteReason || !form.unitPrice || create.isPending}
+                disabled={!form.originalInvoiceId || !form.noteReason || !form.unitPrice || !debitNoteReady || create.isPending}
                 onClick={() => create.mutate()}
               >
                 {create.isPending ? t("Creating…", "جارٍ الإنشاء…") : t("Create note", "إنشاء الإشعار")}

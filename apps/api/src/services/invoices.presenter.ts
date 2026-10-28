@@ -5,6 +5,7 @@
  * approval adapter share one shape without a circular import.
  */
 import type { invoicesTable, invoiceItemsTable, customersTable } from "@workspace/db";
+import { art54Deadline } from "@workspace/shared";
 
 type Invoice = typeof invoicesTable.$inferSelect;
 type InvoiceItem = typeof invoiceItemsTable.$inferSelect;
@@ -71,6 +72,11 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
     documentType: inv.documentType,
     originalInvoiceId: inv.originalInvoiceId,
     noteReason: inv.noteReason,
+    // Phase 18 G1 (decision 8): a debit note's substance, the day the price changed, and the Art. 54(6) deadline.
+    chargeSubstance: inv.chargeSubstance ?? null,
+    chargeEventDate: inv.chargeEventDate ?? null,
+    art54Deadline: inv.chargeEventDate ? art54Deadline(inv.chargeEventDate) : null,
+    issuedAfterDeadline: inv.chargeEventDate ? inv.date > art54Deadline(inv.chargeEventDate) : null,
     // AP-2: the receipt an ADVANCE TAX INVOICE declares VAT for (null otherwise).
     advancePaymentId: inv.advancePaymentId ?? null,
     // 2026-09-22: an opening item's previous-system e-invoicing identity, and the item-level correction entry (A4 + answer 5).

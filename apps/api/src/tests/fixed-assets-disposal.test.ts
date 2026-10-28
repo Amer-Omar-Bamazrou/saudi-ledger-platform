@@ -197,7 +197,7 @@ describeMaybe("FA-C — disposal (real rows)", () => {
     await expectRefusal(inTenant(() => assetDisposalService.dispose(a.id, { date: "2026-02-01", kind: "scrapped", reason: "x" }, userId)), 422, "disposal_before_in_service");
     await expectRefusal(inTenant(() => assetDisposalService.dispose(a.id, { date: "2026-03-10", kind: "given_away", reason: "x" }, userId)), 400);
     await expectRefusal(inTenant(() => assetDisposalService.dispose(a.id, { date: "2026-03-10", kind: "withdrawn", reason: "" }, userId)), 400);
-    const out = await inTenant(() => assetDisposalService.dispose(a.id, { date: "2026-05-15", kind: "withdrawn", reason: "Taken into the owner's private use" }, userId));
+    const out = await inTenant(() => assetDisposalService.dispose(a.id, { date: "2026-05-15", kind: "withdrawn", reason: "Taken into the owner's private use", withdrawalReason: "private_use" }, userId));
     // 24,000 cost, recovery 100 %, movable with a 2-year life ⇒ the adjustment period is 2 years; 1 part-year elapsed ⇒ 1/2 remaining
     expect(out.disposal).toMatchObject({ kind: "withdrawn", vatTreatment: "nominal_supply", nominalSupplyValue: 12_000 });
     const stored = await inTenant(() => assetsService.getById(a.id));
