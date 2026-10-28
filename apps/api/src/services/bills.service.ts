@@ -115,6 +115,20 @@ import { supplierAdvanceInvoicesService, type PrepaymentInput } from "./accounti
 import { capturedDocumentsRepository } from "../repositories/capturedDocuments.repository";
 import { vatEvidenceService, assertSupplierDocumentKind, supplierVatOf } from "./purchaseEvidence/vatEvidence.service";
 import { duplicatesService } from "./purchaseEvidence/duplicates.service";
+
+/**
+ * 🔴 Phase 18 H-1 — DR-24 (D-5; register §11.47): a bill's create and update responses carry the POSSIBLE
+ * DUPLICATES of the bill as saved — the ONE definition (`duplicatesService.forBill`: the same file, the same
+ * supplier's invoice number, the same supplier/date/total), so the warning no longer exists only in the UI path.
+ * WARN, NEVER REFUSE (the owner's decision): the bill is saved exactly as before; an empty list means none found.
+ */
+async function withPossibleDuplicates<T extends { id: number; vendorId: number | null; vendorReference: string | null; date: string; total: number; evidenceDocument?: { captureId: string } | null }>(out: T) {
+  const possibleDuplicates = await duplicatesService.forBill({
+    billId: out.id, vendorId: out.vendorId, vendorReference: out.vendorReference, date: out.date, total: out.total,
+    captureId: out.evidenceDocument?.captureId ?? null,
+  });
+  return { ...out, possibleDuplicates };
+}
 import { captureService } from "./capture/capture.service";
 
 /** The refusal a PATCH gets on anything but a draft — sequentially, and when it loses a race to an approval. */
@@ -301,7 +315,7 @@ export const billsService = {
     await vatEvidenceService.refresh(bill.id);
 
     await auditService.created("bill", bill.id, bill);
-    return billsService.getById(bill.id);
+    return withPossibleDuplicates(await billsService.getById(bill.id));
   },
 
   /** Submit a draft bill into the approval queue (bookkeeper action). */
@@ -414,7 +428,7 @@ export const billsService = {
     await linkEvidence(data.captureId, id);
     await vatEvidenceService.refresh(id);
     await auditService.updated("bill", id, existing, bill);
-    return billsService.getById(id);
+    return withPossibleDuplicates(await billsService.getById(id));
   },
 
   /**

@@ -3110,6 +3110,35 @@ export interface BillVatEvidence {
   checkedAt?: string | null;
 }
 
+export type PossibleDuplicateReason = typeof PossibleDuplicateReason[keyof typeof PossibleDuplicateReason];
+
+
+export const PossibleDuplicateReason = {
+  same_file: 'same_file',
+  same_supplier_invoice: 'same_supplier_invoice',
+  same_supplier_date_amount: 'same_supplier_date_amount',
+} as const;
+
+export interface PossibleDuplicate {
+  reason: PossibleDuplicateReason;
+  /** @nullable */
+  billId?: number | null;
+  /** @nullable */
+  billNumber?: string | null;
+  /** @nullable */
+  status?: string | null;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  total?: number | null;
+  /** @nullable */
+  vendorReference?: string | null;
+  /** @nullable */
+  captureId?: string | null;
+  /** @nullable */
+  capturedAt?: string | null;
+}
+
 /**
  * Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice's VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).
  */
@@ -3272,6 +3301,8 @@ export interface Bill {
   vatEvidence?: BillVatEvidence;
   /** Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document's date — allowed, with a warning that an Art. 63 correction may be needed. */
   filedVatPeriod?: FiledVatPeriod | null;
+  /** Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier's invoice number, the same supplier/date/total). A warning, never a refusal; empty when none is found. */
+  possibleDuplicates?: PossibleDuplicate[];
   /** Phase 18 G1 (decision 6): the user's confirmation of VAT shown below 15 %; null when none was given. */
   vatFiguresConfirmation?: BillVatFiguresConfirmation | null;
   inputVat?: BillInputVat;
@@ -4384,35 +4415,6 @@ export interface AttachEvidenceInput {
      * @nullable
      */
   evidenceDate?: string | null;
-}
-
-export type PossibleDuplicateReason = typeof PossibleDuplicateReason[keyof typeof PossibleDuplicateReason];
-
-
-export const PossibleDuplicateReason = {
-  same_file: 'same_file',
-  same_supplier_invoice: 'same_supplier_invoice',
-  same_supplier_date_amount: 'same_supplier_date_amount',
-} as const;
-
-export interface PossibleDuplicate {
-  reason: PossibleDuplicateReason;
-  /** @nullable */
-  billId?: number | null;
-  /** @nullable */
-  billNumber?: string | null;
-  /** @nullable */
-  status?: string | null;
-  /** @nullable */
-  date?: string | null;
-  /** @nullable */
-  total?: number | null;
-  /** @nullable */
-  vendorReference?: string | null;
-  /** @nullable */
-  captureId?: string | null;
-  /** @nullable */
-  capturedAt?: string | null;
 }
 
 export type HeldForEvidencePageTotalsByStatus = {

@@ -10696,6 +10696,10 @@ components:
             - { $ref: "#/components/schemas/FiledVatPeriod" }
             - { type: "null" }
           description: "Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document's date — allowed, with a warning that an Art. 63 correction may be needed."
+        possibleDuplicates:
+          type: array
+          description: "Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier's invoice number, the same supplier/date/total). A warning, never a refusal; empty when none is found."
+          items: { $ref: "#/components/schemas/PossibleDuplicate" }
         vatFiguresConfirmation:
           oneOf:
             - { $ref: "#/components/schemas/BillVatFiguresConfirmation" }
