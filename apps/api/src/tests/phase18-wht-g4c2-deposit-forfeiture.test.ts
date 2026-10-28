@@ -117,6 +117,15 @@ describeMaybe("Phase 18 G4c-2 — deposits: the set-off month, and the forfeitur
     expect(await counts()).toEqual(before);
   });
 
+  it("🔴 14: the set-off DATE decides the rate — a deposit paid before the current schedule (12-09-2023) and set off under it is judged by the rate in force at the set-off", async () => {
+    const r0 = await h.api("admin", "POST", "/supplier-payments", { vendorId: nonResident, bankAccountId: bankId, amount: 1_000, paidAt: "2023-09-01", classification: "security_deposit" });
+    expect(r0.status, JSON.stringify(r0.body)).toBe(201);
+    // judged at the cash date this would be 422 wht_rate_not_loaded (no rate before 12-09-2023); at the set-off date, 5 %
+    const r = await h.api("admin", "POST", `/supplier-payments/${r0.body.id}/classify`, { classification: "advance", effectiveDate: LATER, whtPaymentType: "technical_consulting" });
+    expect([r.status, r.body.code], JSON.stringify(r.body)).toEqual([409, "wht_late_withholding_open"]);
+    expect(r.body.error).toMatch(/50\.00 falls due in 2026-10/);
+  });
+
   it("control: a resident's deposit set off on its own date posts the move on THAT date, not the cash date", async () => {
     const id = await deposit(resident, 3_000);
     const r = await h.api("admin", "POST", `/supplier-payments/${id}/classify`, { classification: "advance", effectiveDate: LATER });

@@ -15697,6 +15697,68 @@ export const RefundSupplierPaymentResponse = zod.object({
 
 
 /**
+ * @summary G4c-2 (decision 14): the forfeitures recorded on a security deposit
+ */
+export const ListSupplierDepositForfeituresParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListSupplierDepositForfeituresResponseItem = zod.object({
+  "id": zod.number(),
+  "supplierPaymentId": zod.number(),
+  "forfeitedOn": zod.coerce.date(),
+  "amount": zod.number(),
+  "classification": zod.enum(['consideration', 'not_consideration']),
+  "reason": zod.string(),
+  "paymentType": zod.string().nullable(),
+  "whtDue": zod.union([zod.object({
+  "month": zod.string(),
+  "rate": zod.number(),
+  "amount": zod.number()
+}),zod.null()]).describe('A non-resident\'s consideration: the WHT due in the forfeiture month at the rate in force that day — shown, never withheld or posted (W-16). Null otherwise.'),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSupplierDepositForfeituresResponse = zod.array(ListSupplierDepositForfeituresResponseItem)
+
+
+/**
+ * @summary G4c-2 (decision 14): record a security deposit forfeited to the supplier, as the user classifies it — a record; nothing posts
+ */
+export const ForfeitSupplierDepositParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const ForfeitSupplierDepositBody = zod.object({
+  "forfeitedOn": zod.coerce.date().optional().describe('The forfeiture date — its own field, apart from the cash date. Defaults to today.'),
+  "amount": zod.number().optional().describe('Defaults to everything the supplier still holds'),
+  "classification": zod.enum(['consideration', 'not_consideration']).describe('Decision 14: the user\'s classification. consideration — the supplier keeps the deposit as payment for a supply; not_consideration — compensation or a penalty.'),
+  "reason": zod.string().min(1),
+  "paymentType": zod.string().nullish().describe('The nature (IR Art. 63(1)) of a non-resident\'s consideration; the supplier\'s declared default applies when absent.')
+})
+
+export const ForfeitSupplierDepositResponse = zod.object({
+  "id": zod.number(),
+  "supplierPaymentId": zod.number(),
+  "forfeitedOn": zod.coerce.date(),
+  "amount": zod.number(),
+  "classification": zod.enum(['consideration', 'not_consideration']),
+  "reason": zod.string(),
+  "paymentType": zod.string().nullable(),
+  "whtDue": zod.union([zod.object({
+  "month": zod.string(),
+  "rate": zod.number(),
+  "amount": zod.number()
+}),zod.null()]).describe('A non-resident\'s consideration: the WHT due in the forfeiture month at the rate in force that day — shown, never withheld or posted (W-16). Null otherwise.'),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * Four non-negative components and a DERIVED net. A liability is never expressed as a negative payable, and money the supplier holds is never expressed as one either: a supplier advance is an ASSET.
  * @summary B5: every supplier with activity, and its position
  */

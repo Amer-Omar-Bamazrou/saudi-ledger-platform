@@ -995,6 +995,13 @@
       "when": 1793216117348,
       "tag": "0141_wht_g4c1_payer_bears",
       "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1793222817080,
+      "tag": "0142_wht_g4c2_deposit_forfeitures",
+      "breakpoints": true
     }
   ]
 }

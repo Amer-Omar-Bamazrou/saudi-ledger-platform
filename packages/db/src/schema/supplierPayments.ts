@@ -34,7 +34,7 @@
  * asymmetry with AR, where the tax point is the receipt because the output tax
  * is ours to declare.
  */
-import { pgTable, serial, integer, date, text, numeric, uuid, timestamp, index, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, date, text, numeric, uuid, timestamp, index, uniqueIndex, unique, foreignKey, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
@@ -43,6 +43,7 @@ import { bankAccountsTable } from "./bankAccounts";
 import { billsTable } from "./bills";
 import { journalEntriesTable } from "./journalEntries";
 import { transactionsTable } from "./transactions";
+import { WHT_PAYMENT_TYPES_SQL } from "./whtTypes";
 
 const tenantColumns = {
   organizationId: uuid("organization_id")
@@ -111,6 +112,8 @@ export const supplierPaymentsTable = pgTable(
     // Phase 12: the reconciliation reads name a cash line's document by its entry.
     index("supplier_payments_entry_idx").on(t.journalEntryId),
     uniqueIndex("supplier_payments_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
+    // G04: the target of a key that carries the organization (G4c-2's forfeitures name their deposit this way)
+    unique("supplier_payments_org_id_unq").on(t.organizationId, t.id),
     check("supplier_payments_amount_positive_chk", sql`amount > 0`),
     check("supplier_payments_classification_chk", sql`classification IN ('advance', 'security_deposit', 'erroneous', 'unknown')`),
     check("supplier_payments_source_chk", sql`source IN ('manual', 'bill_pay', 'opening')`),
@@ -245,6 +248,52 @@ export type SupplierPaymentAllocation = typeof supplierPaymentAllocationsTable.$
 export type SupplierPaymentAllocationReversal = typeof supplierPaymentAllocationReversalsTable.$inferSelect;
 export type SupplierPaymentClassificationRow = typeof supplierPaymentClassificationsTable.$inferSelect;
 export type SupplierRefund = typeof supplierRefundsTable.$inferSelect;
+
+/**
+ * 🔴 Phase 18 G4c-2 — WHT owner decision 14 (2026-10-27; register §11.46): a
+ * security deposit FORFEITED to the supplier, as the user classified it — a
+ * RECORD, with its own date (the cash, set-off and forfeiture dates are separate
+ * fields). `consideration`: the forfeited amount pays for a supply; for a
+ * non-resident the WHT due in the forfeiture month is frozen here at recording
+ * (the nature, the rate in force that day, the tax) — shown, never withheld or
+ * posted: who funds it is open W-16. `not_consideration`: compensation or a
+ * penalty. Nothing posts (the posting is open W-20). Append-only for the
+ * request's role (0142 grants SELECT and INSERT).
+ */
+export const DEPOSIT_FORFEITURE_CLASSIFICATIONS = ["consideration", "not_consideration"] as const;
+
+export const supplierDepositForfeituresTable = pgTable(
+  "supplier_deposit_forfeitures",
+  {
+    id: serial("id").primaryKey(),
+    ...tenantColumns,
+    supplierPaymentId: integer("supplier_payment_id").notNull(),
+    forfeitedOn: date("forfeited_on").notNull(),
+    amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+    classification: text("classification").notNull(),
+    reason: text("reason").notNull(),
+    /** The nature (IR Art. 63(1)), when the supplier is non-resident and the forfeiture is consideration. */
+    paymentType: text("payment_type"),
+    /** The WHT due in the forfeiture month, frozen at recording: the rate in force that day and the tax. */
+    whtDueRate: numeric("wht_due_rate", { precision: 7, scale: 4 }),
+    whtDueAmount: numeric("wht_due_amount", { precision: 15, scale: 2 }),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("supplier_deposit_forfeitures_payment_idx").on(t.supplierPaymentId),
+    // G04: a tenant→tenant key carries organization_id
+    foreignKey({ name: "supplier_deposit_forfeitures_payment_tenant_fk", columns: [t.organizationId, t.supplierPaymentId], foreignColumns: [supplierPaymentsTable.organizationId, supplierPaymentsTable.id] }).onDelete("restrict"),
+    check("supplier_deposit_forfeitures_amount_chk", sql`${t.amount} > 0`),
+    check("supplier_deposit_forfeitures_class_chk", sql`${t.classification} in ('consideration', 'not_consideration')`),
+    check("supplier_deposit_forfeitures_reason_chk", sql`length(btrim(${t.reason})) > 0`),
+    check("supplier_deposit_forfeitures_type_chk", sql`${t.paymentType} is null or (${t.classification} = 'consideration' and ${t.paymentType} in (${WHT_PAYMENT_TYPES_SQL}))`),
+    // the WHT due is a pair, and only with a nature
+    check("supplier_deposit_forfeitures_due_chk", sql`(${t.whtDueRate} is null) = (${t.whtDueAmount} is null) and (${t.whtDueRate} is null or ${t.paymentType} is not null)`),
+  ],
+);
+
+export type SupplierDepositForfeiture = typeof supplierDepositForfeituresTable.$inferSelect;
 
 /**
  * Z-AP1 (2026-09-24, accountant answer A) — the PREPAYMENT ADJUSTMENT rows of a

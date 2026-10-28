@@ -29,6 +29,9 @@ router.get("/:id", supplierPaymentsController.get);
 router.post("/:id/allocate", supplierPaymentsController.allocate);
 router.post("/:id/classify", supplierPaymentsController.classify);
 router.post("/:id/refund", supplierPaymentsController.refund);
+// G4c-2 (decision 14): a security deposit forfeited to the supplier — a record
+router.get("/:id/forfeitures", supplierPaymentsController.forfeitures);
+router.post("/:id/forfeitures", supplierPaymentsController.forfeit);
 router.post("/:id/advance-invoices", supplierAdvanceInvoicesController.createAdvanceInvoice);
 
 export default router;

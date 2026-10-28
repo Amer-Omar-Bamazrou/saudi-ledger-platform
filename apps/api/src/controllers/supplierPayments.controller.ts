@@ -32,6 +32,12 @@ export const supplierPaymentsController = {
   async refund(req: Request, res: Response) {
     res.json(await supplierPaymentsService.refund(requireIdParam(req), req.body ?? {}, userOf(req)));
   },
+  async forfeitures(req: Request, res: Response) {
+    res.json(await supplierPaymentsService.forfeitures(requireIdParam(req)));
+  },
+  async forfeit(req: Request, res: Response) {
+    res.status(201).json(await supplierPaymentsService.forfeit(requireIdParam(req), req.body ?? {}, userOf(req)));
+  },
   async reverseAllocation(req: Request, res: Response) {
     res.json(await supplierPaymentsService.reverseAllocation(requireIdParam(req), req.body ?? {}, userOf(req)));
   },
