@@ -208,6 +208,9 @@ export const paymentPlansService = {
       whtPaymentType: declaresAtPayment ? (body.whtPaymentType ?? undefined) : (before.whtPaymentType ?? undefined),
       whtNotSubjectReason: body.whtNotSubjectReason, whtNotSubjectNote: body.whtNotSubjectNote,
       whtFiledMonthTreatment: body.whtFiledMonthTreatment,
+      // G4c-1: the contract named at payment decides who bears the tax — this body is rebuilt field by field, so a
+      // field not copied here never reaches the pay path (the payment would be recorded tax-inclusive)
+      whtContractId: body.whtContractId,
     }, userId);
     const [after] = await treasuryRepository.updatePlan(id, { status: "paid", paidBillPaymentId: result.billPaymentId, paidBy: userId, paidAt: new Date() });
     await auditService.record({ action: "pay", entityType: "scheduled_payment", entityId: id, before, after: { ...after, payment: { billPaymentId: result.billPaymentId, journalEntryId: result.journalEntryId, cashPaid: result.cashPaid, withheld: result.withheld } } });

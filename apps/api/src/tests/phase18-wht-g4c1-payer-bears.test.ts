@@ -37,14 +37,19 @@ describeMaybe("Phase 18 G4c-1 — the payer bears the WHT: the per-contract gros
   const contract = (body: Record<string, unknown>) => h.api("admin", "POST", "/tax/wht/contracts", {
     vendorId, reference: `LA-${++seq}`, taxBearing: "net_of_tax", confirmed: true, ...body,
   });
-  const payBill = async (amount: number, paidAt: string, extra: Record<string, unknown> = {}, vendor = vendorId) => {
+  /** An approved bill to the supplier, owing `amount`. */
+  const mkBill = async (amount: number, date: string, vendor = vendorId) => {
     seq += 1;
-    const bill = await h.api("admin", "POST", "/bills", { supplierDocumentKind: "tax_invoice", vendorReference: `G4C1-R-${seq}`, billNumber: `G4C1-${seq}`, date: paidAt, dueDate: paidAt, vendorId: vendor,
+    const bill = await h.api("admin", "POST", "/bills", { supplierDocumentKind: "tax_invoice", vendorReference: `G4C1-R-${seq}`, billNumber: `G4C1-${seq}`, date, dueDate: date, vendorId: vendor,
       items: [{ description: "Consulting", quantity: 1, unitPrice: amount, vatRate: 0 }] });
     expect(bill.status, JSON.stringify(bill.body)).toBe(201);
     expect((await h.api("admin", "POST", `/bills/${bill.body.id}/approve`, {})).status).toBe(200);
-    const paid = await h.api("admin", "POST", `/bills/${bill.body.id}/pay`, { amount, paidAt, bankAccountId: bankId, ...extra });
-    return { paid, billId: bill.body.id as number };
+    return bill.body.id as number;
+  };
+  const payBill = async (amount: number, paidAt: string, extra: Record<string, unknown> = {}, vendor = vendorId) => {
+    const billId = await mkBill(amount, paidAt, vendor);
+    const paid = await h.api("admin", "POST", `/bills/${billId}/pay`, { amount, paidAt, bankAccountId: bankId, ...extra });
+    return { paid, billId };
   };
   /** The entry's lines by account: the system code, or BANK for a bank's own leaf. */
   const linesOf = async (entryId: number) => (await pool.query(
@@ -185,6 +190,32 @@ describeMaybe("Phase 18 G4c-1 — the payer bears the WHT: the per-contract gros
       c.release();
     }
     expect((await pool.query(`SELECT base_amount::float AS base FROM wht_withholdings WHERE id = $1`, [id])).rows[0].base, "rolled back: the row stands").toBe(1_052.63);
+  });
+
+  it("🔴 15: a payment PLAN paid under the contract carries it to the pay path — the server rebuilds that body field by field (found by the browser walk)", async () => {
+    const billId = await mkBill(2_000, today);
+    const planned = new Date(`${today}T00:00:00Z`); planned.setUTCDate(planned.getUTCDate() + 5);
+    const plan = await h.api("admin", "POST", "/treasury/payment-plans", { billId, amount: 2_000, plannedDate: planned.toISOString().slice(0, 10) });
+    expect(plan.status, JSON.stringify(plan.body)).toBe(201);
+    expect((await h.api("admin", "POST", `/treasury/payment-plans/${plan.body.id}/approve`, {})).status).toBe(200);
+    const paid = await h.api("admin", "POST", `/treasury/payment-plans/${plan.body.id}/pay`, { paidAt: today, bankAccountId: bankId, whtContractId: netContract });
+    expect(paid.status, JSON.stringify(paid.body)).toBe(200);
+    expect([paid.body.payment.withheld, paid.body.payment.cashPaid]).toEqual([105.26, 2_000]);
+    expect(await bearingOf("bill_id", billId)).toMatchObject({ base: 2_105.26, net: 2_000, tax_bearing: "net_of_tax", contract_id: netContract });
+  });
+
+  it("🔴 15: a correction's RE-ENTRY under the contract keeps it — the corrected payment is grossed up too, moving the cash the original moved", async () => {
+    const { paid, billId } = await payBill(1_000, today, { whtContractId: netContract });
+    expect(paid.status, JSON.stringify(paid.body)).toBe(200);
+    const wid = (await pool.query(`SELECT id FROM wht_withholdings WHERE bill_id = $1`, [billId])).rows[0].id as number;
+    const r = await h.api("admin", "POST", `/tax/wht/withholdings/${wid}/reverse`, {
+      reason: "re-entered under the same contract", date: today,
+      reentry: { amount: 1_000, paidAt: today, whtPaymentType: "technical_consulting", whtContractId: netContract },
+    });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const re = (await pool.query(
+      `SELECT w.base_amount::float AS base, w.net_amount::float AS net, w.tax_bearing, w.contract_id FROM wht_corrections c JOIN wht_withholdings w ON w.correction_id = c.id WHERE c.withholding_id = $1`, [wid])).rows[0];
+    expect(re).toMatchObject({ base: 1_052.63, net: 1_000, tax_bearing: "net_of_tax", contract_id: netContract });
   });
 
   it("🔴 15: the preview shows the gross-up before the payment is made", async () => {
