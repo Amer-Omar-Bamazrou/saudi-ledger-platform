@@ -1726,6 +1726,17 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -7201,6 +7212,17 @@ export const CreateSupplierAdvanceInvoiceResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -7318,6 +7340,17 @@ export const CreateSupplierAdvanceCreditNoteResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -7453,6 +7486,17 @@ export const SubmitBillResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -7567,6 +7611,17 @@ export const SendBackBillResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -7684,6 +7739,17 @@ export const ApproveBillResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -8486,6 +8552,17 @@ export const ListBillsResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -8655,6 +8732,17 @@ export const CreateBillResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -13728,6 +13816,17 @@ export const GetBillResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -13873,6 +13972,17 @@ export const UpdateBillResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -13999,6 +14109,17 @@ export const PostBillResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14179,6 +14300,17 @@ export const ListBillsHeldForVatEvidenceResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14313,6 +14445,17 @@ export const AttachBillEvidenceResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14432,6 +14575,17 @@ export const ConfirmBillVatFiguresResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14554,6 +14708,17 @@ export const ListExpensesResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14708,6 +14873,17 @@ export const PayBillResponse = zod.object({
   "periodTo": zod.string(),
   "filedOn": zod.string()
 }).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
+  "possibleDuplicates": zod.array(zod.object({
+  "reason": zod.enum(['same_file', 'same_supplier_invoice', 'same_supplier_date_amount']),
+  "billId": zod.number().nullish(),
+  "billNumber": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "total": zod.number().nullish(),
+  "vendorReference": zod.string().nullish(),
+  "captureId": zod.string().nullish(),
+  "capturedAt": zod.string().nullish()
+})).optional().describe('Phase 18 H-1 (DR-24), on the create and update responses only: earlier documents of this company that look like this bill as saved (the same file, the same supplier\'s invoice number, the same supplier\/date\/total). A warning, never a refusal; empty when none is found.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
