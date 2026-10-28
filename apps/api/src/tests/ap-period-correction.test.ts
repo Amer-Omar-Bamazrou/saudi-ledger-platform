@@ -364,9 +364,11 @@ describeMaybe("Advance payments — tax point, the four liabilities, bad-debt re
     const rec = await inTenant(() => invoicesService.approve(draftRec.id, userId));
     expect(rec.status).toBe("paid");
     expect(rec.icv).not.toBeNull();
+    // Phase 18 G3 (owner decision A1, 2026-10-27): the recovery is presented as OTHER INCOME, not as a reduction of
+    // bad debts. Was: ["BAD_DEBT_EXPENSE", "300.00", "0.00"] … ["BAD_DEBT_EXPENSE", "0.00", "2300.00"]. Figures unchanged.
     expect(await lines(`GL-${rec.invoiceNumber}`)).toEqual([
-      ["BAD_DEBT_EXPENSE", "300.00", "0.00"], ["VAT_OUTPUT", "0.00", "300.00"],
-      ["UNIDENTIFIED_RECEIPTS", "2300.00", "0.00"], ["BAD_DEBT_EXPENSE", "0.00", "2300.00"],
+      ["OTHER_INCOME", "300.00", "0.00"], ["VAT_OUTPUT", "0.00", "300.00"],
+      ["UNIDENTIFIED_RECEIPTS", "2300.00", "0.00"], ["OTHER_INCOME", "0.00", "2300.00"],
     ]);
     expect((await journalOf(`GL-${rec.invoiceNumber}`)).date).toBe(MAR_DATE);
     expect(await gl("VAT_OUTPUT")).toBe(Math.round((vatBeforeIssue + 300) * 100) / 100);

@@ -22,6 +22,7 @@
  *   overdue   → approved   (post-approval)
  */
 import { randomUUID } from "node:crypto";
+import { categoriesRepository } from "../repositories/categories.repository";
 import { postJournalEntry } from "./accounting/glPosting";
 import { checkPeriodOpen } from "./accounting/periodLock";
 import { generateZatcaQr, computeInvoiceHash, LEGACY_GENESIS_HASH } from "./accounting/zatca";
@@ -522,9 +523,20 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
     await assertTaxPointPeriodOpen({ id: payment.id, paidAt: payment.paidAt });
     const party = { type: "customer" as const, customerId: inv.customerId! };
     const writtenOffHere = toNum(recovered.writtenOffAmount) > 0.005 && recovered.badDebtReliefSource === "recorded";
+    // 🔴 Phase 18 G3 (owner decision A1, 2026-10-27): a recovered bad debt is presented as OTHER INCOME by default
+    // (a permitted choice under IFRS 9). Where the receivable was written off HERE, the recovery and the VAT payable
+    // again both sit on other income, so it reads net of the VAT and bad debts do not move. A migrated receivable's
+    // VAT-only leg stays on bad debts (its recovery is not presented in income here — a question for the adviser).
+    // No fallback: a chart without the seeded other-income category is refused by name.
+    let recoveryAccount: { systemCode: "BAD_DEBT_EXPENSE"; accountName: string } | { accountId: number; accountName: string } = { systemCode: "BAD_DEBT_EXPENSE", accountName: "Bad debts" };
+    if (writtenOffHere) {
+      const otherIncome = await categoriesRepository.findBySystemCode("OTHER_INCOME");
+      if (!otherIncome) throw new BusinessRuleError(422, { code: "other_income_account_missing", error: "This company's chart has no Other Income account (OTHER_INCOME) to present the recovered bad debt in." });
+      recoveryAccount = { accountId: otherIncome.id, accountName: otherIncome.name };
+    }
     const lines: GLLine[] = [];
     if (vatAmount > 0.005) {
-      lines.push({ systemCode: "BAD_DEBT_EXPENSE", accountName: "Bad debts", description: `VAT payable again on recovery of ${recovered.invoiceNumber} (Art. 40(9))`, debitAmount: vatAmount, creditAmount: 0 });
+      lines.push({ ...recoveryAccount, description: `VAT payable again on recovery of ${recovered.invoiceNumber} (Art. 40(9))`, debitAmount: vatAmount, creditAmount: 0 });
       lines.push({ systemCode: "VAT_OUTPUT", accountName: "VAT Payable", description: `VAT on ${inv.invoiceNumber} — recovery of ${recovered.invoiceNumber}`, debitAmount: 0, creditAmount: vatAmount });
     }
     if (writtenOffHere) {
@@ -536,7 +548,7 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
       if (dup) throw new BusinessRuleError(409, { code: "recovery_receipt_already_allocated", error: `Receipt ${payment.id} is already applied to ${inv.invoiceNumber}.` });
       const liability = depositLiabilityAccount(((await paymentsRepository.latestClassifications([payment.id])).get(payment.id)?.classification as "advance" | "erroneous" | "security_deposit" | "unknown" | undefined) ?? null);
       lines.push({ systemCode: liability.systemCode, accountName: liability.accountName, description: `Receipt RCPT-${payment.id} applied to the recovery of ${recovered.invoiceNumber}`, debitAmount: total, creditAmount: 0, party });
-      lines.push({ systemCode: "BAD_DEBT_EXPENSE", accountName: "Bad debts", description: `Bad debt recovered — ${recovered.invoiceNumber}`, debitAmount: 0, creditAmount: total });
+      lines.push({ ...recoveryAccount, description: `Bad debt recovered — ${recovered.invoiceNumber}`, debitAmount: 0, creditAmount: total });
     }
     let je: { id: number } | null = null;
     if (lines.length > 0) {
