@@ -25,6 +25,11 @@ router.post("/wht/periods/:period/pay", taxController.remit);
 // 🔴 T1e (DR-10): filed VAT and Zakat/income-tax returns — recorded and read, never changed.
 router.get("/vat-return-filings", periodRecordsController.vatFilings);
 router.post("/vat-return-filings", periodRecordsController.recordVatFiling);
+// 🔴 Phase 18 G2a (decisions 9–12; A5(a)): errors found in a filed return — recorded and read, never changed;
+// the route of each return's corrections; the VAT entries recorded after a filing, dated in its period.
+router.get("/vat-return-filings/entries-after-filing", periodRecordsController.entriesAfterFiling);
+router.get("/vat-corrections", periodRecordsController.vatCorrections);
+router.post("/vat-corrections", periodRecordsController.recordVatCorrection);
 router.get("/zakat-income-tax-filings", periodRecordsController.zakatIncomeTaxFilings);
 router.post("/zakat-income-tax-filings", periodRecordsController.recordZakatIncomeTaxFiling);
 // Q1 (pack §14.1): a month's Form 06 recorded FILED, or amended (`…/file` → approve)

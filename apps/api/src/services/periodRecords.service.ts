@@ -55,6 +55,74 @@ async function fiscalYearEndingOn(end: string, field: string) {
   return year;
 }
 
+const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+/** A VAT return is due by the last day of the month after its period (the rule Resolution 1117's cut-off is read against). */
+const returnDueOn = (periodTo: string) => addDays(monthAfter(monthAfter(periodTo).slice(0, 7)), -1);
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Decision 9: SAR 15,000 on the NET tax difference — exactly 15,000 needs notification. */
+export const VAT_CORRECTION_THRESHOLD = 15_000;
+const toCorrection = (row: { id: number; correctsZatcaReference: string; description: string; netTaxDifference: string; discoveredOn: string; apparentOn: string | null; createdBy: number | null; createdAt: Date }) => ({
+  id: row.id, correctsZatcaReference: row.correctsZatcaReference, description: row.description, netTaxDifference: Number(row.netTaxDifference),
+  discoveredOn: row.discoveredOn, apparentOn: row.apparentOn, createdBy: row.createdBy, createdAt: row.createdAt.toISOString(),
+});
+/** Decision 12, as recorded (register, research 2026-10-26): Resolution 1117's cut-off and condition date. */
+const RESOLUTION_1117 = { dueBefore: "2026-07-01", conditionsBy: "2026-12-31" };
+
+type Filing = { zatcaReference: string; kind: string; periodFrom: string; periodTo: string; filedOn: string };
+type Correction = { correctsZatcaReference: string; netTaxDifference: number; discoveredOn: string };
+
+/**
+ * 🔴 Phase 18 G2a — OWNER DECISIONS 9, 11 AND 12 (2026-10-27): the route of the
+ * corrections to each FILED return. Pure; one definition.
+ *  - 9: every error of one return is AGGREGATED (an amendment's errors count to
+ *    the return it amends); the threshold reads the NET; exactly 15,000 counts;
+ *    errors in two or more returns are flagged for review.
+ *  - 11 (Art. 63): at or above the threshold, amend the original and notify
+ *    within 20 days of the discovery that reached it; below it, the return for
+ *    the period of discovery (Art. 63(3), in force since 18 Apr 2025); where
+ *    that return is already filed, the user's choice, with a note to obtain
+ *    ZATCA's direction. Nothing is automated.
+ *  - 12: no Art. 42(2) waiver is automated; Resolution 1117's recorded
+ *    conditions apply to a return DUE before 1 July 2026.
+ */
+export function assessVatCorrections(filings: Filing[], corrections: Correction[]) {
+  const periodOf = new Map(filings.map((f) => [f.zatcaReference, `${f.periodFrom}|${f.periodTo}`]));
+  const covers = (month: string) => filings.some((f) => f.periodFrom <= month && month <= f.periodTo);
+  const originals = filings.filter((f) => f.kind === "original");
+  const byPeriod = new Map<string, Correction[]>();
+  for (const c of corrections) {
+    const key = periodOf.get(c.correctsZatcaReference);
+    if (key) byPeriod.set(key, [...(byPeriod.get(key) ?? []), c]);
+  }
+  const repeatedErrors = byPeriod.size >= 2;
+  return originals.map((f) => {
+    const errs = [...(byPeriod.get(`${f.periodFrom}|${f.periodTo}`) ?? [])].sort((a, b) => a.discoveredOn.localeCompare(b.discoveredOn));
+    const net = r2(errs.reduce((s, c) => s + c.netTaxDifference, 0));
+    const dueOn = returnDueOn(f.periodTo);
+    const base = {
+      zatcaReference: f.zatcaReference, periodFrom: f.periodFrom, periodTo: f.periodTo, filedOn: f.filedOn, dueOn,
+      errors: errs.length, netTaxDifference: net, repeatedErrors: errs.length > 0 && repeatedErrors,
+      penaltyWaiverAutomated: false as const,
+      resolution1117: { returnDueOn: dueOn, mayQualify: dueOn < RESOLUTION_1117.dueBefore, conditionsBy: RESOLUTION_1117.conditionsBy },
+    };
+    if (errs.length === 0) return { ...base, route: null, notifyBy: null, discoveryPeriod: null, discoveryReturnFiled: null, routeNote: null };
+    if (Math.abs(net) >= VAT_CORRECTION_THRESHOLD) {
+      let running = 0;
+      const reached = errs.find((c) => Math.abs((running = r2(running + c.netTaxDifference))) >= VAT_CORRECTION_THRESHOLD) ?? errs[errs.length - 1]!;
+      const notifyBy = addDays(reached.discoveredOn, 20);
+      return { ...base, route: "amend_and_notify" as const, notifyBy, discoveryPeriod: null, discoveryReturnFiled: null,
+        routeNote: `The net tax difference (${net.toFixed(2)}) reaches SAR 15,000: amend the original return and notify ZATCA by ${notifyBy} (VAT IR Art. 63(1)).` };
+    }
+    const discoveryPeriod = errs[errs.length - 1]!.discoveredOn.slice(0, 7);
+    const filed = covers(discoveryPeriod);
+    return { ...base, route: filed ? ("user_choice" as const) : ("discovery_period_return" as const), notifyBy: null, discoveryPeriod, discoveryReturnFiled: filed,
+      routeNote: filed
+        ? `Below SAR 15,000, the correction belongs in the return for the period of discovery (${discoveryPeriod}), which is already filed. Choose how to correct it, and obtain ZATCA's direction first. Nothing is done automatically.`
+        : `Below SAR 15,000: include the correction in the return for the period of discovery, ${discoveryPeriod} (VAT IR Art. 63(3)).` };
+  });
+}
+
 export const periodRecordsService = {
   async vatFilings() {
     return periodRecordsRepository.vatFilings();
@@ -80,6 +148,69 @@ export const periodRecordsService = {
     });
     await auditService.created("vat_return_filing", row!.id, row);
     return row!;
+  },
+
+  /** Phase 18 G2a: every error found in a filed return, and the route of each return's corrections. */
+  async vatCorrections() {
+    const [filings, rows] = await Promise.all([periodRecordsRepository.vatFilings(), periodRecordsRepository.vatCorrections()]);
+    const items = rows.map(toCorrection);
+    return { items, returns: assessVatCorrections(filings, items) };
+  },
+
+  /**
+   * 🔴 Phase 18 G2a — an error found in a FILED VAT return, recorded (never
+   * changed). Decision 10: the ACTUAL discovery date is required — real, never
+   * in the future, never before the corrected period ends; an earlier date on
+   * which it arguably became apparent is kept separately, never after it.
+   * Recording it routes nothing and posts nothing (decision 11).
+   */
+  async recordVatCorrection(body: Record<string, unknown>, userId: number | null) {
+    const reference = text(body.correctsZatcaReference);
+    if (!reference) throw new BusinessRuleError(400, { code: "reference_required", error: "Name the ZATCA reference of the filed return the error is in.", field: "correctsZatcaReference" });
+    const description = text(body.description);
+    if (!description) throw new BusinessRuleError(400, { code: "description_required", error: "Describe the error found.", field: "description" });
+    const net = typeof body.netTaxDifference === "number" ? body.netTaxDifference : Number.NaN;
+    if (!Number.isFinite(net)) throw new BusinessRuleError(400, { code: "net_tax_difference_invalid", error: "netTaxDifference is a number: + where the tax was understated, − where it was overstated.", field: "netTaxDifference" });
+    if (body.discoveredOn == null || body.discoveredOn === "") {
+      throw new BusinessRuleError(400, { code: "discovered_on_required", error: "Enter the date the error was actually discovered.", field: "discoveredOn" });
+    }
+    if (typeof body.discoveredOn !== "string" || !isCalendarDate(body.discoveredOn)) refuse("date_invalid", "discoveredOn is a real calendar date (YYYY-MM-DD).", "discoveredOn");
+    const discoveredOn = body.discoveredOn as string;
+    if (discoveredOn > businessToday()) refuse("discovered_on_in_future", "The discovery date has already happened: it is never in the future.", "discoveredOn");
+    const [filing] = await periodRecordsRepository.vatFilingByReference(reference);
+    if (!filing) refuse("corrected_filing_not_found", `No VAT filing with the reference ${reference} is recorded for this company.`, "correctsZatcaReference");
+    if (discoveredOn < monthAfter(filing!.periodTo)) {
+      refuse("discovered_before_period_end", `An error in the return for ${filing!.periodFrom}–${filing!.periodTo} is discovered after that period ends.`, "discoveredOn");
+    }
+    let apparentOn: string | null = null;
+    if (body.apparentOn != null && body.apparentOn !== "") {
+      if (typeof body.apparentOn !== "string" || !isCalendarDate(body.apparentOn)) refuse("date_invalid", "apparentOn is a real calendar date (YYYY-MM-DD).", "apparentOn");
+      apparentOn = body.apparentOn as string;
+      if (apparentOn > discoveredOn) refuse("apparent_after_discovery", "The date the error arguably became apparent is on or before the date it was actually discovered.", "apparentOn");
+    }
+    if (r2(net) === 0) refuse("net_tax_difference_zero", "An error with no tax difference changes no return: nothing to record.", "netTaxDifference");
+    const [row] = await periodRecordsRepository.insertVatCorrection({
+      correctsZatcaReference: filing!.zatcaReference, description, netTaxDifference: r2(net).toFixed(2), discoveredOn, apparentOn, createdBy: userId,
+    });
+    await auditService.created("vat_correction", row!.id, row);
+    return toCorrection(row!);
+  },
+
+  /** Phase 18 G2a (A5(a)): the VAT entries recorded after a filing, dated in its period. */
+  async entriesAfterFiling() {
+    return { items: await periodRecordsRepository.entriesAfterFiling() };
+  },
+
+  /**
+   * Phase 18 G2a (A5(a)): the filed VAT return whose period holds `date`, or
+   * null. A document dated there is allowed; its read carries this, and the
+   * screen warns that an Art. 63 correction may be needed.
+   */
+  async filedVatPeriodOf(date: string | null | undefined) {
+    if (!date) return null;
+    const month = date.slice(0, 7);
+    const f = (await periodRecordsRepository.vatFilings()).find((x) => x.kind === "original" && x.periodFrom <= month && month <= x.periodTo);
+    return f ? { zatcaReference: f.zatcaReference, periodFrom: f.periodFrom, periodTo: f.periodTo, filedOn: f.filedOn } : null;
   },
 
   async zakatIncomeTaxFilings() {

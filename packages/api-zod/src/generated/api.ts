@@ -945,6 +945,12 @@ export const ConvertQuotationResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -1714,6 +1720,12 @@ export const ConvertPurchaseOrderResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -4464,6 +4476,93 @@ export const RecordVatReturnFilingResponse = zod.object({
 
 
 /**
+ * @summary 🔴 Phase 18 G2a (owner decision A5(a)): the VAT-bearing entries dated in a FILED period and recorded after that period's latest filing. Such an entry is allowed — never refused — and an Art. 63 correction may be needed.
+
+ */
+export const ListVatEntriesAfterFilingResponse = zod.object({
+  "items": zod.array(zod.object({
+  "entryId": zod.number(),
+  "entryNumber": zod.string(),
+  "date": zod.string(),
+  "sourceType": zod.string().nullable(),
+  "sourceId": zod.number().nullable(),
+  "recordedAt": zod.string(),
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}))
+})
+
+
+/**
+ * @summary 🔴 Phase 18 G2a (owner decisions 9–12): the errors found in filed VAT returns, and the route of each return's corrections — aggregated per return on the NET tax difference (SAR 15,000, exactly 15,000 included): amend and notify within 20 days; or the return for the period of discovery; or, where that return is already filed, the user's choice with ZATCA's direction. Nothing is automated; no penalty waiver is ever applied.
+
+ */
+export const ListVatCorrectionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "correctsZatcaReference": zod.string(),
+  "description": zod.string(),
+  "netTaxDifference": zod.number(),
+  "discoveredOn": zod.string(),
+  "apparentOn": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})),
+  "returns": zod.array(zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string(),
+  "dueOn": zod.string(),
+  "errors": zod.number(),
+  "netTaxDifference": zod.number(),
+  "repeatedErrors": zod.boolean().describe('Errors are recorded against two or more filed returns — for review.'),
+  "penaltyWaiverAutomated": zod.literal(false),
+  "resolution1117": zod.object({
+  "returnDueOn": zod.string(),
+  "mayQualify": zod.boolean().describe('The return was due before 1 July 2026: its late-payment and late-filing fines may be waived if the full principal is paid, or an instalment request filed, by conditionsBy; fines already paid are excluded.'),
+  "conditionsBy": zod.string()
+}),
+  "route": zod.union([zod.literal('amend_and_notify'),zod.literal('discovery_period_return'),zod.literal('user_choice'),zod.literal(null)]).nullable(),
+  "notifyBy": zod.string().nullable(),
+  "discoveryPeriod": zod.string().nullable(),
+  "discoveryReturnFiled": zod.boolean().nullable(),
+  "routeNote": zod.string().nullable()
+}).describe('Phase 18 G2a: one filed return\'s corrections, aggregated (decision 9), and their route (decision 11). Decision 12: no penalty waiver is automated; Resolution 1117\'s recorded conditions are shown.'))
+})
+
+
+/**
+ * @summary 🔴 Phase 18 G2a: record an error found in a FILED VAT return. Append-only. Decision 10: the ACTUAL discovery date is required; an earlier date on which it arguably became apparent is kept separately. Records only: nothing is posted, amended or notified.
+
+ */
+export const recordVatCorrectionBodyDescriptionMax = 2000;
+
+
+
+export const RecordVatCorrectionBody = zod.object({
+  "correctsZatcaReference": zod.string().describe('The ZATCA reference of the filed return (or amendment) the error is in.'),
+  "description": zod.string().max(recordVatCorrectionBodyDescriptionMax),
+  "netTaxDifference": zod.number().describe('Signed: + the tax was understated, − overstated. Never 0.'),
+  "discoveredOn": zod.string().describe('Decision 10: the ACTUAL date the error was discovered (YYYY-MM-DD).'),
+  "apparentOn": zod.string().nullish().describe('Decision 10: an earlier date on which it arguably became apparent — kept separately; on or before discoveredOn.')
+})
+
+export const RecordVatCorrectionResponse = zod.object({
+  "id": zod.number(),
+  "correctsZatcaReference": zod.string(),
+  "description": zod.string(),
+  "netTaxDifference": zod.number(),
+  "discoveredOn": zod.string(),
+  "apparentOn": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary 🔴 T1e (DR-10) — the Zakat and income-tax returns this company recorded as filed.
  */
 export const ListZakatIncomeTaxFilingsResponseItem = zod.object({
@@ -7082,6 +7181,12 @@ export const CreateSupplierAdvanceInvoiceResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -7193,6 +7298,12 @@ export const CreateSupplierAdvanceCreditNoteResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -7322,6 +7433,12 @@ export const SubmitBillResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -7430,6 +7547,12 @@ export const SendBackBillResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -7541,6 +7664,12 @@ export const ApproveBillResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -8337,6 +8466,12 @@ export const ListBillsResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -8500,6 +8635,12 @@ export const CreateBillResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -8624,6 +8765,12 @@ export const ListInvoicesResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -8780,6 +8927,12 @@ export const CreateInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -8879,6 +9032,12 @@ export const GetInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -9022,6 +9181,12 @@ export const UpdateInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -9866,6 +10031,12 @@ export const CreateAdvanceInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -12871,6 +13042,12 @@ export const WriteOffBadDebtResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -12988,6 +13165,12 @@ export const CreateBadDebtRecoveryResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -13113,6 +13296,12 @@ export const CreateInvoiceCorrectionResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -13229,6 +13418,12 @@ export const CreateAdvanceCreditNoteResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -13341,6 +13536,12 @@ export const PayInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -13507,6 +13708,12 @@ export const GetBillResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -13646,6 +13853,12 @@ export const UpdateBillResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -13766,6 +13979,12 @@ export const PostBillResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -13940,6 +14159,12 @@ export const ListBillsHeldForVatEvidenceResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14068,6 +14293,12 @@ export const AttachBillEvidenceResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14181,6 +14412,12 @@ export const ConfirmBillVatFiguresResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14297,6 +14534,12 @@ export const ListExpensesResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14444,6 +14687,12 @@ export const PayBillResponse = zod.object({
 })),
   "checkedAt": zod.string().nullish()
 }).optional().describe('Phase 13A — the server\'s verdict on whether the supplier document evidences the input VAT this bill claims. `not_evaluated` = a bill older than Phase 13; an approval decides it. A posted bill keeps the verdict it was posted on.\n'),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "vatFiguresConfirmation": zod.union([zod.object({
   "subtotal": zod.number(),
   "vatAmount": zod.number(),
@@ -14549,6 +14798,12 @@ export const SubmitInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -14653,6 +14908,12 @@ export const SendBackInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),
@@ -14753,6 +15014,12 @@ export const ApproveInvoiceResponse = zod.object({
   "documentType": zod.enum(['invoice', 'credit_note', 'debit_note', 'advance_invoice', 'advance_credit_note', 'recovery_invoice']).describe('invoice (388) | credit_note (381) | debit_note (383) | advance_invoice (386, AP-2 — the advance tax invoice for a deposit; NOT a receivable) | advance_credit_note (381, AP-3 — the credit note against a 386; returns the advance\'s VAT to the deposit, is never a credit balance) | recovery_invoice (388, 2026-09-22 — the Art. 40(9) tax invoice for consideration received after bad-debt relief; NOT a receivable) — amounts are stored POSITIVE; direction lives here (documentSign).'),
   "originalInvoiceId": zod.number().nullable().describe('For a credit\/debit note, the invoice it adjusts.'),
   "noteReason": zod.string().nullable(),
+  "filedVatPeriod": zod.union([zod.object({
+  "zatcaReference": zod.string(),
+  "periodFrom": zod.string(),
+  "periodTo": zod.string(),
+  "filedOn": zod.string()
+}).describe('Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document\'s date. The document is allowed; an Art. 63 correction may be needed.'),zod.null()]).optional().describe('Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document\'s date — allowed, with a warning that an Art. 63 correction may be needed.'),
   "chargeSubstance": zod.union([zod.literal('price_change'),zod.literal(null)]).nullish().describe('Phase 18 G1 (decision 8): a debit note\'s extra charge, classified by substance — only a price change is a debit note. Null on every other document.'),
   "chargeEventDate": zod.string().nullish().describe('Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).'),
   "art54Deadline": zod.string().nullish().describe('Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.'),

@@ -133,7 +133,8 @@ describeMaybe("Phase 18 G2a — VAT corrections (decisions 9–12) and the filed
 
   it("🔴 the correction record is APPEND-ONLY for the request's role — an update or a delete is refused by the database", async () => {
     const tryAs = async (stmt: ReturnType<typeof sql>) => {
-      try { await h.inTenant(orgId, companyId, userId, () => db.execute(stmt)); return "ok"; } catch (e) { return String((e as Error).message ?? e); }
+      // drizzle wraps the database's error ("Failed query: …"); the refusal itself is its cause.
+      try { await h.inTenant(orgId, companyId, userId, () => db.execute(stmt)); return "ok"; } catch (e) { const err = e as Error & { cause?: Error }; return `${err.message} | ${err.cause?.message ?? ""}`; }
     };
     expect(await tryAs(sql`UPDATE vat_corrections SET net_tax_difference = 1`)).toMatch(/permission denied/);
     expect(await tryAs(sql`DELETE FROM vat_corrections`)).toMatch(/permission denied/);
@@ -145,6 +146,21 @@ describeMaybe("Phase 18 G2a — VAT corrections (decisions 9–12) and the filed
     const inv = await h.api("admin", "POST", "/invoices", { customerId, date: "2026-10-03", items: [{ description: "Service", quantity: 1, unitPrice: 100, vatRate: 15 }] });
     expect(inv.status, JSON.stringify(inv.body)).toBe(201);
     expect(inv.body.filedVatPeriod ?? null).toBeNull();
+  });
+
+  it("A5(a): an entry recorded BEFORE its period's filing is not listed; one recorded after it is (presence and absence in one period)", async () => {
+    const issue = async (date: string) => {
+      const inv = await h.api("admin", "POST", "/invoices", { customerId, date, items: [{ description: "July sale", quantity: 1, unitPrice: 500, vatRate: 15 }] });
+      expect(inv.status, JSON.stringify(inv.body)).toBe(201);
+      expect((await h.api("admin", "POST", `/invoices/${inv.body.id}/approve`, {})).status).toBe(200);
+      return inv.body.id as number;
+    };
+    const before = await issue("2026-07-10");
+    await file("2026-07", "2026-07", "2026-08-25", "G2A-RET-2026-07");
+    const after = await issue("2026-07-28");
+    const listed = (await h.api("admin", "GET", "/tax/vat-return-filings/entries-after-filing")).body.items
+      .filter((x: { sourceType: string }) => x.sourceType === "invoice").map((x: { sourceId: number }) => x.sourceId);
+    expect([listed.includes(before), listed.includes(after)]).toEqual([false, true]);
   });
 
   it("🔴 A5(a): an invoice dated in a FILED period is issued — never refused — and carries the filing as a warning; its entry is listed as recorded after the filing", async () => {

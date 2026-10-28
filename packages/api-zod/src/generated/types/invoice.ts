@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BadDebtRelief } from './badDebtRelief';
+import type { FiledVatPeriod } from './filedVatPeriod';
 import type { InvoiceChargeSubstance } from './invoiceChargeSubstance';
 import type { InvoiceDocumentType } from './invoiceDocumentType';
 import type { InvoiceItem } from './invoiceItem';
@@ -75,6 +76,8 @@ export interface Invoice {
   originalInvoiceId: number | null;
   /** @nullable */
   noteReason: string | null;
+  /** Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document's date — allowed, with a warning that an Art. 63 correction may be needed. */
+  filedVatPeriod?: FiledVatPeriod | null;
   /**
      * Phase 18 G1 (decision 8): a debit note's extra charge, classified by substance — only a price change is a debit note. Null on every other document.
      * @nullable

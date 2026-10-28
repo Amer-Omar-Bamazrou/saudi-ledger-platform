@@ -2328,6 +2328,62 @@ paths:
         "422":
           description: Invalid
 
+  /tax/vat-return-filings/entries-after-filing:
+    get:
+      operationId: listVatEntriesAfterFiling
+      tags: [tax]
+      summary: >
+        🔴 Phase 18 G2a (owner decision A5(a)): the VAT-bearing entries dated in a
+        FILED period and recorded after that period's latest filing. Such an entry
+        is allowed — never refused — and an Art. 63 correction may be needed.
+      responses:
+        "200":
+          description: The entries, by date
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VatEntriesAfterFiling" }
+
+  /tax/vat-corrections:
+    get:
+      operationId: listVatCorrections
+      tags: [tax]
+      summary: >
+        🔴 Phase 18 G2a (owner decisions 9–12): the errors found in filed VAT returns,
+        and the route of each return's corrections — aggregated per return on the
+        NET tax difference (SAR 15,000, exactly 15,000 included): amend and notify
+        within 20 days; or the return for the period of discovery; or, where that
+        return is already filed, the user's choice with ZATCA's direction. Nothing
+        is automated; no penalty waiver is ever applied.
+      responses:
+        "200":
+          description: The corrections and the per-return routes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VatCorrectionsView" }
+    post:
+      operationId: recordVatCorrection
+      tags: [tax]
+      summary: >
+        🔴 Phase 18 G2a: record an error found in a FILED VAT return. Append-only.
+        Decision 10: the ACTUAL discovery date is required; an earlier date on
+        which it arguably became apparent is kept separately. Records only:
+        nothing is posted, amended or notified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VatCorrectionInput" }
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VatCorrection" }
+        "400":
+          description: "`reference_required` · `description_required` · `net_tax_difference_invalid` · `discovered_on_required`"
+        "422":
+          description: "`corrected_filing_not_found` · `discovered_on_in_future` · `discovered_before_period_end` · `apparent_after_discovery` · `net_tax_difference_zero` · `date_invalid`"
+
   /tax/zakat-income-tax-filings:
     get:
       operationId: listZakatIncomeTaxFilings
@@ -8761,6 +8817,94 @@ components:
         amendsZatcaReference: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
 
+    FiledVatPeriod:
+      type: object
+      required: [zatcaReference, periodFrom, periodTo, filedOn]
+      description: "Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document's date. The document is allowed; an Art. 63 correction may be needed."
+      properties:
+        zatcaReference: { type: string }
+        periodFrom: { type: string }
+        periodTo: { type: string }
+        filedOn: { type: string }
+
+    VatEntryAfterFiling:
+      type: object
+      required: [entryId, entryNumber, date, sourceType, sourceId, recordedAt, zatcaReference, periodFrom, periodTo, filedOn]
+      properties:
+        entryId: { type: integer }
+        entryNumber: { type: string }
+        date: { type: string }
+        sourceType: { type: ["string", "null"] }
+        sourceId: { type: ["integer", "null"] }
+        recordedAt: { type: string }
+        zatcaReference: { type: string }
+        periodFrom: { type: string }
+        periodTo: { type: string }
+        filedOn: { type: string }
+
+    VatEntriesAfterFiling:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/VatEntryAfterFiling" } }
+
+    VatCorrectionInput:
+      type: object
+      required: [correctsZatcaReference, description, netTaxDifference, discoveredOn]
+      properties:
+        correctsZatcaReference: { type: string, description: "The ZATCA reference of the filed return (or amendment) the error is in." }
+        description: { type: string, maxLength: 2000 }
+        netTaxDifference: { type: number, description: "Signed: + the tax was understated, − overstated. Never 0." }
+        discoveredOn: { type: string, description: "Decision 10: the ACTUAL date the error was discovered (YYYY-MM-DD)." }
+        apparentOn: { type: ["string", "null"], description: "Decision 10: an earlier date on which it arguably became apparent — kept separately; on or before discoveredOn." }
+
+    VatCorrection:
+      type: object
+      required: [id, correctsZatcaReference, description, netTaxDifference, discoveredOn, apparentOn, createdBy, createdAt]
+      properties:
+        id: { type: integer }
+        correctsZatcaReference: { type: string }
+        description: { type: string }
+        netTaxDifference: { type: number }
+        discoveredOn: { type: string }
+        apparentOn: { type: ["string", "null"] }
+        createdBy: { type: ["integer", "null"] }
+        createdAt: { type: string }
+
+    VatCorrectionReturn:
+      type: object
+      required: [zatcaReference, periodFrom, periodTo, filedOn, dueOn, errors, netTaxDifference, repeatedErrors, penaltyWaiverAutomated, resolution1117, route, notifyBy, discoveryPeriod, discoveryReturnFiled, routeNote]
+      description: "Phase 18 G2a: one filed return's corrections, aggregated (decision 9), and their route (decision 11). Decision 12: no penalty waiver is automated; Resolution 1117's recorded conditions are shown."
+      properties:
+        zatcaReference: { type: string }
+        periodFrom: { type: string }
+        periodTo: { type: string }
+        filedOn: { type: string }
+        dueOn: { type: string }
+        errors: { type: integer }
+        netTaxDifference: { type: number }
+        repeatedErrors: { type: boolean, description: "Errors are recorded against two or more filed returns — for review." }
+        penaltyWaiverAutomated: { type: boolean, enum: [false] }
+        resolution1117:
+          type: object
+          required: [returnDueOn, mayQualify, conditionsBy]
+          properties:
+            returnDueOn: { type: string }
+            mayQualify: { type: boolean, description: "The return was due before 1 July 2026: its late-payment and late-filing fines may be waived if the full principal is paid, or an instalment request filed, by conditionsBy; fines already paid are excluded." }
+            conditionsBy: { type: string }
+        route: { type: ["string", "null"], enum: [amend_and_notify, discovery_period_return, user_choice, null] }
+        notifyBy: { type: ["string", "null"] }
+        discoveryPeriod: { type: ["string", "null"] }
+        discoveryReturnFiled: { type: ["boolean", "null"] }
+        routeNote: { type: ["string", "null"] }
+
+    VatCorrectionsView:
+      type: object
+      required: [items, returns]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/VatCorrection" } }
+        returns: { type: array, items: { $ref: "#/components/schemas/VatCorrectionReturn" } }
+
     ZakatIncomeTaxFiling:
       type: object
       required: [id, tax, fiscalYearEnd, kind, amendsZatcaReference, filedOn, zatcaReference, notes, createdBy, createdAt]
@@ -10156,6 +10300,11 @@ components:
           description: "Phase 13A: the supplier document the user states they hold. Null = not stated."
         vendorTaxNumber: { type: ["string", "null"], description: "The supplier's VAT number, as recorded on the supplier." }
         vatEvidence: { $ref: "#/components/schemas/BillVatEvidence" }
+        filedVatPeriod:
+          oneOf:
+            - { $ref: "#/components/schemas/FiledVatPeriod" }
+            - { type: "null" }
+          description: "Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document's date — allowed, with a warning that an Art. 63 correction may be needed."
         vatFiguresConfirmation:
           oneOf:
             - { $ref: "#/components/schemas/BillVatFiguresConfirmation" }
@@ -11126,6 +11275,11 @@ components:
           description: For a credit/debit note, the invoice it adjusts.
         noteReason:
           type: ["string", "null"]
+        filedVatPeriod:
+          oneOf:
+            - { $ref: "#/components/schemas/FiledVatPeriod" }
+            - { type: "null" }
+          description: "Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document's date — allowed, with a warning that an Art. 63 correction may be needed."
         chargeSubstance:
           type: ["string", "null"]
           enum: [price_change, null]
