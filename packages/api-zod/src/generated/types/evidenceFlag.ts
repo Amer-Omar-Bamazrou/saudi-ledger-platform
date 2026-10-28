@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { EvidenceFlagAmounts } from './evidenceFlagAmounts';
 import type { EvidenceFlagSeverity } from './evidenceFlagSeverity';
 
 export interface EvidenceFlag {
@@ -12,4 +13,6 @@ export interface EvidenceFlag {
   code: string;
   severity: EvidenceFlagSeverity;
   message: string;
+  /** The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown / supported / disputed VAT; the below-rate flags carry shown / atRate. */
+  amounts?: EvidenceFlagAmounts;
 }

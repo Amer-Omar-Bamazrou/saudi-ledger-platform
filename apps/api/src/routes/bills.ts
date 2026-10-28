@@ -22,6 +22,8 @@ router.post("/:id/post", billsController.post);
 router.patch("/:id", billsController.update);
 router.post("/:id/pay", billsController.pay);
 router.post("/:id/evidence", billsController.attachEvidence);
+// Phase 18 G1 (decision 6): the user's confirmation of VAT shown below 15 % — approver authority (rbac APPROVE_ROUTE).
+router.post("/:id/vat-figures-confirmation", billsController.confirmVatFigures);
 router.get("/:id/payments", billsController.payments);
 router.post("/:id/advance-credit-notes", supplierAdvanceInvoicesController.createAdvanceCreditNote);
 router.delete("/:id", billsController.remove);

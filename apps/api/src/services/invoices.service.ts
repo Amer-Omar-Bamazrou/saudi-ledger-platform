@@ -172,6 +172,8 @@ export const invoicesService = {
       "invoiceNumber", "date", "dueDate", "customerId", "currency", "discount",
       "notes", "termsAndConditions",
       "documentType", "originalInvoiceId", "noteReason", "idempotencyKey",
+      // Phase 18 G1 (decision 8): a debit note's substance and the day the price changed.
+      "chargeSubstance", "chargeEventDate",
       // FA-C: the fixed asset this invoice SELLS (its revenue line credits the
       // disposal gain/loss account, and approval derecognises the asset).
       "disposesAssetId",
@@ -320,12 +322,23 @@ export const invoicesService = {
 
     // Credit/debit notes: validate the reference, the reason and the credit
     // ceiling before anything is written.
+    // Decision 8: the substance of an extra charge is a DEBIT note's fact only.
+    if (invData.documentType !== "debit_note" && (invData.chargeSubstance != null || invData.chargeEventDate != null)) {
+      throw new BusinessRuleError(400, {
+        code: "charge_substance_only_on_debit_note",
+        error: "Only a debit note states the substance of an extra charge and the date the price changed.",
+        field: "chargeSubstance",
+      });
+    }
     if (isNoteType(invData.documentType)) {
       await assertNoteIsValid({
         documentType: invData.documentType,
         originalInvoiceId: invData.originalInvoiceId,
         noteReason: invData.noteReason,
         total,
+        chargeSubstance: invData.chargeSubstance ?? null,
+        chargeEventDate: invData.chargeEventDate ?? null,
+        noteDate: invData.date ?? null,
       });
     } else if (invData.originalInvoiceId || invData.noteReason) {
       // The DB CHECK would reject this anyway; a named 400 beats a raw 500.

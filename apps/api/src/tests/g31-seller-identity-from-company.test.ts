@@ -268,6 +268,7 @@ describeMaybe("G31 — the seller identity on a tax invoice comes from the compa
       documentType,
       originalInvoiceId: original,
       noteReason: "Price correction",
+      ...(documentType === "debit_note" ? { chargeSubstance: "price_change", chargeEventDate: "2026-10-01" } : {}),
       ...extra,
     });
     for (const [n, type] of [["G31-CN-1", "credit_note"], ["G31-DN-1", "debit_note"]] as const) {

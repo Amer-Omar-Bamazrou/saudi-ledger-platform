@@ -137,6 +137,11 @@ const SEMANTICS: Record<string, { from: State[]; to: State }> = {
   // offers it (the server also accepts a submitted bill, which it leaves
   // submitted). Posting stays the ordinary `approve`.
   evidence: { from: ["draft"], to: "draft" },
+  // Phase 18 G1 (owner decision 6): the user's confirmation of a supplier's VAT
+  // shown below 15 % — like `evidence`, it changes no figure and no lifecycle
+  // state (a posted bill whose VAT is held is claimed by it, and stays posted).
+  // Offered on the VAT-evidence page, for drafts and posted bills alike.
+  "vat-figures-confirmation": { from: ["draft"], to: "draft" },
 };
 
 /**

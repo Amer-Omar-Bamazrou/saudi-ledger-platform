@@ -234,6 +234,7 @@ describeMaybe("G30 — an issued invoice keeps the bank details in force when it
         documentType,
         originalInvoiceId: firstInvoiceId,
         noteReason: "Price correction",
+        ...(documentType === "debit_note" ? { chargeSubstance: "price_change", chargeEventDate: "2026-10-01" } : {}),
       });
       expect((await model(id)).bankDetails, documentType).toBeNull();
       expect((await api("bookkeeper", "PATCH", `/bank-accounts/${secondBankId}`, { notes: `touched ${n}` })).status).toBe(200);

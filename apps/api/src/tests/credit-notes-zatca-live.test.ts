@@ -289,6 +289,7 @@ beforeAll(async () => {
         documentType: "debit_note",
         originalInvoiceId: originalId,
         noteReason: "Price correction — undercharged freight",
+        chargeSubstance: "price_change", chargeEventDate: "2026-08-03",
         items: [
           { description: "Freight adjustment", quantity: 1, unitPrice: 50, vatRate: 15, taxCategoryCode: "S", unitCode: "PCE" },
         ],

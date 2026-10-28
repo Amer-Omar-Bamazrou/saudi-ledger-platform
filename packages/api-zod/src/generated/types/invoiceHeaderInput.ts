@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { InvoiceHeaderInputChargeSubstance } from './invoiceHeaderInputChargeSubstance';
 import type { InvoiceHeaderInputDocumentType } from './invoiceHeaderInputDocumentType';
 
 /**
@@ -43,4 +44,14 @@ export interface InvoiceHeaderInput {
   originalInvoiceId?: number | null;
   /** @nullable */
   noteReason?: string | null;
+  /**
+     * Phase 18 G1 (owner decision 8) — a DEBIT note states what its extra charge IS, with no default (400 `debit_note_substance_required`). Only `price_change` (VAT IR Art. 54(2)) is a debit note; `new_supply` (422 `extra_charge_is_new_supply`: issue a tax invoice), `compensation` (422 `extra_charge_is_compensation`: no VAT document) and `late_payment_fee` (422 `late_payment_fee_needs_substance`: classify it by substance) are refused. Refused on any other document (400 `charge_substance_only_on_debit_note`).
+     * @nullable
+     */
+  chargeSubstance?: InvoiceHeaderInputChargeSubstance;
+  /**
+     * A price change's day (YYYY-MM-DD): required (400 `charge_event_date_required`), not before the original invoice (422 `charge_event_date_before_original`), not after the note (422 `charge_event_date_after_note`).
+     * @nullable
+     */
+  chargeEventDate?: string | null;
 }

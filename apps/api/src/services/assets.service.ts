@@ -248,6 +248,9 @@ export const assetsService = {
           gainLoss: num(disposalRow.gainLoss), accumulatedAtDisposal: num(disposalRow.accumulatedAtDisposal),
           carryingAmountAtDisposal: num(disposalRow.carryingAmountAtDisposal), vatTreatment: disposalRow.vatTreatment,
           nominalSupplyValue: disposalRow.nominalSupplyValue != null ? num(disposalRow.nominalSupplyValue) : null,
+          // Phase 18 G1 (decision 13): why a withdrawn asset left, and the full Art. 52(8) calculation.
+          withdrawalReason: disposalRow.withdrawalReason ?? null,
+          nominalSupplyCalculation: (disposalRow.nominalSupplyCalculation as Record<string, unknown> | null) ?? null,
           journalEntryId: disposalRow.journalEntryId!, invoiceId: disposalRow.invoiceId ?? null, reason: disposalRow.reason ?? null,
         }
       : null;

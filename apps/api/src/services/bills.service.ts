@@ -112,7 +112,7 @@ import { taxRepository } from "../repositories/tax.repository";
 import { businessToday } from "@workspace/shared";
 import { supplierAdvanceInvoicesService, type PrepaymentInput } from "./accounting/supplierAdvanceInvoices.service";
 import { capturedDocumentsRepository } from "../repositories/capturedDocuments.repository";
-import { vatEvidenceService, assertSupplierDocumentKind } from "./purchaseEvidence/vatEvidence.service";
+import { vatEvidenceService, assertSupplierDocumentKind, supplierVatOf } from "./purchaseEvidence/vatEvidence.service";
 import { duplicatesService } from "./purchaseEvidence/duplicates.service";
 import { captureService } from "./capture/capture.service";
 
@@ -471,6 +471,58 @@ export const billsService = {
       after: { captureId: body.captureId ?? null, ...facts, vatEvidenceStatus: after?.vatEvidenceStatus ?? null, inputVatState: after?.inputVatState ?? null, claimedOn: claim?.claimedOn ?? null, userId },
     });
     return billsService.getById(existing.id);
+  },
+
+  /**
+   * 🔴 Phase 18 G1 — OWNER DECISION 6: the USER'S DECISION on a supplier
+   * invoice whose VAT is non-zero and BELOW 15 % of its taxable amount. The
+   * user confirms the figures AS SHOWN, with an evidence note (the order, the
+   * delivery note, the correspondence); who, when and which figures are kept,
+   * and a changed figure voids it (`figuresConfirmationCurrent`). The VAT shown
+   * is then claimed, never more: on an unposted bill at approval, on a posted
+   * bill whose VAT is held, now, on the evidence date (the X1 evidence entry).
+   * VAT ABOVE the rate is refused here — no user act confirms VAT charged
+   * incorrectly; only the supplier's credit note corrects it. Under the bill's
+   * row lock, so it serialises with an approval and with a credit note.
+   */
+  async confirmVatFigures(id: number, body: { note?: unknown; evidenceDate?: unknown }, userId: number | null) {
+    const note = typeof body.note === "string" ? body.note.trim() : "";
+    if (!note) {
+      throw new BusinessRuleError(400, {
+        code: "vat_figures_confirmation_note_required",
+        error: "State the evidence the figures were checked against — the order, the delivery note or the supplier's correspondence.",
+        field: "note",
+      });
+    }
+    if (body.evidenceDate != null && body.evidenceDate !== "") assertDateString(body.evidenceDate, "evidenceDate");
+    const bill = await billsRepository.lockForUpdate(id);
+    if (!bill) throw new NotFoundError("Not found");
+    const unposted = bill.status === "draft" || bill.status === "submitted";
+    if (!unposted && bill.inputVatState !== "awaiting_evidence") {
+      throw new BusinessRuleError(409, { code: "input_vat_not_held", error: "This bill is posted and its input VAT is not held — there is nothing left to confirm." });
+    }
+    const supplierVat = await supplierVatOf(bill);
+    if (supplierVat?.discrepancy.above) {
+      throw new BusinessRuleError(422, {
+        code: "vat_above_rate_needs_supplier_correction",
+        error: `The supplier charged ${supplierVat.discrepancy.above.disputed.toFixed(2)} of VAT above 15 % of the taxable amount. VAT charged incorrectly is never claimed on a confirmation: it stays held until the supplier issues a credit note correcting it.`,
+      });
+    }
+    if (!supplierVat?.discrepancy.below) {
+      throw new BusinessRuleError(422, { code: "vat_figures_not_in_dispute", error: "This bill's VAT is 15 % of its taxable amount (or nil) — there is nothing to confirm." });
+    }
+    await billsRepository.update(id, {
+      vatFiguresConfirmedSubtotal: bill.subtotal, vatFiguresConfirmedVat: bill.vatAmount, vatFiguresConfirmationNote: note,
+      vatFiguresConfirmedBy: userId, vatFiguresConfirmedAt: new Date(),
+    });
+    await auditService.record({
+      action: "vat_figures_confirmed", entityType: "bill", entityId: id,
+      before: { vatEvidenceStatus: bill.vatEvidenceStatus },
+      after: { subtotal: Number(bill.subtotal), vatAmount: Number(bill.vatAmount), note, userId },
+    });
+    if (unposted) await vatEvidenceService.refresh(id);
+    else await vatEvidenceService.claimHeldVat(id, { date: (body.evidenceDate as string | undefined) || null, userId });
+    return billsService.getById(id);
   },
 
   /** 🔴 Phase 13A — the verdict for figures not yet saved (the review page, the bill form). */

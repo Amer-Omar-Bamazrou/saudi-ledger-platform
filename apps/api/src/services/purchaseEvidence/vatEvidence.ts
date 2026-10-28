@@ -47,6 +47,7 @@
  *    signature are compared against the bill.
  */
 import { QR_TAG, decodeTlv, readPhase1 } from "@workspace/zatca-tlv";
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { VAT_NUMBER_RE } from "../../lib/saudiIdentifiers";
 
 export const SUPPLIER_DOCUMENT_KINDS = ["tax_invoice", "simplified_tax_invoice", "no_tax_invoice"] as const;
@@ -61,6 +62,8 @@ export interface EvidenceFlag {
   code: string;
   severity: FlagSeverity;
   message: string;
+  /** The figures a flag rests on, when it rests on figures (decision 6: shown / supported / disputed VAT). */
+  amounts?: Record<string, number>;
 }
 
 export interface VatEvidenceInput {
@@ -88,6 +91,76 @@ export interface VatEvidenceInput {
   art50BlockedOriginal?: { billNumber: string } | null;
   /** The evidence document linked to the bill, if any. */
   capture: { qrPayload: string | null; signatureStatus: string | null } | null;
+  /**
+   * Phase 18 G1 (decision 6): the supplier's VAT against 15 % of the taxable
+   * amount (`supplierVatDiscrepancy`), and whether the user's confirmation of
+   * the figures as shown still stands. Optional — absent, nothing is in dispute.
+   */
+  supplierVat?: { discrepancy: SupplierVatDiscrepancy; figuresConfirmed: boolean };
+}
+
+/**
+ * 🔴 PHASE 18 G1 — OWNER DECISION 6 (2026-10-27): "claim only supported input
+ * VAT, never more than the VAT shown, and never VAT charged incorrectly". The
+ * ONE definition of what a supplier bill or debit note's VAT SUPPORTS against
+ * the standard rate (15 %, VAT Law Art. 2):
+ *  · with LINES, each line is judged on its own base (a 0 % line beside a 15 %
+ *    line is a mixed-rate invoice, not an error): a line above 15 % is ABOVE
+ *    the rate, and supported = Σ min(line VAT, 15 % × line base); a line with
+ *    non-zero VAT below 15 % is BELOW it;
+ *  · with NO lines (a header read off the document), the header is judged.
+ * A posted SUPPLIER CREDIT NOTE that takes back VAT above 15 % of what it
+ * credits is the supplier's correction: it reduces what is disputed, and never
+ * creates a dispute of its own.
+ * ABOVE is held whole until the supplier corrects it (13B keeps ONE VAT
+ * position per document, so the disputed PORTION alone cannot be held);
+ * BELOW is held until the user confirms the figures as shown. Pure.
+ */
+export type SupplierVatDiscrepancy = {
+  above: { shown: number; supported: number; disputed: number } | null;
+  below: { shown: number; atRate: number } | null;
+};
+const DISCREPANCY_TOLERANCE = 0.05;
+const at15 = (base: number) => Math.round(base * DEFAULT_VAT_RATE) / 100;
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+export function supplierVatDiscrepancy(f: {
+  subtotal: number;
+  vatAmount: number;
+  /** The bill's lines, each as its base (total − VAT) and its VAT; empty for a header-only document. */
+  lines: Array<{ base: number; vat: number }>;
+  /** The posted supplier credit notes against it. */
+  creditNotes: Array<{ subtotal: number; vat: number }>;
+}): SupplierVatDiscrepancy {
+  const parts = f.lines.length > 0 ? f.lines : [{ base: f.subtotal, vat: f.vatAmount }];
+  let excess = 0;
+  let belowShown = 0;
+  let belowAtRate = 0;
+  for (const p of parts) {
+    const atRate = at15(p.base);
+    if (p.vat - atRate > DISCREPANCY_TOLERANCE) excess = r2(excess + (p.vat - atRate));
+    else if (p.vat > 0 && atRate - p.vat > DISCREPANCY_TOLERANCE) {
+      belowShown = r2(belowShown + p.vat);
+      belowAtRate = r2(belowAtRate + atRate);
+    }
+  }
+  const corrected = f.creditNotes.reduce((s, n) => r2(s + Math.max(0, n.vat - at15(n.subtotal))), 0);
+  const disputed = r2(Math.max(0, excess - corrected));
+  // `disputed` is what is STILL disputed: the excess less the supplier's corrections so far.
+  return {
+    above: disputed > DISCREPANCY_TOLERANCE ? { shown: r2(f.vatAmount), supported: r2(f.vatAmount - excess), disputed } : null,
+    below: belowShown > 0 ? { shown: belowShown, atRate: belowAtRate } : null,
+  };
+}
+
+/** Decision 6: the user's confirmation counts only while the bill still shows the subtotal and VAT it confirmed. */
+export function figuresConfirmationCurrent(bill: {
+  subtotal: string | number; vatAmount: string | number;
+  vatFiguresConfirmedAt: Date | null; vatFiguresConfirmedSubtotal: string | null; vatFiguresConfirmedVat: string | null;
+}): boolean {
+  return bill.vatFiguresConfirmedAt != null
+    && Math.abs(Number(bill.vatFiguresConfirmedSubtotal) - Number(bill.subtotal)) < 0.005
+    && Math.abs(Number(bill.vatFiguresConfirmedVat) - Number(bill.vatAmount)) < 0.005;
 }
 
 export interface VatEvidenceVerdict {
@@ -273,8 +346,26 @@ export function evaluateVatEvidence(input: VatEvidenceInput): VatEvidenceVerdict
     }
   }
 
+  // ── decision 6: VAT off the standard rate — a USER decision, or the SUPPLIER'S ─
+  const d = input.supplierVat?.discrepancy;
+  if (d?.above) {
+    flags.push({
+      ...blocking("supplier_vat_above_rate",
+        `The supplier charged VAT of ${d.above.shown.toFixed(2)}, but 15 % of the taxable amount supports only ${d.above.supported.toFixed(2)}; ` +
+        `${d.above.disputed.toFixed(2)} is charged above the rate. VAT charged incorrectly is never claimed: the whole VAT is held until the supplier issues a credit note correcting it.`),
+      amounts: d.above,
+    });
+  }
+  if (d?.below) {
+    flags.push(input.supplierVat!.figuresConfirmed
+      ? { ...warning("supplier_vat_figures_confirmed", `The VAT shown (${d.below.shown.toFixed(2)}) is below 15 % of its taxable amount (${d.below.atRate.toFixed(2)}); you confirmed these figures with your evidence note. The VAT shown is claimed, never more.`), amounts: d.below }
+      : { ...blocking("supplier_vat_below_rate_unconfirmed",
+          `The VAT shown (${d.below.shown.toFixed(2)}) is below 15 % of its taxable amount (${d.below.atRate.toFixed(2)}). Check it against the order, the delivery note and the supplier's correspondence, then confirm the figures with a note — or leave it held until the supplier corrects the invoice.`),
+        amounts: d.below });
+  }
+
   // ── arithmetic: noted, not evidence (the approval checks totals itself) ────
-  if (input.subtotal > 0 && Math.abs(input.subtotal * STANDARD_RATE - input.vatAmount) > 0.05) {
+  if (!d?.above && !d?.below && input.subtotal > 0 && Math.abs(input.subtotal * STANDARD_RATE - input.vatAmount) > 0.05) {
     flags.push(warning("vat_rate_not_standard",
       `The VAT is ${((input.vatAmount / input.subtotal) * 100).toFixed(1)} % of the subtotal, not the standard 15 %. Check the figures, or whether the invoice mixes rates.`));
   }

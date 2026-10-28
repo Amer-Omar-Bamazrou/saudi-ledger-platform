@@ -87,6 +87,7 @@ import type {
   Company,
   CompanyLogoState,
   CompleteBankReconciliationInput,
+  ConfirmBillVatFiguresInput,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
   CorrectMigratedOpenItemInput,
@@ -21378,6 +21379,79 @@ export const useAttachBillEvidence = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAttachBillEvidenceMutationOptions(options));
+    }
+
+export const getConfirmBillVatFiguresUrl = (id: number,) => {
+
+
+
+
+  return `/api/bills/${id}/vat-figures-confirmation`
+}
+
+/**
+ * The user's decision on a supplier bill or debit note whose VAT is non-zero and below 15 % of its taxable amount: the figures AS SHOWN are confirmed with an evidence note (the order, the delivery note, the supplier's correspondence). Who, when and which figures are kept; a changed figure voids it. The VAT shown is then claimed, never more — at approval for an unposted bill, on `evidenceDate` for a posted bill whose VAT is held. VAT ABOVE the rate is never confirmed here: only the supplier's credit note corrects it.
+ * @summary Confirm a supplier invoice's VAT shown BELOW 15 % (Phase 18 G1, owner decision 6)
+ */
+export const confirmBillVatFigures = async (id: number,
+    confirmBillVatFiguresInput: ConfirmBillVatFiguresInput, options?: RequestInit): Promise<Bill> => {
+
+  return customFetch<Bill>(getConfirmBillVatFiguresUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(confirmBillVatFiguresInput)
+  }
+);}
+
+
+
+
+
+export const getConfirmBillVatFiguresMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmBillVatFigures>>, TError,{id: number;data: BodyType<ConfirmBillVatFiguresInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmBillVatFigures>>, TError,{id: number;data: BodyType<ConfirmBillVatFiguresInput>}, TContext> => {
+
+const mutationKey = ['confirmBillVatFigures'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmBillVatFigures>>, {id: number;data: BodyType<ConfirmBillVatFiguresInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  confirmBillVatFigures(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmBillVatFiguresMutationResult = NonNullable<Awaited<ReturnType<typeof confirmBillVatFigures>>>
+    export type ConfirmBillVatFiguresMutationBody = BodyType<ConfirmBillVatFiguresInput>
+    export type ConfirmBillVatFiguresMutationError = ErrorType<void>
+
+    /**
+ * @summary Confirm a supplier invoice's VAT shown BELOW 15 % (Phase 18 G1, owner decision 6)
+ */
+export const useConfirmBillVatFigures = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmBillVatFigures>>, TError,{id: number;data: BodyType<ConfirmBillVatFiguresInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmBillVatFigures>>,
+        TError,
+        {id: number;data: BodyType<ConfirmBillVatFiguresInput>},
+        TContext
+      > => {
+      return useMutation(getConfirmBillVatFiguresMutationOptions(options));
     }
 
 export const getListExpensesUrl = (params?: ListExpensesParams,) => {

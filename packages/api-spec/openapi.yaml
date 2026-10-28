@@ -5995,6 +5995,42 @@ paths:
         "422":
           description: "`capture_unavailable` — the document is another bill's evidence, posted, or discarded"
 
+  /bills/{id}/vat-figures-confirmation:
+    post:
+      operationId: confirmBillVatFigures
+      tags: [bills]
+      summary: Confirm a supplier invoice's VAT shown BELOW 15 % (Phase 18 G1, owner decision 6)
+      description: >
+        The user's decision on a supplier bill or debit note whose VAT is
+        non-zero and below 15 % of its taxable amount: the figures AS SHOWN are
+        confirmed with an evidence note (the order, the delivery note, the
+        supplier's correspondence). Who, when and which figures are kept; a
+        changed figure voids it. The VAT shown is then claimed, never more — at
+        approval for an unposted bill, on `evidenceDate` for a posted bill
+        whose VAT is held. VAT ABOVE the rate is never confirmed here: only the
+        supplier's credit note corrects it.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmBillVatFiguresInput" }
+      responses:
+        "200":
+          description: The bill with its new verdict (and, for a posted bill, its claim)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bill" }
+        "400":
+          description: "`vat_figures_confirmation_note_required`"
+        "404":
+          description: Not found
+        "409":
+          description: "`input_vat_not_held` — the bill is posted and its VAT is not held"
+        "422":
+          description: "`vat_above_rate_needs_supplier_correction` · `vat_figures_not_in_dispute`"
+
   /expenses:
     get:
       operationId: listExpenses
@@ -10120,6 +10156,11 @@ components:
           description: "Phase 13A: the supplier document the user states they hold. Null = not stated."
         vendorTaxNumber: { type: ["string", "null"], description: "The supplier's VAT number, as recorded on the supplier." }
         vatEvidence: { $ref: "#/components/schemas/BillVatEvidence" }
+        vatFiguresConfirmation:
+          oneOf:
+            - { $ref: "#/components/schemas/BillVatFiguresConfirmation" }
+            - { type: "null" }
+          description: "Phase 18 G1 (decision 6): the user's confirmation of VAT shown below 15 %; null when none was given."
         inputVat: { $ref: "#/components/schemas/BillInputVat" }
         recordedAsExpense: { type: boolean, description: "Phase 13C: paid when recorded — approval posts AND pays it." }
         expensePaidFromBankAccountId: { type: ["integer", "null"] }
@@ -10735,6 +10776,38 @@ components:
         code: { type: string, description: "A structured reason — the UI keys its wording on this, never on the message." }
         severity: { type: string, enum: [blocking, warning, info] }
         message: { type: string }
+        amounts:
+          type: object
+          additionalProperties: { type: number }
+          description: "The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown / supported / disputed VAT; the below-rate flags carry shown / atRate."
+
+    BillVatFiguresConfirmation:
+      type: object
+      required: [subtotal, vatAmount, note, confirmedBy, confirmedAt, current]
+      description: >
+        Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice's
+        VAT shown BELOW 15 % of its taxable amount, against the evidence named in
+        `note`. It counts only while the bill still shows these figures —
+        `current` is false once a figure changed (the confirmation is then void).
+      properties:
+        subtotal: { type: number }
+        vatAmount: { type: number }
+        note: { type: string }
+        confirmedBy: { type: ["integer", "null"] }
+        confirmedAt: { type: string }
+        current: { type: boolean }
+
+    ConfirmBillVatFiguresInput:
+      type: object
+      required: [note]
+      properties:
+        note:
+          type: string
+          maxLength: 2000
+          description: "The evidence the figures were checked against — the order, the delivery note, the supplier's correspondence. Blank is refused (400 `vat_figures_confirmation_note_required`)."
+        evidenceDate:
+          type: ["string", "null"]
+          description: "POSTED bill whose VAT is held only: the day the evidence is held — the claim's period (YYYY-MM-DD; defaults to today)."
 
     VatEvidenceVerdict:
       type: object
@@ -11053,6 +11126,19 @@ components:
           description: For a credit/debit note, the invoice it adjusts.
         noteReason:
           type: ["string", "null"]
+        chargeSubstance:
+          type: ["string", "null"]
+          enum: [price_change, null]
+          description: "Phase 18 G1 (decision 8): a debit note's extra charge, classified by substance — only a price change is a debit note. Null on every other document."
+        chargeEventDate:
+          type: ["string", "null"]
+          description: "Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD)."
+        art54Deadline:
+          type: ["string", "null"]
+          description: "Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed."
+        issuedAfterDeadline:
+          type: ["boolean", "null"]
+          description: "Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused."
         icv:
           type: ["integer", "null"]
           description: ZATCA invoice counter value; null until approved.
@@ -12767,6 +12853,21 @@ components:
           type: ["integer", "null"]
           description: Required for a credit or debit note; refused on an invoice (400 note_fields_on_invoice).
         noteReason: { type: ["string", "null"] }
+        chargeSubstance:
+          type: ["string", "null"]
+          enum: [price_change, new_supply, compensation, late_payment_fee, null]
+          description: >
+            Phase 18 G1 (owner decision 8) — a DEBIT note states what its extra
+            charge IS, with no default (400 `debit_note_substance_required`).
+            Only `price_change` (VAT IR Art. 54(2)) is a debit note; `new_supply`
+            (422 `extra_charge_is_new_supply`: issue a tax invoice),
+            `compensation` (422 `extra_charge_is_compensation`: no VAT document)
+            and `late_payment_fee` (422 `late_payment_fee_needs_substance`:
+            classify it by substance) are refused. Refused on any other
+            document (400 `charge_substance_only_on_debit_note`).
+        chargeEventDate:
+          type: ["string", "null"]
+          description: "A price change's day (YYYY-MM-DD): required (400 `charge_event_date_required`), not before the original invoice (422 `charge_event_date_before_original`), not after the note (422 `charge_event_date_after_note`)."
 
     CreateInvoiceInput:
       description: |
@@ -13467,10 +13568,38 @@ components:
         date: { type: string, description: "YYYY-MM-DD — the day it left. Must be in an open month and on or after the available-for-use date." }
         kind: { type: string, enum: [scrapped, destroyed, stolen, withdrawn] }
         reason: { type: string, minLength: 1, maxLength: 1000, description: "The disposal's evidence (VAT IR Art. 66 records)." }
+        withdrawalReason:
+          type: ["string", "null"]
+          enum: [private_use, gift, cessation_of_taxable_use, null]
+          description: "Phase 18 G1 (owner decision 13): WHY a withdrawn asset left — required for `withdrawn`, with no default (400 `withdrawal_reason_required`); refused on any other kind (400 `withdrawal_reason_invalid`)."
+
+    NominalSupplyCalculation:
+      type: object
+      required: [rule, route, purchaseValue, initialRecoveryPct, adjustmentPeriodYears, yearsElapsed, yearsRemaining, nominalSupplyValue, vatRatePct, vatOnNominalSupply]
+      description: >
+        Phase 18 G1 (owner decision 13): the full VAT IR Art. 52(8) calculation
+        behind a withdrawal's nominal-supply value — purchase value × initial
+        recovery % × years remaining ÷ adjustment period (part years count as
+        one, 52(2)), the applicable rate (15 %) and the VAT on it. `note` names
+        the open question when the reason is private use or a gift (decision
+        13's purchase-cost route is not applied: its Guideline passage is not in
+        any saved source).
+      properties:
+        rule: { type: string }
+        route: { type: string, enum: [art_52_8_formula] }
+        purchaseValue: { type: number }
+        initialRecoveryPct: { type: number }
+        adjustmentPeriodYears: { type: integer }
+        yearsElapsed: { type: integer }
+        yearsRemaining: { type: integer }
+        nominalSupplyValue: { type: number }
+        vatRatePct: { type: number }
+        vatOnNominalSupply: { type: number }
+        note: { type: string }
 
     AssetDisposalRecord:
       type: object
-      required: [id, date, kind, proceeds, gainLoss, accumulatedAtDisposal, carryingAmountAtDisposal, vatTreatment, nominalSupplyValue, journalEntryId, entryNumber, invoiceId, reason]
+      required: [id, date, kind, proceeds, gainLoss, accumulatedAtDisposal, carryingAmountAtDisposal, vatTreatment, nominalSupplyValue, withdrawalReason, nominalSupplyCalculation, journalEntryId, entryNumber, invoiceId, reason]
       properties:
         id: { type: integer }
         date: { type: string }
@@ -13484,6 +13613,11 @@ components:
           enum: [taxable_supply, out_of_scope_restricted_vehicle, no_adjustment, nominal_supply]
           description: "Art. 3(5) a taxable supply · Art. 50(3) a restricted motor vehicle sold outside the activity · Art. 52(7) no adjustment · Art. 52(8) a nominal supply."
         nominalSupplyValue: { type: ["number", "null"], description: "Art. 52(8): purchase value × initial recovery % × remaining useful life ÷ adjustment period. Stored for a withdrawal; declaring it is the Art. 52 engine's business." }
+        withdrawalReason: { type: ["string", "null"], enum: [private_use, gift, cessation_of_taxable_use, null] }
+        nominalSupplyCalculation:
+          oneOf:
+            - { $ref: "#/components/schemas/NominalSupplyCalculation" }
+            - { type: "null" }
         journalEntryId: { type: integer }
         entryNumber: { type: string }
         invoiceId: { type: ["integer", "null"] }
@@ -13491,7 +13625,7 @@ components:
 
     AssetDisposalRecordRead:
       type: object
-      required: [id, date, kind, proceeds, gainLoss, accumulatedAtDisposal, carryingAmountAtDisposal, vatTreatment, nominalSupplyValue, journalEntryId, invoiceId, reason]
+      required: [id, date, kind, proceeds, gainLoss, accumulatedAtDisposal, carryingAmountAtDisposal, vatTreatment, nominalSupplyValue, withdrawalReason, nominalSupplyCalculation, journalEntryId, invoiceId, reason]
       properties:
         id: { type: integer }
         date: { type: string }
@@ -13502,6 +13636,11 @@ components:
         carryingAmountAtDisposal: { type: number }
         vatTreatment: { type: string, enum: [taxable_supply, out_of_scope_restricted_vehicle, no_adjustment, nominal_supply] }
         nominalSupplyValue: { type: ["number", "null"] }
+        withdrawalReason: { type: ["string", "null"], enum: [private_use, gift, cessation_of_taxable_use, null] }
+        nominalSupplyCalculation:
+          oneOf:
+            - { $ref: "#/components/schemas/NominalSupplyCalculation" }
+            - { type: "null" }
         journalEntryId: { type: integer }
         invoiceId: { type: ["integer", "null"] }
         reason: { type: ["string", "null"] }

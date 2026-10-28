@@ -59,7 +59,9 @@ const ACTIVATION_ACTIONS = new Set(["approve"]);
 // 2026-10-05 (Q1, pack §14.1): `file` records that a WHT month's Form 06 was FILED (or amended) — it decides how every
 // later correction of that month is reported, so it is an approver's act, like the remittance (`pay`) it accompanies.
 // Phase 18 (the PR C correction route): recording ZATCA's `rejection` and creating the `correction` are an approver's acts.
-const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge|allocate|apply|unallocate|override|unmatch|bad-debt-relief|file|rejection|correction)\/?$/i;
+// Phase 18 G1 (decision 6): `vat-figures-confirmation` decides that a supplier's VAT below 15 % is claimed as shown —
+// a review decision about a tax claim, same reasoning as `acknowledge`.
+const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge|allocate|apply|unallocate|override|unmatch|bad-debt-relief|file|rejection|correction|vat-figures-confirmation)\/?$/i;
 
 /** Resolve the permission action for a request (method + activation-route override). */
 function resolveAction(req: Request): PermissionAction | undefined {

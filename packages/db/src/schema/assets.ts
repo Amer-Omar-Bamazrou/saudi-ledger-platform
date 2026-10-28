@@ -257,6 +257,16 @@ export const assetDisposalsTable = pgTable(
     vatTreatment: text("vat_treatment").notNull(),
     /** VAT IR Art. 52(8): purchase value × initial recovery % × remaining useful life ÷ adjustment period. */
     nominalSupplyValue: numeric("nominal_supply_value", { precision: 15, scale: 2 }),
+    /**
+     * 🔴 Phase 18 G1, owner decision 13 (2026-10-27): WHY a withdrawn asset left —
+     * `private_use`, `gift` or `cessation_of_taxable_use` — and the full Art. 52(8)
+     * calculation behind `nominal_supply_value` (the inputs, the years, the 15 %
+     * rate and the VAT). Written with the row (which is then frozen); NULL on any
+     * other kind and on a withdrawal recorded before 0136. CHECKs (0136,
+     * hand-written): both only on a `withdrawn` row; the reason from that list.
+     */
+    withdrawalReason: text("withdrawal_reason"),
+    nominalSupplyCalculation: jsonb("nominal_supply_calculation"),
     reason: text("reason"),
     journalEntryId: integer("journal_entry_id").references(() => journalEntriesTable.id, { onDelete: "restrict" }),
     createdBy: integer("created_by").references(() => usersTable.id, { onDelete: "set null" }),

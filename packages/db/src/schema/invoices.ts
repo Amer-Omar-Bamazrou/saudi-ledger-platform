@@ -181,6 +181,20 @@ export const invoicesTable = pgTable(
     noteReason: text("note_reason"),
 
     /**
+     * 🔴 Phase 18 G1, owner decision 8 (2026-10-27) — what a DEBIT note's extra
+     * charge IS, stated by the user with no default. Only `price_change` (a
+     * change to the price of the original supply, VAT IR Art. 54(2)) is issued
+     * as a debit note; a new supply, compensation and a late-payment fee are
+     * refused at the write boundary (`creditNotes.assertNoteIsValid`), so they
+     * never reach this column. `charge_event_date` is the day the price
+     * changed: the Art. 54(6) deadline (the 15th of the next month) runs from
+     * it. CHECK `invoices_charge_substance_chk` (migration 0136, hand-written):
+     * both NULL, or a debit note with `price_change` and a YYYY-MM-DD date.
+     */
+    chargeSubstance: text("charge_substance"),
+    chargeEventDate: text("charge_event_date"),
+
+    /**
      * 🔴 IDEMPOTENCY KEY (QA fix, 2026-09-04): the client sends one key per
      * open of the New Invoice dialog. A double-click, a retried request, or a
      * slow-network resend all carry the SAME key, so the partial unique index

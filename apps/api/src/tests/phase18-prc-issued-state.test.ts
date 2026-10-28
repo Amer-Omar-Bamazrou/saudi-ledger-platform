@@ -192,7 +192,7 @@ describeMaybe("PR C proof · the issued state per document type (evidence; expec
     await approve(standard);
     const credit = await create({ customerId: b2c, documentType: "credit_note", originalInvoiceId: simplified, noteReason: "Price reduced after delivery", items: line(500) });
     await approve(credit);
-    const debit = await create({ customerId: b2c, documentType: "debit_note", originalInvoiceId: simplified, noteReason: "Additional freight", items: line(300) });
+    const debit = await create({ customerId: b2c, documentType: "debit_note", originalInvoiceId: simplified, noteReason: "Additional freight", chargeSubstance: "price_change", chargeEventDate: DATE, items: line(300) });
     await approve(debit);
     const rows: Array<[string, number, string, string]> = [
       ["388 simplified", simplified, "388", "0200000"],

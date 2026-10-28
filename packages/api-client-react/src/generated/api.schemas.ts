@@ -2589,11 +2589,18 @@ export const EvidenceFlagSeverity = {
   info: 'info',
 } as const;
 
+/**
+ * The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown / supported / disputed VAT; the below-rate flags carry shown / atRate.
+ */
+export type EvidenceFlagAmounts = {[key: string]: number};
+
 export interface EvidenceFlag {
   /** A structured reason — the UI keys its wording on this, never on the message. */
   code: string;
   severity: EvidenceFlagSeverity;
   message: string;
+  /** The figures a flag rests on, when it rests on figures. Phase 18 G1 (decision 6): `supplier_vat_above_rate` carries shown / supported / disputed VAT; the below-rate flags carry shown / atRate. */
+  amounts?: EvidenceFlagAmounts;
 }
 
 /**
@@ -2606,6 +2613,19 @@ export interface BillVatEvidence {
   flags: EvidenceFlag[];
   /** @nullable */
   checkedAt?: string | null;
+}
+
+/**
+ * Phase 18 G1 (owner decision 6): the user confirmed a supplier invoice's VAT shown BELOW 15 % of its taxable amount, against the evidence named in `note`. It counts only while the bill still shows these figures — `current` is false once a figure changed (the confirmation is then void).
+ */
+export interface BillVatFiguresConfirmation {
+  subtotal: number;
+  vatAmount: number;
+  note: string;
+  /** @nullable */
+  confirmedBy: number | null;
+  confirmedAt: string;
+  current: boolean;
 }
 
 /**
@@ -2755,6 +2775,8 @@ export interface Bill {
      */
   vendorTaxNumber?: string | null;
   vatEvidence?: BillVatEvidence;
+  /** Phase 18 G1 (decision 6): the user's confirmation of VAT shown below 15 %; null when none was given. */
+  vatFiguresConfirmation?: BillVatFiguresConfirmation | null;
   inputVat?: BillInputVat;
   /** Phase 13C: paid when recorded — approval posts AND pays it. */
   recordedAsExpense?: boolean;
@@ -2985,6 +3007,17 @@ export const InvoiceDocumentType = {
 } as const;
 
 /**
+ * Phase 18 G1 (decision 8): a debit note's extra charge, classified by substance — only a price change is a debit note. Null on every other document.
+ * @nullable
+ */
+export type InvoiceChargeSubstance = typeof InvoiceChargeSubstance[keyof typeof InvoiceChargeSubstance] | null;
+
+
+export const InvoiceChargeSubstance = {
+  price_change: 'price_change',
+} as const;
+
+/**
  * 2026-09-22, opening items only: the previous solution's e-invoicing status of the document; null = not stated (a credit note against it is refused until recorded).
  * @nullable
  */
@@ -3165,6 +3198,26 @@ export interface Invoice {
   originalInvoiceId: number | null;
   /** @nullable */
   noteReason: string | null;
+  /**
+     * Phase 18 G1 (decision 8): a debit note's extra charge, classified by substance — only a price change is a debit note. Null on every other document.
+     * @nullable
+     */
+  chargeSubstance?: InvoiceChargeSubstance;
+  /**
+     * Phase 18 G1 (decision 8): the day the price changed (YYYY-MM-DD).
+     * @nullable
+     */
+  chargeEventDate?: string | null;
+  /**
+     * Phase 18 G1 (decision 8): VAT IR Art. 54(6) — the 15th of the month after the price changed.
+     * @nullable
+     */
+  art54Deadline?: string | null;
+  /**
+     * Phase 18 G1 (decision 8): the note is dated after its Art. 54(6) deadline. Shown, never refused.
+     * @nullable
+     */
+  issuedAfterDeadline?: boolean | null;
   /**
      * ZATCA invoice counter value; null until approved.
      * @nullable
@@ -3713,6 +3766,19 @@ export interface RecurringRun {
   errorDetail?: string | null;
   /** @nullable */
   ranAt?: string | null;
+}
+
+export interface ConfirmBillVatFiguresInput {
+  /**
+     * The evidence the figures were checked against — the order, the delivery note, the supplier's correspondence. Blank is refused (400 `vat_figures_confirmation_note_required`).
+     * @maxLength 2000
+     */
+  note: string;
+  /**
+     * POSTED bill whose VAT is held only: the day the evidence is held — the claim's period (YYYY-MM-DD; defaults to today).
+     * @nullable
+     */
+  evidenceDate?: string | null;
 }
 
 export type VatEvidenceVerdictStatus = typeof VatEvidenceVerdictStatus[keyof typeof VatEvidenceVerdictStatus];
@@ -6098,6 +6164,20 @@ export const InvoiceHeaderInputDocumentType = {
 } as const;
 
 /**
+ * Phase 18 G1 (owner decision 8) — a DEBIT note states what its extra charge IS, with no default (400 `debit_note_substance_required`). Only `price_change` (VAT IR Art. 54(2)) is a debit note; `new_supply` (422 `extra_charge_is_new_supply`: issue a tax invoice), `compensation` (422 `extra_charge_is_compensation`: no VAT document) and `late_payment_fee` (422 `late_payment_fee_needs_substance`: classify it by substance) are refused. Refused on any other document (400 `charge_substance_only_on_debit_note`).
+ * @nullable
+ */
+export type InvoiceHeaderInputChargeSubstance = typeof InvoiceHeaderInputChargeSubstance[keyof typeof InvoiceHeaderInputChargeSubstance] | null;
+
+
+export const InvoiceHeaderInputChargeSubstance = {
+  price_change: 'price_change',
+  new_supply: 'new_supply',
+  compensation: 'compensation',
+  late_payment_fee: 'late_payment_fee',
+} as const;
+
+/**
  * The seller's name and VAT number are NOT inputs (G31): they come from
  * the invoice's company record, read when the invoice is issued, and are
  * fixed on it from then on. A create or update body that names
@@ -6133,6 +6213,16 @@ export interface InvoiceHeaderInput {
   originalInvoiceId?: number | null;
   /** @nullable */
   noteReason?: string | null;
+  /**
+     * Phase 18 G1 (owner decision 8) — a DEBIT note states what its extra charge IS, with no default (400 `debit_note_substance_required`). Only `price_change` (VAT IR Art. 54(2)) is a debit note; `new_supply` (422 `extra_charge_is_new_supply`: issue a tax invoice), `compensation` (422 `extra_charge_is_compensation`: no VAT document) and `late_payment_fee` (422 `late_payment_fee_needs_substance`: classify it by substance) are refused. Refused on any other document (400 `charge_substance_only_on_debit_note`).
+     * @nullable
+     */
+  chargeSubstance?: InvoiceHeaderInputChargeSubstance;
+  /**
+     * A price change's day (YYYY-MM-DD): required (400 `charge_event_date_required`), not before the original invoice (422 `charge_event_date_before_original`), not after the note (422 `charge_event_date_after_note`).
+     * @nullable
+     */
+  chargeEventDate?: string | null;
 }
 
 /**
@@ -7088,6 +7178,42 @@ export const AssetDisposalRecordReadVatTreatment = {
   nominal_supply: 'nominal_supply',
 } as const;
 
+/**
+ * @nullable
+ */
+export type AssetDisposalRecordReadWithdrawalReason = typeof AssetDisposalRecordReadWithdrawalReason[keyof typeof AssetDisposalRecordReadWithdrawalReason] | null;
+
+
+export const AssetDisposalRecordReadWithdrawalReason = {
+  private_use: 'private_use',
+  gift: 'gift',
+  cessation_of_taxable_use: 'cessation_of_taxable_use',
+} as const;
+
+export type NominalSupplyCalculationRoute = typeof NominalSupplyCalculationRoute[keyof typeof NominalSupplyCalculationRoute];
+
+
+export const NominalSupplyCalculationRoute = {
+  art_52_8_formula: 'art_52_8_formula',
+} as const;
+
+/**
+ * Phase 18 G1 (owner decision 13): the full VAT IR Art. 52(8) calculation behind a withdrawal's nominal-supply value — purchase value × initial recovery % × years remaining ÷ adjustment period (part years count as one, 52(2)), the applicable rate (15 %) and the VAT on it. `note` names the open question when the reason is private use or a gift (decision 13's purchase-cost route is not applied: its Guideline passage is not in any saved source).
+ */
+export interface NominalSupplyCalculation {
+  rule: string;
+  route: NominalSupplyCalculationRoute;
+  purchaseValue: number;
+  initialRecoveryPct: number;
+  adjustmentPeriodYears: number;
+  yearsElapsed: number;
+  yearsRemaining: number;
+  nominalSupplyValue: number;
+  vatRatePct: number;
+  vatOnNominalSupply: number;
+  note?: string;
+}
+
 export interface AssetDisposalRecordRead {
   id: number;
   date: string;
@@ -7099,6 +7225,9 @@ export interface AssetDisposalRecordRead {
   vatTreatment: AssetDisposalRecordReadVatTreatment;
   /** @nullable */
   nominalSupplyValue: number | null;
+  /** @nullable */
+  withdrawalReason: AssetDisposalRecordReadWithdrawalReason;
+  nominalSupplyCalculation: NominalSupplyCalculation | null;
   journalEntryId: number;
   /** @nullable */
   invoiceId: number | null;
@@ -7331,6 +7460,19 @@ export const DisposeAssetInputKind = {
   withdrawn: 'withdrawn',
 } as const;
 
+/**
+ * Phase 18 G1 (owner decision 13): WHY a withdrawn asset left — required for `withdrawn`, with no default (400 `withdrawal_reason_required`); refused on any other kind (400 `withdrawal_reason_invalid`).
+ * @nullable
+ */
+export type DisposeAssetInputWithdrawalReason = typeof DisposeAssetInputWithdrawalReason[keyof typeof DisposeAssetInputWithdrawalReason] | null;
+
+
+export const DisposeAssetInputWithdrawalReason = {
+  private_use: 'private_use',
+  gift: 'gift',
+  cessation_of_taxable_use: 'cessation_of_taxable_use',
+} as const;
+
 export interface DisposeAssetInput {
   /** YYYY-MM-DD — the day it left. Must be in an open month and on or after the available-for-use date. */
   date: string;
@@ -7341,6 +7483,11 @@ export interface DisposeAssetInput {
      * @maxLength 1000
      */
   reason: string;
+  /**
+     * Phase 18 G1 (owner decision 13): WHY a withdrawn asset left — required for `withdrawn`, with no default (400 `withdrawal_reason_required`); refused on any other kind (400 `withdrawal_reason_invalid`).
+     * @nullable
+     */
+  withdrawalReason?: DisposeAssetInputWithdrawalReason;
 }
 
 export type AssetDisposalRecordKind = typeof AssetDisposalRecordKind[keyof typeof AssetDisposalRecordKind];
@@ -7367,6 +7514,18 @@ export const AssetDisposalRecordVatTreatment = {
   nominal_supply: 'nominal_supply',
 } as const;
 
+/**
+ * @nullable
+ */
+export type AssetDisposalRecordWithdrawalReason = typeof AssetDisposalRecordWithdrawalReason[keyof typeof AssetDisposalRecordWithdrawalReason] | null;
+
+
+export const AssetDisposalRecordWithdrawalReason = {
+  private_use: 'private_use',
+  gift: 'gift',
+  cessation_of_taxable_use: 'cessation_of_taxable_use',
+} as const;
+
 export interface AssetDisposalRecord {
   id: number;
   date: string;
@@ -7383,6 +7542,9 @@ export interface AssetDisposalRecord {
      * @nullable
      */
   nominalSupplyValue: number | null;
+  /** @nullable */
+  withdrawalReason: AssetDisposalRecordWithdrawalReason;
+  nominalSupplyCalculation: NominalSupplyCalculation | null;
   journalEntryId: number;
   entryNumber: string;
   /** @nullable */

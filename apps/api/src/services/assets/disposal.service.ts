@@ -36,6 +36,7 @@
  *     the FA-2 engine's business; storing the number is not declaring it.
  */
 import { db, assetDisposalsTable, type AssetDisposalKind } from "@workspace/db";
+import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../../lib/errors";
 import { round2, money2 } from "../../lib/money";
 import { assertDateString } from "../../lib/writeGuards";
@@ -78,18 +79,61 @@ async function load(assetId: number) {
  * adjustment period are both counted in WHOLE YEARS (52(2): "part years
  * count as one"); a withdrawal past the adjustment period is zero.
  */
-export function nominalSupplyValue(a: { cost: string | number; vatInitialRecoveryPct: string | number; vatCapitalAssetClass: string; usefulLifeMonths: number; acquisitionDate: string }, onDate: string): number {
+export function nominalSupplyValue(a: NominalSupplyAsset, onDate: string): number {
+  return nominalSupplyCalculation(a, onDate).nominalSupplyValue;
+}
+
+type NominalSupplyAsset = { cost: string | number; vatInitialRecoveryPct: string | number; vatCapitalAssetClass: string; usefulLifeMonths: number; acquisitionDate: string };
+
+/**
+ * 🔴 Phase 18 G1 — OWNER DECISION 13 (2026-10-27): WHY a withdrawn asset left.
+ * Stated by the user, with no default; stored on the disposal.
+ */
+export const WITHDRAWAL_REASONS = ["private_use", "gift", "cessation_of_taxable_use"] as const;
+
+/**
+ * Decision 13: "record the full calculation" — the Art. 52(8) formula with
+ * every input, the years counted (part years as one, 52(2)), the value, the
+ * applicable VAT rate (15 %, the standard rate) and the VAT on the nominal
+ * supply. One definition; `nominalSupplyValue` is its value.
+ */
+export function nominalSupplyCalculation(a: NominalSupplyAsset, onDate: string) {
   const period = vatAdjustmentPeriodYears(a.vatCapitalAssetClass, a.usefulLifeMonths);
-  if (period == null || period <= 0) return 0;
   const acquiredYear = Number(a.acquisitionDate.slice(0, 4));
   const acquiredMonth = Number(a.acquisitionDate.slice(5, 7));
   const onYear = Number(onDate.slice(0, 4));
   const onMonth = Number(onDate.slice(5, 7));
   const elapsedMonths = (onYear - acquiredYear) * 12 + (onMonth - acquiredMonth);
-  const elapsedYears = Math.ceil(Math.max(0, elapsedMonths) / 12); // part years count as one
-  const remaining = Math.max(0, period - elapsedYears);
-  return round2((num(a.cost) * (num(a.vatInitialRecoveryPct) / 100) * remaining) / period);
+  const yearsElapsed = Math.ceil(Math.max(0, elapsedMonths) / 12); // part years count as one
+  const inPeriod = period != null && period > 0;
+  const yearsRemaining = inPeriod ? Math.max(0, period - yearsElapsed) : 0;
+  const value = inPeriod ? round2((num(a.cost) * (num(a.vatInitialRecoveryPct) / 100) * yearsRemaining) / period) : 0;
+  return {
+    rule: "VAT IR Art. 52(8)",
+    route: "art_52_8_formula",
+    purchaseValue: round2(num(a.cost)),
+    initialRecoveryPct: num(a.vatInitialRecoveryPct),
+    adjustmentPeriodYears: inPeriod ? period : 0,
+    yearsElapsed,
+    yearsRemaining,
+    nominalSupplyValue: value,
+    vatRatePct: DEFAULT_VAT_RATE,
+    vatOnNominalSupply: round2((value * DEFAULT_VAT_RATE) / 100),
+  };
 }
+
+/**
+ * Decision 13 says private use or a gift is valued at purchase cost (market
+ * value where cost is unknown), on the ZATCA Capital Assets Guideline, "quote
+ * the passage first; if not found, record that part" (final-run memo §2 G).
+ * The passage is in no saved source, and the saved research reads Guideline
+ * §6.6 / FAQ 6 as the Art. 52(8) formula for private use. Every withdrawal
+ * therefore keeps the formula, and the record says so — an open question for
+ * the adviser, never a silent choice.
+ */
+const PURCHASE_COST_ROUTE_OPEN =
+  "Decision 13's purchase-cost route for private use or a gift is not applied: the Capital Assets Guideline passage it rests on is not in any saved source, " +
+  "and the saved research reads Guideline §6.6 / FAQ 6 as the Art. 52(8) formula for private use. Open question for the adviser.";
 
 export const assetDisposalService = {
   /**
@@ -156,12 +200,15 @@ export const assetDisposalService = {
     assetId: number; date: string; kind: AssetDisposalKind; proceeds: number; invoiceId: number | null;
     accumulated: number; carrying: number; vatTreatment: string; nominalSupplyValue: number | null; reason: string | null;
     journalEntryId: number; userId: number | null;
+    /** Decision 13: a withdrawal's reason and its full Art. 52(8) calculation. */
+    withdrawalReason?: string | null; nominalSupplyCalculation?: Record<string, unknown> | null;
   }) {
     const gainLoss = round2(input.proceeds - input.carrying);
     const [row] = await db.insert(assetDisposalsTable).values({
       assetId: input.assetId, date: input.date, kind: input.kind, proceeds: money2(input.proceeds), invoiceId: input.invoiceId,
       accumulatedAtDisposal: money2(input.accumulated), carryingAmountAtDisposal: money2(input.carrying), gainLoss: money2(gainLoss),
       vatTreatment: input.vatTreatment, nominalSupplyValue: input.nominalSupplyValue != null ? money2(input.nominalSupplyValue) : null,
+      withdrawalReason: input.withdrawalReason ?? null, nominalSupplyCalculation: input.nominalSupplyCalculation ?? null,
       reason: input.reason, journalEntryId: input.journalEntryId, createdBy: input.userId,
     }).returning();
     await assetsRepository.update(input.assetId, { status: "disposed", disposalDate: input.date });
@@ -170,6 +217,7 @@ export const assetDisposalService = {
     await recordAssetEvent(input.assetId, "disposed", input.date, {
       kind: input.kind, proceeds: input.proceeds, accumulated: input.accumulated, carrying: input.carrying, gainLoss,
       vatTreatment: input.vatTreatment, nominalSupplyValue: input.nominalSupplyValue, reason: input.reason, invoiceId: input.invoiceId,
+      ...(input.withdrawalReason ? { withdrawalReason: input.withdrawalReason, nominalSupplyCalculation: input.nominalSupplyCalculation } : {}),
     }, { journalEntryId: input.journalEntryId, userId: input.userId });
     return { ...row!, gainLossNumber: gainLoss };
   },
@@ -195,7 +243,7 @@ export const assetDisposalService = {
    * SCRAP / DESTROYED / STOLEN / WITHDRAWN — no proceeds, no invoice: the
    * derecognition alone, on its own entry.
    */
-  async dispose(assetId: number, body: { date?: unknown; kind?: unknown; reason?: unknown }, userId: number | null) {
+  async dispose(assetId: number, body: { date?: unknown; kind?: unknown; reason?: unknown; withdrawalReason?: unknown }, userId: number | null) {
     const kind = typeof body.kind === "string" ? body.kind : "";
     if (!KINDS.includes(kind)) throw new BadRequestError("kind must be scrapped, destroyed, stolen or withdrawn (a SALE is an invoice that names the asset, not this act).");
     if (kind === "sold") {
@@ -203,6 +251,24 @@ export const assetDisposalService = {
     }
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     if (!reason) throw new BadRequestError("A reason is required — it is the disposal's evidence (VAT IR Art. 66 records).");
+    // 🔴 Decision 13: a withdrawal states WHY it left, with no default; the fact belongs to a withdrawal only.
+    const withdrawalReason = body.withdrawalReason == null || body.withdrawalReason === "" ? null : String(body.withdrawalReason);
+    if (kind === "withdrawn" && withdrawalReason == null) {
+      throw new BusinessRuleError(400, {
+        code: "withdrawal_reason_required",
+        error: "State why the asset was taken out of the business: private use, a gift, or the permanent cessation of its taxable use. There is no default.",
+        field: "withdrawalReason",
+      });
+    }
+    if (withdrawalReason != null && (kind !== "withdrawn" || !(WITHDRAWAL_REASONS as readonly string[]).includes(withdrawalReason))) {
+      throw new BusinessRuleError(400, {
+        code: "withdrawal_reason_invalid",
+        error: kind === "withdrawn"
+          ? `withdrawalReason must be one of: ${WITHDRAWAL_REASONS.join(", ")}.`
+          : "Only a withdrawal states a withdrawal reason.",
+        field: "withdrawalReason",
+      });
+    }
     const date = body.date ? assertDateString(body.date, "date") : undefined;
     if (!date) throw new BadRequestError("date is required (YYYY-MM-DD).");
     const { asset, category, figures } = await load(assetId);
@@ -230,12 +296,16 @@ export const assetDisposalService = {
     });
     // Art. 52(7) vs 52(8): destroyed/stolen/scrapped attract NO adjustment; a withdrawal while still usable is a nominal supply.
     const withdrawn = kind === "withdrawn";
-    const nominal = withdrawn ? nominalSupplyValue(after.asset, date) : null;
+    const calculation = withdrawn
+      ? { ...nominalSupplyCalculation(after.asset, date), ...(withdrawalReason === "private_use" || withdrawalReason === "gift" ? { note: PURCHASE_COST_ROUTE_OPEN } : {}) }
+      : null;
+    const nominal = calculation ? calculation.nominalSupplyValue : null;
     const disposal = await this.recordDisposal({
       assetId, date, kind: kind as AssetDisposalKind, proceeds: 0, invoiceId: null,
       accumulated: plan.accumulated, carrying: plan.carrying,
       vatTreatment: withdrawn ? "nominal_supply" : "no_adjustment",
       nominalSupplyValue: nominal, reason, journalEntryId: je.id, userId,
+      withdrawalReason, nominalSupplyCalculation: calculation,
     });
     await auditService.created("asset_disposal", disposal.id, { ...disposal, by: userId });
     const asset2 = await assetsService.getById(assetId);
@@ -245,6 +315,7 @@ export const assetDisposalService = {
         id: disposal.id, date, kind, proceeds: 0, gainLoss: disposal.gainLossNumber,
         accumulatedAtDisposal: plan.accumulated, carryingAmountAtDisposal: plan.carrying,
         vatTreatment: withdrawn ? "nominal_supply" : "no_adjustment", nominalSupplyValue: nominal,
+        withdrawalReason, nominalSupplyCalculation: calculation,
         journalEntryId: je.id, entryNumber: je.entryNumber, invoiceId: null, reason,
       },
       depreciatedFirst: depreciated,

@@ -118,7 +118,7 @@ describeMaybe("a credit note cannot be paid; its original still can", () => {
 
   it("paying a DEBIT NOTE is refused the same way", async () => {
     const original = await issue("CNP-2", 100);
-    const note = await issue("CNP-DN1", 50, { documentType: "debit_note", originalInvoiceId: original, noteReason: "underbilled" });
+    const note = await issue("CNP-DN1", 50, { documentType: "debit_note", originalInvoiceId: original, noteReason: "underbilled", chargeSubstance: "price_change", chargeEventDate: DATE });
     await expect(inTenant(() => invoicesService.pay(note, { amount: 57.5, bankAccountId: bankId }, userId))).rejects.toBeInstanceOf(ConflictError);
     expect((await ledger(note)).paymentEntries).toBe(0);
   });

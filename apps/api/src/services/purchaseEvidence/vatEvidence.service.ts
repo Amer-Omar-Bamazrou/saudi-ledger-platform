@@ -27,7 +27,7 @@ import { vendorsRepository } from "../../repositories/vendors.repository";
 import { capturedDocumentsRepository } from "../../repositories/capturedDocuments.repository";
 import { supplierAdvanceInvoicesService } from "../accounting/supplierAdvanceInvoices.service";
 import { inputVatLedgerService } from "../accounting/inputVatLedger.service";
-import { SUPPLIER_DOCUMENT_KINDS, evaluateVatEvidence, withinClaimWindow, type VatEvidenceVerdict } from "./vatEvidence";
+import { SUPPLIER_DOCUMENT_KINDS, evaluateVatEvidence, figuresConfirmationCurrent, supplierVatDiscrepancy, withinClaimWindow, type VatEvidenceVerdict } from "./vatEvidence";
 
 type Bill = typeof billsTable.$inferSelect;
 type Vendor = typeof vendorsTable.$inferSelect;
@@ -70,6 +70,23 @@ async function art50BlockedOriginal(bill: Bill): Promise<{ billNumber: string } 
   return original.inputVatState === "not_deductible" && original.capitalisesAssetId == null
     ? { billNumber: original.billNumber }
     : null;
+}
+
+/**
+ * Phase 18 G1 (decision 6) — the supplier's VAT against the rate, from the
+ * bill's own rows: its lines (base = total − VAT, the G65 rule), the posted
+ * supplier credit notes against it, and the user's confirmation. A supplier
+ * BILL or DEBIT note only: a credit note reduces a claim, and an advance
+ * document's VAT is derived from the payment it invoices.
+ */
+export async function supplierVatOf(bill: Bill): Promise<NonNullable<Parameters<typeof evaluateVatEvidence>[0]["supplierVat"]> | undefined> {
+  if (bill.documentType !== "bill" && bill.documentType !== "debit_note") return undefined;
+  const lines = (await billsRepository.itemsByBill(bill.id)).map((l) => ({ base: round2(Number(l.total) - Number(l.vatAmount ?? 0)), vat: Number(l.vatAmount ?? 0) }));
+  const creditNotes = (await billsRepository.postedCreditNoteFigures(bill.id)).map((n) => ({ subtotal: Number(n.subtotal), vat: Number(n.vatAmount) }));
+  return {
+    discrepancy: supplierVatDiscrepancy({ subtotal: Number(bill.subtotal), vatAmount: Number(bill.vatAmount), lines, creditNotes }),
+    figuresConfirmed: figuresConfirmationCurrent(bill),
+  };
 }
 
 /** The EXISTING fixed-asset treatment: a 0 % recovery asset capitalises its VAT (claims none). */
@@ -136,6 +153,7 @@ export const vatEvidenceService = {
         : await blockedAccount(o.expenseAccountId !== undefined ? o.expenseAccountId : bill.expenseAccountId),
       art50BlockedOriginal: await art50BlockedOriginal(bill),
       capture: capture && capture.status !== "discarded" ? { qrPayload: capture.qrPayload, signatureStatus: capture.signatureStatus } : null,
+      supplierVat: await supplierVatOf(bill),
     });
     return { verdict, capture: capture && capture.status !== "discarded" ? capture : null };
   },
@@ -276,8 +294,12 @@ export const vatEvidenceService = {
     const vendor = body.vendorId != null ? (await vendorsRepository.findById(Number(body.vendorId)))[0] ?? null : null;
     const capture = body.captureId ? await capturedDocumentsRepository.findById(body.captureId) : null;
     const vat = Number(body.vatAmount ?? 0);
+    const documentType = body.documentType ?? "bill";
     return evaluateVatEvidence({
-      documentType: body.documentType ?? "bill",
+      documentType,
+      supplierVat: documentType === "bill" || documentType === "debit_note"
+        ? { discrepancy: supplierVatDiscrepancy({ subtotal: Number(body.subtotal ?? 0), vatAmount: vat, lines: [], creditNotes: [] }), figuresConfirmed: false }
+        : undefined,
       subtotal: Number(body.subtotal ?? 0),
       vatAmount: vat,
       total: Number(body.total ?? 0),

@@ -4,6 +4,7 @@
  * the approval adapter share one shape without a circular import.
  */
 import type { billsTable, billItemsTable, vendorsTable, capturedDocumentsTable } from "@workspace/db";
+import { figuresConfirmationCurrent } from "./purchaseEvidence/vatEvidence";
 
 type Bill = typeof billsTable.$inferSelect;
 type BillItem = typeof billItemsTable.$inferSelect;
@@ -64,6 +65,15 @@ export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillIte
       flags: (bill.vatEvidenceFlags as Array<{ code: string; severity: string; message: string }> | null) ?? [],
       checkedAt: bill.vatEvidenceCheckedAt ? bill.vatEvidenceCheckedAt.toISOString() : null,
     },
+    // 🔴 Phase 18 G1 (decision 6): the user's confirmation of VAT below 15 % — void once a figure changes (`current`).
+    vatFiguresConfirmation: bill.vatFiguresConfirmedAt ? {
+      subtotal: toNum(bill.vatFiguresConfirmedSubtotal),
+      vatAmount: toNum(bill.vatFiguresConfirmedVat),
+      note: bill.vatFiguresConfirmationNote ?? "",
+      confirmedBy: bill.vatFiguresConfirmedBy ?? null,
+      confirmedAt: bill.vatFiguresConfirmedAt.toISOString(),
+      current: figuresConfirmationCurrent(bill),
+    } : null,
     // 🔴 Phase 13A (X1/X3/X5): where a POSTED document's input VAT sits — null on a draft.
     inputVat: {
       state: (bill.inputVatState as "claimed" | "awaiting_evidence" | "not_deductible" | null) ?? null,
