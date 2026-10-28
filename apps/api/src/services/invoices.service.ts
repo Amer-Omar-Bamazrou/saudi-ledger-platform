@@ -22,6 +22,7 @@ import { ConflictError, NotFoundError, BadRequestError, BusinessRuleError } from
 import { pick, assertAmount, assertRate, assertDateString, assertTaxCategoryCode } from "../lib/writeGuards";
 import { assertNoteIsValid, isNoteType } from "./creditNotes";
 import { auditService } from "./audit.service";
+import { periodRecordsService } from "./periodRecords.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
 import { assertProductsOwned } from "./accounting/tenantReferences";
@@ -122,7 +123,8 @@ export const invoicesService = {
     if (!row) throw new NotFoundError("Not found");
     const items = await invoicesRepository.itemsByInvoice(id);
     // Phase 18: a single read also says whether ZATCA's rejection is recorded, and which invoice corrects it.
-    return { ...buildInvoiceOut(row.inv, row.cust, items, await prepaymentsOf(row.inv)), ...(await correctionStateOf(id)) };
+    // Phase 18 G2a (A5(a)): a document dated in a FILED VAT period is allowed; its read names the filing (a warning).
+    return { ...buildInvoiceOut(row.inv, row.cust, items, await prepaymentsOf(row.inv)), ...(await correctionStateOf(id)), filedVatPeriod: await periodRecordsService.filedVatPeriodOf(row.inv.date) };
   },
 
   /**

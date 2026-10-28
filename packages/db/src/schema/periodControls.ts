@@ -8,7 +8,7 @@
  * None carries a tenant→tenant foreign key (the G04 ratchet): an amendment
  * names the filing it amends by its ZATCA reference.
  */
-import { pgTable, serial, text, timestamp, integer, uuid, date, check, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, uuid, date, check, uniqueIndex, index, numeric } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
@@ -62,6 +62,36 @@ export const vatReturnFilingsTable = pgTable(
     check("vat_return_filings_kind_chk", sql`${t.kind} in ('original', 'amendment') and ((${t.kind} = 'original') = (${t.amendsZatcaReference} is null))`),
     check("vat_return_filings_reference_chk", sql`length(btrim(${t.zatcaReference})) >= 3`),
     check("vat_return_filings_after_period_chk", sql`${t.filedOn} >= (to_date(${t.periodTo} || '-01', 'YYYY-MM-DD') + interval '1 month')::date`),
+  ],
+);
+
+/**
+ * 🔴 Phase 18 G2a (owner decisions 9–12, 2026-10-27): an error found in a FILED
+ * VAT return, append-only like the filing it names (by ZATCA reference — no
+ * tenant→tenant key). The net tax difference is signed (+ the tax was
+ * understated, − overstated). Decision 10: `discovered_on` is the ACTUAL date
+ * of awareness; `apparent_on`, any earlier date it arguably became apparent, is
+ * kept separately. The route (decisions 9 and 11) is computed per return from
+ * all its rows, never stored per error.
+ */
+export const vatCorrectionsTable = pgTable(
+  "vat_corrections",
+  {
+    id: serial("id").primaryKey(),
+    ...tenant(),
+    correctsZatcaReference: text("corrects_zatca_reference").notNull(),
+    description: text("description").notNull(),
+    netTaxDifference: numeric("net_tax_difference", { precision: 15, scale: 2 }).notNull(),
+    discoveredOn: date("discovered_on", { mode: "string" }).notNull(),
+    apparentOn: date("apparent_on", { mode: "string" }),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("vat_corrections_company_reference_idx").on(t.companyId, t.correctsZatcaReference),
+    check("vat_corrections_difference_chk", sql`${t.netTaxDifference} <> 0`),
+    check("vat_corrections_description_chk", sql`length(btrim(${t.description})) > 0`),
+    check("vat_corrections_apparent_chk", sql`${t.apparentOn} is null or ${t.apparentOn} <= ${t.discoveredOn}`),
   ],
 );
 

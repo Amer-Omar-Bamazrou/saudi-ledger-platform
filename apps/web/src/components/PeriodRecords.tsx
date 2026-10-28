@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { VatCorrections } from "./VatCorrections";
 
 const field = "grid gap-1";
 
@@ -99,6 +100,9 @@ export function PeriodRecords({ canRecord }: { canRecord: boolean }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Phase 18 G2a (decisions 9–12; A5(a)): errors found in a filed return, their route, and the entries recorded after a filing. */}
+      <VatCorrections canRecord={canRecord} filings={vat.data ?? []} />
 
       <Card>
         <CardHeader><CardTitle className="text-base">{t("Zakat and income-tax returns filed", "إقرارات الزكاة وضريبة الدخل المقدّمة")}</CardTitle></CardHeader>

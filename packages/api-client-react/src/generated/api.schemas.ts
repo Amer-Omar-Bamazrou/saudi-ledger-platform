@@ -1101,6 +1101,115 @@ export interface VatReturnFilingInput {
   notes?: string | null;
 }
 
+/**
+ * Phase 18 G2a (A5(a)): the filed VAT return whose period holds a document's date. The document is allowed; an Art. 63 correction may be needed.
+ */
+export interface FiledVatPeriod {
+  zatcaReference: string;
+  periodFrom: string;
+  periodTo: string;
+  filedOn: string;
+}
+
+export interface VatEntryAfterFiling {
+  entryId: number;
+  entryNumber: string;
+  date: string;
+  /** @nullable */
+  sourceType: string | null;
+  /** @nullable */
+  sourceId: number | null;
+  recordedAt: string;
+  zatcaReference: string;
+  periodFrom: string;
+  periodTo: string;
+  filedOn: string;
+}
+
+export interface VatEntriesAfterFiling {
+  items: VatEntryAfterFiling[];
+}
+
+export interface VatCorrectionInput {
+  /** The ZATCA reference of the filed return (or amendment) the error is in. */
+  correctsZatcaReference: string;
+  /** @maxLength 2000 */
+  description: string;
+  /** Signed: + the tax was understated, − overstated. Never 0. */
+  netTaxDifference: number;
+  /** Decision 10: the ACTUAL date the error was discovered (YYYY-MM-DD). */
+  discoveredOn: string;
+  /**
+     * Decision 10: an earlier date on which it arguably became apparent — kept separately; on or before discoveredOn.
+     * @nullable
+     */
+  apparentOn?: string | null;
+}
+
+export interface VatCorrection {
+  id: number;
+  correctsZatcaReference: string;
+  description: string;
+  netTaxDifference: number;
+  discoveredOn: string;
+  /** @nullable */
+  apparentOn: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  createdAt: string;
+}
+
+export type VatCorrectionReturnResolution1117 = {
+  returnDueOn: string;
+  /** The return was due before 1 July 2026: its late-payment and late-filing fines may be waived if the full principal is paid, or an instalment request filed, by conditionsBy; fines already paid are excluded. */
+  mayQualify: boolean;
+  conditionsBy: string;
+};
+
+/**
+ * @nullable
+ */
+export type VatCorrectionReturnRoute = typeof VatCorrectionReturnRoute[keyof typeof VatCorrectionReturnRoute] | null;
+
+
+export const VatCorrectionReturnRoute = {
+  amend_and_notify: 'amend_and_notify',
+  discovery_period_return: 'discovery_period_return',
+  user_choice: 'user_choice',
+} as const;
+
+/**
+ * Phase 18 G2a: one filed return's corrections, aggregated (decision 9), and their route (decision 11). Decision 12: no penalty waiver is automated; Resolution 1117's recorded conditions are shown.
+ */
+export interface VatCorrectionReturn {
+  zatcaReference: string;
+  periodFrom: string;
+  periodTo: string;
+  filedOn: string;
+  dueOn: string;
+  errors: number;
+  netTaxDifference: number;
+  /** Errors are recorded against two or more filed returns — for review. */
+  repeatedErrors: boolean;
+  penaltyWaiverAutomated: false;
+  resolution1117: VatCorrectionReturnResolution1117;
+  /** @nullable */
+  route: VatCorrectionReturnRoute;
+  /** @nullable */
+  notifyBy: string | null;
+  /** @nullable */
+  discoveryPeriod: string | null;
+  /** @nullable */
+  discoveryReturnFiled: boolean | null;
+  /** @nullable */
+  routeNote: string | null;
+}
+
+export interface VatCorrectionsView {
+  items: VatCorrection[];
+  returns: VatCorrectionReturn[];
+}
+
 export type ZakatIncomeTaxFilingTax = typeof ZakatIncomeTaxFilingTax[keyof typeof ZakatIncomeTaxFilingTax];
 
 
@@ -2775,6 +2884,8 @@ export interface Bill {
      */
   vendorTaxNumber?: string | null;
   vatEvidence?: BillVatEvidence;
+  /** Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document's date — allowed, with a warning that an Art. 63 correction may be needed. */
+  filedVatPeriod?: FiledVatPeriod | null;
   /** Phase 18 G1 (decision 6): the user's confirmation of VAT shown below 15 %; null when none was given. */
   vatFiguresConfirmation?: BillVatFiguresConfirmation | null;
   inputVat?: BillInputVat;
@@ -3198,6 +3309,8 @@ export interface Invoice {
   originalInvoiceId: number | null;
   /** @nullable */
   noteReason: string | null;
+  /** Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document's date — allowed, with a warning that an Art. 63 correction may be needed. */
+  filedVatPeriod?: FiledVatPeriod | null;
   /**
      * Phase 18 G1 (decision 8): a debit note's extra charge, classified by substance — only a price change is a debit note. Null on every other document.
      * @nullable

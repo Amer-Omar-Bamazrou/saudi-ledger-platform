@@ -14,6 +14,7 @@ import type { BillStatus } from './billStatus';
 import type { BillSupplierDocumentKind } from './billSupplierDocumentKind';
 import type { BillVatEvidence } from './billVatEvidence';
 import type { BillVatFiguresConfirmation } from './billVatFiguresConfirmation';
+import type { FiledVatPeriod } from './filedVatPeriod';
 
 export interface Bill {
   id: number;
@@ -99,6 +100,8 @@ export interface Bill {
      */
   vendorTaxNumber?: string | null;
   vatEvidence?: BillVatEvidence;
+  /** Phase 18 G2a (A5(a)), on a single read: the filed VAT return whose period holds this document's date — allowed, with a warning that an Art. 63 correction may be needed. */
+  filedVatPeriod?: FiledVatPeriod | null;
   /** Phase 18 G1 (decision 6): the user's confirmation of VAT shown below 15 %; null when none was given. */
   vatFiguresConfirmation?: BillVatFiguresConfirmation | null;
   inputVat?: BillInputVat;

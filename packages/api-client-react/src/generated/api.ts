@@ -386,6 +386,10 @@ import type {
   UpdateTreasurySettingsInput,
   UploadResult,
   VatAdjustmentReport,
+  VatCorrection,
+  VatCorrectionInput,
+  VatCorrectionsView,
+  VatEntriesAfterFiling,
   VatEvidencePreviewInput,
   VatEvidenceVerdict,
   VatReturn,
@@ -8862,6 +8866,237 @@ export const useRecordVatReturnFiling = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRecordVatReturnFilingMutationOptions(options));
+    }
+
+export const getListVatEntriesAfterFilingUrl = () => {
+
+
+
+
+  return `/api/tax/vat-return-filings/entries-after-filing`
+}
+
+/**
+ * @summary 🔴 Phase 18 G2a (owner decision A5(a)): the VAT-bearing entries dated in a FILED period and recorded after that period's latest filing. Such an entry is allowed — never refused — and an Art. 63 correction may be needed.
+
+ */
+export const listVatEntriesAfterFiling = async ( options?: RequestInit): Promise<VatEntriesAfterFiling> => {
+
+  return customFetch<VatEntriesAfterFiling>(getListVatEntriesAfterFilingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVatEntriesAfterFilingQueryKey = () => {
+    return [
+    `/api/tax/vat-return-filings/entries-after-filing`
+    ] as const;
+    }
+
+
+export const getListVatEntriesAfterFilingQueryOptions = <TData = Awaited<ReturnType<typeof listVatEntriesAfterFiling>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVatEntriesAfterFiling>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVatEntriesAfterFilingQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVatEntriesAfterFiling>>> = ({ signal }) => listVatEntriesAfterFiling({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVatEntriesAfterFiling>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVatEntriesAfterFilingQueryResult = NonNullable<Awaited<ReturnType<typeof listVatEntriesAfterFiling>>>
+export type ListVatEntriesAfterFilingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 🔴 Phase 18 G2a (owner decision A5(a)): the VAT-bearing entries dated in a FILED period and recorded after that period's latest filing. Such an entry is allowed — never refused — and an Art. 63 correction may be needed.
+
+ */
+
+export function useListVatEntriesAfterFiling<TData = Awaited<ReturnType<typeof listVatEntriesAfterFiling>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVatEntriesAfterFiling>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVatEntriesAfterFilingQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListVatCorrectionsUrl = () => {
+
+
+
+
+  return `/api/tax/vat-corrections`
+}
+
+/**
+ * @summary 🔴 Phase 18 G2a (owner decisions 9–12): the errors found in filed VAT returns, and the route of each return's corrections — aggregated per return on the NET tax difference (SAR 15,000, exactly 15,000 included): amend and notify within 20 days; or the return for the period of discovery; or, where that return is already filed, the user's choice with ZATCA's direction. Nothing is automated; no penalty waiver is ever applied.
+
+ */
+export const listVatCorrections = async ( options?: RequestInit): Promise<VatCorrectionsView> => {
+
+  return customFetch<VatCorrectionsView>(getListVatCorrectionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVatCorrectionsQueryKey = () => {
+    return [
+    `/api/tax/vat-corrections`
+    ] as const;
+    }
+
+
+export const getListVatCorrectionsQueryOptions = <TData = Awaited<ReturnType<typeof listVatCorrections>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVatCorrections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVatCorrectionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVatCorrections>>> = ({ signal }) => listVatCorrections({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVatCorrections>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVatCorrectionsQueryResult = NonNullable<Awaited<ReturnType<typeof listVatCorrections>>>
+export type ListVatCorrectionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 🔴 Phase 18 G2a (owner decisions 9–12): the errors found in filed VAT returns, and the route of each return's corrections — aggregated per return on the NET tax difference (SAR 15,000, exactly 15,000 included): amend and notify within 20 days; or the return for the period of discovery; or, where that return is already filed, the user's choice with ZATCA's direction. Nothing is automated; no penalty waiver is ever applied.
+
+ */
+
+export function useListVatCorrections<TData = Awaited<ReturnType<typeof listVatCorrections>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVatCorrections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVatCorrectionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordVatCorrectionUrl = () => {
+
+
+
+
+  return `/api/tax/vat-corrections`
+}
+
+/**
+ * @summary 🔴 Phase 18 G2a: record an error found in a FILED VAT return. Append-only. Decision 10: the ACTUAL discovery date is required; an earlier date on which it arguably became apparent is kept separately. Records only: nothing is posted, amended or notified.
+
+ */
+export const recordVatCorrection = async (vatCorrectionInput: VatCorrectionInput, options?: RequestInit): Promise<VatCorrection> => {
+
+  return customFetch<VatCorrection>(getRecordVatCorrectionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(vatCorrectionInput)
+  }
+);}
+
+
+
+
+
+export const getRecordVatCorrectionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordVatCorrection>>, TError,{data: BodyType<VatCorrectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordVatCorrection>>, TError,{data: BodyType<VatCorrectionInput>}, TContext> => {
+
+const mutationKey = ['recordVatCorrection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordVatCorrection>>, {data: BodyType<VatCorrectionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordVatCorrection(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordVatCorrectionMutationResult = NonNullable<Awaited<ReturnType<typeof recordVatCorrection>>>
+    export type RecordVatCorrectionMutationBody = BodyType<VatCorrectionInput>
+    export type RecordVatCorrectionMutationError = ErrorType<void>
+
+    /**
+ * @summary 🔴 Phase 18 G2a: record an error found in a FILED VAT return. Append-only. Decision 10: the ACTUAL discovery date is required; an earlier date on which it arguably became apparent is kept separately. Records only: nothing is posted, amended or notified.
+
+ */
+export const useRecordVatCorrection = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordVatCorrection>>, TError,{data: BodyType<VatCorrectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordVatCorrection>>,
+        TError,
+        {data: BodyType<VatCorrectionInput>},
+        TContext
+      > => {
+      return useMutation(getRecordVatCorrectionMutationOptions(options));
     }
 
 export const getListZakatIncomeTaxFilingsUrl = () => {

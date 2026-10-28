@@ -97,6 +97,7 @@ async function assertVendorExists(vendorId: unknown): Promise<void> {
   }
 }
 import { auditService } from "./audit.service";
+import { periodRecordsService } from "./periodRecords.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
 import { assertAssetOwnedByCompany, assertProductsOwned } from "./accounting/tenantReferences";
@@ -139,7 +140,8 @@ export const billsService = {
     const items = await billsRepository.itemsByBill(id);
     const prepayments = await supplierAdvanceInvoicesService.prepaymentsOf(id);
     const capture = await capturedDocumentsRepository.activeForBill(id);
-    return buildBillOut(row.bill, row.vendor, items, row.outstanding, row.prepaid, prepayments, capture);
+    // Phase 18 G2a (A5(a)): a document dated in a FILED VAT period is allowed; its read names the filing (a warning).
+    return { ...buildBillOut(row.bill, row.vendor, items, row.outstanding, row.prepaid, prepayments, capture), filedVatPeriod: await periodRecordsService.filedVatPeriodOf(row.bill.date) };
   },
 
   async create(body: Record<string, any>, userId: number | null) {
