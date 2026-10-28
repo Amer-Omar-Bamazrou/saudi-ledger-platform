@@ -7,7 +7,7 @@
  */
 
 /**
- * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+ * Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.
  * @nullable
  */
 export type BillPaymentInputWhtFiledMonthTreatment = typeof BillPaymentInputWhtFiledMonthTreatment[keyof typeof BillPaymentInputWhtFiledMonthTreatment] | null;

@@ -243,6 +243,42 @@ export const whtService = {
    * leaves the totals; a correction of another month's row carried here is an adjustment line (negative); the filing
    * record and the live figure sit side by side. Totals = `wht_return_tax/base()` — pinned by a test.
    */
+  /**
+   * 🔴 Phase 18 G4a — OWNER DECISION 16: the CORRECTION PACK of a filed WHT month.
+   * A filed month is corrected in its own statement, so the pack names what was
+   * last filed, what the ledger holds for the month now, the difference, and
+   * every change recorded since that filing: a payment entered into the month as
+   * an amendment, a correction's reversal and its re-entry. Read-only; it claims
+   * no ZATCA self-service amendment (#237's wording stands).
+   */
+  async correctionPack(period: string) {
+    const ret = await this.monthlyReturn(period);
+    const latest = ret.filing.latest;
+    if (!latest) throw new BusinessRuleError(409, { code: "wht_month_not_filed", error: `${period}'s withholding return is not recorded as filed: there is nothing to correct yet.` });
+    // postgres' text timestamp ("2026-10-28 17:40:00.12+00") read as an instant
+    const at = (s: string) => Date.parse(s.replace(" ", "T").replace(/([+-]\d\d)$/, "$1:00"));
+    const since = Date.parse(latest.createdAt);
+    const rows = await taxRepository.withholdings({ returnPeriod: period });
+    const sign = (n: number, k: number) => Math.round(n * k * 100) / 100;
+    const changes = [
+      ...rows.filter((w) => w.status === "withheld" && !(w.corr_id != null && w.corr_reversal_return_period === period) && at(w.created_at) > since)
+        .map((w) => ({ kind: w.correction_id != null ? ("correction_reentry" as const) : ("late_payment" as const), withholdingId: w.id, paymentDate: w.payment_date,
+          vendorName: w.vendor_name, paymentType: w.payment_type, baseAmount: Number(w.base_amount), whtAmount: Number(w.wht_amount), recordedAt: w.created_at })),
+      ...rows.filter((w) => w.status === "withheld" && w.corr_id != null && w.corr_reversal_return_period === period && w.corr_filed_month_treatment === "amendment")
+        .map((w) => ({ kind: "correction_reversal" as const, withholdingId: w.id, paymentDate: w.payment_date,
+          vendorName: w.vendor_name, paymentType: w.payment_type, baseAmount: sign(Number(w.base_amount), -1), whtAmount: sign(Number(w.wht_amount), -1), recordedAt: w.corr_corrected_on })),
+    ];
+    const diff = (a: number, b: number) => Math.round((a - b) * 100) / 100;
+    return {
+      period, status: ret.filing.status, dueDate: ret.dueDate,
+      filed: { kind: latest.kind, zatcaReference: latest.zatcaReference, filedOn: latest.filedOn, taxWithheld: latest.taxWithheld, paymentTotal: latest.paymentTotal },
+      current: { taxWithheld: ret.totals.taxWithheld, paymentTotal: ret.totals.paymentTotal },
+      difference: { taxWithheld: diff(ret.totals.taxWithheld, latest.taxWithheld), paymentTotal: diff(ret.totals.paymentTotal, latest.paymentTotal) },
+      changes,
+      note: `Prepare ${period}'s corrected withholding statement (Form 06) from these figures and submit it as ZATCA directs. Any delay fine is counted from ${period}'s original due date (${ret.dueDate}); a later month never carries the change.`,
+    };
+  },
+
   async monthlyReturn(period: string) {
     if (!PERIOD.test(period)) throw new BadRequestError("period must be YYYY-MM.");
     const today = businessToday();

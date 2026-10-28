@@ -202,7 +202,7 @@ export const CreateSupplierPaymentInputWhtNotSubjectReason = {
 } as const;
 
 /**
- * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+ * Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.
  * @nullable
  */
 export type CreateSupplierPaymentInputWhtFiledMonthTreatment = typeof CreateSupplierPaymentInputWhtFiledMonthTreatment[keyof typeof CreateSupplierPaymentInputWhtFiledMonthTreatment] | null;
@@ -240,7 +240,7 @@ export interface CreateSupplierPaymentInput {
      */
   whtNotSubjectNote?: string | null;
   /**
-     * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+     * Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.
      * @nullable
      */
   whtFiledMonthTreatment?: CreateSupplierPaymentInputWhtFiledMonthTreatment;
@@ -1053,6 +1053,75 @@ export interface StatementAuthorisationInput {
   authorisedBy: string;
   /** @nullable */
   notes?: string | null;
+}
+
+export type WhtCorrectionPackStatus = typeof WhtCorrectionPackStatus[keyof typeof WhtCorrectionPackStatus];
+
+
+export const WhtCorrectionPackStatus = {
+  unfiled: 'unfiled',
+  filed: 'filed',
+  amended: 'amended',
+  amendment_due: 'amendment_due',
+} as const;
+
+export type WhtCorrectionPackFiledKind = typeof WhtCorrectionPackFiledKind[keyof typeof WhtCorrectionPackFiledKind];
+
+
+export const WhtCorrectionPackFiledKind = {
+  original: 'original',
+  amendment: 'amendment',
+} as const;
+
+export type WhtCorrectionPackFiled = {
+  kind: WhtCorrectionPackFiledKind;
+  zatcaReference: string;
+  filedOn: string;
+  taxWithheld: number;
+  paymentTotal: number;
+};
+
+export type WhtCorrectionPackCurrent = {
+  taxWithheld: number;
+  paymentTotal: number;
+};
+
+export type WhtCorrectionPackDifference = {
+  taxWithheld: number;
+  paymentTotal: number;
+};
+
+export type WhtCorrectionPackChangesItemKind = typeof WhtCorrectionPackChangesItemKind[keyof typeof WhtCorrectionPackChangesItemKind];
+
+
+export const WhtCorrectionPackChangesItemKind = {
+  late_payment: 'late_payment',
+  correction_reentry: 'correction_reentry',
+  correction_reversal: 'correction_reversal',
+} as const;
+
+export type WhtCorrectionPackChangesItem = {
+  kind: WhtCorrectionPackChangesItemKind;
+  withholdingId: number;
+  paymentDate: string;
+  vendorName: string;
+  /** @nullable */
+  paymentType: string | null;
+  baseAmount: number;
+  whtAmount: number;
+  /** @nullable */
+  recordedAt: string | null;
+};
+
+export interface WhtCorrectionPack {
+  period: string;
+  status: WhtCorrectionPackStatus;
+  dueDate: string;
+  filed: WhtCorrectionPackFiled;
+  current: WhtCorrectionPackCurrent;
+  difference: WhtCorrectionPackDifference;
+  changes: WhtCorrectionPackChangesItem[];
+  note: string;
 }
 
 export type VatReturnFilingKind = typeof VatReturnFilingKind[keyof typeof VatReturnFilingKind];
@@ -6221,7 +6290,7 @@ export const BillPaymentInputWhtNotSubjectReason = {
 } as const;
 
 /**
- * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+ * Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.
  * @nullable
  */
 export type BillPaymentInputWhtFiledMonthTreatment = typeof BillPaymentInputWhtFiledMonthTreatment[keyof typeof BillPaymentInputWhtFiledMonthTreatment] | null;
@@ -6246,7 +6315,7 @@ export type BillPaymentInput = PaymentInput & ({
      */
   whtNotSubjectNote?: string | null;
   /**
-     * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+     * Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.
      * @nullable
      */
   whtFiledMonthTreatment?: BillPaymentInputWhtFiledMonthTreatment;
@@ -12427,7 +12496,7 @@ export const PayPaymentPlanInputWhtNotSubjectReason = {
 } as const;
 
 /**
- * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+ * Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.
  * @nullable
  */
 export type PayPaymentPlanInputWhtFiledMonthTreatment = typeof PayPaymentPlanInputWhtFiledMonthTreatment[keyof typeof PayPaymentPlanInputWhtFiledMonthTreatment] | null;
@@ -12453,7 +12522,7 @@ export interface PayPaymentPlanInput {
      */
   whtNotSubjectNote?: string | null;
   /**
-     * Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.
+     * Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.
      * @nullable
      */
   whtFiledMonthTreatment?: PayPaymentPlanInputWhtFiledMonthTreatment;

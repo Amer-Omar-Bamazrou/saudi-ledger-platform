@@ -14645,7 +14645,7 @@ export const PayBillBody = zod.object({
   "whtPaymentType": zod.string().nullish(),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
   "whtNotSubjectNote": zod.string().max(payBillBodyTwoWhtNotSubjectNoteMax).nullish(),
-  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1): only when the payment\'s month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant\'s recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.')
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1), as Phase 18 G4a \/ owner decision 16 (2026-10-27) changed it: only when the payment\'s month is recorded FILED and it withholds tax — the payment is corrected in that month\'s own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.')
 })).describe('A bill payment. Phase 16 (pack §2.3): a payment to a NON-RESIDENT supplier states its nature (`whtPaymentType`, or the supplier\'s declared default) or the reason it is not subject — never assumed. `amount` is what the supplier is credited with; the cash that leaves is amount − WHT.\n')
 
 export const PayBillResponse = zod.object({
@@ -15340,7 +15340,7 @@ export const CreateSupplierPaymentBody = zod.object({
   "whtPaymentType": zod.string().nullish().describe('Phase 16: a payment to a NON-RESIDENT states its nature (or the supplier\'s declared default applies) — never assumed.'),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
   "whtNotSubjectNote": zod.string().max(createSupplierPaymentBodyWhtNotSubjectNoteMax).nullish(),
-  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1): only when the payment\'s month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant\'s recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.')
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1), as Phase 18 G4a \/ owner decision 16 (2026-10-27) changed it: only when the payment\'s month is recorded FILED and it withholds tax — the payment is corrected in that month\'s own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.')
 })
 
 export const CreateSupplierPaymentResponse = zod.object({
@@ -16384,6 +16384,50 @@ export const GetWhtReturnResponse = zod.object({
 }),zod.null()])
 })),
   "unusedFormRows": zod.array(zod.string()).describe('Form 06 rows 07\/08 have no separate band after Resolution 25 (open question W-4).')
+})
+
+
+/**
+ * @summary 🔴 Phase 18 G4a (owner decision 16): a FILED month is corrected in its own statement. The pack names what was last filed, what the ledger holds for the month now, the difference, and every change recorded since that filing (a payment entered as an amendment, a correction's reversal and re-entry). Read-only.
+
+ */
+export const getWhtCorrectionPackPathPeriodRegExp = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])$');
+
+
+export const GetWhtCorrectionPackParams = zod.object({
+  "period": zod.coerce.string().regex(getWhtCorrectionPackPathPeriodRegExp)
+})
+
+export const GetWhtCorrectionPackResponse = zod.object({
+  "period": zod.string(),
+  "status": zod.enum(['unfiled', 'filed', 'amended', 'amendment_due']),
+  "dueDate": zod.string(),
+  "filed": zod.object({
+  "kind": zod.enum(['original', 'amendment']),
+  "zatcaReference": zod.string(),
+  "filedOn": zod.string(),
+  "taxWithheld": zod.number(),
+  "paymentTotal": zod.number()
+}),
+  "current": zod.object({
+  "taxWithheld": zod.number(),
+  "paymentTotal": zod.number()
+}),
+  "difference": zod.object({
+  "taxWithheld": zod.number(),
+  "paymentTotal": zod.number()
+}),
+  "changes": zod.array(zod.object({
+  "kind": zod.enum(['late_payment', 'correction_reentry', 'correction_reversal']),
+  "withholdingId": zod.number(),
+  "paymentDate": zod.string(),
+  "vendorName": zod.string(),
+  "paymentType": zod.string().nullable(),
+  "baseAmount": zod.number(),
+  "whtAmount": zod.number(),
+  "recordedAt": zod.string().nullable()
+})),
+  "note": zod.string()
 })
 
 
@@ -22436,7 +22480,7 @@ export const PayPaymentPlanBody = zod.object({
   "whtPaymentType": zod.string().nullish(),
   "whtNotSubjectReason": zod.union([zod.literal('goods'),zod.literal('not_kingdom_source'),zod.literal(null)]).nullish(),
   "whtNotSubjectNote": zod.string().max(payPaymentPlanBodyWhtNotSubjectNoteMax).nullish(),
-  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1): only when the payment\'s month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant\'s recommendation) or by amending the filed one. Absent there → 409 wht_month_filed.')
+  "whtFiledMonthTreatment": zod.union([zod.literal('subsequent_period'),zod.literal('amendment'),zod.literal(null)]).nullish().describe('Q1 (pack §14.1), as Phase 18 G4a \/ owner decision 16 (2026-10-27) changed it: only when the payment\'s month is recorded FILED and it withholds tax — the payment is corrected in that month\'s own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed.')
 })
 
 export const PayPaymentPlanResponse = zod.object({

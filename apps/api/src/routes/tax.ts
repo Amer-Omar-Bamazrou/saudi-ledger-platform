@@ -18,6 +18,8 @@ router.get("/wht/rates", taxController.rates);
 router.get("/wht/preview", taxController.preview);
 router.get("/wht/overview", taxController.overview);
 router.get("/wht/returns/:period", taxController.monthlyReturn);
+// 🔴 Phase 18 G4a (owner decision 16): a filed month is corrected in its own statement — what changed since the filing
+router.get("/wht/returns/:period/correction-pack", taxController.correctionPack);
 router.get("/wht/annual", taxController.annual);
 router.get("/wht/beneficiaries/:vendorId", taxController.beneficiary);
 router.get("/wht/exceptions", taxController.exceptions);

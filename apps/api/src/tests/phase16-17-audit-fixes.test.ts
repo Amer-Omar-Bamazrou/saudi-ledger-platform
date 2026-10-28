@@ -316,9 +316,14 @@ describeMaybe("Phase 16 + 17 — the final audit's fixes (real rows)", () => {
     await inA(() => paymentPlansService.approve(p.id, userId));
     const e = await refusal(inA(() => paymentPlansService.pay(p.id, { paidAt: "2026-07-25" }, userId)));
     expect(e.code, "without the treatment: the filed month is never changed silently").toBe("wht_month_filed");
-    const paid = await inA(() => paymentPlansService.pay(p.id, { paidAt: "2026-07-25", whtFiledMonthTreatment: "subsequent_period" }, userId)) as { payment: { withheld: number; cashPaid: number } };
+    // 🔴 Phase 18 G4a — owner decision 16 (2026-10-27): the stated treatment is still taken, but a filed month is corrected
+    // in its own statement. Was: paid with subsequent_period (stored subsequent_period). Now: subsequent_period is 409
+    // wht_correct_original_month; stated as an amendment the plan is paid and the withholding reports in July itself.
+    const later = await refusal(inA(() => paymentPlansService.pay(p.id, { paidAt: "2026-07-25", whtFiledMonthTreatment: "subsequent_period" }, userId)));
+    expect(later.code).toBe("wht_correct_original_month");
+    const paid = await inA(() => paymentPlansService.pay(p.id, { paidAt: "2026-07-25", whtFiledMonthTreatment: "amendment" }, userId)) as { payment: { withheld: number; cashPaid: number } };
     expect([paid.payment.withheld, paid.payment.cashPaid]).toEqual([50, 950]);
-    expect((await q(`SELECT filed_month_treatment t, return_period r FROM wht_withholdings WHERE bill_id = $1`, [b]))[0].t).toBe("subsequent_period");
+    expect((await q(`SELECT filed_month_treatment t, return_period r FROM wht_withholdings WHERE bill_id = $1`, [b]))[0]).toEqual({ t: "amendment", r: "2026-07" });
   }, 120_000);
 
   // ── SEC-1 ────────────────────────────────────────────────────────────────

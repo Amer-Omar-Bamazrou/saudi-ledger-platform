@@ -193,9 +193,12 @@ test.describe.serial("Phase 16 + 17 — the accountant's answers, by clicking", 
     await page.getByTestId(`treasury-plan-pay-${plan.id}`).click();
     const form = page.getByTestId(`treasury-plan-pay-form-${plan.id}`);
     await form.getByTestId("treasury-plan-pay-date").fill(`${PREV}-15`);
-    // the screen asks how the filed month's withholding is reported — chosen, never preselected
+    // the screen asks how the filed month's withholding is reported — chosen, never preselected.
+    // Phase 18 G4a (owner decision 16, 2026-10-27): the one route is the amendment of the filed month; the later-month
+    // option is gone. Was: wht-treatment-subsequent.check(). Now: wht-treatment-amendment, and no subsequent option exists.
     await expect(form.getByTestId("wht-filed-month")).toBeVisible();
-    await form.getByTestId("wht-treatment-subsequent").check();
+    await expect(form.getByTestId("wht-treatment-subsequent")).toHaveCount(0);
+    await form.getByTestId("wht-treatment-amendment").check();
     await form.getByTestId("treasury-plan-pay-bank").click();
     await page.getByRole("option").first().click();
     await form.getByTestId("treasury-plan-pay-submit").click();

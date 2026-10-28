@@ -48,7 +48,7 @@ import { journalEntriesService } from "../journalEntries.service";
 import { payBill } from "../bills.payment";
 import { supplierPaymentsService } from "../accounting/supplierPayments.service";
 import { checkPeriodOpen } from "../accounting/periodLock";
-import { latestFilingOf, WHT_FILED_MONTH_TREATMENTS, type WhtFiledMonthTreatment } from "../accounting/wht";
+import { latestFilingOf, refuseLaterMonth, WHT_FILED_MONTH_TREATMENTS, type WhtFiledMonthTreatment } from "../accounting/wht";
 import { auditService } from "../audit.service";
 import { whtService } from "./wht.service";
 import { fromHalalas, toHalalas } from "../../lib/money";
@@ -177,23 +177,16 @@ export const whtCorrectionService = {
     }
     const filedOriginal = w.status === "withheld" ? await latestFilingOf(w.returnPeriod) : null;
     let treatment: WhtFiledMonthTreatment | null = null;
-    let reversalReturnPeriod = w.returnPeriod;
+    const reversalReturnPeriod = w.returnPeriod;
     if (filedOriginal) {
       if (!treatmentIn) {
         refuse(409, "wht_month_filed",
-          `${w.returnPeriod}'s withholding return (Form 06) is recorded as FILED on ${filedOriginal.filedOn} (${filedOriginal.zatcaReference}). The filed return is not rewritten: say how the correction is reported — in this month's own, unfiled return (subsequent period, the accountant's recommendation), or by preparing a correction for ${w.returnPeriod} (amendment), with any delay fine counted from ${w.returnPeriod}'s original due date.`,
+          `${w.returnPeriod}'s withholding return (Form 06) is recorded as FILED on ${filedOriginal.filedOn} (${filedOriginal.zatcaReference}). The filed return is not rewritten silently: the correction is made in ${w.returnPeriod}'s own statement — state it as an amendment of ${w.returnPeriod} — with any delay fine counted from ${w.returnPeriod}'s original due date.`,
           "filedMonthTreatment");
       }
       treatment = treatmentIn as WhtFiledMonthTreatment;
-      if (treatment === "subsequent_period") {
-        if (correctionPeriod <= w.returnPeriod) {
-          refuse(422, "wht_subsequent_period_unavailable", `A subsequent-period correction is reported in the correction's month, which must be after ${w.returnPeriod}; ${date} is not. Date it in a later month, or prepare a correction for ${w.returnPeriod}.`, "date");
-        }
-        if (await latestFilingOf(correctionPeriod)) {
-          refuse(409, "wht_subsequent_period_unavailable", `${correctionPeriod}'s return is recorded as filed too. Date the correction in a month whose return is not yet filed, or prepare a correction for ${w.returnPeriod}.`, "date");
-        }
-        reversalReturnPeriod = correctionPeriod;
-      }
+      // 🔴 Phase 18 G4a (owner decisions 16, 17): the reversal is reported in the ORIGINAL month, never a later one.
+      if (treatment === "subsequent_period") refuseLaterMonth(w.returnPeriod);
     }
     // 🔴 period locks: the mirror's month (and the re-entry's, by its own pay path) — refused before anything is written
     await checkPeriodOpen(date);

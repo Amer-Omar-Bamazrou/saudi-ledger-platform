@@ -6967,6 +6967,24 @@ paths:
               schema: { $ref: "#/components/schemas/WhtMonthlyReturn" }
         "400": { description: Not a YYYY-MM month }
 
+  /tax/wht/returns/{period}/correction-pack:
+    parameters:
+      - { in: path, name: period, required: true, schema: { type: string, pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$" } }
+    get:
+      operationId: getWhtCorrectionPack
+      tags: [tax]
+      summary: >
+        🔴 Phase 18 G4a (owner decision 16): a FILED month is corrected in its own statement. The pack names what
+        was last filed, what the ledger holds for the month now, the difference, and every change recorded since
+        that filing (a payment entered as an amendment, a correction's reversal and re-entry). Read-only.
+      responses:
+        "200":
+          description: The correction pack
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhtCorrectionPack" }
+        "409": { description: "`wht_month_not_filed` — the month's return is not recorded as filed" }
+
   /tax/wht/annual:
     get:
       operationId: getWhtAnnual
@@ -7925,7 +7943,7 @@ components:
         whtFiledMonthTreatment:
           type: ["string", "null"]
           enum: [subsequent_period, amendment, null]
-          description: "Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed."
+          description: "Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed."
 
     AllocateSupplierPaymentInput:
       type: object
@@ -8793,6 +8811,46 @@ components:
         authorisedOn: { type: string, description: "After the year's end, and not in the future." }
         authorisedBy: { type: string }
         notes: { type: ["string", "null"] }
+
+    WhtCorrectionPack:
+      type: object
+      required: [period, status, dueDate, filed, current, difference, changes, note]
+      properties:
+        period: { type: string }
+        status: { type: string, enum: [unfiled, filed, amended, amendment_due] }
+        dueDate: { type: string }
+        filed:
+          type: object
+          required: [kind, zatcaReference, filedOn, taxWithheld, paymentTotal]
+          properties:
+            kind: { type: string, enum: [original, amendment] }
+            zatcaReference: { type: string }
+            filedOn: { type: string }
+            taxWithheld: { type: number }
+            paymentTotal: { type: number }
+        current:
+          type: object
+          required: [taxWithheld, paymentTotal]
+          properties: { taxWithheld: { type: number }, paymentTotal: { type: number } }
+        difference:
+          type: object
+          required: [taxWithheld, paymentTotal]
+          properties: { taxWithheld: { type: number }, paymentTotal: { type: number } }
+        changes:
+          type: array
+          items:
+            type: object
+            required: [kind, withholdingId, paymentDate, vendorName, paymentType, baseAmount, whtAmount, recordedAt]
+            properties:
+              kind: { type: string, enum: [late_payment, correction_reentry, correction_reversal] }
+              withholdingId: { type: integer }
+              paymentDate: { type: string }
+              vendorName: { type: string }
+              paymentType: { type: ["string", "null"] }
+              baseAmount: { type: number }
+              whtAmount: { type: number }
+              recordedAt: { type: ["string", "null"] }
+        note: { type: string }
 
     VatReturnFiling:
       type: object
@@ -12979,7 +13037,7 @@ components:
             whtFiledMonthTreatment:
               type: ["string", "null"]
               enum: [subsequent_period, amendment, null]
-              description: "Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed."
+              description: "Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed."
 
     InvoiceLineInput:
       type: object
@@ -16916,7 +16974,7 @@ components:
         whtFiledMonthTreatment:
           type: ["string", "null"]
           enum: [subsequent_period, amendment, null]
-          description: "Q1 (pack §14.1): only when the payment's month is recorded FILED and it withholds tax — reported in a later, unfiled return (subsequent_period, the accountant's recommendation) or by amending the filed one. Absent there → 409 wht_month_filed."
+          description: "Q1 (pack §14.1), as Phase 18 G4a / owner decision 16 (2026-10-27) changed it: only when the payment's month is recorded FILED and it withholds tax — the payment is corrected in that month's own statement, so the one accepted value is amendment. subsequent_period is refused (409 wht_correct_original_month): a later month never carries it. Absent → 409 wht_month_filed."
 
     PaymentPlanPaid:
       type: object

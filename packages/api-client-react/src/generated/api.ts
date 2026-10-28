@@ -404,6 +404,7 @@ import type {
   VendorMatchResult,
   WhtAnnualReturn,
   WhtBeneficiaryStatement,
+  WhtCorrectionPack,
   WhtExceptions,
   WhtLineage,
   WhtMonthlyReturn,
@@ -23968,6 +23969,85 @@ export function useGetWhtReturn<TData = Awaited<ReturnType<typeof getWhtReturn>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetWhtReturnQueryOptions(period,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetWhtCorrectionPackUrl = (period: string,) => {
+
+
+
+
+  return `/api/tax/wht/returns/${period}/correction-pack`
+}
+
+/**
+ * @summary 🔴 Phase 18 G4a (owner decision 16): a FILED month is corrected in its own statement. The pack names what was last filed, what the ledger holds for the month now, the difference, and every change recorded since that filing (a payment entered as an amendment, a correction's reversal and re-entry). Read-only.
+
+ */
+export const getWhtCorrectionPack = async (period: string, options?: RequestInit): Promise<WhtCorrectionPack> => {
+
+  return customFetch<WhtCorrectionPack>(getGetWhtCorrectionPackUrl(period),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWhtCorrectionPackQueryKey = (period: string,) => {
+    return [
+    `/api/tax/wht/returns/${period}/correction-pack`
+    ] as const;
+    }
+
+
+export const getGetWhtCorrectionPackQueryOptions = <TData = Awaited<ReturnType<typeof getWhtCorrectionPack>>, TError = ErrorType<void>>(period: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWhtCorrectionPack>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWhtCorrectionPackQueryKey(period);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWhtCorrectionPack>>> = ({ signal }) => getWhtCorrectionPack(period, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: period !== null && period !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWhtCorrectionPack>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWhtCorrectionPackQueryResult = NonNullable<Awaited<ReturnType<typeof getWhtCorrectionPack>>>
+export type GetWhtCorrectionPackQueryError = ErrorType<void>
+
+
+/**
+ * @summary 🔴 Phase 18 G4a (owner decision 16): a FILED month is corrected in its own statement. The pack names what was last filed, what the ledger holds for the month now, the difference, and every change recorded since that filing (a payment entered as an amendment, a correction's reversal and re-entry). Read-only.
+
+ */
+
+export function useGetWhtCorrectionPack<TData = Awaited<ReturnType<typeof getWhtCorrectionPack>>, TError = ErrorType<void>>(
+ period: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWhtCorrectionPack>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWhtCorrectionPackQueryOptions(period,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
