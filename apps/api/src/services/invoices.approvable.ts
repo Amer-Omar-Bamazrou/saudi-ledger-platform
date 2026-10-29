@@ -602,7 +602,11 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
       }
       const lines = [
         // Reversed: revenue and output VAT are undone in full — that is the tax document's effect.
-        { systemCode: "SALES" as const, accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: subtotal, creditAmount: 0 },
+        // 🔴 Phase 18 H-3 — DR-37 (register §11.49): a note against an invoice that SOLD A FIXED ASSET mirrors the
+        // account the original credited — the disposal gain/loss (IAS 16.68/16.72), never Sales.
+        original.disposesAssetId != null
+          ? { systemCode: "ASSET_DISPOSAL_GAIN_LOSS" as const, accountName: "Gain (loss) on disposal of fixed assets", description: `${label} ${inv.invoiceNumber} — the asset sale ${original.invoiceNumber}`, debitAmount: subtotal, creditAmount: 0 }
+          : { systemCode: "SALES" as const, accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: subtotal, creditAmount: 0 },
         { systemCode: "VAT_OUTPUT" as const, accountName: "VAT Payable", description: `VAT on ${label.toLowerCase()} ${inv.invoiceNumber}`, debitAmount: vatAmount, creditAmount: 0 },
       ] as Parameters<typeof postJournalEntry>[0]["lines"];
       if (applied > 0) {
@@ -627,9 +631,16 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
       const disposalPlan = inv.disposesAssetId != null ? await assetDisposalService.saleInvoicePlan(inv.disposesAssetId, vatAmount) : null;
       if (disposalPlan) await assetDisposalService.runDepreciationToDisposal(inv.disposesAssetId!, inv.date, auditContext.get()?.userId ?? null);
       const fresh = disposalPlan ? await assetDisposalService.saleInvoicePlan(inv.disposesAssetId!, vatAmount) : null;
+      // 🔴 Phase 18 H-3 — DR-37 (register §11.49): a DEBIT note against an asset sale re-prices that sale, so it credits
+      // the disposal gain/loss the original credited — never Sales.
+      const noteOnAssetSale = !fresh && inv.documentType === "debit_note" && inv.originalInvoiceId != null
+        ? ((await invoicesRepository.findById(inv.originalInvoiceId))[0] ?? null)
+        : null;
       const revenueLine: GLLine = fresh
         ? { accountId: fresh.disposalAccountId, accountName: fresh.disposalAccountName, description: `Proceeds on disposal of ${fresh.asset.assetNumber} (${inv.invoiceNumber})`, debitAmount: 0, creditAmount: subtotal }
-        : { systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal };
+        : noteOnAssetSale?.disposesAssetId != null
+          ? { systemCode: "ASSET_DISPOSAL_GAIN_LOSS", accountName: "Gain (loss) on disposal of fixed assets", description: `${label} ${inv.invoiceNumber} — the asset sale ${noteOnAssetSale.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal }
+          : { systemCode: "SALES", accountName: "Sales Revenue", description: `${label} ${inv.invoiceNumber}`, debitAmount: 0, creditAmount: subtotal };
       const saleLines: GLLine[] = [
         { systemCode: "AR", accountName: "Accounts Receivable", description: `${label} ${inv.invoiceNumber}`, debitAmount: total, creditAmount: 0, party },
         revenueLine,
