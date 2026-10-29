@@ -71,4 +71,18 @@ describeMaybe("Phase 18 H-5 — G68: payroll is accrued on the last day of its s
     expect(await entries(), "nothing written").toBe(before);
     expect((await pool.query(`SELECT status FROM payroll_runs WHERE id = $1`, [id])).rows[0].status, "the run is not approved").not.toBe("approved");
   });
+
+  // §11.52 — found by the full suite: the GOSI calendar handed today's GOSI balance to runs not yet accrued.
+  it("🔴 the obligations calendar owes a run's GOSI once it is ACCRUED — a run for a later month never takes today's balance from the current one", async () => {
+    const sep = await run("2026-09");
+    expect((await h.api("admin", "POST", `/payroll/${sep}/approve`, {})).status).toBe(200);
+    const dec = await run("2026-12"); // approved in advance: accrued on 2026-12-31
+    expect((await h.api("admin", "POST", `/payroll/${dec}/approve`, {})).status).toBe(200);
+    const gosiOf = async (id: number) => Number((await pool.query(`SELECT (total_gosi_employee + total_gosi_employer)::text v FROM payroll_runs WHERE id = $1`, [id])).rows[0].v);
+    const res = await h.api("admin", "GET", "/tax/obligations");
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    const gosi = (res.body.obligations as Array<{ kind: string; reference: string; amount: number }>).filter((o) => o.kind === "gosi");
+    expect(gosi.find((o) => o.reference === "2026-09")?.amount, JSON.stringify(gosi)).toBe(await gosiOf(sep));
+    expect(gosi.map((o) => o.reference), "not owed yet: its month has not ended").not.toContain("2026-12");
+  });
 });

@@ -20,7 +20,21 @@
  * behind one set it back to draft or submitted, where a later reject deleted it.
  */
 import { postJournalEntry } from "./accounting/glPosting";
-import { BusinessRuleError } from "../lib/errors";
+import { BusinessRuleError, PeriodLockedError } from "../lib/errors";
+import { checkPeriodOpen } from "./accounting/periodLock";
+import { lastDayOf } from "./assets/depreciationSchedule";
+
+/**
+ * 🔴 G68 (register §11.51, §11.52): the date a payroll run is ACCRUED — the last day of its service period
+ * (`run.period`, YYYY-MM). The ONE definition: the approval posts on it, and the obligations calendar owes a run's
+ * GOSI from it, so the two cannot drift.
+ */
+export function payrollAccrualDate(period: string): string {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+    throw new BusinessRuleError(422, { code: "payroll_period_invalid", error: `Payroll period ${JSON.stringify(period)} is not a YYYY-MM month.`, field: "period" });
+  }
+  return lastDayOf(period);
+}
 import { payrollRepository } from "../repositories/payroll.repository";
 import { runToOut, toNum, type PayrollRunOut } from "./payroll.presenter";
 import { checkedState, TransitionNotApplied, type Approvable, type ApprovalState } from "./approval";
@@ -61,6 +75,26 @@ async function postPayrollGL(run: PayrollRun, from: "draft" | "submitted"): Prom
       period: run.period,
     });
   }
+  /**
+   * 🔴 Phase 18 H-5 — G68 (the owner's final-run memo §H; register §11.51; IAS 19.11): payroll is accrued on the
+   * LAST DAY of its service period (`run.period`, YYYY-MM), never the approval day — a run approved in a later month
+   * belongs to its own. When that month is closed, approval is refused here, before anything is written, with how
+   * to correct it: reopen the month with a reason, approve the run, close the month again.
+   */
+  const accrualDate = payrollAccrualDate(run.period);
+  try {
+    await checkPeriodOpen(accrualDate);
+  } catch (err) {
+    if (!(err instanceof PeriodLockedError)) throw err;
+    throw new BusinessRuleError(423, {
+      code: "payroll_period_closed",
+      error:
+        `Payroll run ${run.period} is accrued on ${accrualDate}, the last day of the month it pays for, and ${run.period} is closed. ` +
+        `To approve it, reopen ${run.period} with a reason (Closed months), approve the run, then close the month again. Nothing was posted.`,
+      field: "period",
+      period: run.period,
+    });
+  }
   const [approved] = await payrollRepository.updateRunIfStatus(run.id, from, {
     status: "approved",
     processedAt: new Date(),
@@ -72,7 +106,7 @@ async function postPayrollGL(run: PayrollRun, from: "draft" | "submitted"): Prom
   const gosiEmp = toNum(run.totalGosiEmployee);
   const gosiEr = toNum(run.totalGosiEmployer);
   const netPay = toNum(run.totalNetPay);
-  const approveDate = businessToday();
+  const approveDate = accrualDate; // G68: the service period's last day (above), not the approval day
 
   await postJournalEntry({ sourceType: "payroll_run", sourceId: run.id,
     // N3: suffixed with the run id — `PAY-<period>` alone collided the day a
