@@ -42,7 +42,7 @@ describeMaybe("Phase 18 H-9 — the control-settings table; an empty slot; payme
   const finding = async () => {
     const r = await h.api("admin", "GET", FINDING);
     expect(r.status, JSON.stringify(r.body)).toBe(200);
-    return r.body as { enabled: boolean; windowDays: number | null; items: Array<{ vendorId: number; amount: number; paidAt: string; changedOn: string }> };
+    return r.body as { enabled: boolean; windowDays: number | null; items: Array<{ kind: string; vendorId: number; amount: number; paidAt: string; changedOn: string }> };
   };
 
   beforeAll(async () => {
@@ -86,6 +86,14 @@ describeMaybe("Phase 18 H-9 — the control-settings table; an empty slot; payme
     expect(f.items.map((i) => [i.vendorId, i.amount, i.paidAt, i.changedOn])).toEqual([[changed, 1_000, today, today]]);
   });
 
+  // Added after the proof commit (812858ce): its red is shown by the mutant that drops "before IBAN ≠ after IBAN" (mutants/, H-9).
+  it("🔴 a supplier update that leaves the IBAN as it was is not a change — the steady supplier's payment stays off the list", async () => {
+    expect((await h.api("admin", "PATCH", `/vendors/${steady}`, { name: "H9 Steady Supplier (renamed)" })).status).toBe(200);
+    const f = await finding();
+    expect(f.items.some((i) => i.vendorId === changed), "the changed supplier is still listed").toBe(true);
+    expect(f.items.filter((i) => i.vendorId === steady)).toEqual([]);
+  });
+
   it("🔴 the window's bound: a change 20 days ago — a payment 2 days after it is found, one 10 days after is not", async () => {
     const d = (n: number) => { const x = new Date(`${today}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
     const old = (await h.api("admin", "POST", "/vendors", { name: "H9 Old Change", residency: "resident", iban: IBAN_B })).body.id as number;
@@ -99,6 +107,15 @@ describeMaybe("Phase 18 H-9 — the control-settings table; an empty slot; payme
     const f = await finding();
     const mine = f.items.filter((i) => i.vendorId === old).map((i) => [i.amount, i.paidAt, i.changedOn]);
     expect(mine).toEqual([[300, d(-18), d(-20)]]);
+  });
+
+  // Added after the proof commit (812858ce), for §11.56's "it covers bill payments and supplier payments":
+  // its red is shown by the mutant that drops the supplier-payment read (mutants/, H-9).
+  it("🔴 a SUPPLIER payment soon after the change is found as well as a bill payment", async () => {
+    const sp = await h.api("admin", "POST", "/supplier-payments", { vendorId: changed, bankAccountId: bankId, amount: 500, paidAt: today, classification: "unknown" });
+    expect(sp.status, JSON.stringify(sp.body)).toBe(201);
+    const mine = (await finding()).items.filter((i) => i.vendorId === changed).map((i) => [i.kind, i.amount, i.paidAt, i.changedOn]);
+    expect(mine).toEqual([["bill_payment", 1_000, today, today], ["supplier_payment", 500, today, today]]);
   });
 
   it("🔴 cleared again, the slot is empty and the finding disabled — and every change of the setting is recorded", async () => {

@@ -549,6 +549,56 @@ export interface CompanyLogoState {
 }
 
 /**
+ * Phase 18 H-9 (DR-19, DR-21): a company's control settings, one typed column per control. null = the slot is empty and its control disabled; every slot starts null, and no default number ships.
+ */
+export interface CompanyControlSettings {
+  /**
+     * DR-23's finding: a payment dated within this many days after a supplier's IBAN was changed is listed. null = disabled.
+     * @minimum 1
+     * @maximum 365
+     * @nullable
+     */
+  bankChangePaymentWindowDays: number | null;
+}
+
+export interface CompanyControlSettingsInput {
+  /**
+     * @minimum 1
+     * @maximum 365
+     * @nullable
+     */
+  bankChangePaymentWindowDays: number | null;
+}
+
+export type PaymentAfterBankChangeItemKind = typeof PaymentAfterBankChangeItemKind[keyof typeof PaymentAfterBankChangeItemKind];
+
+
+export const PaymentAfterBankChangeItemKind = {
+  bill_payment: 'bill_payment',
+  supplier_payment: 'supplier_payment',
+} as const;
+
+export interface PaymentAfterBankChangeItem {
+  kind: PaymentAfterBankChangeItemKind;
+  paymentId: number;
+  /** @nullable */
+  billId: number | null;
+  vendorId: number;
+  vendorName: string;
+  amount: number;
+  paidAt: string;
+  /** The business day (Asia/Riyadh) the supplier's IBAN was changed. */
+  changedOn: string;
+}
+
+export interface PaymentAfterBankChangeFinding {
+  enabled: boolean;
+  /** @nullable */
+  windowDays: number | null;
+  items: PaymentAfterBankChangeItem[];
+}
+
+/**
  * Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.
  */
 export type CompanyFiscalCalendar = typeof CompanyFiscalCalendar[keyof typeof CompanyFiscalCalendar];
