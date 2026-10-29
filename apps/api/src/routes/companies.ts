@@ -25,6 +25,10 @@ router.get("/current/fiscal-years", companiesController.fiscalYears);
 router.get("/current/logo", companiesController.getLogo);
 router.put("/current/logo", uploadSingle(logoUpload, "file"), companiesController.uploadLogo);
 router.delete("/current/logo", companiesController.removeLogo);
+// Phase 18 H-9 (DR-19, DR-21, DR-23): the control settings (written by an admin) and the finding that reads them.
+router.get("/current/control-settings", companiesController.controlSettings);
+router.put("/current/control-settings", companiesController.updateControlSettings);
+router.get("/current/control-findings/payment-after-bank-change", companiesController.paymentAfterBankChange);
 router.get("/current", companiesController.getCurrent);
 router.patch("/current", companiesController.updateCurrent);
 

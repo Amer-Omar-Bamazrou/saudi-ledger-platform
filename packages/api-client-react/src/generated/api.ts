@@ -85,6 +85,8 @@ import type {
   ClassifyStatementRowsParams,
   ClassifySupplierPaymentInput,
   Company,
+  CompanyControlSettings,
+  CompanyControlSettingsInput,
   CompanyLogoState,
   CompleteBankReconciliationInput,
   ConfirmBillVatFiguresInput,
@@ -293,6 +295,7 @@ import type {
   PayPayrollRunGosiInput,
   PayPayrollRunInput,
   Payment,
+  PaymentAfterBankChangeFinding,
   PaymentAllocationDetail,
   PaymentClassification,
   PaymentInput,
@@ -9714,6 +9717,237 @@ export const useRemoveCompanyLogo = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRemoveCompanyLogoMutationOptions(options));
     }
+
+export const getGetCompanyControlSettingsUrl = () => {
+
+
+
+
+  return `/api/companies/current/control-settings`
+}
+
+/**
+ * @summary The active company's control settings (Phase 18 H-9; DR-19, DR-21): a typed table, one column per control. Every slot starts EMPTY (null, the control disabled); no default number ships.
+
+ */
+export const getCompanyControlSettings = async ( options?: RequestInit): Promise<CompanyControlSettings> => {
+
+  return customFetch<CompanyControlSettings>(getGetCompanyControlSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCompanyControlSettingsQueryKey = () => {
+    return [
+    `/api/companies/current/control-settings`
+    ] as const;
+    }
+
+
+export const getGetCompanyControlSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getCompanyControlSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyControlSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCompanyControlSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCompanyControlSettings>>> = ({ signal }) => getCompanyControlSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCompanyControlSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCompanyControlSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getCompanyControlSettings>>>
+export type GetCompanyControlSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The active company's control settings (Phase 18 H-9; DR-19, DR-21): a typed table, one column per control. Every slot starts EMPTY (null, the control disabled); no default number ships.
+
+ */
+
+export function useGetCompanyControlSettings<TData = Awaited<ReturnType<typeof getCompanyControlSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyControlSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCompanyControlSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateCompanyControlSettingsUrl = () => {
+
+
+
+
+  return `/api/companies/current/control-settings`
+}
+
+/**
+ * @summary Set or clear the control settings (admin only). Each change is recorded in the audit trail with its before and after values.
+
+ */
+export const updateCompanyControlSettings = async (companyControlSettingsInput: CompanyControlSettingsInput, options?: RequestInit): Promise<CompanyControlSettings> => {
+
+  return customFetch<CompanyControlSettings>(getUpdateCompanyControlSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(companyControlSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCompanyControlSettingsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCompanyControlSettings>>, TError,{data: BodyType<CompanyControlSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCompanyControlSettings>>, TError,{data: BodyType<CompanyControlSettingsInput>}, TContext> => {
+
+const mutationKey = ['updateCompanyControlSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCompanyControlSettings>>, {data: BodyType<CompanyControlSettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateCompanyControlSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCompanyControlSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateCompanyControlSettings>>>
+    export type UpdateCompanyControlSettingsMutationBody = BodyType<CompanyControlSettingsInput>
+    export type UpdateCompanyControlSettingsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Set or clear the control settings (admin only). Each change is recorded in the audit trail with its before and after values.
+
+ */
+export const useUpdateCompanyControlSettings = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCompanyControlSettings>>, TError,{data: BodyType<CompanyControlSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCompanyControlSettings>>,
+        TError,
+        {data: BodyType<CompanyControlSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCompanyControlSettingsMutationOptions(options));
+    }
+
+export const getGetPaymentAfterBankChangeFindingUrl = () => {
+
+
+
+
+  return `/api/companies/current/control-findings/payment-after-bank-change`
+}
+
+/**
+ * @summary DR-23's finding (Phase 18 H-9): every payment to a supplier (bill payments and supplier payments) dated on, or within N days after, a change of that supplier's IBAN, N being the company's `bankChangePaymentWindowDays`. While that slot is empty the finding is disabled and lists nothing. Read-only and deterministic.
+
+ */
+export const getPaymentAfterBankChangeFinding = async ( options?: RequestInit): Promise<PaymentAfterBankChangeFinding> => {
+
+  return customFetch<PaymentAfterBankChangeFinding>(getGetPaymentAfterBankChangeFindingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPaymentAfterBankChangeFindingQueryKey = () => {
+    return [
+    `/api/companies/current/control-findings/payment-after-bank-change`
+    ] as const;
+    }
+
+
+export const getGetPaymentAfterBankChangeFindingQueryOptions = <TData = Awaited<ReturnType<typeof getPaymentAfterBankChangeFinding>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentAfterBankChangeFinding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPaymentAfterBankChangeFindingQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPaymentAfterBankChangeFinding>>> = ({ signal }) => getPaymentAfterBankChangeFinding({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPaymentAfterBankChangeFinding>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPaymentAfterBankChangeFindingQueryResult = NonNullable<Awaited<ReturnType<typeof getPaymentAfterBankChangeFinding>>>
+export type GetPaymentAfterBankChangeFindingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary DR-23's finding (Phase 18 H-9): every payment to a supplier (bill payments and supplier payments) dated on, or within N days after, a change of that supplier's IBAN, N being the company's `bankChangePaymentWindowDays`. While that slot is empty the finding is disabled and lists nothing. Read-only and deterministic.
+
+ */
+
+export function useGetPaymentAfterBankChangeFinding<TData = Awaited<ReturnType<typeof getPaymentAfterBankChangeFinding>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentAfterBankChangeFinding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPaymentAfterBankChangeFindingQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetZatcaOnboardingStatusUrl = () => {
 

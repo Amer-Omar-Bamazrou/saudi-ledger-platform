@@ -2520,6 +2520,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/CompanyLogoState"
 
+  /companies/current/control-settings:
+    get:
+      operationId: getCompanyControlSettings
+      tags: [companies]
+      summary: >
+        The active company's control settings (Phase 18 H-9; DR-19, DR-21): a
+        typed table, one column per control. Every slot starts EMPTY (null, the
+        control disabled); no default number ships.
+      responses:
+        "200":
+          description: The settings; a slot is null until an admin sets it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyControlSettings"
+    put:
+      operationId: updateCompanyControlSettings
+      tags: [companies]
+      summary: >
+        Set or clear the control settings (admin only). Each change is recorded
+        in the audit trail with its before and after values.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyControlSettingsInput"
+      responses:
+        "200":
+          description: The settings as stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyControlSettings"
+        "400":
+          description: A value outside its range
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /companies/current/control-findings/payment-after-bank-change:
+    get:
+      operationId: getPaymentAfterBankChangeFinding
+      tags: [companies]
+      summary: >
+        DR-23's finding (Phase 18 H-9): every payment to a supplier (bill
+        payments and supplier payments) dated on, or within N days after, a
+        change of that supplier's IBAN, N being the company's
+        `bankChangePaymentWindowDays`. While that slot is empty the finding is
+        disabled and lists nothing. Read-only and deterministic.
+      responses:
+        "200":
+          description: The finding; `enabled` false and no items while the slot is empty
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentAfterBankChangeFinding"
+
   /zatca/onboarding:
     get:
       operationId: getZatcaOnboardingStatus
@@ -8387,6 +8445,69 @@ components:
       properties:
         hasLogo:
           type: boolean
+
+    CompanyControlSettings:
+      type: object
+      description: >
+        Phase 18 H-9 (DR-19, DR-21): a company's control settings, one typed
+        column per control. null = the slot is empty and its control disabled;
+        every slot starts null, and no default number ships.
+      required: [bankChangePaymentWindowDays]
+      properties:
+        bankChangePaymentWindowDays:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 365
+          description: >
+            DR-23's finding: a payment dated within this many days after a
+            supplier's IBAN was changed is listed. null = disabled.
+
+    CompanyControlSettingsInput:
+      type: object
+      required: [bankChangePaymentWindowDays]
+      properties:
+        bankChangePaymentWindowDays:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 365
+
+    PaymentAfterBankChangeFinding:
+      type: object
+      required: [enabled, windowDays, items]
+      properties:
+        enabled:
+          type: boolean
+        windowDays:
+          type: ["integer", "null"]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentAfterBankChangeItem"
+
+    PaymentAfterBankChangeItem:
+      type: object
+      required: [kind, paymentId, billId, vendorId, vendorName, amount, paidAt, changedOn]
+      properties:
+        kind:
+          type: string
+          enum: [bill_payment, supplier_payment]
+        paymentId:
+          type: integer
+        billId:
+          type: ["integer", "null"]
+        vendorId:
+          type: integer
+        vendorName:
+          type: string
+        amount:
+          type: number
+        paidAt:
+          type: string
+          format: date
+        changedOn:
+          type: string
+          format: date
+          description: The business day (Asia/Riyadh) the supplier's IBAN was changed.
 
     Company:
       type: object

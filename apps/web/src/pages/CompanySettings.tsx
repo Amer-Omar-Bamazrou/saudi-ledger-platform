@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { getListFiscalYearsQueryKey } from "@workspace/api-client-react";
 import { fiscalPeriodLabel } from "@/lib/fiscalLabel";
+import { ControlSettingsSection } from "@/components/ControlSettingsSection";
 
 /**
  * Company Settings (M11.6) — the tenant's legal identity.
@@ -528,6 +529,8 @@ export default function CompanySettings() {
           </div>
         </CardContent>
       </Card>
+
+      <ControlSettingsSection />
     </div>
   );
 }

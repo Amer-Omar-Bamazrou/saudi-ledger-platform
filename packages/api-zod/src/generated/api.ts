@@ -4774,6 +4774,60 @@ export const RemoveCompanyLogoResponse = zod.object({
 
 
 /**
+ * @summary The active company's control settings (Phase 18 H-9; DR-19, DR-21): a typed table, one column per control. Every slot starts EMPTY (null, the control disabled); no default number ships.
+
+ */
+export const getCompanyControlSettingsResponseBankChangePaymentWindowDaysMax = 365;
+
+
+
+export const GetCompanyControlSettingsResponse = zod.object({
+  "bankChangePaymentWindowDays": zod.number().min(1).max(getCompanyControlSettingsResponseBankChangePaymentWindowDaysMax).nullable().describe('DR-23\'s finding: a payment dated within this many days after a supplier\'s IBAN was changed is listed. null = disabled.\n')
+}).describe('Phase 18 H-9 (DR-19, DR-21): a company\'s control settings, one typed column per control. null = the slot is empty and its control disabled; every slot starts null, and no default number ships.\n')
+
+
+/**
+ * @summary Set or clear the control settings (admin only). Each change is recorded in the audit trail with its before and after values.
+
+ */
+export const updateCompanyControlSettingsBodyBankChangePaymentWindowDaysMax = 365;
+
+
+
+export const UpdateCompanyControlSettingsBody = zod.object({
+  "bankChangePaymentWindowDays": zod.number().min(1).max(updateCompanyControlSettingsBodyBankChangePaymentWindowDaysMax).nullable()
+})
+
+export const updateCompanyControlSettingsResponseBankChangePaymentWindowDaysMax = 365;
+
+
+
+export const UpdateCompanyControlSettingsResponse = zod.object({
+  "bankChangePaymentWindowDays": zod.number().min(1).max(updateCompanyControlSettingsResponseBankChangePaymentWindowDaysMax).nullable().describe('DR-23\'s finding: a payment dated within this many days after a supplier\'s IBAN was changed is listed. null = disabled.\n')
+}).describe('Phase 18 H-9 (DR-19, DR-21): a company\'s control settings, one typed column per control. null = the slot is empty and its control disabled; every slot starts null, and no default number ships.\n')
+
+
+/**
+ * @summary DR-23's finding (Phase 18 H-9): every payment to a supplier (bill payments and supplier payments) dated on, or within N days after, a change of that supplier's IBAN, N being the company's `bankChangePaymentWindowDays`. While that slot is empty the finding is disabled and lists nothing. Read-only and deterministic.
+
+ */
+export const GetPaymentAfterBankChangeFindingResponse = zod.object({
+  "enabled": zod.boolean(),
+  "windowDays": zod.number().nullable(),
+  "items": zod.array(zod.object({
+  "kind": zod.enum(['bill_payment', 'supplier_payment']),
+  "paymentId": zod.number(),
+  "billId": zod.number().nullable(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "amount": zod.number(),
+  "paidAt": zod.coerce.date(),
+  "changedOn": zod.coerce.date().describe('The business day (Asia\/Riyadh) the supplier\'s IBAN was changed.')
+}))
+})
+
+
+/**
  * @summary ZATCA onboarding prerequisites and current certificate status
  */
 export const GetZatcaOnboardingStatusResponse = zod.object({

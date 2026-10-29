@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
-import { UpdateCurrentCompanyBody } from "@workspace/api-zod";
+import { UpdateCompanyControlSettingsBody, UpdateCurrentCompanyBody } from "@workspace/api-zod";
 import { BadRequestError } from "../lib/errors";
 import { companiesService } from "../services/companies.service";
+import { companyControlsService } from "../services/companyControls.service";
 
 export const companiesController = {
   async getCurrent(_req: Request, res: Response) {
@@ -39,5 +40,21 @@ export const companiesController = {
 
   async removeLogo(_req: Request, res: Response) {
     res.json(await companiesService.removeLogo());
+  },
+
+  // ── Phase 18 H-9: the control settings, and DR-23's finding that reads them ──
+
+  async controlSettings(_req: Request, res: Response) {
+    res.json(await companyControlsService.settings());
+  },
+
+  async updateControlSettings(req: Request, res: Response) {
+    const body = UpdateCompanyControlSettingsBody.safeParse(req.body);
+    if (!body.success) throw new BadRequestError(body.error.message);
+    res.json(await companyControlsService.updateSettings(body.data, req.session?.userId ?? null));
+  },
+
+  async paymentAfterBankChange(_req: Request, res: Response) {
+    res.json(await companyControlsService.paymentAfterBankChange());
   },
 };

@@ -1002,6 +1002,13 @@
       "when": 1793222817080,
       "tag": "0142_wht_g4c2_deposit_forfeitures",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1793286917649,
+      "tag": "0143_control_settings",
+      "breakpoints": true
     }
   ]
 }
