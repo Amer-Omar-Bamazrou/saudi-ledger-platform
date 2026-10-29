@@ -43,10 +43,8 @@ describeMaybe("Phase 18 H-12 — DR-22: sign-ins, refused sign-ins and sign-outs
     await h.start();
   }, 120_000);
 
-  afterAll(async () => {
-    await pool.query(`DELETE FROM security_audit_logs WHERE target_user_id IN ${h.USERS} OR organization_id IN ${h.ORGS}`);
-    await h.stop(); await h.cleanup();
-  });
+  // the security audit trail is append-only for every role (T1b): its rows stay, as every suite's do
+  afterAll(async () => { await h.stop(); await h.cleanup(); });
 
   it("🔴 a sign-in is recorded once per ACTIVE membership — not for the inactive one", async () => {
     expect(await h.login("member", h.email("member"), PW)).toBe(200);
