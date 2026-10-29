@@ -641,8 +641,9 @@ export default function Invoices() {
                           recorded"), so offering it there was a control that
                           could only fail — the same show-only-where-valid rule
                           the draft-only Edit/Delete already follow. */}
-                      {inv.status === "sent" && inv.documentType === "invoice" && (
-                        <Button variant="ghost" size="sm" className="text-xs h-7 text-positive" onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
+                      {/* Phase 18 H-4 (DR-36): a DEBIT note is collected directly, like an invoice. */}
+                      {inv.status === "sent" && (inv.documentType === "invoice" || inv.documentType === "debit_note") && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-positive" data-testid={`mark-paid-${inv.id}`} onClick={()=>{setPayOpen(inv.id);setPayAmount(String(inv.total-inv.paidAmount));}}>{t("Mark Paid", "تسجيل كمدفوع")}</Button>
                       )}
                       {/* 2026-09-22: a receivable that went bad — the Art. 40(7) write-off with relief (an issued, unpaid, non-migrated invoice) and, once relieved, the Art. 40(9) recovery document. */}
                       {inv.status === "sent" && inv.documentType === "invoice" && !inv.isOpening && !inv.badDebtRelief && inv.total - inv.paidAmount - inv.creditedAmount > 0.005 && (

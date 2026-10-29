@@ -351,8 +351,9 @@ async function lockAndCheckTargets(
       // RLS hides another tenant's invoice, so "not found" and "not yours" are the same refusal — no existence oracle.
       throw new BusinessRuleError(422, { error: `Invoice ${a.invoiceId} does not exist for this organization.`, code: "reference_not_found", field: "allocations" });
     }
-    if (isNoteType(inv.documentType)) {
-      throw new ConflictError(`${inv.invoiceNumber} is a credit or debit note and cannot be settled by a payment. A credit note is applied to an invoice; it is never paid.`);
+    // 🔴 Phase 18 H-4 — DR-36: a debit note is collected like an invoice; a credit note is applied, never paid.
+    if (isNoteType(inv.documentType) && inv.documentType !== "debit_note") {
+      throw new ConflictError(`${inv.invoiceNumber} is a credit note and cannot be settled by a payment. A credit note is applied to an invoice; it is never paid.`);
     }
     // AP-2: an advance tax invoice declares VAT on cash that already arrived; it is not a receivable and nothing settles it.
     if (isAdvanceInvoiceType(inv.documentType)) {

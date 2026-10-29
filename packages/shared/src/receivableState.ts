@@ -15,7 +15,9 @@
  * live receivable in the books?" — and its answer is a business state, not
  * a tax artefact:
  *
- *   document_type = 'invoice'          (a note is applied, never paid)
+ *   document_type IN ('invoice',       (Phase 18 H-4, DR-36: a DEBIT note is its own
+ *                     'debit_note')     tax document and receivable, collected like an
+ *                                       invoice; a credit note is applied, never paid)
  *   AND status IN ('sent', 'paid')     (in the books: issued by this system
  *                                       at approval, or migrated as an
  *                                       opening item, which is created `sent`)
@@ -43,7 +45,7 @@ export type ReceivableStateRow = {
 /** Is this invoice row a receivable in the books — one a receipt may settle, subject to its outstanding balance? */
 export function isReceivableInBooks(row: ReceivableStateRow): boolean {
   return (
-    row.documentType === "invoice" &&
+    (row.documentType === "invoice" || row.documentType === "debit_note") &&
     (INVOICE_IN_BOOKS_STATUSES as readonly string[]).includes(row.status) &&
     row.reversedAt == null
   );

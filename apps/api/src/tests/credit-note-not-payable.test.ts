@@ -116,11 +116,14 @@ describeMaybe("a credit note cannot be paid; its original still can", () => {
     expect(await ledger(note)).toEqual({ status: "sent", paidAmount: "0.00", payments: 0, paymentEntries: 0 });
   });
 
-  it("paying a DEBIT NOTE is refused the same way", async () => {
+  // Phase 18 H-4 — DR-36 (owner decision, register §11.50) changes what this pins. Was: "paying a DEBIT NOTE is
+  // refused the same way" — rejects with ConflictError, paymentEntries 0. Now: a debit note is collected directly,
+  // like an invoice — one payment, one payment entry, status paid.
+  it("paying a DEBIT NOTE collects it like an invoice (DR-36)", async () => {
     const original = await issue("CNP-2", 100);
     const note = await issue("CNP-DN1", 50, { documentType: "debit_note", originalInvoiceId: original, noteReason: "underbilled", chargeSubstance: "price_change", chargeEventDate: DATE });
-    await expect(inTenant(() => invoicesService.pay(note, { amount: 57.5, bankAccountId: bankId }, userId))).rejects.toBeInstanceOf(ConflictError);
-    expect((await ledger(note)).paymentEntries).toBe(0);
+    await inTenant(() => invoicesService.pay(note, { amount: 57.5, bankAccountId: bankId }, userId));
+    expect(await ledger(note)).toEqual({ status: "paid", paidAmount: "57.50", payments: 1, paymentEntries: 1 });
   });
 
   it("the ORIGINAL invoice is still payable — the guard is narrow", async () => {

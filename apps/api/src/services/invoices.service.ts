@@ -567,9 +567,12 @@ export const invoicesService = {
     // original (see `outstanding` below); a refund owed is a separate act this
     // path does not perform. Refused here, at the one writer, so a bypassed
     // UI cannot reach it.
-    if (isNoteType(existing.documentType)) {
+    // 🔴 Phase 18 H-4 — DR-36 (register §11.50; owner accepted the recommendation): a DEBIT note is its own tax
+    // document with its own number and amount — a receivable collected directly, like an invoice. Only a credit note
+    // (and an advance's credit note) stays refused: it reduces what its original owes and is never paid.
+    if (isNoteType(existing.documentType) && existing.documentType !== "debit_note") {
       throw new ConflictError(
-        "A credit or debit note cannot be paid. A credit note reduces what its original invoice owes; record the payment against the invoice.",
+        "A credit note cannot be paid. A credit note reduces what its original invoice owes; record the payment against the invoice.",
       );
     }
     // AP-2: an ADVANCE TAX INVOICE declares VAT on cash that has ALREADY
