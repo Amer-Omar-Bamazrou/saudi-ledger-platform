@@ -13,7 +13,7 @@ import { invoiceNotSuperseded } from "./invoiceSuperseded";
 /** Drizzle form — an invoice row that is a receivable in the books (outstanding NOT included; the caller adds its own tolerance). */
 export const receivableInBooks = (): SQL =>
   and(
-    eq(invoicesTable.documentType, "invoice"),
+    inArray(invoicesTable.documentType, ["invoice", "debit_note"]), // Phase 18 H-4, DR-36: a debit note is a receivable too
     inArray(invoicesTable.status, [...INVOICE_IN_BOOKS_STATUSES]),
     invoiceNotReversed(),
     invoiceNotSuperseded(), // Phase 18: a rejected invoice whose correction is issued owes nothing; the correction does

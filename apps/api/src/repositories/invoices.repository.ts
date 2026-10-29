@@ -483,9 +483,9 @@ export const invoicesRepository = {
    * books (`receivableInBooks()` — issued here or migrated as an opening
    * item, never a reversed one; Issue 1 replaced the `invoice_hash IS NOT
    * NULL` proxy, which refused every opening receivable), not fully paid,
-   * with `total - paid - credited >= 0.01`. Restricted to
-   * `document_type = 'invoice'`: a credit/debit NOTE is a correction document,
-   * not a receivable a bank credit settles (v1 scope, design §3).
+   * with `total - paid - credited >= 0.01`. An invoice or — Phase 18 H-4, DR-36 —
+   * a DEBIT note (its own receivable, collected like an invoice); a CREDIT note
+   * is applied, never a receivable a bank credit settles.
    */
   openForSettlement() {
     return db
