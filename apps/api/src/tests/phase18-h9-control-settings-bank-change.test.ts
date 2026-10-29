@@ -109,6 +109,24 @@ describeMaybe("Phase 18 H-9 — the control-settings table; an empty slot; payme
     expect(mine).toEqual([[300, d(-18), d(-20)]]);
   });
 
+  // Added after the proof commit (812858ce): its red is shown by the mutant that measures a payment from the supplier's
+  // LATEST change instead of the change it follows (mutants/, H-9, M7 — which survived the proof without this case).
+  it("🔴 two changes: each payment is measured from the change it FOLLOWS, not from the latest one", async () => {
+    const d = (n: number) => { const x = new Date(`${today}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+    const twice = (await h.api("admin", "POST", "/vendors", { name: "H9 Twice Changed", residency: "resident", iban: IBAN_A })).body.id as number;
+    for (const [day, from, to] of [[d(-30), IBAN_A, IBAN_B], [d(-15), IBAN_B, IBAN_A]]) {
+      await pool.query(
+        `INSERT INTO audit_logs (organization_id, action, entity_type, entity_id, before_state, after_state, created_at)
+         VALUES ($1, 'update', 'vendor', $2, $3::jsonb, $4::jsonb, ($5::date + time '09:00') AT TIME ZONE 'Asia/Riyadh')`,
+        [orgId, String(twice), JSON.stringify({ iban: from }), JSON.stringify({ iban: to }), day]);
+    }
+    await pay(twice, 600, d(-28)); // 2 days after the first change: found, against it
+    await pay(twice, 700, d(-20)); // 10 days after the first, before the second: not found
+    await pay(twice, 800, d(-14)); // 1 day after the second: found, against it
+    const mine = (await finding()).items.filter((i) => i.vendorId === twice).map((i) => [i.amount, i.paidAt, i.changedOn]);
+    expect(mine).toEqual([[800, d(-14), d(-15)], [600, d(-28), d(-30)]]);
+  });
+
   // Added after the proof commit (812858ce), for §11.56's "it covers bill payments and supplier payments":
   // its red is shown by the mutant that drops the supplier-payment read (mutants/, H-9).
   it("🔴 a SUPPLIER payment soon after the change is found as well as a bill payment", async () => {
