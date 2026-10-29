@@ -94,6 +94,11 @@ function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): strin
       return `This entry is a Zakat or income-tax computation's accrual. Change it by revising and approving the computation, which posts the difference.`;
     case "wht_correction":
       return `This entry reverses a payment that withheld tax, as part of its correction; it is itself the correction and is not reversed again.`;
+    // 🔴 Phase 18 H-6 — DR-34 (register §11.53; owner accepted the recommendation): the legal ties first.
+    case "invoice":
+      return `This entry belongs to ${documentRef}, an issued invoice or note. An issued tax document is corrected with a credit or debit note (VAT IR Art. 54), never by reversing its entry alone — the document would stay live while its entry is cancelled.`;
+    case "invoice_write_off":
+      return `This entry writes off ${documentRef} as a bad debt. The VAT relief rests on that write-off being in the books (Art. 40(7)), and money received later is declared by a recovery invoice (Art. 40(9)); the entry cannot be reversed from here.`;
   }
 }
 

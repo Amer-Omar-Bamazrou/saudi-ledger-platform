@@ -22,7 +22,10 @@ export type JournalEntryOwner =
   // Phase 16 (migration 0113, `tax_journal_owner()`): a payment that withheld tax, a WHT remittance and its reversal, a tax computation's accrual.
   | "wht_withholding" | "wht_remittance" | "wht_remittance_reversal" | "tax_accrual"
   // Q1 (migration 0117): the reversal a WHT correction posted — itself the correction.
-  | "wht_correction";
+  | "wht_correction"
+  // Phase 18 H-6 (DR-34): an invoice-side document's entry (its own posting, a correction's issue, a credit note's
+  // application) and a bad-debt write-off — read from the entry's recorded source (T1d).
+  | "invoice" | "invoice_write_off";
 
 /** One predicate for the rows AND the count — so they cannot describe different sets. */
 const jeConditions = (f: JournalEntryListFilter) =>
@@ -55,6 +58,9 @@ export const journalEntriesRepository = {
     const { rows } = await db.execute<{ owner: JournalEntryOwner | null }>(sql`
       SELECT CASE WHEN EXISTS (SELECT 1 FROM bank_transfers WHERE journal_entry_id = ${entryId}) THEN 'bank_transfer'
                   WHEN EXISTS (SELECT 1 FROM transactions WHERE journal_entry_id = ${entryId}) THEN 'statement_line'
+                  -- 🔴 Phase 18 H-6 (DR-34): the invoice side, by the entry's recorded source (T1d)
+                  WHEN EXISTS (SELECT 1 FROM journal_entries WHERE id = ${entryId} AND source_type IN ('invoice', 'invoice_correction', 'credit_note_application')) THEN 'invoice'
+                  WHEN EXISTS (SELECT 1 FROM journal_entries WHERE id = ${entryId} AND source_type = 'invoice_write_off') THEN 'invoice_write_off'
                   ELSE coalesce(input_vat_journal_owner(${entryId}), tax_journal_owner(${entryId}))
              END AS owner`);
     return rows[0]?.owner ?? null;
