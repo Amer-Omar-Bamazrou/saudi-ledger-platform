@@ -1,6 +1,7 @@
 /** Vendors service — AP summary + supplier matching. Behavior preserved from pre-M6. */
 import { BadRequestError, NotFoundError } from "../lib/errors";
 import { pick } from "../lib/writeGuards";
+import { withValidIban } from "../lib/ibanGuard";
 import { WHT_PAYMENT_TYPES } from "@workspace/db";
 
 /** H1 allowlist — user-settable vendor fields (system columns excluded). */
@@ -113,7 +114,8 @@ export const vendorsService = {
   },
 
   async create(data: unknown) {
-    const [row] = await vendorsRepository.insert(normalize(pick<VendorInsert>(data, VENDOR_FIELDS)) as VendorInsert);
+    // H-8 (DR-23): a supplier's IBAN is checked the one way and stored normalised
+    const [row] = await vendorsRepository.insert(withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS))) as VendorInsert);
     await auditService.created("vendor", row.id, row);
     // Explicit created:true so callers can distinguish "created" from "existed".
     return { ...row, created: true as const };
@@ -122,7 +124,7 @@ export const vendorsService = {
   async update(id: number, data: unknown) {
     const [before] = await vendorsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const [row] = await vendorsRepository.update(id, normalize(pick<VendorInsert>(data, VENDOR_FIELDS)));
+    const [row] = await vendorsRepository.update(id, withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS))));
     await auditService.updated("vendor", id, before, row);
     // Phase 13A: the supplier's VAT number is evidence — their unposted bills are re-decided.
     if ((before.taxNumber ?? null) !== (row?.taxNumber ?? null)) await vatEvidenceService.refreshForVendor(id);

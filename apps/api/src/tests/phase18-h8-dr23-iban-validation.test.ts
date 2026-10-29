@@ -43,6 +43,10 @@ describeMaybe("Phase 18 H-8 — DR-23: an IBAN is validated, and a change of it 
     expect([bad.status, bad.body.code, bad.body.field], JSON.stringify(bad.body)).toEqual([422, "iban_invalid", "iban"]);
     const short = await h.api("admin", "POST", "/bank-accounts", { name: "Ops", bankName: "SNB", currency: "SAR", iban: "SA038000000060801016751" });
     expect([short.status, short.body.code]).toEqual([422, "iban_invalid"]);
+    // 23 characters whose mod-97 check PASSES — only the Saudi length rule can refuse it
+    const lengthOnly = await h.api("admin", "POST", "/bank-accounts", { name: "Ops", bankName: "SNB", currency: "SAR", iban: "SA538000000060801016751" });
+    expect([lengthOnly.status, lengthOnly.body.code], JSON.stringify(lengthOnly.body)).toEqual([422, "iban_invalid"]);
+    expect(lengthOnly.body.error).toMatch(/24 characters/);
   });
 
   it("🔴 a valid IBAN is stored normalised — upper case, no spaces — and an empty one stays allowed", async () => {
