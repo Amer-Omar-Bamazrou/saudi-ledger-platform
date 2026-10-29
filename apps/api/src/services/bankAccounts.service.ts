@@ -10,6 +10,7 @@
  */
 import { BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pick, assertAmount, assertSupportedCurrency, NUMERIC_15_2_MAX as MAX } from "../lib/writeGuards";
+import { withValidIban } from "../lib/ibanGuard";
 
 /** H1 allowlist — user-settable bank-account fields. */
 const BANK_FIELDS = [
@@ -59,7 +60,7 @@ export const bankAccountsService = {
     // 🔴 H1/H2 — ALLOWLIST + validate. `String(data.balance)` on a non-number
     // used to produce "[object Object]" → raw 500. A bank balance may be
     // negative (overdraft), so `balance` is finite-any; `openingBalance` ≥ 0.
-    const picked = pick<Record<string, unknown>>(data, BANK_FIELDS);
+    const picked = withValidIban(pick<Record<string, unknown>>(data, BANK_FIELDS)); // H-8 (DR-23): checked, normalised
     assertSupportedCurrency(picked.currency);
     const balance = assertAmount(data.balance ?? data.openingBalance ?? 0, "balance", { min: -MAX });
     const openingBalance = assertAmount(data.openingBalance ?? 0, "openingBalance", { min: 0, allowZero: true });
@@ -87,7 +88,7 @@ export const bankAccountsService = {
   async update(id: number, data: Record<string, unknown>) {
     const [before] = await bankAccountsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const updates = pick<Record<string, unknown>>(data, BANK_FIELDS);
+    const updates = withValidIban(pick<Record<string, unknown>>(data, BANK_FIELDS)); // H-8 (DR-23): checked, normalised
     assertSupportedCurrency(updates.currency);
     if (updates.balance != null) updates.balance = assertAmount(updates.balance, "balance", { min: -MAX }).toFixed(2);
     if (updates.openingBalance != null) updates.openingBalance = assertAmount(updates.openingBalance, "openingBalance", { min: 0, allowZero: true }).toFixed(2);

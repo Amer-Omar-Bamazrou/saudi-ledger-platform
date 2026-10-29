@@ -52,7 +52,10 @@ const P = "g30bd";
 const email = (k: string) => `${P}-${k}@test.local`;
 const IBAN_1 = "SA0380000000608010167519";
 const IBAN_2 = "SA4420000001234567891234";
-const IBAN_3 = "SA1010000009876543210987";
+// Phase 18 H-8 (DR-23, register §11.55): IBANs are now checked (ISO 13616 mod-97). Was "SA1010000009876543210987",
+// whose check digits are wrong and which the bank-account write now refuses; the same account part with its correct
+// check digits. Every assertion on IBAN_3 is unchanged.
+const IBAN_3 = "SA4710000009876543210987";
 
 describeMaybe("G30 — an issued invoice keeps the bank details in force when it was issued", () => {
   let server: http.Server;
