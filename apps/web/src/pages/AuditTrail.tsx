@@ -46,9 +46,11 @@ const ENTITY_TYPES = [
   "vendor", "product", "employee", "asset", "bank_account", "budget",
   "category", "quotation", "quotation_conversion", "purchase_order",
   "purchase_order_conversion", "period_lock", "company", "recurring_rule",
+  // Phase 18 H-10 (DR-26): every report export is recorded
+  "report_export",
 ];
 
-const ACTIONS = ["create", "update", "delete", "submit", "approve", "reject", "send_back"];
+const ACTIONS = ["create", "update", "delete", "submit", "approve", "reject", "send_back", "export"];
 
 const ACTION_STYLES: Record<string, string> = {
   create: "bg-positive-surface/20 text-positive",
