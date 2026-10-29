@@ -4,7 +4,10 @@
  *
  * Every export calls the report's own `reportsService` function with the
  * report's own parameters, inside the request's tenant + company transaction
- * and behind the same `reports` permission as the screen. There is no export
+ * and behind the `reports` permission AND read on the report's NATIVE resource
+ * (`EXPORT_NATIVE_RESOURCE`, Phase 18 H-10 / DR-26) — the screen's own gate.
+ * Every export produced is recorded in the audit trail before the file is
+ * sent (the request commits before it responds). There is no export
  * query: an export cannot show other data than the screen, cannot cross a
  * company or an organisation, and cannot skip a filter or a date rule — it has
  * no way to express any of those.
@@ -31,9 +34,37 @@ import { budgetsService } from "../budgets.service";
 import { whtService } from "../tax/wht.service";
 import { taxComputationsService } from "../tax/taxComputations.service";
 import { treasuryService } from "../treasury/treasury.service";
+import { auditService } from "../audit.service";
 
 export const EXPORTABLE_REPORTS = ["trial-balance", "income-statement", "balance-sheet", "cash-flow", "general-ledger", "ar-aging", "ap-aging", "budget-vs-actual", "wht-return", "wht-annual", "tax-computation", "treasury-forecast"] as const;
 export type ExportableReport = (typeof EXPORTABLE_REPORTS)[number];
+
+/**
+ * 🔴 Phase 18 H-10 — DR-26 (register §11.58): each report's NATIVE resource,
+ * the permission guarding the report's own screen route. An export requires
+ * read on it as well as `reports` (the export route's mount), so a role that
+ * cannot open the screen cannot take its data away in a file either. A
+ * `Record` over the exportable list: a report added without one does not compile.
+ */
+export const EXPORT_NATIVE_RESOURCE: Record<ExportableReport, string> = {
+  "trial-balance": "reports",
+  "income-statement": "reports",
+  "balance-sheet": "reports",
+  "cash-flow": "reports",
+  "general-ledger": "reports",
+  "ar-aging": "reports",
+  "ap-aging": "reports",
+  "budget-vs-actual": "budgets",
+  "wht-return": "tax",
+  "wht-annual": "tax",
+  "tax-computation": "tax",
+  "treasury-forecast": "treasury",
+};
+
+/** The native resource of an export; null for a name that is not an exportable report (the export answers that 400). */
+export function exportNativeResource(report: string): string | null {
+  return (EXPORTABLE_REPORTS as readonly string[]).includes(report) ? EXPORT_NATIVE_RESOURCE[report as ExportableReport] : null;
+}
 export type ExportFormat = "csv" | "pdf";
 export type ExportLang = "en" | "ar";
 
@@ -502,11 +533,13 @@ export async function exportReport(report: string, q: Q, format: ExportFormat, l
   const company = await companiesRepository.findCurrent(); // the company in scope (F-19)
   const companyName = company ? (lang === "ar" && company.nameAr ? company.nameAr : company.name) : "";
   const stamp = businessToday();
-  if (format === "csv") {
-    return { contentType: "text/csv; charset=utf-8", filename: `${doc.filenameStem}.csv`, body: Buffer.from("﻿" + toCsv(doc, lang, companyName, stamp), "utf8") };
-  }
-  const pdf = await htmlToPdf(toHtml(doc, lang, companyName, stamp), { margin: { top: "14mm", bottom: "14mm", left: "12mm", right: "12mm" } });
-  return { contentType: "application/pdf", filename: `${doc.filenameStem}.pdf`, body: pdf };
+  const out = format === "csv"
+    ? { contentType: "text/csv; charset=utf-8", filename: `${doc.filenameStem}.csv`, body: Buffer.from("﻿" + toCsv(doc, lang, companyName, stamp), "utf8") }
+    : { contentType: "application/pdf", filename: `${doc.filenameStem}.pdf`, body: await htmlToPdf(toHtml(doc, lang, companyName, stamp), { margin: { top: "14mm", bottom: "14mm", left: "12mm", right: "12mm" } }) };
+  // 🔴 DR-26: recorded BEFORE the file is sent — the request commits before it responds, so a failed record sends no file.
+  const params = Object.fromEntries(Object.entries(q).filter(([k]) => k !== "format" && k !== "lang"));
+  await auditService.record({ action: "export", entityType: "report_export", entityId: report, after: { format, lang, filename: out.filename, rows: rowCount, params } });
+  return out;
 }
 
 // ── rendering ────────────────────────────────────────────────────────────────

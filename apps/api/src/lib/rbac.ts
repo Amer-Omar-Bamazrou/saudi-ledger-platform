@@ -196,19 +196,57 @@ export function requirePermission(resource: string) {
          * D4's rule intact in both directions, since a UI that silently forbids
          * what the API allows is the defect D4 was written about.
          */
-        res.status(403).json({
-          code: "requires_approval_authority",
-          error:
-            ACTIVATION_ACTIONS.has(action)
-              ? `This needs an accountant or admin to ${action} it. Your role (${role}) can prepare and edit, ` +
-                `but releasing it is a separate review step — send it for approval and someone with that ` +
-                `authority will action it.`
-              : `Your role (${role}) cannot ${action} ${resource.replace(/_/g, " ")}. ` +
-                `An admin can grant that in User Management.`,
-          role,
-          resource,
-          action,
-        });
+        res.status(403).json(permissionRefusal(role, resource, action));
+        return;
+      }
+      next();
+    } catch (err) {
+      req.log.error({ err }, "permission check failed");
+      res.status(500).json({ error: "Authorization check failed." });
+    }
+  };
+}
+
+/** The one body a missing grant is refused with — every guard answers in it, so the client renders it once, by its code. */
+function permissionRefusal(role: string, resource: string, action: PermissionAction) {
+  return {
+    code: "requires_approval_authority",
+    error:
+      ACTIVATION_ACTIONS.has(action)
+        ? `This needs an accountant or admin to ${action} it. Your role (${role}) can prepare and edit, ` +
+          `but releasing it is a separate review step — send it for approval and someone with that ` +
+          `authority will action it.`
+        : `Your role (${role}) cannot ${action} ${resource.replace(/_/g, " ")}. ` +
+          `An admin can grant that in User Management.`,
+    role,
+    resource,
+    action,
+  };
+}
+
+/**
+ * 🔴 Phase 18 H-10 (DR-26; register §11.58): guard a route whose DATA belongs
+ * to a resource the request chooses — an export of report X reads X's own
+ * resource. The caller must hold `read` on it, IN ADDITION to the mount's own
+ * grant (this never widens access). `resourceOf` answers null for a request
+ * naming nothing known; the handler then answers that itself (a 400 naming
+ * what is valid), so an unknown name is never mistaken for a permission.
+ */
+export function requireReadOf(resourceOf: (req: Request) => string | null) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const role = req.tenant?.role;
+    if (!role) {
+      res.status(403).json({ error: "No organization role resolved for this request." });
+      return;
+    }
+    const resource = resourceOf(req);
+    if (resource == null) {
+      next();
+      return;
+    }
+    try {
+      if (!(await can(role, resource, "read"))) {
+        res.status(403).json(permissionRefusal(role, resource, "read"));
         return;
       }
       next();
