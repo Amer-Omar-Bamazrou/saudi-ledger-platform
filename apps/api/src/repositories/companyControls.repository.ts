@@ -5,7 +5,9 @@
  * and the payments to those suppliers in this company.
  *
  * Tenant-scoped via RLS; every company-scoped table is also read through
- * {@link companyScoped}, so a request with no company reads nothing.
+ * {@link companyScoped}, so a request with no company reads nothing. Policy C
+ * (Batch 1C): a payment against a reversed opening bill is not a live payment —
+ * the one predicate, `billNotReversed`, leaves it out.
  */
 import {
   db,
@@ -18,6 +20,7 @@ import {
 } from "@workspace/db";
 import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
+import { billNotReversed } from "./openingReversal";
 
 export type PaymentToSupplier = {
   kind: "bill_payment" | "supplier_payment";
@@ -83,6 +86,7 @@ export const companyControlsRepository = {
       .where(
         and(
           companyScoped(billPaymentsTable.companyId),
+          billNotReversed(),
           inArray(billsTable.vendorId, vendorIds),
           gte(billPaymentsTable.paidAt, from),
         ),
