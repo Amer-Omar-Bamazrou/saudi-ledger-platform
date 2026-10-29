@@ -27,6 +27,13 @@ import { vendorsRepository } from "../../repositories/vendors.repository";
 import { capturedDocumentsRepository } from "../../repositories/capturedDocuments.repository";
 import { supplierAdvanceInvoicesService } from "../accounting/supplierAdvanceInvoices.service";
 import { inputVatLedgerService } from "../accounting/inputVatLedger.service";
+import { periodRecordsService } from "../periodRecords.service";
+
+/** H-7 (DR-38): the first day after a YYYY-MM month, as YYYY-MM-DD. */
+function firstDayAfterMonth(period: string): string {
+  const [y, m] = period.split("-").map(Number) as [number, number];
+  return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
+}
 import { SUPPLIER_DOCUMENT_KINDS, evaluateVatEvidence, figuresConfirmationCurrent, supplierVatDiscrepancy, withinClaimWindow, type VatEvidenceVerdict } from "./vatEvidence";
 
 type Bill = typeof billsTable.$inferSelect;
@@ -217,7 +224,7 @@ export const vatEvidenceService = {
     if (verdict?.status !== "evidenced") return null;
 
     const today = businessToday();
-    const claimedOn = opts.date ?? today;
+    let claimedOn = opts.date ?? today;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(claimedOn)) {
       throw new BusinessRuleError(400, { code: "invalid_date", error: "The evidence date must be YYYY-MM-DD.", field: "evidenceDate" });
     }
@@ -241,6 +248,24 @@ export const vatEvidenceService = {
       throw new BusinessRuleError(422, {
         code: "evidence_date_before_credit_note",
         error: `A supplier credit note dated ${latestNote} has already reduced this bill's held VAT; the evidence date cannot be earlier than ${latestNote}.`,
+        field: "evidenceDate",
+      });
+    }
+
+    /**
+     * 🔴 Phase 18 H-7 — DR-38 (register §11.54; owner accepted the recommendation): a claim dated inside a period
+     * whose VAT return is recorded FILED never reaches back into that return. It is claimed on the first day after the
+     * filed period — again, while that day is in a filed period too — so it lands in the next open period. The evidence
+     * date stated is kept beside it; the claim window (Art. 49(8)) is checked on the date actually claimed.
+     */
+    const evidenceDate = claimedOn;
+    for (let filed = await periodRecordsService.filedVatPeriodOf(claimedOn); filed; filed = await periodRecordsService.filedVatPeriodOf(claimedOn)) {
+      claimedOn = firstDayAfterMonth(filed.periodTo);
+    }
+    if (claimedOn !== evidenceDate && !withinClaimWindow(bill.date, claimedOn)) {
+      throw new BusinessRuleError(422, {
+        code: "input_vat_claim_window",
+        error: `The evidence is dated ${evidenceDate}, in a VAT period already filed, so the claim would fall on ${claimedOn} — more than five calendar years after the supply on ${bill.date} (VAT IR Art. 49(8)).`,
         field: "evidenceDate",
       });
     }
@@ -276,7 +301,7 @@ export const vatEvidenceService = {
     await auditService.record({
       action: "input_vat_claimed", entityType: "bill", entityId: billId,
       before: { inputVatState: "awaiting_evidence", inputVatPending: amount },
-      after: { inputVatState: "claimed", claimedOn, amount, journalEntryId: entryId, creditNotesFollowing: notes.map((n) => n.id), userId: opts.userId },
+      after: { inputVatState: "claimed", claimedOn, evidenceDate, amount, journalEntryId: entryId, creditNotesFollowing: notes.map((n) => n.id), userId: opts.userId },
     });
     return { entryId, claimedOn };
   },
