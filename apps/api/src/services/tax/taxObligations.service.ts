@@ -24,6 +24,7 @@
  */
 import { businessToday, gosiDueDate, gosiLateFineEstimate, gosiRatesFor, type GosiRegime } from "@workspace/shared";
 import { payrollRepository } from "../../repositories/payroll.repository";
+import { payrollAccrualDate } from "../payroll.approvable";
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import { fromHalalas, round2, toHalalas } from "../../lib/money";
 import { reportsRepository } from "../../repositories/reports.repository";
@@ -119,7 +120,10 @@ export const taxObligationsService = {
     // ── GOSI — per approved run not paid through the GOSI pay path, up to the books' GOSI_PAYABLE ──
     const gosiBalanceH = toHalalas((await liabilityBalances([SYSTEM_ACCOUNTS.GOSI_PAYABLE], asOf)).get(SYSTEM_ACCOUNTS.GOSI_PAYABLE) ?? 0);
     let leftH = Math.max(0, gosiBalanceH);
-    const unpaidRuns = await payrollRepository.runsWithUnpaidGosi();
+    // 🔴 G68 (register §11.52): a run is owed once it is ACCRUED — on the last day of its month (the one definition,
+    // `payrollAccrualDate`). The balance above is the books' as of `asOf`, so only runs accrued by then share it: a
+    // run approved in advance for a later month never takes the current month's GOSI from it.
+    const unpaidRuns = (await payrollRepository.runsWithUnpaidGosi()).filter((r) => payrollAccrualDate(r.period) <= asOf);
     // GO-11: the part of each run whose late fine is capped at 100% of it — its lines under a regime whose entry says so.
     const cappedH = new Map<number, number>();
     for (const g of await payrollRepository.gosiByRegime(unpaidRuns.map((r) => r.id))) {
