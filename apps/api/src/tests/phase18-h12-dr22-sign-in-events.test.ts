@@ -73,11 +73,13 @@ describeMaybe("Phase 18 H-12 — DR-22: sign-ins, refused sign-ins and sign-outs
   });
 
   it("🔴 an unknown address is recorded with no account and no organization — and the typed address is stored NOWHERE", async () => {
-    const since = (await pool.query(`SELECT now() AS t`)).rows[0].t;
-    expect(await h.login("ghost", ghost, PW)).toBe(401);
-    await expect.poll(async () => Number((await pool.query(
+    // counted before and after — not a time window: created_at has no zone, so a bound JS Date is read in the wrong one
+    const unknownRows = async () => Number((await pool.query(
       `SELECT count(*)::int AS n FROM security_audit_logs WHERE action = 'auth.login_failed' AND organization_id IS NULL AND target_user_id IS NULL
-          AND metadata->>'reason' = 'unknown_account' AND created_at >= $1`, [since])).rows[0].n)).toBeGreaterThan(0);
+          AND metadata->>'reason' = 'unknown_account'`)).rows[0].n);
+    const before = await unknownRows();
+    expect(await h.login("ghost", ghost, PW)).toBe(401);
+    await expect.poll(unknownRows).toBeGreaterThan(before);
     const leaked = (await pool.query(
       `SELECT count(*)::int AS n FROM security_audit_logs WHERE coalesce(actor_email, '') = $1 OR coalesce(metadata::text, '') LIKE $2`, [ghost, `%${ghost}%`])).rows[0].n;
     expect(leaked).toBe(0);
