@@ -227,6 +227,15 @@ export const membersRepository = {
     return rows.map((r) => r.organizationId);
   },
 
+  /** Phase 18 H-12 (DR-22): the organizations in which `userId` holds an ACTIVE membership, any role — where its sign-in events are recorded. */
+  async activeOrgIds(userId: number): Promise<string[]> {
+    const rows = await db
+      .select({ organizationId: organizationMembershipsTable.organizationId })
+      .from(organizationMembershipsTable)
+      .where(and(eq(organizationMembershipsTable.userId, userId), eq(organizationMembershipsTable.status, "active")));
+    return rows.map((r) => r.organizationId);
+  },
+
   /** G04: does the account hold ANY membership, of any status, anywhere? (Confinement must not be vacuous.) */
   async hasAnyMembership(userId: number): Promise<boolean> {
     const [m] = await db

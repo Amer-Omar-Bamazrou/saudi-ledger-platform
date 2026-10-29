@@ -19,6 +19,7 @@ import { securityAuditService } from "../services/securityAudit.service";
 import { signupService } from "../services/signup.service";
 import { userAdminService, safeUser } from "../services/userAdmin.service";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
+import { membersRepository } from "../repositories/members.repository";
 import { requireIdParam } from "../lib/httpParams";
 
 const router = Router();
@@ -191,6 +192,42 @@ router.post("/signup", refuseSignupInDemo, signupRateLimiter, async (req, res) =
   });
 });
 
+/**
+ * 🔴 Phase 18 H-12 — DR-22 (register §11.62): a sign-in, a refused sign-in or a
+ * sign-out, in the security audit trail. One row per organization the account
+ * is an ACTIVE member of, so each organization's admins see their own members'
+ * events; an account with none (a platform operator), or an unknown address,
+ * one row with no organization. Best-effort like every security event — a
+ * failed lookup or write never fails the act. The typed address of an unknown
+ * account is never stored (it is often a password typed in the wrong field).
+ */
+async function recordSignInEvent(
+  action: "auth.login" | "auth.login_failed" | "auth.logout",
+  account: { id: number; email: string } | null,
+  opts: { actor: boolean; ipAddress: string | null; metadata?: Record<string, unknown> },
+): Promise<void> {
+  let orgIds: Array<string | null> = [null];
+  if (account) {
+    try {
+      const active = await membersRepository.activeOrgIds(account.id);
+      if (active.length > 0) orgIds = active;
+    } catch {
+      // the event is still recorded, with no organization — a lookup failure never loses it
+    }
+  }
+  for (const organizationId of orgIds) {
+    await securityAuditService.record({
+      action,
+      actorUserId: account && opts.actor ? account.id : null,
+      actorEmail: account && opts.actor ? account.email : null,
+      organizationId,
+      targetUserId: account?.id ?? null,
+      ipAddress: opts.ipAddress,
+      metadata: opts.metadata ?? null,
+    });
+  }
+}
+
 /** POST /auth/login */
 router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => {
   try {
@@ -215,7 +252,12 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
     // that would otherwise let an attacker enumerate valid accounts.
     const valid = await verifyPassword(password, user?.passwordHash ?? (await decoyHash()));
     if (!user || !user.isActive || !valid) {
-      res.status(401).json({ error: "Invalid credentials." }); return;
+      res.status(401).json({ error: "Invalid credentials." });
+      // DR-22: recorded AFTER the response, so the refusal's timing is the same with or without an account
+      const reason = !user ? "unknown_account" : !user.isActive ? "inactive" : "wrong_password";
+      void recordSignInEvent("auth.login_failed", user ? { id: user.id, email: user.email } : null, { actor: false, ipAddress: req.ip ?? null, metadata: { reason } })
+        .catch((err) => req.log.error({ err }, "refused sign-in not recorded"));
+      return;
     }
 
     /**
@@ -258,8 +300,10 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
       // Without this, express-session flushes asynchronously after res.end(),
       // and the very next request from the browser arrives before the row exists
       // in user_sessions → requireAuth sees no session → immediate 401.
-      req.session.save((err) => {
+      req.session.save(async (err) => {
         if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
+        await recordSignInEvent("auth.login", { id: user.id, email: user.email }, { actor: true, ipAddress: req.ip ?? null })
+          .catch((e) => req.log.error({ err: e }, "sign-in not recorded"));
         res.json({ user: safeUser(user), message: "Logged in successfully." });
       });
     });
@@ -267,7 +311,12 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
 });
 
 /** POST /auth/logout */
-router.post("/logout", requireAuth, (req, res) => {
+router.post("/logout", requireAuth, async (req, res) => {
+  // DR-22: recorded while the session still names its account
+  if (req.session.userId != null) {
+    await recordSignInEvent("auth.logout", { id: req.session.userId, email: req.session.userEmail ?? "" }, { actor: true, ipAddress: req.ip ?? null })
+      .catch((e) => req.log.error({ err: e }, "sign-out not recorded"));
+  }
   req.session.destroy((err) => {
     if (err) { res.status(500).json({ error: "Could not destroy session." }); return; }
     res.clearCookie("ksa_ledger_sid");
