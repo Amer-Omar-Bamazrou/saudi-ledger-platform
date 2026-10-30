@@ -59,7 +59,9 @@ describeMaybe("Phase 18 H-15 — a password someone else set must be changed bef
   it("🔴 an account an ADMIN created with a password: the holder signs in, is refused everywhere but the way to change it, and is free once they have", async () => {
     const created = await h.api("admin", "POST", "/auth/register", { email: h.email("created"), name: "H15 Created", password: SET, role: "bookkeeper", organizationId: orgId });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
-    expect(await h.login("created", h.email("created"), SET)).toBe(200);
+    // the sign-in response itself says a change is owed: the web app sets its user from it (the browser spec found the gap)
+    const signedIn = await h.api("created", "POST", "/auth/login", { email: h.email("created"), password: SET });
+    expect([signedIn.status, signedIn.body?.user?.passwordChangeRequired]).toEqual([200, true]);
     const me = await h.api("created", "GET", "/auth/me");
     expect([me.status, me.body?.passwordChangeRequired]).toEqual([200, true]);
     await refusedEverywhere("created");

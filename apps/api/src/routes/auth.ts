@@ -304,7 +304,9 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
         if (err) { req.log.error({ err }); res.status(500).json({ error: "Session save failed." }); return; }
         await recordSignInEvent("auth.login", { id: user.id, email: user.email }, { actor: true, ipAddress: req.ip ?? null })
           .catch((e) => req.log.error({ err: e }, "sign-in not recorded"));
-        res.json({ user: safeUser(user), message: "Logged in successfully." });
+        // H-15: the web app sets its user from this response, so it carries the flag /auth/me carries (found by the
+        // browser spec: without it the app opened its layout and every request was refused)
+        res.json({ user: { ...safeUser(user), passwordChangeRequired: user.passwordChangeRequired }, message: "Logged in successfully." });
       });
     });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
