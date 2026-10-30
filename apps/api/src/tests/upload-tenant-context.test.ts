@@ -105,6 +105,8 @@ describeMaybe("DEF-1 — uploads keep the request's tenant context at real sizes
   const cleanup = async () => {
     await pool.query(`DELETE FROM captured_documents WHERE organization_id IN ${ORGS}`);
     await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${ORGS} OR user_id IN ${USERS}`);
+    // Phase 18 H-12 (DR-22): a sign-in now leaves a security-audit row naming the user; append-only, so removed in replica mode like audit_logs
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE actor_user_id IN ${USERS} OR target_user_id IN ${USERS}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${USERS} OR organization_id IN ${ORGS}`);
     await pool.query(`DELETE FROM users WHERE email IN ('${EMAIL_A}','${EMAIL_B}')`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${ORGS}`);
