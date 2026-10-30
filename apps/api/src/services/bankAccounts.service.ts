@@ -45,6 +45,16 @@ async function withGl(rows: BankAccount[]) {
   return rows.map((r) => toView(r, gl.get(r.id)));
 }
 
+/**
+ * 🔴 Phase 18 H-13 — DR-22 (register §11.64): making an account the default
+ * clears the flag on the company's OTHER accounts; each account so changed is
+ * recorded as an update (isDefault true → false). The account being made
+ * default records its own update, as before.
+ */
+async function recordClearedDefaults(cleared: BankAccount[]): Promise<void> {
+  for (const after of cleared) await auditService.updated("bank_account", after.id, { ...after, isDefault: true }, after);
+}
+
 export const bankAccountsService = {
   async list() {
     return withGl(await bankAccountsRepository.list());
@@ -71,7 +81,7 @@ export const bankAccountsService = {
     // tenants issued invoices with no bank details. Exclusivity is enforced
     // HERE, at the write: a create or update that sets the flag clears it on
     // the tenant's other accounts first, in the same transaction.
-    if (values.isDefault === true) await bankAccountsRepository.clearDefaultsExcept(null);
+    if (values.isDefault === true) await recordClearedDefaults(await bankAccountsRepository.clearDefaultsExcept(null));
     const [row] = await bankAccountsRepository.insert(values);
     // D-3: the trigger created the GL leaf in the same statement. Read it
     // back and FAIL LOUDLY if it is not there — a bank account that cannot
@@ -102,7 +112,7 @@ export const bankAccountsService = {
         field: "openingBalance",
       });
     }
-    if (updates.isDefault === true) await bankAccountsRepository.clearDefaultsExcept(id);
+    if (updates.isDefault === true) await recordClearedDefaults(await bankAccountsRepository.clearDefaultsExcept(id));
     const [row] = await bankAccountsRepository.update(id, updates as Partial<typeof bankAccountsTable.$inferInsert>);
     await auditService.updated("bank_account", id, before, row);
     return (await withGl([row]))[0];

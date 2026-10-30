@@ -23,6 +23,8 @@ import { randomUUID } from "node:crypto";
 import type { ZatcaEnvironment } from "@workspace/db";
 import { BusinessRuleError, NotFoundError } from "../../../lib/errors";
 import { companiesRepository } from "../../../repositories/companies.repository";
+import { auditService } from "../../audit.service";
+import type { OnboardingResult } from "../provider";
 import { signingService } from "../signing/signing.service";
 import { buildInvoiceXml } from "../ubl/buildInvoiceXml";
 import { assembleSignedInvoice } from "../crypto/assembleSignedInvoice";
@@ -100,6 +102,30 @@ function prerequisitesFor(company: {
 }
 
 export const zatcaOnboardingService = {
+  /**
+   * 🔴 Phase 18 H-13 — DR-22 (register §11.64): an onboarding or a renewal of
+   * the company's ZATCA credential, in the audit trail. Recorded ABOVE the
+   * provider (the vendor-swap hedge), from its result, so any provider's act is
+   * recorded the same way. The environment, the outcome, the certificate's
+   * expiry and the compliance documents passed and failed — never the OTP, a
+   * key, a CSR or a certificate body.
+   */
+  async recordCredentialAct(action: "onboard" | "renew", companyId: string, result: OnboardingResult): Promise<void> {
+    const checks = result.documentChecks ?? [];
+    await auditService.record({
+      action,
+      entityType: "zatca_credential",
+      entityId: companyId,
+      after: {
+        environment: defaultOnboardingEnvironment(),
+        activated: result.activated,
+        certificateExpiresAt: result.certificateExpiresAt ? result.certificateExpiresAt.toISOString() : null,
+        documentsPassed: checks.filter((c) => c.passed).length,
+        documentsFailed: checks.filter((c) => !c.passed).length,
+      },
+    });
+  },
+
   /** The checklist plus the current certificate state. */
   async status(companyId: string, environment?: ZatcaEnvironment): Promise<OnboardingStatus> {
     const env = environment ?? defaultOnboardingEnvironment();
