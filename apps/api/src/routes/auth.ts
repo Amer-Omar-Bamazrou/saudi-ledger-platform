@@ -370,6 +370,8 @@ router.get("/me", requireAuth, async (req, res) => {
       ...safeUser(user),
       organizationId: active?.organizationId ?? null,
       organizationRole: active?.role ?? null,
+      // H-15: the web app holds a session that owes a change of password on the way to change it
+      passwordChangeRequired: user.passwordChangeRequired,
     });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
@@ -408,7 +410,8 @@ router.post("/change-password", authRateLimiter, requireAuth, changePasswordAcco
     const valid = await verifyPassword(currentPassword, user.passwordHash);
     if (!valid) { res.status(401).json({ error: "Current password is incorrect." }); return; }
     const passwordHash = await hashPassword(newPassword, "newPassword");
-    await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
+    // H-15 (DR-06, DR-27): the holder's own password — any change owed is now made
+    await db.update(usersTable).set({ passwordHash, passwordChangeRequired: false }).where(eq(usersTable.id, user.id));
     // 🔴 G02: every OTHER session of this user ends (the per-request check would end
     // them anyway — their credential is the old password's; this deletes them now).
     // The session the change was made in is KEPT and re-stamped with the new

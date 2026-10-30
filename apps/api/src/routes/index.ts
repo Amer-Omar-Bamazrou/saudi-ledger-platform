@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../lib/auth";
+import { refuseUntilPasswordChanged, requireAuth } from "../lib/auth";
 import { resolveTenant } from "../lib/tenant";
 import { requireAnyPermission, requirePermission } from "../lib/rbac";
 import { requirePlatformOperator } from "../lib/operator";
@@ -68,6 +68,9 @@ const router = Router();
 router.use("/healthz", health);
 // PUBLIC: the demo banner must render on the login page, before any session.
 router.use("/deployment", deployment);
+// 🔴 H-15 (DR-06, DR-27): a session that owes a change of password reaches only the way to change it — held
+// BEFORE /auth, so the admin acts on users under it are held too.
+router.use(refuseUntilPasswordChanged);
 router.use("/auth", auth);
 // Invitation preview/accept: PUBLIC + token-authenticated — the invitee may have
 // no account and no tenant yet. All checks live in invitationsService.

@@ -103,7 +103,7 @@ export const operatorService = {
     // 18 base64url chars ≈ 108 bits — comfortably past the seam's bounds and
     // typeable over a phone call, which is this flow's real delivery channel.
     const temporaryPassword = randomBytes(13).toString("base64url");
-    await userAdminRepository.setPasswordHash(target.id, await hashPassword(temporaryPassword));
+    await userAdminRepository.setPasswordHash(target.id, await hashPassword(temporaryPassword), true); // H-15 (DR-27): changed before anything else
 
     // Kill every live session — same act, not a follow-up.
     const revoked = await userAdminRepository.revokeSessions(target.id);

@@ -11,7 +11,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function ChangePassword() {
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user, refetch } = useAuth();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -33,6 +33,8 @@ export default function ChangePassword() {
       });
       setSuccess(true);
       setCurrent(""); setNext(""); setConfirm("");
+      // H-15: a change that was owed is now made — re-read the account, so the app opens again
+      if (user?.passwordChangeRequired) await refetch();
     } catch (err: any) {
       setError(err.message ?? "Failed to change password");
     } finally {
@@ -46,6 +48,17 @@ export default function ChangePassword() {
         <h1 className="text-2xl font-bold text-foreground">{t("Change Password", "تغيير كلمة المرور")}</h1>
         <p className="text-muted-foreground text-sm mt-1">{t("Update the password for", "تحديث كلمة المرور للحساب")} {user?.email}</p>
       </div>
+
+      {user?.passwordChangeRequired && (
+        <Alert data-testid="password-change-required-reason">
+          <AlertDescription>
+            {t(
+              "Your password was set by someone else. Choose your own password to continue — until then, nothing else opens.",
+              "عيّن كلمة مرورك شخص آخر. اختر كلمة مرور خاصة بك للمتابعة — لن يُفتح أي شيء آخر قبل ذلك.",
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="border-border bg-card">
         <CardHeader>

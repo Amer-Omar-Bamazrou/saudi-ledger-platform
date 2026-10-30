@@ -157,7 +157,8 @@ export const userAdminService = {
 
     const passwordHash = await hashPassword(password);
     const { user, membership } = await userAdminRepository.createWithFirstMembership(
-      { email, name, passwordHash, role, isActive: true },
+      // H-15 (DR-06): a password the admin chose — the holder must change it before anything else
+      { email, name, passwordHash, role, isActive: true, passwordChangeRequired: true },
       { organizationId, role },
     );
     await securityAuditService.record({
@@ -248,7 +249,8 @@ export const userAdminService = {
 
     assertPasswordAcceptable(newPassword, "newPassword");
     const passwordHash = await hashPassword(newPassword, "newPassword");
-    const [user] = await userAdminRepository.update(targetUserId, { passwordHash });
+    // H-15 (DR-06): a password the admin chose — the holder must change it before anything else
+    const [user] = await userAdminRepository.update(targetUserId, { passwordHash, passwordChangeRequired: true });
     if (!user) throw new NotFoundError("User not found.");
     // 🔴 G02: every session of the reset account ends — the admin's own too, when
     // they reset their own password here (its credential is the old password's).
