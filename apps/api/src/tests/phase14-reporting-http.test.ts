@@ -51,6 +51,8 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
     await releasePostedJournalsForTeardown(`organization_id IN ${O}`);
     for (const t of ["journal_entry_lines", "journal_entries"]) await pool.query(`DELETE FROM ${t} WHERE organization_id IN ${O}`);
     await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${O} OR user_id IN ${U}`);
+    // Phase 18 H-12 (DR-22): a sign-in now leaves a security-audit row naming the user; append-only, so removed in replica mode like audit_logs
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE actor_user_id IN ${U} OR target_user_id IN ${U}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${U} OR organization_id IN ${O}`);
     await pool.query(`DELETE FROM users WHERE email LIKE '${P}-%@test.local'`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${O}`);

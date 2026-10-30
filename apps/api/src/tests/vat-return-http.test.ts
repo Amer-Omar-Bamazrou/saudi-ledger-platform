@@ -47,6 +47,8 @@ describeMaybe("M16.1 — /reports/vat-return over HTTP: reachable, documents-onl
     const usr = `(SELECT id FROM users WHERE email = '${EMAIL}')`;
     await pool.query(`DELETE FROM transactions WHERE organization_id IN ${org}`);
     await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${org} OR user_id IN ${usr}`);
+    // Phase 18 H-12 (DR-22): a sign-in now leaves a security-audit row naming the user; append-only, so removed in replica mode like audit_logs
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE actor_user_id IN ${usr} OR target_user_id IN ${usr}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${usr} OR organization_id IN ${org}`);
     await pool.query(`DELETE FROM users WHERE email = '${EMAIL}'`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
