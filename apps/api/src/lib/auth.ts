@@ -68,16 +68,40 @@ export async function sessionStampFor(userId: number): Promise<{ authenticatedAt
  * destroyed and the id rotated), so the request continues as anonymous and
  * whatever guard it meets answers 401 — the same answer as a logged-out user.
  */
-export async function endEndedSessions(req: Request, _res: Response, next: NextFunction): Promise<void> {
+export async function endEndedSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
   const s = req.session;
   if (!s?.userId) return next();
   let ended = !s.authenticatedAt || !s.credential || Date.now() - s.authenticatedAt >= SESSION_ABSOLUTE_LIFETIME_MS;
   if (!ended) {
     const account = await userAdminRepository.sessionAccount(s.userId);
     ended = !account || !account.isActive || credentialOf(account.passwordHash) !== s.credential;
+    // H-15: read from the row this check already reads — no second query (refuseUntilPasswordChanged)
+    res.locals.passwordChangeRequired = account?.passwordChangeRequired === true;
   }
   if (!ended) return next();
   s.regenerate((err) => next(err));
+}
+
+/** The only routes a session that owes a change of password reaches (H-15). */
+const WHILE_A_CHANGE_IS_OWED = new Set(["/auth/me", "/auth/logout", "/auth/change-password", "/auth/login"]);
+
+/**
+ * 🔴 Phase 18 H-15 — DR-06 part 1 and DR-27 (register §11.66): a session whose
+ * account's password was set by someone else (an admin's create or reset, an
+ * operator's break-glass) reaches only the way to change it. Mounted BEFORE
+ * `/auth`, so the admin acts on users under it are held too — an admin given a
+ * password by a colleague cannot administer anyone with it. A refusal, naming
+ * the next step, never a hidden control.
+ */
+export function refuseUntilPasswordChanged(req: Request, res: Response, next: NextFunction): void {
+  if (req.session?.userId && res.locals.passwordChangeRequired === true && !WHILE_A_CHANGE_IS_OWED.has(req.path)) {
+    res.status(403).json({
+      code: "password_change_required",
+      error: "Your password was set by someone else. Choose your own password (Change password) before continuing.",
+    });
+    return;
+  }
+  next();
 }
 
 /** Requires a valid session. Returns 401 if not authenticated. */

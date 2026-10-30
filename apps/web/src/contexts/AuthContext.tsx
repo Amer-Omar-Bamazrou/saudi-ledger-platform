@@ -21,6 +21,11 @@ export interface AuthUser {
   organizationId: string | null;
   /** The caller's role IN that organization — the one that means something. */
   organizationRole: OrganizationRole | null;
+  /**
+   * H-15 (DR-06, DR-27): the password was set by someone else (an admin or an operator). Until the holder changes
+   * it, the server answers every other request 403 `password_change_required`, so the app shows only the way to.
+   */
+  passwordChangeRequired?: boolean;
 }
 
 interface AuthContextValue {

@@ -1009,6 +1009,13 @@
       "when": 1793286917649,
       "tag": "0143_control_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1793375246304,
+      "tag": "0144_forced_password_change",
+      "breakpoints": true
     }
   ]
 }

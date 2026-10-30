@@ -219,6 +219,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
+  // H-15 (DR-06, DR-27): a password someone else set is changed before anything else. Shown on its own — inside
+  // Layout the sidebar's queries would all be refused while the change is owed.
+  if (user.passwordChangeRequired) {
+    return (
+      <div className="min-h-screen bg-background flex items-start justify-center p-6" data-testid="password-change-required">
+        <ChangePassword />
+      </div>
+    );
+  }
+
   return <>{children}</>;
 }
 
