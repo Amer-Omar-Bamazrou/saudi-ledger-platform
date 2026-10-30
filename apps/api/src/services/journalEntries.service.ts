@@ -577,7 +577,8 @@ export const journalEntriesService = {
     const reversalLines = await journalEntriesRepository.linesByEntry(reversal.id);
     const reversalOut = buildJEOut(reversal, reversalLines);
     // Two things happened: a new reversal entry was posted, and the original was reversed.
-    await auditService.created("journal_entry", reversal.id, reversalOut);
+    // DR-22 (H-14; contract §8.6 item 5): the image carries the reason the reversal stores (the response is unchanged)
+    await auditService.created("journal_entry", reversal.id, { ...reversalOut, reversalReason: reversal.reversalReason });
     await auditService.updated("journal_entry", id, original, { ...original, status: "reversed", reversalId: reversal.id });
     return { message: "Reversed", reversalId: reversal.id, reversal: reversalOut };
   },

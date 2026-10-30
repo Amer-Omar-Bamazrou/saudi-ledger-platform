@@ -58,4 +58,25 @@ export const auditService = {
   deleted(entityType: string, entityId: string | number, before: unknown): Promise<void> {
     return this.record({ action: "delete", entityType, entityId, before });
   },
+
+  /**
+   * 🔴 Phase 18 H-14 — DR-22 (register §11.65): the POSTING SEAM's record of an
+   * entry it posted (contract §8.6 items 1–2: document entries, depreciation).
+   * Unlike `record`, it needs no request context: the seam is reached from
+   * requests, scripts and tests alike, and a posting must never go unrecorded
+   * — or fail — because its caller had none. The organization is the entry's;
+   * the user is the connection's declared actor (the column's default — T1b —
+   * so none for a script); the IP is the request's when there is one. Only the
+   * seam calls this; every other record still goes through `record`.
+   */
+  async postedEntry(organizationId: string, entryId: number, after: Record<string, unknown>): Promise<void> {
+    await db.insert(auditLogsTable).values({
+      organizationId,
+      action: "post",
+      entityType: "journal_entry",
+      entityId: String(entryId),
+      afterState: after,
+      ipAddress: auditContext.get()?.ipAddress ?? null,
+    });
+  },
 };
