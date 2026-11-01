@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { ReverseJournalEntryInputCorrectionKind } from './reverseJournalEntryInputCorrectionKind';
 
 export interface ReverseJournalEntryInput {
   reason?: string;
@@ -22,4 +23,9 @@ export interface ReverseJournalEntryInput {
   apparentOn?: string | null;
   /** @nullable */
   discoveryEvidence?: string | null;
+  /**
+     * Phase 18 H-18 (DR-15): the correction's IAS 8 classification; omitted = unclassified.
+     * @nullable
+     */
+  correctionKind?: ReverseJournalEntryInputCorrectionKind;
 }

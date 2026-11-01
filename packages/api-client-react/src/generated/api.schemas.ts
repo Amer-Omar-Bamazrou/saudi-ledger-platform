@@ -1710,6 +1710,19 @@ export interface ZakatIncomeTaxFilingInput {
   notes?: string | null;
 }
 
+/**
+ * Phase 18 H-18 (DR-15): the correction's IAS 8 classification; omitted = unclassified.
+ * @nullable
+ */
+export type ReverseJournalEntryInputCorrectionKind = typeof ReverseJournalEntryInputCorrectionKind[keyof typeof ReverseJournalEntryInputCorrectionKind] | null;
+
+
+export const ReverseJournalEntryInputCorrectionKind = {
+  error: 'error',
+  estimate: 'estimate',
+  policy: 'policy',
+} as const;
+
 export interface ReverseJournalEntryInput {
   reason?: string;
   /** The posting date of the reversal; today when omitted. */
@@ -1726,6 +1739,11 @@ export interface ReverseJournalEntryInput {
   apparentOn?: string | null;
   /** @nullable */
   discoveryEvidence?: string | null;
+  /**
+     * Phase 18 H-18 (DR-15): the correction's IAS 8 classification; omitted = unclassified.
+     * @nullable
+     */
+  correctionKind?: ReverseJournalEntryInputCorrectionKind;
 }
 
 export type CategoryType = typeof CategoryType[keyof typeof CategoryType];
@@ -2992,6 +3010,19 @@ export const JournalEntryStatus = {
   reversed: 'reversed',
 } as const;
 
+/**
+ * Phase 18 H-18 (DR-15): a mirror's classification; null on every other entry and on mirrors before it.
+ * @nullable
+ */
+export type JournalEntryCorrectionKind = typeof JournalEntryCorrectionKind[keyof typeof JournalEntryCorrectionKind] | null;
+
+
+export const JournalEntryCorrectionKind = {
+  error: 'error',
+  estimate: 'estimate',
+  policy: 'policy',
+} as const;
+
 export interface JournalEntry {
   id: number;
   entryNumber: string;
@@ -3002,6 +3033,30 @@ export interface JournalEntry {
   status: JournalEntryStatus;
   /** @nullable */
   reversalOf?: number | null;
+  /**
+     * Phase 18 H-18 (DR-15): a mirror's classification; null on every other entry and on mirrors before it.
+     * @nullable
+     */
+  correctionKind?: JournalEntryCorrectionKind;
+  /**
+     * DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal).
+     * @nullable
+     */
+  originFiscalYearStart?: string | null;
+  /** @nullable */
+  originFiscalYearEnd?: string | null;
+  /**
+     * DR-15: the statement authorisation covering that year, if recorded.
+     * @nullable
+     */
+  originAuthorisedOn?: string | null;
+  /** @nullable */
+  originAuthorisedBy?: string | null;
+  /**
+     * DR-15: the filed original VAT return whose period holds the original's date, if recorded.
+     * @nullable
+     */
+  originVatFilingReference?: string | null;
   /** @nullable */
   notes?: string | null;
   /** @nullable */
