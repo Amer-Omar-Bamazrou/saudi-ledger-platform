@@ -62,16 +62,11 @@ describeMaybe("Phase 18 H-19 — DR-33: one protected-account list, read by the 
     expect((await schedule(acct.ACCRUED_LIABILITIES)).status).toBe(201);
   });
 
-  it("🔴 the MANUAL JOURNAL refuses salaries, GOSI and the VAT accounts — on create and on an update that brings one in", async () => {
+  it("🔴 the MANUAL JOURNAL refuses salaries, GOSI and the VAT accounts (create is the one place its lines are written)", async () => {
     for (const code of ["SALARIES_PAYABLE", "GOSI_PAYABLE", "VAT_INPUT", "VAT_OUTPUT", "VAT_PAYMENT", "VAT_AWAITING_EVIDENCE"]) {
       refused(await je([{ accountId: acct.RENT_UTILITIES, debit: 10, credit: 0 }, { accountId: acct[code], debit: 0, credit: 10 }]), `manual journal → ${code}`);
     }
-    const draft = await je([{ accountId: acct.RENT_UTILITIES, debit: 10, credit: 0 }, { accountId: acct.OTHER_INCOME, debit: 0, credit: 10 }]);
-    expect(draft.status).toBe(201);
-    refused(await h.api("admin", "PATCH", `/journal-entries/${draft.body.id}`, { lines: [
-      { accountId: acct.RENT_UTILITIES, accountName: "x", debitAmount: 10, creditAmount: 0 },
-      { accountId: acct.VAT_OUTPUT, accountName: "x", debitAmount: 0, creditAmount: 10 },
-    ] }), "manual journal update → VAT_OUTPUT");
+    // (no update route exists for a manual journal — a draft is deleted and re-created — so create is the one line write)
   });
 
   it("🔴 RETAINED EARNINGS only through a CLASSIFIED correction: unclassified is refused; classified is a draft carrying its kind, and posts", async () => {
