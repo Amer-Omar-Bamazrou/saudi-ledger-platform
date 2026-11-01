@@ -260,6 +260,14 @@ export const quotationsService = {
     if (existing.outcome) {
       throw new ConflictError(`This quotation was ${existing.outcome} and can no longer be edited.`);
     }
+    // 🔴 Phase 18 H-17 — DR-17 (register §11.68; G10): an approval covers the figures that were submitted, so an
+    // APPROVED quotation is not changed — its inputs stay frozen from submission through approval.
+    if (existing.status === "approved") {
+      throw new BusinessRuleError(409, {
+        code: "approved_document_frozen",
+        error: "This quotation is approved, so it is not changed: an approval covers the figures that were submitted. Record the customer's answer, or close it and issue a new quotation.",
+      });
+    }
 
     const values = pick<Record<string, unknown>>(data, [...QUOTATION_FIELDS, "reviewNote"]) as Record<string, any>;
     if (values.date !== undefined) assertDateString(values.date, "date");

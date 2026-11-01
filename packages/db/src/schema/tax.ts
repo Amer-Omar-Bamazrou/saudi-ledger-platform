@@ -576,6 +576,12 @@ export const taxComputationVersionsTable = pgTable(
     /** Frozen at approval. */
     snapshot: jsonb("snapshot"),
     inputsFingerprint: text("inputs_fingerprint"),
+    /**
+     * 🔴 Phase 18 H-17 (DR-17; register §11.68–§11.69): the fingerprint of the inputs the version was SUBMITTED on,
+     * compared at approval — an approval covers the figures that were submitted. Its own column: 0113's trigger reserves
+     * `inputs_fingerprint` for the approval. Guarded by the application (written by submission, read by approval).
+     */
+    submittedInputsFingerprint: text("submitted_inputs_fingerprint"),
     resultAmount: numeric("result_amount", { precision: 15, scale: 2 }),
     accrualJournalEntryId: integer("accrual_journal_entry_id").references(() => journalEntriesTable.id, { onDelete: "restrict" }),
     /** Signed: what THIS approval posted (Dr expense when positive). */
