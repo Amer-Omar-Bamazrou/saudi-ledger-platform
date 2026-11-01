@@ -28,6 +28,7 @@ import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
 import { journalEntriesService } from "../services/journalEntries.service";
+import { transactionsService } from "../services/transactions.service";
 import { reportsService } from "../services/reports.service";
 import { taxObligationsService } from "../services/tax/taxObligations.service";
 import { treasuryService } from "../services/treasury/treasury.service";
@@ -83,13 +84,9 @@ describeMaybe("Phase 16 — every VAT period has its row and its position; a cre
     const bank = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,$3,'SNB') RETURNING id`, [orgId, c, `Bank ${n}`])).rows[0].id;
     const bankLeaf = Number((await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND bank_account_id = $2`, [orgId, bank])).rows[0].id);
     const vatPay = Number((await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'VAT_PAYMENT'`, [orgId])).rows[0].id);
-    await inCo(c, async () => {
-      const e = (await journalEntriesService.create({ entryNumber: n, date, description: "VAT paid to ZATCA", lines: [
-        { accountId: vatPay, debitAmount: amount, creditAmount: 0 },
-        { accountId: bankLeaf, debitAmount: 0, creditAmount: amount },
-      ] }, userId)) as { id: number };
-      await journalEntriesService.approve(e.id, userId);
-    });
+    // H-19 (DR-33; register §11.78): the product's own settlement path — a remittance bank line categorised to VAT_PAYMENT
+    void bankLeaf;
+    await inCo(c, () => transactionsService.create({ date, description: `VAT paid to ZATCA (${n})`, amount, currency: "SAR", type: "debit", bankAccountId: bank, categoryId: vatPay } as never));
   };
   const vatRows = async (c: string) => (await inCo(c, () => taxObligationsService.list())).obligations.filter((o) => o.kind === "vat");
 

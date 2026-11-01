@@ -93,7 +93,8 @@ describeMaybe("Phase 11 batch 1 — reversal period lock and business-day ageing
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'A Vendor') RETURNING id`, [orgId])).rows[0].id;
     cashId = await accountId("FIXED_ASSETS");      // any posting asset account will do
-    equityId = await accountId("RETAINED_EARNINGS");
+    // H-19 (DR-33; register §11.78): a plain equity side — retained earnings is a classified correction's alone
+    equityId = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, vat_applicable) VALUES ($1,'P11 capital','رأس المال','equity',false) RETURNING id`, [orgId])).rows[0].id as number;
   }, 60_000);
   afterAll(cleanup);
 

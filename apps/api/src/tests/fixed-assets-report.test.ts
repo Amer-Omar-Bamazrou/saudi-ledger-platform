@@ -150,7 +150,8 @@ describeMaybe("FA-G — the fixed-asset report and its reconciliation (real rows
     // The other side is EQUITY, not a control account: the platform refuses an
     // AP or AR line with no party (N3), which is correct and not what is under
     // test here.
-    const other = await accountId("RETAINED_EARNINGS");
+    // H-19 (DR-33; register §11.78): a plain equity side — retained earnings is a classified correction's alone
+    const other = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, vat_applicable) VALUES ($1,'FA capital','رأس المال','equity',false) RETURNING id`, [orgId])).rows[0].id as number;
 
     // A hand-written journal entry putting an asset cost in the books with no
     // register row behind it — what the categorizer does when a bank row is

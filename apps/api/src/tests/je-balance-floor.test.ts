@@ -73,7 +73,7 @@ describeMaybe("journal entry balance — checked on the STORED values, and again
     ).rows[0].id;
     const acc = async (type: string) =>
       (await pool.query(
-        `SELECT id FROM categories WHERE organization_id = $1 AND type = $2 AND system_code NOT IN ('AR','AP') AND is_posting LIMIT 1`,
+        `SELECT id FROM categories WHERE organization_id = $1 AND type = $2 AND system_code NOT IN ('AR','AP','VAT_INPUT','VAT_AWAITING_EVIDENCE','VAT_OUTPUT','VAT_PAYMENT') AND is_posting LIMIT 1`,
         [orgId, type],
       )).rows[0].id;
     expenseId = await acc("expense");

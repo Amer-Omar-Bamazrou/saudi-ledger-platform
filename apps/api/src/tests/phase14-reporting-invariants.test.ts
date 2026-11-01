@@ -36,6 +36,7 @@ import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
 import { journalEntriesService } from "../services/journalEntries.service";
+import { postJournalEntry } from "../services/accounting/glPosting";
 import { reportsService } from "../services/reports.service";
 import { analyticsService } from "../services/analytics.service";
 import { buildReportDocument, exportReport } from "../services/reporting/reportExport.service";
@@ -133,7 +134,9 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
     await inA(() => billsService.approve(bill1.id, {}, userId));
     await inA(() => billsService.pay(bill1.id, { amount: 1150, paidAt: "2026-05-01", bankAccountId: ids.bank1 }, userId));
     await manual(inA, "P14-XFER", "2026-06-01", [[bank2Leaf, 3000, 0], [bank1Leaf, 0, 3000]]);
-    await manual(inA, "P14-VATPAY", "2026-06-15", [[ids.vatOut, 100, 0], [bank1Leaf, 0, 100]]);
+    // H-19 (DR-33; register §11.78): the same lines through the seam, a FIXTURE stand-in for a VAT payment bank line
+    await inA(() => postJournalEntry({ entryNumber: "P14-VATPAY", date: "2026-06-15", description: "P14-VATPAY (fixture stand-in for a bank transaction)", sourceType: "bank_transaction", sourceId: 0,
+      lines: [{ accountId: ids.vatOut, accountName: "VAT Payable", debitAmount: 100, creditAmount: 0 }, { accountId: bank1Leaf, accountName: "Bank", debitAmount: 0, creditAmount: 100 }] }));
     const inv2 = await inA(() => invoicesService.create({ invoiceNumber: "P14-INV-2", date: "2026-07-15", dueDate: "2026-08-14", customerId: ids.customer, items: [{ description: "Service", quantity: 2, unitPrice: 1000, vatRate: 15 }] }, userId)) as { id: number };
     await inA(() => invoicesService.approve(inv2.id, userId));
     ids.inv1 = inv1.id; ids.inv2 = inv2.id; ids.bill1 = bill1.id;
