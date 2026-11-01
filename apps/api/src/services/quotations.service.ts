@@ -327,6 +327,9 @@ export const quotationsService = {
       const [now] = await quotationsRepository.findById(id);
       if (!now) throw new NotFoundError("Not found");
       if (now.outcome) throw new ConflictError(`This quotation was ${now.outcome} and can no longer be edited.`);
+      if (now.status === "approved") { // H-17 (DR-17): approved since this request read it (a race) — the same refusal
+        throw new BusinessRuleError(409, { code: "approved_document_frozen", error: "This quotation is approved, so it is not changed: an approval covers the figures that were submitted. Record the customer's answer, or close it and issue a new quotation." });
+      }
       throw new ConflictError("A submitted quotation is locked while it awaits approval. Ask for it to be sent back.");
     }
     await auditService.updated("quotation", id, existing, updated);

@@ -274,6 +274,9 @@ export const purchaseOrdersService = {
       const [now] = await purchaseOrdersRepository.findById(id);
       if (!now) throw new NotFoundError("Not found");
       if (now.outcome) throw new ConflictError(`This order was ${now.outcome} and can no longer be edited.`);
+      if (now.status === "approved") { // H-17 (DR-17): approved since this request read it (a race) — the same refusal
+        throw new BusinessRuleError(409, { code: "approved_document_frozen", error: "This order is approved, so it is not changed: an approval covers the figures that were submitted. Close it and raise a new order." });
+      }
       throw new ConflictError("A submitted order is locked while it awaits approval. Ask for it to be sent back.");
     }
     await auditService.updated("purchase_order", id, existing, updated);
