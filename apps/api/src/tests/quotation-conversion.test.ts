@@ -223,7 +223,10 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
     });
   });
 
-  it("an UNTOUCHED line is still editable, and its id survives the edit", async () => {
+  // Phase 18 H-17 (DR-17; register §11.72): was "an UNTOUCHED line is still editable, and its id survives the edit"
+  // (re-priced to 55 after a partial conversion). An approval covers the figures that were submitted: the approved
+  // quotation is refused every edit; a renegotiated remainder is a new quotation.
+  it("DR-17: an UNTOUCHED line of the approved quotation is refused an edit too; the lines and their ids survive untouched", async () => {
     const before = await inTenant(() => quotationsService.getById(quotationId));
     const items = before.items!.map((i) => ({
       id: i.id,
@@ -232,12 +235,10 @@ describeMaybe("Quotation → invoice conversion (M21.2)", () => {
       unitPrice: i.id === secondItemId ? 55 : i.unitPrice,
       vatRate: i.vatRate,
     }));
-    const after = await inTenant(() => quotationsService.update(quotationId, { items }));
-    const edited = after.items!.find((i) => i.id === secondItemId)!;
-    expect(edited.unitPrice).toBe(55);
-    // 🔴 Ids must be STABLE. If the edit path replaced lines wholesale, the
-    // converted line's id would change and the conversion history would point
-    // at a row that no longer exists.
+    await expect(inTenant(() => quotationsService.update(quotationId, { items }))).rejects.toMatchObject({ statusCode: 409 });
+    const after = await inTenant(() => quotationsService.getById(quotationId));
+    expect(after.items!.find((i) => i.id === secondItemId)?.unitPrice).toBe(before.items!.find((i) => i.id === secondItemId)?.unitPrice);
+    // Ids STABLE, converted quantity intact: the refused edit changed nothing the conversion history points at.
     expect(after.items!.find((i) => i.id === firstItemId)?.convertedQuantity).toBe(10);
   });
 
