@@ -16,7 +16,7 @@
  *    behind an approval; an approval queued behind a reject and behind a
  *    DELETE; a submit and a send-back queued behind a reject;
  *  - an edit (PATCH) queued behind a SUBMIT (a submitted order is locked) and
- *    behind an approval (an approved order is editable by design);
+ *    behind an approval (an approved order was editable by design; refused since H-17 / DR-17);
  *  - conversion-adjacent: recording the supplier's bill (convert) and a
  *    DELETE, both orders.
  * And SEQUENTIALLY (no race): whether `DELETE /purchase-orders/:id`
@@ -134,9 +134,9 @@ describeMaybe("Phase 18 (e3) — the approval-flow races on PURCHASE ORDERS", ()
     seq.sendBack = await sendBack(p);
     expect([seq.approveAgain, seq.reject, seq.submit, seq.sendBack].map((x) => x.status)).toEqual([409, 409, 409, 409]);
     expect(await evidence(p), "the approved order is untouched by the four refusals").toEqual(before);
-    // an approved order is EDITABLE by design (purchaseOrdersService.update) — the sequential answer to a PATCH
+    // Phase 18 H-17 (DR-17; register §11.70): an approved order is REFUSED an edit — was "allowed sequentially" (200)
     seq.patchApproved = await patch(p);
-    expect(seq.patchApproved.status, "PATCH of an approved order is allowed sequentially").toBe(200);
+    expect(seq.patchApproved.status, "PATCH of an approved order is refused sequentially (DR-17)").toBe(409);
 
     // conversion: an approved order records the supplier's DRAFT bill; a billed order refuses DELETE
     const c = await draft();
@@ -270,7 +270,8 @@ describeMaybe("Phase 18 (e3) — the approval-flow races on PURCHASE ORDERS", ()
     expect.soft(ev.audits.filter((a) => a.startsWith("update:")), "no edit recorded on the submitted order").toEqual([]);
   }, 60_000);
 
-  it("a PATCH queued behind an APPROVAL (from draft): both 200 — the sequential answer (an approved order is editable by design); the order stays approved", async () => {
+  // Phase 18 H-17 (DR-17; register §11.70): was "both 200 — … (an approved order is editable by design)"
+  it("a PATCH queued behind an APPROVAL (from draft): the PATCH gets the sequential answer (refused — DR-17); the order stays approved", async () => {
     const q = await draft();
     const [ap, edit] = await queuedBehind("purchase_orders", q, [() => approve("admin", q), () => patch(q)]);
     const ev = await evidence(q);

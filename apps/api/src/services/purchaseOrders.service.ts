@@ -229,6 +229,14 @@ export const purchaseOrdersService = {
     if (existing.outcome) {
       throw new ConflictError(`This order was ${existing.outcome} and can no longer be edited.`);
     }
+    // 🔴 Phase 18 H-17 — DR-17 (register §11.68; G10): an approval covers the figures that were submitted, so an
+    // APPROVED order is not changed — its inputs stay frozen from submission through approval.
+    if (existing.status === "approved") {
+      throw new BusinessRuleError(409, {
+        code: "approved_document_frozen",
+        error: "This order is approved, so it is not changed: an approval covers the figures that were submitted. Close it and raise a new order.",
+      });
+    }
 
     const values = pick<Record<string, unknown>>(data, [...PO_FIELDS, "reviewNote"]) as Record<string, any>;
     if (values.date !== undefined) assertDateString(values.date, "date");
@@ -266,6 +274,9 @@ export const purchaseOrdersService = {
       const [now] = await purchaseOrdersRepository.findById(id);
       if (!now) throw new NotFoundError("Not found");
       if (now.outcome) throw new ConflictError(`This order was ${now.outcome} and can no longer be edited.`);
+      if (now.status === "approved") { // H-17 (DR-17): approved since this request read it (a race) — the same refusal
+        throw new BusinessRuleError(409, { code: "approved_document_frozen", error: "This order is approved, so it is not changed: an approval covers the figures that were submitted. Close it and raise a new order." });
+      }
       throw new ConflictError("A submitted order is locked while it awaits approval. Ask for it to be sent back.");
     }
     await auditService.updated("purchase_order", id, existing, updated);

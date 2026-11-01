@@ -1016,6 +1016,13 @@
       "when": 1793375246304,
       "tag": "0144_forced_password_change",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1793538842071,
+      "tag": "0145_tax_submitted_fingerprint",
+      "breakpoints": true
     }
   ]
 }

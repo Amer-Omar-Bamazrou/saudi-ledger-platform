@@ -354,7 +354,9 @@ export function taxComputationVersionApprovable(): Approvable<TaxComputationVers
       const c = await loadComputation(v.computationId);
       const live = await compute(c, v);
       if (live.blockers.length) refuse(422, "tax_computation_blocked", "This computation cannot be submitted yet: " + live.blockers.map((b) => b.message).join(" "), { blockers: live.blockers });
-      const [u] = await taxRepository.updateVersion(v.id, { status: "submitted", submittedAt: new Date(), submittedBy: actor.userId, sendBackNote: null });
+      // 🔴 H-17 — DR-17 (register §11.68–§11.69; G10): the fingerprint of the inputs it was SUBMITTED on, compared at
+      // approval — its own column (0113's trigger reserves inputs_fingerprint for the approval)
+      const [u] = await taxRepository.updateVersion(v.id, { status: "submitted", submittedAt: new Date(), submittedBy: actor.userId, sendBackNote: null, submittedInputsFingerprint: live.fingerprint });
       return snapshotOf(u!);
     },
     async onSendBack(v, _actor, note) {
@@ -369,6 +371,11 @@ export function taxComputationVersionApprovable(): Approvable<TaxComputationVers
         refuse(422, "tax_year_not_ended", `The fiscal year ends ${c.fiscalYearEnd}. A computation is approved after its year has ended — until then the working paper is a live projection.`);
       }
       const live = await compute(c, v);
+      // 🔴 H-17 — DR-17 (register §11.68; G10): an approval covers the figures that were submitted. A version submitted
+      // before this check carries no fingerprint and is not compared.
+      if (v.submittedInputsFingerprint != null && v.submittedInputsFingerprint !== live.fingerprint) {
+        refuse(409, "inputs_changed_since_submission", "The figures this computation was submitted on have changed since (a classification, an adjustment or the ledger). Send it back, review it and resubmit: an approval covers the figures that were submitted.");
+      }
       if (live.blockers.length || live.amountH == null) refuse(422, "tax_computation_blocked", "This computation cannot be approved: " + live.blockers.map((b) => b.message).join(" "), { blockers: live.blockers });
       const amountH = live.amountH!;
       const accruedH = toHalalas(await taxRepository.accruedSoFar(c.id));
