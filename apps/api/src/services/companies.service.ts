@@ -14,8 +14,7 @@ import {
   UpdateCurrentCompanyResponse,
 } from "@workspace/api-zod";
 import { randomUUID } from "node:crypto";
-import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
-import { FISCAL_YEAR_START_FROZEN } from "../lib/dbRefusals";
+import { BadRequestError, NotFoundError } from "../lib/errors";
 import { companyHasEntriesInBooks } from "../repositories/journalEntries.repository";
 import { storage } from "../lib/storage";
 import { validateLogoBytes, LOGO_ALLOWED_MIME } from "../lib/fileValidation";
@@ -178,15 +177,11 @@ export const companiesService = {
       updates.fiscalCalendar = input.fiscalCalendar;
     }
 
-    // 🔴 R-2 (G23; register §11.85): the fiscal-year start — a month IN a calendar — is fixed once any entry is in
-    // the books (posted or reversed). The same month and calendar are not a change; a draft freezes nothing. The
-    // database refuses too (0148, `company_fiscal_year_frozen`); this is the readable refusal, in both languages,
-    // before it — a state conflict, so 409.
-    const monthChanges = updates.fiscalYearStart !== undefined && updates.fiscalYearStart !== company.fiscalYearStart;
-    const calendarChanges = updates.fiscalCalendar !== undefined && updates.fiscalCalendar !== company.fiscalCalendar;
-    if ((monthChanges || calendarChanges) && (await companyHasEntriesInBooks(company.id))) {
-      throw new BusinessRuleError(409, { ...FISCAL_YEAR_START_FROZEN, field: monthChanges ? "fiscalYearStart" : "fiscalCalendar" });
-    }
+    // 🔴 R-2 (G23; register §11.85–§11.86): the fiscal-year start — a month IN a calendar — is fixed once any entry
+    // is in the books (posted or reversed). The rule lives at the write boundary, trigger `companies_fiscal_year_frozen`
+    // (0148), and its refusal is translated by lib/dbRefusals into 409 `fiscal_year_start_frozen` with the one bilingual
+    // text — no second copy of the rule here (a service-side check survived its mutants: unobservable beside the trigger).
+    // The same month and calendar are not a change; a draft freezes nothing.
 
     // M17.1 — ownership structure (Q2). An empty string clears it back to NOT
     // DECLARED, which is a legitimate state a tenant may return to: it is
