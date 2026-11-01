@@ -8,21 +8,27 @@
  *
  * Retained earnings is the one entry a free route may still reach — through a
  * CLASSIFIED correction only (a manual journal carrying an IAS 8 kind).
+ *
+ * 🔴 ROUTE-AWARE (register §11.77): a bank line is the PAY or SETTLEMENT path of
+ * three of these — a salary line pays the run (Dr payable / Cr bank, DR-41), a
+ * GOSI line pays GOSI, a VAT remittance line settles the return (the
+ * categoriser's own "VAT remittance" rule). Those three stay open to the bank
+ * line (`bankLineSettles`) and close to the manual journal and recognition.
  */
 export const PROTECTED_SYSTEM_ACCOUNTS = {
-  RETAINED_EARNINGS: { writtenBy: "a classified correction (a manual journal stating its IAS 8 kind: error, estimate or policy)", classifiableCorrection: true },
-  SALARIES_PAYABLE: { writtenBy: "a payroll run and its pay path", classifiableCorrection: false },
-  GOSI_PAYABLE: { writtenBy: "a payroll run and its GOSI payment", classifiableCorrection: false },
-  VAT_INPUT: { writtenBy: "a bill, an expense, a supplier note, the evidence claim and the VAT return's filing", classifiableCorrection: false },
-  VAT_OUTPUT: { writtenBy: "an invoice, a credit or debit note and the VAT return's filing", classifiableCorrection: false },
-  VAT_AWAITING_EVIDENCE: { writtenBy: "a bill awaiting its evidence and the evidence claim", classifiableCorrection: false },
-  VAT_PAYMENT: { writtenBy: "the VAT return's filing and its settlement", classifiableCorrection: false },
+  RETAINED_EARNINGS: { writtenBy: "a classified correction (a manual journal stating its IAS 8 kind: error, estimate or policy)", classifiableCorrection: true, bankLineSettles: false },
+  SALARIES_PAYABLE: { writtenBy: "a payroll run, and the salary bank line that pays it", classifiableCorrection: false, bankLineSettles: true },
+  GOSI_PAYABLE: { writtenBy: "a payroll run, and the GOSI bank line that pays it", classifiableCorrection: false, bankLineSettles: true },
+  VAT_INPUT: { writtenBy: "a bill, an expense, a supplier note, the evidence claim and the VAT return's filing", classifiableCorrection: false, bankLineSettles: false },
+  VAT_OUTPUT: { writtenBy: "an invoice, a credit or debit note and the VAT return's filing", classifiableCorrection: false, bankLineSettles: false },
+  VAT_AWAITING_EVIDENCE: { writtenBy: "a bill awaiting its evidence and the evidence claim", classifiableCorrection: false, bankLineSettles: false },
+  VAT_PAYMENT: { writtenBy: "the VAT return's filing, and the remittance bank line that settles it", classifiableCorrection: false, bankLineSettles: true },
 } as const;
 
 export type ProtectedSystemAccount = keyof typeof PROTECTED_SYSTEM_ACCOUNTS;
 
 /** The rule for a system code, or null when the code is not protected (a plain account, or no code at all). */
-export function protectedAccountRule(systemCode: string | null | undefined): { code: ProtectedSystemAccount; writtenBy: string; classifiableCorrection: boolean } | null {
+export function protectedAccountRule(systemCode: string | null | undefined): { code: ProtectedSystemAccount; writtenBy: string; classifiableCorrection: boolean; bankLineSettles: boolean } | null {
   if (!systemCode || !(systemCode in PROTECTED_SYSTEM_ACCOUNTS)) return null;
   const code = systemCode as ProtectedSystemAccount;
   return { code, ...PROTECTED_SYSTEM_ACCOUNTS[code] };

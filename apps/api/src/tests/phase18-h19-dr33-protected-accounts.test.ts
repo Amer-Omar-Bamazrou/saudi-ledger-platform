@@ -81,11 +81,13 @@ describeMaybe("Phase 18 H-19 — DR-33: one protected-account list, read by the 
     expect((await h.api("admin", "POST", `/journal-entries/${classified.body.id}/approve`, {})).status).toBe(200);
   });
 
-  it("🔴 the BANK-LINE categorisation refuses every protected account, retained earnings included — on create and on re-categorisation", async () => {
-    for (const code of ["RETAINED_EARNINGS", "SALARIES_PAYABLE", "VAT_INPUT", "VAT_PAYMENT"]) refused(await txn(acct[code]), `bank line → ${code}`);
+  it("🔴 the BANK-LINE categorisation refuses retained earnings and the VAT accounts a bank line never reaches — and stays OPEN to the payables it PAYS (register §11.77)", async () => {
+    for (const code of ["RETAINED_EARNINGS", "VAT_INPUT", "VAT_OUTPUT", "VAT_AWAITING_EVIDENCE"]) refused(await txn(acct[code]), `bank line → ${code}`);
+    // the pay and settlement path: a salary line pays the run, a GOSI line pays GOSI, a remittance line settles the return
+    for (const code of ["SALARIES_PAYABLE", "GOSI_PAYABLE", "VAT_PAYMENT"]) expect((await txn(acct[code])).status, `bank line → ${code} (its pay path)`).toBe(201);
     const ok = await txn(acct.RENT_UTILITIES);
     expect(ok.status).toBe(201);
-    refused(await h.api("admin", "PATCH", `/transactions/${ok.body.id}`, { categoryId: acct.GOSI_PAYABLE }), "bank line re-categorised → GOSI_PAYABLE");
+    refused(await h.api("admin", "PATCH", `/transactions/${ok.body.id}`, { categoryId: acct.VAT_OUTPUT }), "bank line re-categorised → VAT_OUTPUT");
   });
 
   it("🔴 a RECOGNITION schedule refuses a protected balance account", async () => {

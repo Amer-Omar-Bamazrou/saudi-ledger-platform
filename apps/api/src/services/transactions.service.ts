@@ -96,10 +96,11 @@ async function assertCategoryExists(categoryId: unknown): Promise<void> {
       field: "categoryId",
     });
   }
-  // 🔴 H-19 — DR-33 (register §11.75): the ONE protected-account list, read at this route's write boundary. A bank line
-  // cannot be a classified correction, so retained earnings is refused here outright.
+  // 🔴 H-19 — DR-33 (register §11.75, §11.77): the ONE protected-account list, read at this route's write boundary. A
+  // bank line cannot be a classified correction, so retained earnings is refused here outright — but a bank line IS the
+  // pay or settlement path of salaries payable, GOSI payable and VAT payment (`bankLineSettles`), which stay open here.
   const protectedRule = protectedAccountRule(cat.systemCode);
-  if (protectedRule) {
+  if (protectedRule && !protectedRule.bankLineSettles) {
     throw new BusinessRuleError(422, {
       error: `${cat.name} is written only by ${protectedRule.writtenBy} — not by a bank transaction's category.`,
       code: "protected_account",
