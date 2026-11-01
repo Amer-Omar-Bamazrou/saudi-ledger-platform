@@ -224,7 +224,9 @@ describeMaybe("M11.6 — issued invoices carry the COMPANY's ZATCA identity", ()
       companiesService.updateCurrent({
         nameAr: "مؤسسة الراشد التجارية",
         buildingNumber: "1234", street: "King Fahd Road", district: "Al Olaya",
-        city: "Riyadh", postalCode: "12212", fiscalYearStart: 1,
+        city: "Riyadh", postalCode: "12212",
+        // R-2 (G23; register §11.87): `fiscalYearStart: 1` rode along here — incidental to the address block, and
+        // refused now that two invoices are issued (the start is fixed once anything is posted). Nothing asserted it.
       } as any),
     );
     expect(out).toMatchObject({

@@ -273,9 +273,15 @@ describeMaybe("same-org cross-company isolation", () => {
   // it per company (presence, absence, movement). Its OLDER readers (listRuns,
   // findRun, activeEmployees…) still rely on RLS's company arm (0065) alone; as
   // with `bills`, the removal is the detector's requirement, not an audit.
+  // 🔴 R-2 / G23 (2026-11-01): `journalEntries` LEFT — its NEW reader
+  // (`companyHasEntriesInBooks`, what fixes a company's fiscal-year start)
+  // filters by the company explicitly, and phase18-r2-g23-fiscal-year-frozen
+  // proves the rule per company. Its OLDER readers (list, findById, the
+  // figures) still rely on RLS's company arm (0065) alone; as with `bills`
+  // and `payroll`, the removal is the detector's requirement, not an audit.
   const NO_COMPANY_FILTER = [
     "assets", "categorize",
-    "employees", "journalEntries",
+    "employees",
     "transactions", "vendors",
   ];
 
