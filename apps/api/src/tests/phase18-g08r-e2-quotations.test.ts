@@ -130,9 +130,9 @@ describeMaybe("Phase 18 (e2) — the approval-flow races on QUOTATIONS", () => {
     seq.sendBack = await sendBack(p);
     expect([seq.approveAgain, seq.reject, seq.submit, seq.sendBack].map((x) => x.status)).toEqual([409, 409, 409, 409]);
     expect(await evidence(p), "the approved quotation is untouched by the four refusals").toEqual(before);
-    // an approved quotation is EDITABLE by design (quotationsService.update) — the sequential answer to a PATCH
+    // Phase 18 H-17 (DR-17; register §11.70): an approved quotation is REFUSED an edit — was "allowed sequentially" (200)
     seq.patchApproved = await patch(p);
-    expect(seq.patchApproved.status, "PATCH of an approved quotation is allowed sequentially").toBe(200);
+    expect(seq.patchApproved.status, "PATCH of an approved quotation is refused sequentially (DR-17)").toBe(409);
 
     // conversion: an approved quotation converts into a DRAFT invoice; a converted quotation refuses DELETE
     const c = await draft();
@@ -266,7 +266,8 @@ describeMaybe("Phase 18 (e2) — the approval-flow races on QUOTATIONS", () => {
     expect.soft(ev.audits.filter((a) => a.startsWith("update:")), "no edit recorded on the submitted quotation").toEqual([]);
   }, 60_000);
 
-  it("a PATCH queued behind an APPROVAL (from draft): both 200 — the sequential answer (an approved quotation is editable by design); the quotation stays approved", async () => {
+  // Phase 18 H-17 (DR-17; register §11.70): was "both 200 — … (an approved quotation is editable by design)"
+  it("a PATCH queued behind an APPROVAL (from draft): the PATCH gets the sequential answer (refused — DR-17); the quotation stays approved", async () => {
     const q = await draft();
     const [ap, edit] = await queuedBehind("quotations", q, [() => approve("admin", q), () => patch(q)]);
     const ev = await evidence(q);
