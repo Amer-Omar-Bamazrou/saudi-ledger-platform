@@ -8524,6 +8524,7 @@ components:
           vatNumber,
           fiscalYearStart,
           fiscalCalendar,
+          fiscalYearStartFrozen,
           ownershipType,
           foreignOwnershipPct,
           vatTaxPeriod,
@@ -8568,6 +8569,17 @@ components:
           description: >
             Which calendar the fiscal year is expressed in (M17.2). `hijri`
             means the Umm al-Qura (Saudi civil) calendar specifically.
+        fiscalYearStartFrozen:
+          type: boolean
+          description: >
+            🔴 Phase 18 R-2 (G23): true once the company has any journal entry
+            in the books (posted or reversed). The fiscal-year start — the
+            month IN its calendar — then cannot change: a PATCH of another
+            month, another calendar or a withdrawal answers 409
+            `fiscal_year_start_frozen` (with `error` and `errorAr`), and the
+            database refuses the same change for every writer. The same month
+            and calendar are not a change. Shown so the page can say so
+            before the act.
         ownershipType:
           type: ["string", "null"]
           enum: [SAUDI_GCC, FOREIGN, MIXED, null]

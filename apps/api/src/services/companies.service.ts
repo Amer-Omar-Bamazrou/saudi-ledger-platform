@@ -14,7 +14,9 @@ import {
   UpdateCurrentCompanyResponse,
 } from "@workspace/api-zod";
 import { randomUUID } from "node:crypto";
-import { BadRequestError, NotFoundError } from "../lib/errors";
+import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
+import { FISCAL_YEAR_START_FROZEN } from "../lib/dbRefusals";
+import { companyHasEntriesInBooks } from "../repositories/journalEntries.repository";
 import { storage } from "../lib/storage";
 import { validateLogoBytes, LOGO_ALLOWED_MIME } from "../lib/fileValidation";
 import { assertFileIsClean } from "../lib/malwareScanner";
@@ -37,9 +39,11 @@ import type { companiesTable } from "@workspace/db";
 type Company = typeof companiesTable.$inferSelect;
 export type UpdateCompanyInput = ReturnType<(typeof UpdateCurrentCompanyBody)["parse"]>;
 
-function buildCompanyOut(c: Company) {
+function buildCompanyOut(c: Company, fiscalYearStartFrozen: boolean) {
   return {
     id: c.id,
+    /** R-2 (G23): true once any entry is in the books — the start cannot change, and the page says so before the act. */
+    fiscalYearStartFrozen,
     name: c.name,
     nameAr: c.nameAr ?? null,
     crNumber: c.crNumber ?? null,
@@ -79,7 +83,7 @@ export const companiesService = {
   async getCurrent() {
     const company = await companiesRepository.findActive();
     if (!company) throw new NotFoundError("No company is configured for this organization.");
-    return GetCurrentCompanyResponse.parse(buildCompanyOut(company));
+    return GetCurrentCompanyResponse.parse(buildCompanyOut(company, await companyHasEntriesInBooks(company.id)));
   },
 
   /**
@@ -172,6 +176,16 @@ export const companiesService = {
         throw new BadRequestError("fiscalCalendar must be 'gregorian' or 'hijri'.");
       }
       updates.fiscalCalendar = input.fiscalCalendar;
+    }
+
+    // 🔴 R-2 (G23; register §11.85): the fiscal-year start — a month IN a calendar — is fixed once any entry is in
+    // the books (posted or reversed). The same month and calendar are not a change; a draft freezes nothing. The
+    // database refuses too (0148, `company_fiscal_year_frozen`); this is the readable refusal, in both languages,
+    // before it — a state conflict, so 409.
+    const monthChanges = updates.fiscalYearStart !== undefined && updates.fiscalYearStart !== company.fiscalYearStart;
+    const calendarChanges = updates.fiscalCalendar !== undefined && updates.fiscalCalendar !== company.fiscalCalendar;
+    if ((monthChanges || calendarChanges) && (await companyHasEntriesInBooks(company.id))) {
+      throw new BusinessRuleError(409, { ...FISCAL_YEAR_START_FROZEN, field: monthChanges ? "fiscalYearStart" : "fiscalCalendar" });
     }
 
     // M17.1 — ownership structure (Q2). An empty string clears it back to NOT
@@ -271,8 +285,9 @@ export const companiesService = {
     if (Object.keys(updates).length === 0) throw new BadRequestError("No changes supplied.");
 
     const [updated] = await companiesRepository.update(company.id, updates);
-    await auditService.updated("company", company.id, buildCompanyOut(company), buildCompanyOut(updated));
-    return UpdateCurrentCompanyResponse.parse(buildCompanyOut(updated));
+    const frozen = await companyHasEntriesInBooks(company.id);
+    await auditService.updated("company", company.id, buildCompanyOut(company, frozen), buildCompanyOut(updated, frozen));
+    return UpdateCurrentCompanyResponse.parse(buildCompanyOut(updated, frozen));
   },
 
   // ── L1 level-1 branding: the logo (design-invoice-document.md §2) ─────────

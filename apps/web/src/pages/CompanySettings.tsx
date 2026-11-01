@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,8 @@ interface Company {
   vatNumber: string | null;
   fiscalYearStart: number | null;
   fiscalCalendar: "gregorian" | "hijri";
+  /** R-2 (G23): true once any entry is in the books — the start cannot change; the page says so before the act. */
+  fiscalYearStartFrozen?: boolean;
   /** M17.1 — null means NOT DECLARED, and the Zakat page asks rather than assumes. */
   ownershipType: "SAUDI_GCC" | "FOREIGN" | "MIXED" | null;
   /** FA-E — the share subject to INCOME TAX; null is NOT DECLARED, and the Art. 17 pool refuses rather than assume. */
@@ -118,7 +120,8 @@ export default function CompanySettings() {
       qc.invalidateQueries({ queryKey: getListFiscalYearsQueryKey() });
       toast({ title: t("Company settings saved", "تم حفظ إعدادات الشركة") });
     },
-    onError: (e: Error) => setError(e.message),
+    // R-2 (G23): a refusal that carries its Arabic is shown in Arabic under the Arabic UI
+    onError: (e: Error) => setError(lang === "ar" && typeof (e as ApiError).body?.errorAr === "string" ? (e as ApiError).body.errorAr : e.message),
   });
 
   const set = (k: keyof Company) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -211,7 +214,7 @@ export default function CompanySettings() {
         </Alert>
       )}
 
-      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {error && <Alert variant="destructive" data-testid="company-settings-error"><AlertDescription>{error}</AlertDescription></Alert>}
 
       <form onSubmit={submit} className="space-y-6">
         <Card className="border-border bg-card">
@@ -255,6 +258,17 @@ export default function CompanySettings() {
               being told the value is "stored for future use" as this page said
               from M11.6 until now.
             */}
+            {/* R-2 (G23): the fact before the act — the controls stay (explain a refusal; do not hide the control) */}
+            {company?.fiscalYearStartFrozen && (
+              <Alert data-testid="fiscal-year-frozen-note">
+                <AlertDescription>
+                  {t(
+                    "The fiscal-year start is fixed: this company has journal entries posted, and every posted figure was placed in a fiscal year by the start declared. Changing the month or the calendar is refused.",
+                    "بداية السنة المالية ثابتة: لهذه الشركة قيود يومية مُرحَّلة، وكل رقم مُرحَّل وُضع في سنة مالية بحسب البداية المُعلنة. تغيير الشهر أو التقويم مرفوض.",
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="grid grid-cols-2 gap-4 max-w-lg">
               <div className="space-y-1.5">
                 <Label htmlFor="fiscalCalendar">{t("Fiscal calendar", "التقويم المالي")}</Label>

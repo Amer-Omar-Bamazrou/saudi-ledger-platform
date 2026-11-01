@@ -50,7 +50,8 @@ test.afterAll(async () => {
   // BEFORE the structure, or companies_foreign_ownership_pct_chk refuses the
   // intermediate pair — the same rule the service explains.
   await api.patch("/api/companies/current", { data: { foreignOwnershipPct: null } });
-  await api.patch("/api/companies/current", { data: { ownershipType: original.ownershipType, fiscalYearStart: original.fiscalYearStart } });
+  // R-2 (G23): only the SHARE is put back — the fiscal year was never withdrawn (it cannot be, once anything is posted)
+  await api.patch("/api/companies/current", { data: { ownershipType: original.ownershipType } });
   if (original.foreignOwnershipPct !== null) {
     await api.patch("/api/companies/current", { data: { foreignOwnershipPct: original.foreignOwnershipPct } });
   }
@@ -62,7 +63,8 @@ test.describe.serial("the Art. 17 income-tax pool, end to end", () => {
 
   test("🔴 with the share undeclared the page refuses, and says so as an explanation rather than an empty table", async ({ page }) => {
     await api.patch("/api/companies/current", { data: { foreignOwnershipPct: null } });
-    await api.patch("/api/companies/current", { data: { ownershipType: null, fiscalYearStart: null } });
+    // R-2 (G23): the UNDECLARED SHARE is this test's subject; the fiscal year stays declared (it is fixed once anything is posted)
+    await api.patch("/api/companies/current", { data: { ownershipType: null } });
     await page.goto("/assets/income-tax-pool");
     await expect(page.getByTestId("page-income-tax-pool")).toBeVisible();
     await expect(page.getByTestId("pool-status")).toHaveText("regime_not_declared");

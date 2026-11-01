@@ -32,6 +32,8 @@ export interface Company {
   fiscalYearStart: number | null;
   /** Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically. */
   fiscalCalendar: CompanyFiscalCalendar;
+  /** 🔴 Phase 18 R-2 (G23): true once the company has any journal entry in the books (posted or reversed). The fiscal-year start — the month IN its calendar — then cannot change: a PATCH of another month, another calendar or a withdrawal answers 409 `fiscal_year_start_frozen` (with `error` and `errorAr`), and the database refuses the same change for every writer. The same month and calendar are not a change. Shown so the page can say so before the act. */
+  fiscalYearStartFrozen: boolean;
   /**
      * Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
      * @nullable

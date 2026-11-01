@@ -297,6 +297,10 @@ export default async function globalSetup(): Promise<void> {
     nameAr: "شركة الاختبار",
     crNumber: "1010101010",
     vatNumber: "300000000000003",
+    // R-2 (G23; register §11.85): the fiscal year is declared HERE, before anything is posted — once an entry is in
+    // the books the start is fixed, so the seed can no longer declare it later for the budget and withdraw it after.
+    // The shared tenant is therefore DECLARED (January, Gregorian) for every spec.
+    fiscalYearStart: 1,
     fiscalCalendar: "gregorian",
   });
 
@@ -470,14 +474,13 @@ export default async function globalSetup(): Promise<void> {
   });
 
   // Phase 15: an APPROVED 2026 base budget — so /budgets lists a row, /budgets/:id is crawlable and the
-  // Analytics card has figures. A budget needs a DECLARED fiscal year (D15-15): declare one, create the
-  // budget (it FREEZES its year, D15-01), then put the company back undeclared, as every other spec found it.
-  await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: 1, fiscalCalendar: "gregorian" });
+  // Analytics card has figures. A budget needs a DECLARED fiscal year (D15-15) — declared with the company's
+  // identity above (R-2, G23: it cannot be declared or withdrawn once anything is posted). The budget FREEZES its
+  // year (D15-01).
   const budget = await api<{ id: number; version: { id: number } }>(ctx, "POST", "/budgets", { name: "E2E Operating Budget", nameAr: "ميزانية التشغيل", fiscalYearLabel: 2026 });
   // Phase 16: a DRAFT Zakat computation for FY 2025 (a computation also freezes its year at creation), so
   // /zakat lists a row and /tax/computations/:id is crawlable. A draft moves nothing in the books.
   const taxComputation = await api<{ id: number }>(ctx, "POST", "/tax/computations", { kind: "zakat", fiscalYearLabel: 2025 });
-  await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: null });
   const budgetAccounts = await api<Array<{ id: number; name: string }>>(ctx, "GET", "/budgets/accounts");
   const salesAccount = budgetAccounts.find((a) => a.name === "Sales Revenue");
   const purchasesAccount = budgetAccounts.find((a) => a.name === "Purchases");

@@ -24,7 +24,7 @@ const PW = "Phase18R2OwnPw1!";
 
 describeMaybe("Phase 18 R-2 — G23: the fiscal-year start is fixed once anything is posted", () => {
   const h = g04Harness("p18r2fyf");
-  let orgId = "", companyId = 0, office = 0, sales = 0;
+  let orgId = "", companyId = "", office = 0, sales = 0;
   const company = async () => (await h.api("admin", "GET", "/companies/current")).body as { fiscalYearStart: number | null; fiscalCalendar: string; fiscalYearStartFrozen?: boolean };
   const patch = (body: Record<string, unknown>) => h.api("admin", "PATCH", "/companies/current", body);
   const rowOf = async () => (await pool.query(`SELECT fiscal_year_start AS m, fiscal_calendar AS cal FROM companies WHERE id = $1`, [companyId])).rows[0] as { m: number | null; cal: string };
