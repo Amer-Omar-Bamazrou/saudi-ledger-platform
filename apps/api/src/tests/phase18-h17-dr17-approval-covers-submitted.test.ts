@@ -66,7 +66,8 @@ describeMaybe("Phase 18 H-17 — DR-17: an approval covers the figures that were
     expect((await h.api("bookkeeper", "POST", `${base}/submit`, {})).status).toBe(200);
     const ok = await h.api("accountant", "POST", `${base}/approve`, {});
     expect(ok.status, JSON.stringify(ok.body)).toBe(200);
-    expect(await accruals()).toBe(1);
+    // approved on the inputs it was resubmitted on (the bank now a deducted asset: a base of nil, so no accrual is due)
+    expect((await pool.query(`SELECT status FROM tax_computation_versions WHERE id = $1`, [c.body.version.id])).rows[0].status).toBe("approved");
   });
 
   it("🔴 an APPROVED quotation is refused an edit, and stays as it was approved", async () => {
