@@ -29,6 +29,41 @@ import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
 import { RESERVED_ENTRY_NUMBER_PREFIXES, type journalEntriesTable } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
+import { companiesRepository } from "../repositories/companies.repository";
+import { periodRecordsService } from "./periodRecords.service";
+import { fiscalYearContaining, isFiscalCalendar, type FiscalCalendar } from "../lib/fiscalYear";
+
+/** H-18 (DR-15): the three IAS 8 kinds a correction is classified as (8.5, 8.32–36); NULL = unclassified. */
+const CORRECTION_KINDS = ["error", "estimate", "policy"] as const;
+type CorrectionKind = (typeof CORRECTION_KINDS)[number];
+
+/**
+ * 🔴 Phase 18 H-18 — DR-15 (register §11.73): the ATTRIBUTION of a correction, derived at reversal from the ORIGINAL
+ * entry's date and stored on the mirror as snapshots — the fiscal year it belongs to (the company's declared calendar;
+ * nulls when none is declared), the statement authorisation covering that year (the latest, if one is recorded), and
+ * the filed original VAT return whose period holds the date (if one is recorded). An immutable entry that lacks the
+ * attribution cannot be re-attributed later; a snapshot outlives a later calendar change or record.
+ */
+async function correctionAttributionOf(originalDate: string) {
+  const company = await companiesRepository.findCurrent();
+  let year: { startDate: string; endDate: string } | null = null;
+  if (company?.fiscalYearStart != null) {
+    const calendar = (isFiscalCalendar(company.fiscalCalendar) ? company.fiscalCalendar : "gregorian") as FiscalCalendar;
+    year = fiscalYearContaining({ fiscalYearStart: company.fiscalYearStart, calendar }, originalDate);
+  }
+  const authorisation = (await periodRecordsService.authorisations())
+    .map((a) => ({ start: String(a.fiscalYearStart).slice(0, 10), end: String(a.fiscalYearEnd).slice(0, 10), on: String(a.authorisedOn).slice(0, 10), by: a.authorisedBy }))
+    .filter((a) => a.start <= originalDate && originalDate <= a.end)
+    .sort((x, y) => y.on.localeCompare(x.on))[0] ?? null;
+  const filing = await periodRecordsService.filedVatPeriodOf(originalDate);
+  return {
+    originFiscalYearStart: year?.startDate ?? null,
+    originFiscalYearEnd: year?.endDate ?? null,
+    originAuthorisedOn: authorisation?.on ?? null,
+    originAuthorisedBy: authorisation?.by ?? null,
+    originVatFilingReference: filing?.zatcaReference ?? null,
+  };
+}
 
 /**
  * 🔴 T1d (Phase 18, SG-11 / G17): a TYPED entry number never takes a shape the
@@ -416,7 +451,7 @@ export const journalEntriesService = {
    */
   async reverse(
     id: number,
-    body: { reason?: unknown; date?: unknown; discoveredOn?: unknown; apparentOn?: unknown; discoveryEvidence?: unknown } = {},
+    body: { reason?: unknown; date?: unknown; discoveredOn?: unknown; apparentOn?: unknown; discoveryEvidence?: unknown; correctionKind?: unknown } = {},
     owner: {
       document?: "bank_transfer" | "statement_line" | "wht_withholding";
       /**
@@ -508,6 +543,11 @@ export const journalEntriesService = {
     if (apparentOn && !discoveredOn) throw new BusinessRuleError(422, { code: "discovered_on_required", field: "discoveredOn", error: "Record the actual discovery date first; the earlier apparent date is kept beside it." });
     if (apparentOn && discoveredOn && apparentOn > discoveredOn) throw new BusinessRuleError(422, { code: "apparent_after_discovery", field: "apparentOn", error: "The date the error arguably became apparent is on or before the date it was discovered." });
     const discoveryEvidence = typeof body.discoveryEvidence === "string" && body.discoveryEvidence.trim() ? body.discoveryEvidence.trim() : null;
+    // H-18 (DR-15): the classification, when the caller states one (a system correction states none)
+    const correctionKind: CorrectionKind | null = body.correctionKind == null || body.correctionKind === "" ? null
+      : (CORRECTION_KINDS as readonly unknown[]).includes(body.correctionKind) ? (body.correctionKind as CorrectionKind)
+      : (() => { throw new BadRequestError(`correctionKind is one of ${CORRECTION_KINDS.join(", ")} (IAS 8), or omitted.`); })();
+    const attribution = await correctionAttributionOf(originalDate);
     // 🔴 Throws the structured PeriodLockedError (423) that names the month.
     await checkPeriodOpen(date);
 
@@ -538,6 +578,9 @@ export const journalEntriesService = {
       discoveredOn,
       apparentOn,
       discoveryEvidence,
+      // 🔴 H-18 (DR-15): the attribution, on the draft before the flip (G16 unchanged).
+      correctionKind,
+      ...attribution,
     });
     const mirrorLines = await journalEntriesRepository.insertLines(
       lines.map((l) => ({

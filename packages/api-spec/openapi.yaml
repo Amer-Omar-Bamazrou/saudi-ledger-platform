@@ -9452,6 +9452,10 @@ components:
         discoveredOn: { type: ["string", "null"], description: "T1e — the ACTUAL date the error was discovered." }
         apparentOn: { type: ["string", "null"], description: "T1e — any earlier date on which it arguably became apparent (kept apart; on or before discoveredOn)." }
         discoveryEvidence: { type: ["string", "null"] }
+        correctionKind:
+          type: ["string", "null"]
+          enum: [error, estimate, policy, null]
+          description: "Phase 18 H-18 (DR-15): the correction's IAS 8 classification; omitted = unclassified."
 
     Category:
       type: object
@@ -10622,6 +10626,15 @@ components:
           enum: [draft, posted, reversed]
         reversalOf:
           type: ["integer", "null"]
+        correctionKind:
+          type: ["string", "null"]
+          enum: [error, estimate, policy, null]
+          description: "Phase 18 H-18 (DR-15): a mirror's classification; null on every other entry and on mirrors before it."
+        originFiscalYearStart: { type: ["string", "null"], format: date, description: "DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal)." }
+        originFiscalYearEnd: { type: ["string", "null"], format: date }
+        originAuthorisedOn: { type: ["string", "null"], format: date, description: "DR-15: the statement authorisation covering that year, if recorded." }
+        originAuthorisedBy: { type: ["string", "null"] }
+        originVatFilingReference: { type: ["string", "null"], description: "DR-15: the filed original VAT return whose period holds the original's date, if recorded." }
         notes:
           type: ["string", "null"]
         postedAt:

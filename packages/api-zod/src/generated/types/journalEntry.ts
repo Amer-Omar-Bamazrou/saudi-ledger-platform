@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { JournalEntryCorrectionKind } from './journalEntryCorrectionKind';
 import type { JournalEntryLine } from './journalEntryLine';
 import type { JournalEntryStatus } from './journalEntryStatus';
 
@@ -18,6 +19,30 @@ export interface JournalEntry {
   status: JournalEntryStatus;
   /** @nullable */
   reversalOf?: number | null;
+  /**
+     * Phase 18 H-18 (DR-15): a mirror's classification; null on every other entry and on mirrors before it.
+     * @nullable
+     */
+  correctionKind?: JournalEntryCorrectionKind;
+  /**
+     * DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal).
+     * @nullable
+     */
+  originFiscalYearStart?: Date | null;
+  /** @nullable */
+  originFiscalYearEnd?: Date | null;
+  /**
+     * DR-15: the statement authorisation covering that year, if recorded.
+     * @nullable
+     */
+  originAuthorisedOn?: Date | null;
+  /** @nullable */
+  originAuthorisedBy?: string | null;
+  /**
+     * DR-15: the filed original VAT return whose period holds the original's date, if recorded.
+     * @nullable
+     */
+  originVatFilingReference?: string | null;
   /** @nullable */
   notes?: string | null;
   /** @nullable */

@@ -40,7 +40,7 @@ export default function JournalEntries() {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   // 🔴 T1e (DR-10; owner decision 10): a correction may record the ACTUAL discovery date, any earlier apparent date, and the evidence.
   const [reversing, setReversing] = useState<number | null>(null);
-  const [rev, setRev] = useState({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "" });
+  const [rev, setRev] = useState({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "", correctionKind: "" });
   // `?entry=<id>` opens one entry directly (the migration workspace links its opening journal this way).
   const [selectedId, setSelectedId] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
@@ -126,8 +126,9 @@ export default function JournalEntries() {
       discoveredOn: rev.discoveredOn || undefined,
       apparentOn: rev.apparentOn || undefined,
       discoveryEvidence: rev.discoveryEvidence.trim() || undefined,
+      correctionKind: rev.correctionKind || undefined, // H-18 (DR-15): optional; an empty choice is sent as nothing
     }) }),
-    onSuccess: () => { setReversing(null); setRev({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "" }); qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry reversed", "تم عكس القيد") }); },
+    onSuccess: () => { setReversing(null); setRev({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "", correctionKind: "" }); qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry reversed", "تم عكس القيد") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -374,6 +375,16 @@ export default function JournalEntries() {
           <DialogHeader><DialogTitle>{t("Reverse this entry?", "عكس هذا القيد؟")}</DialogTitle></DialogHeader>
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">{t("A mirror entry is posted today; the original stays in the books, marked reversed.", "يُرحَّل قيد معاكس اليوم، ويبقى القيد الأصلي في الدفاتر معلَّمًا بأنه معكوس.")}</p>
+            <div className="grid gap-1"><Label htmlFor="rev-kind">{t("Kind of correction (IAS 8)", "نوع التصحيح (IAS 8)")}</Label>
+              <Select value={rev.correctionKind} onValueChange={(v) => setRev({ ...rev, correctionKind: v === "none" ? "" : v })}>
+                <SelectTrigger id="rev-kind" data-testid="rev-kind"><SelectValue placeholder={t("Not classified", "غير مصنف")} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("Not classified", "غير مصنف")}</SelectItem>
+                  <SelectItem value="error" data-testid="rev-kind-error">{t("Error", "خطأ")}</SelectItem>
+                  <SelectItem value="estimate">{t("Change in estimate", "تغيير في تقدير")}</SelectItem>
+                  <SelectItem value="policy">{t("Change in accounting policy", "تغيير في سياسة محاسبية")}</SelectItem>
+                </SelectContent>
+              </Select></div>
             <div className="grid gap-1"><Label htmlFor="rev-reason">{t("Reason", "السبب")}</Label><Input id="rev-reason" data-testid="rev-reason" value={rev.reason} onChange={(ev) => setRev({ ...rev, reason: ev.target.value })} /></div>
             <div className="grid grid-cols-2 gap-2">
               <div className="grid gap-1"><Label htmlFor="rev-discovered">{t("Error discovered on", "تاريخ اكتشاف الخطأ")}</Label><Input id="rev-discovered" data-testid="rev-discovered" type="date" value={rev.discoveredOn} onChange={(ev) => setRev({ ...rev, discoveredOn: ev.target.value })} /></div>

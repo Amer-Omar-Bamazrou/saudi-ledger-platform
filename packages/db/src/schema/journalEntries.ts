@@ -1,4 +1,4 @@
-import { uniqueIndex, pgTable, serial, text, timestamp, integer, numeric, uuid, index, foreignKey, date } from "drizzle-orm/pg-core";
+import { uniqueIndex, pgTable, serial, text, timestamp, integer, numeric, uuid, index, foreignKey, date, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -150,12 +150,25 @@ export const journalEntriesTable = pgTable(
     discoveredOn: date("discovered_on"),
     apparentOn: date("apparent_on"),
     discoveryEvidence: text("discovery_evidence"),
+    /**
+     * 🔴 Phase 18 H-18 — DR-15 (register §11.73): a correction's ATTRIBUTION, on the mirror, as SNAPSHOTS taken at
+     * reversal from the ORIGINAL entry's date (never references: the attribution outlives a later calendar change or
+     * record, and needs no tenant→tenant key). NULL on every entry that is not a mirror, and on every mirror before this.
+     */
+    correctionKind: text("correction_kind"),
+    originFiscalYearStart: date("origin_fiscal_year_start"),
+    originFiscalYearEnd: date("origin_fiscal_year_end"),
+    originAuthorisedOn: date("origin_authorised_on"),
+    originAuthorisedBy: text("origin_authorised_by"),
+    originVatFilingReference: text("origin_vat_filing_reference"),
     notes: text("notes"),
     postedAt: timestamp("posted_at"),      // set when status transitions to posted; entry is locked after this
     createdBy: integer("created_by"),      // FK to users.id (nullable — pre-auth entries have no owner)
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
+    // H-18 (DR-15): a classified correction is one of the three IAS 8 kinds; NULL = unclassified
+    check("journal_entries_correction_kind_chk", sql`${t.correctionKind} IS NULL OR ${t.correctionKind} IN ('error', 'estimate', 'policy')`),
     index("journal_entries_org_status_idx").on(t.organizationId, t.status),
     // N3: a document number means ONE document. Declared here so drizzle-kit
     // cannot read the index as drift (the N4 lesson); pinned by
