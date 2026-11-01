@@ -332,12 +332,11 @@ describeMaybe("Phase 15 — budgets on real rows", () => {
   });
 
   it("🔴 D15-15 — an undeclared fiscal year is refused, never defaulted to the calendar year; a Hijri company's budget freezes Hijri periods", async () => {
-    await pool.query(`UPDATE companies SET fiscal_year_start = NULL WHERE id = $1`, [coB]);
-    try {
-      await expect(inB(() => budgetsService.create({ name: "No year", fiscalYearLabel: 2026 }, userId))).rejects.toMatchObject({ statusCode: 422, payload: { code: "fiscal_year_undeclared" } });
-    } finally {
-      await pool.query(`UPDATE companies SET fiscal_year_start = 1 WHERE id = $1`, [coB]);
-    }
+    // R-2 (G23; register §11.87): an UNDECLARED company with nothing posted — co B has entries in the books, and its
+    // start can no longer be withdrawn (the trigger refuses). The property, that an undeclared year refuses a budget,
+    // is the same on any company; this one never had a year.
+    const coU = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_calendar) VALUES ($1,'P15 Co U','gregorian') RETURNING id`, [orgId])).rows[0].id as string;
+    await expect(inCo(orgId, coU, () => budgetsService.create({ name: "No year", fiscalYearLabel: 2026 }, userId))).rejects.toMatchObject({ statusCode: 422, payload: { code: "fiscal_year_undeclared" } });
     const h = await inCo(orgId, coH, () => budgetsService.create({ name: "Hijri", fiscalYearLabel: 1447 }, userId));
     expect([h.fiscalYear.calendar, h.fiscalYear.label, h.periods[0]!.startDate, h.periods.length]).toEqual(["hijri", 1447, "2025-06-26", 12]);
     // the budget keeps ITS year when the company changes its settings afterwards (D15-01)

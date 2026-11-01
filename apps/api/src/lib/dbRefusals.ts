@@ -209,6 +209,16 @@ export function pgErrorFields(err: unknown): { code?: string; constraint?: strin
  * refusal we recognise (it then stays a logged 500). Drizzle may wrap the
  * driver error in `cause`.
  */
+/**
+ * 🔴 R-2 (G23; register §11.85): the ONE text of the fiscal-year refusal, in both languages — the service's refusal and
+ * the trigger's translation read it, so the two paths never say different things.
+ */
+export const FISCAL_YEAR_START_FROZEN = {
+  code: "fiscal_year_start_frozen",
+  error: "The fiscal-year start cannot change: this company has journal entries posted, and every posted figure was placed in a fiscal year by the start it was declared with. It stays as declared.",
+  errorAr: "لا يمكن تغيير بداية السنة المالية: لهذه الشركة قيود يومية مُرحَّلة، وكل رقم مُرحَّل وُضع في سنة مالية بحسب البداية المُعلنة. تبقى كما أُعلنت.",
+} as const;
+
 export function translateDbRefusal(err: unknown): DbRefusal | null {
   const pg = err as { code?: string; message?: string; constraint?: string; cause?: { code?: string; message?: string; constraint?: string } };
   const pgCode = pg?.code && /^[0-9A-Z]{5}$/.test(pg.code) ? pg.code : pg?.cause?.code;
@@ -224,6 +234,12 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   // Phase 12C/12D: the banking triggers (keyed on their sentence — they raise no constraint name).
   if (pgCode === "23514" && /is reconciled through/.test(pgMessage)) return { status: 409, body: { code: "bank_reconciled_through", error: pgMessage } };
   if (pgCode === "23514" && /is reconciled to a bank statement line/.test(pgMessage)) return { status: 409, body: { code: "entry_reconciled", error: pgMessage } };
+
+  // R-2 (G23, 0148): the fiscal-year start changed on a company with entries in the books — the same refusal, in
+  // both languages, as companiesService.updateCurrent gives before the database reaches this trigger.
+  if (pgCode === "23514" && constraint === "company_fiscal_year_frozen") {
+    return { status: 409, body: { ...FISCAL_YEAR_START_FROZEN } as DbRefusal["body"] };
+  }
 
   if (pgCode === "23514" && constraint) {
     const status = BUDGET_TRIGGER_STATUS[constraint] ?? TAX_TREASURY_TRIGGER_STATUS[constraint];

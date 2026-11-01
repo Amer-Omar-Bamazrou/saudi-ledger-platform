@@ -1,9 +1,22 @@
 /** Journal entries repository — tenant-scoped via RLS. */
 import { db, journalEntriesTable, journalEntryLinesTable, categoriesTable, cashLineBankAttributionsTable } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { JE_IN_BOOKS } from "./reports.repository";
 
 /** The default page. Stated once so the API, the UI and the tests agree. */
 export const DEFAULT_PAGE = 50;
+
+/**
+ * R-2 (G23; register §11.85): whether the company has any entry IN THE BOOKS — posted or reversed, the one
+ * definition (`JE_IN_BOOKS`) — which is what fixes its fiscal-year start. A draft or submitted entry counts for nothing.
+ */
+export async function companyHasEntriesInBooks(companyId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(journalEntriesTable)
+    .where(and(eq(journalEntriesTable.companyId, companyId), inArray(journalEntriesTable.status, JE_IN_BOOKS)));
+  return (row?.n ?? 0) > 0;
+}
 
 export interface JournalEntryListFilter {
   status?: string;
