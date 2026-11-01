@@ -47,7 +47,7 @@ export default function JournalEntries() {
     const raw = Number(new URLSearchParams(window.location.search).get("entry"));
     return Number.isInteger(raw) && raw > 0 ? raw : null;
   });
-  const [form, setForm] = useState({ entryNumber: "", date: businessToday(), description: "", reference: "", notes: "" });
+  const [form, setForm] = useState({ entryNumber: "", date: businessToday(), description: "", reference: "", notes: "", correctionKind: "" });
   const [lines, setLines] = useState<LineForm[]>([{ ...emptyLine }, { ...emptyLine }]);
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -159,6 +159,16 @@ export default function JournalEntries() {
               <div><Label className="text-xs text-muted-foreground">{t("Entry Number", "رقم القيد")}</Label><Input value={form.entryNumber} onChange={e=>setForm(p=>({...p,entryNumber:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Reference", "المرجع")}</Label><Input value={form.reference} onChange={e=>setForm(p=>({...p,reference:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
+              <div className="col-span-3"><Label className="text-xs text-muted-foreground">{t("Kind of correction (IAS 8) — needed for a line on retained earnings", "نوع التصحيح (IAS 8) — مطلوب لبند على الأرباح المبقاة")}</Label>
+                <Select value={form.correctionKind} onValueChange={(v) => setForm((p) => ({ ...p, correctionKind: v === "none" ? "" : v }))}>
+                  <SelectTrigger data-testid="je-kind"><SelectValue placeholder={t("Not a correction", "ليس تصحيحاً")} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("Not a correction", "ليس تصحيحاً")}</SelectItem>
+                    <SelectItem value="error" data-testid="je-kind-error">{t("Error", "خطأ")}</SelectItem>
+                    <SelectItem value="estimate">{t("Change in estimate", "تغيير في تقدير")}</SelectItem>
+                    <SelectItem value="policy">{t("Change in accounting policy", "تغيير في سياسة محاسبية")}</SelectItem>
+                  </SelectContent>
+                </Select></div>
               <div className="col-span-3"><Label className="text-xs text-muted-foreground">{t("Description", "الوصف")}</Label><Input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} className="mt-1 h-8 text-sm" data-testid="je-description" /></div>
             </div>
 
@@ -249,7 +259,7 @@ export default function JournalEntries() {
 
             {recordsNothing && <p className="text-xs text-muted-foreground mt-1" data-testid="je-zero-hint">{t("Enter the debit and credit amounts: an entry whose amounts are all blank or zero records nothing.", "أدخل مبالغ المدين والدائن: القيد الذي جميع مبالغه فارغة أو صفر لا يسجّل شيئاً.")}</p>}
             {partyMissing && <p className="text-xs text-negative mt-1">⚠ {t("A receivable/payable line must name its customer/vendor.", "سطر الذمم المدينة/الدائنة يجب أن يحدد العميل/المورّد.")}</p>}
-            <Button className="w-full mt-4" data-testid="je-save" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||recordsNothing||partyMissing||createMut.isPending}>
+            <Button className="w-full mt-4" data-testid="je-save" onClick={()=>createMut.mutate({ ...form, correctionKind: form.correctionKind ? (form.correctionKind as "error" | "estimate" | "policy") : undefined, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||recordsNothing||partyMissing||createMut.isPending}>
               {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
             </Button>
           </DialogContent>

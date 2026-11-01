@@ -7026,7 +7026,25 @@ export interface JournalEntryLineInput {
   vendorId?: number | null;
 }
 
+/**
+ * Phase 18 H-19 (DR-33): the IAS 8 kind that makes this entry a classified correction — required for a line on retained earnings; omitted otherwise.
+ * @nullable
+ */
+export type CreateJournalEntryInputCorrectionKind = typeof CreateJournalEntryInputCorrectionKind[keyof typeof CreateJournalEntryInputCorrectionKind] | null;
+
+
+export const CreateJournalEntryInputCorrectionKind = {
+  error: 'error',
+  estimate: 'estimate',
+  policy: 'policy',
+} as const;
+
 export interface CreateJournalEntryInput {
+  /**
+     * Phase 18 H-19 (DR-33): the IAS 8 kind that makes this entry a classified correction — required for a line on retained earnings; omitted otherwise.
+     * @nullable
+     */
+  correctionKind?: CreateJournalEntryInputCorrectionKind;
   /** Allocated by the server when omitted or blank. */
   entryNumber?: string;
   /**

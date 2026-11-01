@@ -5768,6 +5768,7 @@ export const createJournalEntryBodyLinesMin = 2;
 
 
 export const CreateJournalEntryBody = zod.object({
+  "correctionKind": zod.union([zod.literal('error'),zod.literal('estimate'),zod.literal('policy'),zod.literal(null)]).nullish().describe('Phase 18 H-19 (DR-33): the IAS 8 kind that makes this entry a classified correction — required for a line on retained earnings; omitted otherwise.'),
   "entryNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
   "date": zod.string().regex(createJournalEntryBodyDateRegExp).describe('Required and non-empty — \"\" used to slip past a falsy guard, skipping the period lock and posting an entry no date-ranged report could see (2026-09-14).\n'),
   "description": zod.string().min(1),

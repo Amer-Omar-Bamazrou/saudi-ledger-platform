@@ -29,6 +29,7 @@ import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
 import { RESERVED_ENTRY_NUMBER_PREFIXES, type journalEntriesTable } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
+import { protectedAccountRule } from "@workspace/shared";
 import { companiesRepository } from "../repositories/companies.repository";
 import { periodRecordsService } from "./periodRecords.service";
 import { fiscalYearContaining, isFiscalCalendar, type FiscalCalendar } from "../lib/fiscalYear";
@@ -188,6 +189,11 @@ export const journalEntriesService = {
       body,
       ["entryNumber", "date", "description", "reference", "notes"],
     );
+    // 🔴 H-19 — DR-33 (register §11.75): a manual journal may state its IAS 8 kind; a line on RETAINED_EARNINGS requires
+    // it (a classified correction is the one way a free route reaches that account). The kinds are H-18's.
+    const correctionKind: CorrectionKind | null = body.correctionKind == null || body.correctionKind === "" ? null
+      : (CORRECTION_KINDS as readonly unknown[]).includes(body.correctionKind) ? (body.correctionKind as CorrectionKind)
+      : (() => { throw new BadRequestError(`correctionKind is one of ${CORRECTION_KINDS.join(", ")} (IAS 8), or omitted.`); })();
 
     // 🔴 H2 — validate each line amount BEFORE the balance check. A non-numeric
     // amount made `Math.abs(NaN - NaN) > 0.01` false, so garbage PASSED the
@@ -323,6 +329,17 @@ export const journalEntriesService = {
       const refuse = (error: string, field: string) => {
         throw new BusinessRuleError(422, { error, code: "journal_line_party_invalid", field });
       };
+      // 🔴 H-19 — DR-33: the ONE protected-account list (@workspace/shared), read at this route's write boundary.
+      const protectedRule = protectedAccountRule(code);
+      if (protectedRule && !(protectedRule.classifiableCorrection && correctionKind)) {
+        throw new BusinessRuleError(422, {
+          code: protectedRule.classifiableCorrection ? "correction_kind_required" : "protected_account",
+          error: protectedRule.classifiableCorrection
+            ? `Line ${i + 1} posts to ${acct?.name ?? protectedRule.code}, which only a classified correction reaches: state the correction's kind (error, estimate or policy).`
+            : `Line ${i + 1} posts to ${acct?.name ?? protectedRule.code}, which is written only by ${protectedRule.writtenBy} — not by a manual journal.`,
+          field: `lines[${i}].accountId`,
+        });
+      }
       // D-4: the customer-credit liabilities carry a customer exactly like AR.
       if (code === "AR" || code === "CUSTOMER_DEPOSITS" || code === "CUSTOMER_CREDITS") {
         if (l.customerId == null)
@@ -375,6 +392,7 @@ export const journalEntriesService = {
         // 🔴 T1d: what produced it — the user (manual) or a recurring rule's run (a draft, approved like any other).
         sourceType: origin?.sourceType ?? "manual",
         sourceId: null,
+        correctionKind, // H-19 (DR-33): a classified correction states its kind on the draft
       });
     } catch (err) {
       // N3: unique(company_id, entry_number) — a user-supplied duplicate is
