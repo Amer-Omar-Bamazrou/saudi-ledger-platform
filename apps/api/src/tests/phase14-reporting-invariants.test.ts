@@ -36,7 +36,7 @@ import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
 import { journalEntriesService } from "../services/journalEntries.service";
-import { postJournalEntry } from "../services/accounting/glPosting";
+import { transactionsService } from "../services/transactions.service";
 import { reportsService } from "../services/reports.service";
 import { analyticsService } from "../services/analytics.service";
 import { buildReportDocument, exportReport } from "../services/reporting/reportExport.service";
@@ -116,7 +116,7 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
     const bank1Leaf = await bankLeaf(ids.bank1), bank2Leaf = await bankLeaf(ids.bank2);
     ids.bank1Leaf = bank1Leaf; ids.bank2Leaf = bank2Leaf;
     ids.sales = await catId(orgId, "SALES");
-    ids.vatOut = await catId(orgId, "VAT_OUTPUT");
+    ids.vatPayment = await catId(orgId, "VAT_PAYMENT");
     ids.ar = await catId(orgId, "AR");
     ids.ap = await catId(orgId, "AP");
     ids.capital = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, is_posting) VALUES ($1,'Owner capital','رأس المال','equity',true) RETURNING id`, [orgId])).rows[0].id;
@@ -134,9 +134,9 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
     await inA(() => billsService.approve(bill1.id, {}, userId));
     await inA(() => billsService.pay(bill1.id, { amount: 1150, paidAt: "2026-05-01", bankAccountId: ids.bank1 }, userId));
     await manual(inA, "P14-XFER", "2026-06-01", [[bank2Leaf, 3000, 0], [bank1Leaf, 0, 3000]]);
-    // H-19 (DR-33; register §11.78): the same lines through the seam, a FIXTURE stand-in for a VAT payment bank line
-    await inA(() => postJournalEntry({ entryNumber: "P14-VATPAY", date: "2026-06-15", description: "P14-VATPAY (fixture stand-in for a bank transaction)", sourceType: "bank_transaction", sourceId: 0,
-      lines: [{ accountId: ids.vatOut, accountName: "VAT Payable", debitAmount: 100, creditAmount: 0 }, { accountId: bank1Leaf, accountName: "Bank", debitAmount: 0, creditAmount: 100 }] }));
+    // R-3 (AC-5; register §11.90): the product's own settlement path — a remittance bank line categorised to VAT_PAYMENT
+    // (§11.77); the entry's source is the transaction's own id, never a stand-in
+    await inA(() => transactionsService.create({ date: "2026-06-15", description: "P14-VATPAY (VAT remitted)", amount: 100, currency: "SAR", type: "debit", bankAccountId: ids.bank1, categoryId: ids.vatPayment } as never));
     const inv2 = await inA(() => invoicesService.create({ invoiceNumber: "P14-INV-2", date: "2026-07-15", dueDate: "2026-08-14", customerId: ids.customer, items: [{ description: "Service", quantity: 2, unitPrice: 1000, vatRate: 15 }] }, userId)) as { id: number };
     await inA(() => invoicesService.approve(inv2.id, userId));
     ids.inv1 = inv1.id; ids.inv2 = inv2.id; ids.bill1 = bill1.id;
