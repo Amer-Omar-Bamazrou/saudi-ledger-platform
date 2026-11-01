@@ -33,9 +33,13 @@ export const userAdminRepository = {
       .limit(1);
     return !!row;
   },
-  /** `setByOther`: H-15 (DR-27) — a password someone other than the holder chose must be changed before anything else. */
-  async setPasswordHash(userId: number, passwordHash: string, setByOther: boolean): Promise<void> {
-    await db.update(usersTable).set({ passwordHash, passwordChangeRequired: setByOther }).where(eq(usersTable.id, userId));
+  /**
+   * `setByOther`: H-15 (DR-27) — a password someone other than the holder chose must be changed before anything else.
+   * `breakGlassExpiresAt`: R-1 (DR-27, 24 hours; register §11.83) — an operator's break-glass password stops signing in
+   * at this moment; every other password passes null, which also clears a stale window.
+   */
+  async setPasswordHash(userId: number, passwordHash: string, setByOther: boolean, breakGlassExpiresAt: Date | null = null): Promise<void> {
+    await db.update(usersTable).set({ passwordHash, passwordChangeRequired: setByOther, breakGlassExpiresAt }).where(eq(usersTable.id, userId));
   },
   /**
    * Kills every live session of the user — but `exceptSid`, when given (G02: the
@@ -50,9 +54,9 @@ export const userAdminRepository = {
     return res.rowCount ?? 0;
   },
   /** G02: what a live session is checked against on every request — the account's active flag and its stored password hash (and, H-15, whether a change is owed). */
-  async sessionAccount(userId: number): Promise<{ isActive: boolean; passwordHash: string; passwordChangeRequired: boolean } | undefined> {
+  async sessionAccount(userId: number): Promise<{ isActive: boolean; passwordHash: string; passwordChangeRequired: boolean; breakGlassExpiresAt: Date | null } | undefined> {
     const [row] = await db
-      .select({ isActive: usersTable.isActive, passwordHash: usersTable.passwordHash, passwordChangeRequired: usersTable.passwordChangeRequired })
+      .select({ isActive: usersTable.isActive, passwordHash: usersTable.passwordHash, passwordChangeRequired: usersTable.passwordChangeRequired, breakGlassExpiresAt: usersTable.breakGlassExpiresAt })
       .from(usersTable)
       .where(eq(usersTable.id, userId))
       .limit(1);

@@ -249,8 +249,9 @@ export const userAdminService = {
 
     assertPasswordAcceptable(newPassword, "newPassword");
     const passwordHash = await hashPassword(newPassword, "newPassword");
-    // H-15 (DR-06): a password the admin chose — the holder must change it before anything else
-    const [user] = await userAdminRepository.update(targetUserId, { passwordHash, passwordChangeRequired: true });
+    // H-15 (DR-06): a password the admin chose — the holder must change it before anything else.
+    // R-1 (DR-27): an admin's password has no expiry, and the reset clears any break-glass window (that password is gone).
+    const [user] = await userAdminRepository.update(targetUserId, { passwordHash, passwordChangeRequired: true, breakGlassExpiresAt: null });
     if (!user) throw new NotFoundError("User not found.");
     // 🔴 G02: every session of the reset account ends — the admin's own too, when
     // they reset their own password here (its credential is the old password's).

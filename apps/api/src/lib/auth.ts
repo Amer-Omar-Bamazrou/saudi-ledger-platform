@@ -77,6 +77,8 @@ export async function endEndedSessions(req: Request, res: Response, next: NextFu
     ended = !account || !account.isActive || credentialOf(account.passwordHash) !== s.credential;
     // H-15: read from the row this check already reads — no second query (refuseUntilPasswordChanged)
     res.locals.passwordChangeRequired = account?.passwordChangeRequired === true;
+    // R-1 (DR-27, 24 hours): from the same row — whether the break-glass window the session was opened in has passed
+    res.locals.breakGlassExpired = !!account?.breakGlassExpiresAt && account.breakGlassExpiresAt.getTime() <= Date.now();
   }
   if (!ended) return next();
   s.regenerate((err) => next(err));
@@ -84,6 +86,8 @@ export async function endEndedSessions(req: Request, res: Response, next: NextFu
 
 /** The only routes a session that owes a change of password reaches (H-15). */
 const WHILE_A_CHANGE_IS_OWED = new Set(["/auth/me", "/auth/logout", "/auth/change-password", "/auth/login"]);
+/** The only routes a session whose break-glass window has passed reaches (R-1): not the change. */
+const WHILE_EXPIRED = new Set(["/auth/me", "/auth/logout", "/auth/login"]);
 
 /**
  * 🔴 Phase 18 H-15 — DR-06 part 1 and DR-27 (register §11.66): a session whose
@@ -94,6 +98,16 @@ const WHILE_A_CHANGE_IS_OWED = new Set(["/auth/me", "/auth/logout", "/auth/chang
  * the next step, never a hidden control.
  */
 export function refuseUntilPasswordChanged(req: Request, res: Response, next: NextFunction): void {
+  // 🔴 R-1 (DR-27, 24 hours; register §11.83): a session opened inside a break-glass window reaches nothing but the
+  // way out once it has passed — the change included: an expired temporary password cannot be a change's "current
+  // password". Only a new reset from the platform answers it.
+  if (req.session?.userId && res.locals.breakGlassExpired === true && !WHILE_EXPIRED.has(req.path)) {
+    res.status(403).json({
+      code: "break_glass_expired",
+      error: "The temporary password has expired (it was usable for 24 hours). Sign out and ask the platform for a new reset.",
+    });
+    return;
+  }
   if (req.session?.userId && res.locals.passwordChangeRequired === true && !WHILE_A_CHANGE_IS_OWED.has(req.path)) {
     res.status(403).json({
       code: "password_change_required",
