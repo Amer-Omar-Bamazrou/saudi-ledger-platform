@@ -18,6 +18,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { invoicesService } from "../services/invoices.service";
@@ -53,6 +54,7 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await releasePostedJournalsForTeardown(`organization_id IN ${O}`); // G16: posted entries back to draft for the deletes below
+    await releaseIssuedInvoicesForTeardown(`organization_id IN ${O}`); // PR C (0125): issued invoices back to draft for the deletes below
     await deleterFor(pool, "invoice_items").query(`DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${O})`).catch(() => undefined);
     for (const t of ["journal_entry_lines", "journal_entries", "einvoice_documents", "invoices", "customers", "audit_logs", "bank_accounts", "categories", "companies"]) {
       await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
