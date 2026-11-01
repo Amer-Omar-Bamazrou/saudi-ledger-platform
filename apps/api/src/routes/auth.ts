@@ -260,6 +260,15 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
       return;
     }
 
+    // 🔴 R-1 (DR-27, 24 hours; register §11.83): an operator's break-glass password is refused once its window has
+    // passed — checked AFTER the hash verified, so the timing is a wrong password's. Only a new reset answers it.
+    if (user.breakGlassExpiresAt && user.breakGlassExpiresAt.getTime() <= Date.now()) {
+      res.status(401).json({ code: "break_glass_expired", error: "The temporary password has expired (it was usable for 24 hours). Ask the platform for a new reset." });
+      void recordSignInEvent("auth.login_failed", { id: user.id, email: user.email }, { actor: false, ipAddress: req.ip ?? null, metadata: { reason: "break_glass_expired" } })
+        .catch((err) => req.log.error({ err }, "refused sign-in not recorded"));
+      return;
+    }
+
     /**
      * 🔴 MIGRATION WITHOUT A RESET (M-4): a correct password verified against a
      * legacy bcrypt hash is re-stored as scrypt here — the one moment we hold
@@ -412,8 +421,8 @@ router.post("/change-password", authRateLimiter, requireAuth, changePasswordAcco
     const valid = await verifyPassword(currentPassword, user.passwordHash);
     if (!valid) { res.status(401).json({ error: "Current password is incorrect." }); return; }
     const passwordHash = await hashPassword(newPassword, "newPassword");
-    // H-15 (DR-06, DR-27): the holder's own password — any change owed is now made
-    await db.update(usersTable).set({ passwordHash, passwordChangeRequired: false }).where(eq(usersTable.id, user.id));
+    // H-15 (DR-06, DR-27): the holder's own password — any change owed is now made; R-1: and no break-glass window remains
+    await db.update(usersTable).set({ passwordHash, passwordChangeRequired: false, breakGlassExpiresAt: null }).where(eq(usersTable.id, user.id));
     // 🔴 G02: every OTHER session of this user ends (the per-request check would end
     // them anyway — their credential is the old password's; this deletes them now).
     // The session the change was made in is KEPT and re-stamped with the new

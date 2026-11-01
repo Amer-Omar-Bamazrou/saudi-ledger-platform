@@ -16,6 +16,12 @@ export const usersTable = pgTable("users", {
    * way to change it; the holder's own change clears it.
    */
   passwordChangeRequired: boolean("password_change_required").notNull().default(false),
+  /**
+   * 🔴 Phase 18 R-1 (DR-27, 24 hours; register §11.83): when the password is an operator's break-glass, the moment it
+   * stops signing in. NULL for every other password (an admin's reset has no expiry). Set by the break-glass reset;
+   * cleared by the holder's own change or an admin's reset.
+   */
+  breakGlassExpiresAt: timestamp("break_glass_expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
