@@ -256,11 +256,18 @@ export const userAdminService = {
     // they reset their own password here (its credential is the old password's).
     const sessionsEnded = await userAdminRepository.revokeSessions(targetUserId);
 
-    await securityAuditService.record({
-      action: "user.password_reset",
-      actorUserId, actorEmail: ctx.actorEmail, targetUserId, ipAddress: ctx.ipAddress,
-      metadata: { sessionsEnded },
-    });
+    // 🔴 H-16 — DR-27 (register §11.67): recorded in each organization this admin administers that the account is an
+    // active member of, so its admins see it (it used to carry no organization, and no tenant reader saw it — G28).
+    // None in common (never expected after the confinement check above): one row with no organization, never lost.
+    const active = new Set(await membersRepository.activeOrgIds(targetUserId));
+    const scoped = orgIds.filter((o) => active.has(o));
+    for (const organizationId of scoped.length > 0 ? scoped : [null]) {
+      await securityAuditService.record({
+        action: "user.password_reset",
+        actorUserId, actorEmail: ctx.actorEmail, targetUserId, ipAddress: ctx.ipAddress, organizationId,
+        metadata: { sessionsEnded },
+      });
+    }
     return { message: `Password reset for ${user.name}.` };
   },
 };

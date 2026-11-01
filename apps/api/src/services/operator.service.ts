@@ -28,6 +28,7 @@ import { securityAuditService } from "./securityAudit.service";
 // Identity data access lives in userAdmin.repository (the sanctioned identity
 // layer — the boundary guard sent it there); this service only orchestrates.
 import { userAdminRepository } from "../repositories/userAdmin.repository";
+import { membersRepository } from "../repositories/members.repository";
 import { randomBytes } from "node:crypto";
 import { hashPassword } from "../lib/password";
 
@@ -116,6 +117,17 @@ export const operatorService = {
       ipAddress: ctx.ipAddress,
       metadata: { sessionsRevoked: revoked },
     });
+    // 🔴 H-16 — DR-27 (register §11.67): the act is visible to EVERY organization the account belongs to, the operator
+    // REDACTED on those copies (G51: no operator id, email or IP). The operator-identified row above stays org-less,
+    // for the operator surface.
+    for (const organizationId of await membersRepository.activeOrgIds(target.id)) {
+      await securityAuditService.record({
+        action: "user.password_breakglass_reset",
+        organizationId,
+        targetUserId: target.id,
+        metadata: { by: "platform_operator", sessionsRevoked: revoked },
+      });
+    }
 
     return {
       email: target.email,
@@ -123,7 +135,7 @@ export const operatorService = {
       temporaryPassword,
       sessionsRevoked: revoked,
       guidance:
-        "Hand this to the user over a verified channel. It is shown once and stored nowhere. Ask them to change it after signing in — self-service reset arrives with the email flow.",
+        "Hand this to the user over a verified channel. It is shown once and stored nowhere. When they sign in they will be asked to choose their own password before anything else opens — self-service reset arrives with the email flow.",
     };
   },
 
