@@ -20,7 +20,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
-import { postJournalEntry } from "../services/accounting/glPosting";
+import { invoicesService } from "../services/invoices.service";
 import { reportsService } from "../services/reports.service";
 import { deleterFor } from "./helpers/replica";
 
@@ -36,6 +36,7 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
   let vatOutputId = 0;
   let salesId = 0;
   let taxiId = 0;
+  let customerId = 0;
 
   async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
     const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
@@ -52,7 +53,8 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
   const cleanup = async () => {
     const O = `(SELECT id FROM organizations WHERE slug = '${SLUG}')`;
     await releasePostedJournalsForTeardown(`organization_id IN ${O}`); // G16: posted entries back to draft for the deletes below
-    for (const t of ["journal_entry_lines", "journal_entries", "audit_logs", "bank_accounts", "categories", "companies"]) {
+    await deleterFor(pool, "invoice_items").query(`DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ${O})`).catch(() => undefined);
+    for (const t of ["journal_entry_lines", "journal_entries", "einvoice_documents", "invoices", "customers", "audit_logs", "bank_accounts", "categories", "companies"]) {
       await deleterFor(pool, t).query(`DELETE FROM ${t} WHERE organization_id IN ${O}`).catch((e: Error) => {
         if (!/does not exist/.test(e.message)) throw e;
       });
@@ -67,7 +69,10 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
     await cleanup();
     orgId = (await pool.query(`INSERT INTO organizations (name, slug) VALUES ('Tax JE Org','${SLUG}') RETURNING id`)).rows[0].id;
     approverId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${SLUG}-approver@test.local', 'Tax JE approver', 'x', 'viewer', true) RETURNING id`)).rows[0].id;
-    companyId = (await pool.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'TJ Co') RETURNING id`, [orgId])).rows[0].id;
+    // R-3 (AC-5; register §11.90): the VAT entries are an approved invoice's own, so the company has the seller identity
+    // issuing needs (M11.6) and a customer exists.
+    companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'TJ Co','1010101012','399999999999975') RETURNING id`, [orgId])).rows[0].id;
+    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'TJ Customer','300000000000093') RETURNING id`, [orgId])).rows[0].id as number;
     // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
     bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     const byCode = async (code: string) =>
@@ -86,19 +91,21 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
   afterAll(cleanup);
 
   const post = async (entryNumber: string, lines: Array<{ accountId: number; accountName: string; debitAmount: number; creditAmount: number }>) => {
-    // H-19 (DR-33; register §11.78): the same lines through the seam, a FIXTURE stand-in for an invoice's entry (the
-    // manual route no longer reaches VAT_OUTPUT); the report keys on system_code, not on the source
-    void journalEntriesService; void approverId;
-    const je = await inTenant(() => postJournalEntry({ entryNumber, date: "2026-09-10", description: entryNumber, sourceType: "invoice", sourceId: 0, lines }));
+    // R-3 (AC-5; register §11.90): an ordinary entry is a MANUAL journal (as before §11.78); a VAT entry is an approved
+    // INVOICE's own entry (`invoiceEntry` below) — the product's path to VAT_OUTPUT — found by its source. No stand-in.
+    const je = await inTenant(() => journalEntriesService.create({ entryNumber, date: "2026-09-10", description: entryNumber, lines }, null));
+    await inTenant(() => journalEntriesService.post(je.id, approverId));
     return je.id;
+  };
+  const invoiceEntry = async (invoiceNumber: string, unitPrice: number) => {
+    const inv = (await inTenant(() => invoicesService.create({ invoiceNumber, date: "2026-09-10", dueDate: "2026-09-25", customerId, items: [{ description: "Service", quantity: 1, unitPrice, vatRate: 15 }] } as never, approverId))) as { id: number };
+    await inTenant(() => invoicesService.approve(inv.id, approverId));
+    return Number((await pool.query(`SELECT id FROM journal_entries WHERE source_type = 'invoice' AND source_id = $1`, [inv.id])).rows[0].id);
   };
 
   it("🔴 a VAT_OUTPUT line IS a tax line; a 'Taxi expenses' line is NOT — presence, absence, and the totals move with the right one", async () => {
-    const vatJe = await post("TJ-VAT", [
-      { accountId: cashId, accountName: "Cash and Bank", debitAmount: 115, creditAmount: 0 },
-      { accountId: salesId, accountName: "Sales Revenue", debitAmount: 0, creditAmount: 100 },
-      { accountId: vatOutputId, accountName: "VAT Payable", debitAmount: 0, creditAmount: 15 },
-    ]);
+    const vatJe = await invoiceEntry("TJ-VAT", 100); // Dr AR 115 / Cr Sales 100 / Cr VAT Payable 15
+    void cashId; void salesId; void vatOutputId;
     const taxiJe = await post("TJ-TAXI", [
       { accountId: taxiId, accountName: "Taxi expenses", debitAmount: 40, creditAmount: 0 },
       { accountId: cashId, accountName: "Cash and Bank", debitAmount: 0, creditAmount: 40 },
@@ -117,14 +124,13 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
 
   it("a renamed VAT account is STILL a tax account — the code, not the name, is the fact", async () => {
     await pool.query(`UPDATE categories SET name = 'Output levy' WHERE id = $1`, [vatOutputId]);
-    const je = await post("TJ-RENAMED", [
-      { accountId: cashId, accountName: "Cash and Bank", debitAmount: 23, creditAmount: 0 },
-      { accountId: salesId, accountName: "Sales Revenue", debitAmount: 0, creditAmount: 20 },
-      { accountId: vatOutputId, accountName: "Output levy", debitAmount: 0, creditAmount: 3 },
-    ]);
+    const je = await invoiceEntry("TJ-RENAMED", 20); // VAT 3
     const out = await inTenant(() => reportsService.taxJournalEntries("2026-09-01", "2026-09-30"));
     const row = out.entries.find((e) => e.id === je);
     expect(row, "present under a name with no 'vat' or 'tax' in it").toBeDefined();
-    expect(row!.lines.filter((l) => l.isTaxLine).map((l) => l.accountName)).toEqual(["Output levy"]);
+    // R-3 (register §11.91): the LINE name is the document's ("VAT Payable", what the invoice posting writes); the
+    // CATEGORY is "Output levy" — and the report found the entry by system_code under that name all the same.
+    expect((await pool.query(`SELECT name FROM categories WHERE id = $1`, [vatOutputId])).rows[0].name).toBe("Output levy");
+    expect(row!.lines.filter((l) => l.isTaxLine).map((l) => l.accountName)).toEqual(["VAT Payable"]);
   });
 });
