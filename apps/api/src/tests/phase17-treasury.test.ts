@@ -16,6 +16,7 @@ import { pool, beginTenantConnection } from "@workspace/db";
 import { businessToday } from "@workspace/shared";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
+import { postJournalEntry } from "../services/accounting/glPosting";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
 import { reportsService } from "../services/reports.service";
@@ -121,7 +122,9 @@ describeMaybe("Phase 17 — treasury on real rows", () => {
     await post(inA, d(-5), [[await leaf(bankA2), 50_000, 0], [ids.capital!, 0, 50_000]]);
     await post(inA, d(5), [[await leaf(bankA1), 7_000, 0], [ids.capital!, 0, 7_000]]);
     // payroll payable — undated (no payroll payment path exists)
-    await post(inA, d(-2), [[ids.exp!, 5_000, 0], [ids.salariesPayable!, 0, 5_000]]);
+    // H-19 (DR-33; register §11.78): the same lines through the seam, a FIXTURE stand-in for an approved payroll run
+    await inA(() => postJournalEntry({ entryNumber: `P17-${++seq}`, date: d(-2), description: "p17 payroll accrual (fixture stand-in for a payroll run)", sourceType: "payroll_run", sourceId: 0,
+      lines: [{ accountId: ids.exp!, accountName: "Wages", debitAmount: 5_000, creditAmount: 0 }, { accountId: ids.salariesPayable!, accountName: "Salaries payable", debitAmount: 0, creditAmount: 5_000 }] }));
     // receivables: due in 10 days · overdue by 5 · beyond the horizon
     ids.inv1 = await invoice(inA, d(-20), d(10), 1_000);   // 1,150
     ids.inv2 = await invoice(inA, d(-40), d(-5), 2_000);   // 2,300 — overdue

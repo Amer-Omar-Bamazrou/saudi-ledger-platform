@@ -13731,6 +13731,10 @@ components:
       type: object
       required: [date, description, lines]
       properties:
+        correctionKind:
+          type: ["string", "null"]
+          enum: [error, estimate, policy, null]
+          description: "Phase 18 H-19 (DR-33): the IAS 8 kind that makes this entry a classified correction — required for a line on retained earnings; omitted otherwise."
         entryNumber:
           type: string
           description: Allocated by the server when omitted or blank.

@@ -70,7 +70,7 @@ describeMaybe("journal entry date — required at the write boundary", () => {
         [orgId, type],
       )).rows[0].id;
     expenseId = await acc("expense", "'AR','AP'");
-    cashId = await acc("asset", "'AR','AP'");
+    cashId = await acc("asset", "'AR','AP','VAT_INPUT','VAT_AWAITING_EVIDENCE'"); // H-19 (DR-33): not a protected account (register §11.78)
   });
 
   afterAll(cleanup);

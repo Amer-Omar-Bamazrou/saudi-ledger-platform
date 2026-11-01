@@ -240,6 +240,7 @@ export * from './createEmployeeInput';
 export * from './createEmployeeInputGosiRegime';
 export * from './createInvoiceInput';
 export * from './createJournalEntryInput';
+export * from './createJournalEntryInputCorrectionKind';
 export * from './createMigrationBatchInput';
 export * from './createPaymentPlanInput';
 export * from './createPaymentPlanInputPriority';

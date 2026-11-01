@@ -27,7 +27,7 @@ import { categorizeTransaction, allEngineCodes, looksForeignDigitalSupplier } fr
 import { payrollAwareSalary } from "./categorization/payrollSalary.js";
 import { payrollRepository } from "../repositories/payroll.repository.js";
 import { AUTO_ASSIGN_CONFIDENCE, resolveSystemCodes, vatFromGross, type ResolvedCategory } from "./categorization/resolveCategory.js";
-import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
+import { PARTY_REQUIRED_SYSTEM_CODES, protectedAccountRule } from "@workspace/shared";
 
 /** A row-failure reason safe to show a user — never the driver's SQL dump. */
 function reasonFor(err: unknown): string {
@@ -93,6 +93,17 @@ async function assertCategoryExists(categoryId: unknown): Promise<void> {
         `A payment from a customer or to a supplier belongs to their invoice or bill — accept the row with ` +
         `"Accept & settle" on the Review page, or leave it uncategorised (Suspense) until the document exists.`,
       code: "category_needs_party",
+      field: "categoryId",
+    });
+  }
+  // 🔴 H-19 — DR-33 (register §11.75, §11.77): the ONE protected-account list, read at this route's write boundary. A
+  // bank line cannot be a classified correction, so retained earnings is refused here outright — but a bank line IS the
+  // pay or settlement path of salaries payable, GOSI payable and VAT payment (`bankLineSettles`), which stay open here.
+  const protectedRule = protectedAccountRule(cat.systemCode);
+  if (protectedRule && !protectedRule.bankLineSettles) {
+    throw new BusinessRuleError(422, {
+      error: `${cat.name} is written only by ${protectedRule.writtenBy} — not by a bank transaction's category.`,
+      code: "protected_account",
       field: "categoryId",
     });
   }

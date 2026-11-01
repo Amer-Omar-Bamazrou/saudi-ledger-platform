@@ -5,9 +5,15 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateJournalEntryInputCorrectionKind } from './createJournalEntryInputCorrectionKind';
 import type { JournalEntryLineInput } from './journalEntryLineInput';
 
 export interface CreateJournalEntryInput {
+  /**
+     * Phase 18 H-19 (DR-33): the IAS 8 kind that makes this entry a classified correction — required for a line on retained earnings; omitted otherwise.
+     * @nullable
+     */
+  correctionKind?: CreateJournalEntryInputCorrectionKind;
   /** Allocated by the server when omitted or blank. */
   entryNumber?: string;
   /**

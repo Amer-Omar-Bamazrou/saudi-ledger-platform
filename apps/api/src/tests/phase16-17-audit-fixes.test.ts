@@ -133,7 +133,8 @@ describeMaybe("Phase 16 + 17 — the final audit's fixes (real rows)", () => {
   const owes = async (billId: number) => n((await q(`SELECT total::numeric - coalesce(paid_amount,0) v FROM bills WHERE id = $1`, [billId]))[0].v);
   const fund = async (run: Run, co: string, bank: number, amount: number, date: string) => {
     const leaf = (await q(`SELECT id FROM categories WHERE bank_account_id = $1`, [bank]))[0].id;
-    const re = (await q(`SELECT id FROM categories WHERE organization_id = (SELECT organization_id FROM companies WHERE id = $1) AND system_code = 'RETAINED_EARNINGS'`, [co]))[0].id;
+    // H-19 (DR-33; register §11.78): a plain equity side — retained earnings is a classified correction's alone
+    const re = (await q(`INSERT INTO categories (organization_id, name, name_ar, type, vat_applicable) SELECT organization_id, 'FX capital', 'رأس المال', 'equity', false FROM companies WHERE id = $1 RETURNING id`, [co]))[0].id;
     await run(async () => {
       const je = (await journalEntriesService.create({ entryNumber: `FX-FUND-${++seq}`, date, description: "funding", lines: [{ accountId: leaf, debitAmount: amount, creditAmount: 0 }, { accountId: re, debitAmount: 0, creditAmount: amount }] }, userId)) as { id: number };
       await journalEntriesService.approve(je.id, userId);
@@ -377,7 +378,8 @@ describeMaybe("Phase 16 + 17 — the final audit's fixes (real rows)", () => {
     expect((await refusal(mirrorOf(2_000_000_000, null))).constraint).toBe("journal_reversal_tenant");
     // a NORMAL journal still reverses through the generic path
     const leaf = (await q(`SELECT id FROM categories WHERE bank_account_id = $1`, [bankM]))[0].id;
-    const re = (await q(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'RETAINED_EARNINGS'`, [orgId]))[0].id;
+    // H-19 (DR-33; register §11.78): a plain equity side — retained earnings is a classified correction's alone
+    const re = (await q(`INSERT INTO categories (organization_id, name, name_ar, type, vat_applicable) VALUES ($1,'FX capital N','رأس المال','equity',false) RETURNING id`, [orgId]))[0].id;
     const je = await inM(async () => { const e = (await journalEntriesService.create({ entryNumber: `FX-N-${++seq}`, date: "2026-09-01", description: "normal", lines: [{ accountId: leaf, debitAmount: 100, creditAmount: 0 }, { accountId: re, debitAmount: 0, creditAmount: 100 }] }, userId)) as { id: number }; await journalEntriesService.approve(e.id, userId); return e.id; });
     const out = await inM(() => journalEntriesService.reverse(je, { reason: "normal reverse" }));
     expect(out.reversalId).toBeGreaterThan(0);

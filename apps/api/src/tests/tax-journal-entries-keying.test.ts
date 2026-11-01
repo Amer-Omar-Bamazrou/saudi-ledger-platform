@@ -20,6 +20,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
+import { postJournalEntry } from "../services/accounting/glPosting";
 import { reportsService } from "../services/reports.service";
 import { deleterFor } from "./helpers/replica";
 
@@ -85,8 +86,10 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
   afterAll(cleanup);
 
   const post = async (entryNumber: string, lines: Array<{ accountId: number; accountName: string; debitAmount: number; creditAmount: number }>) => {
-    const je = await inTenant(() => journalEntriesService.create({ entryNumber, date: "2026-09-10", description: entryNumber, lines }, null));
-    await inTenant(() => journalEntriesService.post(je.id, approverId));
+    // H-19 (DR-33; register §11.78): the same lines through the seam, a FIXTURE stand-in for an invoice's entry (the
+    // manual route no longer reaches VAT_OUTPUT); the report keys on system_code, not on the source
+    void journalEntriesService; void approverId;
+    const je = await inTenant(() => postJournalEntry({ entryNumber, date: "2026-09-10", description: entryNumber, sourceType: "invoice", sourceId: 0, lines }));
     return je.id;
   };
 
