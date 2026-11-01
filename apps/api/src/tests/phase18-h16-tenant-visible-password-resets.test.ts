@@ -27,7 +27,7 @@ type Ev = { action: string; actorUserId: number | null; actorEmail: string | nul
 
 describeMaybe("Phase 18 H-16 — password resets are visible to the reset account's organizations, the operator redacted", () => {
   const h = g04Harness("p18h16rst");
-  let orgA = "", orgB = "", adminA = 0, targetId = 0, resetee = 0, operatorId = 0;
+  let orgA = "", orgB = "", orgC = "", adminA = 0, targetId = 0, resetee = 0, operatorId = 0;
   const events = async (who: string, orgId: string, action: string, target = targetId) => {
     const r = await h.api(who, "GET", `/orgs/${orgId}/security-events`);
     expect(r.status, JSON.stringify(r.body)).toBe(200);
@@ -36,8 +36,10 @@ describeMaybe("Phase 18 H-16 — password resets are visible to the reset accoun
 
   beforeAll(async () => {
     await h.cleanup();
-    orgA = await h.mkOrg("a"); orgB = await h.mkOrg("b");
+    orgA = await h.mkOrg("a"); orgB = await h.mkOrg("b"); orgC = await h.mkOrg("c");
     adminA = await h.mkUser("adminA", PW, orgA, "admin");
+    // adminA also administers org C, which the reset account does NOT belong to (fixture)
+    await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [adminA, orgC]);
     await h.mkUser("adminB", PW, orgB, "admin");
     targetId = await h.mkUser("target", PW, orgA, "bookkeeper");
     // an admin may reset only an account confined to organizations the admin administers (F1): org A alone
@@ -58,6 +60,8 @@ describeMaybe("Phase 18 H-16 — password resets are visible to the reset accoun
     const a = await events("adminA", orgA, "user.password_reset", resetee);
     expect(a.mine.map((e) => e.actorUserId)).toEqual([adminA]);
     expect((await events("adminB", orgB, "user.password_reset", resetee)).mine).toEqual([]);
+    // Added after the red runs (its red is the surviving mutant M4): not in another organization the admin administers
+    expect((await events("adminA", orgC, "user.password_reset", resetee)).mine, "org C: the account is not a member").toEqual([]);
   });
 
   it("🔴 a BREAK-GLASS reset is visible to EVERY organization the account belongs to — with the operator redacted on the tenant copy", async () => {
