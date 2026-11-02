@@ -81,6 +81,19 @@ const EnvSchema = z.object({
   GROQ_DATA_BOUNDARY_ACK: z.string().optional(),
 
   /**
+   * 🔴 G43 (Phase 18 R-5, register §11.95) — the LEGACY local-model path of
+   * `/llm/*` (Ollama). It used to be read from process.env inside the
+   * categorizer, outside this boot gate. `none` = off. In production BOTH are
+   * refused by the superRefine below — the C6 posture: a local model has no
+   * data-boundary agreement to attest, so there is no attestation escape, and
+   * `/llm/*` answers deterministic-only there regardless. Development/test
+   * carry fixture and dev-org data only.
+   */
+  LLM_MODEL: z.string().min(1).default("none"),
+  /** Ollama base URL. Unset = the categorizer's local default (http://localhost:11434). */
+  OLLAMA_URL: z.string().url().optional(),
+
+  /**
    * 🔴 What an UNAVAILABLE scanner means — an explicit, reviewable choice
    * rather than one implied by absence. `refuse` = fail-closed (correct once
    * untrusted tenants exist); `allow` = store it and log loudly (correct while
@@ -361,6 +374,26 @@ const EnvSchema = z.object({
           "and no tenant data may reach Groq before the signed Enterprise agreement (Dammam pinning + " +
           "contractual ZDR) exists — the free tier routes globally. When the agreement is signed, set " +
           "GROQ_DATA_BOUNDARY_ACK='enterprise-dammam-zdr-signed' to attest it.",
+      });
+    }
+    // ── G43 (Phase 18 R-5): the legacy local-model path, refused in production
+    // exactly as groq is — and with no attestation, since there is nothing to attest.
+    if (env.NODE_ENV === "production" && env.LLM_MODEL !== "none") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["LLM_MODEL"],
+        message:
+          `LLM_MODEL='${env.LLM_MODEL}' is refused in production: the legacy local-model path (/llm/*, Ollama) ` +
+          "would send tenant-submitted text to a backend outside the AI boot gate, and no data-boundary " +
+          "agreement exists to attest for it. Leave it unset; /llm/* answers deterministic-only in production.",
+      });
+    }
+    if (env.NODE_ENV === "production" && env.OLLAMA_URL !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OLLAMA_URL"],
+        message:
+          "OLLAMA_URL is refused in production: it names a backend nothing may call there (G43). Unset it.",
       });
     }
 
