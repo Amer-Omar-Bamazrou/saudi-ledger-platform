@@ -19,17 +19,36 @@
 import { categorizeTransaction, SEED_CATEGORIES, type CategorizationMatch } from "./categorizer.js";
 import { resolveAiProvider } from "../ai/provider";
 import { meteredChat } from "../ai/metered";
+import { loadEnv } from "@workspace/config";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
-/** Which model is active. Set LLM_MODEL=llama3 or LLM_MODEL=qwen2.5 to enable. */
-export const LLM_MODEL: string = process.env.LLM_MODEL ?? "none";
+/**
+ * 🔴 G43 (Phase 18 R-5, register §11.95): the legacy path's configuration is
+ * READ FROM `@workspace/config`, never process.env — so the boot gate that
+ * refuses it in production is the one gate. Read lazily, at call time.
+ */
+/** Which model is active (`none` = off). Set LLM_MODEL=llama3 or LLM_MODEL=qwen2.5 to enable. */
+export function activeLlmModel(): string {
+  return loadEnv().LLM_MODEL;
+}
+
+/** Ollama base URL: OLLAMA_URL when set, else the local default. */
+function ollamaUrl(): string {
+  return loadEnv().OLLAMA_URL ?? "http://localhost:11434";
+}
+
+/**
+ * 🔴 In production `/llm/*` answers deterministic-only (memo §2c): no second
+ * opinion is requested from ANY backend, and no probe is sent. The boot gate
+ * already refuses the legacy path there; this is the route's own half.
+ */
+export function llmRoutesDeterministicOnly(): boolean {
+  return loadEnv().NODE_ENV === "production";
+}
 
 /** Confidence below which the LLM is invoked as a second opinion. */
 const LOW_CONFIDENCE_THRESHOLD = 0.65;
-
-/** Ollama base URL. Override with OLLAMA_URL env var for remote instances. */
-const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://localhost:11434";
 
 /** Request timeout for Ollama (ms). Keep short to avoid blocking the response. */
 const OLLAMA_TIMEOUT_MS = 8000;
@@ -48,7 +67,7 @@ async function callOllama(model: string, prompt: string): Promise<string | null>
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
   try {
-    const res = await fetch(`${OLLAMA_URL}/api/generate`, {
+    const res = await fetch(`${ollamaUrl()}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
@@ -65,12 +84,12 @@ async function callOllama(model: string, prompt: string): Promise<string | null>
 }
 
 /** Check whether the configured Ollama model is reachable. */
-export async function checkOllamaReachable(model: string = LLM_MODEL): Promise<{
+export async function checkOllamaReachable(model: string = activeLlmModel()): Promise<{
   reachable: boolean;
   model: string;
   latencyMs?: number;
 }> {
-  if (model === "none") return { reachable: false, model };
+  if (model === "none" || llmRoutesDeterministicOnly()) return { reachable: false, model };
   const start = Date.now();
   const res = await callOllama(model, "Reply with only the word: OK");
   const latencyMs = Date.now() - start;
@@ -153,7 +172,8 @@ async function callSecondOpinion(prompt: string): Promise<string | null> {
       return null; // unavailable → deterministic result stands (llm-fallback)
     }
   }
-  if (LLM_MODEL !== "none") return callOllama(LLM_MODEL, prompt);
+  const model = activeLlmModel();
+  if (model !== "none") return callOllama(model, prompt);
   return null;
 }
 
@@ -167,7 +187,9 @@ export async function categorizeWithLlm(
   description: string,
   amount: number,
   transactionType: "debit" | "credit",
-  descriptionAr?: string | null
+  descriptionAr?: string | null,
+  /** `secondOpinion: false` = the deterministic engine only (the /llm/* routes in production, G43). */
+  opts: { secondOpinion?: boolean } = {},
 ): Promise<LlmCategorizationResult> {
   // Step 1: Deterministic engine
   const det = categorizeTransaction(description, amount, transactionType, descriptionAr);
@@ -177,8 +199,9 @@ export async function categorizeWithLlm(
   // (LLM_MODEL/Ollama) and the provider seam (AI_PROVIDER/Groq, AI-1a). The
   // LLM runs when EITHER is configured; the deterministic engine stays the
   // brain in every case.
+  const model = activeLlmModel();
   const seamProvider = resolveAiProvider();
-  const llmEnabled = LLM_MODEL !== "none" || seamProvider !== null;
+  const llmEnabled = opts.secondOpinion !== false && (model !== "none" || seamProvider !== null);
   if (!llmEnabled || (det && det.confidence >= LOW_CONFIDENCE_THRESHOLD)) {
     return {
       ...(det ?? deterministicFallback(transactionType)),
@@ -195,7 +218,7 @@ export async function categorizeWithLlm(
     return {
       ...(det ?? deterministicFallback(transactionType)),
       source: "llm-fallback",
-      llmModel: seamProvider ? "groq" : LLM_MODEL,
+      llmModel: seamProvider ? "groq" : model,
     };
   }
 
@@ -205,7 +228,7 @@ export async function categorizeWithLlm(
     return {
       ...(det ?? deterministicFallback(transactionType)),
       source: "llm-fallback",
-      llmModel: LLM_MODEL,
+      llmModel: model,
       llmRawResponse: raw.slice(0, 200),
     };
   }
@@ -218,11 +241,11 @@ export async function categorizeWithLlm(
     categoryName: cat.name,
     categoryNameAr: cat.nameAr,
     confidence: parsed.confidence,
-    matchedRule: `LLM (${LLM_MODEL})`,
+    matchedRule: `LLM (${model})`,
     vatApplicable: cat.vatApplicable,
     suggestedVatRate: cat.vatApplicable ? 15 : 0,
     source: "llm",
-    llmModel: LLM_MODEL,
+    llmModel: model,
     llmRawResponse: raw.slice(0, 300),
   };
 }
