@@ -11,6 +11,7 @@
  */
 import type { Request, Response, NextFunction } from "express";
 import { translateDbRefusal } from "../lib/dbRefusals";
+import { recordReferenceRefusal } from "./referenceRefusals";
 
 export function errorHandler(
   err: unknown,
@@ -29,6 +30,8 @@ export function errorHandler(
     // Preserve rich, structured error bodies (e.g. { error, code, detail }).
     const payload = (err as { payload?: unknown }).payload;
     if (payload && typeof payload === "object") {
+      // R-9 (DR-22): a cross-tenant reference refusal is recorded in the security trail (best-effort).
+      recordReferenceRefusal(req, code, payload);
       res.status(code).json(payload);
       return;
     }
@@ -57,6 +60,7 @@ export function errorHandler(
   const refusal = translateDbRefusal(err);
   if (refusal) {
     req.log.warn({ code: refusal.body.code }, "refusal from the database");
+    recordReferenceRefusal(req, refusal.status, refusal.body);
     res.status(refusal.status).json(refusal.body);
     return;
   }
