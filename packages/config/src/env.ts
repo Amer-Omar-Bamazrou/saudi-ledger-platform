@@ -139,9 +139,27 @@ const EnvSchema = z.object({
 
   // Explicit CORS allow-list (replaces the old reflect-any `origin: true`).
   // Comma-separated list of exact origins, e.g. "http://localhost:5173,https://app.example.sa".
+  // 🔴 Phase 18 R-7 (G45; register §11.102): these are also THE APPLICATION ORIGINS the CSRF check compares an
+  // unsafe request's Origin (or Referer) with — one definition of "who may cause a credentialed write". So each must
+  // be an EXACT origin (scheme, host, port; no path, no trailing slash): a value that is not could never equal an
+  // Origin header, and is refused at boot in every environment.
   CORS_ALLOWED_ORIGINS: commaSeparated.pipe(
     z
-      .array(z.string().url("each CORS origin must be a full URL, e.g. https://app.example.sa"))
+      .array(
+        z
+          .string()
+          .url("each CORS origin must be a full URL, e.g. https://app.example.sa")
+          .refine(
+            (value) => {
+              try {
+                return new URL(value).origin === value;
+              } catch {
+                return false;
+              }
+            },
+            "each CORS origin must be an exact origin — scheme, host and port, with no path and no trailing slash (G45: it is compared with the Origin header exactly)",
+          ),
+      )
       .min(1, "at least one allowed origin is required"),
   ),
 

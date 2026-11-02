@@ -18,6 +18,7 @@ process.env.PORT ??= "3000";
 process.env.SESSION_SECRET ??= "test-secret-value-at-least-32-chars!!";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
+import { appOriginHeader } from "./helpers/appOrigin";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import bcrypt from "bcryptjs";
@@ -66,7 +67,7 @@ describeMaybe("Phase 14 — report exports and the P&L trend over HTTP: gated, s
     return async (method: string, path: string, body?: unknown) => {
       const res = await fetch(`${base}${path}`, {
         method,
-        headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+        headers: { "content-type": "application/json", ...appOriginHeader(), ...(cookie ? { cookie } : {}) },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       const sid = ((res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? []).find((c) => c.startsWith("ksa_ledger_sid="));

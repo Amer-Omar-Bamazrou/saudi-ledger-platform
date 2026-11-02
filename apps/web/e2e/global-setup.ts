@@ -273,7 +273,7 @@ export default async function globalSetup(): Promise<void> {
    * this makes globalSetup independent of the two being ordered, rather than
    * hoping they are.
    */
-  const ctx = await request.newContext({ baseURL: API });
+  const ctx = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
   let ready = false;
   for (let i = 0; i < 120 && !ready; i++) {
     try {
@@ -527,7 +527,7 @@ export default async function globalSetup(): Promise<void> {
   await ctx.dispose();
 
   // The migration tenant: log both users in, give it one bank account (the old bank row maps to it).
-  const migAdmin = await request.newContext({ baseURL: API });
+  const migAdmin = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
   const migLogin = await migAdmin.post("/api/auth/login", { data: { email: E2E_MIGRATION.adminEmail, password: E2E_MIGRATION.password } });
   if (!migLogin.ok()) throw new Error(`e2e migration admin login failed: ${migLogin.status()}`);
   const migBank = await api(migAdmin, "POST", "/bank-accounts", { name: "Riyad Main", bankName: "Riyad Bank", currency: "SAR" });
@@ -535,7 +535,7 @@ export default async function globalSetup(): Promise<void> {
   await api(migAdmin, "POST", "/asset-categories", { name: "Migrated equipment", nameAr: "معدات مرحَّلة", defaultUsefulLifeMonths: 50, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" });
   await migAdmin.storageState({ path: E2E_MIGRATION.adminState });
   await migAdmin.dispose();
-  const migAcct = await request.newContext({ baseURL: API });
+  const migAcct = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
   const acctLogin = await migAcct.post("/api/auth/login", { data: { email: E2E_MIGRATION.accountantEmail, password: E2E_MIGRATION.password } });
   if (!acctLogin.ok()) throw new Error(`e2e migration accountant login failed: ${acctLogin.status()}`);
   await migAcct.storageState({ path: E2E_MIGRATION.accountantState });
@@ -543,7 +543,7 @@ export default async function globalSetup(): Promise<void> {
 
   // The S1 tenant: three sessions, and one bank account (the old bank row maps to it).
   for (const [email, state, withBank] of [[E2E_S1.adminEmail, E2E_S1.adminState, true], [E2E_S1.accountantEmail, E2E_S1.accountantState, false], [E2E_S1.bookkeeperEmail, E2E_S1.bookkeeperState, false]] as const) {
-    const s1 = await request.newContext({ baseURL: API });
+    const s1 = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
     const login = await s1.post("/api/auth/login", { data: { email, password: E2E_S1.password } });
     if (!login.ok()) throw new Error(`e2e S1 login failed for ${email}: ${login.status()}`);
     if (withBank) await api(s1, "POST", "/bank-accounts", { name: "S1 Main", bankName: "Riyad Bank", currency: "SAR" });
@@ -552,7 +552,7 @@ export default async function globalSetup(): Promise<void> {
   }
 
   // The accountant-answers tenant: one session, one bank account and the asset category Q3's migrated asset names.
-  const q3 = await request.newContext({ baseURL: API });
+  const q3 = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
   const q3Login = await q3.post("/api/auth/login", { data: { email: E2E_ANSWERS.adminEmail, password: E2E_ANSWERS.password } });
   if (!q3Login.ok()) throw new Error(`e2e accountant-answers login failed: ${q3Login.status()}`);
   await api(q3, "POST", "/bank-accounts", { name: "Answers Main", bankName: "Riyad Bank", currency: "SAR" });

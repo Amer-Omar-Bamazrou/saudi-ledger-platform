@@ -18,6 +18,7 @@ import bcrypt from "bcryptjs";
 import { pool, beginTenantConnection, PERMISSION_MATRIX } from "@workspace/db";
 import { primePermissionCache } from "../../lib/rbac";
 import { auditContext } from "../../lib/auditContext";
+import { appOriginHeader } from "./appOrigin";
 
 export type Res = { status: number; body: any };
 
@@ -44,7 +45,8 @@ export function g04Harness(prefix: string) {
   async function api(who: string, method: string, path: string, body?: unknown): Promise<Res> {
     const res = await fetch(`${state.base}${path}`, {
       method,
-      headers: { "content-type": "application/json", ...(jar[who] ? { cookie: jar[who] } : {}) },
+      // R-7 (G45): the header the application's own pages send (helpers/appOrigin.ts).
+      headers: { "content-type": "application/json", ...appOriginHeader(), ...(jar[who] ? { cookie: jar[who] } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const sid = ((res.headers as any).getSetCookie?.() ?? []).find((c: string) => c.startsWith("ksa_ledger_sid="));
