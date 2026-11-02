@@ -29,7 +29,7 @@
  * deducts nothing. If a future reader is tempted to add a VAT line here, the
  * document they are missing is the supplier's, and it belongs on a bill.
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import {
   db, supplierPaymentsTable, supplierPaymentAllocationsTable,
   supplierPaymentAllocationReversalsTable, supplierPaymentClassificationsTable,
@@ -37,6 +37,8 @@ import {
   type SupplierPayment, type SupplierDepositForfeiture,
 } from "@workspace/db";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
+import { asSent, idempotencyOf, replayOrRefuse } from "../../lib/idempotency.js";
+import { companyScoped } from "../../repositories/companyScope.js";
 import { fromHalalas, round2 } from "../../lib/money.js";
 import { businessToday } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
@@ -68,6 +70,32 @@ const forfeitureOut = (f: SupplierDepositForfeiture) => ({
 });
 
 export interface AllocationInput { billId: number; amount: number }
+
+/**
+ * 🔴 R-8 (G37/G40; lib/idempotency): an allocation or credit-note application request's effect-deciding fields —
+ * the operation, its source, each (bill, amount) in a fixed order, and any further field as sent.
+ */
+export function supplierAllocationParts(operation: string, sourceId: number, allocations: unknown, ...more: unknown[]): unknown[] {
+  const lines = (Array.isArray(allocations) ? allocations : []).map(
+    (a) => [Number((a as { billId?: unknown })?.billId), round2(Number((a as { amount?: unknown })?.amount))] as [number, number],
+  );
+  lines.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  return [operation, sourceId, lines, ...more];
+}
+
+/**
+ * 🔴 R-8: the first row of a request under its key — scoped to the COMPANY and to the OPERATION (a payment's
+ * allocation and a credit note's application share the table; the same key on each is two different requests).
+ */
+export async function priorSupplierAllocation(key: string, operation: "payment" | "credit_note") {
+  const t = supplierPaymentAllocationsTable;
+  const [row] = await db
+    .select({ requestFingerprint: t.requestFingerprint })
+    .from(t)
+    .where(and(eq(t.idempotencyKey, key), companyScoped(t.companyId), operation === "payment" ? isNotNull(t.supplierPaymentId) : isNotNull(t.supplierCreditNoteId)))
+    .limit(1);
+  return row;
+}
 
 export const supplierPaymentsService = {
   /**
@@ -216,10 +244,14 @@ export const supplierPaymentsService = {
    * Apply on-account money to a bill, after the fact. Its own entry:
    * `Dr AP (vendor) / Cr <on-account asset>`.
    */
-  async allocate(id: number, body: { allocations?: unknown; date?: unknown }, userId: number | null) {
+  async allocate(id: number, body: { allocations?: unknown; date?: unknown; idempotencyKey?: unknown }, userId: number | null) {
     // 🔴 Locked: what is still on account is read, checked and spent under
     // one row lock, so two concurrent applications cannot both spend it.
     const payment = await this.findOrThrow(id, { lock: true });
+    // 🔴 R-8 (G37/G40): the key's request, checked under the payment's lock before anything else — the same one
+    // replays (a concurrent duplicate waited on the lock, and finds the first one's rows), a different one is refused.
+    const idem = idempotencyOf(body.idempotencyKey, supplierAllocationParts("supplier_payment_allocate", id, body.allocations, asSent(body.date)));
+    if (idem && replayOrRefuse(await priorSupplierAllocation(idem.key, "payment"), idem, "allocation")) return this.getById(id);
     await this.assertNotReversed(id);
     const cls = payment.classification as SupplierPaymentClassificationKind;
     if (!mayAllocate(cls)) {
@@ -272,10 +304,13 @@ export const supplierPaymentsService = {
       ],
     });
 
-    for (const a of allocations) {
+    for (const [i, a] of allocations.entries()) {
       await db.insert(supplierPaymentAllocationsTable).values({
         supplierPaymentId: id, billId: a.billId, amount: String(a.amount),
         journalEntryId: entry.id, createdBy: userId,
+        // R-8: the key and its request's fingerprint mark the request's FIRST row only (one request, one act)
+        idempotencyKey: i === 0 ? (idem?.key ?? null) : null,
+        requestFingerprint: i === 0 ? (idem?.fingerprint ?? null) : null,
       });
       await this.refreshBill(a.billId);
     }
@@ -495,8 +530,22 @@ export const supplierPaymentsService = {
   },
 
   /** Money coming back from the supplier: the asset falls, the bank rises. */
-  async refund(id: number, body: { amount?: unknown; bankAccountId?: unknown; refundedAt?: unknown; reason?: unknown }, userId: number | null) {
+  async refund(id: number, body: { amount?: unknown; bankAccountId?: unknown; refundedAt?: unknown; reason?: unknown; idempotencyKey?: unknown }, userId: number | null) {
     const payment = await this.findOrThrow(id, { lock: true });
+    // 🔴 R-8 (G37/G40): the key's request, checked under the payment's lock before anything else (lib/idempotency).
+    const idem = idempotencyOf(body.idempotencyKey, [
+      "supplier_refund", id,
+      asSent(body.amount) == null ? null : round2(Number(body.amount)),
+      asSent(body.bankAccountId) == null ? null : Number(body.bankAccountId),
+      asSent(body.refundedAt), asSent(String(body.reason ?? "").trim()),
+    ]);
+    if (idem) {
+      const [prior] = await db.select().from(supplierRefundsTable)
+        .where(and(eq(supplierRefundsTable.idempotencyKey, idem.key), companyScoped(supplierRefundsTable.companyId))).limit(1);
+      if (replayOrRefuse(prior, idem, "refund", prior ? `${prior.amount} on ${prior.refundedAt}` : undefined)) {
+        return { id: prior!.id, amount: Number(prior!.amount), refundedAt: prior!.refundedAt, journalEntryId: prior!.journalEntryId };
+      }
+    }
     await this.assertNotReversed(id);
     // 🔴 Phase 16 (pack §2.4, open W-12): the supplier returns what it RECEIVED;
     // the part withheld was paid to ZATCA and is a claim on ZATCA, not on the
@@ -538,6 +587,7 @@ export const supplierPaymentsService = {
     const [row] = await db.insert(supplierRefundsTable).values({
       supplierPaymentId: id, vendorId: payment.vendorId, bankAccountId,
       amount: String(amount), refundedAt, reason, journalEntryId: entry.id, createdBy: userId,
+      idempotencyKey: idem?.key ?? null, requestFingerprint: idem?.fingerprint ?? null,
     }).returning();
     await auditService.created("supplier_refund", row!.id, row);
     return { id: row!.id, amount, refundedAt, journalEntryId: entry.id };

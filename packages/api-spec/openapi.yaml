@@ -8138,6 +8138,14 @@ components:
       type: object
       required: [allocations]
       properties:
+        idempotencyKey:
+          type: string
+          nullable: true
+          maxLength: 120
+          description: >
+            Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as
+            the first did and records ONE application; the same key with a different request is refused 409
+            idempotency_key_reused, nothing recorded.
         allocations:
           type: array
           minItems: 1
@@ -8223,6 +8231,14 @@ components:
       required: [allocations]
       properties:
         date: { type: string, format: date }
+        idempotencyKey:
+          type: string
+          nullable: true
+          maxLength: 120
+          description: >
+            Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as
+            the first did and records ONE allocation; the same key with a different request is refused 409
+            idempotency_key_reused, nothing recorded.
         allocations:
           type: array
           minItems: 1
@@ -8252,6 +8268,14 @@ components:
         bankAccountId: { type: integer, description: Defaults to the bank the payment left from }
         refundedAt: { type: string, format: date }
         reason: { type: string }
+        idempotencyKey:
+          type: string
+          nullable: true
+          maxLength: 120
+          description: >
+            Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as
+            the first did and records ONE refund; the same key with a different request is refused 409
+            idempotency_key_reused, nothing recorded.
 
     ForfeitSupplierDepositInput:
       type: object

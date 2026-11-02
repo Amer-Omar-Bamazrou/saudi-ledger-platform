@@ -38,9 +38,10 @@
 import { eq, sql } from "drizzle-orm";
 import { db, billsTable, supplierPaymentAllocationsTable, vendorsTable } from "@workspace/db";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
+import { idempotencyOf, replayOrRefuse } from "../../lib/idempotency.js";
 import { round2 } from "../../lib/money.js";
 import { auditService } from "../audit.service.js";
-import { supplierPaymentsService } from "./supplierPayments.service.js";
+import { priorSupplierAllocation, supplierAllocationParts, supplierPaymentsService } from "./supplierPayments.service.js";
 
 const refuse = (code: string, error: string, field?: string, status = 422): never => {
   throw new BusinessRuleError(status, { code, error, ...(field ? { field } : {}) });
@@ -51,10 +52,13 @@ export const supplierCreditNotesService = {
    * Apply an approved note's balance to the supplier's bills. Records which
    * payable the note answers; posts nothing (see the file header).
    */
-  async apply(noteId: number, body: { allocations?: unknown }, userId: number | null) {
+  async apply(noteId: number, body: { allocations?: unknown; idempotencyKey?: unknown }, userId: number | null) {
     // 🔴 Locked: the note's unapplied balance is read, checked and spent under
     // one row lock, so two concurrent applications cannot both spend it.
     const note = await this.findNoteOrThrow(noteId, { lock: true });
+    // 🔴 R-8 (G37/G40): the key's request, checked under the note's lock before anything else (lib/idempotency).
+    const idem = idempotencyOf(body.idempotencyKey, supplierAllocationParts("supplier_credit_note_apply", noteId, body.allocations));
+    if (idem && replayOrRefuse(await priorSupplierAllocation(idem.key, "credit_note"), idem, "credit-note application")) return this.getById(noteId);
     if (note.documentType !== "credit_note") {
       refuse("not_a_credit_note", "A DEBIT note is an additional charge, not a balance to apply — it is payable like a bill.", "id", 409);
     }
@@ -74,10 +78,13 @@ export const supplierCreditNotesService = {
     // drift.
     const allocations = await supplierPaymentsService.validateAllocations(requested, note.vendorId!, available);
 
-    for (const a of allocations) {
+    for (const [i, a] of allocations.entries()) {
       await db.insert(supplierPaymentAllocationsTable).values({
         supplierCreditNoteId: noteId, billId: a.billId, amount: String(a.amount),
         journalEntryId: null, createdBy: userId,
+        // R-8: the key and its request's fingerprint mark the request's FIRST row only
+        idempotencyKey: i === 0 ? (idem?.key ?? null) : null,
+        requestFingerprint: i === 0 ? (idem?.fingerprint ?? null) : null,
       });
       await supplierPaymentsService.refreshBill(a.billId);
     }
