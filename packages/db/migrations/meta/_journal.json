@@ -1072,6 +1072,13 @@
       "when": 1793645313210,
       "tag": "0152_g37_g40_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1793650441761,
+      "tag": "0153_outbox_transitions_audited",
+      "breakpoints": true
     }
   ]
 }
