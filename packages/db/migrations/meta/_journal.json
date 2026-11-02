@@ -1058,6 +1058,13 @@
       "when": 1793575163550,
       "tag": "0150_einvoice_documents_no_truncate",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1793632663790,
+      "tag": "0151_dr23_dual_control",
+      "breakpoints": true
     }
   ]
 }

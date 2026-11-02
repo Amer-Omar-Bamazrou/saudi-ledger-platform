@@ -29,6 +29,10 @@ router.delete("/current/logo", companiesController.removeLogo);
 router.get("/current/control-settings", companiesController.controlSettings);
 router.put("/current/control-settings", companiesController.updateControlSettings);
 router.get("/current/control-findings/payment-after-bank-change", companiesController.paymentAfterBankChange);
+// Phase 18 R-6 (DR-23): bank-detail changes held for a second admin. The decision is a PUT — an update of the
+// request, admin-only by the seeded matrix (`companies` carries no create/approve grant; register §11.99).
+router.get("/current/bank-detail-changes", companiesController.bankDetailChanges);
+router.put("/current/bank-detail-changes/:id/decision", companiesController.decideBankDetailChange);
 router.get("/current", companiesController.getCurrent);
 router.patch("/current", companiesController.updateCurrent);
 
