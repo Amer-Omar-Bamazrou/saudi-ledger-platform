@@ -9,6 +9,7 @@ import router from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./lib/logger";
 import { endEndedSessions } from "./lib/auth";
+import { refuseCrossSiteWrites } from "./lib/csrf";
 
 const env = loadEnv();
 const isProduction = env.NODE_ENV === "production";
@@ -62,6 +63,10 @@ app.use(
     credentials: true,
   }),
 );
+// 🔴 Phase 18 R-7 (G45): every POST/PUT/PATCH/DELETE must show it comes from the application's own pages
+// (Sec-Fetch-Site, else an exact Origin, else an exact Referer origin) — before a body is parsed, a session read,
+// or any budget spent. The application origins are the CORS allow-list (lib/csrf.ts).
+app.use(refuseCrossSiteWrites(env.CORS_ALLOWED_ORIGINS));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

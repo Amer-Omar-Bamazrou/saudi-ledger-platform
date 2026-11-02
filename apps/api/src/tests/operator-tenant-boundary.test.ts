@@ -36,6 +36,7 @@ process.env.PORT ??= "3108";
 process.env.SESSION_SECRET ??= "operator-tenant-boundary-test-session-secret-0123";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
+import { appOriginHeader } from "./helpers/appOrigin";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import bcrypt from "bcryptjs";
@@ -83,7 +84,7 @@ describeMaybe("M11.3 boundary — operator status grants NOTHING inside a tenant
     const cookie = jar[who] ?? "";
     const res = await fetch(`${base}${path}`, {
       method,
-      headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+      headers: { "content-type": "application/json", ...appOriginHeader(), ...(cookie ? { cookie } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const sid = ((res.headers as any).getSetCookie?.() ?? []).find((c: string) =>

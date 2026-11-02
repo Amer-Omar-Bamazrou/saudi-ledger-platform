@@ -19,6 +19,7 @@
  * bill PAYMENT (out of 13B-1's scope — invoices and payments stay rank 2), an
  * opening (Batch 1C) entry.
  */
+import { appOriginHeader } from "./helpers/appOrigin";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import http from "node:http";
 import { beginTenantConnection, pool } from "@workspace/db";
@@ -98,7 +99,7 @@ describeMaybe("Phase 13B-1 — generic reversal protection (A-5)", () => {
   const billRow = async (bid: number) =>
     (await pool.query(`SELECT status, input_vat_state, input_vat_claimed_on, input_vat_claim_entry_id, paid_amount::text FROM bills WHERE id = $1`, [bid])).rows[0];
   const reverseHttp = async (entry: number) => {
-    const res = await fetch(`${base}/journal-entries/${entry}/reverse`, { method: "POST", headers: { cookie: cookieA, "content-type": "application/json" }, body: JSON.stringify({ reason: "Phase 13B-1 guard test" }) });
+    const res = await fetch(`${base}/journal-entries/${entry}/reverse`, { method: "POST", headers: { cookie: cookieA, "content-type": "application/json", ...appOriginHeader() }, body: JSON.stringify({ reason: "Phase 13B-1 guard test" }) });
     return { status: res.status, body: (await res.json().catch(() => null)) as { error?: string; reversalId?: number } | null };
   };
 
@@ -158,7 +159,7 @@ describeMaybe("Phase 13B-1 — generic reversal protection (A-5)", () => {
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
     const addr = server.address();
     base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}/api`;
-    const res = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: EMAIL_A, password: PW }) });
+    const res = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json", ...appOriginHeader() }, body: JSON.stringify({ email: EMAIL_A, password: PW }) });
     expect(res.status).toBe(200);
     cookieA = ((res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? []).find((c) => c.startsWith("ksa_ledger_sid="))!.split(";")[0]!;
   }, 120_000);
