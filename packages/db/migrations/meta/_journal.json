@@ -1051,6 +1051,13 @@
       "when": 1793571163047,
       "tag": "0149_t1d_source_id_positive",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1793575163550,
+      "tag": "0150_einvoice_documents_no_truncate",
+      "breakpoints": true
     }
   ]
 }
