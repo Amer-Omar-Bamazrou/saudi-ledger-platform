@@ -22,8 +22,8 @@ process.env.SESSION_SECRET ??= "r6-dr23-dual-control-000000000000001";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { pool, db, vendorsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { pool, db, vendorsTable, bankAccountsTable, bankDetailChangeRequestsTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 import { g04Harness } from "./helpers/g04Harness";
 
 const url = process.env.DATABASE_URL;
@@ -129,6 +129,8 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
     it("🔴 a second change of the same supplier while one waits is refused (409) — and nothing in that request is written", async () => {
       const r = await h.api("pairB", "PATCH", `/vendors/${v}`, { iban: IBAN_C, city: "Dammam" });
       expect([r.status, r.body?.code]).toEqual([409, "bank_detail_change_pending"]);
+      // the database's partial unique index answers it, in both languages (added after the proof commit; §11.100)
+      expect(typeof r.body?.errorAr).toBe("string");
       const row = (await pool.query(`SELECT iban, city FROM vendors WHERE id = $1`, [v])).rows[0];
       expect([row.iban, row.city]).toEqual([IBAN_A, "Jeddah"]);
     });
@@ -136,6 +138,9 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
     it("🔴 the REQUESTER cannot approve their own change (409); the stored IBAN stays", async () => {
       const r = await decide("pairA", requestId, "approve");
       expect([r.status, r.body?.code]).toEqual([409, "second_admin_required"]);
+      // the product's own refusal, in both languages — not the database's backstop sentence (added after the proof
+      // commit; register §11.100: without it, removing the service's check is invisible behind the trigger's)
+      expect(typeof r.body?.errorAr).toBe("string");
       expect(await storedIban(v)).toBe(IBAN_A);
     });
 
@@ -235,6 +240,37 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
       const s = await mkVendor("solo", "R6 Direct Solo Supplier", IBAN_A);
       await h.inTenant(orgs.solo!, cos.solo!, ids.solo, () => db.update(vendorsTable).set({ iban: IBAN_B }).where(eq(vendorsTable.id, s)));
       expect(await storedIban(s)).toBe(IBAN_B);
+    });
+
+    // Added after the proof commit (register §11.100): each of the database's own rules, with no service in front of it.
+    it("🔴 THE DATABASE'S OWN RULES: a default switch with no request, an approval by the requester, and an approval from an EARLIER transaction are each refused", async () => {
+      const refusedAs = (p: Promise<unknown>) => p.then(() => "accepted", (e: any) => `refused:${e.constraint ?? e.cause?.constraint}`);
+      const acct = await mkAccount("pairA", "R6 Direct Account", { iban: IBAN_D });
+      expect(await refusedAs(h.inTenant(orgs.pair!, cos.pair!, ids.pairA, () =>
+        db.update(bankAccountsTable).set({ isDefault: true }).where(eq(bankAccountsTable.id, acct.id)),
+      ))).toBe("refused:bank_detail_dual_control");
+      expect((await account(acct.id)).is_default).toBe(false);
+
+      const w = await mkVendor("pairA", "R6 Self Approval Supplier", IBAN_A);
+      const req = pendingOf((await h.api("pairA", "PATCH", `/vendors/${w}`, { iban: IBAN_B })).body)[0]!;
+      expect(await refusedAs(h.inTenant(orgs.pair!, cos.pair!, ids.pairA, () =>
+        db.update(bankDetailChangeRequestsTable).set({ status: "approved", decidedBy: ids.pairA, decidedAt: sql`now()` }).where(eq(bankDetailChangeRequestsTable.id, req.id)),
+      ))).toBe("refused:bank_detail_change_second_admin");
+
+      expect((await decide("pairB", req.id, "approve")).status).toBe(200);
+      expect(await storedIban(w)).toBe(IBAN_B);
+      // the IBAN goes back underneath (a fixture, triggers aside); the SAME approver then tries the SAME change directly
+      const c = await pool.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SET LOCAL session_replication_role = replica");
+        await c.query(`UPDATE vendors SET iban = $2 WHERE id = $1`, [w, IBAN_A]);
+        await c.query("COMMIT");
+      } finally { c.release(); }
+      expect(await refusedAs(h.inTenant(orgs.pair!, cos.pair!, ids.pairB, () =>
+        db.update(vendorsTable).set({ iban: IBAN_B }).where(eq(vendorsTable.id, w)),
+      ))).toBe("refused:bank_detail_dual_control");
+      expect(await storedIban(w)).toBe(IBAN_A);
     });
   });
 
