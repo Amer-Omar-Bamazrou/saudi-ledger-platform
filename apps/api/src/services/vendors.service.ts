@@ -15,6 +15,7 @@ const VENDOR_FIELDS = [
   "whtDefaultPaymentType", "foreignTaxId",
 ] as const;
 import { auditService } from "./audit.service";
+import { bankDetailChangesService } from "./bankDetailChanges.service";
 import { vatEvidenceService } from "./purchaseEvidence/vatEvidence.service";
 import { vendorsRepository, type VendorListFilter } from "../repositories/vendors.repository";
 import { DEFAULT_PAGE } from "../lib/httpParams";
@@ -124,11 +125,29 @@ export const vendorsService = {
   async update(id: number, data: unknown) {
     const [before] = await vendorsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    const [row] = await vendorsRepository.update(id, withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS))));
-    await auditService.updated("vendor", id, before, row);
+    // 🔴 Phase 18 R-6 (DR-23): where the organisation has two or more usable admins, a change of the IBAN is HELD for a
+    // second admin (recorded as a pending request) and the rest of the request is written.
+    const { values, held } = await bankDetailChangesService.holdVendorIban(before, withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS))));
+    let row: Vendor = before;
+    if (Object.keys(values).length > 0) {
+      [row] = await vendorsRepository.update(id, values);
+      await auditService.updated("vendor", id, before, row);
+    }
     // Phase 13A: the supplier's VAT number is evidence — their unposted bills are re-decided.
     if ((before.taxNumber ?? null) !== (row?.taxNumber ?? null)) await vatEvidenceService.refreshForVendor(id);
-    return row;
+    return { ...row, pendingBankDetailChanges: await bankDetailChangesService.out(held) };
+  },
+
+  /**
+   * 🔴 Phase 18 R-6 (DR-23): the IBAN a second admin APPROVED, written by the decision
+   * (`bankDetailChangeDecisions.service`) in the approval's own transaction, with its audit record — the record
+   * H-9's change-then-pay finding reads, dated at the approval.
+   */
+  async applyApprovedIban(id: number, iban: string | null): Promise<void> {
+    const [before] = await vendorsRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
+    const [row] = await vendorsRepository.update(id, { iban });
+    await auditService.updated("vendor", id, before, row);
   },
 
   async remove(id: number) {

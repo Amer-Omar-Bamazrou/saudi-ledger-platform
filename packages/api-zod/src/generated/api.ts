@@ -4830,6 +4830,60 @@ export const GetPaymentAfterBankChangeFindingResponse = zod.object({
 
 
 /**
+ * @summary DR-23's dual control (Phase 18 R-6): the bank-detail changes of the active company held for a second admin, pending and decided, newest first.
+
+ */
+export const ListBankDetailChangesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['vendor_iban', 'bank_account_iban', 'default_bank_account']),
+  "vendorId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "subjectName": zod.string().nullable().describe('The supplier\'s or the bank account\'s name.'),
+  "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
+  "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "requestedBy": zod.number(),
+  "requestedByName": zod.string().nullable(),
+  "requestedAt": zod.coerce.date(),
+  "decidedBy": zod.number().nullable(),
+  "decidedByName": zod.string().nullable(),
+  "decidedAt": zod.coerce.date().nullable()
+}).describe('Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier\'s IBAN, a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.\n')).describe('Every request of the active company, newest first (pending and decided).')
+})
+
+
+/**
+ * @summary Approve or reject a held bank-detail change (admin only). Approval is by an admin who is not the requester and applies the change at once, with its audit record; it is refused when the stored value no longer equals the request's `ibanBefore`. A decision is final.
+
+ */
+export const DecideBankDetailChangeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DecideBankDetailChangeBody = zod.object({
+  "decision": zod.enum(['approve', 'reject'])
+})
+
+export const DecideBankDetailChangeResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['vendor_iban', 'bank_account_iban', 'default_bank_account']),
+  "vendorId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "subjectName": zod.string().nullable().describe('The supplier\'s or the bank account\'s name.'),
+  "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
+  "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "requestedBy": zod.number(),
+  "requestedByName": zod.string().nullable(),
+  "requestedAt": zod.coerce.date(),
+  "decidedBy": zod.number().nullable(),
+  "decidedByName": zod.string().nullable(),
+  "decidedAt": zod.coerce.date().nullable()
+}).describe('Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier\'s IBAN, a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.\n')
+
+
+/**
  * @summary ZATCA onboarding prerequisites and current certificate status
  */
 export const GetZatcaOnboardingStatusResponse = zod.object({
@@ -8552,7 +8606,24 @@ export const UpdateVendorResponse = zod.object({
   "whtDefaultPaymentType": zod.string().nullable().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
   "foreignTaxId": zod.string().nullable().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).'),
   "createdAt": zod.string()
-})
+}).and(zod.object({
+  "pendingBankDetailChanges": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['vendor_iban', 'bank_account_iban', 'default_bank_account']),
+  "vendorId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "subjectName": zod.string().nullable().describe('The supplier\'s or the bank account\'s name.'),
+  "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
+  "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "requestedBy": zod.number(),
+  "requestedByName": zod.string().nullable(),
+  "requestedAt": zod.coerce.date(),
+  "decidedBy": zod.number().nullable(),
+  "decidedByName": zod.string().nullable(),
+  "decidedAt": zod.coerce.date().nullable()
+}).describe('Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier\'s IBAN, a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.\n')).describe('Phase 18 R-6 (DR-23): a change of the IBAN held for a second admin (the organisation has two or more usable admins). Empty when the change was written at once, or none was asked for.\n')
+}))
 
 
 /**

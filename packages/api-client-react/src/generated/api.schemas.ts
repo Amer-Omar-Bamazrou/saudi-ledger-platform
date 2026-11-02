@@ -598,6 +598,139 @@ export interface PaymentAfterBankChangeFinding {
   items: PaymentAfterBankChangeItem[];
 }
 
+export type BankDetailChangeKind = typeof BankDetailChangeKind[keyof typeof BankDetailChangeKind];
+
+
+export const BankDetailChangeKind = {
+  vendor_iban: 'vendor_iban',
+  bank_account_iban: 'bank_account_iban',
+  default_bank_account: 'default_bank_account',
+} as const;
+
+export type BankDetailChangeStatus = typeof BankDetailChangeStatus[keyof typeof BankDetailChangeStatus];
+
+
+export const BankDetailChangeStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+/**
+ * Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier's IBAN, a company bank account's IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.
+ */
+export interface BankDetailChange {
+  id: number;
+  kind: BankDetailChangeKind;
+  /** @nullable */
+  vendorId: number | null;
+  /** @nullable */
+  bankAccountId: number | null;
+  /**
+     * The supplier's or the bank account's name.
+     * @nullable
+     */
+  subjectName: string | null;
+  /**
+     * The stored IBAN before; for a default switch, the IBAN printed before (null when none was).
+     * @nullable
+     */
+  ibanBefore: string | null;
+  /**
+     * The IBAN after; for a default switch, the IBAN of the account that becomes the default.
+     * @nullable
+     */
+  ibanAfter: string | null;
+  status: BankDetailChangeStatus;
+  requestedBy: number;
+  /** @nullable */
+  requestedByName: string | null;
+  requestedAt: string;
+  /** @nullable */
+  decidedBy: number | null;
+  /** @nullable */
+  decidedByName: string | null;
+  /** @nullable */
+  decidedAt: string | null;
+}
+
+export interface BankDetailChangeList {
+  /** Every request of the active company, newest first (pending and decided). */
+  items: BankDetailChange[];
+}
+
+export type BankDetailChangeDecisionInputDecision = typeof BankDetailChangeDecisionInputDecision[keyof typeof BankDetailChangeDecisionInputDecision];
+
+
+export const BankDetailChangeDecisionInputDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface BankDetailChangeDecisionInput {
+  decision: BankDetailChangeDecisionInputDecision;
+}
+
+/**
+ * Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed.
+ */
+export type VendorResidency = typeof VendorResidency[keyof typeof VendorResidency];
+
+
+export const VendorResidency = {
+  resident: 'resident',
+  non_resident: 'non_resident',
+  unknown: 'unknown',
+} as const;
+
+export interface Vendor {
+  id: number;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  /** @nullable */
+  taxNumber: string | null;
+  /** @nullable */
+  crNumber: string | null;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  address: string | null;
+  /** @nullable */
+  city: string | null;
+  /** @nullable */
+  country: string | null;
+  /** @nullable */
+  currency: string | null;
+  /** @nullable */
+  iban: string | null;
+  /** @nullable */
+  paymentTermsDays: string | null;
+  /** @nullable */
+  notes: string | null;
+  isActive: boolean;
+  /** Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed. */
+  residency: VendorResidency;
+  /**
+     * The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.
+     * @nullable
+     */
+  whtDefaultPaymentType: string | null;
+  /**
+     * The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3)).
+     * @nullable
+     */
+  foreignTaxId: string | null;
+  createdAt: string;
+}
+
+export type VendorUpdateResult = Vendor & {
+  /** Phase 18 R-6 (DR-23): a change of the IBAN held for a second admin (the organisation has two or more usable admins). Empty when the change was written at once, or none was asked for. */
+  pendingBankDetailChanges: BankDetailChange[];
+};
+
 /**
  * Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.
  */
@@ -5814,61 +5947,6 @@ export interface CreateCustomerInput {
 }
 
 export type UpdateCustomerInput = CustomerInputFields;
-
-/**
- * Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed.
- */
-export type VendorResidency = typeof VendorResidency[keyof typeof VendorResidency];
-
-
-export const VendorResidency = {
-  resident: 'resident',
-  non_resident: 'non_resident',
-  unknown: 'unknown',
-} as const;
-
-export interface Vendor {
-  id: number;
-  name: string;
-  /** @nullable */
-  nameAr: string | null;
-  /** @nullable */
-  taxNumber: string | null;
-  /** @nullable */
-  crNumber: string | null;
-  /** @nullable */
-  phone: string | null;
-  /** @nullable */
-  email: string | null;
-  /** @nullable */
-  address: string | null;
-  /** @nullable */
-  city: string | null;
-  /** @nullable */
-  country: string | null;
-  /** @nullable */
-  currency: string | null;
-  /** @nullable */
-  iban: string | null;
-  /** @nullable */
-  paymentTermsDays: string | null;
-  /** @nullable */
-  notes: string | null;
-  isActive: boolean;
-  /** Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed. */
-  residency: VendorResidency;
-  /**
-     * The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.
-     * @nullable
-     */
-  whtDefaultPaymentType: string | null;
-  /**
-     * The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3)).
-     * @nullable
-     */
-  foreignTaxId: string | null;
-  createdAt: string;
-}
 
 export type VendorWithBalance = Vendor & PartyTotals;
 

@@ -12,6 +12,7 @@ import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { getListFiscalYearsQueryKey } from "@workspace/api-client-react";
 import { fiscalPeriodLabel } from "@/lib/fiscalLabel";
 import { ControlSettingsSection } from "@/components/ControlSettingsSection";
+import { BankDetailChangesSection } from "@/components/BankDetailChangesSection";
 
 /**
  * Company Settings (M11.6) — the tenant's legal identity.
@@ -545,6 +546,7 @@ export default function CompanySettings() {
       </Card>
 
       <ControlSettingsSection />
+      <BankDetailChangesSection />
     </div>
   );
 }

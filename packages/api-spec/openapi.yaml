@@ -2578,6 +2578,68 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaymentAfterBankChangeFinding"
 
+  /companies/current/bank-detail-changes:
+    get:
+      operationId: listBankDetailChanges
+      tags: [companies]
+      summary: >
+        DR-23's dual control (Phase 18 R-6): the bank-detail changes of the
+        active company held for a second admin, pending and decided, newest
+        first.
+      responses:
+        "200":
+          description: The requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankDetailChangeList"
+
+  /companies/current/bank-detail-changes/{id}/decision:
+    put:
+      operationId: decideBankDetailChange
+      tags: [companies]
+      summary: >
+        Approve or reject a held bank-detail change (admin only). Approval is
+        by an admin who is not the requester and applies the change at once,
+        with its audit record; it is refused when the stored value no longer
+        equals the request's `ibanBefore`. A decision is final.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BankDetailChangeDecisionInput"
+      responses:
+        "200":
+          description: The request as decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankDetailChange"
+        "400":
+          description: A decision other than approve or reject
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: No such request in this company
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: >
+            `second_admin_required` (the requester cannot approve their own
+            change), `bank_detail_change_stale` (the stored value moved), or
+            `bank_detail_change_decided` (already decided)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
   /zatca/onboarding:
     get:
       operationId: getZatcaOnboardingStatus
@@ -3933,14 +3995,25 @@ paths:
             schema: { $ref: "#/components/schemas/UpdateVendorInput" }
       responses:
         "200":
-          description: The updated vendor
+          description: >
+            The updated vendor. Phase 18 R-6 (DR-23): where the organisation has
+            two or more usable admins, a change of the IBAN is not written — it
+            is held for a second admin and listed in `pendingBankDetailChanges`;
+            the other fields are written.
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Vendor" }
+              schema: { $ref: "#/components/schemas/VendorUpdateResult" }
         "400":
           description: Body failed validation
         "404":
           description: No such vendor in this organization
+        "409":
+          description: >
+            `bank_detail_change_pending` — a change of this supplier's IBAN already
+            waits for a second admin; nothing in the request was written
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
     delete:
       operationId: deleteVendor
       tags: [vendors]
@@ -8483,6 +8556,76 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PaymentAfterBankChangeItem"
+
+    BankDetailChange:
+      type: object
+      description: >
+        Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin
+        — a supplier's IBAN, a company bank account's IBAN, or which account is
+        the default (the IBAN printed on future invoices). Recorded only where
+        the organisation has two or more usable admins; approved by an admin
+        who is not the requester, or rejected (by an admin, or withdrawn by the
+        requester). A decision is final.
+      required: [id, kind, vendorId, bankAccountId, subjectName, ibanBefore, ibanAfter, status,
+                 requestedBy, requestedByName, requestedAt, decidedBy, decidedByName, decidedAt]
+      properties:
+        id: { type: integer }
+        kind:
+          type: string
+          enum: [vendor_iban, bank_account_iban, default_bank_account]
+        vendorId: { type: ["integer", "null"] }
+        bankAccountId: { type: ["integer", "null"] }
+        subjectName:
+          type: ["string", "null"]
+          description: The supplier's or the bank account's name.
+        ibanBefore:
+          type: ["string", "null"]
+          description: The stored IBAN before; for a default switch, the IBAN printed before (null when none was).
+        ibanAfter:
+          type: ["string", "null"]
+          description: The IBAN after; for a default switch, the IBAN of the account that becomes the default.
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        requestedBy: { type: integer }
+        requestedByName: { type: ["string", "null"] }
+        requestedAt: { type: string, format: date-time }
+        decidedBy: { type: ["integer", "null"] }
+        decidedByName: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"], format: date-time }
+
+    BankDetailChangeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: Every request of the active company, newest first (pending and decided).
+          items:
+            $ref: "#/components/schemas/BankDetailChange"
+
+    BankDetailChangeDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, reject]
+
+    VendorUpdateResult:
+      allOf:
+        - { $ref: "#/components/schemas/Vendor" }
+        - type: object
+          required: [pendingBankDetailChanges]
+          properties:
+            pendingBankDetailChanges:
+              type: array
+              description: >
+                Phase 18 R-6 (DR-23): a change of the IBAN held for a second
+                admin (the organisation has two or more usable admins). Empty
+                when the change was written at once, or none was asked for.
+              items:
+                $ref: "#/components/schemas/BankDetailChange"
 
     PaymentAfterBankChangeItem:
       type: object

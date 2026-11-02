@@ -1,8 +1,11 @@
 import type { Request, Response } from "express";
-import { UpdateCompanyControlSettingsBody, UpdateCurrentCompanyBody } from "@workspace/api-zod";
+import { DecideBankDetailChangeBody, UpdateCompanyControlSettingsBody, UpdateCurrentCompanyBody } from "@workspace/api-zod";
 import { BadRequestError } from "../lib/errors";
 import { companiesService } from "../services/companies.service";
 import { companyControlsService } from "../services/companyControls.service";
+import { bankDetailChangesService } from "../services/bankDetailChanges.service";
+import { bankDetailChangeDecisionsService } from "../services/bankDetailChangeDecisions.service";
+import { requireIdParam } from "../lib/httpParams";
 
 export const companiesController = {
   async getCurrent(_req: Request, res: Response) {
@@ -56,5 +59,17 @@ export const companiesController = {
 
   async paymentAfterBankChange(_req: Request, res: Response) {
     res.json(await companyControlsService.paymentAfterBankChange());
+  },
+
+  /** Phase 18 R-6 (DR-23): the bank-detail changes held for a second admin, pending and decided. */
+  async bankDetailChanges(_req: Request, res: Response) {
+    res.json(await bankDetailChangesService.list());
+  },
+
+  /** Phase 18 R-6 (DR-23): approve or reject one (admin only, by the matrix; never the requester's approval). */
+  async decideBankDetailChange(req: Request, res: Response) {
+    const body = DecideBankDetailChangeBody.safeParse(req.body);
+    if (!body.success) throw new BadRequestError(body.error.message);
+    res.json(await bankDetailChangeDecisionsService.decide(requireIdParam(req), body.data.decision));
   },
 };
