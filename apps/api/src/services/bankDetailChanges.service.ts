@@ -57,6 +57,7 @@ const iso = (d: Date | string | null) => (d == null ? null : new Date(d).toISOSt
 
 /** Requests as the API answers them, the requester's and decider's names resolved in the identity layer. */
 export async function toOut(rows: BankDetailChangeRow[]): Promise<BankDetailChangeOut[]> {
+  if (rows.length === 0) return [];
   const ids = [...new Set(rows.flatMap((r) => [r.requestedBy, r.decidedBy]).filter((x): x is number => x != null))];
   const names = await membersRepository.memberNamesByIds(actor().organizationId, ids);
   return rows.map((r) => ({
@@ -147,6 +148,8 @@ export const bankDetailChangesService = {
 
   /** The held requests, as the API answers them (for a write's `pendingBankDetailChanges`). */
   async out(ids: number[]): Promise<BankDetailChangeOut[]> {
+    // Nothing held (one admin, or no bank detail changed): no read, and no request context needed.
+    if (ids.length === 0) return [];
     return toOut(await repo.findByIds(ids));
   },
 
