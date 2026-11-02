@@ -133,6 +133,19 @@ function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): strin
     // 🔴 Phase 18 H-6 — DR-34 (register §11.53; owner accepted the recommendation): the legal ties first.
     case "invoice":
       return `This entry belongs to ${documentRef}, an issued invoice or note. An issued tax document is corrected with a credit or debit note (VAT IR Art. 54), never by reversing its entry alone — the document would stay live while its entry is cancelled.`;
+    // 🔴 Phase 18 R-10 — DR-34 finished (memo §2a, register §11.109): every other type with its own correction path.
+    case "credit_note_application":
+      return `This entry applies credit note ${documentRef} to an invoice. Undo the application with Unallocate, beside it in the credit note's applications on the customer's page — that records the correction beside the application. Reversed from here, the invoice would still read as settled by the note.`;
+    case "customer_payment_allocation":
+      return `This entry applies a customer's receipt to an invoice. Undo the allocation with Unallocate, beside it on the receipt on the customer's page — that records the correction beside the allocation. Reversed from here, the invoice would still read as paid.`;
+    case "customer_payment_reclassification":
+      return `This entry reclassifies a customer's receipt. Classify the receipt again (Reclassify, on the receipt on the customer's page), which moves it with its own date and reason. Reversed from here, the receipt would still read as classified.`;
+    case "supplier_advance_allocation":
+      return `This entry applies a supplier advance to a bill. Reverse the allocation instead (Undo, beside it on the payment in Supplier payments), which records why and reopens the bill. Reversed from here, the bill would still read as settled.`;
+    case "supplier_payment_reclassification":
+      return `This entry reclassifies a supplier payment. Classify the payment again (its classification, on the payment in Supplier payments), which moves it with its own date and reason. Reversed from here, the payment would still read as classified.`;
+    case "vat_return_filing":
+      return `This entry clears VAT return ${documentRef} as filed. A filed return is corrected by recording an amendment of the filing (under VAT returns filed, on Closed months, naming the reference it amends), which posts its own clearing; an error found later is recorded as a VAT correction. Reversed from here, the return would still read as filed.`;
     case "invoice_write_off":
       return `This entry writes off ${documentRef} as a bad debt. The VAT relief rests on that write-off being in the books (Art. 40(7)), and money received later is declared by a recovery invoice (Art. 40(9)); the entry cannot be reversed from here.`;
   }
@@ -502,13 +515,17 @@ export const journalEntriesService = {
     // journal, a dated opening correction, its reversal — are withdrawn only by the migration workspace, whose reversal
     // marks every row it created. Refused here in words; the database refuses the same mirror (0119
     // `journal_entries_mirror_admit`), so no path can say it.
-    if (original.reversalOf != null) {
+    // 🔴 R-10 (register §11.109): a mirror is known by its link AND by its recorded source type, so an entry recorded
+    // as a reversal is refused even where its link is missing.
+    if (original.reversalOf != null || original.sourceType === "reversal") {
       throw new BusinessRuleError(409, {
         code: "journal_mirror_not_reversible",
         error: `Entry ${original.entryNumber} is itself the reversal of another entry; reversing it would re-post what that reversal undid. Record what is still needed as a new entry instead.`,
       });
     }
-    if (original.source === "opening" || original.source === "opening_correction" || original.source === "opening_reversal") {
+    // 🔴 R-10: and a migration's entry by its source column OR its recorded source type.
+    if (original.source === "opening" || original.source === "opening_correction" || original.source === "opening_reversal"
+      || original.sourceType === "migration_opening" || original.sourceType === "migration_reversal" || original.sourceType === "opening_correction") {
       throw new BusinessRuleError(409, {
         code: "journal_migration_owned",
         error: `Entry ${original.entryNumber} belongs to a migration batch. An opening position is withdrawn by reversing its batch in the migration workspace (which marks every row it created), and one item is changed by a dated correction there — never by reversing the journal alone.`,
