@@ -21,6 +21,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ownerDb, pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
+import { deleterFor } from "./helpers/replica";
 import { sql } from "drizzle-orm";
 import { __setAlerterForTests, webhookAlerter, type Alert } from "../lib/alerter";
 import {
@@ -99,6 +100,8 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM categories WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${org}`);
+    // R-9 (DR-22, 0153): the outbox's transitions are recorded in audit_logs, which is append-only — cleared in replica mode.
+    await deleterFor(pool, "audit_logs").query(`DELETE FROM audit_logs WHERE organization_id IN ${org}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${FIXTURE_SLUG}'`);
   };
 
