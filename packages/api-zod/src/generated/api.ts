@@ -15854,11 +15854,14 @@ export const AllocateSupplierPaymentParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const allocateSupplierPaymentBodyIdempotencyKeyMax = 120;
+
 
 
 
 export const AllocateSupplierPaymentBody = zod.object({
   "date": zod.coerce.date().optional(),
+  "idempotencyKey": zod.string().max(allocateSupplierPaymentBodyIdempotencyKeyMax).nullish().describe('Phase 18 R-8 (G37\/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE allocation; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.\n'),
   "allocations": zod.array(zod.object({
   "billId": zod.number(),
   "amount": zod.number().describe('A positive amount')
@@ -16021,11 +16024,16 @@ export const RefundSupplierPaymentParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const refundSupplierPaymentBodyIdempotencyKeyMax = 120;
+
+
+
 export const RefundSupplierPaymentBody = zod.object({
   "amount": zod.number().optional().describe('Defaults to everything still on account'),
   "bankAccountId": zod.number().optional().describe('Defaults to the bank the payment left from'),
   "refundedAt": zod.coerce.date().optional(),
-  "reason": zod.string()
+  "reason": zod.string(),
+  "idempotencyKey": zod.string().max(refundSupplierPaymentBodyIdempotencyKeyMax).nullish().describe('Phase 18 R-8 (G37\/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE refund; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.\n')
 })
 
 export const RefundSupplierPaymentResponse = zod.object({
@@ -16297,10 +16305,13 @@ export const ApplySupplierCreditNoteParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const applySupplierCreditNoteBodyIdempotencyKeyMax = 120;
+
 
 
 
 export const ApplySupplierCreditNoteBody = zod.object({
+  "idempotencyKey": zod.string().max(applySupplierCreditNoteBodyIdempotencyKeyMax).nullish().describe('Phase 18 R-8 (G37\/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE application; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.\n'),
   "allocations": zod.array(zod.object({
   "billId": zod.number(),
   "amount": zod.number().describe('A positive amount')

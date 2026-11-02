@@ -291,6 +291,11 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
     const ref = TENANT_REFERENCE_KEYS[constraint];
     if (ref) return { status: 422, body: { code: "reference_not_found", error: ref.error, field: ref.field } };
   }
+  // R-8 (G37/G40): the same idempotency key on ANOTHER source at the same moment reaches the per-company,
+  // per-operation unique index (one source serialises on its lock and replays) — a different request: refused.
+  if (pgCode === "23505" && constraint && /_idempotency(_op)?_unq$/.test(constraint)) {
+    return { status: 409, body: { code: "idempotency_key_reused", error: "This idempotency key was used for a different request in this company at the same moment. Nothing was recorded; use a new key." } };
+  }
   if (pgCode === "23505" && constraint) {
     const budget = BUDGET_UNIQUE_MESSAGE[constraint];
     if (budget) return { status: 409, body: { code: "budget_conflict", constraint, error: budget } };

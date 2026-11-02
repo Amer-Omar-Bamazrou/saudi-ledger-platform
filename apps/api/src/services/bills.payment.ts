@@ -16,9 +16,9 @@
  * and `bills.paid_amount` keep meaning what the SUPPLIER is credited with, so
  * `billPosition` is untouched; the bank line is the cash that actually left.
  */
-import { createHash } from "node:crypto";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { pgErrorFields } from "../lib/dbRefusals";
+import { asSent, requestFingerprint as fingerprintOf, replayOrRefuse as replayOrRefuseKey, type Idempotency } from "../lib/idempotency";
 import { assertDateString } from "../lib/writeGuards";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { auditService } from "./audit.service";
@@ -55,26 +55,21 @@ export class BillPaymentReplay extends Error {
 type PayBillBody = { amount: unknown; paidAt?: string; bankAccountId?: unknown; idempotencyKey?: unknown; whtPaymentType?: unknown; whtNotSubjectReason?: unknown; whtNotSubjectNote?: unknown; whtFiledMonthTreatment?: unknown; whtContractId?: unknown };
 
 /** G36-KEY: the request a key was first used with — a retry must repeat it to be the SAME payment. */
+// R-8 (§11.104): the ONE implementation now lives in lib/idempotency; these parts — and so every fingerprint
+// already stored — are exactly as before.
 function requestFingerprint(billId: number, body: PayBillBody): string {
-  const n = (v: unknown) => (v === undefined || v === "" ? null : v);
+  const n = asSent;
   const parts: unknown[] = [billId, round2(Number(body.amount)), n(body.paidAt), Number(body.bankAccountId), n(body.whtPaymentType), n(body.whtNotSubjectReason), n(body.whtNotSubjectNote), n(body.whtFiledMonthTreatment)];
   // G4c-1: the contract decides who bears the tax, so it is part of the request — appended only when named, so a
   // key first used without one fingerprints exactly as before
   if (n(body.whtContractId) != null) parts.push(Number(body.whtContractId));
-  return createHash("sha256")
-    .update(JSON.stringify(parts))
-    .digest("hex");
+  return fingerprintOf(parts);
 }
 
 /** G36-KEY: a payment already recorded under the key — the same request replays; a different one is refused, nothing written. */
-async function replayOrRefuse(idem: { key: string; fingerprint: string }): Promise<void> {
+async function replayOrRefuse(idem: Idempotency): Promise<void> {
   const [prior] = await paymentsRepository.findBillPaymentByIdempotencyKey(idem.key);
-  if (!prior) return;
-  if (prior.requestFingerprint === idem.fingerprint) throw new BillPaymentReplay(prior.id);
-  throw new BusinessRuleError(409, {
-    code: "idempotency_key_reused",
-    error: `Idempotency key "${idem.key}" was already used for a different payment (${prior.amount} on ${prior.paidAt}). Nothing was recorded; use a new key for a new payment.`,
-  });
+  if (prior && replayOrRefuseKey(prior, idem, "payment", `${prior.amount} on ${prior.paidAt}`)) throw new BillPaymentReplay(prior.id);
 }
 
 export async function payBill(

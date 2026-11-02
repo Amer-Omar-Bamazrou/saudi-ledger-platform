@@ -119,8 +119,23 @@ export const paymentsRepository = {
     return db.select().from(paymentsTable).where(eq(paymentsTable.idempotencyKey, key)).limit(1);
   },
 
-  findAllocationByIdempotencyKey(key: string) {
-    return db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.idempotencyKey, key)).limit(1);
+  /**
+   * 🔴 R-8 (G37/G40; lib/idempotency): a request's allocation under its key — scoped to the COMPANY and to the
+   * OPERATION (a receipt's allocation or a credit note's application share this table; the same key on each is
+   * two different requests).
+   */
+  findAllocationByIdempotencyKey(key: string, operation: "payment" | "credit_note") {
+    return db
+      .select()
+      .from(paymentAllocationsTable)
+      .where(
+        and(
+          eq(paymentAllocationsTable.idempotencyKey, key),
+          companyScoped(paymentAllocationsTable.companyId),
+          operation === "payment" ? isNotNull(paymentAllocationsTable.paymentId) : isNotNull(paymentAllocationsTable.creditNoteId),
+        ),
+      )
+      .limit(1);
   },
 
   /** Policy C: the superseding record that reversed a migrated deposit, if any (repositories/openingReversal.ts is the read-side predicate). */
@@ -239,8 +254,13 @@ export const paymentsRepository = {
     return db.select().from(customerRefundsTable).where(eq(customerRefundsTable.id, id)).limit(1);
   },
 
+  /** 🔴 R-8: a refund under its key, company-scoped. */
   findRefundByIdempotencyKey(key: string) {
-    return db.select().from(customerRefundsTable).where(eq(customerRefundsTable.idempotencyKey, key)).limit(1);
+    return db
+      .select()
+      .from(customerRefundsTable)
+      .where(and(eq(customerRefundsTable.idempotencyKey, key), companyScoped(customerRefundsTable.companyId)))
+      .limit(1);
   },
 
   listRefunds(filter: { customerId?: number; limit: number; offset: number }) {

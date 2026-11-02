@@ -40,6 +40,7 @@
  * VAT is decided nowhere here (customerCreditPolicy.ts explains why).
  */
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
+import { asSent, idempotencyOf, keyReusedRefusal, replayOrRefuse, type Idempotency } from "../lib/idempotency";
 import { round2 } from "../lib/money";
 import { assertDateString } from "../lib/writeGuards";
 import { businessToday, isReceivableInBooks } from "@workspace/shared";
@@ -395,7 +396,7 @@ async function lockAndCheckTargets(
 async function writeAllocations(
   allocations: AllocationInput[],
   targets: Map<number, { id: number; total: string; paidAmount: string | null; creditedAmount: string; writtenOffAmount: string; status: string }>,
-  ref: { paymentId?: number; creditNoteId?: number; journalEntryId: number | null; idempotencyKey?: string | null; createdBy: number | null; paidAt?: string; ids?: number[] },
+  ref: { paymentId?: number; creditNoteId?: number; journalEntryId: number | null; idempotency?: Idempotency | null; createdBy: number | null; paidAt?: string; ids?: number[] },
 ): Promise<PaymentAllocation[]> {
   const out: PaymentAllocation[] = [];
   for (const [i, a] of allocations.entries()) {
@@ -406,8 +407,10 @@ async function writeAllocations(
       invoiceId: a.invoiceId,
       amount: fmt(a.amount),
       journalEntryId: ref.journalEntryId,
-      // The key marks the FIRST row only: the index is per key, and one request is one act.
-      idempotencyKey: i === 0 ? (ref.idempotencyKey ?? null) : null,
+      // The key — and its request's fingerprint (R-8) — mark the FIRST row only: the index is per key, and one
+      // request is one act.
+      idempotencyKey: i === 0 ? (ref.idempotency?.key ?? null) : null,
+      requestFingerprint: i === 0 ? (ref.idempotency?.fingerprint ?? null) : null,
       createdBy: ref.createdBy,
     });
     out.push(row);
@@ -438,6 +441,21 @@ function pgError(err: unknown): { code?: string; constraint?: string } {
 }
 
 /** A Postgres unique violation on the idempotency index → the request's twin won the race. */
+/**
+ * 🔴 R-8 (G37/G40; lib/idempotency): an allocation or application request's effect-deciding fields — the operation,
+ * its source and each (invoice, amount), in a fixed order so the same request always fingerprints the same.
+ */
+function allocationParts(operation: string, sourceId: number, allocations: unknown): unknown[] {
+  const lines = (Array.isArray(allocations) ? allocations : []).map((a) => [Number((a as AllocationInput)?.invoiceId), round2(Number((a as AllocationInput)?.amount))] as [number, number]);
+  lines.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  return [operation, sourceId, lines];
+}
+/** A refund request's effect-deciding fields, as sent. */
+function refundParts(body: { customerId: unknown; origin: unknown; paymentId?: unknown; creditNoteId?: unknown; amount: unknown; bankAccountId?: unknown; refundedAt?: string | null; reason?: string | null; reference?: string | null }): unknown[] {
+  const id = (v: unknown) => (asSent(v) == null ? null : Number(v));
+  return ["customer_refund", id(body.customerId), asSent(body.origin), id(body.paymentId), id(body.creditNoteId), round2(Number(body.amount)), id(body.bankAccountId), asSent(body.refundedAt), asSent(body.reason?.trim()), asSent(body.reference?.trim())];
+}
+
 function isIdempotencyRace(err: unknown): boolean {
   const e = pgError(err);
   return e?.code === "23505" && /idempotency/.test(e.constraint ?? "");
@@ -552,17 +570,17 @@ export const paymentsService = {
 
   /** A later allocation of a payment's unapplied remainder: Dr Customer deposits / Cr AR. */
   async allocate(paymentId: number, body: { allocations?: AllocationInput[] | null; idempotencyKey?: string | null }, userId: number | null): Promise<PaymentOut> {
-    const idempotencyKey = body.idempotencyKey?.trim() || null;
-    if (idempotencyKey) {
-      const [existing] = await paymentsRepository.findAllocationByIdempotencyKey(idempotencyKey);
-      if (existing) {
-        if (existing.paymentId !== paymentId) throw new ConflictError(`Idempotency key "${idempotencyKey}" was already used for a different allocation. Use a new key.`);
-        const [p] = await paymentsRepository.findPaymentById(paymentId);
-        return view(p!);
-      }
+    // 🔴 R-8 (G37/G40): the key's request — the same one replays, a different one is refused (lib/idempotency).
+    const idem = idempotencyOf(body.idempotencyKey, allocationParts("customer_payment_allocate", paymentId, body.allocations));
+    const replays = async (i: Idempotency) => replayOrRefuse((await paymentsRepository.findAllocationByIdempotencyKey(i.key, "payment"))[0], i, "allocation");
+    if (idem && (await replays(idem))) {
+      const [p] = await paymentsRepository.findPaymentById(paymentId);
+      return view(p!);
     }
     const [payment] = await paymentsRepository.lockPayment(paymentId);
     if (!payment) throw new NotFoundError("Payment not found");
+    // …and again under the receipt's lock: a concurrent duplicate waited here, and now finds the first one's rows.
+    if (idem && (await replays(idem))) return view(payment);
     if (payment.direction !== "in") throw new ConflictError("Only a receipt can be allocated to invoices.");
     await assertDepositNotReversed(payment);
 
@@ -600,9 +618,10 @@ export const paymentsService = {
     });
     let rows: PaymentAllocation[];
     try {
-      rows = await writeAllocations(allocations, targets, { paymentId, journalEntryId: je.id, idempotencyKey, createdBy: userId, paidAt: payment.paidAt, ids });
+      rows = await writeAllocations(allocations, targets, { paymentId, journalEntryId: je.id, idempotency: idem, createdBy: userId, paidAt: payment.paidAt, ids });
     } catch (err) {
-      if (isIdempotencyRace(err)) throw new ConflictError(`Allocation "${idempotencyKey}" was recorded concurrently. Retry the request to read it.`);
+      // the same key on ANOTHER receipt at the same moment (one source serialises on its lock): a different request
+      if (isIdempotencyRace(err)) throw keyReusedRefusal(idem!.key, "allocation");
       throw err;
     }
     const out = await view(payment);
@@ -617,16 +636,14 @@ export const paymentsService = {
    * separate, dated, auditable act.
    */
   async applyCreditNote(noteId: number, body: { allocations?: AllocationInput[] | null; idempotencyKey?: string | null }, userId: number | null) {
-    const idempotencyKey = body.idempotencyKey?.trim() || null;
-    if (idempotencyKey) {
-      const [existing] = await paymentsRepository.findAllocationByIdempotencyKey(idempotencyKey);
-      if (existing) {
-        if (existing.creditNoteId !== noteId) throw new ConflictError(`Idempotency key "${idempotencyKey}" was already used for a different application. Use a new key.`);
-        return this.creditNoteApplications(noteId);
-      }
-    }
+    // 🔴 R-8 (G37/G40): the key's request — the same one replays, a different one is refused (lib/idempotency).
+    const idem = idempotencyOf(body.idempotencyKey, allocationParts("customer_credit_note_apply", noteId, body.allocations));
+    const replays = async (i: Idempotency) => replayOrRefuse((await paymentsRepository.findAllocationByIdempotencyKey(i.key, "credit_note"))[0], i, "credit-note application");
+    if (idem && (await replays(idem))) return this.creditNoteApplications(noteId);
     const [note] = await invoiceSettlementRepository.lockInvoices([noteId]);
     if (!note) throw new NotFoundError("Credit note not found");
+    // …and again under the note's lock: a concurrent duplicate waited here, and now finds the first one's rows.
+    if (idem && (await replays(idem))) return this.creditNoteApplications(noteId);
     if (note.documentType !== "credit_note") throw new ConflictError(`${note.invoiceNumber} is not a credit note.`);
     if (note.invoiceHash == null) throw new ConflictError(`Credit note ${note.invoiceNumber} has not been issued; only an approved note carries a credit.`);
     if (note.customerId == null) {
@@ -658,9 +675,9 @@ export const paymentsService = {
     });
     let rows: PaymentAllocation[];
     try {
-      rows = await writeAllocations(allocations, targets, { creditNoteId: noteId, journalEntryId: je.id, idempotencyKey, createdBy: userId, ids });
+      rows = await writeAllocations(allocations, targets, { creditNoteId: noteId, journalEntryId: je.id, idempotency: idem, createdBy: userId, ids });
     } catch (err) {
-      if (isIdempotencyRace(err)) throw new ConflictError(`Application "${idempotencyKey}" was recorded concurrently. Retry the request to read it.`);
+      if (isIdempotencyRace(err)) throw keyReusedRefusal(idem!.key, "credit-note application");
       throw err;
     }
     await auditService.record({ action: "apply", entityType: "credit_note", entityId: noteId, after: { journalEntryId: je.id, allocations: rows.map((a) => toAllocationOut(a)), remainingAfter: round2(remaining - requested) } });
@@ -869,15 +886,15 @@ export const paymentsService = {
     if (!Number.isInteger(customerId) || customerId <= 0) throw new BadRequestError("customerId must be a positive integer.");
     const refundedAt = body.refundedAt ? assertDateString(body.refundedAt, "refundedAt") : businessToday();
     const bankAccountId = await assertBankAccount(body.bankAccountId, { what: "the refund is paid from" });
-    const idempotencyKey = body.idempotencyKey?.trim() || null;
-    if (idempotencyKey) {
-      const [existing] = await paymentsRepository.findRefundByIdempotencyKey(idempotencyKey);
-      if (existing) {
-        if (num(existing.amount) !== rounded || existing.customerId !== customerId || existing.origin !== origin) {
-          throw new ConflictError(`Idempotency key "${idempotencyKey}" was already used for a different refund. Use a new key.`);
-        }
-        return toRefundOut(existing);
-      }
+    // 🔴 R-8 (G37/G40): the key's request — the same one replays, a different one is refused (lib/idempotency).
+    const idem = idempotencyOf(body.idempotencyKey, refundParts(body));
+    const replayed = async (i: Idempotency) => {
+      const [prior] = await paymentsRepository.findRefundByIdempotencyKey(i.key);
+      return replayOrRefuse(prior, i, "refund", prior ? `${prior.amount} on ${prior.refundedAt}` : undefined) ? prior! : null;
+    };
+    if (idem) {
+      const prior = await replayed(idem);
+      if (prior) return toRefundOut(prior);
     }
     const [cust] = await customersRepository.findById(customerId);
     if (!cust) throw new BusinessRuleError(422, { error: "Unknown customer for this organization", code: "reference_not_found", field: "customerId" });
@@ -920,6 +937,11 @@ export const paymentsService = {
       available = round2(num(note.total) - consumed - refunded);
       sourceLabel = `credit note ${note.invoiceNumber}`;
     }
+    // …and again under the source's lock (both branches above took it): a concurrent duplicate waited there.
+    if (idem) {
+      const prior = await replayed(idem);
+      if (prior) return toRefundOut(prior);
+    }
     if (rounded > available + TOL) {
       throw new BusinessRuleError(422, { error: `Refund of ${fmt(rounded)} exceeds the refundable balance of ${fmt(available)} on ${sourceLabel}.`, code: "refund_exceeds_balance", field: "amount" });
     }
@@ -940,10 +962,10 @@ export const paymentsService = {
     try {
       refund = await paymentsRepository.insertRefund({
         id: refundId, customerId, bankAccountId, origin, paymentId, creditNoteId, amount: fmt(rounded), refundedAt, reason,
-        reference: body.reference?.trim() || null, journalEntryId: je.id, idempotencyKey, createdBy: userId,
+        reference: body.reference?.trim() || null, journalEntryId: je.id, idempotencyKey: idem?.key ?? null, requestFingerprint: idem?.fingerprint ?? null, createdBy: userId,
       });
     } catch (err) {
-      if (isIdempotencyRace(err)) throw new ConflictError(`A refund with idempotency key "${idempotencyKey}" was recorded concurrently. Retry the request to read it.`);
+      if (isIdempotencyRace(err)) throw keyReusedRefusal(idem!.key, "refund");
       throw err;
     }
     const out = toRefundOut(refund);

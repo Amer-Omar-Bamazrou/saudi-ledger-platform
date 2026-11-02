@@ -239,7 +239,10 @@ export const paymentAllocationsTable = pgTable(
       .references(() => invoicesTable.id, { onDelete: "cascade" }),
     amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
     journalEntryId: integer("journal_entry_id").references(() => journalEntriesTable.id, { onDelete: "cascade" }),
+    /** The request's key — on the FIRST row of the request only (one request writes several rows). */
     idempotencyKey: text("idempotency_key"),
+    /** 🔴 R-8 (G37/G40, 0152): the request's fingerprint beside its key (lib/idempotency) — a retry must repeat it. */
+    requestFingerprint: text("request_fingerprint"),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -249,10 +252,14 @@ export const paymentAllocationsTable = pgTable(
     // "One ACTIVE allocation per pair" is enforced by the service under the
     // source lock, and "one correction per allocation" by
     // payment_allocation_reversals.allocation_id UNIQUE.
-    uniqueIndex("payment_allocations_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
+    // 🔴 R-8 (0152): a key is unique per COMPANY and OPERATION — a receipt's allocation and a credit note's
+    // application share this table, and the same key on each is two different requests.
+    uniqueIndex("payment_allocations_idempotency_op_unq").on(t.companyId, sql`(credit_note_id IS NOT NULL)`, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
     index("payment_allocations_invoice_idx").on(t.invoiceId),
     check("payment_allocations_amount_positive_chk", sql`amount > 0`),
     check("payment_allocations_one_source_chk", sql`(payment_id IS NOT NULL) <> (credit_note_id IS NOT NULL)`),
+    // R-8 (0152): added NOT VALID — keyed rows recorded before carry no fingerprint and are not repaired.
+    check("payment_allocations_idempotency_key_chk", sql`idempotency_key IS NULL OR (char_length(idempotency_key) BETWEEN 1 AND 120 AND request_fingerprint IS NOT NULL)`),
   ],
 );
 
@@ -346,6 +353,8 @@ export const customerRefundsTable = pgTable(
       .notNull()
       .references(() => journalEntriesTable.id, { onDelete: "cascade" }),
     idempotencyKey: text("idempotency_key"),
+    /** 🔴 R-8 (G37/G40, 0152): the request's fingerprint beside its key (lib/idempotency). */
+    requestFingerprint: text("request_fingerprint"),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -358,6 +367,8 @@ export const customerRefundsTable = pgTable(
     index("customer_refunds_note_idx").on(t.creditNoteId),
     check("customer_refunds_amount_positive_chk", sql`amount > 0`),
     check("customer_refunds_origin_chk", sql`(origin = 'deposit' AND payment_id IS NOT NULL AND credit_note_id IS NULL) OR (origin = 'credit_note' AND credit_note_id IS NOT NULL AND payment_id IS NULL)`),
+    // R-8 (0152): added NOT VALID — keyed rows recorded before carry no fingerprint and are not repaired.
+    check("customer_refunds_idempotency_key_chk", sql`idempotency_key IS NULL OR (char_length(idempotency_key) BETWEEN 1 AND 120 AND request_fingerprint IS NOT NULL)`),
   ],
 );
 
