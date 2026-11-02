@@ -110,6 +110,15 @@ describeMaybe("Phase 18 R-9 (DR-22) — the outbox's transitions and the cross-t
       expect([rows[1]!.before_state.ambiguous, rows[1]!.after_state.ambiguous]).toEqual([false, true]);
     });
 
+    // Added after the proof commit (register §11.107): no writer today changes the ambiguity ALONE, so without this
+    // the trigger's second condition is never exercised.
+    it("🔴 a change of the ambiguity ALONE (a person's resolution after checking the portal) is recorded", async () => {
+      const doc = await queueDocument();
+      await pool.query(`UPDATE einvoice_documents SET ambiguous = true WHERE id = $1`, [doc]);
+      const rows = await transitions(doc);
+      expect(rows.map((r) => [r.before_state.status, r.after_state.status, r.before_state.ambiguous, r.after_state.ambiguous])).toEqual([["pending", "pending", false, true]]);
+    });
+
     it("control — an update that changes neither the status nor the ambiguity records nothing", async () => {
       const doc = await queueDocument();
       await pool.query(`UPDATE einvoice_documents SET updated_at = now(), claimed_at = now() WHERE id = $1`, [doc]);
@@ -142,9 +151,12 @@ describeMaybe("Phase 18 R-9 (DR-22) — the outbox's transitions and the cross-t
       expect(rows.at(-1)!.metadata.requested).toBe(2_000_000_001);
     });
 
-    it("control — a 400 and a success record nothing", async () => {
+    it("control — a 400, ANOTHER 422 and a success record nothing", async () => {
       const before = (await refusals()).length;
       expect((await h.api("adminA", "POST", "/invoices", { ...invoiceNaming(customerA), items: "not a list" })).status).toBe(400);
+      // added after the proof commit (§11.107): a 422 that is not a reference refusal — H-8's iban_invalid
+      const other = await h.api("adminA", "POST", "/vendors", { name: "R9 Bad IBAN", residency: "resident", iban: "SA0380000000608010167518" });
+      expect([other.status, other.body?.code]).toEqual([422, "iban_invalid"]);
       expect((await h.api("adminA", "POST", "/invoices", invoiceNaming(customerA))).status).toBe(201);
       await new Promise((res) => setTimeout(res, 300));
       expect((await refusals()).length).toBe(before);
