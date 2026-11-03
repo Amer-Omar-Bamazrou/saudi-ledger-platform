@@ -228,6 +228,8 @@ export default function Approvals() {
                         <span className="text-xs" data-testid={`approval-label-${r.entity}-${r.id}`}>
                           {href ? <Link href={href} className="hover:underline">{labelOf(r)}</Link> : <span className="font-mono">{labelOf(r)}</span>}
                         </span>
+                        {/* Phase 18 H-11 (DR-18, §11.59): the caller made this item. A mark, never a refusal. */}
+                        {r.own && <Badge variant="outline" className="ms-2 text-[10px]" data-testid={`approval-own-${r.entity}-${r.id}`}>{t("Yours", "من إعدادك")}</Badge>}
                         {r.entity === "wht-reliefs" && r.subtype && <span className="block text-xs text-muted-foreground">{whtTypeLabel(r.subtype, t)}</span>}
                       </td>
                       <td className="py-2 pe-4"><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{statusLabel(r.status, lang)}</Badge></td>
@@ -294,8 +296,8 @@ export default function Approvals() {
         <h1 className="text-2xl font-semibold flex items-center gap-2"><ClipboardCheck className="w-6 h-6" />{t("Approvals", "الاعتمادات")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {t(
-            "Everything waiting for an approver: draft and submitted financial records, submitted tax computations, treaty reliefs and planned payments. Submit is a bookkeeper action; approve / send-back / reject require approver authority (enforced by the server).",
-            "كل ما ينتظر معتمِدًا: السجلات المالية المسودة والمرسلة، واحتسابات الضرائب المقدَّمة، وإعفاءات الاتفاقيات، والدفعات المخططة. الإرسال إجراء لمُدخل البيانات؛ أما الاعتماد والإعادة والرفض فتتطلب صلاحية اعتماد (يفرضها الخادم).",
+            "What your role can approve, waiting: draft and submitted financial records, submitted tax computations, treaty reliefs and planned payments. Items you made are marked Yours. A document you prepared is submitted, and its status shown, on its own page.",
+            "ما يمكن لدورك اعتماده وهو قيد الانتظار: السجلات المالية المسودة والمرسلة، واحتسابات الضرائب المقدَّمة، وإعفاءات الاتفاقيات، والدفعات المخططة. ما أعددته بنفسك معلَّم بـ«من إعدادك». المستند الذي تعدّه يُرسل للاعتماد، وتظهر حالته، في صفحته.",
           )}
         </p>
       </div>
