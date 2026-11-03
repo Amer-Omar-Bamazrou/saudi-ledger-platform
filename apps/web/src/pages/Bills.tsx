@@ -277,6 +277,18 @@ export default function Bills() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
   });
 
+  // 🔴 Phase 18 R-12 — DR-18 (c), register §11.118: a draft bill is submitted for approval from its own row (the
+  // preparer's act, `create` authority), so the approvals queue is not the only place it can be done.
+  const submitBillMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/bills/${id}/submit`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["approvals", "pending"] });
+      toast({ title: t("Submitted for approval", "أُرسل للاعتماد") });
+    },
+    onError: (e: Error) => toast({ title: t("Not submitted", "لم يُرسل"), description: e.message, variant: "destructive" } as any),
+  });
+
   const openEditBill = async (row: { id: number; billNumber: string }) => {
     try {
       const d: Bill = await apiFetch(`/bills/${row.id}`);
@@ -884,6 +896,13 @@ export default function Bills() {
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-info"
                           onClick={() => { setPostReviewOpen(b); setPostDebitAccountId(b.expenseAccountId ?? null); }}>
                           {t("Post", "ترحيل")}
+                        </Button>
+                      )}
+                      {/* R-12 (DR-18 c): a preparer's Submit, beside Post — shown by state, refused by the server by name. */}
+                      {b.status === "draft" && (
+                        <Button variant="ghost" size="sm" className="text-xs h-7" data-testid={`submit-bill-${b.id}`}
+                          disabled={submitBillMut.isPending} onClick={() => submitBillMut.mutate(b.id)}>
+                          {t("Submit", "إرسال")}
                         </Button>
                       )}
                       {/* 🔴 QA fix (2026-09-04): Pay ONLY on a bill that is

@@ -312,6 +312,18 @@ export default function Invoices() {
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
+  // 🔴 Phase 18 R-12 — DR-18 (c), register §11.118: a draft invoice is submitted for approval from its own row (the
+  // preparer's act, `create` authority), so the approvals queue is not the only place it can be done.
+  const submitMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/invoices/${id}/submit`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["approvals", "pending"] });
+      toast({ title: t("Submitted for approval", "أُرسل للاعتماد") });
+    },
+    onError: (e: Error) => toast({ title: t("Not submitted", "لم يُرسل"), description: e.message, variant: "destructive" }),
+  });
+
   /** Open the shared dialog in EDIT mode, prefilled from the full record. */
   const openEdit = async (row: Invoice) => {
     try {
@@ -632,6 +644,11 @@ export default function Invoices() {
                           <Button variant="ghost" size="sm" className="text-xs h-7 text-negative"
                             onClick={() => setConfirmDelete(inv)}>
                             {t("Delete", "حذف")}
+                          </Button>
+                          {/* R-12 (DR-18 c): a preparer's Submit — shown by state, refused by the server by name. */}
+                          <Button variant="ghost" size="sm" className="text-xs h-7" data-testid={`submit-invoice-${inv.id}`}
+                            disabled={submitMut.isPending} onClick={() => submitMut.mutate(inv.id)}>
+                            {t("Submit", "إرسال")}
                           </Button>
                         </>
                       )}

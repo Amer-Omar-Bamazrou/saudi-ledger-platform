@@ -104,6 +104,18 @@ export default function Payroll() {
     onError: (e: Error) => { const r = runRefusal(e, t); toast({ title: r?.title ?? t("Error", "خطأ"), description: r?.description ?? e.message, variant: "destructive" }); },
   });
 
+  // 🔴 Phase 18 R-12 — DR-18 (c), register §11.118: a draft run is submitted for approval from its own row (the
+  // preparer's act, `create` authority), so the approvals queue is not the only place it can be done.
+  const submitMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/payroll/${id}/submit`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["payroll"] });
+      qc.invalidateQueries({ queryKey: ["approvals", "pending"] });
+      toast({ title: t("Submitted for approval", "أُرسل للاعتماد") });
+    },
+    onError: (e: Error) => { const r = runRefusal(e, t); toast({ title: r?.title ?? t("Not submitted", "لم يُرسل"), description: r?.description ?? e.message, variant: "destructive" }); },
+  });
+
   const approveMut = useMutation({
     mutationFn: (id: number) => apiFetch(`/payroll/${id}/approve`, { method: "POST" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll"] }); toast({ title: t("Payroll approved", "تمت الموافقة على مسير الرواتب") }); },
@@ -208,6 +220,8 @@ export default function Payroll() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
+                      {/* R-12 (DR-18 c): a preparer's Submit, beside Approve — shown by state, refused by the server by name. */}
+                      {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs" data-testid={`payroll-submit-${r.id}`} disabled={submitMut.isPending} onClick={ev=>{ev.stopPropagation();submitMut.mutate(r.id);}}>{t("Submit", "إرسال")}</Button>}
                       {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();approveMut.mutate(r.id);}}>{t("Approve", "موافقة")}</Button>}
                       {r.status==="approved"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setPayRun(r);setPayBank("");setPaidAt(businessToday());}}>{t("Pay", "دفع")}</Button>}
                       {(r.status==="approved"||r.status==="paid")&&!r.gosiPaidAt&&(r.totalGosiEmployee+r.totalGosiEmployer)>0&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-gosi-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setGosiRun(r);setGosiBank("");setGosiPaidAt(businessToday());setGosiInvoiced("");setGosiInvoiceRef("");}}>{t("Pay GOSI", "دفع التأمينات")}</Button>}
