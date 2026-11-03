@@ -28,6 +28,7 @@ import { assertNotReversedOpening } from "../accounting/openingReversed";
 import { decideWithholding } from "../accounting/wht";
 import { payBill } from "../bills.payment";
 import { auditService } from "../audit.service";
+import { controlFlagsService } from "../controlFlags.service";
 import { withSavepoint } from "../../lib/savepoint";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -177,6 +178,11 @@ export const paymentPlansService = {
     await checkTerms(before.billId, Number(before.amount), before.id);
     const [after] = await treasuryRepository.updatePlan(id, { status: "approved", approvedBy: userId, approvedAt: new Date() });
     await auditService.record({ action: "approve", entityType: "scheduled_payment", entityId: id, before, after });
+    // 🔴 Phase 18 R-11a — DR-14: a plan approved by the person who planned it is flagged, never refused.
+    await controlFlagsService.flagIfSamePerson(before.createdBy, userId, {
+      kind: "self_approval", entityType: "scheduled_payment", entityId: id, reference: null,
+      firstAct: "created", secondAct: "approved",
+    });
     return readPlan(id);
   },
 

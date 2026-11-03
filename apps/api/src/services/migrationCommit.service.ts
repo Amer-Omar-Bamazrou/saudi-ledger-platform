@@ -101,6 +101,7 @@ import { vendorsRepository } from "../repositories/vendors.repository";
 import { categoriesRepository } from "../repositories/categories.repository";
 import { periodLocksService } from "./periodLocks.service";
 import { auditService } from "./audit.service";
+import { controlFlagsService } from "./controlFlags.service";
 import { postJournalEntry, type GLLine } from "./accounting/glPosting";
 import { migratedAssetsService } from "./assets/migratedAssets.service";
 import { assetsRepository } from "../repositories/assets.repository";
@@ -648,6 +649,11 @@ export const migrationCommitService = {
         depreciationUnwound: unwound, openingBalances: preview.wouldReverse.openingBalances,
         banksUnlinked: preview.wouldReverse.banks.map((b) => b.id), kept: preview.wouldReverse.keeps, by: userId,
       },
+    });
+    // 🔴 Phase 18 R-11a — DR-14's pair: the person who committed the migration reversing it is flagged, never refused.
+    await controlFlagsService.flagIfSamePerson(batch.committedBy, userId, {
+      kind: "pair_commit_reverse", entityType: "migration_batch", entityId: batch.id, reference: null,
+      firstAct: "committed", secondAct: "reversed",
     });
     return {
       ...toBatchOut(updated), reversalJournalEntryId: mirror.id,

@@ -93,6 +93,7 @@ import type {
   CompanyLogoState,
   CompleteBankReconciliationInput,
   ConfirmBillVatFiguresInput,
+  ControlFlagList,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
   CorrectMigratedOpenItemInput,
@@ -235,6 +236,7 @@ import type {
   ListBillsHeldForVatEvidenceParams,
   ListBillsParams,
   ListBudgetsParams,
+  ListControlFlagsParams,
   ListCustomers200,
   ListCustomersParams,
   ListEmployees200,
@@ -3483,6 +3485,92 @@ export function useListAuditLogs<TData = Awaited<ReturnType<typeof listAuditLogs
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAuditLogsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListControlFlagsUrl = (params?: ListControlFlagsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/control-flags?${stringifiedParams}` : `/api/control-flags`
+}
+
+/**
+ * @summary Phase 18 R-11a (DR-14): the active company's control flags, newest first - each a record that one person did both halves of something a second person usually does (approved a document they made, or did both acts of one of the five pairs). A flag never blocks an act. Read by the approvers (admin, accountant) only.
+
+ */
+export const listControlFlags = async (params?: ListControlFlagsParams, options?: RequestInit): Promise<ControlFlagList> => {
+
+  return customFetch<ControlFlagList>(getListControlFlagsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListControlFlagsQueryKey = (params?: ListControlFlagsParams,) => {
+    return [
+    `/api/control-flags`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListControlFlagsQueryOptions = <TData = Awaited<ReturnType<typeof listControlFlags>>, TError = ErrorType<unknown>>(params?: ListControlFlagsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listControlFlags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListControlFlagsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listControlFlags>>> = ({ signal }) => listControlFlags(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listControlFlags>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListControlFlagsQueryResult = NonNullable<Awaited<ReturnType<typeof listControlFlags>>>
+export type ListControlFlagsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 18 R-11a (DR-14): the active company's control flags, newest first - each a record that one person did both halves of something a second person usually does (approved a document they made, or did both acts of one of the five pairs). A flag never blocks an act. Read by the approvers (admin, accountant) only.
+
+ */
+
+export function useListControlFlags<TData = Awaited<ReturnType<typeof listControlFlags>>, TError = ErrorType<unknown>>(
+ params?: ListControlFlagsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listControlFlags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListControlFlagsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

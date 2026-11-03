@@ -59,6 +59,7 @@ import { refuseCaptureInDemo, refuseZatcaOnboardingInDemo } from "../lib/demoMod
 import recurring from "./recurring.js";
 import approvals from "./approvals.js";
 import findings from "./findings.js";
+import controlFlags from "./controlFlags.js";
 import ask from "./ask.js";
 import auditLogs from "./auditLogs.js";
 
@@ -185,6 +186,8 @@ router.use("/capture", refuseCaptureInDemo, requirePermission("bills"), capture)
 router.use("/recurring", requirePermission("recurring"), recurring);
 // AI-3a — deterministic internal-consistency findings; "findings", never "audit" (§9).
 router.use("/findings", requirePermission("findings"), findings);
+// Phase 18 R-11a — DR-14's control flags: read by the approvers (the matrix grants admin and accountant only).
+router.use("/control-flags", requirePermission("control_flags"), controlFlags);
 // AI-6a — grounded answers: register A (facts + projections), stored and auditable.
 router.use("/ask", requirePermission("ask"), ask);
 router.use("/audit-logs", requirePermission("audit_logs"), auditLogs);

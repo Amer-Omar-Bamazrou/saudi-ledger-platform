@@ -22,6 +22,8 @@ import { asSent, requestFingerprint as fingerprintOf, replayOrRefuse as replayOr
 import { assertDateString } from "../lib/writeGuards";
 import { assertNotReversedOpening } from "./accounting/openingReversed";
 import { auditService } from "./audit.service";
+import { controlFlagsService } from "./controlFlags.service";
+import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
 import { cashAfterWithholding, decideWithholding, recordWithholding, refuseLateWithholdingOnReentry, returnPeriodFor, whtDeclarationFrom, whtLine, whtOf, type WhtDecision } from "./accounting/wht";
@@ -227,5 +229,14 @@ export async function payBill(
       returnPeriod: reported.returnPeriod, filedMonthTreatment: reported.filedMonthTreatment, correctionId: opts.correction?.id ?? null,
     });
     await auditService.record({ action: "pay", entityType: "bill", entityId: id, before: existing, after: { ...bill, withholding: withheld > 0 ? { amount: withheld, cashPaid } : null } });
+    // 🔴 Phase 18 R-11a — DR-14's pair: the person who approved the bill paying it is flagged, never refused — a WHT
+    // correction's re-entry included (it is a payment that person makes). Not for an expense: its approval pays it in
+    // the same act — one act, whose self-approval flag covers it.
+    if (!existing.recordedAsExpense) {
+      await controlFlagsService.flagIfSamePerson(await journalEntriesRepository.documentApprover("bill", id), userId, {
+        kind: "pair_approve_pay", entityType: "bill", entityId: id, reference: existing.billNumber ?? null,
+        firstAct: "approved", secondAct: "paid",
+      });
+    }
     return { billPaymentId: payment.id, journalEntryId: payEntry.id, amount: paid, cashPaid, withheld, withholding };
 }

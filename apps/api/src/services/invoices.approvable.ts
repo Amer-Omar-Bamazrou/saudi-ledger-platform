@@ -729,6 +729,13 @@ export function invoiceApprovable(): Approvable<InvoiceRow, InvoiceOut> {
       return row ?? null;
     },
 
+    // 🔴 R-11a (DR-14): who made the record, for the self-approval flag; its number, for the flag's list.
+    maker(row) {
+      return row.inv.createdBy ?? null;
+    },
+    reference(row) {
+      return row.inv.invoiceNumber ?? null;
+    },
     state(row): ApprovalState {
       if (row.inv.status === "draft") return "draft";
       if (row.inv.status === "submitted") return "submitted";

@@ -20,6 +20,7 @@ import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { assertBankLeavesInCompany, assertLineReferencesOwned } from "./accounting/tenantReferences";
 import { round2, money2 } from "../lib/money";
 import { auditService } from "./audit.service";
+import { controlFlagsService } from "./controlFlags.service";
 import { approvalService } from "./approval";
 import { journalEntryApprovable } from "./journalEntries.approvable";
 import { buildJEOut } from "./journalEntries.presenter";
@@ -658,6 +659,15 @@ export const journalEntriesService = {
     // DR-22 (H-14; contract §8.6 item 5): the image carries the reason the reversal stores (the response is unchanged)
     await auditService.created("journal_entry", reversal.id, { ...reversalOut, reversalReason: reversal.reversalReason });
     await auditService.updated("journal_entry", id, original, { ...original, status: "reversed", reversalId: reversal.id });
+    // 🔴 Phase 18 R-11a — DR-14's pair, on the GENERIC reverse only: the person who posted the entry (its approver,
+    // else its creator) reversing it is flagged, never refused. A document's own path (a transfer, a statement line, a
+    // WHT correction) reverses through `owner.document` as that document's correction, and is not this pair.
+    if (owner.document === undefined) {
+      await controlFlagsService.flagIfSamePerson(original.approvedBy ?? original.createdBy ?? null, auditContext.get()?.userId ?? null, {
+        kind: "pair_post_reverse", entityType: "journal_entry", entityId: id, reference: original.entryNumber ?? null,
+        firstAct: "posted", secondAct: "reversed",
+      });
+    }
     return { message: "Reversed", reversalId: reversal.id, reversal: reversalOut };
   },
 

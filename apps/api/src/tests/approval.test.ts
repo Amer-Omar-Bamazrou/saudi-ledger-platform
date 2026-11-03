@@ -50,6 +50,9 @@ function makeAdapter(rows: FakeRow[]) {
     entityType: "fake_record",
     load: async (id) => store.get(id) ?? null,
     state: (e) => e.state,
+    // R-11a (DR-14): the contract now names the record's maker and number; this fake records none (no flag, no DB).
+    maker: () => null,
+    reference: () => null,
     onApprove,
     onSubmit,
     onSendBack,

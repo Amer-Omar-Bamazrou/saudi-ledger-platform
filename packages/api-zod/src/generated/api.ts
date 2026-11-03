@@ -1835,6 +1835,36 @@ export const ListAuditLogsResponse = zod.object({
 
 
 /**
+ * @summary Phase 18 R-11a (DR-14): the active company's control flags, newest first - each a record that one person did both halves of something a second person usually does (approved a document they made, or did both acts of one of the five pairs). A flag never blocks an act. Read by the approvers (admin, accountant) only.
+
+ */
+export const listControlFlagsQueryLimitMax = 200;
+
+
+
+export const ListControlFlagsQueryParams = zod.object({
+  "limit": zod.coerce.number().max(listControlFlagsQueryLimitMax).optional(),
+  "offset": zod.coerce.number().optional()
+})
+
+export const ListControlFlagsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['self_approval', 'pair_approve_pay', 'pair_post_reverse', 'pair_complete_reopen', 'pair_commit_reverse', 'pair_remit_file']),
+  "actorUserId": zod.number().describe('The person who did both acts (the declared actor of the second).'),
+  "actorName": zod.string().nullable(),
+  "entityType": zod.string().describe('The document, as the audit trail names it (journal_entry, bill, wht_return, and so on).'),
+  "entityId": zod.string().describe('Its id; for a WHT return, its month (YYYY-MM).'),
+  "reference": zod.string().nullable().describe('Its number as a reader knows it, when it has one.'),
+  "firstAct": zod.string(),
+  "secondAct": zod.string(),
+  "createdAt": zod.coerce.date()
+}).describe('Phase 18 R-11a (DR-14): one person did both halves of something a second person usually does. Written by the act it describes, in its transaction; append-only; it never blocks the act.\n')),
+  "total": zod.number().describe('How many flags the active company has (the whole set this page belongs to).')
+})
+
+
+/**
  * @summary The organization's findings (AI-3a) - deterministic internal-consistency observations as rows with state, never a report file. Nothing here asserts a tax or compliance position (owner decision 2026-08-24: internal-consistency only until C10 closes).
 
  */
