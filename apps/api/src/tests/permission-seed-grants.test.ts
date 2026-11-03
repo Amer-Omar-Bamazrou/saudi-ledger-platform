@@ -170,6 +170,9 @@ describe("the permission matrix's GRANTS, not its enforcement", () => {
     // with a payable's input VAT is an admin/accountant act; the declarations
     // and their evidence are part of the migration record, read the same way.
     opening_vat_declaration: "admin/accountant declare an opening payable's VAT history — read with the migration record",
+    // Phase 18 R-11a (DR-14, register §11.111): a control flag names who approved their own document or did both
+    // halves of a pair — review material for the approvers, not ordinary reading for a bookkeeper or viewer.
+    control_flags: "the approvers read the control flags — they are for review, not ordinary reading",
   };
 
   it("🔴 every guarded resource is readable by every role, or is a NAMED exception", () => {

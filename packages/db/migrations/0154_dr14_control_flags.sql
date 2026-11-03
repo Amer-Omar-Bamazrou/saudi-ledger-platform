@@ -9,9 +9,12 @@
 --  · The flag names the connection's DECLARED ACTOR (T1b's
 --    app.current_user_id): the column defaults to it, and a row naming anyone
 --    else is refused (control_flags_actor_from_session).
---  · APPEND-ONLY for every role, the owner included: T1b's own
---    zz_audit_append_only() refuses UPDATE, DELETE and TRUNCATE (one
---    definition); the only bypass is replica mode (owner-only), as T1b.
+--  · APPEND-ONLY for every role, the owner included, while its company
+--    exists (control_flags_append_only, register §11.113): UPDATE and
+--    TRUNCATE are refused always; a DELETE only goes through when the flag's
+--    company or organisation is already gone — the cascade of that company's
+--    own removal (no product route removes a company). The only other bypass
+--    is replica mode (owner-only), as T1b.
 --  · Tenant-scoped (RLS, the company arm), read by the approvers: the matrix
 --    grants control_flags read to admin and accountant.
 -- New table, triggers and grants; no existing row is read or changed. The
@@ -23,17 +26,13 @@ BEGIN
     RAISE EXCEPTION 'pre-check REFUSED: control_flags already exists; nothing was changed';
   END IF;
   IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-              WHERE n.nspname = 'public' AND p.proname = 'control_flags_actor_from_session') THEN
-    RAISE EXCEPTION 'pre-check REFUSED: control_flags_actor_from_session already exists; nothing was changed';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-                  WHERE n.nspname = 'public' AND p.proname = 'zz_audit_append_only') THEN
-    RAISE EXCEPTION 'pre-check REFUSED: T1b''s zz_audit_append_only (0132) is not present; nothing was changed';
+              WHERE n.nspname = 'public' AND p.proname IN ('control_flags_actor_from_session', 'control_flags_append_only')) THEN
+    RAISE EXCEPTION 'pre-check REFUSED: a function of 0154 already exists; nothing was changed';
   END IF;
   IF EXISTS (SELECT 1 FROM permissions WHERE resource = 'control_flags') THEN
     RAISE EXCEPTION 'pre-check REFUSED: a control_flags grant already exists; nothing was changed';
   END IF;
-  RAISE NOTICE 'pre-check: none of 0154''s objects exist yet, and T1b''s append-only function is present';
+  RAISE NOTICE 'pre-check: none of 0154''s objects exist yet';
 END $$;--> statement-breakpoint
 CREATE TABLE "control_flags" (
 	"id" serial PRIMARY KEY NOT NULL,
@@ -95,9 +94,22 @@ BEGIN
   RETURN NEW;
 END $$;--> statement-breakpoint
 CREATE TRIGGER control_flags_actor_from_session BEFORE INSERT ON "control_flags" FOR EACH ROW EXECUTE FUNCTION control_flags_actor_from_session();--> statement-breakpoint
--- ── Append-only for EVERY role, the owner included (T1b's function, one definition) ──
-CREATE TRIGGER zz_control_flags_append_only BEFORE UPDATE OR DELETE ON "control_flags" FOR EACH ROW EXECUTE FUNCTION zz_audit_append_only();--> statement-breakpoint
-CREATE TRIGGER zz_control_flags_no_truncate BEFORE TRUNCATE ON "control_flags" FOR EACH STATEMENT EXECUTE FUNCTION zz_audit_append_only();--> statement-breakpoint
+-- ── Append-only for EVERY role, the owner included, while its company exists (register §11.113) ──
+CREATE FUNCTION control_flags_append_only() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    -- the company (or the organisation) itself is being removed: its flags go with it, by the cascade — never alone
+    IF NOT EXISTS (SELECT 1 FROM companies WHERE id = OLD.company_id)
+       OR NOT EXISTS (SELECT 1 FROM organizations WHERE id = OLD.organization_id) THEN
+      RETURN OLD;
+    END IF;
+  END IF;
+  RAISE EXCEPTION '% on control_flags: a control flag is append-only for every role; nothing in it is changed or removed while its company exists', TG_OP
+    USING ERRCODE = 'check_violation', CONSTRAINT = 'control_flag_append_only';
+END $$;--> statement-breakpoint
+CREATE TRIGGER zz_control_flags_append_only BEFORE UPDATE OR DELETE ON "control_flags" FOR EACH ROW EXECUTE FUNCTION control_flags_append_only();--> statement-breakpoint
+CREATE TRIGGER zz_control_flags_no_truncate BEFORE TRUNCATE ON "control_flags" FOR EACH STATEMENT EXECUTE FUNCTION control_flags_append_only();--> statement-breakpoint
 -- ── The reader's grant (DR-14): the approvers read the flags ──────────────────
 INSERT INTO "permissions" (role, resource, action) VALUES
   ('admin', 'control_flags', 'read'), ('accountant', 'control_flags', 'read')

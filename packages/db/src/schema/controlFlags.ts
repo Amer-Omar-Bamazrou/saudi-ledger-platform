@@ -8,8 +8,9 @@
  *
  *  - The flag NEVER blocks: it is written in the same transaction as the act it describes, after the act, so a
  *    refused or rolled-back act leaves no flag, and a flag never stops one.
- *  - APPEND-ONLY for every role (T1b's `zz_audit_append_only`): a flag is never edited, removed or truncated; the
- *    only bypass is replica mode (owner-only, the test cleanups).
+ *  - APPEND-ONLY for every role, the owner included, while its company exists (`control_flags_append_only`, register
+ *    §11.113): never edited or truncated, and removed only by the cascade of its company's own removal (no product
+ *    route removes a company). The only other bypass is replica mode (owner-only, the test cleanups).
  *  - `actor_user_id` is the connection's DECLARED ACTOR (T1b): the column defaults to it, and the database refuses a
  *    row naming anyone else — a flag records who acted, never a person its writer chose.
  *  - Read by the approvers (`control_flags` read: admin, accountant) on Company settings.
