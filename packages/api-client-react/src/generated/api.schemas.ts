@@ -139,6 +139,11 @@ export interface SupplierPaymentAllocationInput {
 }
 
 export interface ApplySupplierCreditNoteInput {
+  /**
+     * Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE application; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.
+     * @maxLength 120
+     */
+  idempotencyKey?: string | null;
   /** @minItems 1 */
   allocations: SupplierPaymentAllocationInput[];
 }
@@ -253,6 +258,11 @@ export interface CreateSupplierPaymentInput {
 
 export interface AllocateSupplierPaymentInput {
   date?: string;
+  /**
+     * Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE allocation; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.
+     * @maxLength 120
+     */
+  idempotencyKey?: string | null;
   /** @minItems 1 */
   allocations: SupplierPaymentAllocationInput[];
 }
@@ -284,6 +294,11 @@ export interface RefundSupplierPaymentInput {
   bankAccountId?: number;
   refundedAt?: string;
   reason: string;
+  /**
+     * Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE refund; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.
+     * @maxLength 120
+     */
+  idempotencyKey?: string | null;
 }
 
 /**
@@ -598,6 +613,182 @@ export interface PaymentAfterBankChangeFinding {
   items: PaymentAfterBankChangeItem[];
 }
 
+export type BankDetailChangeKind = typeof BankDetailChangeKind[keyof typeof BankDetailChangeKind];
+
+
+export const BankDetailChangeKind = {
+  vendor_iban: 'vendor_iban',
+  bank_account_iban: 'bank_account_iban',
+  default_bank_account: 'default_bank_account',
+} as const;
+
+export type BankDetailChangeStatus = typeof BankDetailChangeStatus[keyof typeof BankDetailChangeStatus];
+
+
+export const BankDetailChangeStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+/**
+ * Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier's IBAN, a company bank account's IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.
+ */
+export interface BankDetailChange {
+  id: number;
+  kind: BankDetailChangeKind;
+  /** @nullable */
+  vendorId: number | null;
+  /** @nullable */
+  bankAccountId: number | null;
+  /**
+     * The supplier's or the bank account's name.
+     * @nullable
+     */
+  subjectName: string | null;
+  /**
+     * The stored IBAN before; for a default switch, the IBAN printed before (null when none was).
+     * @nullable
+     */
+  ibanBefore: string | null;
+  /**
+     * The IBAN after; for a default switch, the IBAN of the account that becomes the default.
+     * @nullable
+     */
+  ibanAfter: string | null;
+  status: BankDetailChangeStatus;
+  requestedBy: number;
+  /** @nullable */
+  requestedByName: string | null;
+  requestedAt: string;
+  /** @nullable */
+  decidedBy: number | null;
+  /** @nullable */
+  decidedByName: string | null;
+  /** @nullable */
+  decidedAt: string | null;
+}
+
+export interface BankDetailChangeList {
+  /** Every request of the active company, newest first (pending and decided). */
+  items: BankDetailChange[];
+}
+
+export type ControlFlagKind = typeof ControlFlagKind[keyof typeof ControlFlagKind];
+
+
+export const ControlFlagKind = {
+  self_approval: 'self_approval',
+  pair_approve_pay: 'pair_approve_pay',
+  pair_post_reverse: 'pair_post_reverse',
+  pair_complete_reopen: 'pair_complete_reopen',
+  pair_commit_reverse: 'pair_commit_reverse',
+  pair_remit_file: 'pair_remit_file',
+  unreviewed_posting: 'unreviewed_posting',
+} as const;
+
+/**
+ * Phase 18 R-11a (DR-14): one person did both halves of something a second person usually does. Written by the act it describes, in its transaction; append-only; it never blocks the act.
+ */
+export interface ControlFlag {
+  id: number;
+  kind: ControlFlagKind;
+  /** The person who did both acts (the declared actor of the second). */
+  actorUserId: number;
+  /** @nullable */
+  actorName: string | null;
+  /** The document, as the audit trail names it (journal_entry, bill, wht_return, and so on). */
+  entityType: string;
+  /** Its id; for a WHT return, its month (YYYY-MM). */
+  entityId: string;
+  /**
+     * Its number as a reader knows it, when it has one.
+     * @nullable
+     */
+  reference: string | null;
+  firstAct: string;
+  secondAct: string;
+  createdAt: string;
+}
+
+export interface ControlFlagList {
+  items: ControlFlag[];
+  /** How many flags the active company has (the whole set this page belongs to). */
+  total: number;
+}
+
+export type BankDetailChangeDecisionInputDecision = typeof BankDetailChangeDecisionInputDecision[keyof typeof BankDetailChangeDecisionInputDecision];
+
+
+export const BankDetailChangeDecisionInputDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface BankDetailChangeDecisionInput {
+  decision: BankDetailChangeDecisionInputDecision;
+}
+
+/**
+ * Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed.
+ */
+export type VendorResidency = typeof VendorResidency[keyof typeof VendorResidency];
+
+
+export const VendorResidency = {
+  resident: 'resident',
+  non_resident: 'non_resident',
+  unknown: 'unknown',
+} as const;
+
+export interface Vendor {
+  id: number;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  /** @nullable */
+  taxNumber: string | null;
+  /** @nullable */
+  crNumber: string | null;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  address: string | null;
+  /** @nullable */
+  city: string | null;
+  /** @nullable */
+  country: string | null;
+  /** @nullable */
+  currency: string | null;
+  /** @nullable */
+  iban: string | null;
+  /** @nullable */
+  paymentTermsDays: string | null;
+  /** @nullable */
+  notes: string | null;
+  isActive: boolean;
+  /** Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed. */
+  residency: VendorResidency;
+  /**
+     * The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.
+     * @nullable
+     */
+  whtDefaultPaymentType: string | null;
+  /**
+     * The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3)).
+     * @nullable
+     */
+  foreignTaxId: string | null;
+  createdAt: string;
+}
+
+export type VendorUpdateResult = Vendor & {
+  /** Phase 18 R-6 (DR-23): a change of the IBAN held for a second admin (the organisation has two or more usable admins). Empty when the change was written at once, or none was asked for. */
+  pendingBankDetailChanges: BankDetailChange[];
+};
+
 /**
  * Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.
  */
@@ -657,6 +848,8 @@ export interface Company {
   fiscalYearStart: number | null;
   /** Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically. */
   fiscalCalendar: CompanyFiscalCalendar;
+  /** 🔴 Phase 18 R-2 (G23): true once the company has any journal entry in the books (posted or reversed). The fiscal-year start — the month IN its calendar — then cannot change: a PATCH of another month, another calendar or a withdrawal answers 409 `fiscal_year_start_frozen` (with `error` and `errorAr`), and the database refuses the same change for every writer. The same month and calendar are not a change. Shown so the page can say so before the act. */
+  fiscalYearStartFrozen: boolean;
   /**
      * Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN/MIXED are directed to a tax advisor.
      * @nullable
@@ -1710,6 +1903,19 @@ export interface ZakatIncomeTaxFilingInput {
   notes?: string | null;
 }
 
+/**
+ * Phase 18 H-18 (DR-15): the correction's IAS 8 classification; omitted = unclassified.
+ * @nullable
+ */
+export type ReverseJournalEntryInputCorrectionKind = typeof ReverseJournalEntryInputCorrectionKind[keyof typeof ReverseJournalEntryInputCorrectionKind] | null;
+
+
+export const ReverseJournalEntryInputCorrectionKind = {
+  error: 'error',
+  estimate: 'estimate',
+  policy: 'policy',
+} as const;
+
 export interface ReverseJournalEntryInput {
   reason?: string;
   /** The posting date of the reversal; today when omitted. */
@@ -1726,6 +1932,11 @@ export interface ReverseJournalEntryInput {
   apparentOn?: string | null;
   /** @nullable */
   discoveryEvidence?: string | null;
+  /**
+     * Phase 18 H-18 (DR-15): the correction's IAS 8 classification; omitted = unclassified.
+     * @nullable
+     */
+  correctionKind?: ReverseJournalEntryInputCorrectionKind;
 }
 
 export type CategoryType = typeof CategoryType[keyof typeof CategoryType];
@@ -2992,6 +3203,19 @@ export const JournalEntryStatus = {
   reversed: 'reversed',
 } as const;
 
+/**
+ * Phase 18 H-18 (DR-15): a mirror's classification; null on every other entry and on mirrors before it.
+ * @nullable
+ */
+export type JournalEntryCorrectionKind = typeof JournalEntryCorrectionKind[keyof typeof JournalEntryCorrectionKind] | null;
+
+
+export const JournalEntryCorrectionKind = {
+  error: 'error',
+  estimate: 'estimate',
+  policy: 'policy',
+} as const;
+
 export interface JournalEntry {
   id: number;
   entryNumber: string;
@@ -3002,6 +3226,30 @@ export interface JournalEntry {
   status: JournalEntryStatus;
   /** @nullable */
   reversalOf?: number | null;
+  /**
+     * Phase 18 H-18 (DR-15): a mirror's classification; null on every other entry and on mirrors before it.
+     * @nullable
+     */
+  correctionKind?: JournalEntryCorrectionKind;
+  /**
+     * DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal).
+     * @nullable
+     */
+  originFiscalYearStart?: string | null;
+  /** @nullable */
+  originFiscalYearEnd?: string | null;
+  /**
+     * DR-15: the statement authorisation covering that year, if recorded.
+     * @nullable
+     */
+  originAuthorisedOn?: string | null;
+  /** @nullable */
+  originAuthorisedBy?: string | null;
+  /**
+     * DR-15: the filed original VAT return whose period holds the original's date, if recorded.
+     * @nullable
+     */
+  originVatFilingReference?: string | null;
   /** @nullable */
   notes?: string | null;
   /** @nullable */
@@ -5758,61 +6006,6 @@ export interface CreateCustomerInput {
 
 export type UpdateCustomerInput = CustomerInputFields;
 
-/**
- * Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed.
- */
-export type VendorResidency = typeof VendorResidency[keyof typeof VendorResidency];
-
-
-export const VendorResidency = {
-  resident: 'resident',
-  non_resident: 'non_resident',
-  unknown: 'unknown',
-} as const;
-
-export interface Vendor {
-  id: number;
-  name: string;
-  /** @nullable */
-  nameAr: string | null;
-  /** @nullable */
-  taxNumber: string | null;
-  /** @nullable */
-  crNumber: string | null;
-  /** @nullable */
-  phone: string | null;
-  /** @nullable */
-  email: string | null;
-  /** @nullable */
-  address: string | null;
-  /** @nullable */
-  city: string | null;
-  /** @nullable */
-  country: string | null;
-  /** @nullable */
-  currency: string | null;
-  /** @nullable */
-  iban: string | null;
-  /** @nullable */
-  paymentTermsDays: string | null;
-  /** @nullable */
-  notes: string | null;
-  isActive: boolean;
-  /** Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed. */
-  residency: VendorResidency;
-  /**
-     * The supplier's declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.
-     * @nullable
-     */
-  whtDefaultPaymentType: string | null;
-  /**
-     * The beneficiary's registration number abroad (Income Tax Law Art. 68(B)(3)).
-     * @nullable
-     */
-  foreignTaxId: string | null;
-  createdAt: string;
-}
-
 export type VendorWithBalance = Vendor & PartyTotals;
 
 export type VendorDetail = VendorWithBalance & {
@@ -6971,7 +7164,25 @@ export interface JournalEntryLineInput {
   vendorId?: number | null;
 }
 
+/**
+ * Phase 18 H-19 (DR-33): the IAS 8 kind that makes this entry a classified correction — required for a line on retained earnings; omitted otherwise.
+ * @nullable
+ */
+export type CreateJournalEntryInputCorrectionKind = typeof CreateJournalEntryInputCorrectionKind[keyof typeof CreateJournalEntryInputCorrectionKind] | null;
+
+
+export const CreateJournalEntryInputCorrectionKind = {
+  error: 'error',
+  estimate: 'estimate',
+  policy: 'policy',
+} as const;
+
 export interface CreateJournalEntryInput {
+  /**
+     * Phase 18 H-19 (DR-33): the IAS 8 kind that makes this entry a classified correction — required for a line on retained earnings; omitted otherwise.
+     * @nullable
+     */
+  correctionKind?: CreateJournalEntryInputCorrectionKind;
   /** Allocated by the server when omitted or blank. */
   entryNumber?: string;
   /**
@@ -13282,6 +13493,14 @@ export type ListPurchaseOrders200 = {
 export type ListAuditLogsParams = {
 entity_type?: string;
 action?: string;
+/**
+ * @maximum 200
+ */
+limit?: number;
+offset?: number;
+};
+
+export type ListControlFlagsParams = {
 /**
  * @maximum 200
  */

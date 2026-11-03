@@ -14,6 +14,7 @@
  * 0108 (not something else) that protects them, the line guard, tenant
  * isolation, and the planted positives a guard must not catch.
  */
+import { appOriginHeader } from "./helpers/appOrigin";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import http from "node:http";
 import { readFileSync } from "node:fs";
@@ -99,7 +100,7 @@ describeMaybe("Phase 13B-1a — supplier advance VAT entries are owned (D-2)", (
   const entryOf = async (number: string) =>
     (await pool.query(`SELECT id FROM journal_entries WHERE organization_id = $1 AND entry_number = $2`, [orgA, number])).rows[0]?.id as number;
   const reverseHttp = async (entry: number) => {
-    const res = await fetch(`${base}/journal-entries/${entry}/reverse`, { method: "POST", headers: { cookie: cookieA, "content-type": "application/json" }, body: JSON.stringify({ reason: "Phase 13B-1a guard test" }) });
+    const res = await fetch(`${base}/journal-entries/${entry}/reverse`, { method: "POST", headers: { cookie: cookieA, "content-type": "application/json", ...appOriginHeader() }, body: JSON.stringify({ reason: "Phase 13B-1a guard test" }) });
     return { status: res.status, body: (await res.json().catch(() => null)) as { error?: string } | null };
   };
 
@@ -163,7 +164,7 @@ describeMaybe("Phase 13B-1a — supplier advance VAT entries are owned (D-2)", (
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
     const addr = server.address();
     base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}/api`;
-    const res = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: EMAIL_A, password: PW }) });
+    const res = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json", ...appOriginHeader() }, body: JSON.stringify({ email: EMAIL_A, password: PW }) });
     expect(res.status).toBe(200);
     cookieA = ((res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? []).find((c) => c.startsWith("ksa_ledger_sid="))!.split(";")[0]!;
   }, 120_000);

@@ -16,6 +16,7 @@ import { pool, beginTenantConnection } from "@workspace/db";
 import { businessToday } from "@workspace/shared";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
+import { payrollService } from "../services/payroll.service";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
 import { reportsService } from "../services/reports.service";
@@ -121,7 +122,13 @@ describeMaybe("Phase 17 — treasury on real rows", () => {
     await post(inA, d(-5), [[await leaf(bankA2), 50_000, 0], [ids.capital!, 0, 50_000]]);
     await post(inA, d(5), [[await leaf(bankA1), 7_000, 0], [ids.capital!, 0, 7_000]]);
     // payroll payable — undated (no payroll payment path exists)
-    await post(inA, d(-2), [[ids.exp!, 5_000, 0], [ids.salariesPayable!, 0, 5_000]]);
+    // R-3 (AC-5; register §11.90–§11.91): a REAL payroll run — the product's own accrual (Dr SALARIES / Dr GOSI_EXPENSE /
+    // Cr SALARIES_PAYABLE net / Cr GOSI_PAYABLE), dated the last day of last month (G68). A non-Saudi employee at 5,000
+    // has no employee GOSI share, so the payable is 5,000; the employer's 2 % (100) goes to GOSI_PAYABLE.
+    await pool.query(`INSERT INTO employees (organization_id,company_id,employee_number,name,nationality,basic_salary,status,gosi_regime) VALUES ($1,$2,'P17-E1','P17 Employee','EG','5000.00','active','law_1421h')`, [orgId, coA]);
+    const lastMonth = d(-Number(today.slice(8, 10))).slice(0, 7);
+    const run = await inA(() => payrollService.create({ period: lastMonth }, userId));
+    await inA(() => payrollService.approve(run.id, userId));
     // receivables: due in 10 days · overdue by 5 · beyond the horizon
     ids.inv1 = await invoice(inA, d(-20), d(10), 1_000);   // 1,150
     ids.inv2 = await invoice(inA, d(-40), d(-5), 2_000);   // 2,300 — overdue

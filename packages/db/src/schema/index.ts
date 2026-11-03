@@ -19,6 +19,8 @@ export * from "./periodLocks";
 export * from "./periodControls";
 export * from "./whtClaims";
 export * from "./companyControlSettings";
+export * from "./bankDetailChangeRequests";
+export * from "./controlFlags";
 export * from "./invoiceRejections";
 export * from "./einvoiceDocuments";
 export * from "./einvoiceArchive";

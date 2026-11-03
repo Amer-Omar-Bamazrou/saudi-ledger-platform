@@ -35,10 +35,9 @@ export const zatcaOnboardingController = {
     const body = OnboardZatcaBody.safeParse(req.body);
     if (!body.success) throw new BadRequestError(body.error.message);
 
-    const result = await resolveProvider().onboard({
-      companyId: await currentCompanyId(),
-      otp: body.data.otp,
-    });
+    const companyId = await currentCompanyId();
+    const result = await resolveProvider().onboard({ companyId, otp: body.data.otp });
+    await zatcaOnboardingService.recordCredentialAct("onboard", companyId, result); // DR-22 (H-13)
 
     // 200 either way: a compliance rejection is a RESULT the tenant must see in
     // full (which document, which ZATCA rule), not an opaque error. `activated`
@@ -65,10 +64,9 @@ export const zatcaOnboardingController = {
     const body = OnboardZatcaBody.safeParse(req.body);
     if (!body.success) throw new BadRequestError(body.error.message);
 
-    const result = await resolveProvider().renewCertificate({
-      companyId: await currentCompanyId(),
-      otp: body.data.otp,
-    });
+    const companyId = await currentCompanyId();
+    const result = await resolveProvider().renewCertificate({ companyId, otp: body.data.otp });
+    await zatcaOnboardingService.recordCredentialAct("renew", companyId, result); // DR-22 (H-13)
 
     res.json({
       activated: result.activated,

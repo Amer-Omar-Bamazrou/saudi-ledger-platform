@@ -40,6 +40,7 @@
 import { approverContext } from "../../lib/auditContext";
 import { ConflictError, NotFoundError } from "../../lib/errors";
 import { auditService } from "../audit.service";
+import { controlFlagsService } from "../controlFlags.service";
 import { TransitionNotApplied, type Approvable, type ApprovalActor } from "./approvable";
 
 /** "journal_entry" → "journal entry" for human-readable conflict messages. */
@@ -174,6 +175,12 @@ export const approvalService = {
       throw await lostRace(adapter, id, "approve", err);
     }
     await auditService.record({ action: "approve", entityType: adapter.entityType, entityId: id, before, after });
+    // 🔴 Phase 18 R-11a — DR-14: the maker approving their own record is FLAGGED, after the approval and in its
+    // transaction — never refused (a flag never blocks an act), and a refused approval never reaches here.
+    await controlFlagsService.flagIfSamePerson(adapter.maker(entity), actor.userId, {
+      kind: "self_approval", entityType: adapter.entityType, entityId: id, reference: adapter.reference(entity),
+      firstAct: "created", secondAct: "approved",
+    });
     return after;
   },
 

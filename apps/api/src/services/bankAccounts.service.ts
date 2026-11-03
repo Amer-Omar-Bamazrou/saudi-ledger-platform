@@ -18,6 +18,7 @@ const BANK_FIELDS = [
   "openingBalance", "isDefault", "isActive", "notes",
 ] as const;
 import { auditService } from "./audit.service";
+import { bankDetailChangesService } from "./bankDetailChanges.service";
 import { bankAccountsRepository } from "../repositories/bankAccounts.repository";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import type { bankAccountsTable } from "@workspace/db";
@@ -43,6 +44,16 @@ const toView = (b: BankAccount, gl?: GlSide) => ({
 async function withGl(rows: BankAccount[]) {
   const gl = await bankAccountsRepository.glSummary(rows.map((r) => r.id));
   return rows.map((r) => toView(r, gl.get(r.id)));
+}
+
+/**
+ * 🔴 Phase 18 H-13 — DR-22 (register §11.64): making an account the default
+ * clears the flag on the company's OTHER accounts; each account so changed is
+ * recorded as an update (isDefault true → false). The account being made
+ * default records its own update, as before.
+ */
+async function recordClearedDefaults(cleared: BankAccount[]): Promise<void> {
+  for (const after of cleared) await auditService.updated("bank_account", after.id, { ...after, isDefault: true }, after);
 }
 
 export const bankAccountsService = {
@@ -71,7 +82,11 @@ export const bankAccountsService = {
     // tenants issued invoices with no bank details. Exclusivity is enforced
     // HERE, at the write: a create or update that sets the flag clears it on
     // the tenant's other accounts first, in the same transaction.
-    if (values.isDefault === true) await bankAccountsRepository.clearDefaultsExcept(null);
+    // 🔴 Phase 18 R-6 (DR-23): with two or more usable admins, BECOMING the default (the IBAN printed on invoices) is
+    // held for a second admin — the account is created as not the default, and the request is recorded below.
+    const holdDefault = await bankDetailChangesService.holdsNewDefault(values.isDefault);
+    if (holdDefault) values.isDefault = false;
+    if (values.isDefault === true) await recordClearedDefaults(await bankAccountsRepository.clearDefaultsExcept(null));
     const [row] = await bankAccountsRepository.insert(values);
     // D-3: the trigger created the GL leaf in the same statement. Read it
     // back and FAIL LOUDLY if it is not there — a bank account that cannot
@@ -82,7 +97,8 @@ export const bankAccountsService = {
       throw new Error(`Bank account ${row.id} was created without its GL cash account — the ensure_bank_gl_account trigger did not fire. Nothing was saved.`);
     }
     await auditService.created("bank_account", row.id, { ...row, glAccountId: view.glAccountId });
-    return view;
+    const held = holdDefault ? await bankDetailChangesService.recordNewDefault(row) : [];
+    return { ...view, pendingBankDetailChanges: await bankDetailChangesService.out(held) };
   },
 
   async update(id: number, data: Record<string, unknown>) {
@@ -102,10 +118,36 @@ export const bankAccountsService = {
         field: "openingBalance",
       });
     }
-    if (updates.isDefault === true) await bankAccountsRepository.clearDefaultsExcept(id);
-    const [row] = await bankAccountsRepository.update(id, updates as Partial<typeof bankAccountsTable.$inferInsert>);
+    // 🔴 Phase 18 R-6 (DR-23): with two or more usable admins, an IBAN change and becoming the default are each HELD
+    // for a second admin (recorded as pending requests); the rest of the request is written.
+    const { updates: toWrite, held } = await bankDetailChangesService.holdBankAccountUpdate(before, updates);
+    if (toWrite.isDefault === true) await recordClearedDefaults(await bankAccountsRepository.clearDefaultsExcept(id));
+    let row: BankAccount = before;
+    if (Object.keys(toWrite).length > 0) {
+      [row] = await bankAccountsRepository.update(id, toWrite as Partial<typeof bankAccountsTable.$inferInsert>);
+      await auditService.updated("bank_account", id, before, row);
+    }
+    return { ...(await withGl([row]))[0], pendingBankDetailChanges: await bankDetailChangesService.out(held) };
+  },
+
+  /** 🔴 Phase 18 R-6 (DR-23): the IBAN a second admin APPROVED, written in the approval's transaction, with its audit record. */
+  async applyApprovedIban(id: number, iban: string | null): Promise<void> {
+    const [before] = await bankAccountsRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
+    const [row] = await bankAccountsRepository.update(id, { iban });
     await auditService.updated("bank_account", id, before, row);
-    return (await withGl([row]))[0];
+  },
+
+  /**
+   * 🔴 Phase 18 R-6 (DR-23): the default switch a second admin APPROVED — the same act as `update` with
+   * `isDefault: true` (the company's other accounts cleared first, each recorded), in the approval's transaction.
+   */
+  async applyApprovedDefault(id: number): Promise<void> {
+    const [before] = await bankAccountsRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
+    await recordClearedDefaults(await bankAccountsRepository.clearDefaultsExcept(id));
+    const [row] = await bankAccountsRepository.update(id, { isDefault: true });
+    await auditService.updated("bank_account", id, before, row);
   },
 
   async remove(id: number) {

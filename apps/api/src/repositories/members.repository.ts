@@ -72,6 +72,16 @@ export const membersRepository = {
    * a userId with no membership in this org comes back unresolved and the UI
    * shows "User #<id>", which is honest rather than leaky.
    */
+  /**
+   * 🔴 Phase 18 R-6 (DR-23; register §11.98): how many USABLE admins `orgId` has — G03's definition (an active admin
+   * membership AND an active account), read from the database's ONE definition, `org_usable_admin_count` (0151), the
+   * same function its dual-control triggers read. Two or more: a bank-detail change waits for a second admin.
+   */
+  async usableAdminCount(orgId: string): Promise<number> {
+    const { rows } = await ownerDb.execute<{ n: number }>(sql`SELECT org_usable_admin_count(${orgId}::uuid) AS n`);
+    return Number(rows[0]?.n ?? 0);
+  },
+
   async memberNamesByIds(orgId: string, userIds: number[]): Promise<Map<number, string>> {
     if (userIds.length === 0) return new Map();
     const rows = await ownerDb
@@ -224,6 +234,15 @@ export const membersRepository = {
           eq(organizationMembershipsTable.status, "active"),
         ),
       );
+    return rows.map((r) => r.organizationId);
+  },
+
+  /** Phase 18 H-12 (DR-22): the organizations in which `userId` holds an ACTIVE membership, any role — where its sign-in events are recorded. */
+  async activeOrgIds(userId: number): Promise<string[]> {
+    const rows = await db
+      .select({ organizationId: organizationMembershipsTable.organizationId })
+      .from(organizationMembershipsTable)
+      .where(and(eq(organizationMembershipsTable.userId, userId), eq(organizationMembershipsTable.status, "active")));
     return rows.map((r) => r.organizationId);
   },
 

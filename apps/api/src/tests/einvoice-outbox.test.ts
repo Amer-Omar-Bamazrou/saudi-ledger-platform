@@ -16,6 +16,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
+import { deleterFor } from "./helpers/replica";
 import { einvoiceOutboxRepository } from "../repositories/einvoiceOutbox.repository";
 import { EInvoiceWorker, backoffSeconds } from "../services/einvoice/outbox/worker";
 import { mapZatcaResponse } from "../services/einvoice/zatca/errorMapping";
@@ -81,6 +82,8 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
     await pool.query(`DELETE FROM invoices WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM customers WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${O}`);
+    // R-9 (DR-22, 0153): the outbox's transitions are recorded in audit_logs, which is append-only — cleared in replica mode.
+    await deleterFor(pool, "audit_logs").query(`DELETE FROM audit_logs WHERE organization_id IN ${O}`);
     await pool.query(`DELETE FROM organizations WHERE slug = '${SLUG}'`);
   };
 

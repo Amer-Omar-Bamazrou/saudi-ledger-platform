@@ -38,6 +38,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileMinus, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { newIdempotencyKey } from "@/components/payments/shared";
 import { businessToday } from "@workspace/shared";
 import {
   useListSupplierCreditNotes, useListBills,
@@ -291,13 +292,16 @@ function ApplyNoteDialog({ note, bills, t, onDone }: {
   const { toast } = useToast();
   const [allocations, setAllocations] = useState<Record<number, string>>({});
   const [undoReason, setUndoReason] = useState("");
+  // 🔴 Phase 18 R-8 (G37/G40): one key per act — a double click or a retry is ONE application; a new key after success.
+  const [applyKey, setApplyKey] = useState(() => newIdempotencyKey("supplier-apply"));
 
   const apply = useMutation({
     mutationFn: () => applySupplierCreditNote(note.id, {
       allocations: Object.entries(allocations).filter(([, v]) => Number(v) > 0)
         .map(([billId, v]) => ({ billId: Number(billId), amount: Number(v) })),
+      idempotencyKey: applyKey,
     }),
-    onSuccess: () => { toast({ title: t("Applied", "طُبِّق") }); onDone(); },
+    onSuccess: () => { setApplyKey(newIdempotencyKey("supplier-apply")); toast({ title: t("Applied", "طُبِّق") }); onDone(); },
     onError: (e: Error) => toast({ title: t("Refused", "مرفوض"), description: e.message, variant: "destructive" }),
   });
   /**

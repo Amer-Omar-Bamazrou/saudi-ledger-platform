@@ -28,6 +28,7 @@ import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
 import { round2, spreadOverPeriods } from "../../lib/money.js";
 import { runItemFailure } from "../../lib/runItemFailure.js";
 import { withSavepoint } from "../../lib/savepoint.js";
+import { protectedAccountRule } from "@workspace/shared";
 import { businessToday } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";
@@ -99,6 +100,12 @@ export const recognitionSchedulesService = {
           : `A prepayment releases an ASSET — value paid for and not yet consumed. “${balance!.name}” is ${balance!.type}.`,
         "balanceAccountId",
       );
+    }
+    // 🔴 H-19 — DR-33 (register §11.75): the ONE protected-account list, read at this route's write boundary. A schedule
+    // cannot be a classified correction, so retained earnings is refused here outright.
+    for (const [side, account] of [["balanceAccountId", balance!], ["expenseAccountId", expense!]] as const) {
+      const protectedRule = protectedAccountRule(account.systemCode);
+      if (protectedRule) refuse("protected_account", `“${account.name}” is written only by ${protectedRule.writtenBy} — not by a recognition schedule.`, side);
     }
     // 🔴 The one account an accrual may never use.
     if (kind === "accrual" && balance!.systemCode === SYSTEM_ACCOUNTS.AP) {

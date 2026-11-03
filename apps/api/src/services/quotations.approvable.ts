@@ -55,6 +55,13 @@ export function quotationApprovable(): Approvable<QuotationRow, QuotationOut> {
       return row ?? null;
     },
 
+    // 🔴 R-11a (DR-14): who made the record, for the self-approval flag; its number, for the flag's list.
+    maker(row) {
+      return row.quo.createdBy ?? null;
+    },
+    reference(row) {
+      return row.quo.quotationNumber ?? null;
+    },
     state(row): ApprovalState {
       if (row.quo.status === "draft") return "draft";
       if (row.quo.status === "submitted") return "submitted";

@@ -47,6 +47,9 @@ import type {
   AttachEvidenceInput,
   AuditLogPage,
   BalanceSheetReport,
+  BankDetailChange,
+  BankDetailChangeDecisionInput,
+  BankDetailChangeList,
   BankReconciliationPosition,
   BankReconciliationRecord,
   BankStatement,
@@ -90,6 +93,7 @@ import type {
   CompanyLogoState,
   CompleteBankReconciliationInput,
   ConfirmBillVatFiguresInput,
+  ControlFlagList,
   ConvertPurchaseOrderInput,
   ConvertQuotationInput,
   CorrectMigratedOpenItemInput,
@@ -232,6 +236,7 @@ import type {
   ListBillsHeldForVatEvidenceParams,
   ListBillsParams,
   ListBudgetsParams,
+  ListControlFlagsParams,
   ListCustomers200,
   ListCustomersParams,
   ListEmployees200,
@@ -403,12 +408,12 @@ import type {
   VatReturnFiling,
   VatReturnFilingInput,
   VatSummary,
-  Vendor,
   VendorCreated,
   VendorDetail,
   VendorInputFields,
   VendorMatchInput,
   VendorMatchResult,
+  VendorUpdateResult,
   WhtAnnualReturn,
   WhtBeneficiaryStatement,
   WhtContract,
@@ -3480,6 +3485,92 @@ export function useListAuditLogs<TData = Awaited<ReturnType<typeof listAuditLogs
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAuditLogsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListControlFlagsUrl = (params?: ListControlFlagsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/control-flags?${stringifiedParams}` : `/api/control-flags`
+}
+
+/**
+ * @summary Phase 18 R-11a (DR-14): the active company's control flags, newest first - each a record that one person did both halves of something a second person usually does (approved a document they made, or did both acts of one of the five pairs). A flag never blocks an act. Read by the approvers (admin, accountant) only.
+
+ */
+export const listControlFlags = async (params?: ListControlFlagsParams, options?: RequestInit): Promise<ControlFlagList> => {
+
+  return customFetch<ControlFlagList>(getListControlFlagsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListControlFlagsQueryKey = (params?: ListControlFlagsParams,) => {
+    return [
+    `/api/control-flags`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListControlFlagsQueryOptions = <TData = Awaited<ReturnType<typeof listControlFlags>>, TError = ErrorType<unknown>>(params?: ListControlFlagsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listControlFlags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListControlFlagsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listControlFlags>>> = ({ signal }) => listControlFlags(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listControlFlags>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListControlFlagsQueryResult = NonNullable<Awaited<ReturnType<typeof listControlFlags>>>
+export type ListControlFlagsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 18 R-11a (DR-14): the active company's control flags, newest first - each a record that one person did both halves of something a second person usually does (approved a document they made, or did both acts of one of the five pairs). A flag never blocks an act. Read by the approvers (admin, accountant) only.
+
+ */
+
+export function useListControlFlags<TData = Awaited<ReturnType<typeof listControlFlags>>, TError = ErrorType<unknown>>(
+ params?: ListControlFlagsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listControlFlags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListControlFlagsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -9949,6 +10040,159 @@ export function useGetPaymentAfterBankChangeFinding<TData = Awaited<ReturnType<t
 
 
 
+export const getListBankDetailChangesUrl = () => {
+
+
+
+
+  return `/api/companies/current/bank-detail-changes`
+}
+
+/**
+ * @summary DR-23's dual control (Phase 18 R-6): the bank-detail changes of the active company held for a second admin, pending and decided, newest first.
+
+ */
+export const listBankDetailChanges = async ( options?: RequestInit): Promise<BankDetailChangeList> => {
+
+  return customFetch<BankDetailChangeList>(getListBankDetailChangesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBankDetailChangesQueryKey = () => {
+    return [
+    `/api/companies/current/bank-detail-changes`
+    ] as const;
+    }
+
+
+export const getListBankDetailChangesQueryOptions = <TData = Awaited<ReturnType<typeof listBankDetailChanges>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBankDetailChanges>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBankDetailChangesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBankDetailChanges>>> = ({ signal }) => listBankDetailChanges({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBankDetailChanges>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBankDetailChangesQueryResult = NonNullable<Awaited<ReturnType<typeof listBankDetailChanges>>>
+export type ListBankDetailChangesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary DR-23's dual control (Phase 18 R-6): the bank-detail changes of the active company held for a second admin, pending and decided, newest first.
+
+ */
+
+export function useListBankDetailChanges<TData = Awaited<ReturnType<typeof listBankDetailChanges>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBankDetailChanges>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBankDetailChangesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDecideBankDetailChangeUrl = (id: number,) => {
+
+
+
+
+  return `/api/companies/current/bank-detail-changes/${id}/decision`
+}
+
+/**
+ * @summary Approve or reject a held bank-detail change (admin only). Approval is by an admin who is not the requester and applies the change at once, with its audit record; it is refused when the stored value no longer equals the request's `ibanBefore`. A decision is final.
+
+ */
+export const decideBankDetailChange = async (id: number,
+    bankDetailChangeDecisionInput: BankDetailChangeDecisionInput, options?: RequestInit): Promise<BankDetailChange> => {
+
+  return customFetch<BankDetailChange>(getDecideBankDetailChangeUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bankDetailChangeDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getDecideBankDetailChangeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideBankDetailChange>>, TError,{id: number;data: BodyType<BankDetailChangeDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideBankDetailChange>>, TError,{id: number;data: BodyType<BankDetailChangeDecisionInput>}, TContext> => {
+
+const mutationKey = ['decideBankDetailChange'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideBankDetailChange>>, {id: number;data: BodyType<BankDetailChangeDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  decideBankDetailChange(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideBankDetailChangeMutationResult = NonNullable<Awaited<ReturnType<typeof decideBankDetailChange>>>
+    export type DecideBankDetailChangeMutationBody = BodyType<BankDetailChangeDecisionInput>
+    export type DecideBankDetailChangeMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Approve or reject a held bank-detail change (admin only). Approval is by an admin who is not the requester and applies the change at once, with its audit record; it is refused when the stored value no longer equals the request's `ibanBefore`. A decision is final.
+
+ */
+export const useDecideBankDetailChange = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideBankDetailChange>>, TError,{id: number;data: BodyType<BankDetailChangeDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideBankDetailChange>>,
+        TError,
+        {id: number;data: BodyType<BankDetailChangeDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getDecideBankDetailChangeMutationOptions(options));
+    }
+
 export const getGetZatcaOnboardingStatusUrl = () => {
 
 
@@ -14919,9 +15163,9 @@ export const getUpdateVendorUrl = (id: number,) => {
  * @summary Update a vendor (allow-listed fields only)
  */
 export const updateVendor = async (id: number,
-    vendorInputFields: VendorInputFields, options?: RequestInit): Promise<Vendor> => {
+    vendorInputFields: VendorInputFields, options?: RequestInit): Promise<VendorUpdateResult> => {
 
-  return customFetch<Vendor>(getUpdateVendorUrl(id),
+  return customFetch<VendorUpdateResult>(getUpdateVendorUrl(id),
   {
     ...options,
     method: 'PATCH',
@@ -14934,7 +15178,7 @@ export const updateVendor = async (id: number,
 
 
 
-export const getUpdateVendorMutationOptions = <TError = ErrorType<void>,
+export const getUpdateVendorMutationOptions = <TError = ErrorType<void | ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVendor>>, TError,{id: number;data: BodyType<VendorInputFields>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateVendor>>, TError,{id: number;data: BodyType<VendorInputFields>}, TContext> => {
 
@@ -14963,12 +15207,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateVendorMutationResult = NonNullable<Awaited<ReturnType<typeof updateVendor>>>
     export type UpdateVendorMutationBody = BodyType<VendorInputFields>
-    export type UpdateVendorMutationError = ErrorType<void>
+    export type UpdateVendorMutationError = ErrorType<void | ErrorResponse>
 
     /**
  * @summary Update a vendor (allow-listed fields only)
  */
-export const useUpdateVendor = <TError = ErrorType<void>,
+export const useUpdateVendor = <TError = ErrorType<void | ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVendor>>, TError,{id: number;data: BodyType<VendorInputFields>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateVendor>>,

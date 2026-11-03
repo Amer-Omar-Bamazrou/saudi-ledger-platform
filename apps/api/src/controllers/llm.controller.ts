@@ -6,27 +6,45 @@
  */
 import type { Request, Response } from "express";
 import {
-  LLM_MODEL,
+  activeLlmModel,
   checkOllamaReachable,
   categorizeWithLlm,
+  llmRoutesDeterministicOnly,
 } from "../services/categorization/llmCategorizer.js";
 import { categorizeTransaction } from "../services/categorization/categorizer.js";
 import { BadRequestError } from "../lib/errors";
 
 export const llmController = {
   async status(_req: Request, res: Response) {
-    const status = await checkOllamaReachable();
+    // 🔴 G43 (Phase 18 R-5): in production /llm/* is deterministic-only — no
+    // backend is reported and no probe is sent, whatever the configuration says.
+    if (llmRoutesDeterministicOnly()) {
+      res.json({
+        activModel: "none",
+        llmBackendConfigured: false,
+        reachable: false,
+        model: "none",
+        mode: "deterministic-only",
+        note: "Deterministic engine only: /llm/* never requests a second opinion in production.",
+      });
+      return;
+    }
+    const model = activeLlmModel();
+    const status = await checkOllamaReachable(model);
+    // The backend URL is INTERNAL infrastructure (audit 2026-08-20, LOW):
+    // echoing OLLAMA_URL handed any llm-permission tenant our topology.
+    // Whether a backend is configured is the tenant-relevant fact — and a
+    // backend is configured by its MODEL (a URL with no model is never called).
+    const llmBackendConfigured = model !== "none";
     res.json({
-      activModel: LLM_MODEL,
-      // The backend URL is INTERNAL infrastructure (audit 2026-08-20, LOW):
-      // echoing OLLAMA_URL handed any llm-permission tenant our topology.
-      // Whether a backend is configured is the tenant-relevant fact.
-      llmBackendConfigured: !!process.env.OLLAMA_URL || LLM_MODEL !== "none",
+      activModel: model,
+      llmBackendConfigured,
       ...status,
+      mode: llmBackendConfigured ? "hybrid" : "deterministic",
       note:
-        LLM_MODEL === "none"
+        model === "none"
           ? "LLM disabled. Set LLM_MODEL=llama3 or LLM_MODEL=qwen2.5 to enable."
-          : `Using ${LLM_MODEL}. Deterministic engine is primary; LLM is invoked for confidence < 0.65.`,
+          : `Using ${model}. Deterministic engine is primary; LLM is invoked for confidence < 0.65.`,
     });
   },
 
@@ -40,11 +58,13 @@ export const llmController = {
       Number(amount),
       type as "debit" | "credit",
       descriptionAr ?? null,
+      { secondOpinion: !llmRoutesDeterministicOnly() },
     );
     res.json(result);
   },
 
   async compare(req: Request, res: Response) {
+    const deterministicOnly = llmRoutesDeterministicOnly();
     const items: any[] = req.body?.transactions ?? [];
     if (!Array.isArray(items) || items.length === 0) {
       throw new BadRequestError("transactions array is required");
@@ -66,6 +86,7 @@ export const llmController = {
           Number(it.amount),
           it.type as "debit" | "credit",
           it.descriptionAr ?? null,
+          { secondOpinion: !deterministicOnly },
         );
         return {
           input: { description: it.description, amount: Number(it.amount), type: it.type },
@@ -86,7 +107,7 @@ export const llmController = {
 
     const agreed = results.filter((r) => r.agreement).length;
     res.json({
-      model: LLM_MODEL,
+      model: deterministicOnly ? "none" : activeLlmModel(),
       total: results.length,
       agreed,
       disagreed: results.length - agreed,
@@ -96,6 +117,7 @@ export const llmController = {
   },
 
   async demo(_req: Request, res: Response) {
+    const deterministicOnly = llmRoutesDeterministicOnly();
     const DEMO_TRANSACTIONS = [
       { description: "STC mobile bill payment", amount: 299, type: "debit" as const },
       { description: "Al-Rajhi Bank transfer fee", amount: 15, type: "debit" as const },
@@ -112,7 +134,9 @@ export const llmController = {
     const results = await Promise.all(
       DEMO_TRANSACTIONS.map(async (tx) => {
         const det = categorizeTransaction(tx.description, tx.amount, tx.type, (tx as any).descriptionAr ?? null);
-        const hybrid = await categorizeWithLlm(tx.description, tx.amount, tx.type, (tx as any).descriptionAr ?? null);
+        const hybrid = await categorizeWithLlm(tx.description, tx.amount, tx.type, (tx as any).descriptionAr ?? null, {
+          secondOpinion: !deterministicOnly,
+        });
         return {
           description: tx.description,
           amount: tx.amount,
@@ -132,12 +156,14 @@ export const llmController = {
     );
 
     const agreed = results.filter((r) => r.match).length;
+    const model = deterministicOnly ? "none" : activeLlmModel();
     res.json({
-      activeModel: LLM_MODEL,
-      note:
-        LLM_MODEL === "none"
+      activeModel: model,
+      note: deterministicOnly
+        ? "Deterministic engine only: /llm/* never requests a second opinion in production."
+        : model === "none"
           ? "LLM disabled — all results from deterministic engine. Set LLM_MODEL=qwen2.5 or LLM_MODEL=llama3 to enable Ollama."
-          : `Hybrid mode: deterministic first, ${LLM_MODEL} for low-confidence items.`,
+          : `Hybrid mode: deterministic first, ${model} for low-confidence items.`,
       summary: { total: 10, agreed, disagreed: 10 - agreed },
       transactions: results,
     });

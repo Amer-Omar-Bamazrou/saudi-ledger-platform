@@ -1835,6 +1835,36 @@ export const ListAuditLogsResponse = zod.object({
 
 
 /**
+ * @summary Phase 18 R-11a (DR-14): the active company's control flags, newest first - each a record that one person did both halves of something a second person usually does (approved a document they made, or did both acts of one of the five pairs). A flag never blocks an act. Read by the approvers (admin, accountant) only.
+
+ */
+export const listControlFlagsQueryLimitMax = 200;
+
+
+
+export const ListControlFlagsQueryParams = zod.object({
+  "limit": zod.coerce.number().max(listControlFlagsQueryLimitMax).optional(),
+  "offset": zod.coerce.number().optional()
+})
+
+export const ListControlFlagsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['self_approval', 'pair_approve_pay', 'pair_post_reverse', 'pair_complete_reopen', 'pair_commit_reverse', 'pair_remit_file', 'unreviewed_posting']),
+  "actorUserId": zod.number().describe('The person who did both acts (the declared actor of the second).'),
+  "actorName": zod.string().nullable(),
+  "entityType": zod.string().describe('The document, as the audit trail names it (journal_entry, bill, wht_return, and so on).'),
+  "entityId": zod.string().describe('Its id; for a WHT return, its month (YYYY-MM).'),
+  "reference": zod.string().nullable().describe('Its number as a reader knows it, when it has one.'),
+  "firstAct": zod.string(),
+  "secondAct": zod.string(),
+  "createdAt": zod.coerce.date()
+}).describe('Phase 18 R-11a (DR-14): one person did both halves of something a second person usually does. Written by the act it describes, in its transaction; append-only; it never blocks the act.\n')),
+  "total": zod.number().describe('How many flags the active company has (the whole set this page belongs to).')
+})
+
+
+/**
  * @summary The organization's findings (AI-3a) - deterministic internal-consistency observations as rows with state, never a report file. Nothing here asserts a tax or compliance position (owner decision 2026-08-24: internal-consistency only until C10 closes).
 
  */
@@ -4683,6 +4713,7 @@ export const GetCurrentCompanyResponse = zod.object({
   "vatNumber": zod.string().nullable(),
   "fiscalYearStart": zod.number().min(1).max(getCurrentCompanyResponseFiscalYearStartMax).nullable().describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar` (gregorian 1 = January; hijri 1 = Muharram — read the two together). 🔴 NULL means NOT DECLARED, a first-class state (M20.0): there is no default, because the old NOT NULL DEFAULT 1 recorded every untouched company as having chosen January. Reports fall back to a rolling last-12-months while null, and say so.\n'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
+  "fiscalYearStartFrozen": zod.boolean().describe('🔴 Phase 18 R-2 (G23): true once the company has any journal entry in the books (posted or reversed). The fiscal-year start — the month IN its calendar — then cannot change: a PATCH of another month, another calendar or a withdrawal answers 409 `fiscal_year_start_frozen` (with `error` and `errorAr`), and the database refuses the same change for every writer. The same month and calendar are not a change. Shown so the page can say so before the act.\n'),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
   "vatTaxPeriod": zod.union([zod.literal('monthly'),zod.literal('quarterly'),zod.literal(null)]).nullable().describe('FA-F (2026-09-22): the company\'s VAT tax period. VAT IR Art. 52(5) opens a capital asset\'s first twelve-month adjustment window at the start of the TAX PERIOD of acquisition and files the adjustment in the return for the last tax period inside that window, so monthly and quarterly give different windows and different returns for the same purchase. NULL is NOT DECLARED; it is not inferred from turnover, because Art. 58\'s threshold is not the only way a period is assigned.\n'),
   "foreignOwnershipPct": zod.number().min(getCurrentCompanyResponseForeignOwnershipPctMin).max(getCurrentCompanyResponseForeignOwnershipPctMax).nullable().describe('FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi\/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.\n'),
@@ -4737,6 +4768,7 @@ export const UpdateCurrentCompanyResponse = zod.object({
   "vatNumber": zod.string().nullable(),
   "fiscalYearStart": zod.number().min(1).max(updateCurrentCompanyResponseFiscalYearStartMax).nullable().describe('Month the fiscal year starts, 1-12 IN `fiscalCalendar` (gregorian 1 = January; hijri 1 = Muharram — read the two together). 🔴 NULL means NOT DECLARED, a first-class state (M20.0): there is no default, because the old NOT NULL DEFAULT 1 recorded every untouched company as having chosen January. Reports fall back to a rolling last-12-months while null, and say so.\n'),
   "fiscalCalendar": zod.enum(['gregorian', 'hijri']).describe('Which calendar the fiscal year is expressed in (M17.2). `hijri` means the Umm al-Qura (Saudi civil) calendar specifically.\n'),
+  "fiscalYearStartFrozen": zod.boolean().describe('🔴 Phase 18 R-2 (G23): true once the company has any journal entry in the books (posted or reversed). The fiscal-year start — the month IN its calendar — then cannot change: a PATCH of another month, another calendar or a withdrawal answers 409 `fiscal_year_start_frozen` (with `error` and `errorAr`), and the database refuses the same change for every writer. The same month and calendar are not a change. Shown so the page can say so before the act.\n'),
   "ownershipType": zod.union([zod.literal('SAUDI_GCC'),zod.literal('FOREIGN'),zod.literal('MIXED'),zod.literal(null)]).nullable().describe('Ownership structure (M17.1). NULL means NOT DECLARED and is a first-class state — there is no default, because defaulting would have the platform assert the tenant ownership nobody supplied, and that assertion decides whether a Zakat surface is shown. Zakat v1 covers SAUDI_GCC only; FOREIGN\/MIXED are directed to a tax advisor.\n'),
   "vatTaxPeriod": zod.union([zod.literal('monthly'),zod.literal('quarterly'),zod.literal(null)]).nullable().describe('FA-F (2026-09-22): the company\'s VAT tax period. VAT IR Art. 52(5) opens a capital asset\'s first twelve-month adjustment window at the start of the TAX PERIOD of acquisition and files the adjustment in the return for the last tax period inside that window, so monthly and quarterly give different windows and different returns for the same purchase. NULL is NOT DECLARED; it is not inferred from turnover, because Art. 58\'s threshold is not the only way a period is assigned.\n'),
   "foreignOwnershipPct": zod.number().min(updateCurrentCompanyResponseForeignOwnershipPctMin).max(updateCurrentCompanyResponseForeignOwnershipPctMax).nullable().describe('FA-E (2026-09-22): the share of the company subject to INCOME TAX — the non-Saudi\/non-GCC ownership percentage (Income Tax Law Art. 2; Zakat Regulations Art. 6(1)). Read WITH `ownershipType`, never instead of it: SAUDI_GCC implies 0, FOREIGN implies 100, MIXED is strictly between. NULL is NOT DECLARED, and the Art. 17 pool refuses to compute rather than assume either end.\n'),
@@ -4825,6 +4857,60 @@ export const GetPaymentAfterBankChangeFindingResponse = zod.object({
   "changedOn": zod.coerce.date().describe('The business day (Asia\/Riyadh) the supplier\'s IBAN was changed.')
 }))
 })
+
+
+/**
+ * @summary DR-23's dual control (Phase 18 R-6): the bank-detail changes of the active company held for a second admin, pending and decided, newest first.
+
+ */
+export const ListBankDetailChangesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['vendor_iban', 'bank_account_iban', 'default_bank_account']),
+  "vendorId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "subjectName": zod.string().nullable().describe('The supplier\'s or the bank account\'s name.'),
+  "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
+  "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "requestedBy": zod.number(),
+  "requestedByName": zod.string().nullable(),
+  "requestedAt": zod.coerce.date(),
+  "decidedBy": zod.number().nullable(),
+  "decidedByName": zod.string().nullable(),
+  "decidedAt": zod.coerce.date().nullable()
+}).describe('Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier\'s IBAN, a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.\n')).describe('Every request of the active company, newest first (pending and decided).')
+})
+
+
+/**
+ * @summary Approve or reject a held bank-detail change (admin only). Approval is by an admin who is not the requester and applies the change at once, with its audit record; it is refused when the stored value no longer equals the request's `ibanBefore`. A decision is final.
+
+ */
+export const DecideBankDetailChangeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DecideBankDetailChangeBody = zod.object({
+  "decision": zod.enum(['approve', 'reject'])
+})
+
+export const DecideBankDetailChangeResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['vendor_iban', 'bank_account_iban', 'default_bank_account']),
+  "vendorId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "subjectName": zod.string().nullable().describe('The supplier\'s or the bank account\'s name.'),
+  "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
+  "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "requestedBy": zod.number(),
+  "requestedByName": zod.string().nullable(),
+  "requestedAt": zod.coerce.date(),
+  "decidedBy": zod.number().nullable(),
+  "decidedByName": zod.string().nullable(),
+  "decidedAt": zod.coerce.date().nullable()
+}).describe('Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier\'s IBAN, a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.\n')
 
 
 /**
@@ -5721,6 +5807,12 @@ export const ListJournalEntriesResponse = zod.object({
   "reference": zod.string().nullish(),
   "status": zod.enum(['draft', 'posted', 'reversed']),
   "reversalOf": zod.number().nullish(),
+  "correctionKind": zod.union([zod.literal('error'),zod.literal('estimate'),zod.literal('policy'),zod.literal(null)]).nullish().describe('Phase 18 H-18 (DR-15): a mirror\'s classification; null on every other entry and on mirrors before it.'),
+  "originFiscalYearStart": zod.coerce.date().nullish().describe('DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal).'),
+  "originFiscalYearEnd": zod.coerce.date().nullish(),
+  "originAuthorisedOn": zod.coerce.date().nullish().describe('DR-15: the statement authorisation covering that year, if recorded.'),
+  "originAuthorisedBy": zod.string().nullish(),
+  "originVatFilingReference": zod.string().nullish().describe('DR-15: the filed original VAT return whose period holds the original\'s date, if recorded.'),
   "notes": zod.string().nullish(),
   "postedAt": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -5762,6 +5854,7 @@ export const createJournalEntryBodyLinesMin = 2;
 
 
 export const CreateJournalEntryBody = zod.object({
+  "correctionKind": zod.union([zod.literal('error'),zod.literal('estimate'),zod.literal('policy'),zod.literal(null)]).nullish().describe('Phase 18 H-19 (DR-33): the IAS 8 kind that makes this entry a classified correction — required for a line on retained earnings; omitted otherwise.'),
   "entryNumber": zod.string().optional().describe('Allocated by the server when omitted or blank.'),
   "date": zod.string().regex(createJournalEntryBodyDateRegExp).describe('Required and non-empty — \"\" used to slip past a falsy guard, skipping the period lock and posting an entry no date-ranged report could see (2026-09-14).\n'),
   "description": zod.string().min(1),
@@ -5786,6 +5879,12 @@ export const CreateJournalEntryResponse = zod.object({
   "reference": zod.string().nullish(),
   "status": zod.enum(['draft', 'posted', 'reversed']),
   "reversalOf": zod.number().nullish(),
+  "correctionKind": zod.union([zod.literal('error'),zod.literal('estimate'),zod.literal('policy'),zod.literal(null)]).nullish().describe('Phase 18 H-18 (DR-15): a mirror\'s classification; null on every other entry and on mirrors before it.'),
+  "originFiscalYearStart": zod.coerce.date().nullish().describe('DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal).'),
+  "originFiscalYearEnd": zod.coerce.date().nullish(),
+  "originAuthorisedOn": zod.coerce.date().nullish().describe('DR-15: the statement authorisation covering that year, if recorded.'),
+  "originAuthorisedBy": zod.string().nullish(),
+  "originVatFilingReference": zod.string().nullish().describe('DR-15: the filed original VAT return whose period holds the original\'s date, if recorded.'),
   "notes": zod.string().nullish(),
   "postedAt": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -5821,6 +5920,12 @@ export const GetJournalEntryResponse = zod.object({
   "reference": zod.string().nullish(),
   "status": zod.enum(['draft', 'posted', 'reversed']),
   "reversalOf": zod.number().nullish(),
+  "correctionKind": zod.union([zod.literal('error'),zod.literal('estimate'),zod.literal('policy'),zod.literal(null)]).nullish().describe('Phase 18 H-18 (DR-15): a mirror\'s classification; null on every other entry and on mirrors before it.'),
+  "originFiscalYearStart": zod.coerce.date().nullish().describe('DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal).'),
+  "originFiscalYearEnd": zod.coerce.date().nullish(),
+  "originAuthorisedOn": zod.coerce.date().nullish().describe('DR-15: the statement authorisation covering that year, if recorded.'),
+  "originAuthorisedBy": zod.string().nullish(),
+  "originVatFilingReference": zod.string().nullish().describe('DR-15: the filed original VAT return whose period holds the original\'s date, if recorded.'),
   "notes": zod.string().nullish(),
   "postedAt": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -5866,6 +5971,12 @@ export const PostJournalEntryResponse = zod.object({
   "reference": zod.string().nullish(),
   "status": zod.enum(['draft', 'posted', 'reversed']),
   "reversalOf": zod.number().nullish(),
+  "correctionKind": zod.union([zod.literal('error'),zod.literal('estimate'),zod.literal('policy'),zod.literal(null)]).nullish().describe('Phase 18 H-18 (DR-15): a mirror\'s classification; null on every other entry and on mirrors before it.'),
+  "originFiscalYearStart": zod.coerce.date().nullish().describe('DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal).'),
+  "originFiscalYearEnd": zod.coerce.date().nullish(),
+  "originAuthorisedOn": zod.coerce.date().nullish().describe('DR-15: the statement authorisation covering that year, if recorded.'),
+  "originAuthorisedBy": zod.string().nullish(),
+  "originVatFilingReference": zod.string().nullish().describe('DR-15: the filed original VAT return whose period holds the original\'s date, if recorded.'),
   "notes": zod.string().nullish(),
   "postedAt": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -5899,7 +6010,8 @@ export const ReverseJournalEntryBody = zod.object({
   "date": zod.string().optional().describe('The posting date of the reversal; today when omitted.'),
   "discoveredOn": zod.string().nullish().describe('T1e — the ACTUAL date the error was discovered.'),
   "apparentOn": zod.string().nullish().describe('T1e — any earlier date on which it arguably became apparent (kept apart; on or before discoveredOn).'),
-  "discoveryEvidence": zod.string().nullish()
+  "discoveryEvidence": zod.string().nullish(),
+  "correctionKind": zod.union([zod.literal('error'),zod.literal('estimate'),zod.literal('policy'),zod.literal(null)]).nullish().describe('Phase 18 H-18 (DR-15): the correction\'s IAS 8 classification; omitted = unclassified.')
 })
 
 export const ReverseJournalEntryResponse = zod.object({
@@ -5913,6 +6025,12 @@ export const ReverseJournalEntryResponse = zod.object({
   "reference": zod.string().nullish(),
   "status": zod.enum(['draft', 'posted', 'reversed']),
   "reversalOf": zod.number().nullish(),
+  "correctionKind": zod.union([zod.literal('error'),zod.literal('estimate'),zod.literal('policy'),zod.literal(null)]).nullish().describe('Phase 18 H-18 (DR-15): a mirror\'s classification; null on every other entry and on mirrors before it.'),
+  "originFiscalYearStart": zod.coerce.date().nullish().describe('DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal).'),
+  "originFiscalYearEnd": zod.coerce.date().nullish(),
+  "originAuthorisedOn": zod.coerce.date().nullish().describe('DR-15: the statement authorisation covering that year, if recorded.'),
+  "originAuthorisedBy": zod.string().nullish(),
+  "originVatFilingReference": zod.string().nullish().describe('DR-15: the filed original VAT return whose period holds the original\'s date, if recorded.'),
   "notes": zod.string().nullish(),
   "postedAt": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -7160,6 +7278,12 @@ export const ApproveJournalEntryResponse = zod.object({
   "reference": zod.string().nullish(),
   "status": zod.enum(['draft', 'posted', 'reversed']),
   "reversalOf": zod.number().nullish(),
+  "correctionKind": zod.union([zod.literal('error'),zod.literal('estimate'),zod.literal('policy'),zod.literal(null)]).nullish().describe('Phase 18 H-18 (DR-15): a mirror\'s classification; null on every other entry and on mirrors before it.'),
+  "originFiscalYearStart": zod.coerce.date().nullish().describe('DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal).'),
+  "originFiscalYearEnd": zod.coerce.date().nullish(),
+  "originAuthorisedOn": zod.coerce.date().nullish().describe('DR-15: the statement authorisation covering that year, if recorded.'),
+  "originAuthorisedBy": zod.string().nullish(),
+  "originVatFilingReference": zod.string().nullish().describe('DR-15: the filed original VAT return whose period holds the original\'s date, if recorded.'),
   "notes": zod.string().nullish(),
   "postedAt": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -8512,7 +8636,24 @@ export const UpdateVendorResponse = zod.object({
   "whtDefaultPaymentType": zod.string().nullable().describe('The supplier\'s declared default WHT nature (IR Art. 63(1)); shown and changeable on each payment.'),
   "foreignTaxId": zod.string().nullable().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).'),
   "createdAt": zod.string()
-})
+}).and(zod.object({
+  "pendingBankDetailChanges": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['vendor_iban', 'bank_account_iban', 'default_bank_account']),
+  "vendorId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "subjectName": zod.string().nullable().describe('The supplier\'s or the bank account\'s name.'),
+  "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
+  "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "requestedBy": zod.number(),
+  "requestedByName": zod.string().nullable(),
+  "requestedAt": zod.coerce.date(),
+  "decidedBy": zod.number().nullable(),
+  "decidedByName": zod.string().nullable(),
+  "decidedAt": zod.coerce.date().nullable()
+}).describe('Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier\'s IBAN, a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.\n')).describe('Phase 18 R-6 (DR-23): a change of the IBAN held for a second admin (the organisation has two or more usable admins). Empty when the change was written at once, or none was asked for.\n')
+}))
 
 
 /**
@@ -15748,11 +15889,14 @@ export const AllocateSupplierPaymentParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const allocateSupplierPaymentBodyIdempotencyKeyMax = 120;
+
 
 
 
 export const AllocateSupplierPaymentBody = zod.object({
   "date": zod.coerce.date().optional(),
+  "idempotencyKey": zod.string().max(allocateSupplierPaymentBodyIdempotencyKeyMax).nullish().describe('Phase 18 R-8 (G37\/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE allocation; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.\n'),
   "allocations": zod.array(zod.object({
   "billId": zod.number(),
   "amount": zod.number().describe('A positive amount')
@@ -15915,11 +16059,16 @@ export const RefundSupplierPaymentParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const refundSupplierPaymentBodyIdempotencyKeyMax = 120;
+
+
+
 export const RefundSupplierPaymentBody = zod.object({
   "amount": zod.number().optional().describe('Defaults to everything still on account'),
   "bankAccountId": zod.number().optional().describe('Defaults to the bank the payment left from'),
   "refundedAt": zod.coerce.date().optional(),
-  "reason": zod.string()
+  "reason": zod.string(),
+  "idempotencyKey": zod.string().max(refundSupplierPaymentBodyIdempotencyKeyMax).nullish().describe('Phase 18 R-8 (G37\/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE refund; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.\n')
 })
 
 export const RefundSupplierPaymentResponse = zod.object({
@@ -16191,10 +16340,13 @@ export const ApplySupplierCreditNoteParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const applySupplierCreditNoteBodyIdempotencyKeyMax = 120;
+
 
 
 
 export const ApplySupplierCreditNoteBody = zod.object({
+  "idempotencyKey": zod.string().max(applySupplierCreditNoteBodyIdempotencyKeyMax).nullish().describe('Phase 18 R-8 (G37\/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE application; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.\n'),
   "allocations": zod.array(zod.object({
   "billId": zod.number(),
   "amount": zod.number().describe('A positive amount')

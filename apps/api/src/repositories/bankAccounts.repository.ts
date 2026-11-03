@@ -78,11 +78,13 @@ export const bankAccountsRepository = {
    * before it sets a new default, so ONE effective default is a property of
    * the write boundary, not of the page.
    */
+  /** Phase 18 H-13 (DR-22): returns the accounts it cleared, so each flip is recorded by the service. */
   clearDefaultsExcept(keepId: number | null) {
     return db
       .update(bankAccountsTable)
       .set({ isDefault: false })
-      .where(keepId == null ? eq(bankAccountsTable.isDefault, true) : and(eq(bankAccountsTable.isDefault, true), ne(bankAccountsTable.id, keepId)));
+      .where(keepId == null ? eq(bankAccountsTable.isDefault, true) : and(eq(bankAccountsTable.isDefault, true), ne(bankAccountsTable.id, keepId)))
+      .returning();
   },
   remove(id: number) {
     return db.delete(bankAccountsTable).where(eq(bankAccountsTable.id, id));

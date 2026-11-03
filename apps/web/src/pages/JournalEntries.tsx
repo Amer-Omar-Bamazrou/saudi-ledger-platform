@@ -40,14 +40,14 @@ export default function JournalEntries() {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   // 🔴 T1e (DR-10; owner decision 10): a correction may record the ACTUAL discovery date, any earlier apparent date, and the evidence.
   const [reversing, setReversing] = useState<number | null>(null);
-  const [rev, setRev] = useState({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "" });
+  const [rev, setRev] = useState({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "", correctionKind: "" });
   // `?entry=<id>` opens one entry directly (the migration workspace links its opening journal this way).
   const [selectedId, setSelectedId] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
     const raw = Number(new URLSearchParams(window.location.search).get("entry"));
     return Number.isInteger(raw) && raw > 0 ? raw : null;
   });
-  const [form, setForm] = useState({ entryNumber: "", date: businessToday(), description: "", reference: "", notes: "" });
+  const [form, setForm] = useState({ entryNumber: "", date: businessToday(), description: "", reference: "", notes: "", correctionKind: "" });
   const [lines, setLines] = useState<LineForm[]>([{ ...emptyLine }, { ...emptyLine }]);
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -126,8 +126,9 @@ export default function JournalEntries() {
       discoveredOn: rev.discoveredOn || undefined,
       apparentOn: rev.apparentOn || undefined,
       discoveryEvidence: rev.discoveryEvidence.trim() || undefined,
+      correctionKind: rev.correctionKind || undefined, // H-18 (DR-15): optional; an empty choice is sent as nothing
     }) }),
-    onSuccess: () => { setReversing(null); setRev({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "" }); qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry reversed", "تم عكس القيد") }); },
+    onSuccess: () => { setReversing(null); setRev({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "", correctionKind: "" }); qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry reversed", "تم عكس القيد") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -158,6 +159,16 @@ export default function JournalEntries() {
               <div><Label className="text-xs text-muted-foreground">{t("Entry Number", "رقم القيد")}</Label><Input value={form.entryNumber} onChange={e=>setForm(p=>({...p,entryNumber:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Reference", "المرجع")}</Label><Input value={form.reference} onChange={e=>setForm(p=>({...p,reference:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
+              <div className="col-span-3"><Label className="text-xs text-muted-foreground">{t("Kind of correction (IAS 8) — needed for a line on retained earnings", "نوع التصحيح (IAS 8) — مطلوب لبند على الأرباح المبقاة")}</Label>
+                <Select value={form.correctionKind} onValueChange={(v) => setForm((p) => ({ ...p, correctionKind: v === "none" ? "" : v }))}>
+                  <SelectTrigger data-testid="je-kind"><SelectValue placeholder={t("Not a correction", "ليس تصحيحاً")} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("Not a correction", "ليس تصحيحاً")}</SelectItem>
+                    <SelectItem value="error" data-testid="je-kind-error">{t("Error", "خطأ")}</SelectItem>
+                    <SelectItem value="estimate">{t("Change in estimate", "تغيير في تقدير")}</SelectItem>
+                    <SelectItem value="policy">{t("Change in accounting policy", "تغيير في سياسة محاسبية")}</SelectItem>
+                  </SelectContent>
+                </Select></div>
               <div className="col-span-3"><Label className="text-xs text-muted-foreground">{t("Description", "الوصف")}</Label><Input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} className="mt-1 h-8 text-sm" data-testid="je-description" /></div>
             </div>
 
@@ -248,7 +259,7 @@ export default function JournalEntries() {
 
             {recordsNothing && <p className="text-xs text-muted-foreground mt-1" data-testid="je-zero-hint">{t("Enter the debit and credit amounts: an entry whose amounts are all blank or zero records nothing.", "أدخل مبالغ المدين والدائن: القيد الذي جميع مبالغه فارغة أو صفر لا يسجّل شيئاً.")}</p>}
             {partyMissing && <p className="text-xs text-negative mt-1">⚠ {t("A receivable/payable line must name its customer/vendor.", "سطر الذمم المدينة/الدائنة يجب أن يحدد العميل/المورّد.")}</p>}
-            <Button className="w-full mt-4" data-testid="je-save" onClick={()=>createMut.mutate({ ...form, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||recordsNothing||partyMissing||createMut.isPending}>
+            <Button className="w-full mt-4" data-testid="je-save" onClick={()=>createMut.mutate({ ...form, correctionKind: form.correctionKind ? (form.correctionKind as "error" | "estimate" | "policy") : undefined, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||recordsNothing||partyMissing||createMut.isPending}>
               {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
             </Button>
           </DialogContent>
@@ -374,6 +385,16 @@ export default function JournalEntries() {
           <DialogHeader><DialogTitle>{t("Reverse this entry?", "عكس هذا القيد؟")}</DialogTitle></DialogHeader>
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">{t("A mirror entry is posted today; the original stays in the books, marked reversed.", "يُرحَّل قيد معاكس اليوم، ويبقى القيد الأصلي في الدفاتر معلَّمًا بأنه معكوس.")}</p>
+            <div className="grid gap-1"><Label htmlFor="rev-kind">{t("Kind of correction (IAS 8)", "نوع التصحيح (IAS 8)")}</Label>
+              <Select value={rev.correctionKind} onValueChange={(v) => setRev({ ...rev, correctionKind: v === "none" ? "" : v })}>
+                <SelectTrigger id="rev-kind" data-testid="rev-kind"><SelectValue placeholder={t("Not classified", "غير مصنف")} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("Not classified", "غير مصنف")}</SelectItem>
+                  <SelectItem value="error" data-testid="rev-kind-error">{t("Error", "خطأ")}</SelectItem>
+                  <SelectItem value="estimate">{t("Change in estimate", "تغيير في تقدير")}</SelectItem>
+                  <SelectItem value="policy">{t("Change in accounting policy", "تغيير في سياسة محاسبية")}</SelectItem>
+                </SelectContent>
+              </Select></div>
             <div className="grid gap-1"><Label htmlFor="rev-reason">{t("Reason", "السبب")}</Label><Input id="rev-reason" data-testid="rev-reason" value={rev.reason} onChange={(ev) => setRev({ ...rev, reason: ev.target.value })} /></div>
             <div className="grid grid-cols-2 gap-2">
               <div className="grid gap-1"><Label htmlFor="rev-discovered">{t("Error discovered on", "تاريخ اكتشاف الخطأ")}</Label><Input id="rev-discovered" data-testid="rev-discovered" type="date" value={rev.discoveredOn} onChange={(ev) => setRev({ ...rev, discoveredOn: ev.target.value })} /></div>

@@ -157,7 +157,8 @@ export const userAdminService = {
 
     const passwordHash = await hashPassword(password);
     const { user, membership } = await userAdminRepository.createWithFirstMembership(
-      { email, name, passwordHash, role, isActive: true },
+      // H-15 (DR-06): a password the admin chose — the holder must change it before anything else
+      { email, name, passwordHash, role, isActive: true, passwordChangeRequired: true },
       { organizationId, role },
     );
     await securityAuditService.record({
@@ -248,17 +249,26 @@ export const userAdminService = {
 
     assertPasswordAcceptable(newPassword, "newPassword");
     const passwordHash = await hashPassword(newPassword, "newPassword");
-    const [user] = await userAdminRepository.update(targetUserId, { passwordHash });
+    // H-15 (DR-06): a password the admin chose — the holder must change it before anything else.
+    // R-1 (DR-27): an admin's password has no expiry, and the reset clears any break-glass window (that password is gone).
+    const [user] = await userAdminRepository.update(targetUserId, { passwordHash, passwordChangeRequired: true, breakGlassExpiresAt: null });
     if (!user) throw new NotFoundError("User not found.");
     // 🔴 G02: every session of the reset account ends — the admin's own too, when
     // they reset their own password here (its credential is the old password's).
     const sessionsEnded = await userAdminRepository.revokeSessions(targetUserId);
 
-    await securityAuditService.record({
-      action: "user.password_reset",
-      actorUserId, actorEmail: ctx.actorEmail, targetUserId, ipAddress: ctx.ipAddress,
-      metadata: { sessionsEnded },
-    });
+    // 🔴 H-16 — DR-27 (register §11.67): recorded in each organization this admin administers that the account is an
+    // active member of, so its admins see it (it used to carry no organization, and no tenant reader saw it — G28).
+    // None in common (never expected after the confinement check above): one row with no organization, never lost.
+    const active = new Set(await membersRepository.activeOrgIds(targetUserId));
+    const scoped = orgIds.filter((o) => active.has(o));
+    for (const organizationId of scoped.length > 0 ? scoped : [null]) {
+      await securityAuditService.record({
+        action: "user.password_reset",
+        actorUserId, actorEmail: ctx.actorEmail, targetUserId, ipAddress: ctx.ipAddress, organizationId,
+        metadata: { sessionsEnded },
+      });
+    }
     return { message: `Password reset for ${user.name}.` };
   },
 };

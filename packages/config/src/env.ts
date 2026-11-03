@@ -81,6 +81,19 @@ const EnvSchema = z.object({
   GROQ_DATA_BOUNDARY_ACK: z.string().optional(),
 
   /**
+   * 🔴 G43 (Phase 18 R-5, register §11.95) — the LEGACY local-model path of
+   * `/llm/*` (Ollama). It used to be read from process.env inside the
+   * categorizer, outside this boot gate. `none` = off. In production BOTH are
+   * refused by the superRefine below — the C6 posture: a local model has no
+   * data-boundary agreement to attest, so there is no attestation escape, and
+   * `/llm/*` answers deterministic-only there regardless. Development/test
+   * carry fixture and dev-org data only.
+   */
+  LLM_MODEL: z.string().min(1).default("none"),
+  /** Ollama base URL. Unset = the categorizer's local default (http://localhost:11434). */
+  OLLAMA_URL: z.string().url().optional(),
+
+  /**
    * 🔴 What an UNAVAILABLE scanner means — an explicit, reviewable choice
    * rather than one implied by absence. `refuse` = fail-closed (correct once
    * untrusted tenants exist); `allow` = store it and log loudly (correct while
@@ -126,9 +139,27 @@ const EnvSchema = z.object({
 
   // Explicit CORS allow-list (replaces the old reflect-any `origin: true`).
   // Comma-separated list of exact origins, e.g. "http://localhost:5173,https://app.example.sa".
+  // 🔴 Phase 18 R-7 (G45; register §11.102): these are also THE APPLICATION ORIGINS the CSRF check compares an
+  // unsafe request's Origin (or Referer) with — one definition of "who may cause a credentialed write". So each must
+  // be an EXACT origin (scheme, host, port; no path, no trailing slash): a value that is not could never equal an
+  // Origin header, and is refused at boot in every environment.
   CORS_ALLOWED_ORIGINS: commaSeparated.pipe(
     z
-      .array(z.string().url("each CORS origin must be a full URL, e.g. https://app.example.sa"))
+      .array(
+        z
+          .string()
+          .url("each CORS origin must be a full URL, e.g. https://app.example.sa")
+          .refine(
+            (value) => {
+              try {
+                return new URL(value).origin === value;
+              } catch {
+                return false;
+              }
+            },
+            "each CORS origin must be an exact origin — scheme, host and port, with no path and no trailing slash (G45: it is compared with the Origin header exactly)",
+          ),
+      )
       .min(1, "at least one allowed origin is required"),
   ),
 
@@ -361,6 +392,26 @@ const EnvSchema = z.object({
           "and no tenant data may reach Groq before the signed Enterprise agreement (Dammam pinning + " +
           "contractual ZDR) exists — the free tier routes globally. When the agreement is signed, set " +
           "GROQ_DATA_BOUNDARY_ACK='enterprise-dammam-zdr-signed' to attest it.",
+      });
+    }
+    // ── G43 (Phase 18 R-5): the legacy local-model path, refused in production
+    // exactly as groq is — and with no attestation, since there is nothing to attest.
+    if (env.NODE_ENV === "production" && env.LLM_MODEL !== "none") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["LLM_MODEL"],
+        message:
+          `LLM_MODEL='${env.LLM_MODEL}' is refused in production: the legacy local-model path (/llm/*, Ollama) ` +
+          "would send tenant-submitted text to a backend outside the AI boot gate, and no data-boundary " +
+          "agreement exists to attest for it. Leave it unset; /llm/* answers deterministic-only in production.",
+      });
+    }
+    if (env.NODE_ENV === "production" && env.OLLAMA_URL !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OLLAMA_URL"],
+        message:
+          "OLLAMA_URL is refused in production: it names a backend nothing may call there (G43). Unset it.",
       });
     }
 

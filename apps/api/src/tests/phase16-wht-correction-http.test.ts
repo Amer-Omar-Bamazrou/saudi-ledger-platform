@@ -12,6 +12,7 @@ process.env.PORT ??= "3000";
 process.env.SESSION_SECRET ??= "test-secret-value-at-least-32-chars!!";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
+import { appOriginHeader } from "./helpers/appOrigin";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import bcrypt from "bcryptjs";
@@ -60,7 +61,7 @@ describeMaybe("Q1 + Q2 over HTTP — corrections and filings are an approver's a
   function client() {
     let cookie = "";
     return async (method: string, path: string, body?: unknown) => {
-      const res = await fetch(`${base}${path}`, { method, headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+      const res = await fetch(`${base}${path}`, { method, headers: { "content-type": "application/json", ...appOriginHeader(), ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
       const sid = ((res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? []).find((c) => c.startsWith("ksa_ledger_sid="));
       if (sid) cookie = sid.split(";")[0];
       const text = await res.text();

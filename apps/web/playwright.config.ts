@@ -81,6 +81,10 @@ export default defineConfig({
 
   use: {
     baseURL: `http://localhost:${WEB_PORT}`,
+    /* 🔴 Phase 18 R-7 (G45): an unsafe request must show it comes from the application's own pages. The browser's
+       own requests carry Sec-Fetch-Site; the suite's API calls (page.request, the request fixture) carry this, as
+       the memo allows a test helper to. The value is the application origin CI configures (CORS_ALLOWED_ORIGINS). */
+    extraHTTPHeaders: { origin: `http://localhost:${WEB_PORT}` },
     /* Diagnosis without retries: keep everything from a failure, once. */
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

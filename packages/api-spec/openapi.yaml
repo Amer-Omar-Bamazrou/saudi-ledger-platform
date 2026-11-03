@@ -966,6 +966,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuditLogPage"
 
+  /control-flags:
+    get:
+      operationId: listControlFlags
+      tags: [control-flags]
+      summary: >
+        Phase 18 R-11a (DR-14): the active company's control flags, newest
+        first - each a record that one person did both halves of something a
+        second person usually does (approved a document they made, or did both
+        acts of one of the five pairs). A flag never blocks an act. Read by the
+        approvers (admin, accountant) only.
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 200 }
+        - in: query
+          name: offset
+          schema: { type: integer }
+      responses:
+        "200":
+          description: One page of the flags, newest first, with the total
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ControlFlagList"
+
   /findings:
     get:
       operationId: listFindings
@@ -2578,6 +2603,68 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaymentAfterBankChangeFinding"
 
+  /companies/current/bank-detail-changes:
+    get:
+      operationId: listBankDetailChanges
+      tags: [companies]
+      summary: >
+        DR-23's dual control (Phase 18 R-6): the bank-detail changes of the
+        active company held for a second admin, pending and decided, newest
+        first.
+      responses:
+        "200":
+          description: The requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankDetailChangeList"
+
+  /companies/current/bank-detail-changes/{id}/decision:
+    put:
+      operationId: decideBankDetailChange
+      tags: [companies]
+      summary: >
+        Approve or reject a held bank-detail change (admin only). Approval is
+        by an admin who is not the requester and applies the change at once,
+        with its audit record; it is refused when the stored value no longer
+        equals the request's `ibanBefore`. A decision is final.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BankDetailChangeDecisionInput"
+      responses:
+        "200":
+          description: The request as decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankDetailChange"
+        "400":
+          description: A decision other than approve or reject
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: No such request in this company
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: >
+            `second_admin_required` (the requester cannot approve their own
+            change), `bank_detail_change_stale` (the stored value moved), or
+            `bank_detail_change_decided` (already decided)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
   /zatca/onboarding:
     get:
       operationId: getZatcaOnboardingStatus
@@ -3933,14 +4020,25 @@ paths:
             schema: { $ref: "#/components/schemas/UpdateVendorInput" }
       responses:
         "200":
-          description: The updated vendor
+          description: >
+            The updated vendor. Phase 18 R-6 (DR-23): where the organisation has
+            two or more usable admins, a change of the IBAN is not written — it
+            is held for a second admin and listed in `pendingBankDetailChanges`;
+            the other fields are written.
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Vendor" }
+              schema: { $ref: "#/components/schemas/VendorUpdateResult" }
         "400":
           description: Body failed validation
         "404":
           description: No such vendor in this organization
+        "409":
+          description: >
+            `bank_detail_change_pending` — a change of this supplier's IBAN already
+            waits for a second admin; nothing in the request was written
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
     delete:
       operationId: deleteVendor
       tags: [vendors]
@@ -8069,6 +8167,14 @@ components:
       type: object
       required: [allocations]
       properties:
+        idempotencyKey:
+          type: string
+          nullable: true
+          maxLength: 120
+          description: >
+            Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as
+            the first did and records ONE application; the same key with a different request is refused 409
+            idempotency_key_reused, nothing recorded.
         allocations:
           type: array
           minItems: 1
@@ -8154,6 +8260,14 @@ components:
       required: [allocations]
       properties:
         date: { type: string, format: date }
+        idempotencyKey:
+          type: string
+          nullable: true
+          maxLength: 120
+          description: >
+            Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as
+            the first did and records ONE allocation; the same key with a different request is refused 409
+            idempotency_key_reused, nothing recorded.
         allocations:
           type: array
           minItems: 1
@@ -8183,6 +8297,14 @@ components:
         bankAccountId: { type: integer, description: Defaults to the bank the payment left from }
         refundedAt: { type: string, format: date }
         reason: { type: string }
+        idempotencyKey:
+          type: string
+          nullable: true
+          maxLength: 120
+          description: >
+            Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as
+            the first did and records ONE refund; the same key with a different request is refused 409
+            idempotency_key_reused, nothing recorded.
 
     ForfeitSupplierDepositInput:
       type: object
@@ -8488,6 +8610,117 @@ components:
           items:
             $ref: "#/components/schemas/PaymentAfterBankChangeItem"
 
+    BankDetailChange:
+      type: object
+      description: >
+        Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin
+        — a supplier's IBAN, a company bank account's IBAN, or which account is
+        the default (the IBAN printed on future invoices). Recorded only where
+        the organisation has two or more usable admins; approved by an admin
+        who is not the requester, or rejected (by an admin, or withdrawn by the
+        requester). A decision is final.
+      required: [id, kind, vendorId, bankAccountId, subjectName, ibanBefore, ibanAfter, status,
+                 requestedBy, requestedByName, requestedAt, decidedBy, decidedByName, decidedAt]
+      properties:
+        id: { type: integer }
+        kind:
+          type: string
+          enum: [vendor_iban, bank_account_iban, default_bank_account]
+        vendorId: { type: ["integer", "null"] }
+        bankAccountId: { type: ["integer", "null"] }
+        subjectName:
+          type: ["string", "null"]
+          description: The supplier's or the bank account's name.
+        ibanBefore:
+          type: ["string", "null"]
+          description: The stored IBAN before; for a default switch, the IBAN printed before (null when none was).
+        ibanAfter:
+          type: ["string", "null"]
+          description: The IBAN after; for a default switch, the IBAN of the account that becomes the default.
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        requestedBy: { type: integer }
+        requestedByName: { type: ["string", "null"] }
+        requestedAt: { type: string, format: date-time }
+        decidedBy: { type: ["integer", "null"] }
+        decidedByName: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"], format: date-time }
+
+    BankDetailChangeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: Every request of the active company, newest first (pending and decided).
+          items:
+            $ref: "#/components/schemas/BankDetailChange"
+
+    ControlFlag:
+      type: object
+      description: >
+        Phase 18 R-11a (DR-14): one person did both halves of something a
+        second person usually does. Written by the act it describes, in its
+        transaction; append-only; it never blocks the act.
+      required: [id, kind, actorUserId, actorName, entityType, entityId, reference, firstAct, secondAct, createdAt]
+      properties:
+        id: { type: integer }
+        kind:
+          type: string
+          enum: [self_approval, pair_approve_pay, pair_post_reverse, pair_complete_reopen, pair_commit_reverse, pair_remit_file, unreviewed_posting]
+        actorUserId:
+          type: integer
+          description: The person who did both acts (the declared actor of the second).
+        actorName: { type: ["string", "null"] }
+        entityType:
+          type: string
+          description: The document, as the audit trail names it (journal_entry, bill, wht_return, and so on).
+        entityId:
+          type: string
+          description: Its id; for a WHT return, its month (YYYY-MM).
+        reference:
+          type: ["string", "null"]
+          description: Its number as a reader knows it, when it has one.
+        firstAct: { type: string }
+        secondAct: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    ControlFlagList:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ControlFlag"
+        total:
+          type: integer
+          description: How many flags the active company has (the whole set this page belongs to).
+
+    BankDetailChangeDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, reject]
+
+    VendorUpdateResult:
+      allOf:
+        - { $ref: "#/components/schemas/Vendor" }
+        - type: object
+          required: [pendingBankDetailChanges]
+          properties:
+            pendingBankDetailChanges:
+              type: array
+              description: >
+                Phase 18 R-6 (DR-23): a change of the IBAN held for a second
+                admin (the organisation has two or more usable admins). Empty
+                when the change was written at once, or none was asked for.
+              items:
+                $ref: "#/components/schemas/BankDetailChange"
+
     PaymentAfterBankChangeItem:
       type: object
       required: [kind, paymentId, billId, vendorId, vendorName, amount, paidAt, changedOn]
@@ -8528,6 +8761,7 @@ components:
           vatNumber,
           fiscalYearStart,
           fiscalCalendar,
+          fiscalYearStartFrozen,
           ownershipType,
           foreignOwnershipPct,
           vatTaxPeriod,
@@ -8572,6 +8806,17 @@ components:
           description: >
             Which calendar the fiscal year is expressed in (M17.2). `hijri`
             means the Umm al-Qura (Saudi civil) calendar specifically.
+        fiscalYearStartFrozen:
+          type: boolean
+          description: >
+            🔴 Phase 18 R-2 (G23): true once the company has any journal entry
+            in the books (posted or reversed). The fiscal-year start — the
+            month IN its calendar — then cannot change: a PATCH of another
+            month, another calendar or a withdrawal answers 409
+            `fiscal_year_start_frozen` (with `error` and `errorAr`), and the
+            database refuses the same change for every writer. The same month
+            and calendar are not a change. Shown so the page can say so
+            before the act.
         ownershipType:
           type: ["string", "null"]
           enum: [SAUDI_GCC, FOREIGN, MIXED, null]
@@ -9456,6 +9701,10 @@ components:
         discoveredOn: { type: ["string", "null"], description: "T1e — the ACTUAL date the error was discovered." }
         apparentOn: { type: ["string", "null"], description: "T1e — any earlier date on which it arguably became apparent (kept apart; on or before discoveredOn)." }
         discoveryEvidence: { type: ["string", "null"] }
+        correctionKind:
+          type: ["string", "null"]
+          enum: [error, estimate, policy, null]
+          description: "Phase 18 H-18 (DR-15): the correction's IAS 8 classification; omitted = unclassified."
 
     Category:
       type: object
@@ -10626,6 +10875,15 @@ components:
           enum: [draft, posted, reversed]
         reversalOf:
           type: ["integer", "null"]
+        correctionKind:
+          type: ["string", "null"]
+          enum: [error, estimate, policy, null]
+          description: "Phase 18 H-18 (DR-15): a mirror's classification; null on every other entry and on mirrors before it."
+        originFiscalYearStart: { type: ["string", "null"], format: date, description: "DR-15: the fiscal year the ORIGINAL entry belongs to (a snapshot at reversal)." }
+        originFiscalYearEnd: { type: ["string", "null"], format: date }
+        originAuthorisedOn: { type: ["string", "null"], format: date, description: "DR-15: the statement authorisation covering that year, if recorded." }
+        originAuthorisedBy: { type: ["string", "null"] }
+        originVatFilingReference: { type: ["string", "null"], description: "DR-15: the filed original VAT return whose period holds the original's date, if recorded." }
         notes:
           type: ["string", "null"]
         postedAt:
@@ -13722,6 +13980,10 @@ components:
       type: object
       required: [date, description, lines]
       properties:
+        correctionKind:
+          type: ["string", "null"]
+          enum: [error, estimate, policy, null]
+          description: "Phase 18 H-19 (DR-33): the IAS 8 kind that makes this entry a classified correction — required for a line on retained earnings; omitted otherwise."
         entryNumber:
           type: string
           description: Allocated by the server when omitted or blank.

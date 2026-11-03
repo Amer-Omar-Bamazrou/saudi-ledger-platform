@@ -145,6 +145,10 @@ export const supplierPaymentAllocationsTable = pgTable(
     // (An `idempotency_key` column was dropped in 0098: it had no writer and
     // no reader. One request writes SEVERAL allocation rows, so a per-row
     // unique key could never have represented a replay of it.)
+    // 🔴 R-8 (G37/G40, 0152): back, the customer side's way — the key and the request's fingerprint on the
+    // request's FIRST row only, so the unique index represents the REQUEST (lib/idempotency).
+    idempotencyKey: text("idempotency_key"),
+    requestFingerprint: text("request_fingerprint"),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -154,6 +158,9 @@ export const supplierPaymentAllocationsTable = pgTable(
     check("supplier_payment_allocations_amount_positive_chk", sql`amount > 0`),
     // Exactly one source: a payment or a credit note, never both and never neither.
     check("supplier_payment_allocations_one_source_chk", sql`(supplier_payment_id IS NOT NULL) <> (supplier_credit_note_id IS NOT NULL)`),
+    // R-8: unique per COMPANY and OPERATION (a payment's allocation and a credit note's application share the table).
+    uniqueIndex("supplier_payment_allocations_idempotency_op_unq").on(t.companyId, sql`(supplier_credit_note_id IS NOT NULL)`, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
+    check("supplier_payment_allocations_idempotency_key_chk", sql`idempotency_key IS NULL OR (char_length(idempotency_key) BETWEEN 1 AND 120 AND request_fingerprint IS NOT NULL)`),
   ],
 );
 
@@ -232,11 +239,16 @@ export const supplierRefundsTable = pgTable(
     refundedAt: date("refunded_at").notNull(),
     reason: text("reason").notNull(),
     journalEntryId: integer("journal_entry_id").notNull().references(() => journalEntriesTable.id, { onDelete: "restrict" }),
+    /** 🔴 R-8 (G37/G40, 0152): the request's key and fingerprint (lib/idempotency). */
+    idempotencyKey: text("idempotency_key"),
+    requestFingerprint: text("request_fingerprint"),
     createdBy: integer("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("supplier_refunds_payment_idx").on(t.supplierPaymentId),
+    uniqueIndex("supplier_refunds_idempotency_unq").on(t.companyId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
+    check("supplier_refunds_idempotency_key_chk", sql`idempotency_key IS NULL OR (char_length(idempotency_key) BETWEEN 1 AND 120 AND request_fingerprint IS NOT NULL)`),
     // Phase 12: the reconciliation reads name a cash line's document by its entry.
     index("supplier_refunds_entry_idx").on(t.journalEntryId),
     check("supplier_refunds_amount_positive_chk", sql`amount > 0`),

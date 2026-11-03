@@ -22,6 +22,7 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { checkPeriodOpen } from "./periodLock";
 import { PARTY_REQUIRED_SYSTEM_CODES, isCalendarDate } from "@workspace/shared";
 import { BusinessRuleError } from "../../lib/errors";
+import { auditService } from "../audit.service";
 import { assertBankLeavesInCompany, assertLineReferencesOwned } from "./tenantReferences";
 
 /**
@@ -473,5 +474,17 @@ export async function postJournalEntry(opts: {
     .set({ status: "posted", postedAt: now })
     .where(and(eq(journalEntriesTable.id, draft.id), eq(journalEntriesTable.status, "draft")))
     .returning();
+
+  // 🔴 Phase 18 H-14 — DR-22 (register §11.65): every entry this seam posts is recorded, by the seam itself, in the
+  // same transaction — a document's entry and a depreciation alike (contract §8.6 items 1–2).
+  await auditService.postedEntry(je.organizationId, je.id, {
+    entryNumber: je.entryNumber,
+    date: je.date,
+    sourceType: je.sourceType,
+    sourceId: je.sourceId,
+    reversalOf: je.reversalOf,
+    totalDebit: round2(lines.reduce((s, l) => s + l.debitAmount, 0)),
+    lineCount: lines.length,
+  });
   return je;
 }

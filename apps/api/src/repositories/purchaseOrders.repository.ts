@@ -255,7 +255,8 @@ export const purchaseOrdersRepository = {
    */
   updateEditable(id: number, values: Partial<typeof purchaseOrdersTable.$inferInsert>) {
     return db.update(purchaseOrdersTable).set(values)
-      .where(and(eq(purchaseOrdersTable.id, id), sql`${purchaseOrdersTable.status} <> 'submitted'`, sql`${purchaseOrdersTable.outcome} IS NULL`)).returning();
+      // H-17 (DR-17; register §11.71): an APPROVED order is not written either — at the write, so a race cannot edit it
+      .where(and(eq(purchaseOrdersTable.id, id), sql`${purchaseOrdersTable.status} NOT IN ('submitted', 'approved')`, sql`${purchaseOrdersTable.outcome} IS NULL`)).returning();
   },
 
   /** 🔴 Phase 18 (2.4) — the order's row lock, taken before a removal decides anything. */

@@ -25,9 +25,22 @@
  *
  * Everything else `@playwright/test` exports is re-exported unchanged.
  */
-import { test as base, expect, type BrowserContext } from "@playwright/test";
+import { test as base, expect, request as playwrightRequest, type APIRequestContext, type BrowserContext } from "@playwright/test";
 
 export * from "@playwright/test";
+
+/**
+ * 🔴 Phase 18 R-7 (G45): the application origin, and the API contexts the specs open themselves
+ * (`request.newContext`) send it as their Origin — the header the application's own pages carry, as the memo
+ * allows a test helper to. A spec that passes its own `extraHTTPHeaders` keeps them; `origin` can be overridden.
+ */
+export const APP_ORIGIN = "http://localhost:5173";
+type NewContextOptions = NonNullable<Parameters<typeof playwrightRequest.newContext>[0]>;
+export const request = {
+  ...playwrightRequest,
+  newContext: (options: NewContextOptions = {}): Promise<APIRequestContext> =>
+    playwrightRequest.newContext({ ...options, extraHTTPHeaders: { origin: APP_ORIGIN, ...(options.extraHTTPHeaders ?? {}) } }),
+};
 
 /** Chromium's exact text, compared with `===`. It ends with a full stop. */
 export const ALLOWED_PAGE_ERROR_MESSAGE = "ResizeObserver loop completed with undelivered notifications.";

@@ -20,6 +20,7 @@ import { GL_BALANCE_TOLERANCE } from "./accounting/glPosting";
 import { assertBankLeavesInCompany, assertLineReferencesOwned } from "./accounting/tenantReferences";
 import { round2, money2 } from "../lib/money";
 import { auditService } from "./audit.service";
+import { controlFlagsService } from "./controlFlags.service";
 import { approvalService } from "./approval";
 import { journalEntryApprovable } from "./journalEntries.approvable";
 import { buildJEOut } from "./journalEntries.presenter";
@@ -29,6 +30,42 @@ import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
 import { RESERVED_ENTRY_NUMBER_PREFIXES, type journalEntriesTable } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
+import { protectedAccountRule } from "@workspace/shared";
+import { companiesRepository } from "../repositories/companies.repository";
+import { periodRecordsService } from "./periodRecords.service";
+import { fiscalYearContaining, isFiscalCalendar, type FiscalCalendar } from "../lib/fiscalYear";
+
+/** H-18 (DR-15): the three IAS 8 kinds a correction is classified as (8.5, 8.32–36); NULL = unclassified. */
+const CORRECTION_KINDS = ["error", "estimate", "policy"] as const;
+type CorrectionKind = (typeof CORRECTION_KINDS)[number];
+
+/**
+ * 🔴 Phase 18 H-18 — DR-15 (register §11.73): the ATTRIBUTION of a correction, derived at reversal from the ORIGINAL
+ * entry's date and stored on the mirror as snapshots — the fiscal year it belongs to (the company's declared calendar;
+ * nulls when none is declared), the statement authorisation covering that year (the latest, if one is recorded), and
+ * the filed original VAT return whose period holds the date (if one is recorded). An immutable entry that lacks the
+ * attribution cannot be re-attributed later; a snapshot outlives a later calendar change or record.
+ */
+async function correctionAttributionOf(originalDate: string) {
+  const company = await companiesRepository.findCurrent();
+  let year: { startDate: string; endDate: string } | null = null;
+  if (company?.fiscalYearStart != null) {
+    const calendar = (isFiscalCalendar(company.fiscalCalendar) ? company.fiscalCalendar : "gregorian") as FiscalCalendar;
+    year = fiscalYearContaining({ fiscalYearStart: company.fiscalYearStart, calendar }, originalDate);
+  }
+  const authorisation = (await periodRecordsService.authorisations())
+    .map((a) => ({ start: String(a.fiscalYearStart).slice(0, 10), end: String(a.fiscalYearEnd).slice(0, 10), on: String(a.authorisedOn).slice(0, 10), by: a.authorisedBy }))
+    .filter((a) => a.start <= originalDate && originalDate <= a.end)
+    .sort((x, y) => y.on.localeCompare(x.on))[0] ?? null;
+  const filing = await periodRecordsService.filedVatPeriodOf(originalDate);
+  return {
+    originFiscalYearStart: year?.startDate ?? null,
+    originFiscalYearEnd: year?.endDate ?? null,
+    originAuthorisedOn: authorisation?.on ?? null,
+    originAuthorisedBy: authorisation?.by ?? null,
+    originVatFilingReference: filing?.zatcaReference ?? null,
+  };
+}
 
 /**
  * 🔴 T1d (Phase 18, SG-11 / G17): a TYPED entry number never takes a shape the
@@ -97,6 +134,19 @@ function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): strin
     // 🔴 Phase 18 H-6 — DR-34 (register §11.53; owner accepted the recommendation): the legal ties first.
     case "invoice":
       return `This entry belongs to ${documentRef}, an issued invoice or note. An issued tax document is corrected with a credit or debit note (VAT IR Art. 54), never by reversing its entry alone — the document would stay live while its entry is cancelled.`;
+    // 🔴 Phase 18 R-10 — DR-34 finished (memo §2a, register §11.109): every other type with its own correction path.
+    case "credit_note_application":
+      return `This entry applies credit note ${documentRef} to an invoice. Undo the application with Unallocate, beside it in the credit note's applications on the customer's page — that records the correction beside the application. Reversed from here, the invoice would still read as settled by the note.`;
+    case "customer_payment_allocation":
+      return `This entry applies a customer's receipt to an invoice. Undo the allocation with Unallocate, beside it on the receipt on the customer's page — that records the correction beside the allocation. Reversed from here, the invoice would still read as paid.`;
+    case "customer_payment_reclassification":
+      return `This entry reclassifies a customer's receipt. Classify the receipt again (Reclassify, on the receipt on the customer's page), which moves it with its own date and reason. Reversed from here, the receipt would still read as classified.`;
+    case "supplier_advance_allocation":
+      return `This entry applies a supplier advance to a bill. Reverse the allocation instead (Undo, beside it on the payment in Supplier payments), which records why and reopens the bill. Reversed from here, the bill would still read as settled.`;
+    case "supplier_payment_reclassification":
+      return `This entry reclassifies a supplier payment. Classify the payment again (its classification, on the payment in Supplier payments), which moves it with its own date and reason. Reversed from here, the payment would still read as classified.`;
+    case "vat_return_filing":
+      return `This entry clears VAT return ${documentRef} as filed. A filed return is corrected by recording an amendment of the filing (under VAT returns filed, on Closed months, naming the reference it amends), which posts its own clearing; an error found later is recorded as a VAT correction. Reversed from here, the return would still read as filed.`;
     case "invoice_write_off":
       return `This entry writes off ${documentRef} as a bad debt. The VAT relief rests on that write-off being in the books (Art. 40(7)), and money received later is declared by a recovery invoice (Art. 40(9)); the entry cannot be reversed from here.`;
   }
@@ -153,6 +203,11 @@ export const journalEntriesService = {
       body,
       ["entryNumber", "date", "description", "reference", "notes"],
     );
+    // 🔴 H-19 — DR-33 (register §11.75): a manual journal may state its IAS 8 kind; a line on RETAINED_EARNINGS requires
+    // it (a classified correction is the one way a free route reaches that account). The kinds are H-18's.
+    const correctionKind: CorrectionKind | null = body.correctionKind == null || body.correctionKind === "" ? null
+      : (CORRECTION_KINDS as readonly unknown[]).includes(body.correctionKind) ? (body.correctionKind as CorrectionKind)
+      : (() => { throw new BadRequestError(`correctionKind is one of ${CORRECTION_KINDS.join(", ")} (IAS 8), or omitted.`); })();
 
     // 🔴 H2 — validate each line amount BEFORE the balance check. A non-numeric
     // amount made `Math.abs(NaN - NaN) > 0.01` false, so garbage PASSED the
@@ -288,6 +343,17 @@ export const journalEntriesService = {
       const refuse = (error: string, field: string) => {
         throw new BusinessRuleError(422, { error, code: "journal_line_party_invalid", field });
       };
+      // 🔴 H-19 — DR-33: the ONE protected-account list (@workspace/shared), read at this route's write boundary.
+      const protectedRule = protectedAccountRule(code);
+      if (protectedRule && !(protectedRule.classifiableCorrection && correctionKind)) {
+        throw new BusinessRuleError(422, {
+          code: protectedRule.classifiableCorrection ? "correction_kind_required" : "protected_account",
+          error: protectedRule.classifiableCorrection
+            ? `Line ${i + 1} posts to ${acct?.name ?? protectedRule.code}, which only a classified correction reaches: state the correction's kind (error, estimate or policy).`
+            : `Line ${i + 1} posts to ${acct?.name ?? protectedRule.code}, which is written only by ${protectedRule.writtenBy} — not by a manual journal.`,
+          field: `lines[${i}].accountId`,
+        });
+      }
       // D-4: the customer-credit liabilities carry a customer exactly like AR.
       if (code === "AR" || code === "CUSTOMER_DEPOSITS" || code === "CUSTOMER_CREDITS") {
         if (l.customerId == null)
@@ -340,6 +406,7 @@ export const journalEntriesService = {
         // 🔴 T1d: what produced it — the user (manual) or a recurring rule's run (a draft, approved like any other).
         sourceType: origin?.sourceType ?? "manual",
         sourceId: null,
+        correctionKind, // H-19 (DR-33): a classified correction states its kind on the draft
       });
     } catch (err) {
       // N3: unique(company_id, entry_number) — a user-supplied duplicate is
@@ -416,7 +483,7 @@ export const journalEntriesService = {
    */
   async reverse(
     id: number,
-    body: { reason?: unknown; date?: unknown; discoveredOn?: unknown; apparentOn?: unknown; discoveryEvidence?: unknown } = {},
+    body: { reason?: unknown; date?: unknown; discoveredOn?: unknown; apparentOn?: unknown; discoveryEvidence?: unknown; correctionKind?: unknown } = {},
     owner: {
       document?: "bank_transfer" | "statement_line" | "wht_withholding";
       /**
@@ -449,13 +516,17 @@ export const journalEntriesService = {
     // journal, a dated opening correction, its reversal — are withdrawn only by the migration workspace, whose reversal
     // marks every row it created. Refused here in words; the database refuses the same mirror (0119
     // `journal_entries_mirror_admit`), so no path can say it.
-    if (original.reversalOf != null) {
+    // 🔴 R-10 (register §11.109): a mirror is known by its link AND by its recorded source type, so an entry recorded
+    // as a reversal is refused even where its link is missing.
+    if (original.reversalOf != null || original.sourceType === "reversal") {
       throw new BusinessRuleError(409, {
         code: "journal_mirror_not_reversible",
         error: `Entry ${original.entryNumber} is itself the reversal of another entry; reversing it would re-post what that reversal undid. Record what is still needed as a new entry instead.`,
       });
     }
-    if (original.source === "opening" || original.source === "opening_correction" || original.source === "opening_reversal") {
+    // 🔴 R-10: and a migration's entry by its source column OR its recorded source type.
+    if (original.source === "opening" || original.source === "opening_correction" || original.source === "opening_reversal"
+      || original.sourceType === "migration_opening" || original.sourceType === "migration_reversal" || original.sourceType === "opening_correction") {
       throw new BusinessRuleError(409, {
         code: "journal_migration_owned",
         error: `Entry ${original.entryNumber} belongs to a migration batch. An opening position is withdrawn by reversing its batch in the migration workspace (which marks every row it created), and one item is changed by a dated correction there — never by reversing the journal alone.`,
@@ -508,6 +579,11 @@ export const journalEntriesService = {
     if (apparentOn && !discoveredOn) throw new BusinessRuleError(422, { code: "discovered_on_required", field: "discoveredOn", error: "Record the actual discovery date first; the earlier apparent date is kept beside it." });
     if (apparentOn && discoveredOn && apparentOn > discoveredOn) throw new BusinessRuleError(422, { code: "apparent_after_discovery", field: "apparentOn", error: "The date the error arguably became apparent is on or before the date it was discovered." });
     const discoveryEvidence = typeof body.discoveryEvidence === "string" && body.discoveryEvidence.trim() ? body.discoveryEvidence.trim() : null;
+    // H-18 (DR-15): the classification, when the caller states one (a system correction states none)
+    const correctionKind: CorrectionKind | null = body.correctionKind == null || body.correctionKind === "" ? null
+      : (CORRECTION_KINDS as readonly unknown[]).includes(body.correctionKind) ? (body.correctionKind as CorrectionKind)
+      : (() => { throw new BadRequestError(`correctionKind is one of ${CORRECTION_KINDS.join(", ")} (IAS 8), or omitted.`); })();
+    const attribution = await correctionAttributionOf(originalDate);
     // 🔴 Throws the structured PeriodLockedError (423) that names the month.
     await checkPeriodOpen(date);
 
@@ -538,6 +614,9 @@ export const journalEntriesService = {
       discoveredOn,
       apparentOn,
       discoveryEvidence,
+      // 🔴 H-18 (DR-15): the attribution, on the draft before the flip (G16 unchanged).
+      correctionKind,
+      ...attribution,
     });
     const mirrorLines = await journalEntriesRepository.insertLines(
       lines.map((l) => ({
@@ -577,8 +656,18 @@ export const journalEntriesService = {
     const reversalLines = await journalEntriesRepository.linesByEntry(reversal.id);
     const reversalOut = buildJEOut(reversal, reversalLines);
     // Two things happened: a new reversal entry was posted, and the original was reversed.
-    await auditService.created("journal_entry", reversal.id, reversalOut);
+    // DR-22 (H-14; contract §8.6 item 5): the image carries the reason the reversal stores (the response is unchanged)
+    await auditService.created("journal_entry", reversal.id, { ...reversalOut, reversalReason: reversal.reversalReason });
     await auditService.updated("journal_entry", id, original, { ...original, status: "reversed", reversalId: reversal.id });
+    // 🔴 Phase 18 R-11a — DR-14's pair, on the GENERIC reverse only: the person who posted the entry (its approver,
+    // else its creator) reversing it is flagged, never refused. A document's own path (a transfer, a statement line, a
+    // WHT correction) reverses through `owner.document` as that document's correction, and is not this pair.
+    if (owner.document === undefined) {
+      await controlFlagsService.flagIfSamePerson(original.approvedBy ?? original.createdBy ?? null, auditContext.get()?.userId ?? null, {
+        kind: "pair_post_reverse", entityType: "journal_entry", entityId: id, reference: original.entryNumber ?? null,
+        firstAct: "posted", secondAct: "reversed",
+      });
+    }
     return { message: "Reversed", reversalId: reversal.id, reversal: reversalOut };
   },
 

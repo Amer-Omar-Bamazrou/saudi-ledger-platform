@@ -220,7 +220,8 @@ export const quotationsRepository = {
    */
   updateEditable(id: number, values: Partial<typeof quotationsTable.$inferInsert>) {
     return db.update(quotationsTable).set(values)
-      .where(and(eq(quotationsTable.id, id), sql`${quotationsTable.status} <> 'submitted'`, sql`${quotationsTable.outcome} IS NULL`)).returning();
+      // H-17 (DR-17; register §11.71): an APPROVED quotation is not written either — at the write, so a race cannot edit it
+      .where(and(eq(quotationsTable.id, id), sql`${quotationsTable.status} NOT IN ('submitted', 'approved')`, sql`${quotationsTable.outcome} IS NULL`)).returning();
   },
 
   /** 🔴 Phase 18 (2.4) — the quotation's row lock, taken before a removal decides anything. */

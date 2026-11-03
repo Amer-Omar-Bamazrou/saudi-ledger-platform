@@ -28,6 +28,17 @@ const noSidewaysScroll = async (page: Page, width: number, what: string) => {
   const w = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(w, `${what}: no sideways page scroll`).toBeLessThanOrEqual(width + 1);
 };
+/**
+ * H-19 (DR-33; register §11.79): a plain equity side, found or created through the product's own category
+ * create — retained earnings is a classified correction's alone, and the breaking entry is not one.
+ */
+const plainEquity = async (ctx: APIRequestContext, all: Array<{ id: number; name: string; systemCode: string | null; type?: string }>) => {
+  const found = all.find((c) => c.name === "E2E capital" && !c.systemCode && (c.type ?? "equity") === "equity");
+  if (found) return found;
+  const r = await ctx.post("/api/categories", { data: { name: "E2E capital", nameAr: "رأس المال (اختبار)", type: "equity", vatApplicable: false } });
+  expect(r.ok(), await r.text()).toBe(true);
+  return (await r.json()) as { id: number; name: string };
+};
 
 test.beforeAll(async () => {
   api = await pwRequest.newContext({ baseURL: "http://localhost:5173", storageState: E2E.storageState });
@@ -78,9 +89,9 @@ test.describe.serial("the fixed-asset movement and reconciliation, end to end", 
 
     // find the accounts by name through the product's own chart
     const cats = await (await api.get("/api/categories?limit=500")).json();
-    const all = (cats.items ?? cats) as Array<{ id: number; name: string; systemCode: string | null; isPosting?: boolean }>;
+    const all = (cats.items ?? cats) as Array<{ id: number; name: string; systemCode: string | null; isPosting?: boolean; type?: string }>;
     const costAccount = all.find((c) => c.systemCode === "FIXED_ASSETS")!;
-    const equity = all.find((c) => c.systemCode === "RETAINED_EARNINGS")!;
+    const equity = await plainEquity(api, all);
     expect(costAccount && equity, "the chart carries both accounts").toBeTruthy();
 
     const created = await api.post("/api/journal-entries", {

@@ -23,6 +23,7 @@ process.env.PORT ??= "3103";
 process.env.SESSION_SECRET ??= "upload-tenant-context-secret-key-0123456789abcd";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
+import { appOriginHeader } from "./helpers/appOrigin";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import http from "node:http";
 import { createHash, randomBytes } from "node:crypto";
@@ -105,6 +106,8 @@ describeMaybe("DEF-1 — uploads keep the request's tenant context at real sizes
   const cleanup = async () => {
     await pool.query(`DELETE FROM captured_documents WHERE organization_id IN ${ORGS}`);
     await replica(pool).query(`DELETE FROM audit_logs WHERE organization_id IN ${ORGS} OR user_id IN ${USERS}`);
+    // Phase 18 H-12 (DR-22): a sign-in now leaves a security-audit row naming the user; append-only, so removed in replica mode like audit_logs
+    await replica(pool).query(`DELETE FROM security_audit_logs WHERE actor_user_id IN ${USERS} OR target_user_id IN ${USERS}`);
     await pool.query(`DELETE FROM organization_memberships WHERE user_id IN ${USERS} OR organization_id IN ${ORGS}`);
     await pool.query(`DELETE FROM users WHERE email IN ('${EMAIL_A}','${EMAIL_B}')`);
     await pool.query(`DELETE FROM companies WHERE organization_id IN ${ORGS}`);
@@ -120,7 +123,7 @@ describeMaybe("DEF-1 — uploads keep the request's tenant context at real sizes
   }
 
   async function login(email: string): Promise<string> {
-    const res = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: PW }) });
+    const res = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json", ...appOriginHeader() }, body: JSON.stringify({ email, password: PW }) });
     expect(res.status, `login ${email}`).toBe(200);
     const sid = ((res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? []).find((c) => c.startsWith("ksa_ledger_sid="));
     return sid ? sid.split(";")[0]! : "";
@@ -142,7 +145,7 @@ describeMaybe("DEF-1 — uploads keep the request's tenant context at real sizes
     form.append("source", extra.source ?? "manual");
     form.append("extraction", extra.extraction ?? "{}");
     if (extra.fieldSources) form.append("fieldSources", extra.fieldSources);
-    const res = await fetch(`${base}/capture`, { method: "POST", headers: { cookie }, body: form });
+    const res = await fetch(`${base}/capture`, { method: "POST", headers: { cookie, ...appOriginHeader() }, body: form });
     return { status: res.status, body: (await res.json().catch(() => null)) as { captureId?: string; error?: string } | null };
   }
 
@@ -276,7 +279,7 @@ describeMaybe("DEF-1 — uploads keep the request's tenant context at real sizes
   it("🔴 a 200 KB company logo reaches its tenant-scoped company lookup (never the unscoped-db 500)", async () => {
     const form = new FormData();
     form.append("file", new Blob([new Uint8Array(pngOf(200 * 1024))], { type: "image/png" }), "logo.png");
-    const res = await fetch(`${base}/companies/current/logo`, { method: "PUT", headers: { cookie: cookieA }, body: form });
+    const res = await fetch(`${base}/companies/current/logo`, { method: "PUT", headers: { cookie: cookieA, ...appOriginHeader() }, body: form });
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
       expect(res.status, JSON.stringify(body)).toBe(200);

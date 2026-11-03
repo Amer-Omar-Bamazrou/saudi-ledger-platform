@@ -229,14 +229,15 @@ describeMaybe("Quotations (M21.1)", () => {
     await expectZeroEverywhere("approved");
   });
 
-  it("an APPROVED quotation is still editable — it is an offer, not a legal document", async () => {
-    const quo = await inTenant(() =>
+  // Phase 18 H-17 (DR-17; register §11.68): was "an APPROVED quotation is still editable — it is an offer, not a legal
+  // document" (the edit succeeded, total 1035). An approval now covers the figures that were submitted.
+  it("DR-17: an APPROVED quotation is refused an edit — an approval covers the figures that were submitted", async () => {
+    await expect(inTenant(() =>
       quotationsService.update(quotationId, {
         items: [{ description: "Consulting (renegotiated)", quantity: 10, unitPrice: 90, vatRate: 15 }],
       }),
-    );
-    expect(quo.total).toBe(1035);
-    await expectZeroEverywhere("edited after approval");
+    )).rejects.toMatchObject({ statusCode: 409 });
+    await expectZeroEverywhere("an edit refused after approval");
   });
 
   it("DECLINE records the customer's answer; the quotation stops being live", async () => {

@@ -40,7 +40,7 @@ import {
   type SupplierPaymentDetail, type Vendor, type Bill, type ListBillsParams,
   type SupplierPaymentClassification,
 } from "@workspace/api-client-react";
-import { useBankOptions } from "@/components/payments/shared";
+import { newIdempotencyKey, useBankOptions } from "@/components/payments/shared";
 import { WhtFields, type WhtDeclarationValue } from "@/components/payments/WhtFields";
 import { WHT_TYPES, whtTypeLabel } from "@/lib/taxLabels";
 
@@ -358,6 +358,10 @@ function PaymentDetailDialog({ payment, banks, vendorName, vendor, t, onDone, on
   const [refundAmount, setRefundAmount] = useState("");
   const [reason, setReason] = useState("");
   const [refundReason, setRefundReason] = useState("");
+  // 🔴 Phase 18 R-8 (G37/G40): one key per act — a double click or a retry of the same act is ONE record (the
+  // server replays it); a new key after each success, so the next, different act is never mistaken for a retry.
+  const [allocateKey, setAllocateKey] = useState(() => newIdempotencyKey("supplier-alloc"));
+  const [refundKey, setRefundKey] = useState(() => newIdempotencyKey("supplier-refund"));
   /**
    * 🔴 D-3: the bank the refund came INTO is chosen, never inferred. The
    * first build sent `banks[0]` — the first bank in the list, invisibly — so
@@ -459,7 +463,8 @@ function PaymentDetailDialog({ payment, banks, vendorName, vendor, t, onDone, on
                 size="sm" data-testid="detail-allocate-submit"
                 onClick={() => post.mutate(() => allocateSupplierPayment(payment.id, {
                   allocations: Object.entries(allocations).filter(([, v]) => Number(v) > 0).map(([billId, v]) => ({ billId: Number(billId), amount: Number(v) })),
-                }))}
+                  idempotencyKey: allocateKey,
+                }).then((r) => { setAllocateKey(newIdempotencyKey("supplier-alloc")); return r; }))}
               >{t("Apply", "تخصيص")}</Button>
             </>
           )}
@@ -523,7 +528,8 @@ function PaymentDetailDialog({ payment, banks, vendorName, vendor, t, onDone, on
               size="sm" variant="secondary" data-testid="refund-submit" disabled={!refundBank}
               onClick={() => post.mutate(() => refundSupplierPayment(payment.id, {
                 amount: Number(refundAmount), reason: refundReason, bankAccountId: Number(refundBank),
-              }))}
+                idempotencyKey: refundKey,
+              }).then((r) => { setRefundKey(newIdempotencyKey("supplier-refund")); return r; }))}
             >{t("Record refund", "تسجيل الاسترداد")}</Button>
           </div>
         </section>

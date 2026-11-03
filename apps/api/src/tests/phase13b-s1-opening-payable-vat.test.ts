@@ -18,6 +18,7 @@
  * Art. 50, fully reversed with nothing restored). Nothing here approximates a
  * multi-state split (S2).
  */
+import { appOriginHeader } from "./helpers/appOrigin";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import { randomBytes } from "node:crypto";
@@ -163,7 +164,7 @@ describeMaybe("Phase 13B S1 — opening-payable historical VAT and single-state 
 
   async function api(who: keyof typeof EMAIL, method: string, path: string, body?: unknown) {
     const cookie = jar[who] ?? "";
-    const res = await fetch(`${base}${path}`, { method, headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await fetch(`${base}${path}`, { method, headers: { "content-type": "application/json", ...appOriginHeader(), ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
     const sid = ((res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? []).find((c: string) => c.startsWith("ksa_ledger_sid="));
     if (sid) jar[who] = sid.split(";")[0]!;
     let json: unknown; try { json = await res.json(); } catch { json = undefined; }

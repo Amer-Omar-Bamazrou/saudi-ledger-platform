@@ -23,6 +23,7 @@ process.env.PORT ??= "3102";
 process.env.SESSION_SECRET ??= "documents-test-session-secret-key-0123456789abcd";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
+import { appOriginHeader } from "./helpers/appOrigin";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import bcrypt from "bcryptjs";
@@ -145,7 +146,7 @@ describeMaybe("verification documents (M11.4)", () => {
 
     async function login(email: string) {
       cookie = "";
-      const res = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: PW }) });
+      const res = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json", ...appOriginHeader() }, body: JSON.stringify({ email, password: PW }) });
       const sid = ((res.headers as any).getSetCookie?.() ?? []).find((c: string) => c.startsWith("ksa_ledger_sid="));
       if (sid) cookie = sid.split(";")[0];
       return res.status;
@@ -168,7 +169,7 @@ describeMaybe("verification documents (M11.4)", () => {
       const form = new FormData();
       form.append("type", "vat_certificate");
       form.append("file", new Blob([PDF], { type: "application/pdf" }), "vat.pdf");
-      const up = await fetch(`${base}/onboarding/documents`, { method: "POST", headers: { cookie }, body: form });
+      const up = await fetch(`${base}/onboarding/documents`, { method: "POST", headers: { cookie, ...appOriginHeader() }, body: form });
       expect(up.status).toBe(201);
       const meta = (await up.json()) as { id: string };
 
@@ -185,7 +186,7 @@ describeMaybe("verification documents (M11.4)", () => {
       const form = new FormData();
       form.append("type", "other");
       form.append("file", new Blob([big], { type: "application/pdf" }), "big.pdf");
-      const up = await fetch(`${base}/onboarding/documents`, { method: "POST", headers: { cookie }, body: form });
+      const up = await fetch(`${base}/onboarding/documents`, { method: "POST", headers: { cookie, ...appOriginHeader() }, body: form });
       expect(up.status).toBe(400);
     });
   });

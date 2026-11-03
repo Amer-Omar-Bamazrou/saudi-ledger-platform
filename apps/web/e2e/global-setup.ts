@@ -273,7 +273,7 @@ export default async function globalSetup(): Promise<void> {
    * this makes globalSetup independent of the two being ordered, rather than
    * hoping they are.
    */
-  const ctx = await request.newContext({ baseURL: API });
+  const ctx = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
   let ready = false;
   for (let i = 0; i < 120 && !ready; i++) {
     try {
@@ -297,6 +297,10 @@ export default async function globalSetup(): Promise<void> {
     nameAr: "شركة الاختبار",
     crNumber: "1010101010",
     vatNumber: "300000000000003",
+    // R-2 (G23; register §11.85): the fiscal year is declared HERE, before anything is posted — once an entry is in
+    // the books the start is fixed, so the seed can no longer declare it later for the budget and withdraw it after.
+    // The shared tenant is therefore DECLARED (January, Gregorian) for every spec.
+    fiscalYearStart: 1,
     fiscalCalendar: "gregorian",
   });
 
@@ -470,14 +474,13 @@ export default async function globalSetup(): Promise<void> {
   });
 
   // Phase 15: an APPROVED 2026 base budget — so /budgets lists a row, /budgets/:id is crawlable and the
-  // Analytics card has figures. A budget needs a DECLARED fiscal year (D15-15): declare one, create the
-  // budget (it FREEZES its year, D15-01), then put the company back undeclared, as every other spec found it.
-  await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: 1, fiscalCalendar: "gregorian" });
+  // Analytics card has figures. A budget needs a DECLARED fiscal year (D15-15) — declared with the company's
+  // identity above (R-2, G23: it cannot be declared or withdrawn once anything is posted). The budget FREEZES its
+  // year (D15-01).
   const budget = await api<{ id: number; version: { id: number } }>(ctx, "POST", "/budgets", { name: "E2E Operating Budget", nameAr: "ميزانية التشغيل", fiscalYearLabel: 2026 });
   // Phase 16: a DRAFT Zakat computation for FY 2025 (a computation also freezes its year at creation), so
   // /zakat lists a row and /tax/computations/:id is crawlable. A draft moves nothing in the books.
   const taxComputation = await api<{ id: number }>(ctx, "POST", "/tax/computations", { kind: "zakat", fiscalYearLabel: 2025 });
-  await api(ctx, "PATCH", "/companies/current", { fiscalYearStart: null });
   const budgetAccounts = await api<Array<{ id: number; name: string }>>(ctx, "GET", "/budgets/accounts");
   const salesAccount = budgetAccounts.find((a) => a.name === "Sales Revenue");
   const purchasesAccount = budgetAccounts.find((a) => a.name === "Purchases");
@@ -524,7 +527,7 @@ export default async function globalSetup(): Promise<void> {
   await ctx.dispose();
 
   // The migration tenant: log both users in, give it one bank account (the old bank row maps to it).
-  const migAdmin = await request.newContext({ baseURL: API });
+  const migAdmin = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
   const migLogin = await migAdmin.post("/api/auth/login", { data: { email: E2E_MIGRATION.adminEmail, password: E2E_MIGRATION.password } });
   if (!migLogin.ok()) throw new Error(`e2e migration admin login failed: ${migLogin.status()}`);
   const migBank = await api(migAdmin, "POST", "/bank-accounts", { name: "Riyad Main", bankName: "Riyad Bank", currency: "SAR" });
@@ -532,7 +535,7 @@ export default async function globalSetup(): Promise<void> {
   await api(migAdmin, "POST", "/asset-categories", { name: "Migrated equipment", nameAr: "معدات مرحَّلة", defaultUsefulLifeMonths: 50, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" });
   await migAdmin.storageState({ path: E2E_MIGRATION.adminState });
   await migAdmin.dispose();
-  const migAcct = await request.newContext({ baseURL: API });
+  const migAcct = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
   const acctLogin = await migAcct.post("/api/auth/login", { data: { email: E2E_MIGRATION.accountantEmail, password: E2E_MIGRATION.password } });
   if (!acctLogin.ok()) throw new Error(`e2e migration accountant login failed: ${acctLogin.status()}`);
   await migAcct.storageState({ path: E2E_MIGRATION.accountantState });
@@ -540,7 +543,7 @@ export default async function globalSetup(): Promise<void> {
 
   // The S1 tenant: three sessions, and one bank account (the old bank row maps to it).
   for (const [email, state, withBank] of [[E2E_S1.adminEmail, E2E_S1.adminState, true], [E2E_S1.accountantEmail, E2E_S1.accountantState, false], [E2E_S1.bookkeeperEmail, E2E_S1.bookkeeperState, false]] as const) {
-    const s1 = await request.newContext({ baseURL: API });
+    const s1 = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
     const login = await s1.post("/api/auth/login", { data: { email, password: E2E_S1.password } });
     if (!login.ok()) throw new Error(`e2e S1 login failed for ${email}: ${login.status()}`);
     if (withBank) await api(s1, "POST", "/bank-accounts", { name: "S1 Main", bankName: "Riyad Bank", currency: "SAR" });
@@ -549,7 +552,7 @@ export default async function globalSetup(): Promise<void> {
   }
 
   // The accountant-answers tenant: one session, one bank account and the asset category Q3's migrated asset names.
-  const q3 = await request.newContext({ baseURL: API });
+  const q3 = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
   const q3Login = await q3.post("/api/auth/login", { data: { email: E2E_ANSWERS.adminEmail, password: E2E_ANSWERS.password } });
   if (!q3Login.ok()) throw new Error(`e2e accountant-answers login failed: ${q3Login.status()}`);
   await api(q3, "POST", "/bank-accounts", { name: "Answers Main", bankName: "Riyad Bank", currency: "SAR" });

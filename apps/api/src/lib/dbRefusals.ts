@@ -188,7 +188,7 @@ const PERIOD_RECORD_UNIQUE_MESSAGE: Record<string, string> = {
 };
 
 export interface DbRefusal {
-  status: 409 | 422 | 423;
+  status: 403 | 409 | 422 | 423;
   body: { code: string; error: string; constraint?: string; field?: string };
 }
 
@@ -209,6 +209,48 @@ export function pgErrorFields(err: unknown): { code?: string; constraint?: strin
  * refusal we recognise (it then stays a logged 500). Drizzle may wrap the
  * driver error in `cause`.
  */
+/**
+ * 🔴 R-2 (G23; register §11.85): the ONE text of the fiscal-year refusal, in both languages — the service's refusal and
+ * the trigger's translation read it, so the two paths never say different things.
+ */
+export const FISCAL_YEAR_START_FROZEN = {
+  code: "fiscal_year_start_frozen",
+  error: "The fiscal-year start cannot change: this company has journal entries posted, and every posted figure was placed in a fiscal year by the start it was declared with. It stays as declared.",
+  errorAr: "لا يمكن تغيير بداية السنة المالية: لهذه الشركة قيود يومية مُرحَّلة، وكل رقم مُرحَّل وُضع في سنة مالية بحسب البداية المُعلنة. تبقى كما أُعلنت.",
+} as const;
+
+/**
+ * 🔴 R-6 (DR-23, 0151): the ONE text of each dual-control refusal, in both languages — the services and the
+ * triggers' translation read it, so the two paths never say different things (R-2's pattern). The UI keys on `code`.
+ */
+export const BANK_DETAIL_REFUSALS = {
+  pending: {
+    code: "bank_detail_change_pending",
+    error: "A change of these bank details already waits for a second admin. An admin approves or rejects it in Company settings → Bank-detail changes first; nothing in this request was saved.",
+    errorAr: "يوجد تغيير على هذه البيانات البنكية بانتظار موافقة مسؤول ثانٍ. يوافق عليه مسؤول أو يرفضه أولاً من إعدادات الشركة ← تغييرات البيانات البنكية؛ لم يُحفظ شيء من هذا الطلب.",
+  },
+  secondAdmin: {
+    code: "second_admin_required",
+    error: "A bank-detail change is approved by a second admin, never by the person who asked for it. Another admin of this organisation approves it; you can withdraw it.",
+    errorAr: "يوافق على تغيير البيانات البنكية مسؤولٌ ثانٍ، ولا يوافق عليه من طلبه. يوافق عليه مسؤول آخر في هذه المنشأة، ويمكنك سحب الطلب.",
+  },
+  stale: {
+    code: "bank_detail_change_stale",
+    error: "The bank details changed after this request was made, so it no longer describes the change it would make. Reject it, and ask again from the details as they are now.",
+    errorAr: "تغيّرت البيانات البنكية بعد تقديم هذا الطلب، فلم يعد يصف التغيير الذي سيُجريه. ارفضه، ثم اطلب التغيير من جديد على البيانات الحالية.",
+  },
+  decided: {
+    code: "bank_detail_change_decided",
+    error: "This request was already decided. A decision is final; a new change is a new request.",
+    errorAr: "سبق البتّ في هذا الطلب، والقرار نهائي؛ أي تغيير جديد يكون بطلب جديد.",
+  },
+  requiresSecondAdmin: {
+    code: "bank_detail_change_requires_second_admin",
+    error: "In an organisation with two or more admins, a bank-detail change waits for a second admin's approval. Make the change again so it is recorded as a request.",
+    errorAr: "في المنشأة التي لها مسؤولان أو أكثر، ينتظر تغيير البيانات البنكية موافقة مسؤول ثانٍ. أعِد إجراء التغيير ليُسجَّل طلباً.",
+  },
+} as const;
+
 export function translateDbRefusal(err: unknown): DbRefusal | null {
   const pg = err as { code?: string; message?: string; constraint?: string; cause?: { code?: string; message?: string; constraint?: string } };
   const pgCode = pg?.code && /^[0-9A-Z]{5}$/.test(pg.code) ? pg.code : pg?.cause?.code;
@@ -225,6 +267,23 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   if (pgCode === "23514" && /is reconciled through/.test(pgMessage)) return { status: 409, body: { code: "bank_reconciled_through", error: pgMessage } };
   if (pgCode === "23514" && /is reconciled to a bank statement line/.test(pgMessage)) return { status: 409, body: { code: "entry_reconciled", error: pgMessage } };
 
+  // R-2 (G23, 0148): the fiscal-year start changed on a company with entries in the books — the same refusal, in
+  // both languages, as companiesService.updateCurrent gives before the database reaches this trigger.
+  if (pgCode === "23514" && constraint === "company_fiscal_year_frozen") {
+    return { status: 409, body: { ...FISCAL_YEAR_START_FROZEN } as DbRefusal["body"] };
+  }
+  // R-6 (DR-23, 0151): the dual-control triggers. A write that reached them without its request (a path that skipped
+  // the hold, or the admin count moving under the request) and a decision the database refuses answer as 409s.
+  if (pgCode === "23514" && constraint === "bank_detail_dual_control") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.requiresSecondAdmin } as DbRefusal["body"] };
+  if (pgCode === "23514" && constraint === "bank_detail_change_second_admin") return { status: 409, body: { code: "second_admin_required", error: pgMessage } };
+  if (pgCode === "23514" && constraint === "bank_detail_change_request_flow") return { status: 409, body: { code: "bank_detail_change_refused", error: pgMessage } };
+  // 🔴 R-11b (DR-20, 0155): a bookkeeper's cash, tax or equity posting where the organisation has two or more approvers
+  // is an approver's act — an AUTHORITY refusal (403), in the database's words naming what the entry touches.
+  if (pgCode === "23514" && constraint === "journal_entry_posting_needs_approver") return { status: 403, body: { code: "approver_required", error: pgMessage } };
+  if (pgCode === "23505" && constraint && /^bank_detail_change_pending_/.test(constraint)) {
+    return { status: 409, body: { ...BANK_DETAIL_REFUSALS.pending } as DbRefusal["body"] };
+  }
+
   if (pgCode === "23514" && constraint) {
     const status = BUDGET_TRIGGER_STATUS[constraint] ?? TAX_TREASURY_TRIGGER_STATUS[constraint];
     if (status) return { status, body: { code: constraint, error: pgMessage } };
@@ -234,6 +293,11 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   if (pgCode === "23503" && constraint && /^insert or update on table/.test(pgMessage)) {
     const ref = TENANT_REFERENCE_KEYS[constraint];
     if (ref) return { status: 422, body: { code: "reference_not_found", error: ref.error, field: ref.field } };
+  }
+  // R-8 (G37/G40): the same idempotency key on ANOTHER source at the same moment reaches the per-company,
+  // per-operation unique index (one source serialises on its lock and replays) — a different request: refused.
+  if (pgCode === "23505" && constraint && /_idempotency(_op)?_unq$/.test(constraint)) {
+    return { status: 409, body: { code: "idempotency_key_reused", error: "This idempotency key was used for a different request in this company at the same moment. Nothing was recorded; use a new key." } };
   }
   if (pgCode === "23505" && constraint) {
     const budget = BUDGET_UNIQUE_MESSAGE[constraint];

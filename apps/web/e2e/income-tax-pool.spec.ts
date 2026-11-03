@@ -50,7 +50,8 @@ test.afterAll(async () => {
   // BEFORE the structure, or companies_foreign_ownership_pct_chk refuses the
   // intermediate pair — the same rule the service explains.
   await api.patch("/api/companies/current", { data: { foreignOwnershipPct: null } });
-  await api.patch("/api/companies/current", { data: { ownershipType: original.ownershipType, fiscalYearStart: original.fiscalYearStart } });
+  // R-2 (G23): only the SHARE is put back — the fiscal year was never withdrawn (it cannot be, once anything is posted)
+  await api.patch("/api/companies/current", { data: { ownershipType: original.ownershipType } });
   if (original.foreignOwnershipPct !== null) {
     await api.patch("/api/companies/current", { data: { foreignOwnershipPct: original.foreignOwnershipPct } });
   }
@@ -62,7 +63,8 @@ test.describe.serial("the Art. 17 income-tax pool, end to end", () => {
 
   test("🔴 with the share undeclared the page refuses, and says so as an explanation rather than an empty table", async ({ page }) => {
     await api.patch("/api/companies/current", { data: { foreignOwnershipPct: null } });
-    await api.patch("/api/companies/current", { data: { ownershipType: null, fiscalYearStart: null } });
+    // R-2 (G23): the UNDECLARED SHARE is this test's subject; the fiscal year stays declared (it is fixed once anything is posted)
+    await api.patch("/api/companies/current", { data: { ownershipType: null } });
     await page.goto("/assets/income-tax-pool");
     await expect(page.getByTestId("page-income-tax-pool")).toBeVisible();
     await expect(page.getByTestId("pool-status")).toHaveText("regime_not_declared");
@@ -91,23 +93,14 @@ test.describe.serial("the Art. 17 income-tax pool, end to end", () => {
     let c = await (await api.get("/api/companies/current")).json();
     expect([c.ownershipType, c.foreignOwnershipPct]).toEqual(["MIXED", 40]);
 
-    // 🔴 The refusal MOVES ON rather than disappearing: the seeded company has
-    // no fiscal year, and Art. 22 computes the pool per taxable year. Each state
-    // names the next act, and each act is a control on a page the tenant can
-    // reach — which is the property this walk exists to check.
-    await page.goto("/assets/income-tax-pool");
-    await expect(page.getByTestId("pool-status")).toHaveText("fiscal_year_not_declared");
-
-    await page.goto("/company");
-    await page.selectOption("#fiscalYearStart", "1");
-    // TR-3: the same race — the select reads "1" before the save answers.
-    const savedYear = page.waitForResponse((r) => r.request().method() === "PATCH" && new URL(r.url()).pathname === "/api/companies/current");
-    await page.getByTestId("button-save-company").click();
-    await savedYear;
-    await expect(page.locator("#fiscalYearStart")).toHaveValue("1");
-    c = await (await api.get("/api/companies/current")).json();
-    expect(c.fiscalYearStart).toBe(1);
-
+    // 🔴 The refusal MOVES ON rather than disappearing: each state names the
+    // next act, and each act is a control on a page the tenant can reach —
+    // which is the property this walk exists to check. R-2 (G23; register
+    // §11.88): the seeded company's fiscal year is declared before anything is
+    // posted and can no longer be withdrawn, so the `fiscal_year_not_declared`
+    // leg (declare the year in Company Settings) is not walkable here: the
+    // status is asserted on an undeclared company in income-tax-pool.test.ts,
+    // and the settings control is driven by phase18-g23-fiscal-year-frozen.spec.
     await page.goto("/assets/income-tax-pool");
     await expect(page.getByTestId("pool-status")).toHaveText("anchor_not_declared");
     await expect(page.getByTestId("anchor-form")).toBeVisible();

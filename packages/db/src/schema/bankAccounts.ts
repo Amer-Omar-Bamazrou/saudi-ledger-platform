@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, numeric, uuid, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, numeric, uuid, integer, index, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -38,7 +38,11 @@ export const bankAccountsTable = pgTable(
     openingJournalEntryId: integer("opening_journal_entry_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("bank_accounts_org_idx").on(t.organizationId)],
+  (t) => [
+    index("bank_accounts_org_idx").on(t.organizationId),
+    // G04 (0151, Phase 18 R-6): the target of a tenant-carrying reference — bank_detail_change_requests.
+    unique("bank_accounts_org_id_unq").on(t.organizationId, t.id),
+  ],
 );
 
 export const insertBankAccountSchema = createInsertSchema(bankAccountsTable)

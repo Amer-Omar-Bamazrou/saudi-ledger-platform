@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../lib/auth";
+import { refuseUntilPasswordChanged, requireAuth } from "../lib/auth";
 import { resolveTenant } from "../lib/tenant";
 import { requireAnyPermission, requirePermission } from "../lib/rbac";
 import { requirePlatformOperator } from "../lib/operator";
@@ -59,6 +59,7 @@ import { refuseCaptureInDemo, refuseZatcaOnboardingInDemo } from "../lib/demoMod
 import recurring from "./recurring.js";
 import approvals from "./approvals.js";
 import findings from "./findings.js";
+import controlFlags from "./controlFlags.js";
 import ask from "./ask.js";
 import auditLogs from "./auditLogs.js";
 
@@ -68,6 +69,9 @@ const router = Router();
 router.use("/healthz", health);
 // PUBLIC: the demo banner must render on the login page, before any session.
 router.use("/deployment", deployment);
+// 🔴 H-15 (DR-06, DR-27): a session that owes a change of password reaches only the way to change it — held
+// BEFORE /auth, so the admin acts on users under it are held too.
+router.use(refuseUntilPasswordChanged);
 router.use("/auth", auth);
 // Invitation preview/accept: PUBLIC + token-authenticated — the invitee may have
 // no account and no tenant yet. All checks live in invitationsService.
@@ -182,6 +186,8 @@ router.use("/capture", refuseCaptureInDemo, requirePermission("bills"), capture)
 router.use("/recurring", requirePermission("recurring"), recurring);
 // AI-3a — deterministic internal-consistency findings; "findings", never "audit" (§9).
 router.use("/findings", requirePermission("findings"), findings);
+// Phase 18 R-11a — DR-14's control flags: read by the approvers (the matrix grants admin and accountant only).
+router.use("/control-flags", requirePermission("control_flags"), controlFlags);
 // AI-6a — grounded answers: register A (facts + projections), stored and auditable.
 router.use("/ask", requirePermission("ask"), ask);
 router.use("/audit-logs", requirePermission("audit_logs"), auditLogs);

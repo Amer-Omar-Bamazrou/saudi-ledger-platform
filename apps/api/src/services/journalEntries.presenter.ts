@@ -20,6 +20,13 @@ export function buildJEOut(je: JournalEntry, lines?: JournalEntryLine[]) {
     status: je.status,
     reversalOf: je.reversalOf,
     notes: je.notes,
+    // H-18 (DR-15): a correction's attribution (null on every entry that is not a mirror)
+    correctionKind: je.correctionKind ?? null,
+    originFiscalYearStart: je.originFiscalYearStart == null ? null : String(je.originFiscalYearStart).slice(0, 10),
+    originFiscalYearEnd: je.originFiscalYearEnd == null ? null : String(je.originFiscalYearEnd).slice(0, 10),
+    originAuthorisedOn: je.originAuthorisedOn == null ? null : String(je.originAuthorisedOn).slice(0, 10),
+    originAuthorisedBy: je.originAuthorisedBy ?? null,
+    originVatFilingReference: je.originVatFilingReference ?? null,
     postedAt: je.postedAt?.toISOString() ?? null,
     createdAt: je.createdAt.toISOString(),
     totalDebit: (lines ?? []).reduce((s, l) => s + toNum(l.debitAmount), 0),

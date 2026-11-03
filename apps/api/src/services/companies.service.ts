@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 import { randomUUID } from "node:crypto";
 import { BadRequestError, NotFoundError } from "../lib/errors";
+import { companyHasEntriesInBooks } from "../repositories/journalEntries.repository";
 import { storage } from "../lib/storage";
 import { validateLogoBytes, LOGO_ALLOWED_MIME } from "../lib/fileValidation";
 import { assertFileIsClean } from "../lib/malwareScanner";
@@ -37,9 +38,11 @@ import type { companiesTable } from "@workspace/db";
 type Company = typeof companiesTable.$inferSelect;
 export type UpdateCompanyInput = ReturnType<(typeof UpdateCurrentCompanyBody)["parse"]>;
 
-function buildCompanyOut(c: Company) {
+function buildCompanyOut(c: Company, fiscalYearStartFrozen: boolean) {
   return {
     id: c.id,
+    /** R-2 (G23): true once any entry is in the books — the start cannot change, and the page says so before the act. */
+    fiscalYearStartFrozen,
     name: c.name,
     nameAr: c.nameAr ?? null,
     crNumber: c.crNumber ?? null,
@@ -79,7 +82,7 @@ export const companiesService = {
   async getCurrent() {
     const company = await companiesRepository.findActive();
     if (!company) throw new NotFoundError("No company is configured for this organization.");
-    return GetCurrentCompanyResponse.parse(buildCompanyOut(company));
+    return GetCurrentCompanyResponse.parse(buildCompanyOut(company, await companyHasEntriesInBooks(company.id)));
   },
 
   /**
@@ -173,6 +176,12 @@ export const companiesService = {
       }
       updates.fiscalCalendar = input.fiscalCalendar;
     }
+
+    // 🔴 R-2 (G23; register §11.85–§11.86): the fiscal-year start — a month IN a calendar — is fixed once any entry
+    // is in the books (posted or reversed). The rule lives at the write boundary, trigger `companies_fiscal_year_frozen`
+    // (0148), and its refusal is translated by lib/dbRefusals into 409 `fiscal_year_start_frozen` with the one bilingual
+    // text — no second copy of the rule here (a service-side check survived its mutants: unobservable beside the trigger).
+    // The same month and calendar are not a change; a draft freezes nothing.
 
     // M17.1 — ownership structure (Q2). An empty string clears it back to NOT
     // DECLARED, which is a legitimate state a tenant may return to: it is
@@ -271,8 +280,9 @@ export const companiesService = {
     if (Object.keys(updates).length === 0) throw new BadRequestError("No changes supplied.");
 
     const [updated] = await companiesRepository.update(company.id, updates);
-    await auditService.updated("company", company.id, buildCompanyOut(company), buildCompanyOut(updated));
-    return UpdateCurrentCompanyResponse.parse(buildCompanyOut(updated));
+    const frozen = await companyHasEntriesInBooks(company.id);
+    await auditService.updated("company", company.id, buildCompanyOut(company, frozen), buildCompanyOut(updated, frozen));
+    return UpdateCurrentCompanyResponse.parse(buildCompanyOut(updated, frozen));
   },
 
   // ── L1 level-1 branding: the logo (design-invoice-document.md §2) ─────────

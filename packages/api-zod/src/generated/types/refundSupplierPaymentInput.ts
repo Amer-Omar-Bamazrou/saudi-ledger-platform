@@ -13,4 +13,9 @@ export interface RefundSupplierPaymentInput {
   bankAccountId?: number;
   refundedAt?: Date;
   reason: string;
+  /**
+     * Phase 18 R-8 (G37/G40): unique per company and operation. The same key with the same request answers as the first did and records ONE refund; the same key with a different request is refused 409 idempotency_key_reused, nothing recorded.
+     * @maxLength 120
+     */
+  idempotencyKey?: string | null;
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import type { BankDetailChange } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Plus, Landmark, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+
+/**
+ * 🔴 Phase 18 R-6 (DR-23): a write may come back with the bank-detail part HELD for a second admin (an organisation
+ * with two or more admins). The held requests are the generated contract's type; this page's own interface is not
+ * widened for them.
+ */
+const heldOf = (res: unknown) => ((res as { pendingBankDetailChanges?: BankDetailChange[] } | null)?.pendingBankDetailChanges ?? []);
 
 interface BankAccount { id: number; name: string; bankName: string; accountNumber?: string; iban?: string; currency: string; balance: number; openingBalance: number; isDefault: boolean; isActive: boolean; notes?: string; glAccountId: number | null; glAccountName: string | null; ledgerBalance: number | null; ledgerBalanceOnLeaf: number | null; attributedHistory: number | null; }
 
@@ -28,7 +36,12 @@ export default function BankAccounts() {
 
   const createMut = useMutation({
     mutationFn: (body: any) => apiFetch("/bank-accounts", { method: "POST", body: JSON.stringify({ ...body, balance: Number(body.balance || 0), openingBalance: Number(body.balance || 0) }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-accounts"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Bank account added", "تمت إضافة الحساب البنكي") }); },
+    onSuccess: (res: unknown) => {
+      qc.invalidateQueries({ queryKey: ["bank-accounts"] }); setOpen(false); setForm(emptyForm);
+      toast(heldOf(res).length > 0
+        ? { title: t("Bank account added — using it on invoices waits for a second admin", "تمت إضافة الحساب البنكي — واستخدامه على الفواتير بانتظار موافقة مسؤول ثانٍ"), description: t("Another admin approves it in Company settings.", "يوافق عليه مسؤول آخر من إعدادات الشركة.") }
+        : { title: t("Bank account added", "تمت إضافة الحساب البنكي") });
+    },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -39,7 +52,12 @@ export default function BankAccounts() {
     mutationFn: (id: number) => apiFetch(`/bank-accounts/${id}`, { method: "PATCH", body: JSON.stringify({ isDefault: true }) }),
     // G30: the choice governs invoices issued FROM NOW ON — an issued invoice
     // keeps the bank details it was issued with, so the copy says so.
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-accounts"] }); toast({ title: t("Invoices you issue from now on will show this account", "ستظهر بيانات هذا الحساب على الفواتير التي تصدرها من الآن") }); },
+    onSuccess: (res: unknown) => {
+      qc.invalidateQueries({ queryKey: ["bank-accounts"] });
+      toast(heldOf(res).length > 0
+        ? { title: t("Waiting for a second admin", "بانتظار موافقة مسؤول ثانٍ"), description: t("In an organisation with two or more admins, another admin approves the account printed on invoices, in Company settings.", "في المنشأة التي لها مسؤولان أو أكثر، يوافق مسؤول آخر على الحساب المطبوع على الفواتير من إعدادات الشركة.") }
+        : { title: t("Invoices you issue from now on will show this account", "ستظهر بيانات هذا الحساب على الفواتير التي تصدرها من الآن") });
+    },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
   const invoiceAccount = accounts.find(a => a.isDefault);

@@ -69,15 +69,24 @@ const plan = async (billId: number, amount: number, extra: Record<string, unknow
  * 🔴 THE SUITE SHARES ONE TENANT, AND ITS STATEMENTS ARE ASSERTED LATER (statement-figures: total assets > 0).
  * This spec's payments took 20,900 of cash and drove the seeded bank — and the tenant's total assets — negative
  * (CI 37232689559). Each payment is now FUNDED first by an entry of exactly the cash it takes (the bank against
- * retained earnings, as fixed-asset-report does), so the spec leaves the tenant's cash where it found it.
+ * a plain equity account, as fixed-asset-report does), so the spec leaves the tenant's cash where it found it.
  */
+/**
+ * H-19 (DR-33; register §11.79): a plain equity side, found or created through the product's own category
+ * create — retained earnings is a classified correction's alone, and a funding entry is not one.
+ */
+const plainEquity = async (all: Array<{ id: number; name: string; systemCode: string | null; type?: string }>) => {
+  const found = all.find((c) => c.name === "E2E capital" && !c.systemCode && (c.type ?? "equity") === "equity");
+  if (found) return found;
+  return json<{ id: number; name: string }>(api.post("/api/categories", { data: { name: "E2E capital", nameAr: "رأس المال (اختبار)", type: "equity", vatApplicable: false } }), "a plain equity account");
+};
 const fundBank = async (amount: number, why: string) => {
   const { bankId } = JSON.parse(readFileSync(SEEDED_IDS_PATH, "utf8")) as SeededIds;
-  const cats = await json<Array<{ id: number; name: string; systemCode: string | null; bankAccountId?: number | null }> | { items: Array<{ id: number; name: string; systemCode: string | null; bankAccountId?: number | null }> }>(api.get("/api/categories?limit=500"), "chart");
+  const cats = await json<Array<{ id: number; name: string; systemCode: string | null; bankAccountId?: number | null; type?: string }> | { items: Array<{ id: number; name: string; systemCode: string | null; bankAccountId?: number | null; type?: string }> }>(api.get("/api/categories?limit=500"), "chart");
   const all = Array.isArray(cats) ? cats : cats.items;
   const leaf = all.find((c) => c.bankAccountId === bankId);
-  const equity = all.find((c) => c.systemCode === "RETAINED_EARNINGS");
-  expect(leaf && equity, "the seeded bank's GL account and retained earnings").toBeTruthy();
+  const equity = await plainEquity(all);
+  expect(leaf && equity, "the seeded bank's GL account and a plain equity account").toBeTruthy();
   const je = await json<{ id: number }>(api.post("/api/journal-entries", { data: {
     date: TODAY, description: `E2E gap-closure: funds ${why}, so the shared tenant's cash is left as it was`,
     lines: [

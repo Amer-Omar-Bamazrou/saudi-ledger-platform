@@ -1,9 +1,22 @@
 /** Journal entries repository — tenant-scoped via RLS. */
 import { db, journalEntriesTable, journalEntryLinesTable, categoriesTable, cashLineBankAttributionsTable } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { JE_IN_BOOKS } from "./reports.repository";
 
 /** The default page. Stated once so the API, the UI and the tests agree. */
 export const DEFAULT_PAGE = 50;
+
+/**
+ * R-2 (G23; register §11.85): whether the company has any entry IN THE BOOKS — posted or reversed, the one
+ * definition (`JE_IN_BOOKS`) — which is what fixes its fiscal-year start. A draft or submitted entry counts for nothing.
+ */
+export async function companyHasEntriesInBooks(companyId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(journalEntriesTable)
+    .where(and(eq(journalEntriesTable.companyId, companyId), inArray(journalEntriesTable.status, JE_IN_BOOKS)));
+  return (row?.n ?? 0) > 0;
+}
 
 export interface JournalEntryListFilter {
   status?: string;
@@ -23,15 +36,31 @@ export type JournalEntryOwner =
   | "wht_withholding" | "wht_remittance" | "wht_remittance_reversal" | "tax_accrual"
   // Q1 (migration 0117): the reversal a WHT correction posted — itself the correction.
   | "wht_correction"
-  // Phase 18 H-6 (DR-34): an invoice-side document's entry (its own posting, a correction's issue, a credit note's
-  // application) and a bad-debt write-off — read from the entry's recorded source (T1d).
-  | "invoice" | "invoice_write_off";
+  // Phase 18 H-6 (DR-34): an invoice-side document's entry (its own posting, a correction's issue) and a bad-debt
+  // write-off — read from the entry's recorded source (T1d).
+  | "invoice" | "invoice_write_off"
+  // 🔴 Phase 18 R-10 (DR-34 finished, memo §2a, register §11.109): every other source type with its OWN correction
+  // path, named by its source type — each refusal names that path.
+  | "credit_note_application" | "customer_payment_allocation" | "customer_payment_reclassification"
+  | "supplier_advance_allocation" | "supplier_payment_reclassification" | "vat_return_filing";
 
 /** One predicate for the rows AND the count — so they cannot describe different sets. */
 const jeConditions = (f: JournalEntryListFilter) =>
   f.status ? eq(journalEntriesTable.status, f.status) : undefined;
 
 export const journalEntriesRepository = {
+  /**
+   * 🔴 Phase 18 R-11a — DR-14: who approved a document's OWN posting — the approver T1d records on the entry the
+   * approval posted (the earliest entry of that source that is not a mirror), or null when none is recorded.
+   */
+  async documentApprover(sourceType: "bill", sourceId: number): Promise<number | null> {
+    const { rows } = await db.execute<{ approved_by: number | null }>(sql`
+      SELECT approved_by FROM journal_entries
+       WHERE source_type = ${sourceType} AND source_id = ${sourceId} AND reversal_of IS NULL
+       ORDER BY id LIMIT 1`);
+    return rows[0]?.approved_by == null ? null : Number(rows[0].approved_by);
+  },
+
   /** Phase 12C: whether a statement line is reconciled to one of this entry's cash lines by another record (not the line's own posting). */
   async reconciledToStatement(entryId: number): Promise<boolean> {
     const { rows } = await db.execute<{ r: boolean }>(sql`SELECT EXISTS (SELECT 1 FROM bank_line_reconciliation x JOIN journal_entry_lines l ON l.id = x.line_id
@@ -53,16 +82,29 @@ export const journalEntriesRepository = {
    * Phase 13B-1a (migration 0108): also a supplier advance invoice's
    * `BILLADV-` entry and an advance credit note's `BILLADVCN-` entry — the
    * prefixes 0107's definition missed.
+   * 🔴 Phase 18 R-10 (DR-34 finished, register §11.109): EVERY T1d source type is decided. A type with its own
+   * correction path is owned by its source type (H-6 began with the invoice side). And a type a TABLE owns is still
+   * owned when no row of that table names the entry — read from its source type AFTER the table lookups, so an
+   * owning path that passes its owner (the transfer, the statement line, WHT) is unchanged.
    */
   async documentOwner(entryId: number): Promise<JournalEntryOwner | null> {
     const { rows } = await db.execute<{ owner: JournalEntryOwner | null }>(sql`
       SELECT CASE WHEN EXISTS (SELECT 1 FROM bank_transfers WHERE journal_entry_id = ${entryId}) THEN 'bank_transfer'
                   WHEN EXISTS (SELECT 1 FROM transactions WHERE journal_entry_id = ${entryId}) THEN 'statement_line'
                   -- 🔴 Phase 18 H-6 (DR-34): the invoice side, by the entry's recorded source (T1d)
-                  WHEN EXISTS (SELECT 1 FROM journal_entries WHERE id = ${entryId} AND source_type IN ('invoice', 'invoice_correction', 'credit_note_application')) THEN 'invoice'
-                  WHEN EXISTS (SELECT 1 FROM journal_entries WHERE id = ${entryId} AND source_type = 'invoice_write_off') THEN 'invoice_write_off'
-                  ELSE coalesce(input_vat_journal_owner(${entryId}), tax_journal_owner(${entryId}))
-             END AS owner`);
+                  WHEN s.st IN ('invoice', 'invoice_correction') THEN 'invoice'
+                  WHEN s.st = 'invoice_write_off' THEN 'invoice_write_off'
+                  -- 🔴 R-10: the types with their own correction path, each refused in words naming it
+                  WHEN s.st IN ('credit_note_application', 'customer_payment_allocation', 'customer_payment_reclassification',
+                                'supplier_advance_allocation', 'supplier_payment_reclassification', 'vat_return_filing') THEN s.st
+                  ELSE coalesce(input_vat_journal_owner(${entryId}), tax_journal_owner(${entryId}),
+                                -- 🔴 R-10: a type a table owns, when no row of that table names the entry
+                                CASE s.st WHEN 'bill' THEN 'bill' WHEN 'vat_evidence' THEN 'bill_vat_claim'
+                                          WHEN 'bank_transfer' THEN 'bank_transfer' WHEN 'bank_transaction' THEN 'statement_line'
+                                          WHEN 'tax_computation' THEN 'tax_accrual' WHEN 'wht_remittance' THEN 'wht_remittance'
+                                          WHEN 'wht_remittance_reversal' THEN 'wht_remittance_reversal' END)
+             END AS owner
+        FROM (SELECT (SELECT source_type FROM journal_entries WHERE id = ${entryId}) AS st) s`);
     return rows[0]?.owner ?? null;
   },
 

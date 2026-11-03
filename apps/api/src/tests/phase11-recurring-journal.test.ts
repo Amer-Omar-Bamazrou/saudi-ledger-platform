@@ -78,7 +78,7 @@ describeMaybe("Phase 11 A1 — recurring journal entries (real rows)", () => {
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','P11',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     expenseId = await accountId("PURCHASES");
-    accrualId = await accountId("RETAINED_EARNINGS");
+    accrualId = await accountId("ACCRUED_LIABILITIES"); // H-19 (DR-33; register §11.78): the account the template names — retained earnings is a classified correction's alone
   }, 60_000);
   afterAll(cleanup);
 
