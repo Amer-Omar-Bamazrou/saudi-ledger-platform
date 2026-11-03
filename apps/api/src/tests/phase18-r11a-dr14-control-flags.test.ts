@@ -292,20 +292,21 @@ describeMaybe("Phase 18 R-11a (DR-14) — control flags: self-approval and the f
     });
 
     it("🔴 commit → reverse a migration", async () => {
-      const migrate = async (company: string, committer: number, reverser: number) => {
+      // each batch creates its own capital account: accounts are the ORGANISATION's, so two batches need two codes
+      const migrate = async (company: string, committer: number, reverser: number, capitalCode: string) => {
         const run = as(company, committer);
         const bank = (await run(() => bankAccountsService.create({ name: `R11a Mig ${++seq}`, bankName: "SNB", currency: "SAR" }))).id as number;
         const b = await run(() => migrationService.createBatch({ sourceSystem: "PreviousERP", cutoverDate: "2026-07-01" } as never, committer)) as { id: number };
         await run(() => migrationService.importChart(b.id, { rows: [
           { sourceCode: "1100", sourceName: "Bank", sourceType: "asset", openingDebit: 900, sourceRole: "bank", evidenceNote: "Statement at the opening date" },
           { sourceCode: "1200", sourceName: "Debtors", sourceType: "asset", openingDebit: 100, sourceRole: "receivable" },
-          { sourceCode: "3100", sourceName: `Capital ${seq}`, sourceType: "equity", openingCredit: 1000 },
+          { sourceCode: capitalCode, sourceName: `Capital ${seq}`, sourceType: "equity", openingCredit: 1000 },
         ] } as never, committer));
         const chart = await run(() => migrationService.getChart(b.id)) as { rows: Array<{ id: number; sourceCode: string }> };
         const row = (c: string) => chart.rows.find((r) => r.sourceCode === c)!.id;
         await run(() => migrationService.decideChartRow(b.id, row("1100"), { decision: "map_to_bank", targetBankAccountId: bank } as never, committer));
         await run(() => migrationService.decideChartRow(b.id, row("1200"), { decision: "map_to_system", targetSystemCode: "AR" } as never, committer));
-        await run(() => migrationService.decideChartRow(b.id, row("3100"), { decision: "create" } as never, committer));
+        await run(() => migrationService.decideChartRow(b.id, row(capitalCode), { decision: "create" } as never, committer));
         await run(() => migrationStagingService.importParties(b.id, { rows: [{ partyType: "customer", sourceId: `C${seq}`, name: `R11a Opening Customer ${seq}` }] } as never, committer));
         await run(() => migrationStagingService.importOpenItems(b.id, { rows: [{ itemType: "ar", sourceId: `S${seq}`, partySourceId: `C${seq}`, documentNumber: `INV-R11A-${seq}`, issueDate: "2026-06-01", dueDate: "2026-06-30", originalAmount: 100, outstandingAmount: 100 }] } as never, committer));
         const val = await run(() => migrationValidationService.validate(b.id, committer)) as { ok: boolean; checks: unknown[] };
@@ -314,8 +315,8 @@ describeMaybe("Phase 18 R-11a (DR-14) — control flags: self-approval and the f
         await as(company, reverser)(() => migrationCommitService.reverse(b.id, { reason: "the opening was loaded twice" }, reverser));
         return b.id;
       };
-      await expectFlag("pair_commit_reverse", "migration_batch", await migrate(co.M1, U, U), U);
-      await expectNoFlag("pair_commit_reverse", "migration_batch", await migrate(co.M2, U, V));
+      await expectFlag("pair_commit_reverse", "migration_batch", await migrate(co.M1, U, U, "3911"), U);
+      await expectNoFlag("pair_commit_reverse", "migration_batch", await migrate(co.M2, U, V, "3912"));
     });
 
     it("🔴 remit → file a WHT month", async () => {
