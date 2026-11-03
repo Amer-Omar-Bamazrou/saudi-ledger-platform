@@ -183,12 +183,17 @@ describeMaybe("workflow contract conformance — quotations, POs, budgets, recur
       );
     }
 
-    // Deterministic permission cache: the admin read grants the queue consults.
+    // Deterministic permission cache: the admin grants the queue consults. Phase 18 H-11 (DR-18, register §11.59):
+    // the queue lists an entity to a role holding APPROVE on it (it consulted READ before), so APPROVE is primed too.
     primePermissionCache([
       { role: "admin", resource: "invoices", action: "read" },
       { role: "admin", resource: "bills", action: "read" },
       { role: "admin", resource: "journal_entries", action: "read" },
       { role: "admin", resource: "payroll", action: "read" },
+      { role: "admin", resource: "invoices", action: "approve" },
+      { role: "admin", resource: "bills", action: "approve" },
+      { role: "admin", resource: "journal_entries", action: "approve" },
+      { role: "admin", resource: "payroll", action: "approve" },
     ]);
   });
 
