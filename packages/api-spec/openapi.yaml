@@ -8664,7 +8664,7 @@ components:
         id: { type: integer }
         kind:
           type: string
-          enum: [self_approval, pair_approve_pay, pair_post_reverse, pair_complete_reopen, pair_commit_reverse, pair_remit_file]
+          enum: [self_approval, pair_approve_pay, pair_post_reverse, pair_complete_reopen, pair_commit_reverse, pair_remit_file, unreviewed_posting]
         actorUserId:
           type: integer
           description: The person who did both acts (the declared actor of the second).

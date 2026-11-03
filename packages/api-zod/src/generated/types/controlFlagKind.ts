@@ -16,4 +16,5 @@ export const ControlFlagKind = {
   pair_complete_reopen: 'pair_complete_reopen',
   pair_commit_reverse: 'pair_commit_reverse',
   pair_remit_file: 'pair_remit_file',
+  unreviewed_posting: 'unreviewed_posting',
 } as const;

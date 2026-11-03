@@ -187,6 +187,17 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
    */
   control_flags: { read: APPROVE },
 
+  /**
+   * 🔴 Phase 18 R-11b — DR-13's ACTION-LEVEL GRANTS for the acts DR-20 classifies (register §11.111): posting to a
+   * cash, a tax or an equity account. Held by the approvers. They gate no route: the DATABASE reads them at the
+   * draft → posted flip (migration 0155), and a posting by an actor without the grant for a class its lines touch is
+   * refused where the organisation has two or more usable approvers, and flagged where it has one. SEEDED, never
+   * editable at runtime — G44 becomes a dependency the day they are.
+   */
+  gl_cash_posting: { approve: APPROVE },
+  gl_tax_posting: { approve: APPROVE },
+  gl_equity_posting: { approve: APPROVE },
+
   // Global user administration (documentation/future use — see header note).
   users: { read: ADMIN_ONLY, create: ADMIN_ONLY, update: ADMIN_ONLY },
 
