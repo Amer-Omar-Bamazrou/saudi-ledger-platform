@@ -23,11 +23,12 @@ process.env.SESSION_SECRET ??= "r11a-dr14-control-flags-000000000001";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { pool, db } from "@workspace/db";
+import { pool, db, beginTenantConnection } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { businessDateShift, businessToday } from "@workspace/shared";
 import { g04Harness } from "./helpers/g04Harness";
 import { replica } from "./helpers/replica";
+import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
@@ -243,6 +244,22 @@ describeMaybe("Phase 18 R-11a (DR-14) — control flags: self-approval and the f
       const other = await plan();
       await A(V)(() => paymentPlansService.approve(other, V));
       await expectNoFlag("self_approval", "scheduled_payment", other);
+    });
+
+    // Added after the proof commit (register §11.114), from the full suite: a flag never blocks its act.
+    it("🔴 a flag never blocks its act: an approval on a connection with no declared actor goes through, unflagged", async () => {
+      const entry = await journal(U);
+      // as many suites (and any script) run: an audit context naming the user, a connection declaring no actor
+      const conn = await beginTenantConnection({ organizationId: orgId, companyId: co.A, role: "authenticated" });
+      try {
+        await conn.run(() => auditContext.run({ userId: U, organizationId: orgId, ipAddress: null }, () => journalEntriesService.approve(entry, U)));
+        await conn.commit();
+      } catch (e) {
+        await conn.rollback();
+        throw e;
+      }
+      expect((await pool.query(`SELECT status FROM journal_entries WHERE id = $1`, [entry])).rows[0].status, "the approval went through").toBe("posted");
+      await expectNoFlag("self_approval", "journal_entry", entry);
     });
 
     it("control: a refused approval leaves no flag (the flag is written after the act, in its transaction)", async () => {
