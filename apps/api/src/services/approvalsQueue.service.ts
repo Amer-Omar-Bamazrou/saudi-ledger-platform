@@ -14,8 +14,15 @@
  * That aggregate is the fix for the confident zero batch 4 found; computing
  * the queue's number any other way would let the two drift apart again.
  *
- * Entities the caller's role cannot READ are omitted entirely — the queue
- * widens no read surface beyond the permission matrix.
+ * 🔴 Phase 18 H-11 — DR-18 (register §11.59; DECIDED 2026-10-27, owner
+ * accepted the stated recommendation): an entity's rows are listed only to a
+ * role holding APPROVE on its resource — the queue is an approver's worklist,
+ * not a reader's (a reader still reads each record on its own page). Each row
+ * says whether the caller created it (`own`; a computation version, created or
+ * submitted it). Nothing is refused because of `own`: an approver approving
+ * their own item is FLAGGED (DR-14, R-11a's control flags), never refused.
+ * Shipped by R-12 step 3 (register §11.118), after step 2 gave every document
+ * its own Submit — the queue is no longer the preparer's only way to submit.
  */
 import { can } from "../lib/rbac";
 import { approvalsQueueRepository } from "../repositories/approvalsQueue.repository";
@@ -40,6 +47,8 @@ export interface ApprovalPendingRow {
   parentId?: number | null;
   /** zakat | income_tax for a computation; the WHT nature for a relief — the page names it in the reader's language. */
   subtype?: string | null;
+  /** DR-18: the caller created this item (a computation version: created or submitted it). A flag, never a refusal. */
+  own: boolean;
 }
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
@@ -47,52 +56,53 @@ const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 const pct = (v: unknown) => `${Number((Number(v) * 100).toFixed(2))}%`;
 
 export const approvalsQueueService = {
-  async pending(role: string): Promise<ApprovalPendingRow[]> {
+  async pending(role: string, userId: number | null = null): Promise<ApprovalPendingRow[]> {
     const [showInvoices, showBills, showJEs, showPayroll, showTax, showTreasury] = await Promise.all([
-      can(role, "invoices", "read"),
-      can(role, "bills", "read"),
-      can(role, "journal_entries", "read"),
-      can(role, "payroll", "read"),
-      can(role, "tax", "read"),
-      can(role, "treasury", "read"),
+      can(role, "invoices", "approve"),
+      can(role, "bills", "approve"),
+      can(role, "journal_entries", "approve"),
+      can(role, "payroll", "approve"),
+      can(role, "tax", "approve"),
+      can(role, "treasury", "approve"),
     ]);
+    const mine = (by: number | null | undefined) => userId != null && by === userId;
 
     const rows: ApprovalPendingRow[] = [];
     if (showInvoices) {
       for (const r of await approvalsQueueRepository.pendingInvoices()) {
-        rows.push({ entity: "invoices", id: r.id, label: r.label, status: r.status, amount: toNum(r.amount) });
+        rows.push({ entity: "invoices", id: r.id, label: r.label, status: r.status, amount: toNum(r.amount), own: mine(r.createdBy) });
       }
     }
     if (showBills) {
       for (const r of await approvalsQueueRepository.pendingBills()) {
-        rows.push({ entity: "bills", id: r.id, label: r.label, status: r.status, amount: toNum(r.amount) });
+        rows.push({ entity: "bills", id: r.id, label: r.label, status: r.status, amount: toNum(r.amount), own: mine(r.createdBy) });
       }
     }
     if (showJEs) {
       const jes = await approvalsQueueRepository.pendingJournalEntries();
       const totals = await journalEntriesRepository.lineTotals(jes.map((j) => j.id));
       for (const r of jes) {
-        rows.push({ entity: "journal-entries", id: r.id, label: r.label, status: r.status, amount: totals.get(r.id)?.totalDebit ?? 0 });
+        rows.push({ entity: "journal-entries", id: r.id, label: r.label, status: r.status, amount: totals.get(r.id)?.totalDebit ?? 0, own: mine(r.createdBy) });
       }
     }
     if (showPayroll) {
       for (const r of await approvalsQueueRepository.pendingPayrollRuns()) {
-        rows.push({ entity: "payroll", id: r.id, label: r.label, status: r.status, amount: toNum(r.amount) });
+        rows.push({ entity: "payroll", id: r.id, label: r.label, status: r.status, amount: toNum(r.amount), own: mine(r.createdBy) });
       }
     }
     if (showTax) {
       for (const r of await approvalsQueueRepository.pendingTaxComputationVersions()) {
-        rows.push({ entity: "tax-computations", id: r.id, parentId: r.computationId, subtype: r.kind, label: `${r.fiscalLabel} · v${r.versionNo}`, status: r.status, amount: null });
+        rows.push({ entity: "tax-computations", id: r.id, parentId: r.computationId, subtype: r.kind, label: `${r.fiscalLabel} · v${r.versionNo}`, status: r.status, amount: null, own: mine(r.createdBy) || mine(r.submittedBy) });
       }
       for (const r of await approvalsQueueRepository.pendingWhtReliefs()) {
         const tail = ` · ${r.treatyCountry} · ${pct(r.reducedRate)}`;
-        rows.push({ entity: "wht-reliefs", id: r.id, subtype: r.paymentType, label: `${r.vendorName ?? "—"}${tail}`, labelAr: r.vendorNameAr ? `${r.vendorNameAr}${tail}` : null, status: r.status, amount: null });
+        rows.push({ entity: "wht-reliefs", id: r.id, subtype: r.paymentType, label: `${r.vendorName ?? "—"}${tail}`, labelAr: r.vendorNameAr ? `${r.vendorNameAr}${tail}` : null, status: r.status, amount: null, own: mine(r.createdBy) });
       }
     }
     if (showTreasury) {
       for (const r of await approvalsQueueRepository.pendingPaymentPlans()) {
         const head = `${r.billNumber ?? `#${r.billId}`} · ${r.plannedDate}`;
-        rows.push({ entity: "payment-plans", id: r.id, label: `${head}${r.vendorName ? ` · ${r.vendorName}` : ""}`, labelAr: r.vendorNameAr ? `${head} · ${r.vendorNameAr}` : null, status: r.status, amount: toNum(r.amount) });
+        rows.push({ entity: "payment-plans", id: r.id, label: `${head}${r.vendorName ? ` · ${r.vendorName}` : ""}`, labelAr: r.vendorNameAr ? `${head} · ${r.vendorNameAr}` : null, status: r.status, amount: toNum(r.amount), own: mine(r.createdBy) });
       }
     }
     return rows;

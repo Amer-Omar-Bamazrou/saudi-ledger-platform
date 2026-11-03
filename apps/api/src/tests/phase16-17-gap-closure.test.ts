@@ -169,8 +169,10 @@ describeMaybe("Phase 16 + 17 gap closure — the approvals inbox, classification
 
     expect((await as.bookkeeper("POST", `/tax/computations/${computationId}/versions/${versionId}/submit`, {})).status).toBe(200);
     const row = find(await queue(), "tax-computations", versionId);
-    expect(row, "the submitted version is in the approver's queue").toEqual({ entity: "tax-computations", id: versionId, parentId: computationId, subtype: "zakat", label: `${lastYear} · v1`, status: "submitted", amount: null });
-    expect(find(await queue("bookkeeper"), "tax-computations", versionId), "the preparer sees it waiting too").toBeTruthy();
+    // Phase 18 H-11 (DR-18, register §11.59–§11.60): every row carries `own` (false: the bookkeeper made it), and the
+    // queue lists what the caller may APPROVE — so the preparer's own queue no longer lists it; the approver's does.
+    expect(row, "the submitted version is in the approver's queue").toEqual({ entity: "tax-computations", id: versionId, parentId: computationId, subtype: "zakat", label: `${lastYear} · v1`, status: "submitted", amount: null, own: false });
+    expect(find(await queue("bookkeeper"), "tax-computations", versionId), "the preparer's queue does not list it: a bookkeeper approves nothing").toBeUndefined();
 
     // a bookkeeper never approves (the route, not the queue, decides) — and the row stays
     expect((await as.bookkeeper("POST", `/tax/computations/${computationId}/versions/${versionId}/approve`, {})).status).toBe(403);
@@ -200,7 +202,8 @@ describeMaybe("Phase 16 + 17 gap closure — the approvals inbox, classification
   it("🔴 QA-15 — a pending treaty relief reaches the queue with its supplier (in Arabic too), nature and rate; revoking it needs a reason; approving it moves it out", async () => {
     const r1 = await as.bookkeeper("POST", "/tax/wht/reliefs", relief(vendorNR, "royalty", 0.1, "1"));
     expect(r1.status, r1.text).toBe(201);
-    expect(find(await queue(), "wht-reliefs", r1.json.id)).toEqual({ entity: "wht-reliefs", id: r1.json.id, subtype: "royalty", label: "Gap Royalty Ltd · IE · 10%", labelAr: "مورد الإتاوات · IE · 10%", status: "pending", amount: null });
+    // Phase 18 H-11 (§11.60): the row carries `own` — false, the bookkeeper made it.
+    expect(find(await queue(), "wht-reliefs", r1.json.id)).toEqual({ entity: "wht-reliefs", id: r1.json.id, subtype: "royalty", label: "Gap Royalty Ltd · IE · 10%", labelAr: "مورد الإتاوات · IE · 10%", status: "pending", amount: null, own: false });
 
     // an empty reason fails the schema (400); a two-letter one, the service's rule (422 — the record keeps a reason)
     expect((await as.accountant("POST", `/tax/wht/reliefs/${r1.json.id}/reject`, { reason: "" })).status).toBe(400);
@@ -258,9 +261,10 @@ describeMaybe("Phase 16 + 17 gap closure — the approvals inbox, classification
     expect((await as.admin("PATCH", `/vendors/${vendorNR}`, { whtDefaultPaymentType: "royalty" })).status).toBe(200);
   });
 
-  it("the queue widens no read: a viewer sees the waiting items (READ on tax and treasury) and is refused every act", async () => {
+  // Phase 18 H-11 (DR-18, register §11.59): the queue lists what the caller may APPROVE — a viewer's lists nothing.
+  it("the queue widens no read: a viewer's queue lists nothing, and the viewer is refused every act", async () => {
     const p = await as.bookkeeper("POST", "/treasury/payment-plans", { billId: billX, amount: 250, plannedDate: addDays(today, 7) });
-    expect(find(await queue("viewer"), "payment-plans", p.json.id)).toBeTruthy();
+    expect(find(await queue("viewer"), "payment-plans", p.json.id), "a viewer approves nothing").toBeUndefined();
     expect((await as.viewer("POST", `/treasury/payment-plans/${p.json.id}/approve`, {})).status).toBe(403);
     expect(find(await queue(), "payment-plans", p.json.id), "still waiting").toBeTruthy();
   });

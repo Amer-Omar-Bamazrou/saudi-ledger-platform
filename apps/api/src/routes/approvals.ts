@@ -11,6 +11,10 @@
  *
  * Every ACTION on a row still posts to that entity's own route, behind that
  * entity's own permission.
+ *
+ * 🔴 Phase 18 H-11 (DR-18): the service lists an entity's rows only to a role
+ * holding APPROVE on it. The mount's READ guard is unchanged — a reader who
+ * approves nothing reaches the route and is answered an empty queue.
  */
 import { Router } from "express";
 import { approvalsController } from "../controllers/approvals.controller";

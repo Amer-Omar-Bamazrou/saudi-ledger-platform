@@ -15470,6 +15470,10 @@ export const getListPendingApprovalsUrl = () => {
  * A cap returning through this endpoint would be the same defect wearing
  * the fix. Amounts come from the same aggregates the ledger uses (a
  * journal entry's from its line sums — never a second computation).
+ *
+ * 🔴 Phase 18 H-11 (DR-18): an entity's rows are listed only to a role
+ * holding APPROVE on its resource; a role that approves nothing gets an
+ * empty list. Each row's `own` flags the caller's own items.
  * @summary Every record waiting for approval — the four draftable documents, and the Phase 16/17 tax and treasury approvals
  */
 export const listPendingApprovals = async ( options?: RequestInit): Promise<ApprovalPendingRow[]> => {

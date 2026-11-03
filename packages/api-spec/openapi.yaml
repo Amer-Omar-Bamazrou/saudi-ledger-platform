@@ -4123,6 +4123,10 @@ paths:
         A cap returning through this endpoint would be the same defect wearing
         the fix. Amounts come from the same aggregates the ledger uses (a
         journal entry's from its line sums — never a second computation).
+
+        🔴 Phase 18 H-11 (DR-18): an entity's rows are listed only to a role
+        holding APPROVE on its resource; a role that approves nothing gets an
+        empty list. Each row's `own` flags the caller's own items.
       responses:
         "200":
           description: Pending documents, newest first within each entity
@@ -15121,7 +15125,7 @@ components:
 
     ApprovalPendingRow:
       type: object
-      required: [entity, id, label, status, amount]
+      required: [entity, id, label, status, amount, own]
       properties:
         entity:
           type: string
@@ -15157,6 +15161,12 @@ components:
         subtype:
           type: ["string", "null"]
           description: "`zakat` | `income_tax` for a computation; the IR Art. 63(1) nature for a relief."
+        own:
+          type: boolean
+          description: |
+            Phase 18 H-11 (DR-18): true when the caller created this item (a
+            computation version: created or submitted it). A flag, never a
+            refusal — self-approval is DR-20, undecided.
 
     BudgetFiscalYear:
       type: object
