@@ -27,6 +27,8 @@ export const CONTROL_FLAG_KINDS = [
   "pair_complete_reopen",
   "pair_commit_reverse",
   "pair_remit_file",
+  // Phase 18 R-11b (DR-20): a bookkeeper's cash, tax or equity posting where the organisation has one approver.
+  "unreviewed_posting",
 ] as const;
 export type ControlFlagKind = (typeof CONTROL_FLAG_KINDS)[number];
 
@@ -60,7 +62,7 @@ export const controlFlagsTable = pgTable(
   (t) => [
     check(
       "control_flags_kind_chk",
-      sql`${t.kind} in ('self_approval', 'pair_approve_pay', 'pair_post_reverse', 'pair_complete_reopen', 'pair_commit_reverse', 'pair_remit_file')`,
+      sql`${t.kind} in ('self_approval', 'pair_approve_pay', 'pair_post_reverse', 'pair_complete_reopen', 'pair_commit_reverse', 'pair_remit_file', 'unreviewed_posting')`,
     ),
     index("control_flags_company_idx").on(t.companyId, t.createdAt),
   ],

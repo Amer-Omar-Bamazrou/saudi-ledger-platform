@@ -1850,7 +1850,7 @@ export const ListControlFlagsQueryParams = zod.object({
 export const ListControlFlagsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
-  "kind": zod.enum(['self_approval', 'pair_approve_pay', 'pair_post_reverse', 'pair_complete_reopen', 'pair_commit_reverse', 'pair_remit_file']),
+  "kind": zod.enum(['self_approval', 'pair_approve_pay', 'pair_post_reverse', 'pair_complete_reopen', 'pair_commit_reverse', 'pair_remit_file', 'unreviewed_posting']),
   "actorUserId": zod.number().describe('The person who did both acts (the declared actor of the second).'),
   "actorName": zod.string().nullable(),
   "entityType": zod.string().describe('The document, as the audit trail names it (journal_entry, bill, wht_return, and so on).'),

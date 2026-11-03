@@ -188,7 +188,7 @@ const PERIOD_RECORD_UNIQUE_MESSAGE: Record<string, string> = {
 };
 
 export interface DbRefusal {
-  status: 409 | 422 | 423;
+  status: 403 | 409 | 422 | 423;
   body: { code: string; error: string; constraint?: string; field?: string };
 }
 
@@ -277,6 +277,9 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   if (pgCode === "23514" && constraint === "bank_detail_dual_control") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.requiresSecondAdmin } as DbRefusal["body"] };
   if (pgCode === "23514" && constraint === "bank_detail_change_second_admin") return { status: 409, body: { code: "second_admin_required", error: pgMessage } };
   if (pgCode === "23514" && constraint === "bank_detail_change_request_flow") return { status: 409, body: { code: "bank_detail_change_refused", error: pgMessage } };
+  // 🔴 R-11b (DR-20, 0155): a bookkeeper's cash, tax or equity posting where the organisation has two or more approvers
+  // is an approver's act — an AUTHORITY refusal (403), in the database's words naming what the entry touches.
+  if (pgCode === "23514" && constraint === "journal_entry_posting_needs_approver") return { status: 403, body: { code: "approver_required", error: pgMessage } };
   if (pgCode === "23505" && constraint && /^bank_detail_change_pending_/.test(constraint)) {
     return { status: 409, body: { ...BANK_DETAIL_REFUSALS.pending } as DbRefusal["body"] };
   }

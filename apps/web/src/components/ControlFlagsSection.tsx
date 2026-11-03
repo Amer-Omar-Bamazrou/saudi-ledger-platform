@@ -42,6 +42,9 @@ function ControlFlagsList() {
         return t("Committed a migration and reversed it", "اعتمد ترحيل بيانات ثم عكسه");
       case "pair_remit_file":
         return t("Remitted withholding tax and filed its return", "سدّد ضريبة الاستقطاع ثم قدّم إقرارها");
+      // Phase 18 R-11b (DR-20): with one approver, a bookkeeper's cash, tax or equity posting stands, flagged here.
+      case "unreviewed_posting":
+        return t("A bookkeeper posted to a cash, tax or equity account (one approver)", "رحّل أمين الدفاتر إلى حساب نقدية أو ضريبة أو حقوق ملكية (بوجود معتمد واحد)");
     }
   };
   const documentLabel = (f: ControlFlag) => {
