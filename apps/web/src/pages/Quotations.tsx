@@ -478,7 +478,8 @@ export default function Quotations() {
                           </Button>
                         )}
                         {q.status === "draft" && (
-                          <Button size="sm" variant="outline" onClick={() => actionMut.mutate({ id: q.id, action: "submit" })}>
+                          <Button size="sm" variant="outline" data-testid={`submit-quotation-${q.id}`}
+                            onClick={() => actionMut.mutate({ id: q.id, action: "submit" }, { onSuccess: () => toast({ title: t("Submitted for approval", "أُرسل للاعتماد") }) })}>
                             {t("Submit", "إرسال")}
                           </Button>
                         )}

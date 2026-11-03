@@ -450,7 +450,8 @@ export default function PurchaseOrders() {
                           </Button>
                         )}
                         {po.status === "draft" && (
-                          <Button size="sm" variant="outline" onClick={() => actionMut.mutate({ id: po.id, action: "submit" })}>
+                          <Button size="sm" variant="outline" data-testid={`submit-purchase-order-${po.id}`}
+                            onClick={() => actionMut.mutate({ id: po.id, action: "submit" }, { onSuccess: () => toast({ title: t("Submitted for approval", "أُرسل للاعتماد") }) })}>
                             {t("Submit", "إرسال")}
                           </Button>
                         )}
