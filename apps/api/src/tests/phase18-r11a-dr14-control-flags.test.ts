@@ -373,6 +373,18 @@ describeMaybe("Phase 18 R-11a (DR-14) — control flags: self-approval and the f
       expect(err).toMatch(/declared actor/);
     });
 
+    // Added after the proof commit (register §11.113): the store's one exit is its company's removal.
+    it("🔴 a flag leaves only with its company: refused on its own; deleting the company takes it", async () => {
+      const gone = await h.mkCompany(orgId, "R11a Gone", "319191919192003");
+      const q = await as(gone, U)(async () => (await quotationsService.create({ date: DATE, customerId, items: [{ description: "Offer", quantity: 1, unitPrice: 100, vatRate: 15 }] } as never, U) as { id: number }).id);
+      await as(gone, U)(() => quotationsService.approve(q, U));
+      expect(await flags({ company_id: gone }), "the company has its flag").toHaveLength(1);
+      const alone = await pool.query(`DELETE FROM control_flags WHERE company_id = $1`, [gone]).then(() => null, (e: Error) => e.message);
+      expect(alone, "never on its own").toMatch(/append-only/);
+      await pool.query(`DELETE FROM companies WHERE id = $1`, [gone]);
+      expect(await flags({ company_id: gone }), "gone with its company").toHaveLength(0);
+    });
+
     it("🔴 GET /control-flags: the approvers read the flags and their total; a bookkeeper and a viewer are refused", async () => {
       const all = await flags({ company_id: co.A });
       const admin = await h.api("admin", "GET", "/control-flags?limit=200");
