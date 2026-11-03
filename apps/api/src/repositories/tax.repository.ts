@@ -316,9 +316,10 @@ export const taxRepository = {
       id: number; period: string | null; amount: string; fine_amount: string; paid_at: string; bank_account_id: number; bank_name: string;
       reference: string | null; notes: string | null; journal_entry_id: number; created_at: string;
       reversal_id: number | null; reversal_reason: string | null; reversed_on: string | null; reversal_entry_id: number | null;
+      created_by: number | null;
     }>(sql`
       SELECT r.id, r.period, r.amount::text, r.fine_amount::text, r.paid_at::text AS paid_at, r.bank_account_id, b.name AS bank_name,
-             r.reference, r.notes, r.journal_entry_id, r.created_at::text AS created_at,
+             r.reference, r.notes, r.journal_entry_id, r.created_at::text AS created_at, r.created_by,
              x.id AS reversal_id, x.reason AS reversal_reason, x.reversed_on::text AS reversed_on, x.journal_entry_id AS reversal_entry_id
         FROM wht_remittances r
         JOIN bank_accounts b ON b.id = r.bank_account_id

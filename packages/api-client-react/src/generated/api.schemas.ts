@@ -674,6 +674,48 @@ export interface BankDetailChangeList {
   items: BankDetailChange[];
 }
 
+export type ControlFlagKind = typeof ControlFlagKind[keyof typeof ControlFlagKind];
+
+
+export const ControlFlagKind = {
+  self_approval: 'self_approval',
+  pair_approve_pay: 'pair_approve_pay',
+  pair_post_reverse: 'pair_post_reverse',
+  pair_complete_reopen: 'pair_complete_reopen',
+  pair_commit_reverse: 'pair_commit_reverse',
+  pair_remit_file: 'pair_remit_file',
+} as const;
+
+/**
+ * Phase 18 R-11a (DR-14): one person did both halves of something a second person usually does. Written by the act it describes, in its transaction; append-only; it never blocks the act.
+ */
+export interface ControlFlag {
+  id: number;
+  kind: ControlFlagKind;
+  /** The person who did both acts (the declared actor of the second). */
+  actorUserId: number;
+  /** @nullable */
+  actorName: string | null;
+  /** The document, as the audit trail names it (journal_entry, bill, wht_return, and so on). */
+  entityType: string;
+  /** Its id; for a WHT return, its month (YYYY-MM). */
+  entityId: string;
+  /**
+     * Its number as a reader knows it, when it has one.
+     * @nullable
+     */
+  reference: string | null;
+  firstAct: string;
+  secondAct: string;
+  createdAt: string;
+}
+
+export interface ControlFlagList {
+  items: ControlFlag[];
+  /** How many flags the active company has (the whole set this page belongs to). */
+  total: number;
+}
+
 export type BankDetailChangeDecisionInputDecision = typeof BankDetailChangeDecisionInputDecision[keyof typeof BankDetailChangeDecisionInputDecision];
 
 
@@ -13444,6 +13486,14 @@ export type ListPurchaseOrders200 = {
 export type ListAuditLogsParams = {
 entity_type?: string;
 action?: string;
+/**
+ * @maximum 200
+ */
+limit?: number;
+offset?: number;
+};
+
+export type ListControlFlagsParams = {
 /**
  * @maximum 200
  */

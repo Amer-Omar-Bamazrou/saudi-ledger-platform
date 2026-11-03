@@ -116,6 +116,17 @@ export interface Approvable<TEntity, TSnapshot = unknown> {
   state(entity: TEntity): ApprovalState;
 
   /**
+   * 🔴 Phase 18 R-11a — DR-14 (register §11.111): the user who MADE the record, as the record stores it (its
+   * `created_by`; null when none is recorded). The engine compares it with the approver and records a
+   * `self_approval` control flag when they are one person — never a refusal. REQUIRED, so a new adapter says who
+   * its maker is rather than silently opting out of the flag.
+   */
+  maker(entity: TEntity): number | null;
+
+  /** 🔴 R-11a: the record's number as a reader knows it (an invoice number, a period), for the flag's list; null when it has none. */
+  reference(entity: TEntity): string | null;
+
+  /**
    * Fire the entity's activation path — the existing, trusted accounting action
    * that makes the record affect the books (period-lock checks included). Called
    * by the service ONLY on a transition INTO `approved`. Returns the

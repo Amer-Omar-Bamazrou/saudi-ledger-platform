@@ -49,6 +49,18 @@ const jeConditions = (f: JournalEntryListFilter) =>
   f.status ? eq(journalEntriesTable.status, f.status) : undefined;
 
 export const journalEntriesRepository = {
+  /**
+   * 🔴 Phase 18 R-11a — DR-14: who approved a document's OWN posting — the approver T1d records on the entry the
+   * approval posted (the earliest entry of that source that is not a mirror), or null when none is recorded.
+   */
+  async documentApprover(sourceType: "bill", sourceId: number): Promise<number | null> {
+    const { rows } = await db.execute<{ approved_by: number | null }>(sql`
+      SELECT approved_by FROM journal_entries
+       WHERE source_type = ${sourceType} AND source_id = ${sourceId} AND reversal_of IS NULL
+       ORDER BY id LIMIT 1`);
+    return rows[0]?.approved_by == null ? null : Number(rows[0].approved_by);
+  },
+
   /** Phase 12C: whether a statement line is reconciled to one of this entry's cash lines by another record (not the line's own posting). */
   async reconciledToStatement(entryId: number): Promise<boolean> {
     const { rows } = await db.execute<{ r: boolean }>(sql`SELECT EXISTS (SELECT 1 FROM bank_line_reconciliation x JOIN journal_entry_lines l ON l.id = x.line_id

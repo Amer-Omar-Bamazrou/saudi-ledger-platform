@@ -138,6 +138,13 @@ export function payrollApprovable(): Approvable<PayrollRun, PayrollRunOut> {
       return run ?? null;
     },
 
+    // 🔴 R-11a (DR-14): who made the record, for the self-approval flag; its number, for the flag's list.
+    maker(run) {
+      return run.createdBy ?? null;
+    },
+    reference(run) {
+      return run.period ?? null;
+    },
     state(run): ApprovalState {
       if (run.status === "draft") return "draft";
       if (run.status === "submitted") return "submitted";

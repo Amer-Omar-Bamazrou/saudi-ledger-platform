@@ -180,6 +180,13 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // admin-only — stricter than generic writes, preserved from pre-M5.
   period_locks: { read: READ_ALL, create: ADMIN_ONLY, delete: ADMIN_ONLY },
 
+  /**
+   * 🔴 Phase 18 R-11a — DR-14's control flags (register §11.111): where one person did both halves of something a
+   * second person usually does. READ by the approvers only — the people a flag is for; nobody writes them through a
+   * route (the act a flag describes writes it, migration 0154), so no other action exists.
+   */
+  control_flags: { read: APPROVE },
+
   // Global user administration (documentation/future use — see header note).
   users: { read: ADMIN_ONLY, create: ADMIN_ONLY, update: ADMIN_ONLY },
 

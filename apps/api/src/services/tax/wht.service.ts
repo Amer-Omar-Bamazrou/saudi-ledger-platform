@@ -31,6 +31,7 @@ import {
 } from "../accounting/wht";
 import type { AdjustmentRow } from "../../repositories/tax.repository";
 import { auditService } from "../audit.service";
+import { controlFlagsService } from "../controlFlags.service";
 import { addDays } from "./taxComputations.service";
 
 const PERIOD = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -523,6 +524,13 @@ export const whtService = {
       taxWithheld: "0", paymentTotal: "0", createdBy: userId,
     });
     await auditService.created("wht_return_filing", row!.id, row);
+    // 🔴 Phase 18 R-11a — DR-14's pair: the person who remitted this month's tax (a remittance standing, not reversed)
+    // filing its return is flagged, never refused.
+    const remittedBy = (await taxRepository.remittances(period)).find((r) => r.reversal_id == null && r.created_by != null && r.created_by === userId)?.created_by ?? null;
+    await controlFlagsService.flagIfSamePerson(remittedBy, userId, {
+      kind: "pair_remit_file", entityType: "wht_return", entityId: period, reference: period,
+      firstAct: "remitted", secondAct: "filed",
+    });
     return this.monthlyReturn(period);
   },
 
@@ -565,6 +573,11 @@ export const whtService = {
     if (before.status !== "pending") throw new ConflictError(`This relief is ${before.status}.`);
     const [after] = await taxRepository.updateRelief(id, { status: "approved", approvedBy: userId, approvedAt: new Date() });
     await auditService.record({ action: "approve", entityType: "wht_treaty_relief", entityId: id, before, after });
+    // 🔴 Phase 18 R-11a — DR-14: a relief approved by the person who recorded it is flagged, never refused.
+    await controlFlagsService.flagIfSamePerson(before.createdBy, userId, {
+      kind: "self_approval", entityType: "wht_treaty_relief", entityId: id, reference: before.zatcaApprovalReference ?? null,
+      firstAct: "created", secondAct: "approved",
+    });
     return reliefById(id);
   },
   async revokeRelief(id: number, body: { reason?: unknown }, userId: number | null) {

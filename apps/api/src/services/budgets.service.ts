@@ -124,6 +124,13 @@ export function budgetVersionApprovable(): Approvable<BudgetVersionRow, VersionS
       const [v] = await budgetsRepository.lockVersion(id);
       return v ?? null;
     },
+    // 🔴 R-11a (DR-14): who made the record, for the self-approval flag; its number, for the flag's list.
+    maker(v) {
+      return v.createdBy ?? null;
+    },
+    reference(_v) {
+      return null;
+    },
     state(v): ApprovalState {
       if (v.status === "draft") return "draft";
       if (v.status === "submitted") return "submitted";

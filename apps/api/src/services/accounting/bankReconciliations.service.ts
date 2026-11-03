@@ -16,6 +16,7 @@ import { businessToday } from "@workspace/shared";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
 import { round2, money2 } from "../../lib/money.js";
 import { auditService } from "../audit.service.js";
+import { controlFlagsService } from "../controlFlags.service.js";
 import { assertBankAccount } from "./bankIdentity.js";
 import { bankReconciliationsRepository as repo, type LedgerOnlyItem, type StatementOnlyItem } from "../../repositories/bankReconciliations.repository.js";
 import { bankStatementsService } from "./bankStatements.service.js";
@@ -141,6 +142,11 @@ export const bankReconciliationsService = {
     }
     await repo.insertReopening({ reconciliationId: id, reason, reopenedBy: userId });
     await auditService.record({ action: "reopen", entityType: "bank_reconciliation", entityId: String(id), before: null, after: { reason } });
+    // 🔴 Phase 18 R-11a — DR-14's pair: the person who completed it reopening it is flagged, never refused.
+    await controlFlagsService.flagIfSamePerson(r.completedBy == null ? null : Number(r.completedBy), userId, {
+      kind: "pair_complete_reopen", entityType: "bank_reconciliation", entityId: id, reference: r.asOf ?? null,
+      firstAct: "completed", secondAct: "reopened",
+    });
     return this.get(id);
   },
 
