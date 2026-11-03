@@ -19,8 +19,10 @@
  * role holding APPROVE on its resource — the queue is an approver's worklist,
  * not a reader's (a reader still reads each record on its own page). Each row
  * says whether the caller created it (`own`; a computation version, created or
- * submitted it). Nothing is refused because of `own`: whether an approver may
- * approve their own item is DR-20, undecided.
+ * submitted it). Nothing is refused because of `own`: an approver approving
+ * their own item is FLAGGED (DR-14, R-11a's control flags), never refused.
+ * Shipped by R-12 step 3 (register §11.118), after step 2 gave every document
+ * its own Submit — the queue is no longer the preparer's only way to submit.
  */
 import { can } from "../lib/rbac";
 import { approvalsQueueRepository } from "../repositories/approvalsQueue.repository";
