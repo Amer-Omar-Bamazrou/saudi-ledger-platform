@@ -9084,6 +9084,12 @@ export interface ApprovalPendingRow {
      * @nullable
      */
   subtype?: string | null;
+  /**
+     * Phase 18 H-11 (DR-18): true when the caller created this item (a
+     * computation version: created or submitted it). A flag, never a
+     * refusal — self-approval is DR-20, undecided.
+     */
+  own: boolean;
 }
 
 export type BudgetFiscalYearCalendar = typeof BudgetFiscalYearCalendar[keyof typeof BudgetFiscalYearCalendar];
