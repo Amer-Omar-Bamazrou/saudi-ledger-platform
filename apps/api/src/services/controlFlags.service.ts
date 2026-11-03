@@ -29,6 +29,11 @@ export const controlFlagsService = {
   /**
    * Record a flag when `firstActor` — the person the record names for the first act — is `secondActor`, the person
    * doing this one. Nothing is recorded when either is unknown (a job, a record from before the act stored it).
+   *
+   * 🔴 Register §11.114 — A FLAG NEVER BLOCKS ITS ACT. The store names the connection's DECLARED actor (T1b) and
+   * refuses any other, and the flag is written inside the act's transaction, so a refused flag would take the act
+   * with it. It is therefore written only when this act's person IS the declared actor — as in every request; where
+   * the connection declares none (a script) or another, no flag is written and the act goes through.
    */
   async flagIfSamePerson(
     firstActor: number | null | undefined,
@@ -36,6 +41,7 @@ export const controlFlagsService = {
     flag: { kind: ControlFlagKind; entityType: string; entityId: string | number; reference: string | null; firstAct: string; secondAct: string },
   ): Promise<boolean> {
     if (firstActor == null || secondActor == null || firstActor !== secondActor) return false;
+    if ((await controlFlagsRepository.declaredActor()) !== secondActor) return false;
     await controlFlagsRepository.record(flag);
     return true;
   },

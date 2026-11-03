@@ -19,6 +19,12 @@ export type ControlFlagInput = {
 export type ControlFlagRow = typeof t.$inferSelect;
 
 export const controlFlagsRepository = {
+  /** The connection's DECLARED actor (T1b's `app.current_user_id`), or null when it declares none. */
+  async declaredActor(): Promise<number | null> {
+    const { rows } = await db.execute<{ a: number | null }>(sql`SELECT nullif(current_setting('app.current_user_id', true), '')::int AS a`);
+    return rows[0]?.a == null ? null : Number(rows[0].a);
+  },
+
   /** One flag, written by the act it describes, in that act's transaction. */
   async record(f: ControlFlagInput): Promise<void> {
     await db.insert(t).values({
