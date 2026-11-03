@@ -27,6 +27,7 @@ import { pool, db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { businessDateShift, businessToday } from "@workspace/shared";
 import { g04Harness } from "./helpers/g04Harness";
+import { replica } from "./helpers/replica";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
@@ -381,6 +382,9 @@ describeMaybe("Phase 18 R-11a (DR-14) — control flags: self-approval and the f
       expect(await flags({ company_id: gone }), "the company has its flag").toHaveLength(1);
       const alone = await pool.query(`DELETE FROM control_flags WHERE company_id = $1`, [gone]).then(() => null, (e: Error) => e.message);
       expect(alone, "never on its own").toMatch(/append-only/);
+      // the company's own documents first (their keys do not cascade); then the company, whose removal takes its flags
+      await replica(pool).query(`DELETE FROM quotation_items WHERE quotation_id = $1`, [q]);
+      await replica(pool).query(`DELETE FROM quotations WHERE id = $1`, [q]);
       await pool.query(`DELETE FROM companies WHERE id = $1`, [gone]);
       expect(await flags({ company_id: gone }), "gone with its company").toHaveLength(0);
     });
