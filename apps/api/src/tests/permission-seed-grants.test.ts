@@ -69,6 +69,21 @@ function guardedResources(): Set<string> {
   return found;
 }
 
+/**
+ * Phase 18 R-11b (DR-13, register §11.111): a resource the DATABASE reads — a migration's function asks
+ * `role_holds_grant(<role>, '<resource>', …)` at a write boundary. Such a grant guards something no route names
+ * (DR-20's posting classes, read at the draft → posted flip), so it is read, not dead.
+ */
+function databaseReadResources(): Set<string> {
+  const found = new Set<string>();
+  const migrations = join(HERE, "../../../../packages/db/migrations");
+  for (const f of readdirSync(migrations).filter((x) => x.endsWith(".sql"))) {
+    const src = readFileSync(join(migrations, f), "utf8");
+    for (const m of src.matchAll(/role_holds_grant\(\s*[a-z_]+\s*,\s*'([a-z_]+)'/g)) found.add(m[1]);
+  }
+  return found;
+}
+
 const rows = PERMISSION_MATRIX;
 const granted = new Set(rows.map((r) => `${r.role}:${r.resource}:${r.action}`));
 const resourcesInSpec = new Set(rows.map((r) => r.resource));
@@ -211,7 +226,8 @@ describe("the permission matrix's GRANTS, not its enforcement", () => {
   // ── DEAD POLICY ──────────────────────────────────────────────────────────
 
   it("🔴 no grant exists for a resource nothing guards", () => {
-    const guarded = guardedResources();
+    // a route's requirePermission, or the database's own read of the grant (R-11b, DR-13)
+    const guarded = new Set([...guardedResources(), ...databaseReadResources()]);
     /**
      * `users` is the documented exception and stays: those endpoints run BEFORE
      * `resolveTenant`, manage the global identity directory, and are guarded by
