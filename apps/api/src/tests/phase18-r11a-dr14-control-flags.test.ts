@@ -40,6 +40,7 @@ import { zakatClassificationService } from "../services/tax/zakatClassification.
 import { whtService } from "../services/tax/wht.service";
 import { paymentPlansService } from "../services/treasury/paymentPlans.service";
 import { bankReconciliationsService } from "../services/accounting/bankReconciliations.service";
+import { bankTransfersService } from "../services/accounting/bankTransfers.service";
 import { migrationService } from "../services/migration.service";
 import { migrationStagingService } from "../services/migrationStaging.service";
 import { migrationValidationService } from "../services/migrationValidation.service";
@@ -278,6 +279,23 @@ describeMaybe("Phase 18 R-11a (DR-14) — control flags: self-approval and the f
       await A(V)(() => journalEntriesService.approve(two, V));
       await A(U)(() => journalEntriesService.reverse(two, { reason: "R-11a pair" }));
       await expectNoFlag("pair_post_reverse", "journal_entry", two);
+    });
+
+    // Added after the proof commit (register §11.112), for two mutants that would otherwise survive.
+    it("control: an expense's approval pays it in the same act — one act, not the approve → pay pair (its payment is made)", async () => {
+      const exp = await A(V)(async () => (await billsService.create({ date: DATE, vendorId, vendorReference: `R11A-EXP-${++seq}`, supplierDocumentKind: "tax_invoice",
+        subtotal: 200, vatAmount: 0, total: 200, items: [], recordedAsExpense: true, expensePaidFromBankAccountId: bankA, expensePaidAt: DATE } as never, V) as { id: number }).id);
+      await approveBill(exp, U);
+      expect(Number((await pool.query(`SELECT count(*)::int n FROM bill_payments WHERE bill_id = $1`, [exp])).rows[0].n), "the approval paid it").toBe(1);
+      await expectNoFlag("pair_approve_pay", "bill", exp);
+    });
+
+    it("control: a document's own reversal (a bank transfer reversed as a transfer) is not the post → reverse pair", async () => {
+      const bankB = (await A(U)(() => bankAccountsService.create({ name: `R11a Bank B ${++seq}`, bankName: "SNB", currency: "SAR" }))).id as number;
+      const t = await A(U)(() => bankTransfersService.create({ fromBankAccountId: bankA, toBankAccountId: bankB, amount: 100, transferDate: "2026-10-05" }, U)) as { id: number; journalEntryId: number };
+      await A(U)(() => bankTransfersService.reverse(t.id, { reason: "keyed the wrong account" }, U));
+      expect((await pool.query(`SELECT status FROM journal_entries WHERE id = $1`, [t.journalEntryId])).rows[0].status, "the transfer's entry was reversed").toBe("reversed");
+      await expectNoFlag("pair_post_reverse", "journal_entry", t.journalEntryId);
     });
 
     it("🔴 complete → reopen a bank reconciliation", async () => {
