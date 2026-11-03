@@ -29,7 +29,7 @@ const currentCompany = sql`(nullif(current_setting('app.current_company_id', tru
 export const approvalsQueueRepository = {
   pendingInvoices() {
     return db
-      .select({ id: invoicesTable.id, label: invoicesTable.invoiceNumber, status: invoicesTable.status, amount: invoicesTable.total })
+      .select({ id: invoicesTable.id, label: invoicesTable.invoiceNumber, status: invoicesTable.status, amount: invoicesTable.total, createdBy: invoicesTable.createdBy })
       .from(invoicesTable)
       .where(and(inArray(invoicesTable.status, PENDING), sql`${invoicesTable.companyId} = ${currentCompany}`))
       .orderBy(desc(invoicesTable.date), desc(invoicesTable.id));
@@ -45,6 +45,7 @@ export const approvalsQueueRepository = {
         label: sql<string>`${billsTable.billNumber} || ' → ' || coalesce(${categoriesTable.name}, 'Purchases')`,
         status: billsTable.status,
         amount: billsTable.total,
+        createdBy: billsTable.createdBy,
       })
       .from(billsTable)
       .leftJoin(categoriesTable, eq(categoriesTable.id, billsTable.expenseAccountId))
@@ -55,7 +56,7 @@ export const approvalsQueueRepository = {
   /** Journal entries have no submit stage — a pending entry is a draft. Amounts come from lineTotals, not from here. */
   pendingJournalEntries() {
     return db
-      .select({ id: journalEntriesTable.id, label: journalEntriesTable.entryNumber, status: journalEntriesTable.status })
+      .select({ id: journalEntriesTable.id, label: journalEntriesTable.entryNumber, status: journalEntriesTable.status, createdBy: journalEntriesTable.createdBy })
       .from(journalEntriesTable)
       .where(and(inArray(journalEntriesTable.status, ["draft"]), sql`${journalEntriesTable.companyId} = ${currentCompany}`))
       .orderBy(desc(journalEntriesTable.date), desc(journalEntriesTable.id));
@@ -63,7 +64,7 @@ export const approvalsQueueRepository = {
 
   pendingPayrollRuns() {
     return db
-      .select({ id: payrollRunsTable.id, label: payrollRunsTable.period, status: payrollRunsTable.status, amount: payrollRunsTable.totalNetPay })
+      .select({ id: payrollRunsTable.id, label: payrollRunsTable.period, status: payrollRunsTable.status, amount: payrollRunsTable.totalNetPay, createdBy: payrollRunsTable.createdBy })
       .from(payrollRunsTable)
       .where(and(inArray(payrollRunsTable.status, PENDING), sql`${payrollRunsTable.companyId} = ${currentCompany}`))
       .orderBy(desc(payrollRunsTable.period), desc(payrollRunsTable.id));
@@ -81,6 +82,7 @@ export const approvalsQueueRepository = {
         id: taxComputationVersionsTable.id, computationId: taxComputationVersionsTable.computationId,
         versionNo: taxComputationVersionsTable.versionNo, status: taxComputationVersionsTable.status,
         kind: taxComputationsTable.kind, fiscalLabel: taxComputationsTable.fiscalLabel,
+        createdBy: taxComputationVersionsTable.createdBy, submittedBy: taxComputationVersionsTable.submittedBy,
       })
       .from(taxComputationVersionsTable)
       .innerJoin(taxComputationsTable, eq(taxComputationsTable.id, taxComputationVersionsTable.computationId))
@@ -95,6 +97,7 @@ export const approvalsQueueRepository = {
         id: vendorWhtTreatyReliefsTable.id, status: vendorWhtTreatyReliefsTable.status,
         paymentType: vendorWhtTreatyReliefsTable.paymentType, reducedRate: vendorWhtTreatyReliefsTable.reducedRate,
         treatyCountry: vendorWhtTreatyReliefsTable.treatyCountry, vendorName: vendorsTable.name, vendorNameAr: vendorsTable.nameAr,
+        createdBy: vendorWhtTreatyReliefsTable.createdBy,
       })
       .from(vendorWhtTreatyReliefsTable)
       .leftJoin(vendorsTable, eq(vendorsTable.id, vendorWhtTreatyReliefsTable.vendorId))
@@ -113,6 +116,7 @@ export const approvalsQueueRepository = {
         id: scheduledPaymentsTable.id, status: scheduledPaymentsTable.status, amount: scheduledPaymentsTable.amount,
         plannedDate: scheduledPaymentsTable.plannedDate, billId: scheduledPaymentsTable.billId, billNumber: billsTable.billNumber,
         vendorName: vendorsTable.name, vendorNameAr: vendorsTable.nameAr,
+        createdBy: scheduledPaymentsTable.createdBy,
       })
       .from(scheduledPaymentsTable)
       .innerJoin(billsTable, eq(billsTable.id, scheduledPaymentsTable.billId))

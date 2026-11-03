@@ -8850,6 +8850,10 @@ export const CreateBillResponse = zod.object({
  * A cap returning through this endpoint would be the same defect wearing
  * the fix. Amounts come from the same aggregates the ledger uses (a
  * journal entry's from its line sums — never a second computation).
+ *
+ * 🔴 Phase 18 H-11 (DR-18): an entity's rows are listed only to a role
+ * holding APPROVE on its resource; a role that approves nothing gets an
+ * empty list. Each row's `own` flags the caller's own items.
  * @summary Every record waiting for approval — the four draftable documents, and the Phase 16/17 tax and treasury approvals
  */
 export const ListPendingApprovalsResponseItem = zod.object({
@@ -8860,7 +8864,8 @@ export const ListPendingApprovalsResponseItem = zod.object({
   "status": zod.enum(['draft', 'submitted', 'pending', 'planned']),
   "amount": zod.number().nullable().describe('The document\'s own total; a journal entry\'s is the sum of its debit\nlines, from the same aggregate the ledger list uses; a plan\'s is what\nit would settle. NULL where the record has no amount of its own — a\ntreaty relief is a rate, and a computation\'s figure is the working\npaper\'s live reading, shown on its own page.\n'),
   "parentId": zod.number().nullish().describe('A computation version\'s computation id (its routes are nested under it).'),
-  "subtype": zod.string().nullish().describe('`zakat` | `income_tax` for a computation; the IR Art. 63(1) nature for a relief.')
+  "subtype": zod.string().nullish().describe('`zakat` | `income_tax` for a computation; the IR Art. 63(1) nature for a relief.'),
+  "own": zod.boolean().describe('Phase 18 H-11 (DR-18): true when the caller created this item (a\ncomputation version: created or submitted it). A flag, never a\nrefusal — self-approval is DR-20, undecided.\n')
 })
 export const ListPendingApprovalsResponse = zod.array(ListPendingApprovalsResponseItem)
 
