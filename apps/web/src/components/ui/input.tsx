@@ -1,11 +1,19 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/contexts/LanguageContext"
+import { ArabicDateInput, ArabicFileInput, ArabicMonthInput } from "@/components/ArabicPickers"
 
 export interface InputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, ...props }, ref) => {
+    // Phase 18 final round (walk finding 13; register §11.142): a browser's date, month and file controls follow the
+    // browser's language, not the app's. In Arabic these three render the localised pickers; everything else is unchanged.
+    const { lang } = useLanguage()
+    if (lang === "ar" && type === "date") return <ArabicDateInput {...props} className={className} ref={ref} />
+    if (lang === "ar" && type === "month") return <ArabicMonthInput {...props} className={className} ref={ref} />
+    if (lang === "ar" && type === "file") return <ArabicFileInput {...props} className={className} ref={ref} />
     return (
       <input
         type={type}
