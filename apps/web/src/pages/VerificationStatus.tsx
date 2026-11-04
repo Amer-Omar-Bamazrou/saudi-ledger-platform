@@ -1,3 +1,4 @@
+import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -179,7 +180,7 @@ export default function VerificationStatus() {
                         <option key={ty} value={ty}>{docLabel(ty)}</option>
                       ))}
                     </select>
-                    <input
+                    <Input
                       type="file"
                       accept="application/pdf,image/jpeg,image/png"
                       onChange={(e) => setFile(e.target.files?.[0] ?? null)}
