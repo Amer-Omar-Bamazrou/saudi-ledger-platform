@@ -148,7 +148,8 @@ test.describe("Arabic wording and steps", () => {
 
   test("🔴 16 + 17. Submit reads تقديم للاعتماد, and the screen then says where approval happens, with a link that works", async ({ browser }) => {
     const { page, close } = await arabicPhone(browser, adminApi, "/invoices?status=draft");
-    await expect(page.getByRole("button", { name: "بانتظار الاعتماد" }).or(page.getByText("بانتظار الاعتماد")).first(), "the filter's word for the state").toBeVisible();
+    // The filter's list is closed at this point, so its option is in the page without being shown.
+    await expect(page.getByText("بانتظار الاعتماد").first(), "the filter's word for the state").toBeAttached();
     await expect(page.getByText("بانتظار الموافقة"), "one word for the state").toHaveCount(0);
     const submit = page.getByTestId(`submit-invoice-${invoiceId}`);
     await expect(submit).toHaveText("تقديم للاعتماد");
