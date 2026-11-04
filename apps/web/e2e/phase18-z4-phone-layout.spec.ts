@@ -126,7 +126,7 @@ async function expectFits(input: Locator, what: string) {
   expect(m.need, `${what}: "${m.text}" needs ${m.need}px of ${m.room}px`).toBeLessThanOrEqual(m.room);
 }
 
-test.describe.serial("phone width, in Arabic", () => {
+test.describe("phone width, in Arabic", () => {
   test("🔴 1. new invoice: each line field shows all it holds, the VAT rate included", async ({ browser }) => {
     const { page, close } = await arabicPhone(browser, "/invoices");
     await page.getByRole("button", { name: "فاتورة جديدة" }).click();
