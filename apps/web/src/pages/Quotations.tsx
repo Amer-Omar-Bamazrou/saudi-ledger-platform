@@ -479,8 +479,8 @@ export default function Quotations() {
                         )}
                         {q.status === "draft" && (
                           <Button size="sm" variant="outline" data-testid={`submit-quotation-${q.id}`}
-                            onClick={() => actionMut.mutate({ id: q.id, action: "submit" }, { onSuccess: () => toast({ title: t("Submitted for approval", "أُرسل للاعتماد") }) })}>
-                            {t("Submit", "إرسال")}
+                            onClick={() => actionMut.mutate({ id: q.id, action: "submit" }, { onSuccess: () => toast({ title: t("Submitted for approval", "قُدّم للاعتماد"), description: t("An approver approves it here, on this page.", "يعتمده المعتمد من هذه الصفحة.") }) })}>
+                            {t("Submit", "تقديم للاعتماد")}
                           </Button>
                         )}
                         {/* 🔴 NOT hidden by role. A control removed teaches nothing and leaves
