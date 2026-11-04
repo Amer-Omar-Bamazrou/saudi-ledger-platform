@@ -7,7 +7,7 @@ import { invoiceCorrectionsService } from "../services/invoiceCorrections.servic
 import { can } from "../lib/rbac";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError, BusinessRuleError } from "../lib/errors";
-import { buildInvoiceDocModel, findSignedXml, renderInvoicePdf } from "../services/invoiceDocument/invoiceDocument.service";
+import { buildInvoiceDocModel, findSignedXml, renderInvoicePdf, buildInvoiceIssueView } from "../services/invoiceDocument/invoiceDocument.service";
 
 /**
  * 🔴 Contract batch 3: bodies are validated against the GENERATED schemas, so
@@ -92,6 +92,10 @@ export const invoicesController = {
    * invoice; `?lang=en` is the labelled translation. PDF/A-3B either way,
    * with the signed ZATCA XML attached when the invoice has one.
    */
+  async issueView(req: Request, res: Response) {
+    res.json(await buildInvoiceIssueView(requireIdParam(req)));
+  },
+
   async document(req: Request, res: Response) {
     const id = requireIdParam(req);
     const langRaw = String(req.query.lang ?? "ar");
