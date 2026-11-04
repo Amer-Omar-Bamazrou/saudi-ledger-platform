@@ -451,8 +451,8 @@ export default function PurchaseOrders() {
                         )}
                         {po.status === "draft" && (
                           <Button size="sm" variant="outline" data-testid={`submit-purchase-order-${po.id}`}
-                            onClick={() => actionMut.mutate({ id: po.id, action: "submit" }, { onSuccess: () => toast({ title: t("Submitted for approval", "أُرسل للاعتماد") }) })}>
-                            {t("Submit", "إرسال")}
+                            onClick={() => actionMut.mutate({ id: po.id, action: "submit" }, { onSuccess: () => toast({ title: t("Submitted for approval", "قُدّم للاعتماد"), description: t("An approver approves it here, on this page.", "يعتمده المعتمد من هذه الصفحة.") }) })}>
+                            {t("Submit", "تقديم للاعتماد")}
                           </Button>
                         )}
                         {/* 🔴 NOT hidden by role. A control removed teaches nothing and leaves

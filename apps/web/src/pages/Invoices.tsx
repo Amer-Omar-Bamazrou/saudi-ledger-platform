@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
+import { submittedToast } from "@/components/SubmittedToast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { statusLabel } from "@/lib/statusLabel";
 import { FilterScope } from "@/components/FilterScope";
@@ -319,9 +321,9 @@ export default function Invoices() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["approvals", "pending"] });
-      toast({ title: t("Submitted for approval", "أُرسل للاعتماد") });
+      toast(submittedToast(t));
     },
-    onError: (e: Error) => toast({ title: t("Not submitted", "لم يُرسل"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("Not submitted", "لم يُقدَّم"), description: e.message, variant: "destructive" }),
   });
 
   /** Open the shared dialog in EDIT mode, prefilled from the full record. */
@@ -648,9 +650,15 @@ export default function Invoices() {
                           {/* R-12 (DR-18 c): a preparer's Submit — shown by state, refused by the server by name. */}
                           <Button variant="ghost" size="sm" className="text-xs h-7" data-testid={`submit-invoice-${inv.id}`}
                             disabled={submitMut.isPending} onClick={() => submitMut.mutate(inv.id)}>
-                            {t("Submit", "إرسال")}
+                            {t("Submit", "تقديم للاعتماد")}
                           </Button>
                         </>
+                      )}
+                      {/* After submitting, the row keeps saying where approval happens (walk finding 17). */}
+                      {inv.status === "submitted" && (
+                        <Link href="/approvals" className="text-xs text-primary underline" data-testid={`where-approve-invoice-${inv.id}`}>
+                          {t("Approved in Approvals", "يُعتمد في الاعتمادات")}
+                        </Link>
                       )}
                       {/* 🔴 QA fix (2026-09-04): Mark Paid ONLY on an ISSUED
                           invoice. The server refuses a draft/submitted payment
