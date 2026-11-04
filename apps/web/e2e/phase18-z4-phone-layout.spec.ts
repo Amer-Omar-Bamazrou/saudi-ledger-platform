@@ -101,8 +101,20 @@ async function arabicPhone(browser: Browser, path: string): Promise<{ page: Page
   return { page, close: () => ctx.close() };
 }
 
-/** The element's whole box lies on the screen: nothing of it is past either edge, or clipped by a scrolling parent. */
+/**
+ * The element's whole box lies on the screen: nothing of it is past either edge, and no parent hides part of the row
+ * behind a sideways scroll. That second check comes first and is the point: scrolling into view would bring a clipped
+ * column into sight and read as a pass, while the person looking at the page sees it cut off.
+ */
 async function expectOnScreen(loc: Locator, what: string) {
+  await expect(loc, what).toBeVisible();
+  const sideways = await loc.evaluate((el) => {
+    for (let p = el.parentElement; p; p = p.parentElement) {
+      if (/auto|scroll|hidden/.test(getComputedStyle(p).overflowX) && p.scrollWidth > p.clientWidth + 1) return `${p.tagName.toLowerCase()}: ${p.scrollWidth} in ${p.clientWidth}`;
+    }
+    return null;
+  });
+  expect(sideways, `${what}: a parent hides part of the row behind a sideways scroll`).toBeNull();
   await loc.scrollIntoViewIfNeeded();
   const box = await loc.evaluate((el) => {
     const r = el.getBoundingClientRect();
@@ -149,9 +161,9 @@ test.describe("phone width, in Arabic", () => {
     const { page, close } = await arabicPhone(browser, "/invoices");
     const row = page.locator("tbody tr", { hasText: `Z4-INV-${STAMP}` });
     await expect(row).toBeVisible();
-    await expectOnScreen(row.locator("td", { hasText: /^(المبلغ)?\s*1,000\.00$/ }).first(), "the amount");
-    await expectOnScreen(row.locator("td", { hasText: /^(ضريبة القيمة المضافة)?\s*150\.00$/ }).first(), "the VAT");
-    await expectOnScreen(row.locator("td", { hasText: /^(الإجمالي)?\s*1,150\.00$/ }).first(), "the total");
+    await expectOnScreen(row.locator("td", { hasText: /(^|[^\d,])1,000\.00/ }).first(), "the amount");
+    await expectOnScreen(row.locator("td", { hasText: /(^|[^\d,])150\.00/ }).first(), "the VAT");
+    await expectOnScreen(row.locator("td", { hasText: /1,150\.00/ }).first(), "the total");
     await close();
   });
 
