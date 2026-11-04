@@ -30,8 +30,8 @@ process.env.PORT ??= "3126";
 process.env.SESSION_SECRET ??= "g04-zero-membership-secret-00000000000001";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { pool } from "@workspace/db";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { organizationMembershipsTable, ownerDb, pool } from "@workspace/db";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { assertAccountConfinedTo } from "../lib/accountScope";
 import { g04Harness } from "./helpers/g04Harness";
@@ -56,22 +56,26 @@ describeMaybe("Zero-membership accounts — born with a membership, attached onl
     api(who, "POST", "/auth/register", { email: email(key), name: key, password: NEW_PW, role, organizationId });
   const attach = (who: string, orgId: string, userId: number, role = "admin") => api(who, "POST", `/orgs/${orgId}/members`, { userId, role });
 
-  /** A test-only trigger that refuses a membership for marker emails — the failure injected BETWEEN the two writes. */
-  const MARKER = "g04z-atomic-%";
+  /**
+   * The failure injected BETWEEN the two writes: the membership insert throws inside the real transaction.
+   * In-process since TR-5 (register §11.133): this was a trigger on organization_memberships, and its DDL took a lock
+   * on a table every other test file's requests authenticate against.
+   */
   const installMembershipFault = async () => {
-    await pool.query(`CREATE OR REPLACE FUNCTION g04z_refuse_marker_membership() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        IF EXISTS (SELECT 1 FROM users WHERE id = NEW.user_id AND email LIKE '${MARKER}') THEN
-          RAISE EXCEPTION 'g04z atomicity probe: membership refused';
-        END IF;
-        RETURN NEW;
-      END $$`);
-    await pool.query(`DROP TRIGGER IF EXISTS g04z_refuse_marker_membership ON organization_memberships`);
-    await pool.query(`CREATE TRIGGER g04z_refuse_marker_membership BEFORE INSERT ON organization_memberships FOR EACH ROW EXECUTE FUNCTION g04z_refuse_marker_membership()`);
+    const real = ownerDb.transaction.bind(ownerDb);
+    vi.spyOn(ownerDb, "transaction").mockImplementation(((fn: (tx: unknown) => unknown, config?: never) =>
+      real((tx) => fn(new Proxy(tx, {
+        get(target, prop) {
+          if (prop !== "insert") return Reflect.get(target, prop);
+          return (table: unknown) => {
+            if (table === organizationMembershipsTable) throw new Error("g04z atomicity probe: membership refused");
+            return (target as unknown as { insert: (t: unknown) => unknown }).insert(table);
+          };
+        },
+      })) as never, config)) as never);
   };
   const removeMembershipFault = async () => {
-    await pool.query(`DROP TRIGGER IF EXISTS g04z_refuse_marker_membership ON organization_memberships`);
-    await pool.query(`DROP FUNCTION IF EXISTS g04z_refuse_marker_membership()`);
+    vi.restoreAllMocks();
   };
 
   beforeAll(async () => {

@@ -34,6 +34,7 @@ import { loadEnv } from "@workspace/config";
 import { alerter } from "./alerter";
 import { auditContext } from "./auditContext";
 import { commitBeforeResponse, type CommitFailure } from "./responseCommit";
+import { afterCommitScope } from "./afterCommit";
 import { selectActiveMembership } from "./activeOrg";
 import type { UserRole } from "./auth";
 
@@ -245,10 +246,13 @@ export async function resolveTenant(
       })();
     };
 
+    // TR-5: what must wait for this request's COMMIT runs between the COMMIT and the response.
+    const afterCommitted = afterCommitScope((err) => req.log.error({ err }, "an after-commit step failed; the write stands"));
+
     const wasSettledBySend = commitBeforeResponse(res, finalize, onCommitFailure, (refusal) => {
       // A deferred trigger refused the write at COMMIT — a business refusal, logged, never paged.
       req.log.warn({ code: refusal.body.code }, "refusal from the database at commit");
-    });
+    }, afterCommitted.settle);
 
     /**
      * The net for responses that never write at all — an aborted connection,
@@ -265,7 +269,7 @@ export async function resolveTenant(
     conn.run(() =>
       auditContext.run(
         { userId: tenant.userId, organizationId: tenant.organizationId, ipAddress: req.ip ?? null },
-        () => next(),
+        () => afterCommitted.run(() => next()),
       ),
     );
   } catch (err) {

@@ -101,6 +101,8 @@ export function commitBeforeResponse(
   settle: SettleTransaction,
   onFailure: (failure: CommitFailure) => void,
   onRefusal: (refusal: DbRefusal) => void = () => {},
+  /** TR-5: the request's after-commit steps. Runs only after a COMMIT, before the first byte. Must not reject. */
+  afterCommitted: () => Promise<void> = async () => {},
 ): () => boolean {
   let settled = false;
 
@@ -117,7 +119,8 @@ export function commitBeforeResponse(
       const alreadyStarted = this.headersSent;
 
       settle(wantCommit).then(
-        () => {
+        async () => {
+          if (wantCommit) await afterCommitted();
           (original as AnyFn).apply(this, args);
         },
         (error: unknown) => {
