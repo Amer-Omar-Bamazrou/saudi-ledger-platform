@@ -72,8 +72,8 @@ test.beforeAll(async () => {
   expect((await adminApi.post("/api/auth/login", { data: { email: ADMIN, password: PASSWORD } })).ok()).toBeTruthy();
   expect((await adminApi.post("/api/orgs/switch", { data: { organizationId: orgId } })).ok()).toBeTruthy();
   expect((await pendingApi.post("/api/auth/login", { data: { email: PENDING, password: PASSWORD } })).ok()).toBeTruthy();
-  const customer = (await ok<{ id: number }>(adminApi.post("/api/customers", { data: { name: LATIN_CUSTOMER, paymentTermsDays: 30 } }), "customer")).id;
-  await ok(adminApi.post("/api/customers", { data: { name: ARABIC_CUSTOMER, paymentTermsDays: 30 } }), "Arabic-named customer");
+  const customer = (await ok<{ id: number }>(adminApi.post("/api/customers", { data: { name: LATIN_CUSTOMER, paymentTermsDays: "30" } }), "customer")).id;
+  await ok(adminApi.post("/api/customers", { data: { name: ARABIC_CUSTOMER, paymentTermsDays: "30" } }), "Arabic-named customer");
   await ok(adminApi.post("/api/bank-accounts", { data: { name: "Z5 Bank", bankName: "SNB", currency: "SAR" } }), "bank");
   invoiceId = (await ok<{ id: number }>(adminApi.post("/api/invoices", { data: { invoiceNumber: `Z5-INV-${STAMP}`, date: "2026-10-05", dueDate: "2026-10-31", customerId: customer,
     items: [{ description: "Work", quantity: 1, unitPrice: 1000, vatRate: 15 }] } }), "invoice")).id;
@@ -99,7 +99,7 @@ async function arabicPhone(browser: Browser, api: APIRequestContext, path: strin
   return { page, close: () => ctx.close() };
 }
 
-test.describe.serial("Arabic wording and steps", () => {
+test.describe("Arabic wording and steps", () => {
   test("🔴 10 + 14. the review screen names the documents and the step, promises no time, and its list is in Arabic", async ({ browser }) => {
     const { page, close } = await arabicPhone(browser, pendingApi, "/verification");
     const steps = page.getByTestId("verification-pending-steps");
