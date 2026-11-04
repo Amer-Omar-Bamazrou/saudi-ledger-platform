@@ -153,7 +153,7 @@ export default function Approvals() {
 
   // The act, named in the reader's language — never the raw route segment.
   const ACTION_DONE: Record<Action, string> = {
-    submit: t("Submitted for approval", "أُرسل للاعتماد"),
+    submit: t("Submitted for approval", "قُدّم للاعتماد"),
     approve: t("Approved", "تم الاعتماد"),
     "send-back": t("Sent back for editing", "أُعيد للتعديل"),
     reject: t("Rejected", "تم الرفض"),
@@ -177,7 +177,7 @@ export default function Approvals() {
   }));
 
   const ACTION_LABEL: Record<Action, string> = {
-    submit: t("Submit", "إرسال"),
+    submit: t("Submit", "تقديم للاعتماد"),
     approve: t("Approve", "اعتماد"),
     "send-back": t("Send back", "إعادة للتعديل"),
     reject: t("Reject", "رفض"),

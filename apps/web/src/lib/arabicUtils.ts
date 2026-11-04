@@ -30,6 +30,24 @@ export function hasArabicScript(str: string): boolean {
  */
 export type ArStatus = "needs-translation" | "wrong-script" | "ok";
 
+/**
+ * A party's Arabic name. Its main name field may itself be Arabic, in which case nothing needs translating
+ * (Phase 18 final round, walk finding 15; register §11.138).
+ */
+export function arabicNameStatus(name: string | null | undefined, nameAr: string | null | undefined): ArStatus {
+  const status = arabicFieldStatus(nameAr);
+  return status === "needs-translation" && name && hasArabicScript(name) ? "ok" : status;
+}
+
+/** A number of days in Arabic, with the noun form the number takes: يوم واحد · يومان · ٣–١٠ أيام · ١١ فأكثر يومًا. */
+export function arabicDays(n: number): string {
+  if (n === 1) return "يوم واحد";
+  if (n === 2) return "يومان";
+  if (n >= 3 && n <= 10) return `${n} أيام`;
+  if (n === 0) return "0 يوم";
+  return `${n} يومًا`;
+}
+
 export function arabicFieldStatus(value: string | null | undefined): ArStatus {
   if (!value || value.trim() === "" || value.trim() === AR_SENTINEL) return "needs-translation";
   if (!hasArabicScript(value)) return "wrong-script";

@@ -123,7 +123,7 @@ export default function TaxComputationDetail() {
               </p>
             ) : null}
             <div className="flex flex-wrap gap-2">
-              {isDraft && pair && <Button size="sm" variant="outline" disabled={busy} onClick={() => submit.mutate(pair)} data-testid="tax-submit">{t("Submit for approval", "تقديم للاعتماد")}</Button>}
+              {isDraft && pair && <Button size="sm" variant="outline" disabled={busy} onClick={() => submit.mutate(pair)} data-testid="tax-submit">{t("Submit", "تقديم للاعتماد")}</Button>}
               {isOpen && pair && <Button size="sm" disabled={busy} onClick={() => approve.mutate(pair)} data-testid="tax-approve">{t("Approve and post", "اعتماد وترحيل")}</Button>}
               {v.status === "submitted" && <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm("send-back")} data-testid="tax-send-back">{t("Send back", "إعادة")}</Button>}
               {isOpen && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm("reject")} data-testid="tax-reject">{t("Reject this version", "رفض هذا الإصدار")}</Button>}

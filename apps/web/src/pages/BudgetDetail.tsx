@@ -125,7 +125,7 @@ export default function BudgetDetail() {
       {/* ── actions: every control visible; the server refuses what a role may not do, and says why ── */}
       {v && (
         <div className="flex flex-wrap gap-2" data-testid="budget-actions">
-          {v.status === "draft" && <Button size="sm" disabled={busy || dirty} onClick={() => submit.mutate({ id, versionId: v.id })} data-testid="budget-submit">{t("Submit for approval", "تقديم للاعتماد")}</Button>}
+          {v.status === "draft" && <Button size="sm" disabled={busy || dirty} onClick={() => submit.mutate({ id, versionId: v.id })} data-testid="budget-submit">{t("Submit", "تقديم للاعتماد")}</Button>}
           {(v.status === "draft" || v.status === "submitted") && <Button size="sm" variant="secondary" disabled={busy || dirty} onClick={() => approve.mutate({ id, versionId: v.id })} data-testid="budget-approve">{t("Approve", "اعتماد")}</Button>}
           {v.status === "submitted" && <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm("send-back")} data-testid="budget-send-back">{t("Send back", "إعادة للتصحيح")}</Button>}
           {(v.status === "draft" || v.status === "submitted") && <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm("reject")} data-testid="budget-reject">{t("Reject", "رفض")}</Button>}
