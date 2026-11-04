@@ -636,7 +636,11 @@ export default function Invoices() {
                   </td>
                   <td className="py-3 pe-4" data-label={t("Status", "الحالة")}><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{statusLabel(inv.status, lang)}</Badge></td>
                   <td className="py-3">
-                    <div className="flex flex-wrap items-center gap-1">
+                    {/* The actions name what they act on (walk finding 5): at phone width the number and customer can be out of view. */}
+                    <p className="md:hidden w-full text-xs text-muted-foreground mb-1" data-testid={`invoice-actions-for-${inv.id}`}>
+                      <span className="font-mono">{inv.invoiceNumber}</span> · {inv.customerName ?? "—"}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`${inv.invoiceNumber} · ${inv.customerName ?? ""}`}>
                       {/*
                         🔴 AUD-11/AUD-12: draft-only Edit and Delete. Both routes
                         existed and had no caller, so a mistyped draft could be
@@ -777,6 +781,11 @@ export default function Invoices() {
       <Dialog open={payOpen !== null} onOpenChange={()=>setPayOpen(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>{t("Record Payment", "تسجيل دفعة")}</DialogTitle></DialogHeader>
+          {invoices.find((i) => i.id === payOpen) && (
+            <p className="text-sm" data-testid="pay-invoice-names">
+              <span className="font-mono">{invoices.find((i) => i.id === payOpen)!.invoiceNumber}</span> · {invoices.find((i) => i.id === payOpen)!.customerName ?? "—"}
+            </p>
+          )}
           <div className="space-y-3 mt-2">
             <div><Label className="text-xs text-muted-foreground">{t("Amount Received (SAR)", "المبلغ المستلم (ر.س)")}</Label><Input type="number" value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="mt-1 h-8 text-sm" /></div>
             <div>
