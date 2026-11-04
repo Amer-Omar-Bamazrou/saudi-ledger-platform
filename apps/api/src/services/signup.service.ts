@@ -12,6 +12,7 @@
  */
 import { assertFitsColumn, assertPasswordAcceptable, hashPassword, MAX_VARCHAR } from "../lib/password";
 import { BadRequestError, ConflictError } from "../lib/errors";
+import { hasNul } from "../lib/inputGuards";
 import { signupRepository } from "../repositories/signup.repository";
 import { securityAuditService } from "./securityAudit.service";
 
@@ -50,7 +51,7 @@ export const signupService = {
     const crNumber = str(input.crNumber);
     const vatNumber = str(input.vatNumber);
 
-    if (!email || !EMAIL_RE.test(email)) throw new BadRequestError("A valid email is required.");
+    if (!email || !EMAIL_RE.test(email) || hasNul(email)) throw new BadRequestError("A valid email is required.");
     if (!name) throw new BadRequestError("Your full name is required.");
     assertPasswordAcceptable(password);
     /**

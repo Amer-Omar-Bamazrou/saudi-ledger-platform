@@ -3,6 +3,7 @@
  */
 import { Router } from "express";
 import { decoyHash, hashPassword, MAX_PASSWORD, needsRehash, verifyPassword } from "../lib/password";
+import { hasNul } from "../lib/inputGuards";
 import { loginEmailOf, preSessionLimiter } from "../lib/rateLimit";
 import { resetAllRateLimitStores } from "../lib/rateLimitStore";
 // 🔴 The OWNER connection, named deliberately rather than inherited.
@@ -240,7 +241,7 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
      * a KDF is work an unauthenticated caller chose for us; `email` is bounded
      * because it is a database lookup key, not because it is hashed.
      */
-    if (typeof email !== "string" || email.length > 320 || typeof password !== "string" || Buffer.byteLength(password, "utf8") > MAX_PASSWORD) {
+    if (typeof email !== "string" || email.length > 320 || hasNul(email) || typeof password !== "string" || Buffer.byteLength(password, "utf8") > MAX_PASSWORD) {
       res.status(400).json({ error: "Invalid credentials." }); return;
     }
 

@@ -21,6 +21,7 @@
  * LAYER: identity/infrastructure — runs before `resolveTenant` on the base
  * connection, so there is no RLS backstop; authorization here is the only gate.
  */
+import { hasNul } from "../lib/inputGuards";
 import { assertPasswordAcceptable, hashPassword } from "../lib/password";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
@@ -147,6 +148,7 @@ export const userAdminService = {
     if (!email || !name || !password) {
       throw new BadRequestError("email, name, and password are required.");
     }
+    if (hasNul(email)) throw new BadRequestError("A valid email is required.");
     if (!VALID_USER_ROLES.includes(role)) {
       throw new BadRequestError(`Invalid role. Must be ${VALID_USER_ROLES.join(", ")}.`);
     }
