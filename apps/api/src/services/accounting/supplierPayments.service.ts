@@ -39,6 +39,7 @@ import {
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
 import { asSent, idempotencyOf, replayOrRefuse } from "../../lib/idempotency.js";
 import { companyScoped } from "../../repositories/companyScope.js";
+import { idFromBody, isIntegerId } from "../../lib/inputGuards.js";
 import { fromHalalas, round2 } from "../../lib/money.js";
 import { businessToday } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
@@ -119,8 +120,9 @@ export const supplierPaymentsService = {
       if (prior) return this.getById(prior.id);
     }
 
-    const vendorId = Number(body.vendorId);
-    const [vendor] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId)).limit(1);
+    // A missing or malformed id names no supplier: the same refusal as an unknown one, with nothing sent to the database.
+    const vendorId = idFromBody(body.vendorId);
+    const [vendor] = isIntegerId(vendorId) ? await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId)).limit(1) : [];
     if (!vendor) refuse("vendor_unknown", "Name the supplier this payment went to.", "vendorId");
 
     const amount = round2(Number(body.amount));

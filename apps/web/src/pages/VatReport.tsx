@@ -21,7 +21,10 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { Link, useLocation, useSearch } from "wouter";
-import { useGetVatReturn, useGetVatSummary, useGetDepositReview } from "@workspace/api-client-react";
+import { useGetCurrentCompany, useGetVatReturn, useGetVatSummary, useGetDepositReview } from "@workspace/api-client-react";
+import { businessToday } from "@workspace/shared";
+import { currentVatPeriod, lastDayOfMonth } from "@/lib/reportRange";
+import { Button } from "@/components/ui/button";
 import { useClassificationLabels } from "@/components/payments/shared";
 import { fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -43,10 +46,23 @@ export default function VatReport() {
   const search = useSearch();
   const [location, navigate] = useLocation();
   const params = new URLSearchParams(search);
-  const periodFrom = MONTH.test(params.get("from") ?? "") ? params.get("from")! : "";
-  const periodTo = MONTH.test(params.get("to") ?? "") ? params.get("to")! : "";
-  const setPeriod = (next: { from?: string; to?: string }) => {
+  const chosenFrom = MONTH.test(params.get("from") ?? "") ? params.get("from")! : "";
+  const chosenTo = MONTH.test(params.get("to") ?? "") ? params.get("to")! : "";
+  // 🔴 Phase 18 final round (walk finding 4; register §11.139): the page opens on the current VAT period, by the company's
+  // own setting, never on all-time totals, which read as this period's. All-time is asked for (`period=all`) and named.
+  const allTime = params.get("period") === "all" && !chosenFrom && !chosenTo;
+  const company = useGetCurrentCompany();
+  const vatTaxPeriod = company.data?.vatTaxPeriod ?? null;
+  const asked = allTime || !!chosenFrom || !!chosenTo;
+  const opening = asked ? null : currentVatPeriod(vatTaxPeriod, businessToday());
+  const periodFrom = opening ? opening.from : chosenFrom;
+  const periodTo = opening ? opening.to : chosenTo;
+  const periodReady = asked || !company.isLoading;
+  const setPeriod = (next: { from?: string; to?: string; period?: string }) => {
     const q = new URLSearchParams(search);
+    q.delete("period");
+    // Editing one end of the opening period keeps the other: the fields show both, so both are what the reader means.
+    if (opening) { q.set("from", opening.from); q.set("to", opening.to); }
     for (const [k, v] of Object.entries(next)) { if (v) q.set(k, v); else q.delete(k); }
     const qs = q.toString();
     navigate(`${location}${qs ? `?${qs}` : ""}`, { replace: true });
@@ -54,16 +70,21 @@ export default function VatReport() {
   const setPeriodFrom = (v: string) => setPeriod({ from: v });
   const setPeriodTo = (v: string) => setPeriod({ to: v });
 
-  const { data: vatReturn, isLoading } = useGetVatReturn({
-    period_from: periodFrom || undefined,
-    period_to: periodTo || undefined,
-  });
+  const { data: vatReturn, isLoading: returnLoading } = useGetVatReturn(
+    { period_from: periodFrom || undefined, period_to: periodTo || undefined },
+    { query: { enabled: periodReady } as never },
+  );
+  // Until the company's own period is known there is no figure to show, rather than a figure for the wrong period.
+  const isLoading = returnLoading || !periodReady;
 
   // The reconciliation side: the same window, as full dates.
-  const { data: bankVat, isLoading: bankLoading } = useGetVatSummary({
-    date_from: periodFrom ? `${periodFrom}-01` : undefined,
-    date_to: periodTo ? `${periodTo}-31` : undefined,
-  });
+  const { data: bankVat, isLoading: bankLoading } = useGetVatSummary(
+    {
+      date_from: periodFrom ? `${periodFrom}-01` : undefined,
+      date_to: periodTo ? lastDayOfMonth(periodTo) : undefined,
+    },
+    { query: { enabled: periodReady } as never },
+  );
 
   // AP-1: the deposit review list for the same window end (the return carries the summary; this is the list).
   const { data: review, isLoading: reviewLoading } = useGetDepositReview({ period_to: periodTo || undefined });
@@ -121,6 +142,28 @@ export default function VatReport() {
               <Input type="month" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="h-8" data-testid="vat-period-to" />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground" data-testid="vat-period-words">
+            {allTime
+              ? t("All periods: the total of every document so far. This is not the return for a VAT period.", "كل الفترات: مجموع المستندات كلها حتى الآن، وهذا ليس إقرار فترة ضريبية.")
+              : !periodFrom
+                ? t(`From the first document to ${periodTo}.`, `من أول مستند حتى ${periodTo}.`)
+                : !periodTo
+                  ? t(`From ${periodFrom} to the latest document.`, `من ${periodFrom} حتى آخر مستند.`)
+                  : periodFrom === periodTo
+                    ? t(`The period shown: ${periodFrom}.`, `الفترة المعروضة: ${periodFrom}.`)
+                    : t(`The period shown: ${periodFrom} to ${periodTo}.`, `الفترة المعروضة: من ${periodFrom} إلى ${periodTo}.`)}
+            {opening && vatTaxPeriod == null && (
+              <>
+                {" "}
+                {t("Your company's VAT period is not set, so this is the current month. ", "لم تُحدَّد الفترة الضريبية لشركتك، فهذا هو الشهر الحالي. ")}
+                <Link href="/company" className="underline">{t("Set it in Company Settings.", "حدّدها في إعدادات الشركة.")}</Link>
+              </>
+            )}
+          </p>
+          <Button type="button" size="sm" variant={allTime ? "secondary" : "ghost"} className="h-7 px-2 text-xs" data-testid="vat-period-all"
+            onClick={() => navigate(`${location}?period=all`, { replace: true })}>
+            {t("All periods", "كل الفترات")}
+          </Button>
           <PeriodShortcuts granularity="month" from={periodFrom} to={periodTo} onSelect={(r)=>{setPeriod({ from: r.from, to: r.to });}} />
         </div>
       </div>

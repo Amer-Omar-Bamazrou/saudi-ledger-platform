@@ -26,6 +26,7 @@
  *     invited email (case-insensitive), so a token cannot be redeemed by whoever
  *     happens to hold the link while signed in as someone else.
  */
+import { hasNul } from "../lib/inputGuards";
 import { assertPasswordAcceptable, hashPassword } from "../lib/password";
 import { loadEnv } from "@workspace/config";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
@@ -83,7 +84,7 @@ export const invitationsService = {
     await assertApprovedOrgAdmin(actorUserId, orgId);
 
     const email = typeof emailInput === "string" ? emailInput.trim().toLowerCase() : "";
-    if (!email || !EMAIL_RE.test(email)) throw new BadRequestError("A valid email address is required.");
+    if (!email || !EMAIL_RE.test(email) || hasNul(email)) throw new BadRequestError("A valid email address is required.");
 
     const role = roleInput as MembershipRole;
     if (!VALID_MEMBERSHIP_ROLES.includes(role)) {
