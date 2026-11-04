@@ -115,7 +115,7 @@ test.describe("AP-1 — English desktop", () => {
     await expect(page.getByTestId(`classification-${id}`)).toContainText("Not yet classified");
 
     // The VAT page: the deposit is listed, flagged, and counted in the return's own summary.
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     const card = page.getByTestId("deposit-review-card");
     await expect(card).toContainText("Customer deposits held");
     const row = page.getByTestId(`deposit-review-${id}`);
@@ -146,7 +146,7 @@ test.describe("AP-1 — English desktop", () => {
     expect(adv.reviewState).toBe("advance_not_invoiced");
     expect(adv.needsReview).toBe(true);
     expect(adv.deadline).toMatch(/^\d{4}-\d{2}-15$/);
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.getByTestId(`deposit-review-${id}`)).toContainText("Advance — tax invoice not yet issued");
     await expect(page.getByTestId(`deposit-review-deadline-${id}`)).toContainText(`Advance tax invoice due by ${adv.deadline}`);
     await expect(page.getByTestId(`deposit-review-${id}`)).toContainText("Advance for a supply · S");
@@ -160,7 +160,7 @@ test.describe("AP-1 — English desktop", () => {
     expect(err.needsReview).toBe(false);
     expect(err.deadline).toBeNull();
     expect((await review()).needsReviewCount).toBe(countBefore - 1);
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.getByTestId(`deposit-review-${id}`)).toHaveAttribute("data-needs-review", "0");
     await expect(page.getByTestId(`deposit-review-${id}`)).toContainText("No VAT expected");
     await expect(page.getByTestId("deposit-review-summary")).toContainText(`Needs review: ${countBefore - 1}`);
@@ -198,7 +198,7 @@ test.describe("AP-1 — English desktop", () => {
     await expect(toast(page, "Refund recorded")).toBeVisible();
     expect((await payment(id)).unappliedAmount).toBe(0);
     expect(await reviewItem(id), "nothing held → not on the list").toBeUndefined();
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.getByTestId(`deposit-review-${id}`)).toHaveCount(0);
   });
 
@@ -228,7 +228,7 @@ test.describe("AP-1 — English phone", () => {
     await dialog.getByTestId("classify-submit").click();
     await expect(toast(page, "Deposit classified")).toBeVisible();
     expect((await reviewItem(id))?.reviewState).toBe("advance_not_invoiced");
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.getByTestId(`deposit-review-${id}`)).toBeVisible();
     await noSidewaysScroll(page, PHONE.width, "VAT page on a phone");
   });
@@ -262,7 +262,7 @@ test.describe("AP-1 — Arabic / RTL desktop", () => {
     await dialog.getByTestId("classify-submit").click();
     await expect(toast(page, "تم تصنيف العربون")).toBeVisible();
     await expect(page.getByTestId(`classification-${id}`).first()).toContainText("دفعة مقدمة لتوريد · S");
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.getByTestId("deposit-review-card")).toContainText("عرابين العملاء المحتفظ بها");
     await expect(page.getByTestId(`deposit-review-${id}`)).toContainText("دفعة مقدمة — لم تصدر فاتورتها الضريبية بعد");
@@ -286,7 +286,7 @@ test.describe("AP-1 — Arabic / RTL phone", () => {
     await dialog.getByTestId("classify-submit").click();
     await expect(toast(page, "تم تصنيف العربون")).toBeVisible();
     expect((await payment(id)).classification?.classification).toBe("security_deposit");
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.getByTestId(`deposit-review-${id}`)).toContainText("لا ضريبة متوقعة");
     await noSidewaysScroll(page, PHONE.width, "VAT page in Arabic on a phone");
   });
