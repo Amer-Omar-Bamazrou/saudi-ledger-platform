@@ -17,6 +17,7 @@
  * path without an approval recorded in the same transaction.
  */
 import { auditContext } from "../lib/auditContext";
+import { afterCommit } from "../lib/afterCommit";
 import { membersRepository } from "../repositories/members.repository";
 import { bankDetailChangesRepository as repo, type BankDetailChangeRow } from "../repositories/bankDetailChanges.repository";
 import { auditService } from "./audit.service";
@@ -55,12 +56,19 @@ async function dualControlApplies(): Promise<boolean> {
 
 const iso = (d: Date | string | null) => (d == null ? null : new Date(d).toISOString());
 
-/** Requests as the API answers them, the requester's and decider's names resolved in the identity layer. */
+/**
+ * Requests as the API answers them, the requester's and decider's names resolved in the identity layer.
+ *
+ * 🔴 TR-5: the names are read AFTER the request's transaction commits. They come through the owner connection, and
+ * reading them with the tenant transaction open held that transaction's row locks for as long as the identity tables
+ * took to answer: past 15 seconds, the idle-in-transaction timeout killed the decision. The objects returned here are
+ * filled in by that step, before the response is written.
+ */
 export async function toOut(rows: BankDetailChangeRow[]): Promise<BankDetailChangeOut[]> {
   if (rows.length === 0) return [];
   const ids = [...new Set(rows.flatMap((r) => [r.requestedBy, r.decidedBy]).filter((x): x is number => x != null))];
-  const names = await membersRepository.memberNamesByIds(actor().organizationId, ids);
-  return rows.map((r) => ({
+  const organizationId = actor().organizationId;
+  const out: BankDetailChangeOut[] = rows.map((r) => ({
     id: r.id,
     kind: r.kind,
     vendorId: r.vendorId,
@@ -70,12 +78,21 @@ export async function toOut(rows: BankDetailChangeRow[]): Promise<BankDetailChan
     ibanAfter: r.ibanAfter,
     status: r.status,
     requestedBy: r.requestedBy,
-    requestedByName: names.get(r.requestedBy) ?? null,
+    requestedByName: null,
     requestedAt: iso(r.requestedAt)!,
     decidedBy: r.decidedBy,
-    decidedByName: r.decidedBy != null ? (names.get(r.decidedBy) ?? null) : null,
+    decidedByName: null,
     decidedAt: iso(r.decidedAt),
   }));
+  const fillNames = async () => {
+    const names = await membersRepository.memberNamesByIds(organizationId, ids);
+    for (const o of out) {
+      o.requestedByName = names.get(o.requestedBy) ?? null;
+      o.decidedByName = o.decidedBy != null ? (names.get(o.decidedBy) ?? null) : null;
+    }
+  };
+  if (!afterCommit(fillNames)) await fillNames();
+  return out;
 }
 
 /** Record a held change (pending), with its audit record. */
