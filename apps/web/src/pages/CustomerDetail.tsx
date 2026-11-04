@@ -1,3 +1,4 @@
+import { arabicDays } from "@/lib/arabicUtils";
 import { useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -262,7 +263,7 @@ export default function CustomerDetail() {
               {!customer.isActive && <Badge variant="destructive" className="text-xs">{t("Inactive", "غير نشط")}</Badge>}
               {customer.taxNumber && <Badge variant="outline" className="text-xs font-mono">{t("VAT", "ض.ق.م")} {customer.taxNumber}</Badge>}
               {customer.crNumber && <Badge variant="outline" className="text-xs font-mono">{t("CR", "س.ت")} {customer.crNumber}</Badge>}
-              {customer.paymentTermsDays && <Badge variant="outline" className="text-xs font-mono">{customer.paymentTermsDays}d</Badge>}
+              {customer.paymentTermsDays && <Badge variant="outline" className="text-xs font-mono">{t(`${customer.paymentTermsDays}d`, arabicDays(Number(customer.paymentTermsDays)))}</Badge>}
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">

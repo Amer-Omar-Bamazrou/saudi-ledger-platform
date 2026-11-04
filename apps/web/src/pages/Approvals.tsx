@@ -44,6 +44,7 @@ import { accountRefusalToast } from "@/lib/accountRefusals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { IssueConfirmDialog } from "@/components/invoices/IssueConfirmDialog";
 import { Input } from "@/components/ui/input";
 
 type EntityKey = ApprovalPendingRow["entity"];
@@ -150,10 +151,12 @@ export default function Approvals() {
   /** The row whose note / reason / confirmation is open, and what was typed. */
   const [open, setOpen] = useState<{ entity: EntityKey; id: number; action: Action } | null>(null);
   const [text, setText] = useState("");
+  // 🔴 Walk finding 6: approving an invoice issues it, so it is asked first (the dialog below).
+  const [issuing, setIssuing] = useState<ApprovalPendingRow | null>(null);
 
   // The act, named in the reader's language — never the raw route segment.
   const ACTION_DONE: Record<Action, string> = {
-    submit: t("Submitted for approval", "أُرسل للاعتماد"),
+    submit: t("Submitted for approval", "قُدّم للاعتماد"),
     approve: t("Approved", "تم الاعتماد"),
     "send-back": t("Sent back for editing", "أُعيد للتعديل"),
     reject: t("Rejected", "تم الرفض"),
@@ -177,7 +180,7 @@ export default function Approvals() {
   }));
 
   const ACTION_LABEL: Record<Action, string> = {
-    submit: t("Submit", "إرسال"),
+    submit: t("Submit", "تقديم للاعتماد"),
     approve: t("Approve", "اعتماد"),
     "send-back": t("Send back", "إعادة للتعديل"),
     reject: t("Reject", "رفض"),
@@ -206,7 +209,7 @@ export default function Approvals() {
           <p className="text-sm text-muted-foreground">{t("Nothing pending.", "لا يوجد شيء قيد الانتظار.")}</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-cards">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   <th className="text-start pb-2 pe-4 font-medium">#</th>
@@ -232,8 +235,8 @@ export default function Approvals() {
                         {r.own && <Badge variant="outline" className="ms-2 text-[10px]" data-testid={`approval-own-${r.entity}-${r.id}`}>{t("Yours", "من إعدادك")}</Badge>}
                         {r.entity === "wht-reliefs" && r.subtype && <span className="block text-xs text-muted-foreground">{whtTypeLabel(r.subtype, t)}</span>}
                       </td>
-                      <td className="py-2 pe-4"><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{statusLabel(r.status, lang)}</Badge></td>
-                      <td className="py-2 pe-4 text-end font-mono" dir="ltr">{typeof r.amount === "number" ? fmtNum(r.amount) : "—"}</td>
+                      <td className="py-2 pe-4" data-label={t("Status", "الحالة")}><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{statusLabel(r.status, lang)}</Badge></td>
+                      <td className="py-2 pe-4 text-end font-mono" data-label={t("Amount", "المبلغ")}>{typeof r.amount === "number" ? fmtNum(r.amount) : "—"}</td>
                       <td className="py-2">
                         <div className="flex flex-wrap gap-1">
                           {actionsOf(r, canSubmit).map((a) => {
@@ -244,7 +247,8 @@ export default function Approvals() {
                                 className={`h-7 text-xs ${a === "reject" ? "text-negative" : ""}`} disabled={act.isPending}
                                 data-testid={`approval-${a}-${r.entity}-${r.id}`}
                                 onClick={() => {
-                                  if (immediate) act.mutate({ row: r, action: a, note: "" });
+                                  if (a === "approve" && r.entity === "invoices") setIssuing(r);
+                                  else if (immediate) act.mutate({ row: r, action: a, note: "" });
                                   else { setOpen(isOpen && open!.action === a ? null : { entity: r.entity, id: r.id, action: a }); setText(""); }
                                 }}>
                                 {ACTION_LABEL[a]}
@@ -332,6 +336,12 @@ export default function Approvals() {
         title: t("Planned payments", "الدفعات المخططة"), entityKey: "payment-plans", rows: byEntity("payment-plans"), canSubmit: false,
         hint: t("Approving a plan commits it in the cash forecast; it is paid later through the bill's ordinary payment. Nothing is sent to a bank.", "اعتماد الخطة يجعلها ملتزمًا بها في توقع النقد؛ وتُدفع لاحقًا عبر سداد الفاتورة المعتاد. لا يُرسل شيء إلى أي بنك."),
       })}
+      <IssueConfirmDialog
+        invoiceId={issuing?.id ?? null}
+        pending={act.isPending}
+        onClose={() => setIssuing(null)}
+        onConfirm={() => { if (issuing) act.mutate({ row: issuing, action: "approve", note: "" }); setIssuing(null); }}
+      />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Banknote, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { submittedToast } from "@/components/SubmittedToast";
 import { BankPicker } from "@/components/payments/shared";
 import { ApiError } from "@/lib/api";
 
@@ -111,9 +112,9 @@ export default function Payroll() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["payroll"] });
       qc.invalidateQueries({ queryKey: ["approvals", "pending"] });
-      toast({ title: t("Submitted for approval", "أُرسل للاعتماد") });
+      toast(submittedToast(t));
     },
-    onError: (e: Error) => { const r = runRefusal(e, t); toast({ title: r?.title ?? t("Not submitted", "لم يُرسل"), description: r?.description ?? e.message, variant: "destructive" }); },
+    onError: (e: Error) => { const r = runRefusal(e, t); toast({ title: r?.title ?? t("Not submitted", "لم يُقدَّم"), description: r?.description ?? e.message, variant: "destructive" }); },
   });
 
   const approveMut = useMutation({
@@ -221,7 +222,7 @@ export default function Payroll() {
                     <div className="flex items-center gap-2">
                       <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
                       {/* R-12 (DR-18 c): a preparer's Submit, beside Approve — shown by state, refused by the server by name. */}
-                      {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs" data-testid={`payroll-submit-${r.id}`} disabled={submitMut.isPending} onClick={ev=>{ev.stopPropagation();submitMut.mutate(r.id);}}>{t("Submit", "إرسال")}</Button>}
+                      {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs" data-testid={`payroll-submit-${r.id}`} disabled={submitMut.isPending} onClick={ev=>{ev.stopPropagation();submitMut.mutate(r.id);}}>{t("Submit", "تقديم للاعتماد")}</Button>}
                       {r.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();approveMut.mutate(r.id);}}>{t("Approve", "موافقة")}</Button>}
                       {r.status==="approved"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setPayRun(r);setPayBank("");setPaidAt(businessToday());}}>{t("Pay", "دفع")}</Button>}
                       {(r.status==="approved"||r.status==="paid")&&!r.gosiPaidAt&&(r.totalGosiEmployee+r.totalGosiEmployer)>0&&<Button variant="ghost" size="sm" className="h-6 text-xs text-primary" data-testid={`payroll-gosi-pay-${r.id}`} onClick={ev=>{ev.stopPropagation();setGosiRun(r);setGosiBank("");setGosiPaidAt(businessToday());setGosiInvoiced("");setGosiInvoiceRef("");}}>{t("Pay GOSI", "دفع التأمينات")}</Button>}

@@ -11,6 +11,7 @@ import { Link } from "wouter";
 import { fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
+import { IssueConfirmDialog } from "@/components/invoices/IssueConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { DualDate } from "@/components/DualDate";
 import { AllocateDialog } from "./AllocateDialog";
@@ -124,6 +125,8 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
   // AP-3: the 386 being cancelled (a credit note against it), if any.
   const [crediting, setCrediting] = useState<ReceiptAdvanceInvoice | null>(null);
   const isAdvance = payment.classification?.classification === "advance";
+  // 🔴 Walk finding 6: approving issues the document, so it is asked first (the dialog below).
+  const [confirming, setConfirming] = useState<{ id: number; note: boolean } | null>(null);
   const approve = useMutation({
     mutationFn: (id: number) => apiFetch(`/invoices/${id}/approve`, { method: "POST" }),
     onSuccess: () => { invalidatePaymentQueries(qc); toast({ title: t("Advance tax invoice issued", "صدرت الفاتورة الضريبية للدفعة المقدمة") }); },
@@ -138,6 +141,12 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
   const statusLabel = (s: string) => (s === "draft" ? t("Draft", "مسودة") : s === "submitted" ? t("Submitted", "مُرسلة") : t("Issued", "صادرة"));
   return (
     <div className="space-y-2 rounded-md border border-border p-3" data-testid={`advance-invoices-${payment.id}`}>
+      <IssueConfirmDialog
+        invoiceId={confirming?.id ?? null}
+        pending={approve.isPending || approveNote.isPending}
+        onClose={() => setConfirming(null)}
+        onConfirm={(id) => { (confirming?.note ? approveNote : approve).mutate(id); setConfirming(null); }}
+      />
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-xs uppercase text-muted-foreground">{t("Advance tax invoices (386)", "الفواتير الضريبية للدفعات المقدمة (386)")}</p>
         {isAdvance && payment.uninvoicedAmount > 0.005 && (
@@ -191,7 +200,7 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
                   </td>
                   <td className="py-2 text-end whitespace-nowrap">
                     {(a.status === "draft" || a.status === "submitted") ? (
-                      <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!canPost || approve.isPending} onClick={() => approve.mutate(a.id)} data-testid={`approve-advance-${a.id}`}>
+                      <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!canPost || approve.isPending} onClick={() => setConfirming({ id: a.id, note: false })} data-testid={`approve-advance-${a.id}`}>
                         {t("Approve & issue", "اعتماد وإصدار")}
                       </Button>
                     ) : (
@@ -220,7 +229,7 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
                     <td className="py-2 pe-3"><Badge variant={n.status === "draft" || n.status === "submitted" ? "outline" : "default"} className={`text-xs ${n.status === "draft" || n.status === "submitted" ? "" : "bg-attention-surface/20 text-attention"}`}>{statusLabel(n.status)}</Badge></td>
                     <td className="py-2 text-end whitespace-nowrap">
                       {(n.status === "draft" || n.status === "submitted") ? (
-                        <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!canPost || approveNote.isPending} onClick={() => approveNote.mutate(n.id)} data-testid={`approve-advance-credit-note-${n.id}`}>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!canPost || approveNote.isPending} onClick={() => setConfirming({ id: n.id, note: true })} data-testid={`approve-advance-credit-note-${n.id}`}>
                           {t("Approve & issue", "اعتماد وإصدار")}
                         </Button>
                       ) : (

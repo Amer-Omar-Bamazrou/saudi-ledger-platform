@@ -11,6 +11,7 @@
  * page (`source: "manual"`). And a failed read is never a dead end: the user
  * may continue and type the fields, so the document is still kept as evidence.
  */
+import { formatSar } from "@/lib/moneyFormat";
 import { useState, useRef, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { createWorker } from "tesseract.js";
@@ -339,9 +340,9 @@ export function ReceiptScanner({ open, onOpenChange, onExtracted }: Props) {
                   <Field label="VAT Reg #" value={result.supplierVatNumber || "—"} />
                   <Field label="Ref / Invoice #" value={result.vendorReference || "—"} />
                   <Field label="Date" value={result.date || "—"} />
-                  <Field label="Subtotal" value={result.subtotal > 0 ? `SAR ${result.subtotal.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} />
-                  <Field label="VAT (15%)" value={result.vatAmount > 0 ? `SAR ${result.vatAmount.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} />
-                  <Field label="Total" value={result.total > 0 ? `SAR ${result.total.toLocaleString("en-SA", { minimumFractionDigits: 2 })}` : "—"} highlight />
+                  <Field label="Subtotal" value={result.subtotal > 0 ? formatSar(result.subtotal) : "—"} />
+                  <Field label="VAT (15%)" value={result.vatAmount > 0 ? formatSar(result.vatAmount) : "—"} />
+                  <Field label="Total" value={result.total > 0 ? formatSar(result.total) : "—"} highlight />
                 </div>
               </div>
 

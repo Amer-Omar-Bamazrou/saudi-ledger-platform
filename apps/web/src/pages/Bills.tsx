@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileInput, ScanLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { submittedToast } from "@/components/SubmittedToast";
 import { ReceiptScanner } from "@/components/ReceiptScanner";
 import type { ParsedReceipt } from "@/lib/receiptParser";
 import { storeScanData } from "@/lib/scanReviewStore";
@@ -285,9 +286,9 @@ export default function Bills() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
       qc.invalidateQueries({ queryKey: ["approvals", "pending"] });
-      toast({ title: t("Submitted for approval", "أُرسل للاعتماد") });
+      toast(submittedToast(t));
     },
-    onError: (e: Error) => toast({ title: t("Not submitted", "لم يُرسل"), description: e.message, variant: "destructive" } as any),
+    onError: (e: Error) => toast({ title: t("Not submitted", "لم يُقدَّم"), description: e.message, variant: "destructive" } as any),
   });
 
   const openEditBill = async (row: { id: number; billNumber: string }) => {
@@ -912,11 +913,16 @@ export default function Bills() {
                           {t("Post", "ترحيل")}
                         </Button>
                       )}
+                      {b.status === "submitted" && (
+                        <Link href="/approvals" className="text-xs text-primary underline self-center" data-testid={`where-approve-bill-${b.id}`}>
+                          {t("Approved in Approvals", "يُعتمد في الاعتمادات")}
+                        </Link>
+                      )}
                       {/* R-12 (DR-18 c): a preparer's Submit, beside Post — shown by state, refused by the server by name. */}
                       {b.status === "draft" && (
                         <Button variant="ghost" size="sm" className="text-xs h-7" data-testid={`submit-bill-${b.id}`}
                           disabled={submitBillMut.isPending} onClick={() => submitBillMut.mutate(b.id)}>
-                          {t("Submit", "إرسال")}
+                          {t("Submit", "تقديم للاعتماد")}
                         </Button>
                       )}
                       {/* 🔴 QA fix (2026-09-04): Pay ONLY on a bill that is

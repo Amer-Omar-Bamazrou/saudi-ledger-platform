@@ -167,6 +167,7 @@ async function issueAdvanceFromCard(page: Page, paymentId: number, lang: "en" | 
   expect(p.advanceInvoicedAmount, "a draft declares nothing").toBe(0);
   // the separate act: approve on the document
   await page.getByTestId(`approve-advance-${draft.id}`).click();
+  await page.getByTestId("issue-confirm-approve").click();
   await expect(toast(page, lang === "ar" ? "صدرت الفاتورة الضريبية للدفعة المقدمة" : "Advance tax invoice issued")).toBeVisible();
   await expect(page.getByTestId(`advance-invoice-${draft.id}`)).toHaveAttribute("data-status", "sent");
   return invoice(draft.id);
@@ -326,6 +327,7 @@ test.describe("AP-2 — English phone", () => {
     await noSidewaysScroll(page, PHONE.width, "customer page with the advance section on a phone");
     const draft = (await payment(id)).advanceInvoices.find((a) => a.status === "draft")!;
     await page.getByTestId(`approve-advance-${draft.id}`).click();
+    await page.getByTestId("issue-confirm-approve").click();
     await expect(toast(page, "Advance tax invoice issued")).toBeVisible();
     await noSidewaysScroll(page, PHONE.width, "customer page after issue on a phone");
     await page.goto("/invoices", { waitUntil: "networkidle" });
@@ -394,6 +396,7 @@ test.describe("AP-2 — Arabic / RTL phone", () => {
     await expect(dialog).toBeHidden();
     const draft = (await payment(id)).advanceInvoices.find((a) => a.status === "draft")!;
     await page.getByTestId(`approve-advance-${draft.id}`).click();
+    await page.getByTestId("issue-confirm-approve").click();
     await expect(toast(page, "صدرت الفاتورة الضريبية للدفعة المقدمة")).toBeVisible();
     await noSidewaysScroll(page, PHONE.width, "customer page in Arabic on a phone after the 386");
     expect((await payment(id)).advanceOpenAmount).toBe(460);
