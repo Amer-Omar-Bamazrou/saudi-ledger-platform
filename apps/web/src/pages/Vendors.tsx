@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { arabicFieldStatus } from "@/lib/arabicUtils";
+import { arabicNameStatus } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,7 +86,7 @@ export default function Vendors() {
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{t("New Vendor", "مورد جديد")}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 mt-2">
-              {[[("name"),(t("Vendor Name *", "اسم المورد *"))],[("nameAr"),("اسم المورد")],[("taxNumber"),(t("VAT Number", "رقم ضريبة القيمة المضافة"))],[("crNumber"),(t("CR Number", "رقم السجل التجاري"))],[("phone"),(t("Phone", "الهاتف"))],[("email"),("Email")],[("address"),(t("Address", "العنوان"))],[("city"),(t("City", "المدينة"))],[("iban"),("IBAN")],[("paymentTermsDays"),(t("Payment Terms (days)", "شروط الدفع (أيام)"))]].map(([k,l])=>(
+              {[[("name"),(t("Vendor Name (English) *", "اسم المورد (بالإنجليزية) *"))],[("nameAr"),(t("Vendor Name (Arabic)", "اسم المورد (بالعربية)"))],[("taxNumber"),(t("VAT Number", "رقم ضريبة القيمة المضافة"))],[("crNumber"),(t("CR Number", "رقم السجل التجاري"))],[("phone"),(t("Phone", "الهاتف"))],[("email"),(t("Email", "البريد الإلكتروني"))],[("address"),(t("Address", "العنوان"))],[("city"),(t("City", "المدينة"))],[("iban"),("IBAN")],[("paymentTermsDays"),(t("Payment Terms (days)", "شروط الدفع (أيام)"))]].map(([k,l])=>(
                 <div key={k} className={k==="address"||k==="iban"?"col-span-2":""}>
                   <Label className="text-xs text-muted-foreground">{l}</Label>
                   <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" />
@@ -163,9 +163,9 @@ export default function Vendors() {
                 <tr key={v.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="py-3 pe-4">
                     <div className="font-medium text-foreground">{v.name}</div>
-                    {arabicFieldStatus(v.nameAr) === "ok"
-                      ? <div className="text-xs text-muted-foreground" dir="rtl">{v.nameAr}</div>
-                      : arabicFieldStatus(v.nameAr) === "wrong-script"
+                    {arabicNameStatus(v.name, v.nameAr) === "ok"
+                      ? (v.nameAr ? <div className="text-xs text-muted-foreground" dir="rtl">{v.nameAr}</div> : null)
+                      : arabicNameStatus(v.name, v.nameAr) === "wrong-script"
                       ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script", "ليس نصًا عربيًا")}</div>
                       : <div className="text-[10px] text-attention-surface/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>

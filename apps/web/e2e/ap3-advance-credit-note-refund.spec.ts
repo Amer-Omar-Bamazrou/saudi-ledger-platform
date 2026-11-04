@@ -104,6 +104,7 @@ async function cancelFromCard(page: Page, paymentId: number, advanceId: number, 
   expect(p.uninvoicedAmount, "a draft note unlocks nothing").toBe(0);
   await expect(page.getByTestId(`advance-credit-note-${draft.id}`)).toHaveAttribute("data-status", "draft");
   await page.getByTestId(`approve-advance-credit-note-${draft.id}`).click();
+  await page.getByTestId("issue-confirm-approve").click();
   await expect(toast(page, lang === "ar" ? "صدر الإشعار الدائن — أُلغيت الدفعة المقدمة" : "Credit note issued — the advance is cancelled")).toBeVisible();
   await expect(page.getByTestId(`advance-credit-note-${draft.id}`)).toHaveAttribute("data-status", "sent");
   return (await payment(paymentId)).advanceInvoices.find((a) => a.id === advanceId)!.creditNotes.find((n) => n.id === draft.id)!;
@@ -217,6 +218,7 @@ test.describe("AP-3 — English phone", () => {
     await noSidewaysScroll(page, PHONE.width, "customer page with a draft note on a phone");
     const draft = (await payment(paymentId)).advanceInvoices[0]!.creditNotes[0]!;
     await page.getByTestId(`approve-advance-credit-note-${draft.id}`).click();
+    await page.getByTestId("issue-confirm-approve").click();
     await expect(toast(page, "Credit note issued — the advance is cancelled")).toBeVisible();
     await expectFits(page.getByTestId(`refund-deposit-${paymentId}`), PHONE.width, "the refund control appears inside the viewport");
     await refundFromCard(page, paymentId, 230, "en");
@@ -272,6 +274,7 @@ test.describe("AP-3 — Arabic / RTL phone", () => {
     await expect(dialog).toBeHidden();
     const draft = (await payment(paymentId)).advanceInvoices[0]!.creditNotes[0]!;
     await page.getByTestId(`approve-advance-credit-note-${draft.id}`).click();
+    await page.getByTestId("issue-confirm-approve").click();
     await expect(toast(page, "صدر الإشعار الدائن — أُلغيت الدفعة المقدمة")).toBeVisible();
     await noSidewaysScroll(page, PHONE.width, "customer page in Arabic on a phone after the note");
     await refundFromCard(page, paymentId, 460, "ar");

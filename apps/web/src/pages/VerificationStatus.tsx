@@ -89,6 +89,10 @@ export default function VerificationStatus() {
     );
   }
 
+  const docLabel = (type: string) =>
+    type === "cr_certificate" ? t("CR certificate", "السجل التجاري")
+    : type === "vat_certificate" ? t("VAT certificate", "شهادة ضريبة القيمة المضافة")
+    : t("Other", "أخرى");
   const isPending = status.status === "pending_review";
   const isNeedsInfo = status.status === "needs_info";
   const isRejected = status.status === "rejected";
@@ -114,14 +118,14 @@ export default function VerificationStatus() {
           </CardHeader>
           <CardContent className="space-y-4">
             {isPending && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground" data-testid="verification-pending-steps">
                 {t(
                   // 🔴 No turnaround promise (2026-09-15): the SLA is undecided
                   // (CLAUDE.md §5, L3 — the owner decides the target, the
                   // staffing and what this screen may promise). Until then the
                   // screen says what happens, not when.
-                  "Our team reviews new organizations. You'll get access as soon as it's approved.",
-                  "يقوم فريقنا بمراجعة المؤسسات الجديدة. ستحصل على الوصول فور الموافقة.",
+                  "Our team reviews each new company before it can be used. Upload your CR certificate and your VAT certificate below. Sign in again later to check whether it has been approved.",
+                  "يراجع فريقنا كل شركة جديدة قبل استخدامها. ارفع أدناه السجل التجاري وشهادة ضريبة القيمة المضافة. سجّل الدخول مرة أخرى لاحقًا لمعرفة نتيجة المراجعة.",
                 )}
               </p>
             )}
@@ -156,7 +160,7 @@ export default function VerificationStatus() {
                     <li key={d.id} className="flex items-center gap-2 text-xs text-muted-foreground">
                       <FileText className="w-3.5 h-3.5 shrink-0" />
                       <span className="text-foreground">{d.fileName}</span>
-                      <span className="uppercase text-[10px] border border-border rounded px-1">{d.type.replace(/_/g, " ")}</span>
+                      <span className="text-[10px] border border-border rounded px-1">{docLabel(d.type)}</span>
                       <span>{Math.ceil(d.sizeBytes / 1024)} KB</span>
                     </li>
                   ))}
@@ -173,7 +177,7 @@ export default function VerificationStatus() {
                       onChange={(e) => setDocType(e.target.value)}
                     >
                       {DOC_TYPES.map((ty) => (
-                        <option key={ty} value={ty}>{ty.replace(/_/g, " ")}</option>
+                        <option key={ty} value={ty}>{docLabel(ty)}</option>
                       ))}
                     </select>
                     <Input

@@ -1,3 +1,4 @@
+import { currencyLabel } from "@/lib/moneyFormat";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -94,7 +95,7 @@ export default function BankAccounts() {
                     no aggregate consults `currency`, so the API refuses anything but SAR
                     (writeGuards.assertSupportedCurrency + CHECK 0062). A free-text input
                     here used to write straight through an unvalidated allowlist. */}
-                <div><Label className="text-xs text-muted-foreground">{t("Currency", "العملة")}</Label><Input value="SAR" readOnly disabled className="mt-1 h-8 text-sm font-mono" /></div>
+                <div><Label className="text-xs text-muted-foreground">{t("Currency", "العملة")}</Label><Input value={currencyLabel("SAR")} readOnly disabled className="mt-1 h-8 text-sm font-mono" /></div>
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("IBAN (SA00 0000 0000 0000 0000 0000)", "الآيبان (SA00 0000 0000 0000 0000 0000)")}</Label><Input value={form.iban} onChange={e=>setForm(p=>({...p,iban:e.target.value}))} className="mt-1 h-8 text-sm font-mono" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Opening Balance (SAR)", "الرصيد الافتتاحي (ر.س)")}</Label><Input type="number" value={form.balance} onChange={e=>setForm(p=>({...p,balance:e.target.value}))} className="mt-1 h-8 text-sm font-mono" /></div>
@@ -119,7 +120,7 @@ export default function BankAccounts() {
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : accounts.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground"><Landmark className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No bank accounts yet.", "لا توجد حسابات بنكية بعد.")}</p></div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {accounts.map(acc=>(
             <Card data-row key={acc.id} className={`border-border bg-card transition-colors hover:border-primary/30 ${acc.isDefault?"border-primary/30":""}`}>
               <CardHeader className="pb-3">
@@ -132,7 +133,7 @@ export default function BankAccounts() {
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">{acc.bankName}</p>
                   </div>
-                  <span className="text-xs font-mono text-muted-foreground">{acc.currency}</span>
+                  <span className="text-xs font-mono text-muted-foreground">{currencyLabel(acc.currency)}</span>
                 </div>
               </CardHeader>
               <CardContent>
@@ -142,7 +143,7 @@ export default function BankAccounts() {
                     what it is: a number entered by hand, which no posting updates. */}
                 <div data-testid="ledger-balance">
                   <div className="text-xs text-muted-foreground">{t("Ledger balance", "الرصيد الدفتري")}</div>
-                  <div className={`text-2xl sm:text-3xl font-bold font-mono ${(acc.ledgerBalance ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{acc.ledgerBalance != null ? fmtNum(acc.ledgerBalance) : "—"}</div>
+                  <div className={`text-2xl sm:text-3xl font-bold font-mono break-words ${(acc.ledgerBalance ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{acc.ledgerBalance != null ? fmtNum(acc.ledgerBalance) : "—"}</div>
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
                   <div data-testid="typed-balance">{t("Balance as typed (not updated by postings)", "الرصيد كما أُدخل (لا تحدّثه القيود)")}: <span className="font-mono whitespace-nowrap">{fmtNum(acc.balance)}</span></div>

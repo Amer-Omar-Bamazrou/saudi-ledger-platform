@@ -1,3 +1,4 @@
+import { arabicDays } from "@/lib/arabicUtils";
 import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -221,7 +222,7 @@ export default function VendorDetail() {
           {!vendor.isActive && <Badge variant="destructive" className="text-xs">{t("Inactive", "غير نشط")}</Badge>}
           {vendor.taxNumber && <Badge variant="outline" className="text-xs font-mono">{t("VAT", "ض.ق.م")} {vendor.taxNumber}</Badge>}
           {vendor.crNumber && <Badge variant="outline" className="text-xs font-mono">{t("CR", "س.ت")} {vendor.crNumber}</Badge>}
-          {vendor.paymentTermsDays && <Badge variant="outline" className="text-xs font-mono">{vendor.paymentTermsDays}d</Badge>}
+          {vendor.paymentTermsDays && <Badge variant="outline" className="text-xs font-mono">{t(`${vendor.paymentTermsDays}d`, arabicDays(Number(vendor.paymentTermsDays)))}</Badge>}
           {/*
             B8: residency is shown only when somebody has SAID it. `unknown` is
             the default and is not a fact about the supplier, so a badge
