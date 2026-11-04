@@ -99,7 +99,7 @@ test.describe("the read-only invoice screen", () => {
     await expect(screen).toBeVisible();
     await expect(screen.getByTestId("invoice-detail-status")).toHaveText("صادرة");
     await expect(screen).toContainText(ISSUED);
-    await expect(screen).toContainText("2026-10-05");
+    await expect(screen, "the date, as the page prints it in Arabic").toContainText("أكتوبر 2026");
     await expect(screen).toContainText(CUSTOMER);
     await expect(screen.getByTestId("invoice-detail-seller")).toContainText(SELLER);
     await expect(screen.getByTestId("invoice-detail-seller")).toContainText(SELLER_VAT);
