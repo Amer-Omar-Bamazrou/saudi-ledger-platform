@@ -4858,6 +4858,26 @@ export interface SendBackInput {
   note?: string | null;
 }
 
+export interface InvoiceIssueView {
+  /** @nullable */
+  sellerName: string | null;
+  /** @nullable */
+  sellerNameAr: string | null;
+  /** @nullable */
+  sellerVatNumber: string | null;
+  /** @nullable */
+  sellerCrNumber: string | null;
+  /** @nullable */
+  sellerAddress: string | null;
+  /** True when the seller is the identity stamped at issue; false when it is the live company (a draft, a submitted invoice or a migrated balance). */
+  sellerStamped: boolean;
+  /**
+     * The ZATCA QR as a PNG data URL; null until issued.
+     * @nullable
+     */
+  qrImage: string | null;
+}
+
 export interface InvoiceRejectionInput {
   /** ZATCA's response to the submission, verbatim (required, non-blank; checked by the service). */
   zatcaResponse?: string;

@@ -211,6 +211,7 @@ import type {
   IncomeTaxPoolDeclarationInput,
   IncomeTaxPoolReport,
   Invoice,
+  InvoiceIssueView,
   InvoiceRejection,
   InvoiceRejectionInput,
   JournalEntry,
@@ -21494,6 +21495,83 @@ export function useGetInvoiceDocument<TData = Awaited<ReturnType<typeof getInvoi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetInvoiceDocumentQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetInvoiceIssueViewUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/issue-view`
+}
+
+/**
+ * @summary The seller and the QR image for the read-only invoice screen. An issued invoice answers the identity stamped at issue; a draft or a migrated balance answers the live company, not stamped, with no QR.
+ */
+export const getInvoiceIssueView = async (id: number, options?: RequestInit): Promise<InvoiceIssueView> => {
+
+  return customFetch<InvoiceIssueView>(getGetInvoiceIssueViewUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInvoiceIssueViewQueryKey = (id: number,) => {
+    return [
+    `/api/invoices/${id}/issue-view`
+    ] as const;
+    }
+
+
+export const getGetInvoiceIssueViewQueryOptions = <TData = Awaited<ReturnType<typeof getInvoiceIssueView>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvoiceIssueView>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInvoiceIssueViewQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInvoiceIssueView>>> = ({ signal }) => getInvoiceIssueView(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInvoiceIssueView>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInvoiceIssueViewQueryResult = NonNullable<Awaited<ReturnType<typeof getInvoiceIssueView>>>
+export type GetInvoiceIssueViewQueryError = ErrorType<void>
+
+
+/**
+ * @summary The seller and the QR image for the read-only invoice screen. An issued invoice answers the identity stamped at issue; a draft or a migrated balance answers the live company, not stamped, with no QR.
+ */
+
+export function useGetInvoiceIssueView<TData = Awaited<ReturnType<typeof getInvoiceIssueView>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvoiceIssueView>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInvoiceIssueViewQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -463,6 +463,7 @@ export * from './invoiceDocumentType';
 export * from './invoiceHeaderInput';
 export * from './invoiceHeaderInputChargeSubstance';
 export * from './invoiceHeaderInputDocumentType';
+export * from './invoiceIssueView';
 export * from './invoiceItem';
 export * from './invoiceLineInput';
 export * from './invoiceOpeningEinvoicingStatus';

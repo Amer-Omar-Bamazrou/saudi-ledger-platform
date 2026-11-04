@@ -28,6 +28,8 @@ router.get("/:id/payments", invoicesController.payments);
 // L1 — the rendered document (PDF/A-3): ?lang=ar is the tax invoice, ?lang=en
 // the labelled translation. Read-level action: downloading is bookkeeper work.
 router.get("/:id/document", invoicesController.document);
+// Phase 18 final round (walk finding 18): the seller and the QR image, for the read-only invoice screen.
+router.get("/:id/issue-view", invoicesController.issueView);
 router.delete("/:id", invoicesController.remove);
 
 export default router;

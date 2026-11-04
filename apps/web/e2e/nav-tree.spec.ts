@@ -164,7 +164,7 @@ test.describe("the tree is internally consistent", () => {
     const EXEMPT = new Set([
       "/login", "/signup", "/accept-invite", "/operator", "/verification-status",
       // Reached from a record, not a menu.
-      "/customers/:id", "/vendors/:id", "/customers/:id/statement",
+      "/customers/:id", "/vendors/:id", "/customers/:id/statement", "/invoices/:id",
       // Phase 11 Part 2: one supplier's statement, reached from its row on
       // /supplier-statements (walked by clicking in phase11-ap-subledger.spec).
       "/supplier-statements/:vendorId",

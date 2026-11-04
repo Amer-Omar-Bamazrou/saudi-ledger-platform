@@ -6045,6 +6045,24 @@ paths:
         "503":
           description: "pdf_renderer_unavailable — the Chromium executable is missing; the message names the install step."
 
+  /invoices/{id}/issue-view:
+    get:
+      operationId: getInvoiceIssueView
+      tags: [invoices]
+      summary: "The seller and the QR image for the read-only invoice screen. An issued invoice answers the identity stamped at issue; a draft or a migrated balance answers the live company, not stamped, with no QR."
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The seller and the QR image
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceIssueView" }
+        "400":
+          description: The id is not a positive integer
+        "404":
+          description: No such invoice in this organization
+
   /bills/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -12129,6 +12147,21 @@ components:
           items:
             $ref: "#/components/schemas/InvoiceItem"
 
+    InvoiceIssueView:
+      type: object
+      required: [sellerName, sellerNameAr, sellerVatNumber, sellerCrNumber, sellerAddress, sellerStamped, qrImage]
+      properties:
+        sellerName: { type: ["string", "null"] }
+        sellerNameAr: { type: ["string", "null"] }
+        sellerVatNumber: { type: ["string", "null"] }
+        sellerCrNumber: { type: ["string", "null"] }
+        sellerAddress: { type: ["string", "null"] }
+        sellerStamped:
+          type: boolean
+          description: True when the seller is the identity stamped at issue; false when it is the live company (a draft, a submitted invoice or a migrated balance).
+        qrImage:
+          type: ["string", "null"]
+          description: The ZATCA QR as a PNG data URL; null until issued.
     InvoiceRejectionInput:
       type: object
       properties:

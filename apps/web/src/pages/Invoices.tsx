@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { submittedToast } from "@/components/SubmittedToast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { statusLabel } from "@/lib/statusLabel";
@@ -160,6 +160,7 @@ export default function Invoices() {
   const [confirmDelete, setConfirmDelete] = useState<Invoice | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const { t, lang } = useLanguage();
 
   /**
@@ -614,9 +615,16 @@ export default function Invoices() {
                 "",
               ].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=>(
-                <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
+                <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    // A tap on the row opens the read-only screen. A control in the row keeps its own job, and a click from a
+                    // dialog rendered in a portal bubbles through React to this row without being inside it in the DOM.
+                    const target = e.target as HTMLElement;
+                    if (!e.currentTarget.contains(target) || target.closest("a,button,input,select,label,[role='button'],[role='checkbox'],[role='menuitem']")) return;
+                    navigate(`/invoices/${inv.id}`);
+                  }}>
                   <td className="py-3 pe-4 font-mono text-xs text-primary" data-label={t("Invoice #", "رقم الفاتورة")}>
-                    {inv.invoiceNumber}{inv.isOpening && <OpeningRecordBadge />}
+                    <Link href={`/invoices/${inv.id}`} className="hover:underline" data-testid={`invoice-open-${inv.id}`}>{inv.invoiceNumber}</Link>{inv.isOpening && <OpeningRecordBadge />}
                     {/* AP-2: the document's TYPE beside its number — a 386 declares VAT on a deposit and is never owed; a 388 that applied one says so. */}
                     {inv.documentType === "advance_invoice" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-${inv.id}`}>{t("Advance tax invoice", "فاتورة دفعة مقدمة")}</Badge>}
                     {inv.documentType === "advance_credit_note" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-cn-${inv.id}`}>{t("Credit note — advance", "إشعار دائن — دفعة مقدمة")}</Badge>}
