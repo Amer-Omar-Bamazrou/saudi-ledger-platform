@@ -119,7 +119,7 @@ export default function BankAccounts() {
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : accounts.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground"><Landmark className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No bank accounts yet.", "لا توجد حسابات بنكية بعد.")}</p></div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {accounts.map(acc=>(
             <Card data-row key={acc.id} className={`border-border bg-card transition-colors hover:border-primary/30 ${acc.isDefault?"border-primary/30":""}`}>
               <CardHeader className="pb-3">
@@ -142,7 +142,7 @@ export default function BankAccounts() {
                     what it is: a number entered by hand, which no posting updates. */}
                 <div data-testid="ledger-balance">
                   <div className="text-xs text-muted-foreground">{t("Ledger balance", "الرصيد الدفتري")}</div>
-                  <div className={`text-2xl sm:text-3xl font-bold font-mono ${(acc.ledgerBalance ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{acc.ledgerBalance != null ? fmtNum(acc.ledgerBalance) : "—"}</div>
+                  <div className={`text-2xl sm:text-3xl font-bold font-mono break-words ${(acc.ledgerBalance ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{acc.ledgerBalance != null ? fmtNum(acc.ledgerBalance) : "—"}</div>
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
                   <div data-testid="typed-balance">{t("Balance as typed (not updated by postings)", "الرصيد كما أُدخل (لا تحدّثه القيود)")}: <span className="font-mono whitespace-nowrap">{fmtNum(acc.balance)}</span></div>

@@ -206,7 +206,7 @@ export default function Approvals() {
           <p className="text-sm text-muted-foreground">{t("Nothing pending.", "لا يوجد شيء قيد الانتظار.")}</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-cards">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                   <th className="text-start pb-2 pe-4 font-medium">#</th>
@@ -232,8 +232,8 @@ export default function Approvals() {
                         {r.own && <Badge variant="outline" className="ms-2 text-[10px]" data-testid={`approval-own-${r.entity}-${r.id}`}>{t("Yours", "من إعدادك")}</Badge>}
                         {r.entity === "wht-reliefs" && r.subtype && <span className="block text-xs text-muted-foreground">{whtTypeLabel(r.subtype, t)}</span>}
                       </td>
-                      <td className="py-2 pe-4"><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{statusLabel(r.status, lang)}</Badge></td>
-                      <td className="py-2 pe-4 text-end font-mono" dir="ltr">{typeof r.amount === "number" ? fmtNum(r.amount) : "—"}</td>
+                      <td className="py-2 pe-4" data-label={t("Status", "الحالة")}><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{statusLabel(r.status, lang)}</Badge></td>
+                      <td className="py-2 pe-4 text-end font-mono" data-label={t("Amount", "المبلغ")}>{typeof r.amount === "number" ? fmtNum(r.amount) : "—"}</td>
                       <td className="py-2">
                         <div className="flex flex-wrap gap-1">
                           {actionsOf(r, canSubmit).map((a) => {
