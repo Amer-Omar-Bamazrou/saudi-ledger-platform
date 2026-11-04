@@ -46,6 +46,24 @@ const monthSpan = (year: number, month0: number, count: number): DateRange => ({
  * the two FISCAL shortcuts, whose boundaries come from the resolver via the
  * API and are never recomputed here.
  */
+/**
+ * The VAT period containing `today` (the business calendar day, YYYY-MM-DD), as whole months: its quarter for a quarterly
+ * company, otherwise its month. A company with no VAT period set gets the month, and the page says so.
+ */
+export function currentVatPeriod(kind: "monthly" | "quarterly" | null | undefined, today: string): DateRange {
+  const month = today.slice(0, 7);
+  if (kind !== "quarterly") return { from: month, to: month };
+  const year = today.slice(0, 4);
+  const q0 = Math.floor((Number(today.slice(5, 7)) - 1) / 3) * 3;
+  const m = (n: number) => String(n).padStart(2, "0");
+  return { from: `${year}-${m(q0 + 1)}`, to: `${year}-${m(q0 + 3)}` };
+}
+
+/** The last calendar day of a YYYY-MM month. */
+export function lastDayOfMonth(month: string): string {
+  return iso(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)));
+}
+
 export function thisMonth(now: Date = new Date()): DateRange {
   return monthSpan(now.getUTCFullYear(), now.getUTCMonth(), 1);
 }
