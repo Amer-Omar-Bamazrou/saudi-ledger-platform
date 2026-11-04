@@ -71,6 +71,39 @@ const hijriOf = (iso: string): string => {
 };
 
 /**
+ * The seller and the QR image for the read-only invoice screen (Phase 18 final round; register §11.141).
+ * An issued invoice answers exactly what its PDF prints (G31: the stamped identity, never the live company), by going
+ * through the same model. Anything else has stamped nothing: a draft, a submitted invoice or a migrated balance answers
+ * the live company, says so, and has no QR.
+ */
+export async function buildInvoiceIssueView(invoiceId: number) {
+  const [inv] = await invoicesRepository.findById(invoiceId);
+  if (!inv) throw new NotFoundError("Not found");
+  if (inv.status !== "draft" && inv.status !== "submitted" && !inv.isOpening) {
+    const model = await buildInvoiceDocModel(invoiceId, "ar");
+    return {
+      sellerName: model.seller.name,
+      sellerNameAr: model.seller.nameAr,
+      sellerVatNumber: model.seller.vatNumber,
+      sellerCrNumber: model.seller.crNumber,
+      sellerAddress: model.seller.address,
+      sellerStamped: true,
+      qrImage: model.qrDataUrl,
+    };
+  }
+  const company = await companiesRepository.findCurrent();
+  return {
+    sellerName: company?.name ?? null,
+    sellerNameAr: company?.nameAr ?? null,
+    sellerVatNumber: company?.vatNumber ?? null,
+    sellerCrNumber: company?.crNumber ?? null,
+    sellerAddress: company ? partyAddress(company) : null,
+    sellerStamped: false,
+    qrImage: null,
+  };
+}
+
+/**
  * Assemble the model — every DB read, so the controller can run this inside
  * the request's tenant transaction and the render outside it.
  */

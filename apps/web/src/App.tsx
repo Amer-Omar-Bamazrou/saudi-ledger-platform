@@ -79,6 +79,7 @@ import Budgets from '@/pages/Budgets';
 import BudgetDetail from '@/pages/BudgetDetail';
 import UserManagement from '@/pages/UserManagement';
 import CompanySettings from '@/pages/CompanySettings';
+import InvoiceDetail from '@/pages/InvoiceDetail';
 import ClosedMonths from '@/pages/ClosedMonths';
 // Batch 1C (2026-09-20): the migration workspace — staging, validation, the
 // opening trial balance, R1–R10, commit and Policy C reversal, over the
@@ -275,6 +276,7 @@ function Router() {
               <Route path="/payments" component={Payments} />
               <Route path="/quotations" component={Quotations} />
               <Route path="/invoices" component={Invoices} />
+              <Route path="/invoices/:id" component={InvoiceDetail} />
               <Route path="/credit-notes" component={CreditNotes} />
               {/* Scanner review */}
               <Route path="/scan-review" component={ScanReview} />

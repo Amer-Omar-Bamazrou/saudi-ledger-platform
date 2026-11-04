@@ -126,6 +126,8 @@ export const EXPECTATIONS: Record<string, Kind> = {
 
   "/integrations": "app",
   "/customers/:id": "param",
+  // Phase 18 final round: the read-only invoice screen, reached by tapping a row of the list.
+  "/invoices/:id": "param",
   "/customers/:id/statement": "param",
   "/vendors/:id": "param",
   // FA-B: the asset detail page, reached by clicking a row of the register.

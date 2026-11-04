@@ -13951,6 +13951,24 @@ export const GetInvoiceDocumentResponse = zod.unknown()
 
 
 /**
+ * @summary The seller and the QR image for the read-only invoice screen. An issued invoice answers the identity stamped at issue; a draft or a migrated balance answers the live company, not stamped, with no QR.
+ */
+export const GetInvoiceIssueViewParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetInvoiceIssueViewResponse = zod.object({
+  "sellerName": zod.string().nullable(),
+  "sellerNameAr": zod.string().nullable(),
+  "sellerVatNumber": zod.string().nullable(),
+  "sellerCrNumber": zod.string().nullable(),
+  "sellerAddress": zod.string().nullable(),
+  "sellerStamped": zod.boolean().describe('True when the seller is the identity stamped at issue; false when it is the live company (a draft, a submitted invoice or a migrated balance).'),
+  "qrImage": zod.string().nullable().describe('The ZATCA QR as a PNG data URL; null until issued.')
+})
+
+
+/**
  * @summary One bill with its lines
  */
 export const GetBillParams = zod.object({
