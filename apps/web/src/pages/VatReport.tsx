@@ -117,9 +117,9 @@ export default function VatReport() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
             <Receipt className="w-8 h-8 text-positive-surface" />
             {t("ZATCA VAT Return", "إقرار ضريبة القيمة المضافة - زاتكا")}
           </h1>
@@ -132,7 +132,7 @@ export default function VatReport() {
         </div>
 
         <div className="space-y-2 bg-card p-3 rounded-lg border shadow-sm">
-          <div className="flex gap-4 items-end">
+          <div className="grid grid-cols-1 gap-3 sm:flex sm:gap-4 sm:items-end">
             <div className="space-y-1">
               <Label className="text-xs">{t("Period from", "الفترة من")}</Label>
               <Input type="month" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="h-8" data-testid="vat-period-from" />

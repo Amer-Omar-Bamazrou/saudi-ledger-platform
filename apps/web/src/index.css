@@ -175,3 +175,18 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+
+/*
+ * A wide table on a phone (Phase 18 final round, walk findings 2 and 8; register §11.137): a table that scrolls sideways
+ * hides its columns at the edge, and a clipped amount reads as a different amount. Below the desktop breakpoint each row
+ * is a card and each cell a label beside its value, from the cell's own `data-label`. The DOM is the same table.
+ */
+@media (max-width: 767.98px) {
+  table.table-cards thead { display: none; }
+  table.table-cards, table.table-cards tbody, table.table-cards tr { display: block; width: 100%; }
+  table.table-cards tr { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem 0.75rem; margin-block-end: 0.75rem; }
+  table.table-cards td { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 0.75rem; padding: 0.25rem 0; text-align: start; }
+  table.table-cards td[data-label]::before { content: attr(data-label); flex: none; font-family: var(--font-sans); font-size: 0.75rem; font-weight: 400; color: var(--muted-foreground); }
+  table.table-cards td:not([data-label]) { justify-content: flex-start; }
+}
