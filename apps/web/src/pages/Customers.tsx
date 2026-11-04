@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { arabicFieldStatus } from "@/lib/arabicUtils";
+import { arabicDays, arabicNameStatus } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,7 +85,7 @@ export default function Customers() {
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>{t("New Customer", "عميل جديد")}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 mt-2">
-              {[["name",t("Company Name *","اسم الشركة *")],["nameAr","اسم الشركة"],["taxNumber",t("VAT Number","رقم ضريبة القيمة المضافة")],["crNumber",t("CR Number","رقم السجل التجاري")],["phone",t("Phone","الهاتف")],["email","Email"],["address",t("Address","العنوان")],["city",t("City","المدينة")],["paymentTermsDays",t("Payment Terms (days)","شروط الدفع (أيام)")],["creditLimit",t("Credit Limit (SAR)","حد الائتمان (ر.س)")]].map(([k,l])=>(
+              {[["name",t("Company Name (English) *","اسم الشركة (بالإنجليزية) *")],["nameAr",t("Company Name (Arabic)","اسم الشركة (بالعربية)")],["taxNumber",t("VAT Number","رقم ضريبة القيمة المضافة")],["crNumber",t("CR Number","رقم السجل التجاري")],["phone",t("Phone","الهاتف")],["email",t("Email","البريد الإلكتروني")],["address",t("Address","العنوان")],["city",t("City","المدينة")],["paymentTermsDays",t("Payment Terms (days)","شروط الدفع (أيام)")],["creditLimit",t("Credit Limit (SAR)","حد الائتمان (ر.س)")]].map(([k,l])=>(
                 <div key={k} className={k==="address"?"col-span-2":""}>
                   <Label className="text-xs text-muted-foreground">{l}</Label>
                   <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" />
@@ -125,15 +125,15 @@ export default function Customers() {
                 <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="py-3 pe-4">
                     <div className="font-medium text-foreground">{c.name}</div>
-                    {arabicFieldStatus(c.nameAr) === "ok"
-                      ? <div className="text-xs text-muted-foreground" dir="rtl">{c.nameAr}</div>
-                      : arabicFieldStatus(c.nameAr) === "wrong-script"
+                    {arabicNameStatus(c.name, c.nameAr) === "ok"
+                      ? (c.nameAr ? <div className="text-xs text-muted-foreground" dir="rtl">{c.nameAr}</div> : null)
+                      : arabicNameStatus(c.name, c.nameAr) === "wrong-script"
                       ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script — please correct", "ليس نصًا عربيًا — يرجى التصحيح")}</div>
                       : <div className="text-[10px] text-attention-surface/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>
                   <td className="py-3 pe-4 text-muted-foreground">{c.city||"—"}</td>
                   <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{c.taxNumber||"—"}</td>
-                  <td className="py-3 pe-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays ?? "—"}d</Badge></td>
+                  <td className="py-3 pe-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays == null ? "—" : t(`${c.paymentTermsDays}d`, arabicDays(Number(c.paymentTermsDays)))}</Badge></td>
                   <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(c.totalBilled??0)}</td>
                   <td className="py-3 pe-4">
                     <span className={`font-mono font-medium ${(c.receivable??0)>0?"text-attention":"text-positive"}`}>{fmtNum(c.receivable??0)}</span>

@@ -7,6 +7,7 @@ const API = `${BASE}/api`;
  * `code` to route the user to the verification status page instead of showing a
  * bare "access denied".
  */
+import { formatSar } from "./moneyFormat";
 import { emitPeriodClosed } from "./periodClosed";
 import { limiterUnavailableMessage, rateLimitMessage, rateLimitedSeconds } from "./rateLimit";
 import { tOutside } from "@/contexts/LanguageContext";
@@ -126,8 +127,8 @@ export async function apiDownload(path: string, fallbackFilename: string): Promi
 // (writeGuards.assertSupportedCurrency + DB CHECK 0062). Before that boundary
 // existed this formatter labelled a stored USD amount "SAR" — the number real,
 // the unit a lie. It is now correct by construction rather than by luck.
-export const fmt = new Intl.NumberFormat("en-SA", { style: "currency", currency: "SAR", minimumFractionDigits: 2 });
-export const fmtNum = (v: number) => fmt.format(v);
+export const fmt = { format: formatSar };
+export const fmtNum = (v: number) => formatSar(v);
 /**
  * 🔴 ONE date formatter, in the reader's language (2026-09-15, walk item 5).
  * It was `en-SA` unconditionally, so every list page in the Arabic UI showed

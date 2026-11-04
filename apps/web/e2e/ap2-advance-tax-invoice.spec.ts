@@ -233,7 +233,7 @@ test.describe("AP-2 — English desktop", () => {
     expect(after386.box6).toBeCloseTo(before.box6 + 150, 2);
     expect((await reviewItem(id))?.reviewState).toBe("advance_invoiced");
     expect((await vatReturn(PERIOD)).depositReview.needsReviewCount).toBe(reviewBefore);
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.getByTestId(`deposit-review-${id}`)).toContainText("Advance — tax invoice issued, awaiting the final invoice");
     await expect(page.getByTestId(`deposit-review-${id}`)).toHaveAttribute("data-needs-review", "0");
 
@@ -365,7 +365,7 @@ test.describe("AP-2 — Arabic / RTL desktop", () => {
     const adv = await issueAdvanceFromCard(page, id, "ar");
     expect(adv.status).toBe("sent");
     await expect(page.getByTestId(`advance-invoice-${adv.id}`)).toContainText("صادرة");
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.getByTestId(`deposit-review-${id}`)).toContainText("دفعة مقدمة — صدرت فاتورتها الضريبية، بانتظار الفاتورة النهائية");
     const inv = await createFinalWithPrepayment(page, 2000, adv.id, "ar");
@@ -400,7 +400,7 @@ test.describe("AP-2 — Arabic / RTL phone", () => {
     await expect(toast(page, "صدرت الفاتورة الضريبية للدفعة المقدمة")).toBeVisible();
     await noSidewaysScroll(page, PHONE.width, "customer page in Arabic on a phone after the 386");
     expect((await payment(id)).advanceOpenAmount).toBe(460);
-    await page.goto("/vat", { waitUntil: "networkidle" });
+    await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.getByTestId(`deposit-review-${id}`)).toContainText("صدرت فاتورتها الضريبية");
     await noSidewaysScroll(page, PHONE.width, "VAT page in Arabic on a phone");
     await settleReceipt(id);

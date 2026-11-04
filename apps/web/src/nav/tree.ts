@@ -108,7 +108,7 @@ export const NAV_TREE: readonly NavSection[] = [
       // own name, rather than a second entry to one page.
       built("/finance-hub", "Financial Health", "الصحة المالية", ShieldCheck),
       // "My Tasks" in the spec: the approvals worklist IS my tasks.
-      built("/approvals", "My Tasks", "مهامي", ClipboardList),
+      built("/approvals", "Approvals", "الاعتمادات", ClipboardList),
     ],
   },
 
@@ -508,7 +508,7 @@ export const NAV_TREE: readonly NavSection[] = [
     label: "My Account", labelAr: "حسابي", icon: UserRound,
     items: [
       soon("my-profile", "My Profile", "ملفي الشخصي", UserRound),
-      built("/approvals", "My Tasks", "مهامي", ClipboardList),
+      built("/approvals", "Approvals", "الاعتمادات", ClipboardList),
       built("/audit-trail", "My Activity", "نشاطي", ScrollText, true),
     ],
   },

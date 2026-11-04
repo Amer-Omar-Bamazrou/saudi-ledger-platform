@@ -114,9 +114,9 @@ async function submitFrom(browser: import("@playwright/test").Browser, path: str
   await page.goto(path, { waitUntil: "networkidle" });
   await setLang(page, lang);
   const button = page.getByTestId(testid);
-  await expect(button).toHaveText(lang === "ar" ? "إرسال" : "Submit");
+  await expect(button).toHaveText(lang === "ar" ? "تقديم للاعتماد" : "Submit");
   await button.click();
-  await expect(page.getByText(lang === "ar" ? "أُرسل للاعتماد" : "Submitted for approval").first()).toBeVisible();
+  await expect(page.getByText(lang === "ar" ? "قُدّم للاعتماد" : "Submitted for approval").first()).toBeVisible();
   await expect(page.getByTestId(testid), "Submit is offered only on a draft").toHaveCount(0);
   if (lang === "ar") {
     const w = await page.evaluate(() => document.documentElement.scrollWidth);

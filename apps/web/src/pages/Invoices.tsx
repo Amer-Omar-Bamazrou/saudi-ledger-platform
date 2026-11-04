@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileText, CheckCircle, Clock, AlertCircle, XCircle, Repeat, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
+import { submittedToast } from "@/components/SubmittedToast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { statusLabel } from "@/lib/statusLabel";
 import { FilterScope } from "@/components/FilterScope";
@@ -40,6 +42,12 @@ const json = {
   pay: (b: PaymentInput) => JSON.stringify(b),
 };
 
+
+/**
+ * A line's number fields. The browser's stepper takes room from the digits and is no use on a phone, where the walk found
+ * the VAT rate reading "5" for 15 (Phase 18 final round; register §11.137).
+ */
+const LINE_NUMBER = "h-8 text-sm px-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -319,9 +327,9 @@ export default function Invoices() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["approvals", "pending"] });
-      toast({ title: t("Submitted for approval", "أُرسل للاعتماد") });
+      toast(submittedToast(t));
     },
-    onError: (e: Error) => toast({ title: t("Not submitted", "لم يُرسل"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("Not submitted", "لم يُقدَّم"), description: e.message, variant: "destructive" }),
   });
 
   /** Open the shared dialog in EDIT mode, prefilled from the full record. */
@@ -405,37 +413,40 @@ export default function Invoices() {
               <div className="space-y-2 border-t border-border pt-3">
                 <Label className="text-xs text-muted-foreground">{t("Lines", "البنود")}</Label>
                 {lines.map((l, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-2">
+                  <div key={i} className="grid grid-cols-12 gap-2" data-testid={`invoice-line-${i}`}>
                     <Input
-                      className="col-span-3 h-8 text-sm"
+                      className="col-span-12 sm:col-span-3 h-8 text-sm"
                       placeholder={t("Description", "الوصف")}
                       value={l.description}
                       onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
                     />
                     <Input
-                      className="col-span-2 h-8 text-sm"
+                      className="col-span-12 sm:col-span-2 h-8 text-sm"
                       dir="rtl"
                       placeholder={t("Arabic description", "الوصف بالعربية")}
                       value={l.descriptionAr}
                       onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, descriptionAr: e.target.value } : x)))}
                     />
                     <Input
-                      className="col-span-2 h-8 text-sm"
+                      className={`col-span-3 sm:col-span-2 ${LINE_NUMBER}`}
                       type="number"
+                      aria-label={t("Qty", "الكمية")}
                       placeholder={t("Qty", "الكمية")}
                       value={l.quantity}
                       onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))}
                     />
                     <Input
-                      className="col-span-3 h-8 text-sm"
+                      className={`col-span-5 sm:col-span-3 ${LINE_NUMBER}`}
                       type="number"
+                      aria-label={t("Unit price", "سعر الوحدة")}
                       placeholder={t("Unit price", "سعر الوحدة")}
                       value={l.unitPrice}
                       onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, unitPrice: e.target.value } : x)))}
                     />
                     <Input
-                      className="col-span-2 h-8 text-sm"
+                      className={`col-span-4 sm:col-span-2 ${LINE_NUMBER}`}
                       type="number"
+                      aria-label={t("VAT %", "الضريبة %")}
                       placeholder={t("VAT %", "الضريبة %")}
                       value={l.vatRate}
                       onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, vatRate: e.target.value } : x)))}
@@ -589,7 +600,7 @@ export default function Invoices() {
           {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : invoices.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground"><FileText className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No invoices found.", "لا توجد فواتير.")}</p></div>
           ) : (
-            <div className="overflow-x-auto"><table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm table-cards">
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[
                 t("Invoice #", "رقم الفاتورة"),
                 t("Customer", "العميل"),
@@ -604,7 +615,7 @@ export default function Invoices() {
               ].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{invoices.map(inv=>(
                 <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pe-4 font-mono text-xs text-primary">
+                  <td className="py-3 pe-4 font-mono text-xs text-primary" data-label={t("Invoice #", "رقم الفاتورة")}>
                     {inv.invoiceNumber}{inv.isOpening && <OpeningRecordBadge />}
                     {/* AP-2: the document's TYPE beside its number — a 386 declares VAT on a deposit and is never owed; a 388 that applied one says so. */}
                     {inv.documentType === "advance_invoice" && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-advance-${inv.id}`}>{t("Advance tax invoice", "فاتورة دفعة مقدمة")}</Badge>}
@@ -613,23 +624,23 @@ export default function Invoices() {
                     {inv.badDebtRelief && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-written-off-${inv.id}`}>{t("Written off", "مشطوبة")} {fmtNum(inv.writtenOffAmount)}</Badge>}
                     {inv.documentType === "invoice" && inv.prepaidAmount > 0.005 && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-prepaid-${inv.id}`}>{t("Advance applied", "طُبّقت دفعة مقدمة")} {fmtNum(inv.prepaidAmount)}</Badge>}
                   </td>
-                  <td className="py-3 pe-4 font-medium">{inv.customerName ?? "—"}</td>
-                  <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.date} /></td>
-                  <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={inv.dueDate} /></td>
-                  <td className="py-3 pe-4 font-mono">{fmtNum(inv.subtotal)}</td>
-                  <td className="py-3 pe-4 font-mono text-muted-foreground">{fmtNum(inv.vatAmount)}</td>
-                  <td className="py-3 pe-4 font-mono font-semibold">{fmtNum(inv.total)}</td>
+                  <td className="py-3 pe-4 font-medium" data-label={t("Customer", "العميل")}>{inv.customerName ?? "—"}</td>
+                  <td className="py-3 pe-4 text-muted-foreground text-xs" data-label={t("Date", "التاريخ")}><DualDate date={inv.date} /></td>
+                  <td className="py-3 pe-4 text-muted-foreground text-xs" data-label={t("Due Date", "تاريخ الاستحقاق")}><DualDate date={inv.dueDate} /></td>
+                  <td className="py-3 pe-4 font-mono" data-label={t("Amount", "المبلغ")}>{fmtNum(inv.subtotal)}</td>
+                  <td className="py-3 pe-4 font-mono text-muted-foreground" data-label={t("VAT", "ضريبة القيمة المضافة")}>{fmtNum(inv.vatAmount)}</td>
+                  <td className="py-3 pe-4 font-mono font-semibold" data-label={t("Total", "الإجمالي")}>{fmtNum(inv.total)}</td>
                   {/* What is still OWED on the document: nothing on a 386 or a note; total − paid − credited otherwise (the advance, once applied, sits in paid). */}
-                  <td className="py-3 pe-4 font-mono text-muted-foreground" data-testid={`due-${inv.id}`}>
+                  <td className="py-3 pe-4 font-mono text-muted-foreground" data-testid={`due-${inv.id}`} data-label={t("Due", "المستحق")}>
                     {inv.documentType === "advance_invoice" || inv.documentType === "advance_credit_note" || inv.documentType === "recovery_invoice" || inv.documentType === "credit_note" || inv.status === "draft" || inv.status === "submitted" ? "—" : fmtNum(inv.total - inv.paidAmount - inv.creditedAmount - inv.writtenOffAmount)}
                   </td>
-                  <td className="py-3 pe-4"><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{statusLabel(inv.status, lang)}</Badge></td>
+                  <td className="py-3 pe-4" data-label={t("Status", "الحالة")}><Badge className={`gap-1 text-xs ${STATUS_STYLES[inv.status] ?? ""}`}>{STATUS_ICONS[inv.status]}{statusLabel(inv.status, lang)}</Badge></td>
                   <td className="py-3">
                     {/* The actions name what they act on (walk finding 5): at phone width the number and customer can be out of view. */}
                     <p className="md:hidden w-full text-xs text-muted-foreground mb-1" data-testid={`invoice-actions-for-${inv.id}`}>
                       <span className="font-mono">{inv.invoiceNumber}</span> · {inv.customerName ?? "—"}
                     </p>
-                    <div className="flex items-center gap-1" role="group" aria-label={`${inv.invoiceNumber} · ${inv.customerName ?? ""}`}>
+                    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`${inv.invoiceNumber} · ${inv.customerName ?? ""}`}>
                       {/*
                         🔴 AUD-11/AUD-12: draft-only Edit and Delete. Both routes
                         existed and had no caller, so a mistyped draft could be
@@ -652,9 +663,15 @@ export default function Invoices() {
                           {/* R-12 (DR-18 c): a preparer's Submit — shown by state, refused by the server by name. */}
                           <Button variant="ghost" size="sm" className="text-xs h-7" data-testid={`submit-invoice-${inv.id}`}
                             disabled={submitMut.isPending} onClick={() => submitMut.mutate(inv.id)}>
-                            {t("Submit", "إرسال")}
+                            {t("Submit", "تقديم للاعتماد")}
                           </Button>
                         </>
+                      )}
+                      {/* After submitting, the row keeps saying where approval happens (walk finding 17). */}
+                      {inv.status === "submitted" && (
+                        <Link href="/approvals" className="text-xs text-primary underline" data-testid={`where-approve-invoice-${inv.id}`}>
+                          {t("Approved in Approvals", "يُعتمد في الاعتمادات")}
+                        </Link>
                       )}
                       {/* 🔴 QA fix (2026-09-04): Mark Paid ONLY on an ISSUED
                           invoice. The server refuses a draft/submitted payment

@@ -43,7 +43,7 @@ export const ALL: FilterOption = { value: "all", label: "All", labelAr: "الك�
 export const INVOICE_FILTERS: readonly FilterOption[] = [
   ALL,
   { value: "draft",     label: "Drafts",           labelAr: "مسودات" },
-  { value: "submitted", label: "Pending Approval", labelAr: "بانتظار الموافقة" },
+  { value: "submitted", label: "Pending Approval", labelAr: "بانتظار الاعتماد" },
   { value: "sent",      label: "Issued",           labelAr: "صادرة" },
   { value: "paid",      label: "Paid",             labelAr: "مدفوعة" },
   { value: "overdue",   label: "Overdue",          labelAr: "متأخرة", derived: true },
@@ -53,7 +53,7 @@ export const INVOICE_FILTERS: readonly FilterOption[] = [
 export const BILL_FILTERS: readonly FilterOption[] = [
   ALL,
   { value: "draft",     label: "Drafts",           labelAr: "مسودات" },
-  { value: "submitted", label: "Pending Approval", labelAr: "بانتظار الموافقة" },
+  { value: "submitted", label: "Pending Approval", labelAr: "بانتظار الاعتماد" },
   { value: "received",  label: "Received",         labelAr: "مستلمة" },
   { value: "approved",  label: "Approved",         labelAr: "معتمدة" },
   { value: "paid",      label: "Paid",             labelAr: "مدفوعة" },
@@ -81,7 +81,7 @@ export const JOURNAL_ENTRY_FILTERS: readonly FilterOption[] = [
 export const QUOTATION_FILTERS: readonly FilterOption[] = [
   ALL,
   { value: "draft",     label: "Drafts",              labelAr: "مسودات" },
-  { value: "submitted", label: "Pending Approval",    labelAr: "بانتظار الموافقة" },
+  { value: "submitted", label: "Pending Approval",    labelAr: "بانتظار الاعتماد" },
   { value: "approved",  label: "Approved",            labelAr: "معتمدة" },
   { value: "converted", label: "Converted to Invoice", labelAr: "محوّلة إلى فاتورة", derived: true },
   { value: "expired",   label: "Expired",             labelAr: "منتهية الصلاحية", derived: true },
@@ -91,7 +91,7 @@ export const QUOTATION_FILTERS: readonly FilterOption[] = [
 export const PURCHASE_ORDER_FILTERS: readonly FilterOption[] = [
   ALL,
   { value: "draft",     label: "Drafts",           labelAr: "مسودات" },
-  { value: "submitted", label: "Pending Approval", labelAr: "بانتظار الموافقة" },
+  { value: "submitted", label: "Pending Approval", labelAr: "بانتظار الاعتماد" },
   { value: "approved",  label: "Approved",         labelAr: "معتمدة" },
   { value: "converted", label: "Converted to Bill", labelAr: "محوّلة إلى فاتورة مورّد", derived: true },
 ];
