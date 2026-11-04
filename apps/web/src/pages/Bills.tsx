@@ -21,6 +21,7 @@ import { useDeployment } from "@/hooks/useDeployment";
 import type { QrCaptureResult } from "@/lib/qrCapture";
 import { useExpenseAccounts } from "@/lib/accounts";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCanPostPayments } from "@/components/payments/shared";
 import { statusLabel } from "@/lib/statusLabel";
 import { FilterScope } from "@/components/FilterScope";
 import { BILL_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
@@ -316,6 +317,10 @@ export default function Bills() {
     }
   };
 
+  // 🔴 Who may post a bill (the `approve` grant: admin, accountant; the same two as a payment). For rendering only: the
+  // server decides. A bookkeeper saves and submits, so the dialog offers that and sends no post it knows will be refused.
+  const canPostBill = useCanPostPayments();
+
   const createMut = useMutation({
     mutationFn: async (body: typeof form) => {
       const bill: Bill = await apiFetch("/bills", {
@@ -348,7 +353,7 @@ export default function Bills() {
       // Post GL through the single shared endpoint, passing the accountant's
       // chosen debit account — same call shape as the Post dialog.
       let posted: Bill | null = null;
-      if (Number(body.total) > 0) {
+      if (canPostBill && Number(body.total) > 0) {
         try {
           posted = await apiFetch<Bill>(`/bills/${bill.id}/post`, {
             method: "POST",
@@ -370,7 +375,9 @@ export default function Bills() {
       setForm(makeEmpty());
       toast(held
         ? { title: t(`${bill.billNumber} saved as a draft — not posted`, `حُفظت ${bill.billNumber} كمسودة — لم تُرحّل`), description: held }
-        : posted ? postedToast(posted, t) : { title: t("Bill saved", "حُفظت الفاتورة") });
+        : posted ? postedToast(posted, t)
+        : canPostBill ? { title: t("Bill saved", "حُفظت الفاتورة") }
+        : { title: t("Bill saved as a draft", "حُفظت الفاتورة كمسودة"), description: t("Submit it for approval from its row.", "قدّمها للاعتماد من صفّها.") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
   });
@@ -747,8 +754,15 @@ export default function Bills() {
                   ? t("Saving…", "جارٍ الحفظ…")
                   : editingBill
                     ? t("Save changes", "حفظ التعديلات")
-                    : t("Post Bill", "ترحيل الفاتورة")}
+                    : canPostBill
+                      ? t("Post Bill", "ترحيل الفاتورة")
+                      : t("Save as draft", "حفظ كمسودة")}
               </Button>
+              {!editingBill && !canPostBill && (
+                <p className="text-xs text-muted-foreground mt-2" data-testid="bill-draft-hint">
+                  {t("An approver posts a bill after it is submitted. Save it as a draft, then submit it from its row.", "يرحّل المعتمد الفاتورة بعد تقديمها للاعتماد. احفظها كمسودة ثم قدّمها من صفّها.")}
+                </p>
+              )}
             </DialogContent>
           </Dialog>
         </div>

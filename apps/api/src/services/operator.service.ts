@@ -30,6 +30,7 @@ import { securityAuditService } from "./securityAudit.service";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
 import { membersRepository } from "../repositories/members.repository";
 import { randomBytes } from "node:crypto";
+import { hasNul } from "../lib/inputGuards";
 import { hashPassword } from "../lib/password";
 
 export interface OperatorActionContext {
@@ -85,7 +86,7 @@ export const operatorService = {
     /** R-1 (DR-27): the owner's period, 2026-11-01 (register §11.82) — the one definition; the readers compare the stored moment to now. */
     const BREAK_GLASS_WINDOW_MS = 24 * 60 * 60 * 1000;
     const cleaned = String(email ?? "").trim().toLowerCase();
-    if (!cleaned || !cleaned.includes("@")) throw new BadRequestError("A user email is required.");
+    if (!cleaned || !cleaned.includes("@") || hasNul(cleaned)) throw new BadRequestError("A user email is required.");
 
     const target = await userAdminRepository.findByEmail(cleaned);
     if (!target) throw new NotFoundError("No user with that email.");
