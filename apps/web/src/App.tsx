@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { tOutside } from "@/contexts/LanguageContext";
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { QueryClient, QueryClientProvider, MutationCache, QueryCache } from '@tanstack/react-query';
@@ -233,8 +233,32 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * 🔴 A new page opens at its top (Phase 18 final round; register §11.151): the document keeps its scroll offset across a
+ * client-side navigation, so a link followed from far down a list opened the next page past what it was opened to show.
+ * Going back is not a new page: the browser restores that position itself.
+ */
+function NewPageAtTop() {
+  const [location] = useLocation();
+  const first = useRef(true);
+  const wentBack = useRef(false);
+  useEffect(() => {
+    const onPop = () => { wentBack.current = true; };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (wentBack.current) { wentBack.current = false; return; }
+    window.scrollTo(0, 0);
+  }, [location]);
+  return null;
+}
+
 function Router() {
   return (
+    <>
+    <NewPageAtTop />
     <Switch>
       {/* Public */}
       <Route path="/login" component={Login} />
@@ -377,6 +401,7 @@ function Router() {
         </AuthGuard>
       </Route>
     </Switch>
+    </>
   );
 }
 

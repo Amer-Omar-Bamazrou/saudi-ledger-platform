@@ -26,11 +26,26 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onOpenAutoFocus, onCloseAutoFocus, ...props }, ref) => {
+  // 🔴 Phase 18 final round (the page jumping to the top; register §11.151). On close the library focuses the dialog's
+  // trigger, with no preventScroll. A page's rows open its one form dialog from code, so that trigger is the "new" button
+  // at the top, and the page scrolled there. Focus goes back to what opened the dialog, and the page stays where it is.
+  const opener = React.useRef<HTMLElement | null>(null);
+  return (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      onOpenAutoFocus={(event) => {
+        opener.current = document.activeElement as HTMLElement | null;
+        onOpenAutoFocus?.(event);
+      }}
+      onCloseAutoFocus={(event) => {
+        onCloseAutoFocus?.(event);
+        if (event.defaultPrevented) return;
+        event.preventDefault();
+        opener.current?.focus({ preventScroll: true });
+      }}
       className={cn(
         // 🔴 QA fix (2026-09-04): max-h + overflow so a dialog TALLER than the
         // viewport scrolls INSIDE itself instead of pushing its submit button
@@ -48,7 +63,8 @@ const DialogContent = React.forwardRef<
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>
-))
+  );
+})
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 const DialogHeader = ({
