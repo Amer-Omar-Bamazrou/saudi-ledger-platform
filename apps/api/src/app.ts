@@ -10,6 +10,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./lib/logger";
 import { endEndedSessions } from "./lib/auth";
 import { refuseCrossSiteWrites } from "./lib/csrf";
+import { refuseUnusableInput } from "./middleware/refuseUnusableInput";
 
 const env = loadEnv();
 const isProduction = env.NODE_ENV === "production";
@@ -69,6 +70,9 @@ app.use(
 app.use(refuseCrossSiteWrites(env.CORS_ALLOWED_ORIGINS));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// 🔴 Phase 18 final round: what the database cannot hold is refused here, for every route, before a session is read or
+// any budget spent (middleware/refuseUnusableInput.ts; every route is exercised by tests/phase18-z9-request-boundary.test.ts).
+app.use("/api", refuseUnusableInput);
 
 // Session middleware — backed by PostgreSQL. Auth is the httpOnly session cookie
 // only: the previous localStorage bearer-token workaround (a Replit cross-site

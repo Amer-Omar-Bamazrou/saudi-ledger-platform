@@ -8,6 +8,7 @@
  * thrown AppErrors are mapped by the app-level errorHandler.
  */
 import { Router } from "express";
+import { refuseNonUuidParam } from "../middleware/refuseUnusableInput";
 import { operatorService } from "../services/operator.service";
 import { operatorZatcaService } from "../services/operatorZatca.service";
 import { documentsService } from "../services/documents.service";
@@ -17,6 +18,8 @@ import { isOperatorRunnable, operatorRunnableJobNames } from "../lib/operatorJob
 import { securityAuditService } from "../services/securityAudit.service";
 
 const router = Router();
+router.param("orgId", refuseNonUuidParam);
+router.param("docId", refuseNonUuidParam);
 
 /** Actor context for the security-audit trail, from the authenticated session. */
 function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
