@@ -91,7 +91,7 @@ describeMaybe("the request boundary refuses what the database cannot hold, on ev
         ...(opts.type ? { "content-type": opts.type } : {}),
         ...(opts.anonymous ? {} : { cookie: opts.as ?? cookie }),
       },
-      body: opts.body,
+      body: opts.body as BodyInit | undefined,
     });
     const text = await res.text();
     let json: { code?: string; field?: string; error?: string } = {};
