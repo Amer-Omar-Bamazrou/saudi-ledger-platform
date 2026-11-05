@@ -13,6 +13,11 @@ export function isIntegerId(id: number): boolean {
   return Number.isInteger(id) && id > 0 && id <= MAX_INTEGER_ID;
 }
 
+/** True when the number could be stored in an integer column at all: whole, and inside its range either way. */
+export function fitsIntegerColumn(n: number): boolean {
+  return Number.isInteger(n) && Math.abs(n) <= MAX_INTEGER_ID;
+}
+
 /** A body's id, as a number when it was sent as a number or as text; otherwise NaN, never a coerced object or boolean. */
 export function idFromBody(value: unknown): number {
   return typeof value === "number" || typeof value === "string" ? Number(value) : Number.NaN;

@@ -7,6 +7,7 @@
  * authenticated session (mounted after `requireAuth`).
  */
 import { Router } from "express";
+import { refuseNonUuidParam } from "../middleware/refuseUnusableInput";
 import { and, asc, eq } from "drizzle-orm";
 // 🔴 The OWNER connection, named deliberately rather than inherited.
 // Identity layer: organization and membership administration, before/outside any tenant scope.
@@ -25,6 +26,8 @@ function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
 }
 
 const router = Router();
+router.param("orgId", refuseNonUuidParam);
+router.param("id", refuseNonUuidParam);
 
 /** GET /api/orgs — list the current user's active organization memberships. */
 router.get("/", async (req, res) => {

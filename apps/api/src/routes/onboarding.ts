@@ -10,6 +10,7 @@
  * active org). Thrown AppErrors are mapped by the app-level errorHandler.
  */
 import { Router } from "express";
+import { refuseNonUuidParam } from "../middleware/refuseUnusableInput";
 import multer from "multer";
 import { preSessionLimiter } from "../lib/rateLimit";
 import { onboardingService } from "../services/onboarding.service";
@@ -18,6 +19,7 @@ import { MAX_DOCUMENT_BYTES } from "../lib/fileValidation";
 import { sendDocument, uploadSingle } from "./documentHttp";
 
 const router = Router();
+router.param("docId", refuseNonUuidParam);
 
 const upload = multer({
   storage: multer.memoryStorage(),

@@ -8,6 +8,7 @@
  * answer, not two.
  */
 import { Router } from "express";
+import { refuseNonUuidParam } from "../middleware/refuseUnusableInput";
 import multer from "multer";
 import { MAX_DOCUMENT_BYTES } from "../lib/fileValidation";
 import { BadRequestError } from "../lib/errors";
@@ -16,6 +17,7 @@ import { parseJsonField } from "../lib/httpParams";
 import { captureService } from "../services/capture/capture.service";
 
 const router = Router();
+router.param("id", refuseNonUuidParam);
 
 /**
  * A capture must belong to a company: the document is evidence for that
