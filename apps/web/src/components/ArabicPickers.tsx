@@ -60,6 +60,7 @@ export const ArabicDateInput = React.forwardRef<HTMLInputElement, NativeProps>((
             mode="single"
             dir="rtl"
             locale={arSA}
+            formatters={{ formatWeekdayName: (day) => format(day, "EEEEE", { locale: arSA }) }}
             selected={selected}
             defaultMonth={selected}
             disabled={[...(hidden.before ? [{ before: hidden.before }] : []), ...(hidden.after ? [{ after: hidden.after }] : [])]}
