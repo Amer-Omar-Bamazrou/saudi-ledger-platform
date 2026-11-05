@@ -23,6 +23,8 @@
 import { AsyncResource } from "node:async_hooks";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import type { Multer } from "multer";
+import { hasNul } from "../lib/inputGuards";
+import { firstNulField, nulInTextRefusal } from "../middleware/refuseUnusableInput";
 
 export function uploadSingle(upload: Multer, field: string): RequestHandler {
   const mw = upload.single(field);
@@ -34,6 +36,12 @@ export function uploadSingle(upload: Multer, field: string): RequestHandler {
         const message =
           code === "LIMIT_FILE_SIZE" ? "File exceeds the 10 MB limit." : "File upload failed.";
         res.status(400).json({ error: message });
+        return;
+      }
+      // 🔴 A multipart body is parsed here, later than the request boundary runs, so its text gets the boundary's check here.
+      const nulField = firstNulField(req.body) ?? (req.file && hasNul(req.file.originalname) ? `${req.file.fieldname}.name` : null);
+      if (nulField !== null) {
+        res.status(400).json(nulInTextRefusal(nulField));
         return;
       }
       next();

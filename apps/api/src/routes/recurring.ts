@@ -6,10 +6,12 @@
  * the draft it produces still needs an approver, exactly as if they had typed it.
  */
 import { Router } from "express";
+import { refuseNonUuidParam } from "../middleware/refuseUnusableInput";
 import { BadRequestError } from "../lib/errors";
 import { recurringService } from "../services/recurring/recurring.service";
 
 const router = Router();
+router.param("id", refuseNonUuidParam);
 
 router.get("/", async (_req, res) => {
   res.json(await recurringService.list());
