@@ -669,6 +669,8 @@ belong, not ad hoc:
 
 ### 🔴 RESIDENCY CORRECTION — "must be stored inside Saudi Arabia" was NEVER in the specification
 
+*(Later correction, 2026-11-06: see the dated note at the end of this file.)*
+
 **A recorded requirement that shaped hosting thinking for three milestones turns
 out not to be a ZATCA requirement at all.** It was believed until M12.8, when the
 primary source was actually read.
@@ -1164,3 +1166,14 @@ false and several decisions it makes cheap become expensive.
    live path shows the composed behaviour.
 
 ---
+
+## Correction note, 2026-11-06: VAT-record location
+
+This record is kept as written. Its residency correction read the 2023 E-Invoicing
+Detailed Guideline §5.5, and said so accurately. **That reading is superseded for
+resident taxpayers' VAT records.** ZATCA's "Guideline for Tax Invoicing and Records
+under VAT Provisions", Version 3, May 2026, §8.3.1, whose Arabic prevails, requires
+the computer or server to be in the Kingdom when the taxable person is resident. Our
+tenants are resident. Cloud stays permitted, a direct audit link stays mandatory, and
+the swappable backend stays. Record:
+[`advisor-questions.md`](../product/advisor-questions.md), Block G.

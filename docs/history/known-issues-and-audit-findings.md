@@ -3095,3 +3095,13 @@ untracked at the time of writing); evidence folder `2026-10-20-pr-a-verification
 manifest.
 
 State: CLOSED for the engine-wide compare-and-set; G08 as a whole stays PARTIAL (see the entry above).
+
+## C7 and C8: answered 2026-11-06
+
+C7 (inbound retention) and C8 (PDPL) left the CLAUDE.md §5 advisor table when their
+answers arrived. The answers, their sources and the branches taken are in
+[`advisor-questions.md`](../product/advisor-questions.md), Blocks A and B. What they
+turned into is open and stays in §5: the retention register, deletion after retention,
+controller or processor, official identity documents, and read-only permissions. Nothing
+was built by the answers; B3's deletable staging and the archive's class distinction
+are now required before inbound captures can be destroyed.

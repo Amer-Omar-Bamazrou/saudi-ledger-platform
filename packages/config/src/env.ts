@@ -342,13 +342,14 @@ const EnvSchema = z.object({
    * Where cleared/reported XML is retained for ZATCA's 6–11 year window.
    *
    * 🔴 The provider is chosen HERE, at deployment — the same hedge as
-   * `ZATCA_KMS_PROVIDER`. ZATCA §5.5 explicitly permits cloud storage and does
-   * NOT mandate in-country servers (a claim we carried from a secondary source
-   * and corrected in M12.8); what it mandates is that the data be reachable by
-   * a direct link given to the Authority. Residency pressure, if any, comes from
-   * NCA/CSP or sector rules we have not verified. An unverified claim is not a
-   * basis for committing hosting, and neither is its absence — so the backend
-   * stays swappable and the region stays a deployment decision.
+   * `ZATCA_KMS_PROVIDER`. ZATCA §5.5 explicitly permits cloud storage, and
+   * mandates that the data be reachable by a direct link given to the Authority.
+   * CORRECTED 2026-11-06: for a resident taxpayer's VAT records the server must
+   * be in the Kingdom (ZATCA VAT records guideline v3, May 2026, §8.3.1), so
+   * "does NOT mandate in-country servers", recorded here from §5.5 in M12.8, no
+   * longer holds for them. Further pressure, if any, comes from NCA/CSP or sector
+   * rules we have not verified. Provider and region are still uncommitted — so
+   * the backend stays swappable and the region stays a deployment decision.
    */
   ZATCA_ARCHIVE_PROVIDER: z.enum(["supabase-storage", "local-fs"]).default("local-fs"),
   ZATCA_ARCHIVE_BUCKET: z.string().min(1).default("einvoice-archive"),

@@ -181,19 +181,23 @@ distinction.
 | C3 | KMS deployment verification — IAM/key policy, 30-day deletion window, break-glass on `ScheduleKeyDeletion`, CloudTrail alarm, multi-region replica |
 | C4 | AV scanning on uploaded verification documents |
 | C5 | Fail-closed diagnosability — a blocked issuance must give an actionable message, not an opaque 500 |
-| C6 | **Data residency / hosting region** — open, now for the right reason (see below). Choose host and KMS region together |
+| C6 | **Data residency / hosting region** — an owner decision with an official input: VAT records need a region in the Kingdom (see below, corrected 2026-11-06). Choose host and KMS region together |
 
 ---
 
 ## 5. Two corrections worth remembering
 
-**Residency: ZATCA does NOT mandate in-KSA storage.** §5.5 explicitly permits
-"on-premises in the KSA **or in the cloud**"; the binding constraint is
-**accessibility** — "a direct link that can be made available to the Authority".
-Our "must be in KSA" came from a secondary source and was never checked against
-the primary. NCA/CSP/sector rules may still impose residency — an unverified
-legal question. The archive backend is swappable either way, because an
-unverified claim is not a basis for committing hosting and neither is its absence.
+**Residency (corrected 2026-11-06).** For a resident taxpayer's VAT records, the
+server must be in the Kingdom: ZATCA's "Guideline for Tax Invoicing and Records
+under VAT Provisions", Version 3, May 2026, §8.3.1, whose Arabic prevails. Our
+tenants are resident. This line used to read "ZATCA does NOT mandate in-KSA
+storage", from the 2023 E-Invoicing Detailed Guideline §5.5; that reading is
+superseded for those records. §5.5 still permits "on-premises in the KSA **or in
+the cloud**", so cloud is permitted in a region in the Kingdom, and "a direct link
+that can be made available to the Authority" stays mandatory. NCA/CSP/sector rules
+may add more — an unverified legal question. The archive backend stays swappable,
+because provider and region are still uncommitted. Record:
+[`advisor-questions.md`](../product/advisor-questions.md), Block G.
 
 **Six instances of correct-but-not-connected**, all within M12: a pipeline
 unreachable from real rows, a loader fed the wrong chain, an outbox nothing

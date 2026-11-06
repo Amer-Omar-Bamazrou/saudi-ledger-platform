@@ -461,7 +461,7 @@ entry; an account line to the general ledger for the year).
 Its statements (Phase 14) are management statements from the ledger; the
 statutory set is the audited IFRS statements filed in XBRL through Qawaem,
 which the product does not produce (LIMITATION; whether Qawaem's line-item
-lists bind software → OPEN S-1). What IS built because it IS required: the
+lists bind software → S-1, closed 2026-11-06). What IS built because it IS required: the
 Zakat and income-tax line presented separately (SOCPA para 6) in the income
 statement, and the working paper that carries the Zakat-base components the
 SOCPA note needs (para 7).
@@ -683,7 +683,7 @@ nothing interpretive):
 | W-11 | For a foreign-currency payment, which date's SAMA rate? | Non-SAR refused |
 | W-12 | A refund of an advance from which WHT was withheld — how is the withheld part recovered? | Refused |
 | I-1 | Mixed income tax: is the 25 % loss cap applied before or after the non-Saudi share? | Mixed with losses refused |
-| S-1 | Are Qawaem's XBRL line-item lists a binding mapping software must produce? | Nothing labelled statutory |
+| S-1 | Are Qawaem's XBRL line-item lists a binding mapping software must produce? | **CLOSED 2026-11-06 (T38):** filing is the company's duty, and no vendor mandate was found ([`advisor-questions.md`](advisor-questions.md), Block J). The decision stands: nothing labelled statutory |
 | W-13 (QA-08) | How is a WHT-bearing payment entered in error corrected — in its own month or the next; before and after the month is remitted and its Form 06 filed? | **ANSWERED 2026-10-05 (Q1) — built §14.1**: reversal + re-entry; unfiled → its own month; filed → the person's stated treatment |
 | W-13b | For a correction of a FILED Form 06 month: when does ZATCA require amending that month and when may a later month carry it — and does remittance change the answer? | Both offered; the person states which; recorded on the correction (§14.1) |
 | W-17 | A month left in credit by a correction (tax remitted exceeds what its return now carries): refund claim, or offset against a later month? | Shown as `credit`; never netted, never remitted again, never refunded by the product (§14.1) |

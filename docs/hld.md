@@ -578,7 +578,7 @@ choice of vendor is a deployment decision rather than a rewrite.
 | --- | --- | --- |
 | `EInvoiceProvider` | onboard · renew certificate · build document · submit | Implemented in-house; **all four methods route through the seam** — one of two mandatory hedges behind the build-direct decision |
 | `KeyWrapper` | credential encryption | 🔴 Key-management deployment unverified |
-| `ArchiveStore` | e-invoice archival, **no delete by design** | Local filesystem only; cloud is permitted — the binding constraint is a direct audit link |
+| `ArchiveStore` | e-invoice archival, **no delete by design** | Local filesystem only; cloud is permitted, but for a resident taxpayer's VAT records the server must be in the Kingdom (ZATCA VAT records guideline v3, May 2026, §8.3.1; corrected 2026-11-06); a direct audit link stays mandatory |
 | `Mailer` | transactional email | Code complete; 🔴 **no provider wired** |
 | `Alerter` | operational alarms | Code complete; 🔴 **no destination wired** |
 | `MalwareScanner` | uploaded-file scanning | 🔴 Header-only magic-byte sniff until a scanner sidecar is deployed |

@@ -25,6 +25,8 @@ the date printed inside the PDF, which is often the original release). Verified
 | `KSA_VAT_Implementing_Regulations_EN.pdf` 🔴 **legal text** | **2023-08-30** (Eighth Edition) | `659fb67cc8ed6afcd4bdb5628be81e0b3c70f683b8bd8876c6631770f1215cb3` |
 | `ZATCA_E-Invoicing_Implementation_Resolution_20230519_EN.pdf` 🔴 **legal text** | **2023-05-19** | `06a7ce0a3e113a142554b9293e148fd99eb058e6075f1c4c75c7d99354d16066` |
 | `20230519_ZATCA_Electronic_Invoice_XML_Implementation_Standard_vTrack.pdf` (v1.2 — the UBL tags, calculations and BR-KSA rules; **¶9.5 prepayment**, §11.2.1 type 386; added 2026-09-21 for AP-2, text extract committed beside it) | **2023-05-19** | `f4a14e3e601748435bb425e9caa9f2db305af38d0322d154c59a16aa4b228dc9` |
+| `ZATCA_VAT_Tax_Invoicing_and_Records_Guideline_v3_2026-05_AR.pdf` 🔴 **the Arabic prevails** (§8.3 record location and retention; added 2026-11-06, text extract committed beside it, NFKC-normalised so Arabic can be searched) | **2026-06-02** (Version 3, May 2026) | `97df821c6c897308749d23e8e2f5f9c7eddd44c3cc984bacb4b18a2996ce7fd2` |
+| `ZATCA_VAT_Tax_Invoicing_and_Records_Guideline_v3_2026-05_EN.pdf` (added 2026-11-06, text extract committed beside it) | **2026-06-02** (Version 3, May 2026) | `ed060261b25d3afb774283fb70ff52b3404dfbfc3a6ff41def935af26fe77780` |
 
 > 🔴 The two **legal text** rows matter most: C9's VAT-treatment verdicts and
 > C12's invoice-numbering verdicts cite these documents clause by clause
@@ -137,6 +139,20 @@ necessary but not sufficient. See the manifest's "Impact on M12.2".
 
 ## 🔴 CORRECTION (M12.8): storage residency — cloud is explicitly permitted
 
+> 🔴 **CORRECTED 2026-11-06: for a resident taxpayer's VAT records, the server must
+> be in the Kingdom.** ZATCA, "Guideline for Tax Invoicing and Records under VAT
+> Provisions", Version 3, May 2026, §8.3.1, whose Arabic prevails:
+> «في الحالات التي يكون فيها الشخص الخاضع للضريبة مقيماً في المملكة، فإنه يتوجب أن
+> يكون الحاسوب أو الخادم موجوداً في المملكة». Our tenants are resident. A taxable
+> person with a permanent establishment may use a centralised system abroad with a
+> workstation in the Kingdom that reaches all its VAT data, and original supporting
+> documents are retained locally. The guideline says it amends no law; it is ZATCA's
+> published reading of Implementing Regulations Art. 66(3), whose English text is
+> looser ("via a terminal point or access point in the Kingdom"). The text below is
+> kept as what the 2023 guideline says; where it says ZATCA sets no location, it is
+> superseded for those records. Record:
+> [`advisor-questions.md`](../product/advisor-questions.md), Block G.
+
 We recorded, from **2026-08-04 until M12.8**, that ZATCA requires e-invoices to be
 archived on servers **inside Saudi Arabia**. **That is not in the specification.**
 It came from a secondary source and was never checked against the pinned PDFs in
@@ -157,7 +173,7 @@ and, in the same section:
 > apply to the taxpayer entity, such as **National Cybersecurity Authority**
 > published laws and any other applicable regulations or controls.
 
-**The binding constraint is accessibility, not geography:**
+**The 2023 guideline's constraint is accessibility** (and, corrected 2026-11-06, geography as well for a resident's VAT records):
 
 > As per VAT Implementing Regulations, if the data is hosted on the cloud, it
 > **must be accessible through a direct link that can be made available to the
@@ -167,21 +183,23 @@ and, in the same section:
 
 | | Status |
 | --- | --- |
-| ZATCA mandates in-country storage | ❌ **False** — not in the primary source |
-| Cloud storage permitted by ZATCA | ✅ Explicitly |
+| ZATCA mandates in-country storage | 🔴 **Corrected 2026-11-06:** yes for a resident taxpayer's VAT records (guideline v3 §8.3.1). The 2023 guideline §5.5 did not say so |
+| Cloud storage permitted by ZATCA | ✅ Explicitly; for those records, with the server in the Kingdom |
 | A direct audit link must be producible | ✅ **Mandatory** — a feature to build (M12.8) |
 | NCA / CSP / sector rules may impose residency | ⚠️ **Unverified — a LEGAL question** |
-| Hosting region decided | ❌ **Still open** |
+| Hosting region decided | ❌ **Still open: an owner decision with an official input** (2026-11-06) |
 
 **Do not read this as "we can host anywhere."** §5.5 defers outward to the NCA
 and to "any other applicable regulations"; we have not checked those, and they
 are a legal question rather than a technical one. We have established only that
 **ZATCA is not the source of a residency constraint** — not that no constraint
-exists.
+exists. *(Corrected 2026-11-06: for a resident's VAT records ZATCA is such a source;
+see the top of this section.)*
 
 The archive backend therefore stays **swappable behind an interface** (M12.8),
 the same hedge as `KeyWrapper` in M12.5. An unverified claim is not a basis for
-committing hosting, and neither is the absence of one.
+committing hosting, and neither is the absence of one. The hedge stands after the
+2026-11-06 correction: provider and region are still uncommitted.
 
 ### Also verified in the same reading
 
