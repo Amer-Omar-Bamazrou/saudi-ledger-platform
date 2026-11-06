@@ -37,6 +37,14 @@ for url in "${ZATCA_DOCS[@]}"; do
   curl -sS -L --max-time 180 -o "specs/$name" "$url" && echo "ok"
 done
 
+# The VAT records guideline v3 (2026-11-06). Both languages share a file name on ZATCA's server, so each is saved under its own; the Arabic prevails.
+for lang in AR EN; do
+  dir=$(printf '%s' "$lang" | tr 'A-Z' 'a-z')
+  name="ZATCA_VAT_Tax_Invoicing_and_Records_Guideline_v3_2026-05_$lang.pdf"
+  printf '%-70s ' "$name"
+  curl -sS -L --max-time 180 -o "specs/$name" "https://zatca.gov.sa/$dir/HelpCenter/guidelines/Documents/Guideline-for-Tax-Invoicing-and-Records-under-VAT-Provisions.pdf" && echo "ok"
+done
+
 # The sandbox portal serves its own, more frequently updated, manual.
 printf '%-70s ' "sandbox_Developer_Portal_User_Manual.pdf"
 curl -sS -L --max-time 180 \

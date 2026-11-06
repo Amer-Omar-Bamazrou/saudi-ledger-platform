@@ -61,7 +61,7 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-H BUILT**; its four invariants are in the [`pack`](docs/product/fixed-assets-decision-pack.md) §20–§27. 🔴 THREE CLOCKS (fiscal year · tax period · accounting life) — none stands in for another.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
-**2026-10-03 → 11-05** — 🔴 **MERGED: PHASES 14+15 (#189), 16+17 (#190), RATE LIMITING (#191); PHASE 18 #192–#306 (not #201)**; AC-14 walked 11-04 and 11-05. Record: [`standing check`](docs/history/phase-18-standing-check.md).
+**2026-10-03 → 11-05** — 🔴 **MERGED: PHASES 14+15 (#189), 16+17 (#190), RATE LIMITING (#191); PHASE 18 #192–#306 (not #201), CLOSED 11-06**; AC-14 PARTIAL. Record: [`standing check`](docs/history/phase-18-standing-check.md).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
@@ -486,8 +486,9 @@ doing the thing it governs rather than only once you know its name.
 - **`ArchiveStore` has no `delete`, by design** (ZATCA §5.5 forbids deletion) —
   never add one; deletable staging is a separate interface (queue B3). Archive
   filenames use the **GENERATION** timestamp (`invoices.issued_at`), never
-  clearance. Cloud storage is permitted; the binding constraint is a direct
-  audit link (`ArchiveStore.directLink`).
+  clearance. Cloud is permitted; for a resident taxpayer's VAT records the server
+  must be in the Kingdom (ZATCA VAT records guideline v3, May 2026, §8.3.1); a
+  direct audit link stays mandatory (`ArchiveStore.directLink`).
 - **🔴 A MIGRATION THAT TOUCHES `categories` OR `system_account_templates` MUST
   REDEFINE `seed_org_chart_of_accounts()`.** The org-seed trigger copies
   template→category column by column and plpgsql resolves names at EXECUTION
@@ -530,7 +531,7 @@ advisor · mail provider · R1 design · deployment + Groq.
 | **R1** | 🔴 **REVENUE — the platform cannot take money.** No subscription, billing or plan gating exists; `ai_usage` meters but nothing makes a tenant PAYING. The last MECHANICAL requirement between a working product and income. | Undesigned: provider (Stripe-class vs Saudi PSP), plan shape, gating. An off-platform invoice suffices for customer #1; not for long. |
 | **ZATCA M12.7 + M12.9** | Blocked on the **registered entity** (§2 "What is blocked"). Not a technical step. | The owner registering the entity; no rework expected; the two don’ts in §2 hold. |
 | **A2 bank feeds** | Same blocker (a SAMA-licensed provider needs a Saudi CR). | Conversations stay useful without the entity; **signatures do not.** |
-| **L1** | ✅ Core + logo SHIPPED (known-issues file, "L1"; [`design-invoice-document.md`](docs/product/design-invoice-document.md)). | **Remaining**: "send", once B1's mail provider is wired. |
+| **L1** | Invoice "send". | Once B1's mail provider is wired. |
 | **L3** | **VERIFICATION-GATE SLA — an owner-process question no code closes.** Signup lands in `pending_review`; business routes 403 until an operator approves. Deliberate KYC, but the WAIT is undefined. | Owner decides the turnaround, who staffs it, and what the pending screen promises. |
 
 
@@ -542,16 +543,22 @@ advisor · mail provider · R1 design · deployment + Groq.
 | **C1 (remaining half)** | Confirm exactly `TRUST_PROXY_HOPS` proxies rewrite `X-Forwarded-For` in the real deployment. A wrong number is a spoofable limiter either way. |
 | **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, a CloudTrail alarm on deletion attempts, a multi-region CMK replica. If the CMK dies, every tenant re-onboards. |
 | **C4 (remaining half)** | Deploy a clamd sidecar, `MALWARE_SCANNER=clamd`. M-5 closes with it. |
-| **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is no exception. (2) An Arabic-capable vision model in Dammam. (3) Platform hosting (region + KMS); no hosted Supabase project yet. |
+| **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is no exception. (2) An Arabic-capable vision model in Dammam. (3) Hosting + KMS: an owner decision; VAT records need a Kingdom region (§4). No hosted Supabase project yet. |
 
 ### Advisor package — one conversation
 
-🔴 **The single writer is [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md)** — the full questions, the priority order and the implementability notes live there, not here. One line each:
+🔴 **The single writer is [`docs/product/advisor-questions.md`](docs/product/advisor-questions.md).** One line each:
 
 | # | Item |
 | --- | --- |
-| **C7** (Block A) | Inbound-document retention. `retain_until` has a writer and NO reader; an answer shorter than the outbound standard needs a B3-shaped build. |
-| **C8** (Block B) | 🔴 PDPL, platform-wide — above C7. The key ask: can inbound captures be made erasable-with-audit without touching ZATCA §5.5? Also whether operator readability of verified identity documents should expire. |
+| **Retention register** | IR 33 record; longest applicable period; `retain_until` has no reader; `ZATCA_ARCHIVE_RETENTION_YEARS` defaults to 6, M/61 says 10. |
+| **Commercial Transactions Law** | Read it when Umm Al-Qura publishes it; starts 180 days later. |
+| **Deletion after retention** | Tax adviser or ZATCA; decide before 2032. |
+| **Controller or processor** | PDPL adviser. If confirmed: tenant DPA (IR 17), sub-processor list. |
+| **Official identity documents** | PDPL adviser: destroy verification copies after approval, or only limit access? |
+| **Read-only roles** | Field- and export-level permissions (P5). |
+| **GOSI enquiry** | Two open questions: `owner-actions.md` 6. |
+| **QR tags 1, 3** | Q-J, Q-K: tax adviser. |
 | **C10** (Block C) | 🔴 Zakat base content — M17.3/M17.4 HELD on it. Ask C1 (the minimum-base rule) FIRST: the one answer that changes architecture, not arithmetic. |
 | **C12 leftovers** (Block D) | D1 audit practice vs number gaps; D2 the Arabic prevails and our reading rests on متسلسل. |
 | **Invoice dating** (Block F) | 🔴 The closed-period policy is REASONED-NOT-VERIFIED (known-issues file, "INVOICE DATING INTO CLOSED MONTHS"); the question is whether Saudi practice permits ANY exception. |
@@ -565,9 +572,9 @@ the order is not the severity order.**
 
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
-| **1** | **Password recovery — break-glass ✅ SHIPPED** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
+| **1** | **Password recovery** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
 | **2** | 🔴 **The generic journal reverse accepts an entry a receipt, payroll, depreciation or recognition OWNS** — the document reads live while its entry is cancelled (invoices, notes, write-offs refused: DR-34, §11.53). | posts + hides. | DR-34; Phase 12 §7 #8. |
-| **3** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | **C8 (PDPL)** — legal, not code. | Audited and operator-only, so not a hole; an unbounded retention surface. Ask the advisor before building an expiry. |
+| **3** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | Official identity documents. | Audited, operator-only. P6: no statutory expiry. |
 | **4** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
 
 **Open DECISION:** `platform-alarms` is NOT operator-runnable (one-line flip).
@@ -602,9 +609,6 @@ fresh hold-out before launch. Record: findings file,
 - 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local stack where the grants were measured.
 
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
-
-Closed, each under a standing guard: RLS policy coverage, permission-matrix
-seed grants, git-history secret scanning (findings file, "THE THREE COVERAGE GAPS, AUDITED").
 
 🔴 **SAME-ORG CROSS-COMPANY ISOLATION — CLOSED AT THE ROW (N1; known-issues
 file, "N1 — SAME-ORG CROSS-COMPANY").** Operating: the company-blind

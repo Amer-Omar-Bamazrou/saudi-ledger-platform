@@ -1,0 +1,3035 @@
+VAT
+
+Guideline
+
+For tax Invoicing and Records
+under VAT Provisions
+
+Version 3 | May 2026  Note:The English version is for guidance purposes
+1                     only. In case of any discrepancy between the Arabic
+                      and English versions, the Arabic version shall prevail
+
+   The Zakat, Tax and Customs Authority has issued this Guideline to clarify certain treatments
+   related to the implementation of the statutory provisions in force on the date of its issuance.
+   The content of this Guideline shall not be deemed an amendment to any of the laws and
+
+                            regulations in force in the Kingdom of Saudi Arabia.
+   The Authority affirms that it shall apply the explanatory treatments set out in this Guideline,
+   where applicable, considering the relevant statutory provisions. If any clarification or
+   content contained in this Guideline is amended in relation to an unchanged statutory
+   provision, the updated explanatory treatment shall apply to transactions carried out after
+   the date of publication of the updated version of the Guideline on the Authority’s official
+
+                                                      website.
+
+2
+
+                                    Amendments
+
+   #  Edition  Amendment  Section/  Amendment   Amendment Description             Remarks
+        No.         Date    Item        Type
+
+                                               The update is in accordance
+
+   1                      5.4       Amendment  with the decision of the Board of  -
+                                               Directors of the Zakat, Tax and
+
+                                               Customs Authority No. (23-2-6)
+
+                                               dated 281440/08/ H
+
+                                               The update is in accordance
+
+                                               with the amendments to the
+
+                                               Implementing Regulations of
+
+2                         7.2       Amendment  the Value Added Tax law issued     -
+                          10.4                 pursuant to Board Resolution No.
+
+                                               (01-06-24) dated 17 Jumada Al-
+
+                                               Awwal 1446 H, corresponding to
+
+                                               19 November 2024
+
+      3        May 2026                        Update in accordance with the
+                                               amendments to the Implementing
+
+                                               Regulations of the Value Added
+
+3                         10.3 Amendment Tax law issued pursuant to Board         -
+
+                                               Resolution No. (23-4-1) dated 26
+
+                                               Dhu al-Qi'dah 1444H, correspond-
+
+                                               ing to 15 June 2023.
+
+                                               Update in accordance with the
+
+                                               updated decision regarding
+
+                                               the controls, requirements,
+
+                                               specifications, and technical and
+
+4                         14.10 Amendment procedural rules necessary for          -
+
+                                               implementing the provisions
+
+                                               of the Electronic Invoicing
+
+                                               Regulations issued on May 19,
+
+                                               2023
+
+3
+
+Table of Contents
+
+1. Introduction                                                           7
+
+1.1 Implementing a Value Added Tax (“VAT”) system in the Kingdom of Saudi Arabia (“KSA”)
+7
+
+1.2 Zakat, Tax and Customs Authority                                      7
+
+1.3 What is VAT?                                                          7
+
+1.4 This Guideline                                                        8
+
+2. Definitions Related to Key Terms                                       8
+
+3. Economic Activity and Registration for VAT Purposes                    10
+
+3.1 Who Is Considered to Be Carrying Out an Economic Activity?            10
+
+3.2 Mandatory Registration                                                10
+
+3.3 Voluntary Registration                                                11
+
+4. Tax Invoice                                                            11
+
+4.1 Issuance of the Tax Invoice                                           11
+
+4.2 Content of the Tax Invoice                                            16
+
+4.3. Simplified Tax Invoice                                               23
+
+4.4 Summary Tax Invoice                                                   24
+
+4.5 Timing of Issuing Tax Invoices                                        25
+
+5. Special Cases                                                          27
+
+5.1 Issuance of a Tax Invoice on Behalf of the Supplier (“Self-Billing”)  27
+
+5.2 Issuance of Tax Invoices by a Third Party                             30
+
+4
+
+   5.3 Self-Accounting of VAT by the Customer                    32
+
+   5.4 Issuance of Invoices under the Profit Margin Scheme       33
+
+   6. Automated/Electronic Invoices                              34
+
+   6.1 Forms of Automated/Electronic Tax Invoices                34
+
+   6.2 Forms of Electronic Exchange                              35
+
+   6.3 Mandatory Automated/Electronic Invoices                   36
+
+   7. Credit and Debit Notes                                     36
+
+   7.1 Cases for Issuing a Credit Note or a Debit Note           37
+
+   7.2 Notification Forms and Timing                             39
+
+   8. Record Keeping                                             39
+
+   8.1 General Principles                                        39
+
+   8.2 Required Records                                          40
+
+   8.3 Record Retention                                          41
+
+   8.4 Special Cases                                             42
+
+   9. Input Tax Deduction                                        44
+
+   9.1 General Provisions                                        44
+
+   9.2 Proportional Deduction of Input Tax                       44
+
+   9.3 Deduction of VAT Paid under the Reverse Charge Mechanism  45
+
+   9.4 Timing of Tax Deduction                                   46
+
+   9.5 Special Cases -Alternative Documents/Evidence             46
+
+   10. Tax Obligations                                           48
+
+   10.1 Submission of VAT (VAT) Declarations                     48
+
+   10.2 Record Keeping                                           49
+
+5
+
+10.3 VAT Registration Certificate                        49
+
+10.4 Correction of Previous Errors                       49
+
+11. Penalties                                            50
+
+12. Request for an Interpretative Decision (Tax Ruling)  53
+
+13. Contact Us                                           54
+
+14. Frequently Asked Questions (FAQs)                    54
+
+6
+
+1. Introduction
+
+1.1 Implementing a Value Added Tax (“VAT”) system in the Kingdom of Saudi
+Arabia (“KSA”)
+
+The Kingdom of Saudi Arabia has ratified the Unified VAT Agreement for the Cooperation Council
+for the Arab States of the Gulf (“GCC”). Pursuant to Royal Decree No. (M/51) dated 3rd Jumada al-
+Ula 1438H/31st January 2017 (“Unified VAT Agreement”) and based on the provisions contained in
+the Unified VAT Agreement, the Kingdom of Saudi Arabia issued the VAT Law by Royal Decree No.
+(M/113) dated 2nd Dhu al-Qi’dah 1438H/25th July 2017 (“VAT Law”), as well as the Implementing
+Regulations of the VAT Law by the Board of Directors of the General Authority of Zakat and Tax
+- formerly - and the Zakat, Tax and Customs Authority - currently -under Resolution No. (3839)
+dated 14th Dhu al-Hijjah 1438H/5th September 2017 (“Implementing Regulations of the Law”), as
+amended by subsequent Board resolutions.
+
+1.2 Zakat, Tax and Customs Authority
+
+Cabinet Resolution No. (570) was issued on 22nd Ramadan 1442H/4th May 2021, mandating the
+merger of the General Authority of Zakat and Tax and the General Customs Authority into a single
+entity named the Zakat, Tax and Customs Authority. ZATCA is responsible for the collection of
+zakat, taxes, and customs duties, and for achieving the highest levels of compliance by taxpayers
+in accordance with best practices and with high efficiency.
+ZATCA also aims to enable the Kingdom to become a global logistics hub by facilitating trade,
+protecting national security, and regulating and managing all activities related to customs work
+and border points, ensuring the highest standards of efficiency, productivity, and competitiveness.
+This is achieved by providing high-quality services that focus on the customer and prioritize
+service delivery according to best practices.
+
+1.3 What is VAT?
+
+VAT is an indirect tax imposed on the importation and supply of goods and services at each stage
+of production and distribution, subject to certain exceptions. VAT is applied in more than 160
+countries worldwide.
+VAT is a tax on consumption that is paid and collected at each stage of the supply chain, from
+the manufacturer’s purchase of raw materials to the retailer’s sale of the final product to the
+consumer. Unlike other taxes, persons subject to VAT shall do all of the following:
+
+7
+
+• Collect VAT from their customers on each taxable sale at the specified percentage.
+• Pay VAT to their suppliers, if any, on each taxable purchase at the specified percentage.
+
+When a person subject to VAT sells a good or provides a service, they must apply tax at a rate
+of 15% (assuming the standard rate applies to those supplies) added to the final selling price.
+Persons subject to VAT must account separately for the 15% collected on taxable sales from
+their revenues for later payment to ZATCA. The VAT collected by persons subject to VAT on their
+sales is referred to as output tax.
+Similarly, purchases made by persons subject to VAT are treated by adding VAT at 15% on
+purchases of goods and services made by persons subject to VAT (assuming the standard rate
+applies to those supplies). The VAT they pay to their suppliers is referred to as input tax.
+
+1.4 This Guideline
+
+This Guideline is addressed to all natural and legal persons who carry out an economic activity and
+are subject to VAT. The importance of this Guideline lies in providing further clarification regarding
+the obligations related to the issuance of tax invoices and record-keeping for VAT purposes, in
+addition to the requirements applicable to specific cases and transactions.
+
+2. Definitions Related to Key Terms
+
+A tax invoice is defined as “an invoice issued in respect of taxable supplies, in accordance with
+the requirements stipulated in the Law and the Regulations.(1)”
+Accordingly, an invoice issued by a supplier shall be treated as a tax invoice only if:
+1. It is issued in respect of taxable supplies;
+2. The invoice satisfies all relevant requirements stipulated in Article 53 of the Implementing
+
+    Regulations of the Law, with respect to the details of the supply. For further details on these
+    requirements, reference may be made to Section 4.2 of this Guideline.
+When considering the violation committed by a non-registered person upon issuing tax invoices,
+ZATCA considers that any commercial (financial) document intended to show the amount of tax,
+or any document pursuant to which the amount of tax is collected, shall be treated as a tax invoice
+for the purposes of applying this provision of the Law.(2)
+
+(1) Article 1 of the VAT Law
+(2) Aticle 44 of the VAT Law
+
+8
+
+A simplified tax invoice is an invoice issued in respect of taxable supplies in specific cases. A
+simplified invoice is a form of tax invoice; however, it contains fewer data elements compared to
+a tax invoice (as detailed in Section 4.3 of this Guideline).
+
+A summary tax invoice is a form of tax invoice and is issued in respect of multiple supplies made
+by the same supplier during one month (to be discussed in Section 4.4 of this Guideline).
+
+A tax invoice issued on behalf of the supplier is a form of tax invoice issued by a taxable customer
+in respect of a supply of goods or services made by a taxable supplier. In order to issue a tax
+invoice on behalf of the supplier, a number of conditions and requirements must be met, and such
+an invoice may only be issued in the cases stipulated in the Implementing Regulations of the Law
+(to be discussed in Section 5.1 of this Guideline).
+
+Electronic invoice: A tax invoice that is issued and stored in a structured electronic format through
+an electronic means. A paper invoice that is converted into an electronic format through copying,
+scanning, or any other method shall not be considered an electronic invoice.
+
+Taxable supplies for VAT purposes are defined as “supplies on which tax is imposed in accordance
+with the provisions of the Agreement, whether at the standard rate or the zero rate, and for which
+the related input tax is deductible in accordance with the provisions of the Agreement.”(3) This
+includes supplies for which VAT due is accounted for by the customer under the reverse charge
+mechanism.
+
+Reverse charge (self-accounting) mechanism for VAT purposes is defined as “the mechanism
+under which the taxable customer is obligated for the tax due on behalf of the supplier, and is
+responsible for all obligations stipulated in the Agreement and the domestic law.”(4)
+
+Intra-GCC supplies for VAT purposes are defined as “supplies of goods or services by a
+supplier resident in a Member State to a customer resident in another Member State.” During the
+transitional period, and until VAT is applied in all GCC Member States and an electronic services
+system is established in each Member State, such supplies shall not be regarded as intra-GCC
+supplies for VAT purposes in the Kingdom.(5)
+
+Neither a credit note nor a debit note has been defined for VAT purposes. However, a taxable
+person is required under the Law to issue such documents when amending the consideration for
+a taxable supply, or when correcting the original tax invoice in relation to that supply.(6)
+
+(3) Article 1 of the Unified VAT Agreement
+(4) Article 1 of the Unified VAT Agreement
+(5) Article 1 of the Unified VAT Agreement
+(6) Article 57 of the Unified VAT Agreement
+
+9
+
+The invoice issuance date has not been defined for VAT purposes; however, ZATCA considers
+this date to be the date on which the tax invoice is created.
+Date of supply is the date on which the tax becomes due, and is determined in accordance with
+Article 23 of the Unified VAT Agreement and the provisions specified thereunder, as set out in
+Article 20 of the Implementing Regulations.
+Records have not been defined for VAT purposes; however, this term is used in this Guideline to
+refer to the electronic and paper documents required to be retained pursuant to the provisions of
+the Unified VAT Agreement and the VAT Law in the Kingdom. Section 8 of this Guideline provides
+further details in this regard.
+
+3. Economic Activity and Registration for VAT Purposes
+
+3.1 Who Is Considered to Be Carrying Out an Economic Activity?
+
+An economic activity may be carried out by both natural and legal persons. Legal persons (such as
+companies) shall be considered to be carrying out an economic activity if they conduct a regular
+activity involving the making of supplies. It should be noted that natural persons may carry out
+certain activities either as part of their economic activity or as part of their private activities.
+Accordingly, specific rules apply to determine whether a natural person falls within the scope of
+VAT.
+Natural and legal persons who carry out an economic activity are required to register for VAT
+purposes where required to do so. Such persons must also collect the VAT applicable to their
+activities and remit the VAT collected to the ZATCA.
+
+3.2 Mandatory Registration
+
+Registration is mandatory for all persons whose annual revenues exceed a specified registration
+threshold. Accordingly, if a person’s taxable supplies during a period of twelve months exceed
+SAR 375,000 (the “mandatory registration threshold”), that person must register for VAT
+purposes.(7)This is subject to the transitional provisions stipulated in the Implementing Regulations
+of the Law relating to the mandatory registration threshold during the transitional period.
+Taxable supplies for VAT purposes do not include the following:
+
+• Exempt supplies, such as exempted financial services or exempted real state supplies.
+
+ (7) Article 3 of the Implementing Regulations
+
+10
+
+• Supplies that fall outside the scope of VAT in any GCC Member State.
+• Proceeds from the sale of capital assets, where capital assets are defined as assets
+
+     designated for long-term commercial use.(8)
+In specific cases, other rules apply to mandatory registration:
+
+• Non-resident persons in the Kingdom of Saudi Arabia who are required to account for VAT on
+
+     supplies they make or receive in the Kingdom of Saudi Arabia must register for VAT purposes
+     regardless of the value of the supplies in respect of which they are required to collect and
+     remitVAT.(9)
+
+Further information regarding mandatory registration for VAT purposes may be accessed through
+the website zatca.gov.sa.
+
+3.3 Voluntary Registration
+
+A person resident in the Kingdom of Saudi Arabia whose taxable supplies or taxable expenses
+exceed SAR 187,500 (the “voluntary registration threshold”) during a period of twelve months
+may register voluntarily for VAT purposes. Voluntary registration for VAT purposes is preferable
+where the person wishes to claim a refund of VAT paid on expenses incurred prior to issuing
+invoices or making subsequent supplies.(10)
+Further information regarding voluntary registration for VAT purposes may be accessed through
+the website zatca.gov.sa.
+
+4. Tax Invoice
+
+4.1 Issuance of the Tax Invoice
+
+The concept of the tax invoice was introduced into the general legal framework of the Kingdom
+of Saudi Arabia pursuant to the Unified VAT Agreement, the VAT Law in the Kingdom, and its
+Implementing Regulations.(11)
+The requirement to issue or retain tax invoices is a requirement that relates exclusively to VAT.
+Nevertheless, the requirements stipulated under VAT legislation must be applied in conjunction
+
+(8) Article 1 of the Unified VAT Agreement
+(9) Article 5(1) of the Implementing Regulations
+(10) Article 7 of the Implementing Regulations
+(11) Article 53(1) of the Implementing Regulations
+
+11
+
+with any other requirements prescribed under other laws or by competent authorities in the
+Kingdom relating to the obligation to issue and retain invoices.
+
+4.1.1 Requirement to Issue a Tax Invoice
+Every taxable person must issue, or cause to be issued, a tax invoice that includes, at a minimum,
+a number of data elements required to be provided in the invoice. The taxable person may include
+additional data at their discretion. The type and amount of data required in a tax invoice vary
+depending on its type. As a general rule, tax invoices are divided into two main types:
+(Standard Tax) Invoice:
+This invoice is usually issued in transactions conducted from business to business (B2B) or from
+business to government (B2G), although it may also be issued in other cases. A standard tax
+invoice must be issued in respect of any supply with a value exceeding SAR 1,000. The standard
+tax invoice must include a minimum number of data elements, as set out in Section 4.2.3 of this
+Guideline.
+Simplified Tax Invoice:
+This invoice is usually issued from a business to an individual (B2C), i.e., generally to persons
+who are not subject to tax, to document supplies with amounts less than SAR 1,000. Section 4.3
+of this Guideline provides additional details regarding simplified tax invoices and the information
+they must include.
+The term “tax invoice,” wherever it appears in this Guideline, the Law, or the Implementing
+Regulations, shall refer to a standard tax invoice, unless the context requires or explicitly indicates
+otherwise.
+
+4.1.2 Tax Invoicing in Specific Circumstances
+The table below categorises when a Tax Invoice is required or not required.
+
+12
+
+Cases in Which a Tax Invoice Must Be Issued                                   Cases in which no Tax
+                                                                              Invoice should be issued
+Issuance of a Tax     Issuance of a Simplified Tax Invoice
+Invoice
+
+Where taxable         Where the value of          A simplified tax            Supply of goods or
+supplies are made     the supplies is less
+to another business,  than SAR 1,000              invoice may be issued services by a person who
+or to a government
+entity                                            regardless of the value is not required to register
+
+                                                  of the supplies where       for VAT, to any person
+
+                                                  the supply is made to a     (Penalties shall apply to
+                                                  natural person who is not   a person who is required
+                                                  subject to tax, or where    to register but is not
+                                                  any consideration relating  registered and who issues
+                                                  to taxable supplies of      a tax invoice, due to failure
+                                                  goods or services is        to register and for issuing
+                                                  received from a natural     tax invoices)
+                                                  person who is not subject
+
+                                                  to tax
+
+Export of goods (see Note 1)                                                  Supply of goods or
+                                                                              services exempt from VAT
+Supply of services subject to the zero rate to a                              in the Kingdom of Saudi
+customer who is non-resident in any Member                                    Arabia (see Note 4)
+State of the Unified GCC VAT Agreement (see
+Note 1)                                                                       VAT becoming due
+                                                                              under the reverse charge
+Intra-GCC supplies (see Note 2)                                               mechanism on supplies
+                                                                              (unless the supplier is a
+Supply of goods or services to a taxable                                      taxable person)
+person, or to a non-taxable legal person, or                                  Supplies made outside the
+to a sole establishment, or to any other entity                               scope of VAT (see Note 5)
+(see Note 3)                                                                  (See Note 6)
+
+Receipt of any consideration relating to                                      Importation of goods (see
+taxable supplies of goods or services to                                      Note 7)
+another taxable person, or to a non-taxable
+legal person, or to a sole establishment, or to
+any other entity
+
+Supplies of qualifying used goods where
+tax is imposed in accordance with the profit
+margin scheme - see the special conditions
+set out in Section 7 of this Guideline
+
+Deemed supply (no invoice is issued to the
+customer; the invoice is retained for audit
+purposes -see Note 3)
+
+13
+
+Notes related to the cases in which a Tax Invoice must be issued:
+
+1   Supplies subject to the zero rate are supplies that are subject to VAT but at a rate of
+
+    zero percent.
+
+    A tax invoice must be issued for all goods exported from the Kingdom, regardless of the
+    value of such supply or the status of the customer (whether taxable or non-taxable).
+
+    With respect to other zero-rated supplies (being domestic supplies of goods subject to
+    the zero rate, or services supplied to a person who is non-resident in any GCC Member
+    State), a simplified tax invoice may be issued, provided that the requirements for
+    issuing a simplified tax invoice are met.
+
+2   After the implementation of the VAT system in all GCC Member States, including
+
+    the implementation of the electronic services system, supplies made to a taxable
+
+    customer in another Member State may be subject to tax in that Member State. In all
+
+    cases, a tax invoice must be issued when making intra-GCC supplies.
+
+    This shall apply to supplies made from the Kingdom following ZATCA’s official
+    announcement of the implementation of the electronic services system by virtue of a
+    decision issued by it. For further details, please refer to the Guideline relating to import
+    and export.
+
+3   A deemed supply does not arise as a result of an actual supply of goods or services
+
+    to another person; however, for VAT purposes, it is considered a taxable supply as a
+
+    result of the taxable person using or providing goods or services in a specific manner
+    (for example, supplying goods or services without consideration)(13). This may include
+
+    the supply of free goods with no value (however, the VAT implications relating to free
+
+    goods will depend on the actual purpose of such supply). Further details regarding
+
+    promotional offers made by taxable persons will be provided in a separate Guideline.
+
+    A tax invoice must be issued when making deemed supplies and must be retained in the
+    records for audit purposes. However, the person who receives such goods or services
+    (if any) does not receive goods or services in exchange for consideration and therefore
+    will not be able to deduct the input tax relating to that deemed supply. Accordingly, the
+    tax invoice should not be provided to the customer.
+
+    Example (1):
+
+    Al-Ahmad Company, a services company, provides a water cooler free of charge to
+    Al-Salam Company at a cost of SAR 10,000, as an expression of appreciation for Al-
+    Salam Company being a regular customer. Al-Ahmad Company is required to account
+    for VAT in the amount of SAR 1,500 (15% of the cost price) on the deemed supply
+    of goods without consideration. Al-Salam Company may not deduct the input VAT
+    relating to the deemed supply accounted for by Al-Ahmad Company in its VAT return.
+
+    Al-Ahmad Company must issue a tax invoice in respect of the deemed supply for VAT
+    purposes and retain it in its records for audit purposes. Al-Ahmad Company is not
+    required to provide the tax invoice to Al-Salam Company.
+
+14
+
+Notes related to the Cases in which a Tax Invoice is not required to be issued:
+
+4   Pursuant to the VAT Law in the Kingdom and its Implementing Regulations, taxable persons
+
+    who make domestic supplies of goods or services that are exempt from tax are exempt from
+
+    the requirement to issue a tax invoice in respect of such supplies(15) (Such as exempt financial
+
+    services or exempted real estate supplies.)
+
+5   In the event that a taxable person in the Kingdom receives goods or services from a non-
+
+    resident supplier, the taxable person shall be treated as if they had supplied such goods or
+
+    services to themselves.(16) Such supply shall be subject to tax in accordance with the reverse
+
+    charge mechanism. In most cases, the non-resident supplier will not issue a tax invoice.
+
+    ZATCA will not require the recipient to issue a tax invoice themselves in order to record the
+
+    supply under the reverse charge mechanism; however, documents and records evidencing
+
+    the transaction must be retained.
+
+    However, if the non-resident supplier is a taxable person in the Kingdom, that supplier shall
+    be required to issue a tax invoice (taking into account that the tax is payable by the recipient).
+    Please refer to Section 5.3 for further details.
+
+6   Supplies and transactions that fall entirely outside the scope of tax in the Kingdom do not
+
+    require the issuance of a tax invoice. Examples include the following:
+
+    • Supplies between members of the same tax group.
+    • Goods and services supplied by a legal person to itself (excluding deemed supplies).
+    • The supply of goods and services that together constitute a commercial activity (an
+    economic activity capable of operating independently), provided that the conditions
+
+    specified in the Implementing Regulations are met.
+
+    • The issuance or supply of shopping vouchers.
+    • Supplies made by a branch of a taxable person located in a country outside the GCC
+    Member States.
+
+    • The payment of compensation that is not related to a supply of goods or services.
+
+7   VAT applies to imported goods and is paid to the ZATCA as part of the customs clearance
+
+    process. As goods are imported and transported from a foreign country, there is no separate
+
+    supply of goods in the Kingdom as part of the importation process. In such cases, neither
+
+    the foreign supplier nor the local customer is required to issue a tax invoice in respect of the
+
+    imported goods.
+
+    Example (2):
+
+    Al-Saqr Company is a Saudi company engaged in the construction of a new reinforcing steel
+    factory in Riyadh. For construction purposes, the company imports construction materials from
+    a supplier resident in Egypt. The sales document used by the Egyptian supplier does not qualify
+    as a tax invoice under the regulations of the Kingdom.
+
+    However, Al-Saqr Company is not required to issue a tax invoice, as the goods were imported
+    by Al-Saqr Company and the Egyptian supplier did not supply goods within the Kingdom. Al-
+    Saqr Company uses the information provided to it by ZATCA to substantiate the deduction of
+    the tax paid on importation.
+
+15
+
+4.1.3 Persons Prohibited from Issuing Tax Invoices
+A tax invoice may be issued only in cases where VAT is correctly applied to a taxable supply.
+Accordingly, any person who is not registered for VAT purposes in the Kingdom is prohibited
+from issuing a tax invoice.
+Any person who is not registered for VAT purposes but issues a document intended to be used as
+a tax invoice, or seeks to collect any amount as VAT, shall be subject to a fine not exceeding SAR
+100,000, without prejudice to any more severe penalty stipulated under any other law.(12)
+
+4.2 Content of the Tax Invoice
+
+The tax invoice is ordinarily issued as a primary commercial document to show the goods and
+services supplied to the customer, their quantities, values, and other data used in commercial
+transactions. However, for VAT purposes and to comply with the provisions of the Law and the
+Implementing Regulations, the content of the tax invoice must include the minimum required basic
+data that must be included in the invoice depending on its type (standard tax invoice or simplified
+tax invoice), as will be detailed in the section specifying the data required to be included in each
+type in a subsequent section of this Guide.
+With respect to the method of issuing the tax invoice, all taxable persons resident in the Kingdom,
+or any person issuing a tax invoice on behalf of a taxable person resident in the Kingdom, must
+issue the tax invoice electronically in accordance with the rules set out in the Electronic Invoicing
+Regulations and the specifications and procedural requirements prescribed therein for issuing
+theinvoice.(13)
+
+4.2.1 Language
+The Implementing Regulations of the Law provide that “records must be maintained in the
+Arabic language, and all invoices must be issued in the Arabic language, in addition to any other
+language in which tax invoices may be issued.”(14) All fields of the tax invoice must be completed
+in the Arabic language. The information stated in Arabic shall be considered the approved and
+conclusive information, and any other language shall be treated as a translation only.
+ZATCA’s views in relation to certain fields of the tax invoice are set out below:
+
+ (12) Article 44, VAT Law (VAT Law)
+ (13) More details can be found by reviewing the Electronic Invoicing Regulation Guidance: https://zatca.gov.sa/ar/E-Invoicing/
+
+       Introduction/Guidelines
+ (14) Article 66(2), Implementing Regulations
+
+16
+
+Numbers       When expressing values in numerals, Arabic numerals may be used in the form
+              “123456789” or “١٢٣٤٥٦٧٨٩” as part of the Arabic language requirements in the
+              tax invoice.
+
+Currency      Internationally recognized currency symbols such as ($, ¥, €) or official
+or Other      currency codes (USD, JPY, EUR) may be used as part of the Arabic language
+Symbol        requirements in the tax invoice.
+
+Dates         Dates expressed in numerals (e.g., 2020/01/21) may be used as part of the
+              Arabic language requirements in the tax invoice. Such numerals must be
+              expressed in the following order: day/month/year.
+
+Invoice       Invoice numbers may be specified using numerals only, or by using a
+Numbers       combination of numerals and letters (Roman or Arabic), provided that the
+              number is sequential and uniquely identifies the invoice.
+
+              Proper names include the names of persons and places, the registered branch,
+
+              and product names. Many proper names are used in the Kingdom of Saudi
+
+Proper        Arabia, particularly names of international origin, and are not usually translated
+Names         into Arabic in commercial practice. ZATCA approves the use of Latin characters
+              for writing such names as part of the Arabic language requirements in the tax
+
+              invoice.
+
+4.2.2 Currency
+
+For VAT purposes, the monetary values stated in the tax invoice may be expressed in any
+currency. However, the amount of tax charged must be stated in Saudi Riyals.(15) Accordingly,
+where any currency other than the Saudi Riyal is used, the amount must be converted into Saudi
+Riyals using the daily exchange rate determined by the Saudi Central Bank on the date the tax
+becomesdue.(16)
+
+Example (3):
+
+Al-Madinah Chemical Products Company issued a tax invoice for the supply of industrial chemical
+products to Al-Safa Plastics Factory in March 2021, being the month in which the products were
+supplied. The company did not receive any amounts prior to issuing the tax invoice. Pursuant
+to the terms and conditions of the contractual agreements between the two companies, it was
+agreed that the price would be calculated in United States Dollars. In compliance with the tax
+legislation in the Kingdom, the tax amount was converted from United States Dollars into Saudi
+Riyals in the tax invoice using the daily exchange rate determined by the Saudi Central Bank on
+
+(15) Article 53(5)(R), Implementing Regulations
+(16) Article 61, Implementing Regulations
+
+17
+
+the date of issuance of the invoice. An illustrative example of the issued invoice is included in the
+invoices annex to this Guideline.
+
+4.2.3 Information Required to Be Included in the Tax Invoice
+The information required to be included in a tax invoice varies depending on the type of invoice
+issued. In a subsequent section, the information relating to the simplified tax invoice will be
+addressed, while this section sets out in detail the information and data required to be included in
+the standard tax invoice, as follows:(17)
+
+Document Title     The document title must state the type of invoice, indicating whether it
+                   is a “Tax Invoice” or a “Simplified Tax Invoice.”
+
+Dates              The dates required to be included in the tax invoice include the
+                   following:
+
+                   a. Invoice issuance date and time
+                      This is the date on which the tax invoice is created, i.e., the time
+                      at which the invoice is generated and issued. In practice, the date
+                      of creation of the tax invoice is the same as the date on which the
+                      invoice is delivered to the customer or to the supplier—in cases
+                      where the customer issues the invoice on behalf of the supplier.
+                      The date must be in the format YYYY-MM-DD and the time in the
+                      format HH:mm:ss.
+
+                   b. Date of supply – if different from the invoice issuance date
+                      The invoice must state the date on which the supply occurred where
+                      it has been agreed that tax invoices will be issued at a time different
+                      from when the supply is made.
+                      The date of supply is determined in accordance with the supply rules
+                      stipulated under the Unified VAT Agreement, the VAT Law, and its
+                      Implementing Regulations.
+                      (Please refer to the General Guideline on VAT for further information
+                      on determining the date of supply.)
+
+Sequential Number  The tax invoice must include a sequential number that distinguishes it
+                   from other invoices, issued by the taxable person in accordance with
+                   Paragraph 5 (b) of Article 53 of the Implementing Regulations of the
+                   VAT Law. The sequential number must comply with the conditions
+                   stipulated in the Electronic Invoicing Regulations.
+
+(17) The legal requirements related to issuing a tax invoice are included in Article 53(5) of the Implementing Regulations.
+
+18
+
+Supplier Details  The following supplier details must be included:
+
+                  a. Supplier name
+                     Including the legal name of the supplier as stated in its VAT
+                     registration certificate.
+
+                  b. Supplier address
+                     The supplier’s principal place of business or any other relevant
+                     establishment, in accordance with the National Address or other
+                     official documents. The address must be in the Kingdom of Saudi
+                     Arabia.
+
+                  c. Supplier VAT registration number (“unique number”)
+                     As stated in the supplier’s VAT registration certificate, or the tax
+                     group registration number if the supplier is a member of a tax group.
+
+                  Customer Details
+
+                  The customer details required to be included in the tax invoice include
+                  the following:
+
+                  a. The customer’s name and address, in accordance with Paragraph 5
+                     (h) of Article 53 of the Implementing Regulations of the VAT Law.
+
+                  b. The customer’s VAT registration number, or the tax group
+                     registration number if the customer is a member of a tax group.
+
+                  c. Additional customer identifiers where the customer is not registered
+                     for VAT purposes:
+
+                  One of the following identifiers must be included:
+                  1. Tax Identification Number (TIN)
+                  2. Commercial Registration (CR)
+                  3. Ministry of Municipal and Rural Affairs license
+                  4. Ministry of Human Resources and Social Development license
+                  5. Number 700
+                  6. General Authority for Investment license
+                  7. National Identity Number
+                  8. GCC Identity
+                  9. Residency number
+                  10. Passport number
+
+                  The identification field must include:
+                  – Type of identifier
+                  – Identifier number
+
+                  Where more than one additional identifier is available for the customer,
+                  the identifiers must be used in the order listed above.
+
+19
+
+Supply Details     The tax invoice must state the nature and quantity of the goods made,
+                   or the scope and nature of the services supplied where the supply
+                   relates to services, as follows:
+
+                   a. Description of the good or service
+
+                   b. Unit price
+
+                   c. Quantity
+                   d. Discount or rebate amount
+
+                   e. Total amount (exclusive of VAT)
+
+                   f. Applied VAT rate
+
+                   g. VAT amount
+                   h. Total amount (inclusive of VAT)
+
+Tax Price Details  The price- and amount-related data required to be included in the
+                   invoice include the following:
+
+                   a. Discount or rebate amount, if discounts or rebates are applied to the
+                      total invoice amount
+
+                   b. Taxable amount by rate or exemption (exclusive of VAT)
+
+                   c. VAT amount in Saudi Riyals
+
+                   d. Total invoice value (inclusive of VAT)
+
+Statement of       The invoice must state that it has been issued on behalf of another
+Issuance of a Tax  person in any of the following cases:
+
+Invoice on Behalf of a. The customer issues the invoice on behalf of the supplier
+
+Another Person     b. A third party issues the invoice on behalf of the supplier
+
+Statement of       Where tax is not charged at the standard rate, the tax invoice must
+Application of     include a statement indicating that it relates to a special taxable supply
+a Special Tax      representing one of the following cases:
+Treatment
+                   a. Deemed supply
+
+                   b. Export of goods or services
+
+                   c. Summary invoice
+
+QR Code            The invoice must include the Quick Response (QR) code provided by
+                   ZATCA, which contains the legally required information in accordance
+                   with the Electronic Invoicing framework. This requirement shall be
+                   applicable to standard tax invoices starting from January 2023G.
+
+20
+
+4.2.4 Rounding of Amounts
+The amount of VAT (VAT) charged must be shown in Saudi Riyals, with the whole number
+expressed in Riyals and fractions expressed in Halalas. The unit price may be stated in full without
+rounding; however, if the VAT amount or the total taxable amount includes fractions of a Halala,
+the VAT amount must be rounded to the nearest Halala. The rounded figures used must be the
+same figures used for the purposes of filing the VAT return.
+Example (6):
+Al-Hadiqa Al-Khadhra Markets sold food products on a wholesale basis to a VAT-registered
+customer. The price inclusive of VAT was SAR 1,255.00, and the supplier was required to issue a
+tax invoice for this supply. The VAT amount calculated as a fraction of 15/115 of the VAT-inclusive
+price is SAR 163.70. The taxable amount must be rounded from SAR 1,091.30 to SAR 1,195.24 on
+the tax invoice.
+
+4.2.5 Other Information for Commercial Purposes
+A tax invoice may include additional information in line with the supplier’s normal commercial
+practices. Accordingly, there are no restrictions on including any other commercial data on the
+tax invoice.
+Examples of general items that do not form part of the mandatory requirements of a tax invoice
+include:
+
+• The due date for payment of the tax invoice amount.
+• Return and exchange periods and conditions for commercial purposes.
+• Contact details and social media accounts of the supplier and the customer.
+• Shipping addresses or other shipping details.
+
+4.2.6 Example of a Tax Invoice
+The following page includes an example of a tax invoice for the supply of goods (including related
+shipping and handling services).
+As a commercial document, a tax invoice may take different forms, and it is not mandatory to use
+the same template shown in the following example.
+
+21
+
+22
+
+ Please transfer the amount via direct bank transfer to the following bank account:
+ Account Name: Al Salam Supplies Co. Ltd
+ Bank Name: Arab National Bank, Al-Kharj Road Branch, Riyadh
+ Saudi IBAN: SA1002110000001008118034
+ SWIFT Code: ARNBSARI
+ For further information, please contact the Finance Department at Al Salam Supplies Co. Ltd via
+ email: finance@Al-salam.sa
+
+4.3. Simplified Tax Invoice
+
+ In specific cases, a “simplified” tax invoice may be issued instead of a “basic” tax invoice(18). This
+ reflects common commercial practice, whereby low-value transactions are documented through
+ a receipt or a simplified invoice, which does not include all collection data and other information
+ such as customer details.
+ However, in all cases, the taxable person remains obligated to issue a tax invoice for every taxable
+ supply made, whether a basic tax invoice or a simplified tax invoice, regardless of commercial
+ practice.
+
+4.3.1. Cases in Which a Simplified Tax Invoice is issued
+ In accordance with the provisions of the Implementing Regulations of the VAT Law, a simplified
+ tax invoice shall be issued in the following two cases:
+ 1. A simplified tax invoice may be issued for a supply of goods or services with a value of less
+
+     than SAR 1,000.
+ 2. All supplies made to a natural person who is not subject to VAT, regardless of the value of the
+
+     supplies.
+
+4.3.2. Content of the Invoice
+ A simplified tax invoice must include, at a minimum, the following details:
+ 1. Date of issuance: This refers to the date on which the simplified tax invoice is created.
+ 2. Name, address, and Tax Identification Number of the supplier: The legal name of the supplier
+
+     and the address of its principal place of business or relevant establishment must be shown, in
+
+ (18) Article 56(1), Unified VAT Agreement, and Article 53, Implementing Regulations
+
+23
+
+     addition to correctly stating the supplier’s Tax Identification Number.
+ 3. Statement of the goods or services supplied.
+ 4. The consideration payable for such goods or services.
+ 5. The tax payable, or a statement that the consideration includes tax, in relation to the supply of
+
+     goods or services.
+ The invoice must include one of the following:
+
+• Display the amount of tax due and payable in Saudi Riyals,(19) in application of the requirements
+
+      for issuing a basic tax invoice(; or
+
+• Include a clear statement that the consideration payable (in Saudi Riyals) includes VAT at the
+
+      basic rate of 15%.
+ Example (7):
+ Al-Hadiqah Al-Khadhraa Markets sells food products on a retail basis for an amount of SAR 90,
+ in addition to VAT of SAR 13.50. It may issue a simplified tax invoice showing the VAT amount of
+ SAR 13.50, or issue a simplified tax invoice showing the total consideration due (SAR 103.50) with
+ a clear indication that this amount includes VAT at the basic rate.
+ The tax invoice for this example is included in the invoice annex to this Guideline.
+ The person issuing the simplified tax invoice may include additional information, or may issue a
+ tax invoice that satisfies all the requirements of a basic tax invoice.
+
+4.4 Summary Tax Invoice
+
+ A summary tax invoice is a form of tax invoice that includes more than one supply of goods or
+ services.
+ A supplier who issues invoices to the same customer on a recurring basis may issue a single tax
+ invoice covering all supplies made during that period.
+ For VAT purposes, a taxable person may issue a summary tax invoice for all taxable supplies
+ of goods and services made to the same customer during a period not exceeding one calendar
+ month.
+ A summary tax invoice may be issued in accordance with the terms and conditions applicable to
+ the issuance of a basic tax invoice. There is no alternative format or additional content required
+
+ (19) Article 56(2), Unified VAT Agreement
+
+24
+
+ for issuing a summary tax invoice for VAT purposes.
+ A taxable person who issues a summary tax invoice may not issue separate tax invoices for each
+ individual supply of goods and services that form part of that summary tax invoice.
+ Example (8):
+ Gulf Arab Equipment Company, a Saudi company registered for VAT, entered into an agreement
+ with Al-Bayt Al-Amer Contracting Company (a Saudi resident entity based in Jeddah) to supply
+ equipment and related services for a private construction project of Al-Bayt Al-Amer in Jeddah.
+ The contract stipulated that Gulf Arab Equipment Company would issue invoices for the goods
+ and services provided at the end of each Gregorian month. During September 2022, Gulf Arab
+ Equipment Company supplied equipment and services to Al-Bayt Al-Amer on different dates.
+ As there was more than one separate supply made by Gulf Arab Equipment Company to Al-Bayt
+ Al-Amer during the same period, namely September 2022, Gulf Arab Equipment Company may
+ issue a summary tax invoice showing the date of each supply separately.
+ The tax invoice for this example is included in the invoice annex to this Guideline.
+
+4.5 Timing of Issuing Tax Invoices
+
+• In the case of issuing a basic tax invoice, the supplier must issue the invoice no later than 15
+
+      days from the end of the month in which the supply took place.
+
+• In the case of issuing a simplified tax invoice, the supplier must issue the invoice on the date
+
+      of supply or on the date of receipt of the consideration, whether in whole or in part, whichever
+      occurs first. By way of exception, a simplified tax invoice may be issued no later than 15 days
+      from the end of the month in which the supply took place, in respect of supplies of financial
+      services.
+ The invoice issuance date is the date on which the tax invoice is created (and this date must be
+ stated on the tax invoice). The invoice must also be delivered, either in paper form or electronically,
+ to the customer within the same time period.
+ A tax invoice shall be issued only once, and the issuance date may not be amended. All other
+ details contained there, including the issuance date, must remain identical to those stated in the
+ original invoice.
+
+25
+
+4.5.1 Date of Supply
+
+The date of supply is the same as the tax due date as determined in accordance with the Law:
+
+“Tax shall become due on the date of supply of goods or services, or on the date of issuance of
+the tax invoice, or on the date of receipt of the consideration, whether in whole or in part and to the
+extent of the amount received, whichever occurs first.”(20)
+
+The effective date of supply of goods or services, under ordinary circumstances, is the date on
+which the goods are delivered to the customer or the performance of the services is completed.
+However, the Unified VAT Agreement and the Implementing Regulations of the Law have
+stipulated rules for determining the date of supply.(33)
+
+For VAT purposes, the date on which the supply is deemed to occur may precede the actual date
+of supply, in cases where a tax invoice is issued or consideration for the supply is received before.(21)
+
+If the tax invoice  The supplier must comply with the tax obligations based on the date
+is issued before    of issuance of the tax invoice, and must declare the tax as output
+the actual date of  tax in the tax period in which the tax invoice was issued (even if the
+supply:             amount has not been received or the supply has not actually taken
+                    place).
+If an advance
+payment is          The supply is considered to have occurred on the date
+received before     the payment is received (in cases of partial payment, the
+the actual date of  supply is deemed to occur to the extent of the amount paid).
+supply:             The supplier must issue a tax invoice within fifteen days from the
+                    end of the month in which the advance payment was received, to
+                    the extent of the consideration received.
+
+4.5.2 Continuous Supplies
+
+A continuous supply of goods or services involves the provision of goods or the performance of
+services on an ongoing basis over a specified period. Examples of continuous supplies include:
+the rental of equipment, the supply of electricity and water by utility companies, or continuous
+membership in a fitness club.
+
+A continuous supply of goods or services is deemed to occur on the date of issuance of the tax
+invoice or the date of payment, whichever is earlier, to the extent of the value of the issued invoice
+
+(20) Article 23, Unified VAT Agreement
+(21) Article 23, Unified VAT Agreement, and Article 20, Implementing Regulations
+
+26
+
+or the amount paid.(22) Accordingly, the date of issuance of the tax invoice for continuous supplies
+is considered the date of supply for VAT purposes, unless the consideration or part thereof is
+received in advance.
+
+Example (9):
+Al-Nakhil Security Services Company provides its client, Al-Saleh Factories, with remote security
+services. The company issues an invoice at the end of each month covering all services provided
+during the preceding month.
+During the month of October, the total value of the services amounted to SAR 20,000 (in addition
+to SAR 3,000 VAT). Al-Nakhil issued the invoice on 4 November and requested payment from
+the client on 10 November. For VAT declaration purposes, the date of supply is 4 November. The
+tax invoice for this example is included in the annex relating to invoices of this Guideline.
+Different rules apply to determining the date of supply for continuous supplies of goods or services
+in cases where the consideration is paid in periodic instalments.(23) In such cases, the tax invoice
+does not affect the date of supply, as each instalment is considered a separate supply, and the
+date of supply is determined as the due date of the installment, the actual payment date, or the
+invoice issuance date, whichever is earlier.
+
+Example (9-A):
+A lessor of commercial real estate leased offices under a two-year lease contract to a law firm,
+commencing on 15th January 2021G. The contract stipulates that the rental amount is SAR 42,500,
+payable on the 15th day of each month. In this case, VAT shall be calculated for each monthly
+instalment on the 15th day of each month, unless the tenant makes the payment prior to that date.
+
+5. Special Cases
+
+5.1 Issuance of a Tax Invoice on Behalf of the Supplier (“Self-Billing”)
+
+In certain practical cases, the customer may issue a tax invoice specifying the details of the supply
+received from the supplier. The Unified VAT Agreement provides that the customer is permitted to
+issue a self-billing tax invoice “subject to the approval of the competent tax authority.”(24)Pursuant
+to the VAT Law and its Implementing Regulations in the Kingdom, ZATCA must approve the
+
+ (22) Articles 20(2) and 20(3) of the Implementing Regulations; taking into account the application of specific rules in cases
+       where consideration is not received or an invoice is not issued within twelve months.
+
+ (23) Article 20(1), Implementing Regulations
+ (24)
+
+27
+
+ customer’s issuance of a self-billing tax invoice in respect of goods and services supplied to it in
+ the Kingdom, provided that all of the following conditions are met:(25)
+
+• The self-billing tax invoice must be issued only in respect of a taxable supply made by a
+
+      taxable person, with the customer verifying the supplier’s VAT registration number to ensure
+      that the supplier is registered for VAT purposes at the date of supply.
+
+• The self-billing tax invoice must be issued to the supplier in accordance with the requirements
+
+      relating to the timing of issuance of tax invoices (as referred to in Section 4.5).
+
+• The self-billing tax invoice must be the only tax invoice issued in respect of the supply. The
+
+      supplier must not issue any other tax invoice in cases where the customer issues a self-
+      billing tax invoice (provided that this is documented in the agreement between the supplier
+      and the customer).
+
+• The wording “Self-Billing Tax Invoice / Issued on Behalf of the Supplier” must be included on the
+
+      self-billing tax invoice, to indicate that the tax invoice is a “self-billing tax invoice,”(26)provided
+      that the content of the self-billing invoice is identical to the content of the standard tax invoice
+      (as specified in Section 4.2).
+
+• There must be a concluded agreement between the supplier and the customer that precedes
+
+      the date of supply.
+
+• Both the supplier and the customer must comply with notifying ZATCA of their agreement
+
+      to issue self-billing tax invoices in accordance with the procedures specified by ZATCA, and
+      subject to any additional conditions that may be determined by ZATCA at a later date.
+
+ In the event that ZATCA rejects the notification submitted by the supplier and/or the customer
+ regarding their agreement to issue self-billing tax invoices, the customer must refrain from
+ issuing any tax invoices in respect of the supplies made by the supplier.
+
+ 5.1.1 Agreement to Issue a Self-Billing Tax Invoice
+ An agreement must be concluded between the supplier and the customer, documented and
+ retained within the records of the taxable persons, and must include the following:
+
+• Identification of the supplies in respect of which the customer will issue self-billing tax
+
+      invoices (i.e., all supplies received by the customer from that supplier).
+
+ (25) Article 53(2), Implementing Regulations
+ (26) Article 58, Unified VAT Agreement
+
+28
+
+• Specification of the time period to which the agreement applies.
+• An undertaking by the supplier that it will not issue any other tax invoices in respect of those
+
+      supplies.
+
+• Confirmation of the VAT registration details of both the supplier and the customer, and
+
+      any other requirements relating to the issuance or content of tax invoices pursuant to this
+      agreement.
+
+• Clear confirmation of the procedures to be followed for the acceptance of each invoice issued
+
+      by a supplier of goods or services.(27)
+
+ In addition to the above, the taxable supplier bears the responsibility for providing the supporting
+ documentation relating to the tax invoices issued by the customer, and for verifying their
+ accuracy. The supplier also remains responsible for declaring the amounts of tax relating to such
+ tax invoices in its periodic tax returns submitted to ZATCA.
+
+ Example (10):
+
+ Al-Saah Laundry Company Ltd. in the Kingdom entered into a three-year contract with Al-Jaber
+ Hotel to provide laundry services. The commercial agreement between them stipulates that,
+ throughout the term of the contract, Al-Jaber Hotel will issue monthly tax invoices for the laundry
+ services on behalf of Al-Saah Company, based on an agreed price per item, following notification
+ to and approval by ZATCA. After the issuance of the tax invoice, Al-Saah Company will review
+ the information to ensure consistency with its internal supporting documentation and approve it
+ accordingly.
+
+ Example (11):
+
+ Al-Salam Services Agency provides brokerage services to Al-Faris Marketing Company by
+ introducing potential customers. Al-Faris agrees to pay a commission of 2% of the sales made
+ to any of those customers. After Al-Faris achieves its sales figures, Al-Faris entered into an
+ agreement with Al-Salam to calculate the commission and issue a monthly tax invoice. The tax
+ invoice for this example is included in the annex relating to invoices of this Guideline.
+
+ Example (12):
+
+ Al-Rashid Petrochemicals Company is a company resident in Saudi Arabia and registered for VAT
+ purposes therein. Al-Rashid entered into a contractual agreement with Al-Fajr Company, which
+ is also resident in Saudi Arabia and specialises in the manufacture of support tools and secondary
+
+ (27) Article 53(2), Implementing Regulations
+
+29
+
+ supplies. The support tools and secondary supplies manufactured by Al-Fajr Company constitute
+ one of the production inputs of Al-Rashid Company. The main inputs of Al-Fajr Company are the
+ petrochemical products produced by Al-Rashid Company.
+ The contract between Al-Rashid Company and Al-Fajr Company was concluded on the basis of
+ an exchange of products (barter).
+ Accordingly, Al-Rashid Company will issue a tax invoice to Al-Fajr Company for the petrochemical
+ products (supplies) sold to Al-Fajr Company. In that case, and in accordance with the agreement
+ between the parties to issue self-billing tax invoices following notification to and approval
+ by ZATCA, Al-Rashid Company may issue a self-billing tax invoice in respect of the tools and
+ supplies purchased from Al-Fajr Company, provided that Al-Fajr Company is a taxable person
+ and registered with ZATCA for VAT purposes.
+ The values of the aforementioned invoices must be based on the market value of each supply
+ separately, without relying on the net value of the supplies (set-off).
+ Both companies must declare the tax due on each separate supply in their periodic tax returns,
+ and each of them is entitled to deduct input tax on purchases from the other company (subject to
+ the fulfilment of all conditions for tax deduction).
+
+ 5.2 Issuance of Tax Invoices by a Third Party
+
+ A third party may issue tax invoices in respect of taxable supplies, provided that the following
+ conditions are fulfilled:
+
+• The supply must relate to a taxable supply of goods or services made by a taxable supplier
+
+      to the customer.
+
+• The details of the supplier, including the VAT registration number, must be included in the
+
+      tax invoice, and it must be clearly stated that the tax invoice has been issued on behalf of the
+      supplier in respect of the supply made by that supplier. The third party must not include its
+      own VAT registration number or disclose any of its own details in the tax invoice.
+
+• The taxable supplier must undertake not to issue another tax invoice in respect of the supply
+
+      in cases where a third party issues a tax invoice on behalf of the supplier for the same supply.
+
+• The supplier remains responsible for the accuracy of the information shown on the tax
+
+      invoice and for declaring the output tax relating to the supply.(28)
+
+ (28) Article 53(3), Implementing Regulations
+
+30
+
+• Both the supplier and the third party (if registered for VAT purposes) must comply with
+
+     notifying ZATCA of their prior agreement through the procedures specified by ZATCA, and
+     subject to any additional conditions that may be determined by ZATCA at a later date. In the
+     event that ZATCA rejects such notification, the third party shall not be permitted to issue the
+     tax invoice on behalf of the supplier.
+
+Where both the supplier and the third party provide services separately to the same customer,
+each of them must issue separate tax invoices.
+
+Example (13):
+
+Al-Bihar Real Estate Company wishes to purchase a commercial property in the Kingdom from
+a natural person (individual) registered for VAT in the Kingdom. The purchase was arranged by
+Issam Real Estate Brokerage Company; however, payment and transfer of ownership were
+conducted directly between the taxable supplier and the customer. The agreement between
+the taxable supplier and the real estate broker stipulates that the broker shall issue a tax invoice
+on behalf of the individual. The real estate broker may issue the tax invoice (as a third party) on
+behalf of the supplier to the customer.
+
+Any agency or brokerage fees charged by the real estate broker to Al-Bihar Company (the
+customer) must be invoiced separately using the broker’s own VAT registration number in its
+capacity as a provider of real estate brokerage services. It should be noted that Al-Bihar Company
+is not permitted to offset the commission consideration payable to it against the consideration for
+the supply payable to the natural person for VAT purposes.
+
+Example (14):
+
+Diamond Company entered into a service contract with the Ministry of Interior - Immigration
+Department. Under this agreement, Diamond Company will issue exit and re-entry visas for non-
+Saudi residents on behalf of the Ministry, and will collect the consideration for the visas from the
+final customer (the resident) upon receipt of the electronically issued visa. Accordingly, Diamond
+Company must issue an invoice for the services provided and the value of the issued exit and
+re-entry visas. The invoices must clearly state that they have been issued by Diamond Company
+on behalf of the Ministry of Interior (Immigration Department). The fee for an exit or entry visa is
+SAR 500, and pursuant to the contract, Diamond Company is entitled to a fee of 10%, i.e. SAR
+50, in consideration for the issuance services provided. The visa fee (SAR 500) is considered
+revenue from public authority services collected by the governmental entity (Ministry of Interior
+- Immigration Department) and, accordingly, falls outside the scope of VAT.
+
+31
+
+ Diamond Company must issue a separate tax invoice to the Ministry in respect of the services
+ provided relating to the issuance of visas on its behalf.
+ The consideration for such service (SAR 50) is subject to VAT at the standard rate of 15%,
+ regardless of the method of calculation, whether as a fixed amount or as a percentage of the visa
+ fee.
+ Accordingly, Diamond Company is required to charge VAT on the value of the service provided
+ to the Ministry in accordance with its tax invoice, disclose such VAT, and remit it in its periodic tax
+ return submitted to ZATCA.
+
+5.3 Self-Accounting of VAT by the Customer
+
+ A taxable person resident in the Kingdom must self-account for VAT in its tax return (using the
+ reverse charge mechanism) by assessing and calculating the tax imposed on supplies received
+ in the following cases:
+
+• Where the place of supply of the goods or services is in the Kingdom; and
+• Where the supplier is a non-resident person in the Kingdom.(29)
+
+ A non-resident supplier is not required to charge VAT on supplies made to a taxable customer
+ in the Kingdom, and in most cases the non-resident supplier is not registered for VAT purposes
+ in the Kingdom. Accordingly, the non-resident supplier is not required to issue a tax invoice in
+ respect of such supplies made in the Kingdom. The customer is also not required to issue a tax
+ invoice to itself in respect of the supplies received.
+ Nevertheless, a non-resident supplier may be registered for VAT purposes on the basis that it
+ makes other supplies that require registration in the Kingdom. In such cases, the non-resident
+ supplier registered in the Kingdom must issue a tax invoice in respect of that supply, and such tax
+ invoice must include the customer’s VAT registration number.(30)
+
+ Example (15):
+ Cross-Seas Foreign Trade Company is established in Jordan and does not have a permanent
+ establishment (office or fixed resources) in the Kingdom; therefore, it is not considered resident
+ in the Kingdom for VAT purposes. The company makes supplies to several establishments
+ registered for VAT purposes, as well as to unregistered natural persons in the Kingdom,
+ and the company is registered for VAT in the Kingdom as a non-resident taxable person. The
+
+ (29) Article 41, Unified VAT Agreement, and Article 47, Implementing Regulations.
+ (30) Article 53(5), Implementing Regulations
+
+32
+
+ company regularly sells its products to Al-Sabah Fertilizers Factory in Riyadh. These products
+ are usually imported into the Kingdom, and VAT is paid on them to ZATCA by Al-Sabah Factory.
+ During the company sales representative’s annual visit to the Kingdom, the factory requested
+ the replacement of some parts. The company representative purchased the replacement parts
+ from a local supplier and delivered them personally to the factory. This transaction is considered
+ a taxable supply made by the company to the factory. The company must account for VAT, issue
+ a tax invoice to the factory, and remit the VAT to ZATCA in its VAT returns as a registered person
+ under the VAT system.
+ The tax invoice for this example is included in the invoice annex of this Guideline.
+
+5.4 Issuance of Invoices under the Profit Margin Scheme
+
+ A taxable person may apply to calculate the tax due on the supply of eligible used goods by
+ applying the profit margin method, after receiving a notice of approval from ZATCA to use such
+ method (provided that all the requirements set out in Article 48 of the Implementing Regulations
+ of the Law are fulfilled). In such cases, specific conditions must be applied to the tax invoice in
+ relation to the purchase and sale of eligible used goods.
+ VAT may be calculated using the profit margin method only on goods that are classified by ZATCA
+ as eligible used goods at the time of supply. ZATCA approved used vehicles as eligible goods for
+ the calculation of tax using the profit margin method in July 2023G, provided that such vehicles
+ are classified as an “eligible used vehicle” by ZATCA, that the vehicle is located in and has been
+ previously used within the Kingdom, that the seller is registered with ZATCA for VAT purposes
+ and is licensed to conduct the activity of trading in vehicles, and that the seller has purchased the
+ vehicle from a non-taxable person, or from a taxable person for purposes other than its economic
+ activity, or from a supplier applying the profit margin method. In addition, the licensed trader must
+ obtain ZATCA’s approval to be considered eligible to apply the profit margin method to eligible
+ used vehicles.
+ With respect to the issuance of a tax invoice under the profit margin scheme, the following must
+ be observed:
+
+ 5.4.1 Purchase of Eligible Used Goods from a Non-Taxable Person
+ Where a taxable person (the customer) purchases eligible used goods from a non-taxable person,
+ the taxable person (the customer) must issue an invoice in respect of the purchase of such goods
+ to the non-taxable person. As this invoice relates to a supply made by a non-taxable person
+
+33
+
+ (which is a non-taxable supply), such document does not constitute a tax invoice. Nevertheless,
+ this document must satisfy other specific requirements set out in the Implementing Regulations
+ of the Law.(43)
+
+ 5.4.2 Sale of Eligible Used Goods by a Taxable Person
+ Where a taxable person is eligible to apply the profit margin scheme and elects to use this
+ method in selling eligible used goods, the taxable person is considered to be making a taxable
+ supply. However, the tax is included in the selling price and is not deductible by the purchaser.
+ Accordingly, the tax must not be shown as a separate amount on the issued invoice.
+ Instead, the issued invoice must include an indication that “VAT has been charged on the profit
+ margin in respect of those goods.”(44)
+ Example (16):
+ Al-Murooj Trading Company, a company registered in Riyadh for trading in used goods, purchased
+ used goods and subsequently sold them (with the addition of a profit margin) to a customer for
+ SAR 200 from its warehouses in Riyadh. Assuming that such goods are classified as eligible used
+ goods and that ZATCA has approved Al-Murooj Company’s use of the profit margin method, VAT
+ will be imposed only on the profit (and not on the selling price). The tax invoice must include
+ the consideration inclusive of tax, together with an indication that VAT has been charged on the
+ profit margin. The tax invoice for this example is included in the annex relating to invoices of this
+ Guideline.
+
+6. Automated/Electronic Invoices
+
+ For the purposes of this Guideline, electronic invoices are defined as tax invoices that are issued
+ and stored in a structured electronic format through an electronic means. A paper invoice that is
+ converted into an electronic format by copying, scanning, or any other method is not considered
+ an electronic invoice.
+ Electronic invoices may be issued in accordance with the conditions and procedures applied in the
+ Kingdom and specified in this Section.
+
+6.1 Forms of Automated/Electronic Tax Invoices
+
+ An electronic invoice is a tax invoice that contains the information and data stipulated in the
+ Implementing Regulations, and that is issued electronically in the prescribed format in accordance
+
+34
+
+ with the Electronic Invoicing Regulation and the controls, requirements, technical specifications,
+ and procedural rules necessary for the implementation of the provisions of the Electronic Invoicing
+ Regulation.
+ An electronic tax invoice may be issued in the form of an electronic file containing an electronic
+ copy of a paper tax invoice, which corresponds to and is identical to the paper tax invoice when
+ printed, such as an invoice in PDF format, or in other data file formats containing the mandatory
+ fields required in a tax invoice and designed for automatic exchange between systems, such as
+ XML files.
+ An electronic copy of a paper invoice is not considered an electronic invoice (for example, a
+ scanned copy of a paper tax invoice).
+
+6.2 Forms of Electronic Exchange
+
+ Where a taxable person issues electronic invoices, it must take the following steps:
+ Use of an Electronic Invoicing System:
+ Ensure that the establishment is equipped with a system compliant with the requirements of
+ electronic invoicing (Fatoora) for Phase One (the Issuance Phase). The supplier must communicate
+ with its electronic invoicing system provider or its technical team to ensure that the establishment
+ meets the technical and technological requirements.
+ Issuance and Storage of Electronic Invoices:
+ Issue and store electronic invoices through electronic invoicing systems, and refrain from issuing
+ handwritten invoices or invoices generated using word processing software.
+ Ensuring the Inclusion of All Tax Invoice Elements:
+ Issue electronic invoices in a systematic manner in compliance with the VAT systems. In addition,
+ ensure the following:
+ 1. Inclusion of the purchaser’s VAT registration number if the purchaser is registered for VAT
+
+     purposes, and inclusion of the invoice type as the title “Tax Invoice.” A QR Code may be
+     included (optionally).
+ 2. Mandatory inclusion of a QR Code through the technical solution in accordance with the
+     electronic invoicing requirements, inclusion of the invoice type as the title “Simplified Tax
+     Invoice,” and inclusion of the invoice number.
+
+35
+
+6.2.1 Qualified Electronic Signature
+ A qualified electronic signature is considered a signature created in accordance with the Electronic
+ Transactions Law issued under Cabinet Resolution No. 80 dated 7th Rabi’ al-Awwal 1428H/27th
+ and approved by Royal Decree No. M/8 dated 8th Rabi’ al-Awwal 1428H/28th April.
+
+6.2.2 Electronic Data Interchange (EDI)
+ Electronic Data Interchange (EDI) is the exchange of data between one computer and another,
+ allowing automatic processing by the recipient.
+ When using EDI, there must be an agreement between the parties and partners involved in the
+ electronic data exchange (in addition to any third party issuing electronic invoices). The agreement
+ must include provisions regarding the use of procedures that ensure the authenticity, integrity,
+ and clarity of the data source.
+
+6.3 Mandatory Automated/Electronic Invoices
+
+ The Implementing Regulations stipulate that tax invoices must be issued electronically in
+ accordance with the Electronic Invoicing Regulation and any other regulations, circulars, or
+ decisions issued by ZATCA in this regard.(31)
+
+7. Credit and Debit Notes
+
+ A credit note is a commercial document issued by the supplier/seller to the purchaser and is used
+ as evidence of a reduction in the value of a sale. A credit note is issued in various cases, including
+ correcting an error, when the invoice amount was higher than due, when a discount was not
+ applied correctly, or when goods are damaged or do not meet the specifications requested by
+ the purchaser and are returned in full or in part to the supplier. For VAT purposes, a credit note
+ reflects the supplier’s adjustment to decrease the consideration related to a previously issued tax
+ invoice for the supply of goods or services.
+ Conversely, a debit note reflects the supplier’s adjustment to increase the consideration related
+ to a previously issued tax invoice for the supply of goods or services.
+ A taxable person making an adjustment to the supply consideration must reflect the adjustment
+ through a credit note or debit note used to correct the original tax invoice.(32) The issued notice must
+
+ (31) Article 53(6), Implementing Regulations
+ (32) Article 57, Unified VAT Agreement, and Article 54, Implementing Regulations
+
+36
+
+comply with the requirements of a tax invoice under Article 53 of the Implementing Regulations,
+in addition to specifying its type (“Credit Note” or “Debit Note”) and the serial number of the tax
+invoice that the notice amends.
+
+7.1 Cases for Issuing a Credit Note or a Debit Note
+
+A taxable person shall adjust the supply value through a credit note or debit note in the following
+cases, where a tax invoice has been issued:
+1. The supply is canceled or suspended after it has occurred or has been considered to have
+
+     occurred, in whole or in part.
+2. There is a substantial change or modification in the nature of the supply that results in a change
+
+     to the tax due.
+3. The supply value was previously agreed upon, and then modified for any reason, including
+
+     offering an additional discount after the completion of the sale.
+4. Upon the return of goods or services, or any part thereof, to the Supplier, and the Supplier
+
+     accepts such return.(33)
+5. An error is discovered in the supplier’s or customer’s information stated on the invoice.
+Example 17:
+ A factory made an advance payment to a construction company for the purpose of building a
+new warehouse. The construction company issued a tax invoice for the portion of the advance
+received. Before the project commenced, the construction company withdrew from the project,
+and the supply was canceled. A credit note was issued relating to the previously issued tax
+invoice.
+Example 18:
+Arab Union General Trading Company issued an invoice on 1st November 2021 relating to the
+delivery of several shipments to Al-Sahm Al-Dhahabi Food Distributions Company. Upon
+reviewing the prices in April 2022, Arab Union discovered that incorrect prices were applied for
+two items in the supply, resulting in undercharging Al-Sahm.
+Arab Union agreed with Al-Sahm to issue a debit note reflecting the additional amount due for
+those goods, referencing the serial number of the original tax invoice as well as the supply date.
+
+ (33) Article 40(1), Implementing Regulations
+
+37
+
+The debit note referred to in this example can be found in the Notes Annex of this Guideline.
+It is not permissible to issue a credit note or debit note for any payment or account adjustment that
+does not relate to a prior supply of goods or services.
+Example 19:
+Al-Aziz Electronics Company decided to provide SAR 200 as a credit balance to all its regular
+customers for the occasion of Eid. Since this credit does not relate to any prior supply of goods or
+services, Al-Aziz Company cannot issue a credit note or adjust the value-added tax.
+
+7.1.1 Adjustment of Output Tax
+When a credit note or debit note is issued, it shall affect the calculation of both the supplier’s
+output tax and the deductible input tax of the customer (where the customer is a taxable person).
+Accordingly, the supplier shall adjust the output tax as follows:(34)
+
+    Case                                      Tax treatment in the Tax Return
+
+If a credit note or debit note is             The output tax shall be adjusted (increased or
+issued within the same tax period in          decreased) within the tax period in which the
+which the original supply occurred,           credit/debit note was issued, so that the net output
+or before the submission of the tax           tax appears in the Amount field of the tax return.
+return relating to the original supply
+
+If a credit note is issued after              The output tax shall be adjusted (decreased)
+the submission of the tax return              within the tax period in which the credit note was
+relating to the original supply               issued or the event triggering the adjustment
+                                              occurred, whichever is later, so that the output tax
+                                              amount related to the credit note appears in the
+                                              Adjustments field of the tax return.
+
+If the consideration is adjusted              The output tax shall be adjusted (increased) in
+upwards (issuance of a debit                  the tax period in which the event triggering the
+note) after the submission of the             adjustment occurred, so that the increased output
+tax return relating to the original           tax appears in the Amount field of the tax return.
+supply:
+
+If the customer was a taxable person on the date of the original supply and had previously
+
+deducted input tax on that supply, the customer shall correct the input tax to reflect the tax amount
+
+calculated on the adjustment in the tax period in which the credit or debit note was issued.(35)
+
+(34) Article 40, Implementing Regulations
+(35) Article 40(6), Implementing Regulations
+
+38
+
+ 7.2 Notification Forms and Timing
+
+ Credit or debit notes must be issued no later than 15 days of the month following the date on
+ which any of the circumstances requiring the issuance of the note occurred.(36)
+
+ 7.2.1 Adjustments to Multiple Supplies
+ As part of commercial practices, a supplier may make a single adjustment to consideration
+ affecting multiple supplies (e.g., quantity discount applied over a certain period).
+ It is permissible to issue one single credit or debit note reflecting adjustments to multiple tax
+ invoices issued to the same customer. In such cases, the note must clearly reference the tax
+ invoices being adjusted in addition to the adjusted amount.
+ Example 20:
+ Arab Group Logistics Company issued an invoice to Al-Majd Transport Company on 31st October
+ 2021 for the delivery of several items. On 6th April 2022, goods were returned by the customer,
+ and Arab Group issued a credit note, referencing the number of the original tax invoice.
+ Example 21:
+ Al-Majd Company later returned a number of goods to Arab Group. Since these goods were
+ supplied at different times and under different tax invoices, Arab Group may issue a single credit
+ note to Al-Majd Company dated 12/08/2022, instead of issuing multiple credit notes. The note
+ must reference the tax invoice numbers for each original supply.
+ The credit notes referred to in this example can be found in the Notes Annex of this Guideline.
+
+8. Record Keeping
+
+ 8.1 General Principles
+
+ A taxable person shall maintain certain records for VAT purposes, including invoices, books, and
+ accounting documents, for the period prescribed by the Law at a minimum.
+ Both the Unified VAT Agreement and the Kingdom’s VAT Law and its Implementing Regulations
+ stipulate obligations regarding record-keeping for VAT purposes.(37)
+ These obligations are in addition to any other requirements imposed on persons in the Kingdom,
+
+ (36) Article 54(6), Implementing Regulations
+ (37) Article 59, Unified VAT Agreement; Article 66, Implementing Regulations
+
+39
+
+ including those related to record-keeping under the Commercial Book Law(38) or any other
+ applicable regulations.
+ The primary requirement and purpose of record-keeping is to document VAT calculation,
+ declaration, and disclosing for VAT purposes, particularly during audits and reviews.
+ During inspections and audits conducted by ZATCA, the taxable person shall make all invoices,
+ accounting books, records, and related accounting documents available to ZATCA employee
+ conducting the audit. If the taxable person maintains invoices and accounting records on a
+ computerized system (electronically), the taxable person shall, upon request by ZATCA
+ employee, provide printed or electronic copies of such electronic files containing the required
+ information.(39)
+
+ 8.2 Required Records
+
+ The Unified VAT Agreement specifies that a taxable person must retain tax invoices, books, and
+ accounting records for a certain period at a minimum. This legal requirement is considered broad
+ in scope.
+ For VAT purposes, the focus of this requirement is on documents that detail the supplies made
+ (including delivery and payment), VAT calculation on those supplies, and the process of recording
+ these transactions in accounting records and VAT returns.
+ The following is an illustrative list of documents, to name but a few, that ZATCA is expected to
+ review upon request:
+
+• All issued and received tax invoices
+• Accounting books and documents
+• Contracts and agreements relating to sales and purchases, and any correspondence
+
+      containing details of those supplies.
+
+• Bank account statements and any other financial records
+• Import, export, and shipping documents
+• Other records related to the calculation of VAT and the filing of the tax return
+
+ (38) Royal Order No. M/61 dated 27/6/1989
+ (39) Article 64, Implementing Regulations
+
+40
+
+8.3 Record Retention
+
+8.3.1 Form and Location
+Records must be retained within the Kingdom in electronic form (with access to the relevant
+server on which such records are stored). In cases where the taxable person is resident in the
+Kingdom, the computer or server must be located within the Kingdom. As stated above, the
+taxable person must provide Authority officials with copies of electronic files upon request during
+audit and inspection. A taxable person who has a permanent establishment in the Kingdom may
+have a centralized computer system located outside the Kingdom; in such case, it is required
+that a workstation be available at the permanent establishment in the Kingdom through which
+access can be obtained to all data and accounting entries related to the calculation of VAT for the
+permanent establishment in the Kingdom.
+A non-resident taxable person who has not appointed a representative in the Kingdom must
+appoint a third party established in the Kingdom to fulfill the obligations of retaining invoices,
+documents, books, and records stipulated under the Law and the Implementing Regulations, in
+accordance with the E-Invoicing Regulation and any other regulations issued by the ZATCA in this
+regard.
+Other requirements related to the electronic retention of records for VAT purposes include the
+following:
+
+• Original supporting documents for all entries recorded in the accounting books must be
+
+     retained locally.
+
+• The taxable person must document data entry into the computer system and the processing
+
+     system for accounting entries, for review when required.
+
+• The taxable person must take the necessary security measures and implement adequate
+
+     controls, which are subject to review and inspection, to prevent tampering.
+
+• ZATCA may conduct an automated review of the systems and software used by the taxable
+
+     person in the preparation of its automated accounts.(40)
+
+8.3.2 Language
+The Implementing Regulations stipulate that records must be retained in the Arabic language.
+
+(40) Article 66(3), Implementing Regulations
+
+41
+
+ In cases where the taxable person elects to store records electronically, data must be entered
+ into the computer system in the Arabic language and must correspond to the physical records(41).
+ 8.3.3 Record Retention Period
+ General Cases
+ All records must be retained for a basic period of no less than six (6) years(42) from the end of the
+ related tax period.
+ Movable Assets and Capital Assets
+ A longer retention period has been specified in respect of records relating to movable capital
+ assets for the entire adjustment period stipulated in Article 52 of the Implementing Regulations,
+ plus an additional 5 years. This period commences from the date on which such assets are
+ acquired by the taxable person.
+ In cases where the useful life of any capital assets, as determined in accordance with the taxable
+ person’s accounting practices, is less than 6 years, the minimum retention period for records
+ relating to such assets shall be the determined useful life plus an additional 5 years.(43)
+ Real Estate
+ Tax invoices, accounting books and records, and documents relating to real estate must be
+ retained for a period of not less than 15 years in all cases.(44)
+
+ 8.3.4 Retention of Records by a Third Party
+ A taxable person resident in the Kingdom may appoint a third party to retain invoices, documents,
+ books, and records in accordance with compliance requirements. In all cases, the taxable person
+ remains directly responsible for such compliance.(45)
+
+8.4 Special Cases
+
+ Non-Resident Taxable Persons
+ Where a non-resident person does not have a permanent establishment in the Kingdom and has
+ a tax representative resident in the Kingdom, the tax representative must retain the invoices,
+
+ (41) Article 66(3), Implementing Regulations - without prejudice to any obligations stipulated under other laws
+ (42) Article 66(1), Implementing Regulations
+ (43) Article 66(1), Implementing Regulations
+ (44) Article 59, Unified VAT Agreement
+ (45) Article 66(4), Implementing Regulations
+
+42
+
+books, records, and accounting documents relating to the non-resident person.(46)
+Where a non-resident person does not have a tax representative in the Kingdom, such person
+must retain invoices, documents, books, and records in the Kingdom by appointing a third party
+to comply with record retention requirements.(47)
+Both the tax representative and the third party are required to provide Authority officials with
+physical copies or electronic files upon request during audit and inspection.
+Cash Basis Accounting
+All taxable persons who apply cash basis accounting for the calculation of VAT(48) must retain
+annual sales records (less than SAR 5,000,000) together with their regular records to verify
+their eligibility to use cash basis accounting for VAT purposes.
+Further information and details regarding cash basis accounting can be found in the General
+Guideline on VAT.
+Supplies of Used Goods
+Any taxable person who elects to use the margin scheme for calculating tax on any supply of
+qualifying used goods must maintain a record of all qualifying used goods purchased and supplied
+by them.
+Further details regarding the required records are stipulated in the Implementing Regulations.(49)
+Additional Record Requirements
+ZATCA has the right, at any time, to request additional records from any person for registration,
+audit, and assessment purposes in cases where ZATCA deems it necessary. A justification for
+requesting such additional records exists.
+Where required, ZATCA will notify the taxable person of the need to provide the additional
+records within 20 days, or within a reasonable timeframe, depending on the nature of the
+information(50)
+
+ (46) Article 66(5), Implementing Regulations
+ (47) Article 66(4), Implementing Regulations
+ (48) Article 46, Implementing Regulations
+ (49) Article 48(10), Implementing Regulations
+ (50) Article 66(6), Implementing Regulations
+
+43
+
+9. Input Tax Deduction
+
+ 9.1 General Provisions
+
+ A person registered for VAT purposes may deduct input tax imposed on goods and services that
+ they purchase or receive in the course of their economic activity. Input tax may be deducted on:
+
+• VAT charged by a registered supplier in the Kingdom;
+• VAT self-assessed by a person registered for VAT purposes under the reverse charge
+
+      mechanism;
+
+• VAT on imports paid to ZATCA upon importing goods into the Kingdom.
+
+ As a general rule, input tax relating to exempt supplies of VAT may not be deducted.
+ In addition, input tax may not be deducted on any expenses incurred that are not related to the
+ economic activity of the taxable person (including certain restricted types of expenses, such as
+ entertainment services, cultural services, food services, and restricted vehicles(51)), or any other
+ costs associated with supplies exempt from VAT.
+ Input tax constitutes a credit balance recorded in the VAT return and is deducted from the VAT
+ charged on supplies (output tax) made during that period.
+ Input tax may only be deducted if the taxable person holds a tax invoice or customs documents
+ evidencing the tax due (or any alternative document proving the amount of input tax paid or
+ payable, subject to ZATCA’s approval).(52)
+
+ 9.2 Proportional Deduction of Input Tax
+
+ Input tax relating to exempt supplies of the taxable person, such as exempted financial services
+ or exempted real estate supplies(53), may not be deducted.
+ Where a taxable person’s supplies include both taxable and exempt supplies, the person may
+ deduct input tax relating to the taxable portion only. If the taxable person incurs general expenses
+ or costs in respect of both taxable and exempt supplies, such expenses and costs must be
+
+ (51) Article 50, Implementing Regulations – List of Restricted Expenses
+ (52) Article 49(7), Implementing Regulations
+ (53) It should be noted that real estate supplies are exempt from VAT, as real estate disposals are subject to Real Estate Trans-
+
+        action Tax (RETT) at a rate of 5%. For further details, please refer to the Real Estate Transactions Guide.
+
+44
+
+accurately apportioned to determine the portion relating to taxable supplies.
+Input tax is determined in accordance with the following provisions:(54)
+
+Input Tax directly attributable to Sales  Fully deductiblew
+Transactions subject to VAT
+
+Input Tax Directly Attributable to Sales  Not deductible
+Transactions Exempt from VAT
+
+General Expenses and Input Tax cannot be  Proportional Deduction based on Apportionment
+allocated directly
+
+General expenses or costs incurred by a taxable person in respect of both taxable and exempt
+
+supplies must be apportioned to correctly reflect the use of such costs for the taxable portion of
+
+the taxable person’s activities.
+
+The proportional deduction for taxable supplies made during a specific year is calculated using
+the following default method:
+
+                   Value of taxable supplies made by the taxable person during the
+                                            preceding calendar year
+
+Total value of taxable and exempt supplies made by the taxable
+             person during the preceding calendar year
+
+The above method does not include supplies of capital assets made by the taxable person, as
+these would distort the use of input tax.
+
+ZATCA may approve alternative methods for calculating the default proportional deduction of
+input tax in cases where such methods better reflect the actual use of VAT incurred. Further
+information on input tax deduction and partial VAT recovery is provided in the Guideline on Input
+Tax Deduction.
+
+9.3 Deduction of VAT Paid under the Reverse Charge Mechanism
+
+VAT paid by a taxable person under the reverse charge mechanism may be deducted provided
+that the goods or services are received for the purpose of conducting an economic activity aimed
+at making taxable supplies.
+
+Disclosure of VAT under the reverse charge mechanism is a condition for claiming the related
+deduction. In ordinary cases, output tax and input tax are reported in the same tax return (Box 9).
+
+Where VAT is self-assessed under the reverse charge mechanism by the customer, the
+ supplier does not issue a tax invoice for this purpose.(55)
+
+ (54) Article 51, Implementing Regulations
+ (55) Article 44(3), Unified VAT Agreement
+
+45
+
+ Consequently, the customer will not hold a tax invoice from the supplier in relation to the tax
+ imposed. ZATCA accepts, in cases where a commercial invoice is provided by a non-resident
+ supplier, that it serves as evidence of the tax imposed in addition to the consideration due.
+
+ 9.4 Timing of Tax Deduction
+
+ According to the Unified VAT Agreement, the customer’s right to deduct input tax on a supply
+ arises in connection with the supplier’s obligation to charge and collect VAT on the supply, i.e.,
+ the date of supply.
+ The right to deduction arises when the deductible tax becomes chargeable in accordance with
+ the provisions of this Agreement.(56)
+ This is subject to the general condition requiring the taxable person to retain the tax invoice in
+ order to claim the deduction, in addition to any other conditions specified concerning tax deduction
+ under the laws of the Kingdom of Saudi Arabia.
+ For a taxable person using the invoice-based accounting method for reporting tax(57), the right to
+ deduct input tax arises in the tax period in which the date of supply occurs. This date is generally
+ the date of receipt of the goods or services and the date of issuance of the tax invoice or alternative
+ document by the taxable person.
+ A taxable person (the customer) may not deduct input tax related to a supply until the tax invoice
+ issued for that supply is available during the relevant tax period.
+ If the tax invoice is received in a subsequent tax period, the Implementing Regulations allow the
+ taxable person to deduct the input tax in tax periods following the period that includes the date
+ of supply, provided that this does not exceed five (5) years after the year in which the supply
+ occurred.(58)
+
+ 9.5 Special Cases -Alternative Documents/Evidence
+
+ The Implementing Regulations specify additional documents that may be relied upon as evidence
+ where the documents listed in the Unified VAT Agreement are not available:
+
+• A simplified tax invoice issued correctly in accordance with the Law and the Implementing
+
+      Regulations.
+
+ (56) Article 44, Unified VAT Agreement
+ (57) Article 45, Implementing Regulations
+ (58) Article 49, Implementing Regulations
+
+46
+
+• Where the supply involves the transfer of goods to another member state, a commercial
+
+      document or any other document evidencing the value on which VAT was calculated at the
+      date of transfer.
+
+• Other commercial documents permitted at the discretion of ZATCA, demonstrating that the
+
+      taxable person was correctly charged and paid the related VAT.(59)
+
+ZATCA considers that, in all cases, a taxable person receiving a supply of goods or services is
+required to retain a tax invoice. However, if a tax invoice is not available or is incomplete, other
+documents may be used as evidence of the right to deduct input tax. ZATCA may, at its discretion,
+allow the use of such documents.
+
+Example (22):
+Tariq is a registered VAT trader in the Kingdom and purchased goods from a supplier for SAR 3,000.
+The supplier issued a tax invoice including its tax registration number and supply details but did
+not include the customer’s (Tariq’s) address or the quantity of goods supplied. Tariq’s responsible
+accountant requested a corrected invoice, but the supplier did not issue one. Since the tax invoice
+is incomplete, Tariq holds a document evidencing the details of the supply. ZATCA may, at its
+discretion, accept this invoice as evidence/alternative commercial document. Accordingly, Tariq
+may deduct the input tax on this invoice based on the documents he holds regarding the supply
+and evidence of payment of the VAT for this supply.
+
+9.5.1 Invoices in a Language other than Arabic
+Tax invoices must include the required information in Arabic in addition to any other language
+used. This means that an invoice issued without the information in Arabic will not be considered a
+valid tax invoice for the purposes of VAT in the Kingdom.
+
+In all cases, a taxable person receiving a supply of goods or services is required to retain a valid
+tax invoice in Arabic to substantiate the right to deduct input tax. However, if a taxable person
+retains an invoice issued in a language other than Arabic but which meets all other requirements
+for a tax invoice under the Implementing Regulations, ZATCA may-at its discretion-allow the
+customer to use this invoice as an alternative document to evidence receipt of the supply and
+input tax incurred, thereby enabling the exercise of the right to deduct input tax, provided the
+following criteria are met:
+
+• The invoice complies with the other requirements for issuing tax invoices as set out in
+
+ (59) Article 49(7), Implementing Regulations
+
+47
+
+      the Implementing Regulations.(60)
+
+• The taxable person has other evidence that the VAT due to the supplier has been paid (e.g., a
+
+      bank statement or supplier receipt).
+
+• The taxable person provides ZATCA, upon request, with a certified translation of any invoice
+
+      requested during an audit or for any other reason.
+ The taxable person is not required to obtain prior approval from ZATCA to use invoices in a
+ language other than Arabic as an alternative evidence for deducting input tax for each invoice,
+ provided the invoices meet all the criteria outlined above.
+ This discretionary procedure affects only the customer’s right to deduct input tax based on
+ the invoice and does not relieve the supplier of goods or services from issuing invoices in
+ accordance with the requirements of the Implementing Regulations. Failure to comply with
+ these requirements constitutes a violation of the Law and the Implementing Regulations, subject
+ to applicable penalties.
+
+10. Tax Obligations
+
+ Every taxable person must assess their tax liability and comply with the conditions and obligations
+ related to VAT. This includes registration for VAT where applicable, accurately calculating the net
+ tax payable, remitting the tax by the due date, retaining all necessary records, and cooperating
+ with Authority personnel upon request.
+ If a person is uncertain about their obligations, they should contact ZATCA via the website (zatca.
+ gov.sa) or other communication channels. They may also seek external advice from a qualified
+ consultant. The following section outlines the main tax obligations specified under the Law and
+ the Implementing Regulations.
+
+ 10.1 Submission of VAT (VAT) Declarations
+
+ Every person registered for VAT, or a person authorized to act on their behalf, must submit a VAT
+ return to ZATCA for each monthly or quarterly tax period, as applicable. The tax return constitutes
+ a self-assessment by the taxable person of the tax due for that period.
+ Monthly tax periods are mandatory for taxable persons whose annual revenues exceed SAR
+ 40,000,000, while the standard tax period for other taxable persons is three months.
+
+ (60) Article 53(5), Implementing Regulations, outlines the items that must be included in a tax invoice.
+
+48
+
+ The VAT return must be completed, and the net VAT payable settled, no later than the last day of
+ the month following the end of the tax period to which the return relates.
+ Further information on completing VAT returns is available in the Simplified Guideline for
+ Submitting a VAT Return, accessible on ZATCA’s website at zatca.gov.sa.
+ If the tax return results in a refundable tax liability to the taxable person, or if the taxable person
+ has a credit balance for any reason, the taxable person may claim a refund of this amount after
+ submitting the tax return or at any time within five years by submitting a refund request to ZATCA
+ which will review such requests and directly refund the amount due for accepted refund claims
+ to the taxable person.(61)
+
+ 10.2 Record Keeping
+
+ All taxable persons must maintain appropriate tax records relating to the calculation of VAT
+ for audit purposes. Section 8 of this Guideline provides detailed information regarding record-
+ keeping obligations.
+
+ 10.3 VAT Registration Certificate
+
+ A resident taxable person registered with ZATCA under the VAT system must display their VAT
+ registration certificate at their main place of business, all branches, and e-commerce stores,
+ ensuring it is visible to the public.
+ Failure to comply with this requirement will expose the violator to the penalties prescribed under
+ the Law.
+
+ 10.4 Correction of Previous Errors
+
+ If a taxable person identifies an error or an incorrect amount in their submitted tax return, or
+ fails to comply with any tax obligation, they must notify ZATCA and correct the error through an
+ amended tax return.
+ If the error results in a tax difference exceeding SAR 15,000, the taxable person must notify
+ ZATCA within 20 days of becoming aware of the error or incorrect amount and amend the
+ previous return. For minor errors resulting in a tax difference of less than SAR 15,000, the error
+ may be corrected by including that amount, in addition to the net tax due that must be reported in
+ the tax return submitted to ZATCA for the tax period during which the error was discovered.(62)
+
+ (61) Article 69, Implementing Regulations.
+ (62) Article 63, Implementing Regulations
+
+49
+
+For further information on correcting errors, please refer to ZATCA’s website at zatca.gov.sa.
+
+11. Penalties
+
+The Authority may impose penalties or sanctions on taxpayers in relation to violations of the
+provisions and conditions of the VAT Law and its Implementing Regulations.(63)
+
+Non-Field Violations
+
+            Description of the Violation                         Associated Penalty
+
+Submission of incorrect documents with the       • Not less than the amount of the due tax.
+intent to evade payment of the due tax or to     • Not exceeding 3 times the value of the
+pay an amount less than the due tax.
+                                                      goods or services.
+Transporting goods from or to the Kingdom
+without payment of the due tax.                  • Not less than the amount of the due tax.
+                                                 • Not exceeding 3 times the value of the
+
+                                                      goods or services.
+
+Failure to register for VAT purposes within the  SAR 10,000.
+specified registration period.
+
+Submission of an incorrect tax return,
+
+amendment of a tax return after submission, or 25% of the difference between the calculated
+
+submission of any document to the Authority tax and the due tax. The Authority may
+
+relating to the due tax, resulting in an error   increase the penalty rate up to a maximum of
+
+in calculating the tax amount at less than the 50% or reduce it down to 0%.
+
+amount due.
+
+Failure to submit the tax return within the      5–25% of the tax for which the return should
+specified time.                                  have been submitted.
+
+Failure to pay VAT within the specified time.    5% of the due tax for each month or part
+                                                 thereof.
+
+Collection of VAT without registration for tax   A penalty of up to SAR 100,000.
+purposes.
+
+In the above cases, if the violation is repeated within 3 years from the date of issuance of the final
+decision regarding the penalty, the Authority may double the penalty in the event of recurrence
+of the violation.
+
+(63) Chapter 16, Articles 41, 42, 43, 44, and 47: Tax Evasion and Penalties – Value Added Tax Law.
+
+50
+
+The Authority determines the level of the penalty or sanction imposed on the taxable person,
+taking into consideration the conduct of the taxable person and their VAT compliance record, in-
+cluding the taxable person’s fulfillment of the obligation to notify the Authority of any errors and
+cooperation with the Authority to correct such errors.
+The penalty associated with the violation of “submission of an incorrect tax return, amendment
+of a tax return after submission, or submission of any document to the Authority relating to the
+due tax resulting in an error in calculating the tax amount at less than the amount due” shall be
+calculated as shown in the table above, in accordance with the following rules.
+First: Increase of the Penalty
+
+The Authority has the right to increase the penalty rate associated with the violation of “submis-
+sion of an incorrect tax return, amendment of a tax return after submission, or submission of
+any document to the Authority relating to the due tax resulting in an error in calculating the tax
+amount at less than the amount due” by up to a maximum of 50% of the difference between
+the calculated tax and the due tax, in the event that one or more aggravating factors apply, as
+follows:
+1. The penalty shall be increased by 10% where the error in the return is associated with a case
+
+     of tax evasion for which a decision has been issued by the Authority, in accordance with Article
+     39 of the VAT Law.
+2. The penalty shall be increased by 10% where the taxable person’s compliance record is
+     classified as very poor.
+3. The penalty shall be increased by 5% where the taxable person’s compliance record is
+     classified as poor.
+4. The penalty shall be increased by 5% where the percentage of the difference between the
+     calculated tax and the due tax, payable or refundable, relating to the total periods subject to
+     amendment, exceeds 20% for returns relating to monthly tax periods, or exceeds 40% for
+     returns relating to quarterly tax periods.
+Second: Reduction of the Penalty
+
+The Authority may reduce the penalty rate associated with the violation of “submission of an in-
+correct tax return, amendment of a tax return after submission, or submission of any document
+to the Authority relating to the due tax resulting in an error in calculating the tax amount at less
+than the amount due” down to 0%, where one or more mitigating factors apply, as follows:
+
+51
+
+ 1. The penalty shall be reduced by 5% where the taxable person’s compliance record is
+     classified as good.
+
+ 2. The penalty shall be reduced by 5% where the percentage of the difference between the
+     calculated tax and the due tax, payable or refundable, relating to the total periods subject to
+     amendment, is less than 5% for returns relating to monthly tax periods, or less than 15% for
+     returns relating to quarterly tax periods.
+
+ 3. The penalty shall be reduced by 10% where the taxable person pays the amount of the
+     difference between the calculated tax and the due tax payable within 30 days from the
+     assessment decision issued by the Authority.
+
+ 4. The penalty shall be reduced by 15% where the taxable person is classified as a micro-
+     enterprise. For the purposes of these rules, a micro-enterprise is deemed to exist where the
+     value of its annual taxable revenues does not exceed SAR 3,000,000 during the 12 months
+     preceding the tax period subject to audit and assessment.
+
+ 5. More than one mitigating factor shall not be combined in relation to the mitigating factors
+     stated above, except for the factors relating to payment of the due tax set out in these rules.
+
+ As an exception to the provisions of this item (Second), the penalty rate shall not be reduced if the
+ error in the return is associated with a case of tax evasion for which a decision has been issued
+ by the Authority.
+ Third: Rules for Determining Taxable Person Compliance
+
+ The Authority determines the level of compliance of the taxable person based on the number of
+ errors in their previous tax returns in relation to submitting returns by their due dates or paying
+ the due tax by its due date, as follows.
+ 1. The taxable person’s compliance shall be deemed good where there are no violations during
+
+     a period of 12 months.
+ 2. The taxable person’s compliance shall be deemed poor for a taxable person submitting
+
+     monthly returns where more than 2 and up to 6 violations are committed during the last 12
+     months, and for a taxable person submitting quarterly returns where 1 or 2 violations are
+     committed during the last 12 months.
+ 3. The taxable person’s compliance shall be deemed very poor for a taxable person submitting
+     monthly returns where more than 6 violations are committed during the last 12 months, and
+     for a taxable person submitting quarterly returns where more than 2 violations are committed
+
+52
+
+     during the last 12 months.
+ Fourth: No Penalty for Incorrect Tax Return in the Following Cases
+ 1. Where the taxable person corrects the return in accordance with the provisions of Article 63
+
+     of the Implementing Regulations of the VAT Law, provided that such correction takes place
+     before notification of the commencement of audit and inspection procedures by the Authority.
+ 2. Where the difference between the calculated tax and the due tax is less than SAR 5,000.
+ Fifth
+
+ Where the taxable person corrects the return through the voluntary disclosure form after being
+ notified of the commencement of audit and inspection procedures, and such correction exceeds
+ 50% of the calculated and due tax differences resulting from the audit and assessment, the
+ penalty shall be reduced to 10%. Where the taxable person pays the due tax payable within 30
+ days from the date of the assessment notification, the penalty shall be reduced to 0%.
+ Field Violations
+
+ All field violations commence, upon commission, with notifying the violator and providing
+ awareness thereof, and granting an appropriate time period ranging from 30 to 60 days to
+ rectify them, except for the violation relating to preventing or obstructing Authority employees
+ from performing their duties and tasks. In such case, the violator shall be granted a period not
+ exceeding 10 days from the date of imposition of the last penalty to rectify the violation, which
+ shall be imposed consecutively in the event of repeated commission by the violator.
+ For the classification table of general VAT violations and the violations and penalties specifically
+ related to the provisions of the Electronic Invoicing Regulations, reference shall be made to the
+ guideline issued on the classification of general VAT violations.
+
+12. Request for an Interpretative Decision (Tax Ruling)
+
+ If you are uncertain of how Tax applies to a specific activity or a specific transaction that you are
+ conducting or intend to conduct, after reviewing the relevant statutory provisions and the related
+ guideline, you may submit a request to the Authority to obtain an Interpretative Decision in
+ accordance with the Tax Ruling Requests Guideline.
+
+53
+
+13. Contact Us
+
+ For further information regarding any transaction subject to VAT, please visit the website: zatca.
+ gov.sa, or contact us at the following number: 19993.
+
+14. Frequently Asked Questions (FAQs)
+
+ 1. What are the main obligations relating to tax invoices?
+
+ The principal obligations relating to tax invoices consist of issuing a tax invoice containing the
+ information stipulated in Article 53 of the Implementing Regulations of the VAT Law, as clarified
+ in this Guideline, in addition to full compliance with the provisions of the E-Invoicing Regulation
+ and the controls, requirements, technical specifications, and procedural rules necessary for the
+ implementation of the provisions of the E-Invoicing Regulation. This includes compliance with
+ the approved technical solution formats and the issuance of tax invoices in electronic form in
+ accordance with the rules and provisions specified therein.
+ 2. Is it required to display the Tax Identification Number of the supplier/customer on the
+
+     invoice?
+
+ The tax invoice must include the Tax Identification Number of the supplier. In cases where the
+ customer is required to self-account for the tax on the supply, the tax invoice must also include the
+ Tax Identification Number of the customer and a statement that the customer will self-account for
+ VAT. The tax invoice may also include the Tax Identification Number of the customer as additional
+ information in cases other than those mentioned above.
+ 3. Are there differences in the form of invoices depending on the parties to the supply (for
+
+     example: invoices issued to small non-registered shops compared to large shops)?
+
+ Consideration is given to the value of the supply and the person to whom the goods or services
+ are supplied. If the value of the supply is less than SAR 1,000, or if the supply is made to a natural
+ person who is not subject to tax, the supplier may, in such cases, issue the simplified tax invoice
+ in accordance with the information previously clarified.
+ 4. Is the use of a self-billed tax invoice permitted?
+
+ Yes, subject to meeting the relevant criteria. A self-billed tax invoice may be issued by the
+ customer to the supplier (on its behalf) in respect of supplies made by the supplier.
+ This is also subject to prior agreement between the two parties, and the agreement must include
+
+54
+
+ procedures for each invoice to be approved by the supplier, in addition to an undertaking from the
+ supplier not to issue a tax invoice in respect of those supplies.
+ 5. Currently, paper invoices are not sent to customers for low-value supplies. How may a
+
+     customer who has not received an invoice deduct Input Tax?
+ The customer must obtain a valid tax invoice (which may be a simplified tax invoice) in order to
+ deduct the tax. Such invoices shall be issued and stored entirely in electronic form in accordance
+ with the previously clarified requirements and provisions.
+ 6. What is a simplified tax invoice?
+ A simplified tax invoice is a tax invoice that contains certain basic information about the supplier
+ and the transaction. It may be issued where the value of the supply is less than SAR 1,000 or for
+ supplies made to natural persons who are not subject to tax.
+ 7. Is it required to declare the value of VAT on the invoice even if the customer is not subject
+
+     to tax?
+ Yes, the invoice must include the value of the tax even if the customer is not subject to tax.
+ 8. How is VAT calculated on the invoice? Is it calculated after discounts or on the full amount
+
+     before any deductions?
+ VAT shall be calculated based on the actual value in respect of the supply of goods or services
+ after discounts or reductions. The invoice must include all such information relating to the value of
+ the supply after discount, the value of the discount, any reductions, in addition to the tax amount
+ and the total invoice amount inclusive of tax.
+ 9. Is the tax calculated on each item of the invoice separately or on the total value?
+ If all goods or services stated on the invoice are subject to the rate of 15%, the tax may be applied
+ to the total invoice value. However, where goods or services are subject to different rates, the tax
+ shall be calculated separately for each item.
+ 10. How will invoices be submitted to ZATCA?
+ ZATCA has launched the E-Invoicing requirements (FATOORA), which are implemented in two
+ phases:
+
+55
+
+ Phase One (effective from 4th December 2021):
+ Phase One requires taxpayers to issue and retain invoices electronically through an electronic
+ invoicing system compliant with the requirements of ZATCA.
+ Phase Two (effective from 1st January 2023 on a phased basis):
+ Phase Two is referred to as the Integration Phase, under which the taxpayer’s electronic invoicing
+ systems must be integrated with the system of ZATCA (FATOORA Platform), and electronic
+ invoices must be issued in the required format.
+ 11. Is it permissible to include the Tax Identification Number of the tax group on tax invoices,
+
+     or is this number solely for use with ZATCA?
+ The Tax Identification Number of the tax group must be stated on all invoices issued by all
+ members of the tax group.
+ 12. What should I do if the value of the supply stated in the invoice submitted to the customer
+
+     changes?
+ Where the value of the supply is amended after the issuance of the tax invoice, the taxable
+ person who made the supply must issue a credit note or debit note as provided in Article 54 of the
+ Implementing Regulations, in accordance with the requirements and controls of the E-Invoicing
+ Regulation. In such case:
+
+• A credit note shall be issued where the value of the supply is amended downward.
+• A debit note shall be issued where the value of the supply is amended upward.
+
+ 13. When must the invoice be issued?
+ The tax invoice must be issued within 15 days from the end of the calendar month following the
+ month in which the supply occurred.
+ 14. If I sell to regular customers, is it permissible to issue a single invoice at the end of the
+
+     month covering all supplies made to those customers and treat it as one transaction?
+ In such case, it is permissible to issue a summary tax invoice covering all supplies made by the
+ supplier during a month, provided that all supplies included in the invoice were made by the same
+ supplier, within the same tax period, and to the same customer, and that the invoice complies
+ with the applicable conditions.
+
+56
+
+15. Are branches required to state the name of the head office or the branch, noting that the
+     registered name appearing on the registration certificate is that of the head office?
+
+For VAT purposes, the tax invoice must be issued in the name of the head office as registered on
+the registration certificate. The branch name may also be included.
+16. What is the tax policy regarding the electronic archiving and retention of documents?
+Tax invoices must be retained electronically in accordance with the retention requirements,
+controls, requirements, technical specifications, and procedural rules necessary for the
+implementation of the provisions stipulated the E-Invoicing Regulation. They must be retained
+for the period prescribed in the Implementing Regulations of the VAT Law.
+
+57
+
+Annex on Tax Invoices
+
+)Standard Tax Invoice (Section 4.3
+
+                                            فاتورة ضريبية
+                                            TAX INVOICE
+
+AL SALAM SUPPLIES CO. LTD                                            شركة السلام للتوريدات المحدودة
+
+Invoice #100                                                                           رقم الفاتورة100 :
+
+Invoice Date:6/4/2021                                                         تاريخ الفاتورة 6 :إبريل 2021م
+
+Date of Supply:6/4/2021                                                       تاريخ التوريد 6 :إبريل 2021م
+
+Supplier:                                                                                   المورد:
+
+Al Salam Supplies Co. LTD                                            شركة السلام للتوريدات المحدودة
+
+Prince Sultan bin Abdulaziz Road                                طريق الأمير سلطان بن عبد العزيز  -السليمانية
+
+Phone: 221619200                                                                       هاتف221619200 :
+
+Email: info@Al-salam.sa                                         البريد الإلكترونيinfo@Al-salam.sa :
+
+Supplier Tax Identification Number:                                           رقم التسجيل الضريبي للمورد:
+
+310175397400001                                                                      310175397400001
+
+CUSTOMER:                                                                                   العميل:
+
+AL KAWTHAR MARKETS                                                                          أسواق الكوثر
+
+SA’AD BIN ABDELRAHMAN FIRST ROAD                                طريق سعد بن عبدالرحمن الأول الفرعي
+
+SHIPPING ADDRESS:                                                                           عنوان الشحن:
+
+2119 - SA’AD BIN ABDELRAHMAN FIRST ROAD                          - 2119طريق سعد بن عبدالرحمن الأول الفرعي
+
+OTHER INFORMATION                                                                                معلومات أخرى
+Purchase Order Number: 2001341                                                        رقم أمر الشراء2001341 :
+Payment Due Date: 6/5/2021                                                    تاريخ الاستحقاق 6 :مايو 2021م
+Invoice issuance time: 5:00                                                        توقيت إصدار الفاتورة5:00 :
+
+    NATURE OF         UNIT PRICE  QUANTITY    TAXABLE            TAX RATE       )TAX (SAR   TOTAL
+     GOODS OR         سعر الوحدة    الكمية    AMOUNT            نسبة الضريبة      الضريبة   المجموع
+
+     SERVICES           200.00          1   المبلغ الخاضع                     )ريال سعودي(  230.00
+                        250.00          1      للضريبة                                      287.50
+  تفاصيل السلع أو       350.00          1                       %15           30.00         402.50
+       الخدمات           50.00          2      200.00                                        115.00
+                                               250.00           %15           37.50          92.00
+    البند أ Item A -                           350.00
+                                               100.00           %15           52.50         980.00
+   البند ب Item B -                             80.00                                        147.00
+                                                                %15           15.00         1,127.00
+   البند ج Item C -
+    البند د Item D -                                            %15           12.00
+    Shipping and
+  شحن Handling-       )الإجمالي (باستثناء ضريبة القيمة المضافة  )TOTAL (EXCLUDING VAT
+                             مجموع ضريبة القيمة المضافة                  TOTAL VAT
+        وتفريغ                   إجمالي المبلغ المستحق
+                                                                  TOTAL AMOUNT DUE
+       980.00
+
+        147.00
+       1,127.00
+
+58
+
+)Tax Invoice in Foreign Currency (Example 3
+
+                                             فاتورة ضريبية
+
+                                               TAXINVOICE
+
+Al Madinah Chemical Company                                                   شركة المدينة لتجارة المواد الكيميائية
+Invoice #611                                                                                            رقم الفاتورة611 :
+Invoice Date:18/3/2021
+Date of Supply: 18/3/2021                                                              تاريخ الفاتورة 18 :مارس 2021م
+Supplier:                                                                               تاريخ التوريد 18 :مارس 2021م
+Al Madinah Chemical Company
+Al Jubail Industrial City                                                                                          المورد:
+Phone: 033416487                                                              شركة المدينة لتجارة المواد الكيميائية
+Email: info@madinah.sa
+Supplier Tax Identification Number:                                                              مدينة الجبيل الصناعية
+310175398400002                                                                                     هاتف033416487 :
+CUSTOMER:
+Al Safa Plastic Factory                                                       البريد الإلكترونيinfo@madinah.sa :
+Al Jubail Industrial City                                                              رقم التسجيل الضريبي للمورد:
+SHIPPING ADDRESS:                                                                                  310175398400002
+819 - Al Jubail Industrial City                                                                                   العميل:
+OTHER INFORMATION                                                                               مصنع الصفا للبلاستيك
+Purchase Order Number: 2778                                                                      مدينة الجبيل الصناعية
+Payment Due Date: 28/03/2021                                                                               عنوان الشحن:
+Invoice issuance time: 5:00                                                                - 819مدينة الجبيل الصناعية
+                                                                                                         معلومات أخرى
+                                                                                                   رقم أمر الشراء2778 :
+
+                                                                                  تاريخ الاستحقاق 28 :مارس 2021م
+                                                                                           توقيت إصدار الفاتورة5:00 :
+
+ NATURE OF         UNIT PRICE        QUANTITY    TAXABLE       نسبة TAX RATE  )TAX (USD             )TOTAL (USD
+  GOODS OR             )(USD           الكمية    AMOUNT             الضريبة     الضريبة             المجموع (دولار
+  SERVICES                                                                       دولار(
+تفاصيل السلع أو     سعر الوحدة          1,250      )(USD                       )أمريكي                 )أمريكي
+                  )(دولار أمريكي               المبلغ الخاضع
+    الخدمات                                -   للضريبة (دولار                                         57,500.00
+
+                                                 )أمريكي                                               1,449.00
+
+  Industrial      40.00                        50,000.00       %15            7,500.00
+ Chemicals           -
+مواد كيميائية                                  1,260.00        %15              189.00
+
+    صناعية
+
+Shipping and
+  Handling
+
+شحن وتفريغ
+
+       51,260.00     الإجمالي بالدولار الأمريكي                    TOTAL USD                        51,260.00
+        7,689.00  )باستثناء ضريبة القيمة المضافة(              )(EXCLUDING VAT                       7,689.00
+       28,361.00                                                                                    28,833.75
+       58,949.00  مجموعضريبةالقيمةالمضافة-بالدولارالأمريكي     TOTAL VAT - USD                      58,949.00
+
+59                 TOTALVAT-SAREXCHANGERATEمجموع ضريبة القيمة المضافة  -بالريال السعودي سعر
+
+                  التحويل كما في  18مارس 2021م                 at 18/03/2021: TOTAL VAT - SARSAR 1
+
+                  دولار أمريكي =  3.75ريال سعودي 1                  USD = 3.75
+
+                  إجمالي المبلغ المستحق  -بالدولار الأمريكي    TOTAL AMOUNT DUE - USD
+
+)Tax invoice including a Quantity Discount (Example 4
+
+                                             فاتورة ضريبية
+
+                                               TAX INVOICE
+
+Shahd Al Sham Electronics Company                                     شركة شهد الشام للأجهزة الالكترونية
+
+Invoice #334                                                                                        رقم الفاتورة334 :
+
+Invoice Date:12/11/2022                                               تاريخ الفاتورة 12 :نوفمبر 2021م
+
+Date of Supply:12/11/2022                                             تاريخ التوريد 12 :نوفمبر 2021م
+
+Supplier:                                                                                           المورد:
+
+Shahd Al Sham Electronics Company                                     شركة شهد الشام للأجهزة الالكترونية
+
+Prince Sultan bin Abdulaziz Road                                      طريق الأمير سلطان بن عبد العزيز  -السليمانية
+
+Phone: 221634100                                                                                    هاتف221634100 :
+
+Email: info@Alsham.sa                                                 البريد الإلكترونيinfo@Alsham.sa :
+
+Supplier Tax Identification Number:                                   رقم التسجيل الضريبي للمورد:
+
+310122347900001                                                                 310122347900001
+
+CUSTOMER:                                                                                           العميل:
+
+Sama Saudi Telecom and Information Technology                         شركة سما السعودية للاتصالات وتكنولوجيا المعلومات
+Company
+
+Riyadh, King Fahad Road                                                         الرياض  -طريق الملك فهد
+
+SHIPPING ADDRESS:                                                                                   عنوان الشحن:
+
+101 - Riyadh, King Fahad Road                                          - 101الرياض  -طريق الملك فهد
+
+OTHER INFORMATION                                                                             معلومات أخرى
+Purchase Order Number: 112                                                                رقم أمر الشراء112 :
+Payment Due Date: 30/11/2022                                          تاريخ الاستحقاق 30:نوفمبر 2022م
+Invoice issuance time: 5:00                                                    توقيت إصدار الفاتورة5:00 :
+
+        NATURE OF      UNIT PRICE    QUANTITY         TAXABLE AMOUNT                                نسبة TAX RATE
+          SUPPLY       سعر الوحدة      الكمية          )(EXCLUDING VAT                                   الضريبة
+                                                     المبلغ الخاضع للضريبة
+       تفاصيل التوريد  200.00        1         )باستثناء ضريبة القيمة المضافة(                           %15
+                                                                                                         %15
+            Item A     250.000       1                        200.00                                     %15
+             البند أ                                                                                     %15
+            Item B     350.000       1                        250.00
+            البند ب
+            Item C     50.00         2                        350.00
+            البند ج
+           Item D                                             100.00
+            البند د
+           Volume      المبلغ الخاضع لضريبة القيمة المضافة بنسبة %15    )(100.00                     %15
+          discount
+         خصم كمية              )ضريبةالقيمةالمضافة(ريالسعودي          %Amount subject to VAT at 15  800.00
+          800.00                      إجمالي المبلغ المستحق                                         120.00
+                                                                                  )VAT (SAR         920.00
+           120.00                                                            TOTAL AMOUNT DUE
+
+           920.00
+
+60
+
+Tax invoice including supplies not subject to the standard 15% rate (Example 5)
+
+                                           فاتورة ضريبية
+
+                                                   TAX INVOICE
+
+Hope Makers for Medical Equipment Company                                                    شركة صّ ّناع الأمل للمعدات الطبية
+Invoice #34                                                                                                       34 :رقم الفاتورة
+Invoice Date:15/10/2020
+Date of Supply:12/10/2020                                                                      م2020  أكتوبر15 :تاريخ الفاتورة
+Supplier:                                                                                       م2020  أكتوبر12 :تاريخ التوريد
+Hope makers for Medical Equipment Company
+Prince Turki bin Abdullah Al Saud Road                                                                                       :المورد
+Phone: 0112828401                                                                            شركة صّ ّناع الأمل للمعدات الطبية
+Email: info@hope-makers.sa                                               السليمانية- طريق الأمير تركي بن عبدالله آل سعود
+Supplier Tax Identification Number:
+310175332400005                                                                                               0112828401 :هاتف
+CUSTOMER:                                                                         info@hope-makers.sa :البريد الإلكتروني
+AL Amal Specialized Hospital
+Sa’ad Bin Abdelrahman First Road                                                                 :رقم التسجيل الضريبي للمورد
+SHIPPING ADDRESS:                                                                                            310175332400005
+2119 - Sa’ad Bin Abdelrahman First Road                                                                                     :العميل
+OTHER INFORMATION
+Purchase Order Number: 2001341                                                                      مستشفى الأمل التخصصي
+Payment Due Date: 31/10/2020                                                          طريق سعد بن عبدالرحمن الأول الفرعي
+Invoice issuance time: 5:00
+                                                                                                                     :عنوان الشحن
+                                                                               طريق سعد بن عبدالرحمن الأول الفرعي- 2119
+
+                                                                                                                   معلومات أخرى
+                                                                                                        2001341 :رقم أمر الشراء
+                                                                                           م2020  أكتوبر31 :تاريخ الاستحقاق
+                                                                                                     5:00 :توقيت إصدار الفاتورة
+
+ NATURE OF GOODS                UNIT  QUANTITY         TAXABLE            TAX RATE    TAX (SAR(         TOTAL
+         OR SERVICES          PRICE        الكمية      AMOUNT           نسبة الضريبة      الضريبة     المجموع
+           تفاصيل السلع أو                         المبلغ الخاضع                             (ريال
+                     الخدمات     سعر                                                                4,000.00
+                              الوحدة                      للضريبة                       )سعودي
+   Item A - Zero rate                                                                                875.00
+qualified medical good        10.00   400          4,000.00             %0            0.00          4,875.00
+
+     سلع طبية:البند أ         17.50   50           875.00               %0            0.00            00.00
+ مؤهلة خاضعة لنسبة                                                                                  4,875.00
+                              )الإجمالي (باستثناء ضريبة القيمة المضافة  TOTAL (EXCLUDING VAT)
+      الصفر بالمائة                    مجموعضريبةالقيمةالمضافة                   TOTAL VAT
+                                         إجمالي المبلغ المستحق
+   Item B - Zero rate                                                       TOTAL AMOUNT DUE
+qualified medical good
+
+    سلع طبية:البند ب
+ مؤهلة خاضعة لنسبة
+
+      الصفر بالمائة
+
+       4,875.00
+
+         00.00
+
+       4,875.00
+
+61
+
+)Simplified Tax Invoice (Example 7
+
+                                               فاتورة ضريبية مبسطة
+                                             SIMPLIFIED TAX INVOICE
+                                     )الحالة الأولى  -متضمنة ضريبة القيمة المضافة(
+                                             )(Option 1 - includes VAT amounts
+
+The Green Garden Markets                             أسواق الحديقة الخضراء
+Invoice Date:12/4/2021                               تاريخ الفاتورة2021/4/12 :م
+
+Supplier:                                            :المورد
+The Green Garden Markets                             أسواق الحديقة الخضراء
+Al Muraba’ - Al Dabab Street                         حي المربع ،شارع الضباب
+                                                     هاتف221634300 :
+                                                     :رقم التسجيل الضريبي للمورد
+
+    NATURE OF GOODS OR SERVICES       )UNIT PRICE (EXCLUDING VAT                    QUANTITY
+          تفاصيل السلع أو الخدمات                                                     الكمية
+                 البند أ Item A -   سعر الوحدة (باستثناء ضريبة القيمة                     1
+                                                     )المضافة
+                                                      20.00
+
+           البند ب Item B -                          25.00                          1
+
+           البند ج Item C -                          35.00                          1
+
+           البند د Item D -                          5.00                           2
+
+    90.00  )الإجمالي(باستثناءضريبةالقيمةالمضافة      )TOTAL (EXCLUDING VAT          90.00
+
+    13.5   مجموع ضريبة القيمة المضافة                      TOTAL VAT                13.5
+
+    103.5                     إجمالي المبلغ المستحق  TOTAL AMOUNT DUE               103.5
+
+Invoice issuance time: 5:00                                                    توقيت إصدار الفاتورة5:00 :
+Invoice serial number: 54545151498                   الرقم التسلسلي المعرف للفاتورة54545151498 :
+
+62
+
+                               فاتورة ضريبية مبسطة
+                             SIMPLIFIED TAX INVOICE
+       )الحالة الثانية  -بيان بأن المقابل يشمل ضريبة القيمة المضافة(
+                     )(Option 2 - Statement VAT inclusive
+
+The Green Garden Markets                  أسواق الحديقة الخضراء
+Invoice Date: 19/4/2021                   تاريخ الفاتورة 19 :إبريل 2021م
+                                          :المورد
+Supplier:                                 أسواق الحديقة الخضراء
+The Green Garden Markets                  حي المربع ،شارع الضباب
+Al Muraba’ - Al Dabab Street              هاتف221634300 :
+
+NATURE OF GOODS OR SERVICES             UNIT PRICE   QUANTITY             TOTAL
+      تفاصيل السلع أو الخدمات       )(INCLUDING VAT    الكمية             المجموع
+
+             البند أ Item A -           سعر الوحدة         1               21.00
+            البند ب Item B -               21.00           1               26.25
+            البند ج Item C -               26.25           1               36.75
+             البد د Item D -               36.75           2               10.50
+                                            5.25
+
+94.50  إجماليالمبلغالمستحق(متضمن%15ضريبة  TOTAL AMOUNT DUE                94.50
+                       القيمةالمضافة)      )(Including%15 VAT
+
+Invoice issuance time: 5:00               توقيت إصدار الفاتورة5:00 :
+Invoice serial number: 54545151498        الرقم التسلسلي المعرف للفاتورة54545151498 :
+
+63
+
+Tax invoice summary (Example 8)
+
+                                                   فاتورة ضريبية
+                                                   TAX INVOICE
+
+Gulf Arabian Equipment Co.                                                             شركة الخليج العربي للمعدات
+Invoice #234                                                                                           234 :رقم الفاتورة
+Invoice Date:30/9/2022
+Invoice Period: 1 September - 30 September 2022                                     م2022  سبتمبر30 :تاريخ الفاتورة
+Supplier:                                                              م2022  سبتمبر30 - م2022  سبتمبر1 :الفترة
+Gulf Arabian Equipment Co.
+Abha - Bani Malek Road                                                                                              المورد:
+Phone: 072299998                                                                        شركة الخليج العربي للمعدات
+Email: info@GAECO.sa
+Supplier Tax Identification Number:                                                                طريق بني مالك- أبها
+310175397400008                                                                                     072299998 :هاتف
+CUSTOMER:
+Al Bait Al Amer Construction Co.                                                البريد الإلكتروني: info@GAECO.sa
+Jeddah, Al Khayal Road                                                                رقم التسجيل الضريبي للمورد:
+SHIPPING ADDRESS:                                                                                 310175397400008
+335 - Jeddah                                                                                                      العميل:
+OTHER INFORMATION                                                                         شركة البيت العامر للإنشاءات
+Purchase Order Number: 445581                                                                          شارع الخيال- جدة
+Payment Due Date: 30/10/2022                                                                               عنوان الشحن:
+Invoice issuance time: 5:00                                                                                    335 - جدة
+                                                                                                         معلومات أخرى
+                                                                                                445581 :رقم أمر الشراء
+
+                                                                                 م2022  أكتوبر30 :تاريخ الاستحقاق
+                                                                                      5:00 :توقيت إصدار الفاتورة
+
+NATURE OF GOODS OR SERVICES             DATE OF     TAXABLE       TAX RATE نسبة    (TAX (SAR   (TOTAL (SAR
+       تفاصيل السلع أو الخدمات       SUPPLY تاريخ    AMOUNT            الضريبة       الضريبة      المجموع
+                                                   المبلغ الخاضع
+                                         التوريد      للضريبة                    ()ريال سعودي   4,830.00
+                                                    4,200.00
+   Equipment Hire (1 Sep. - 30 Sep.  30/9/2022                    %15               630.00       1,725.00
+                    2022)            17/9/2022       1,500.00
+                                     17/9/2022                    %15               225.00       1,012.00
+   سبتمبر30 -  سبتمبر1( تأجير معدات  18/9/2022        880.00                                      690.00
+                    2022)                             600.00      %15               132.00       7,180.00
+                                                                                                 1,077.00
+  On-site maintenance - 3 hours @                                 %15               90.00        8,257.00
+              SAR 500/hour
+
+ ريال500(  ساعات3 - صيانة في الموقع
+           )سعودي لكل ساعة
+
+      Spare parts - Catalogue ID:
+                  MX 5005
+
+    كتالوج رقم- قطع غيار: MX 5005
+
+Urgent Call-out Fee
+رسوم استدعاء مستعجل
+
+    7,180.00 )الإجمالي (باستثناء ضريبة القيمة المضافة             TOTAL (EXCLUDING VAT)
+
+    1,077.00  مجموع ضريبة القيمة المضافة                          TOTAL VAT
+
+    8,257.00 إجمالي المبلغ المستحق                                TOTAL AMOUNT DUE
+
+64
+
+Tax invoice for continuous supplies (Example 9)
+
+                                       فاتورة ضريبية
+                                       TAX INVOICE
+
+AL Nakheel Security Services Company                                    شركة النخيل لخدمات الحماية
+Invoice #211                                                                             211 :رقم الفاتورة
+Invoice Date:4/11/2020
+Date of Supply:4/11/2020                                               م2022  نوفمبر4 :تاريخ الفاتورة
+Supplier:                                                               م2022  نوفمبر4 :تاريخ التوريد
+AL Nakheel Security Services Company
+Prince Sultan bin Abdulaziz Road                                                                    المورد:
+Phone: 221634200                                                         شركة النخيل لخدمات الحماية
+Email: info@Nakheel.sa                                 السليمانية- طريق الأمير سلطان بن عبد العزيز
+Supplier Tax Identification Number:
+310122397400001                                                                      221634200 :هاتف
+CUSTOMER:                                                       البريد الإلكتروني: info@Nakheel.sa
+Al Saleh Factories for Iron and Steel
+Jubail Industrial City                                                 رقم التسجيل الضريبي للمورد:
+Premises ADDRESS:                                                                   310122397400001
+113 - Jubail Industrial City                                                                       العميل:
+OTHER INFORMATION
+Purchase Order Number: 6554                                                 مصانع الصالح للحديد والصلب
+Payment Due Date: 10/11/2020                                                      مدينة الجبيل الصناعية
+Invoice issuance time: 5:00                                                                        العنوان:
+
+                                                                            113 - مدينة الجبيل الصناعية
+                                                                                          معلومات أخرى
+
+                                                                                   6554 :رقم أمر الشراء
+                                                                  م2020  نوفمبر10 :تاريخ الاستحقاق
+
+                                                                            5:00 :توقيت إصدار الفاتورة
+
+NATURE OF     PRICE      PERIOD        TAXABLE        TAX RATE      (TAX (SAR        TOTAL
+  SUPPLY                  الفترة       AMOUNT                                       المجموع
+
+    تفاصيل       السعر                 المبلغ الخاضع  نسبة الضريبة  الضريبة (ريال  23,000.00
+    التوريد   20,000.00                   للضريبة                     )سعودي
+
+    Remote               Month
+    security
+   services              October
+
+خدمات أمن عن             2020          20,000.00      %15           3,000.00
+       بعد
+                         شهر أكتوبر
+                            2020
+
+20,000.00  )الإجمالي (باستثناء ضريبة القيمة المضافةTOTAL (EXCLUDING VAT) 20,000.00
+
+3,000.00      مجموع ضريبة القيمة المضافة              TOTAL VAT                    3,000.00
+
+23,000.00     إجمالي المبلغ المستحق                   TOTAL AMOUNT DUE             23,000.00
+
+65
+
+Self-billed tax invoice issued on behalf of the supplier (Example 11)
+
+                            فاتورة ضريبية صادرة بالنيابة عن المورد
+                                    Self-billed Tax Invoice
+
+AL Faris Marketing Company                                                  شركة الفارس للتسويق
+
+Invoice #912                                                                        912 :رقم الفاتورة
+
+Invoice Date:14/5/2021                                                    م2021  مايو14 :تاريخ الفاتورة
+
+Date of Supply:14/5/2021                                                  م2021  مايو14 :تاريخ التوريد
+
+Supplier:                                                                               المورد:
+
+AL Salam Agency Services Company                                          شركة السلام لخدمات الوكلاء
+
+Prince Sultan bin Abdulaziz Road                             السليمانية- طريق الأمير سلطان بن عبد العزيز
+
+Phone: 221619200                                                              221619200 :هاتف
+
+Email: info@Al-salam.sa                                     البريد الإلكتروني: info@Al-salam.sa
+
+Supplier Tax Identification Number:                                       رقم التسجيل الضريبي للمورد:
+
+310175397400001                                                             310175397400001
+
+CUSTOMER:                                                                               العميل:
+
+AL Faris Marketing Company                                                  شركة الفارس للتسويق
+
+SA’AD BIN ABDELRAHMAN FIRST ROAD                            طريق سعد بن عبدالرحمن الأول الفرعي
+
+OTHER INFORMATION                                                                      معلومات أخرى
+Purchase Order Number: 20333                                                   20333 :رقم أمر الشراء
+Invoice issuance time: 5:00                                               5:00 :توقيت إصدار الفاتورة
+
+ NATURE OF      PRICE UNIT        QUANTITY    TAXABLE        TAX RATE       (TAX (SAR   TOTAL
+  GOODS OR      سعر الوحدة          الكمية    AMOUNT        نسبة الضريبة      الضريبة   المجموع
+  SERVICES
+                13,800.00                   المبلغ الخاضع                 ()ريال سعودي
+تفاصيل السلع                                   للضريبة
+  أو الخدمات
+                                     1      13,800.00       %15           2,070.00      15,870.00
+     Sales
+ commission:
+%2 of referred
+ sales during
+
+   April 2021
+
+%2 :عمولة بيع     )الإجمالي (باستثناء ضريبة القيمة المضافة  TOTAL (EXCLUDING VAT)       13,800.00
+من مبيعات شهر
+
+   2021 أبريل
+
+   13,800.00
+
+    2,070.00             مجموع ضريبة القيمة المضافة              TOTAL VAT              2,070.00
+
+    15,870.00             إجمالي المبلغ المستحق             TOTAL AMOUNT DUE            15,870.00
+
+ Supplier required to account for Output Tax of SAR 2,070.00 in respect of this invoice number 912 issued
+                                                           on 18/5/2021
+
+ الصادرة912  ريال سعودي على هذه الفاتورة رقم2,070.00 يتوجب على المورد أن يحتسب ضريبة مخرجات بقيمة
+                                                       م2021  مايو18 بتاريخ
+
+66
+
+Tax invoice for the supply of used goods (Example 16)
+
+                                            فاتورة ضريبية
+
+                                      TAX INVOICE
+
+Al Murooj Trading Company                                                             شركة المروج التجارية
+Invoice #1133                                                                               1133 :رقم الفاتورة
+Invoice Date: 5/7/2022
+Date of Supply: 5/7/2022                                                      م2022  يوليو5 :تاريخ الفاتورة
+Supplier:                                                                      م2022  يوليو5 :تاريخ التوريد
+Al Murooj Trading Company
+Prince Sultan bin Abdulaziz Road                                                                         المورد:
+Phone: 221635600                                                                       شركة المروج التجارية
+Email: info@Almurooj.sa                                     السليمانية- طريق الأمير سلطان بن عبد العزيز
+Supplier Tax Identification Number:
+310155347900001                                                                           221635600 :هاتف
+CUSTOMER:                                                           البريد الالكتروني: info@Almurooj.sa
+Mr. Abdel Rahman Bin Saleh Al Rashdi
+Riyadh, Al Takhasussi Street                                                رقم التسجيل الضريبي للمورد:
+SHIPPING ADDRESS:                                                                        310155347900001
+101 - Riyadh, Al Takhasussi Street                                                                      العميل:
+Payment Due Date: 30/06/2021
+OTHER INFORMATION                                                        السيد عبد الرحمن بن صالح الراشدي
+Purchase Order Number: 98                                                            شارع التخصصي- الرياض
+Payment Due Date: 15/7/2022                                                                      عنوان الشحن:
+Invoice issuance time: 5:00
+                                                                              101 -  شارع التخصصي- الرياض
+                                                                         م2022  جون30 :تاريخ الاستحقاق
+
+                                                                                               معلومات أخرى
+                                                                                            98 :رقم أمر الشراء
+                                                                         م2022  يوليو15 :تاريخ الاستحقاق
+                                                                                 5:00 :توقيت إصدار الفاتورة
+
+    NATURE OF SUPPLY                                       UNIT PRICE QUANTITY    TOTAL
+       تفاصيل التوريد                                      الكمية سعر الوحدة      الاجمالي
+                                                                                  200.00
+            Item A (Used good) - serial number 9119        200.00  1              200.00
+          9119  رقم تسلسلي- )البند أ (سلعة مستعملة
+    200.00 )الإجمالي (متضمن ضريبة القيمة المضافة           TOTAL (Inclusive VAT)
+
+                             Tax due in accordance with the profit margin scheme
+                        (Article 48 of the Implementing Regulations Value Added Tax)
+     من اللائحة التنفيذية لضريبة القيمة المضافة48 )تستحق الضريبة وفًًقا لطريقة هامش الربح (المادة
+
+67
+
+Annex for Notices - Debit Note (Example 18)
+
+                                             إشعار مدين        شركة الاتحاد العربي للتجارة العامة
+                                             Debit Note                               211 :رقم الإشعار
+
+The United Arab General Trading Company                                م2022  إبريل6 :تاريخ الإشعار
+Debit Note #211                                                                                  المورد:
+Debit Note Date:6/4/2022
+Supplier:                                                      شركة الاتحاد العربي للتجارة العامة
+The United Arab General Trading Company                                                 الرياض- الوشم
+Al Washm - Riyadh
+Phone: 221554200                                                                  221554200 :هاتف
+Email: info@unitedarab.sa                                 البريد الإلكتروني: info@unitedarab.sa
+Supplier Tax Identification Number:
+310199787400001                                                      رقم التسجيل الضريبي للمورد:
+CUSTOMER:                                                                        310199787400001
+Golden Arrow Food Distribution Company                                                          العميل:
+Olaya - Riyadh
+OTHER INFORMATION                                         شركة السهم الذهبي للتوزيعات الغذائية
+Purchase Order Number: 6554                                                               العليا- الرياض
+Payment Due Date: 30/11/2021
+Invoice type: monetary                                                                معلومات أخرى
+                                                                                6554 :رقم أمر الشراء
+                                                               م2021  أكتوبر30 :تاريخ الاستحقاق
+
+                                                                                   نقدي: نوع الفاتورة
+
+                  This debit note relates to invoice number 818, issued on 1/11/2021
+              م2021 نوفمبر1 ) الصادرة بتاريخ818( هذا الإشعار المدين يتعلق بالفاتورة رقم
+
+ NATURE OF        PRICE    QUANTITY    TAXABLE             TAX RATE       TAX (SAR)      TOTAL
+ GOODS OR     ADJUSTMENT     الكمية    AMOUNT             نسبة الضريبة      الضريبة      المجموع
+  SERVICES    السعرالمعدل                                                                230.00
+                                 1   المبلغ الخاضع                      ()ريال سعودي
+تفاصيل السلع     200.00                 للضريبة                                          287.50
+  أو الخدمات                                              %15           30.00
+                                        200.00                                           450.00
+     Price                                                                                67.50
+ adjustment   250.00       1                 250.00       %15           37.50            517.50
+
+    Item A    إجمالي السعر المعدل (غير شامل ضريبة القيمة  TOTAL PRICE ADJUSTMENT
+ - سعر معدل                         )المضافة                     (excluding VAT)
+                                                                    TOTAL VAT
+     البند أ            مجموع ضريبة القيمة المضافة
+                                                              TOTAL AMOUNT DUE
+     Price                 إجمالي المبلغ المستحق
+ adjustment
+
+    Item B
+ - سعر معدل
+
+    البند ب
+
+    450.00
+
+     67.50
+
+    517.50
+
+68
+
+Credit notes (Examples 20 and 21)
+
+                                                       إشعار دائن
+                                                      Credit Note
+                                      (Option 1: Credit note for one invoice)
+
+                                     ( إشعار دائن لفاتورة واحدة:)الحالة الأولى
+
+The Arabian Group Logistics Company                                           شركة المجموعة العربية للخدمات اللوجستية
+Credit Note #211                                                                                                 211 :رقم الإشعار
+Credit Note Date:6/4/2022
+Original Date of Supply:31/10/2021                                                               م2022  إبريل6 :تاريخ الإشعار
+Supplier:                                                                             م2021  أكتوبر31 :تاريخ التوريد الأصلي
+The Arabian Group Logistics Company
+Al Washm - Riyadh                                                                                                           المورد:
+Phone: 221554200                                                    شركة المجموعة العربية المتحدة للخدمات اللوجستية
+Email: info@Arabgroup.sa
+Supplier Tax Identification Number:                                                                                الرياض- الوشم
+310155787400001                                                                                              221554200 :هاتف
+CUSTOMER:                                                                           البريد الإلكتروني: info@Arabgroup.sa
+Al Majd Transportation Company                                                                  رقم التسجيل الضريبي للمورد:
+Olaya - Riyadh                                                                                              310155787400001
+OTHER INFORMATION
+Purchase Order Number: 6554                                                                                                العميل:
+Invoice type: monetary                                                                                      شركة المجد للنقليات
+
+                                                                                                                    العليا- الرياض
+                                                                                                                 معلومات أخرى
+                                                                                                           6554 :رقم أمر الشراء
+                                                                                                              نقدي: نوع الفاتورة
+
+                   This credit note relates to invoice number (334), issued on 31/10/2021
+                  م2021  أكتوبر31) الصادرة بتاريخ334( هذا الإشعار الدائن يتعلق بالفاتورة رقم
+
+  NATURE OF       UNIT PRICE         QUANTITY          TAXABLE       TAX RATE       TAX (SAR)     TOTAL
+   GOODS OR       سعر الوحدة           الكمية          AMOUNT       نسبة الضريبة      الضريبة    المجموع
+   SERVICES                                                                                       230.00
+ تفاصيل السلع       200.00                 1         المبلغ الخاضع       %15      ()ريال سعودي    287.50
+   أو الخدمات                                           للضريبة                        30.00
+                                                                                                 (450.00)
+Returned Item A                                         200.00                                     67.50
+ أ- بضاعة مرتجعة                                                                                  517.50
+
+Returned Item B   250.00             1                250.00        %15             37.50
+ بضاعة مرتجعة
+        ب-        )إجمالي المرتجع (غير شامل ضريبة القيمة المضافة    TOTAL RETURNED (excluding
+                                                                                   VAT)
+    (450.00)
+
+    67.50                 مجموع ضريبة القيمة المضافة                     TOTAL VAT
+
+    517.50                    إجمالي المبلغ المستلم                 TOTAL AMOUNT TO BE RECEIVED
+
+69
+
+Credit notes (Examples 20 and 21)
+
+                                                      إشعار دائن
+                                                     Credit Note
+                                 (Option 2: Credit note for Multiple invoices)
+                                   ( إشعار دائن لفواتير متعددة:)الحالة الثانية
+
+The Arabian Group Logistics Company            شركة المجموعة العربية للخدمات اللوجستية
+Credit Note #615                                                                 615 :رقم الإشعار
+Credit Note Date:12/8/2022
+Supplier:                                                      م2022  أوغست12:تاريخ الإشعار
+The Arabian Group Logistics Company                                                          المورد:
+Al Washm - Riyadh
+Phone: 221554200                     شركة المجموعة العربية المتحدة للخدمات اللوجستية
+Email: info@Arabgroup.sa                                                            الرياض- الوشم
+Supplier Tax Identification Number:
+310155787400001                                                               221554200 :هاتف
+CUSTOMER:                                            البريد الإلكتروني: info@Arabgroup.sa
+Al Majd Transportation Company
+Olaya - Riyadh                                                   رقم التسجيل الضريبي للمورد:
+OTHER INFORMATION                                                            310155787400001
+Purchase Order Number: 118                                                                  العميل:
+Invoice type: monetary                                                       شركة المجد للنقليات
+                                                                                     العليا- الرياض
+                                                                                  معلومات أخرى
+                                                                               118 :رقم أمر الشراء
+                                                                               نقدي: نوع الفاتورة
+
+70
+
+   NATURE OF       UNIT PRICE  QUANTITY   TAXABLE                   TAX RATE       )TAX (SAR     TOTAL
+   GOODS OR        سعر الوحدة    الكمية    AMOUNT                  نسبة الضريبة      الضريبة    المجموع
+    SERVICES                                                                                    230.00
+                     200.00          1   المبلغ الخاضع                           )ريال سعودي(
+تفاصيل السلع أو                             للضريبة                                             287.50
+     الخدمات
+                                         200.00                    %15           30.00          )(450.00
+ Returned Item                                                                                    67.50
+A, as included on  250.00      1         250.00                    %15           37.50           517.50
+invoice number
+ 7118, issued on   )إجمالي المرتجع (باستثناء ضريبة القيمة المضافة    TOTAL RETURNED (excluding
+                                                                                     )VAT
+ مارس 2021م 3                 مجموع ضريبة القيمة المضافة
+  بضاعة مرتجعة                    إجمالي المبلغ المستلم                          TOTAL VAT
+    -أ ،المذكورة
+في الفاتورة رقم                                                    TOTAL AMOUNT TO BE RECEIVED
+ ( )7188الصادرة
+  بتاريخ  3مارس
+
+      2021م
+
+ Returned Item
+A, as included on
+invoice number
+9866, issued on
+ فبراير 2021م 16
+
+  بضاعة مرتجعة
+   -ب ،المذكورة
+في الفاتورة رقم
+ ( )9866الصادرة
+ بتاريخ  16فبراير
+
+      2021م
+
+     )(450.00
+
+        67.50
+
+       517.50
+
+71
+
+Scan this code to view the last
+version and all published documents
+Or visit the website zatca.gov.sa
+

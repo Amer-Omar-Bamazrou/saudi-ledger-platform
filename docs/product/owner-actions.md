@@ -61,10 +61,15 @@ window or audited override on backdating into a closed period).
 - **Done when:** every block has a written answer, attributed and dated, and
   each answer is transcribed into the document it gates — not left in the
   advisor's reply.
+- **Moved 2026-11-06:** Blocks A and B are answered and transcribed. Still to ask:
+  Blocks C, D and F; and in Block I, PD-1 and PD-2 (PDPL adviser), TX-1, TX-2 and
+  TX-3 (tax adviser or ZATCA).
 - 🔴 **Why this one has a clock:** ordinary users already promote phone
   photographs into a store that by interface design cannot delete. Every day
   this stays unanswered, more third-party personal data becomes undeletable by
-  construction. **This is the risk not to carry past customer #1.**
+  construction. **This is the risk not to carry past customer #1.** Since
+  2026-11-06 it is answered but not built: the class distinction and B3's deletable
+  staging are what end it.
 
 ## 3. ▢ The Groq Enterprise agreement — Dammam + contractual ZDR
 
@@ -148,6 +153,22 @@ substantially cheaper than the decision assumed.
   RTL is explicitly in its scope, or (B) an approach for owning RTL separately
   is chosen and queued — and in both cases the choice is written down here, so
   the next session inherits a decision rather than a default.
+
+## 6. ▢ The written GOSI enquiry — two open questions (opened 2026-11-06)
+
+Ask GOSI in writing. The questions are GQ-1 and GQ-2 in
+[`advisor-questions.md`](advisor-questions.md), Block H:
+
+- **GQ-2:** the contributory-wage minimum under the 2024 law: the amount, the
+  competent authority, the legal instrument, the effective date, and whether it
+  reaches non-Saudi occupational-hazards-only contributors. Law Art. 8(1) gives no
+  figure and names no authority.
+- **GQ-1:** whether a non-Saudi employee with only occupational-hazards periods
+  before 3 July 2024 falls under Royal Decree M/273 item ثانياً(1).
+
+- **Gates:** payroll's SAR 400 line stays a warning and no 2024-law floor is built,
+  until the answer arrives.
+- **Done when:** GOSI's written answer is transcribed under those two questions.
 
 ---
 

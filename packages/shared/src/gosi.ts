@@ -11,9 +11,9 @@
  *
  * The 2024-law pension steps (Royal Decree M/273 item 3(1)): 9% each side from
  * July 2024, 9.5% from July 2025 (owner, 2026-10-26 late), then 10%, 10.5% and
- * 11%. Each step takes effect on 1 July (Saudi Press Agency, 30 June 2025, as
- * the owner directed). A 2024-law period before July 2024, when the law took
- * effect, has no entry and is refused.
+ * 11%. Each step takes effect on 1 July (GOSI's guide of August 2025, p. 4; the
+ * Saudi Press Agency, 30 June 2025, for the first). A 2024-law period before July
+ * 2024, when the law took effect, has no entry and is refused.
  *
  * The contribution rules beyond the rates (GO-10..GO-13, owner 2026-10-27;
  * register §11.26) sit ON the entries, each where its own law states it:
@@ -29,13 +29,15 @@
  *  - Both: in-kind housing in the contributory wage (1421H Art. 16(c); 2024
  *    Art. 17(c)), valued by INTERPRETATION (see `gosiInKindHousingValue`).
  *
+ * Settled 2026-11-06: the 2024-law pension for July 2026 is 20% in total, and each
+ * step falls on 1 July (GOSI's guide of August 2025, p. 4; advisor-questions.md,
+ * Block H, G-d).
+ *
  * What is NOT settled, by name (question G1, register §11.18 E and §11.26):
- *  - the 2024-law pension for July 2026 (G1: 19% or 20% in total), and the
- *    step timing;
  *  - the 1421H-law SANED split: 0.75% each side, per GOSI guidance, UNVERIFIED
  *    against the binding text (the totals 9.75% / 11.75% are settled);
  *  - under the 2024 law: a riyal floor (Law Art. 8(1) names "the minimum wage
- *    set by the competent authority", no figure), a cap or a holiday extension
+ *    set by the competent authority", no figure; GQ-2), a cap or a holiday extension
  *    on the late fine, and a wage fixed for the year — none applied;
  *  - the in-kind housing valuation's time unit, and the Governor's exempt cases;
  *  - 1421H law: whether GOSI invoices the joining and leaving months by days
@@ -75,7 +77,8 @@ const LAW_2024_SOURCES = [
   "Social Insurance Law under Royal Decree M/273 (in force 3 July 2024), item 3 (the pension steps)",
   "Council of Ministers Decision 1022",
   "Social Insurance Law Arts. 15, 29, 44 (contributions, as listed by the owner)",
-  "Saudi Press Agency, 30 June 2025: the pension steps take effect on 1 July each year",
+  "GOSI, «دليل الزيادة في نسب الاشتراكات» (awareness.gosi.gov.sa/pdf/Contributions.pdf, August 2025, sha256 e560f1d664f43834…), p. 4, pensions branch only: 9% each side from 3 July 2024, 9.5% from 1 July 2025, 10% from 1 July 2026, 10.5% from 1 July 2027, 11% from 1 July 2028",
+  "Saudi Press Agency, 30 June 2025 (spa.gov.sa/N2349640): the announced provisions apply from 1 July 2025",
   "Research finding 3 (register §11.18 B), read from Umm Al-Qura",
   "2024 Implementing Regulation Art. 20(2): the joining and leaving months by days of service; Arts. 36(1), 53(3): over the month's actual days (Umm Al-Qura, 5 July 2024)",
 ] as const;
@@ -131,7 +134,7 @@ export const GOSI_SCHEDULE: readonly GosiRateEntry[] = [
     from: "2026-07",
     employee: { pension: 0.1, saned: 0.0075 },
     employer: { pension: 0.1, occupationalHazards: 0.02, saned: 0.0075 },
-    sources: [...LAW_2024_SOURCES, "Stated for October 2026: employer 12.75%, employee 10.75% (research finding 3)"],
+    sources: [...LAW_2024_SOURCES, "Pension 20% in total, 10% each side, from 1 July 2026: GOSI's guide above", "Stated for October 2026: employer 12.75%, employee 10.75% (research finding 3)"],
     ...LAW_2024_RULES,
   },
   {
@@ -139,7 +142,7 @@ export const GOSI_SCHEDULE: readonly GosiRateEntry[] = [
     from: "2027-07",
     employee: { pension: 0.105, saned: 0.0075 },
     employer: { pension: 0.105, occupationalHazards: 0.02, saned: 0.0075 },
-    sources: [...LAW_2024_SOURCES, "Pension 21% in total, 10.5% each side, one year after the 20% step"],
+    sources: [...LAW_2024_SOURCES, "Pension 21% in total, 10.5% each side, from 1 July 2027: GOSI's guide above"],
     ...LAW_2024_RULES,
   },
   {
@@ -147,7 +150,7 @@ export const GOSI_SCHEDULE: readonly GosiRateEntry[] = [
     from: "2028-07",
     employee: { pension: 0.11, saned: 0.0075 },
     employer: { pension: 0.11, occupationalHazards: 0.02, saned: 0.0075 },
-    sources: [...LAW_2024_SOURCES, "Pension 22% in total, 11% each side, the step after that"],
+    sources: [...LAW_2024_SOURCES, "Pension 22% in total, 11% each side, from 1 July 2028: GOSI's guide above"],
     ...LAW_2024_RULES,
   },
 ];
@@ -266,10 +269,10 @@ export function gosiLineAmounts(input: {
  * identified. So:
  *  - an employee whose RECORDED law is 1421H is a Saudi pension member: GO-10's
  *    SAR 1,500 pension floor applies, and this hazards-only minimum does not;
- *  - a 2024-law employee: no floor figure is built (none identified);
+ *  - a 2024-law employee: no floor figure is built (none identified; GQ-2);
  *  - a NON-SAUDI employee: the per-employee law flag does not cover them, and
  *    the decree does not say whether their hazards-only periods count as
- *    "earlier contribution periods" — an open GOSI question. The law is NOT
+ *    "earlier contribution periods" — an open GOSI question (GQ-1). The law is NOT
  *    inferred from nationality or dates: a line below SAR 400 is WARNED, never
  *    refused and never changed, until GOSI answers in writing.
  * Unverified, recorded: footnote (1) of Art. 19 (not on the published page),
