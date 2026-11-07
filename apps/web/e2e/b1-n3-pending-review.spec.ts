@@ -75,7 +75,12 @@ test.afterAll(async () => {
   }
 });
 
-/** A context whose pages record, from before any app script, whether the hub's shell was ever attached. */
+/**
+ * A context whose pages record, from before any app script, whether the hub's shell was ever attached.
+ * 🔴 The record lives in sessionStorage, not on `window`: the old route to the review screen is a FULL-PAGE redirect
+ * after the hub has painted, and a per-document flag starts again at false in the new document, so it cannot see a
+ * paint that happened before the reload. (Found by this spec's first red run: its per-page flag passed those loads.)
+ */
 async function watched(browser: Browser, opts: { lang: "ar" | "en"; phone: boolean; api?: APIRequestContext }): Promise<BrowserContext> {
   const ctx = await browser.newContext({
     storageState: opts.api ? await opts.api.storageState() : undefined,
@@ -83,14 +88,14 @@ async function watched(browser: Browser, opts: { lang: "ar" | "en"; phone: boole
   });
   await ctx.addInitScript(({ hub, lang }) => {
     try { localStorage.setItem("ksa_lang", lang); } catch { /* storage refused: the default language */ }
-    (window as any).__hubSeen = false;
-    const check = () => { if (document.querySelector(hub)) (window as any).__hubSeen = true; };
+    const check = () => { if (document.querySelector(hub)) sessionStorage.setItem("__n3HubSeen", String(location.pathname)); };
     new MutationObserver(check).observe(document, { childList: true, subtree: true });
   }, { hub: HUB, lang: opts.lang });
   return ctx;
 }
 
-const hubSeen = (page: Page) => page.evaluate(() => (window as any).__hubSeen as boolean);
+/** Where the hub's shell was seen in this tab, across every document since the context opened; null if never. */
+const hubSeen = (page: Page) => page.evaluate(() => sessionStorage.getItem("__n3HubSeen"));
 
 test.describe("N-3: a pending company's user never sees the hub", () => {
   test("control: an approved company's user lands on the hub, and the probe sees it", async ({ browser }) => {
@@ -98,7 +103,7 @@ test.describe("N-3: a pending company's user never sees the hub", () => {
     const page = await ctx.newPage();
     await page.goto("/", { waitUntil: "networkidle" });
     await expect(page.locator('[data-testid="nav-hamburger"]')).toBeVisible();
-    expect(await hubSeen(page), "the probe can see the hub").toBe(true);
+    expect(await hubSeen(page), "the probe can see the hub").not.toBeNull();
     await ctx.close();
   });
 
@@ -113,7 +118,7 @@ test.describe("N-3: a pending company's user never sees the hub", () => {
       await page.locator('form button[type="submit"]').click();
       await page.waitForURL(/\/verification$/);
       await expect(page.getByTestId("verification-pending-steps")).toBeVisible();
-      expect(await hubSeen(page), "the hub's shell was attached at some point between sign-in and the review screen").toBe(false);
+      expect(await hubSeen(page), "the hub's shell was attached at some point between sign-in and the review screen").toBeNull();
       await ctx.close();
     });
   }
@@ -125,10 +130,10 @@ test.describe("N-3: a pending company's user never sees the hub", () => {
       await page.goto(path, { waitUntil: "networkidle" });
       await page.waitForURL(/\/verification$/);
       await expect(page.getByTestId("verification-pending-steps")).toBeVisible();
-      expect(await hubSeen(page), `the hub was painted on ${path}`).toBe(false);
+      expect(await hubSeen(page), `the hub was painted on ${path}`).toBeNull();
       await page.reload({ waitUntil: "networkidle" });
       await expect(page).toHaveURL(/\/verification$/);
-      expect(await hubSeen(page), "and again after a reload").toBe(false);
+      expect(await hubSeen(page), "and again after a reload").toBeNull();
       await ctx.close();
     });
   }
