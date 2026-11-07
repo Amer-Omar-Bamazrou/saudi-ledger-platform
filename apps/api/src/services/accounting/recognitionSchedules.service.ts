@@ -345,7 +345,9 @@ export const recognitionSchedulesService = {
       .where(eq(recognitionSchedulesTable.status, "active"))
       .orderBy(recognitionSchedulesTable.id);
     const posted: { scheduleId: number; reference: string; amount: number; journalEntryId: number }[] = [];
-    const skipped: { scheduleId: number; reference: string; reason: string }[] = [];
+    // 🔴 Carry-over Batch 3 (F-1): every skip carries a CODE beside its reason, as the depreciation run's do —
+    // the run screen explains a skip in the reader's language by its code; the reason is the server's English words.
+    const skipped: { scheduleId: number; reference: string; code: string; reason: string }[] = [];
     for (const s of actives) {
       // 🔴 G60 / DR-47: the schedule's reads AND its recognition run in its OWN
       // SAVEPOINT. A schedule that fails — a database error included — has its
@@ -360,21 +362,21 @@ export const recognitionSchedulesService = {
         // 🔴 Every skip is REPORTED with its reason. A run that silently did
         // nothing for a schedule is indistinguishable from one that had nothing
         // to do, and month end is exactly when that distinction matters.
-        if (!row) return { kind: "skip", reason: `no row for ${period}` } as const;
-        if (row.journalEntryId != null) return { kind: "skip", reason: "already recognised" } as const;
+        if (!row) return { kind: "skip", code: "recognition_period_not_scheduled", reason: `no row for ${period}` } as const;
+        if (row.journalEntryId != null) return { kind: "skip", code: "recognition_period_already_recognised", reason: "already recognised" } as const;
         return { kind: "posted", out: await this.recognise(s.id, { period }, userId) } as const;
       });
       if (!outcome.ok) {
-        const { reason } = runItemFailure(outcome.error, {
+        const { code, reason } = runItemFailure(outcome.error, {
           label: `schedule ${s.reference}`,
           entryNumber: recognitionEntryNumber(s.reference, period),
           log: { run: "recognition", period, scheduleId: s.id },
         });
-        skipped.push({ scheduleId: s.id, reference: s.reference, reason });
+        skipped.push({ scheduleId: s.id, reference: s.reference, code, reason });
         continue;
       }
       if (outcome.value.kind === "skip") {
-        skipped.push({ scheduleId: s.id, reference: s.reference, reason: outcome.value.reason });
+        skipped.push({ scheduleId: s.id, reference: s.reference, code: outcome.value.code, reason: outcome.value.reason });
         continue;
       }
       posted.push({ scheduleId: s.id, reference: s.reference, amount: outcome.value.out.amount, journalEntryId: outcome.value.out.journalEntryId });
