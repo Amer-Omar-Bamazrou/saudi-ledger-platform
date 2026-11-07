@@ -119,11 +119,11 @@ export default function Customers() {
           {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : customers.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground"><Users className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No customers yet. Add your first customer.", "لا يوجد عملاء بعد. أضف أول عميل.")}</p></div>
           ) : (
-            <div className="overflow-x-auto"><table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm table-cards">
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Customer","العميل"),t("City","المدينة"),t("VAT Number","رقم ضريبة القيمة المضافة"),t("Payment Terms","شروط الدفع"),t("Billed","المفوتر"),t("Receivable","الذمم المدينة"),""].map(h=><th key={h} className="text-start pb-2 pe-4 font-medium">{h}</th>)}</tr></thead>
               <tbody>{customers.map(c=>(
                 <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="py-3 pe-4">
+                  <td className="py-3 pe-4" data-label={t("Customer", "العميل")}>
                     <div className="font-medium text-foreground">{c.name}</div>
                     {arabicNameStatus(c.name, c.nameAr) === "ok"
                       ? (c.nameAr ? <div className="text-xs text-muted-foreground" dir="rtl">{c.nameAr}</div> : null)
@@ -131,11 +131,11 @@ export default function Customers() {
                       ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script — please correct", "ليس نصًا عربيًا — يرجى التصحيح")}</div>
                       : <div className="text-[10px] text-attention-surface/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>
-                  <td className="py-3 pe-4 text-muted-foreground">{c.city||"—"}</td>
-                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{c.taxNumber||"—"}</td>
-                  <td className="py-3 pe-4"><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays == null ? "—" : t(`${c.paymentTermsDays}d`, arabicDays(Number(c.paymentTermsDays)))}</Badge></td>
-                  <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(c.totalBilled??0)}</td>
-                  <td className="py-3 pe-4">
+                  <td className="py-3 pe-4 text-muted-foreground" data-label={t("City", "المدينة")}>{c.city||"—"}</td>
+                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground" data-label={t("VAT Number", "رقم ضريبة القيمة المضافة")}>{c.taxNumber||"—"}</td>
+                  <td className="py-3 pe-4" data-label={t("Payment Terms", "شروط الدفع")}><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays == null ? "—" : t(`${c.paymentTermsDays}d`, arabicDays(Number(c.paymentTermsDays)))}</Badge></td>
+                  <td className="py-3 pe-4 font-mono text-foreground" data-label={t("Billed", "المفوتر")}>{fmtNum(c.totalBilled??0)}</td>
+                  <td className="py-3 pe-4" data-label={t("Receivable", "الذمم المدينة")}>
                     <span className={`font-mono font-medium ${(c.receivable??0)>0?"text-attention":"text-positive"}`}>{fmtNum(c.receivable??0)}</span>
                     {((c.creditBalance ?? 0) + (c.depositBalance ?? 0)) > 0.005 && (
                       <span className="block text-xs text-info font-mono">{t("owed to them", "مستحق لهم")} {fmtNum((c.creditBalance ?? 0) + (c.depositBalance ?? 0))}</span>
