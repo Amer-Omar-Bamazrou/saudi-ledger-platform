@@ -142,6 +142,8 @@ export function buildQuotationOut(
     validUntil: quo.validUntil,
     customerId: quo.customerId,
     customerName: cust?.name ?? null,
+    // N-8: the Arabic name beside it; the screen shows one through the one rule (@workspace/shared displayName).
+    customerNameAr: cust?.nameAr ?? null,
     status: quo.status,
     outcome: quo.outcome,
     conversionState: conversionState(stateBasis),

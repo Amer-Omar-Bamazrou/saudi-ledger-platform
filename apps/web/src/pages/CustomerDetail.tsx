@@ -188,7 +188,7 @@ function CreditNoteRow({ n, customer, invoiceNumbers }: { n: Invoice; customer: 
 export default function CustomerDetail() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
-  const { t, lang } = useLanguage();
+  const { t, lang, n } = useLanguage();
   const canPost = useCanPostPayments();
   const [receiving, setReceiving] = useState(false);
 
@@ -245,7 +245,8 @@ export default function CustomerDetail() {
   const invoices = all.filter((d) => isReceivableDocumentType(d.documentType));
   const creditNotes = all.filter((d) => d.documentType === "credit_note");
   const aging = computeAging(invoices);
-  const who = { id: customer.id, name: customer.name };
+  // N-8: the one name for the language, passed to the receipt, credit-note, refund and receive screens below.
+  const who = { id: customer.id, name: n(customer.name, customer.nameAr) };
 
   return (
     <div className="space-y-6">
@@ -360,7 +361,7 @@ export default function CustomerDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {payments.map((p) => <PaymentRow key={p.id} p={p} customerName={customer.name} invoiceNumbers={invoiceNumbers} />)}
+                  {payments.map((p) => <PaymentRow key={p.id} p={p} customerName={who.name} invoiceNumbers={invoiceNumbers} />)}
                 </tbody>
               </table>
             </div>

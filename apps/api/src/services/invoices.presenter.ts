@@ -33,13 +33,19 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
   // fact (Guideline §8(c): populated only when a separate advance invoice
   // was issued).
   const prepaidAmount = Math.round((prepayments ?? []).reduce((s, p) => s + p.amount, 0) * 100) / 100;
+  // 🔴 N-8 / G32: an issued invoice names its buyer as it was at issue (the snapshot), never the live customer, which
+  // may have been renamed since. A row issued before the snapshot existed (no capture) and a draft read the customer.
+  const buyer = inv.partiesCapturedAt != null
+    ? (inv.issuedBuyer as { name: string; nameAr: string | null } | null)
+    : customer ? { name: customer.name, nameAr: customer.nameAr } : null;
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceNumber,
     date: inv.date,
     dueDate: inv.dueDate,
     customerId: inv.customerId,
-    customerName: customer?.name ?? null,
+    customerName: buyer?.name ?? null,
+    customerNameAr: buyer?.nameAr ?? null,
     status: inv.status,
     subtotal: toNum(inv.subtotal),
     vatAmount: toNum(inv.vatAmount),

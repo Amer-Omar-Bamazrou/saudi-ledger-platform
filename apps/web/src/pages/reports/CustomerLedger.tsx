@@ -22,7 +22,7 @@ import type { Customer, CustomerLedgerCustomer, CustomerLedgerReport } from "@wo
 const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", sent: "bg-info-surface/20 text-info", paid: "bg-positive-surface/20 text-positive", partial: "bg-attention-surface/20 text-attention" };
 
 function CustomerRow({ cust }: { cust: CustomerLedgerCustomer }) {
-  const { t } = useLanguage();
+  const { t, n } = useLanguage();
   const [expanded, setExpanded] = useState(true);
   return (
     <div className="border border-border rounded-lg overflow-hidden mb-3">
@@ -32,7 +32,7 @@ function CustomerRow({ cust }: { cust: CustomerLedgerCustomer }) {
       >
         <div className="flex items-center gap-3">
           {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-          <span className="font-semibold text-sm text-foreground">{cust.customerName}</span>
+          <span className="font-semibold text-sm text-foreground">{n(cust.customerName, cust.customerNameAr)}</span>
           {cust.taxNumber && <span className="text-xs text-muted-foreground">{t("VAT:", "الرقم الضريبي:")} {cust.taxNumber}</span>}
           <Badge variant="outline" className="text-xs">{cust.invoices.length} {t(cust.invoices.length !== 1 ? "invoices" : "invoice", cust.invoices.length !== 1 ? "فواتير" : "فاتورة")}</Badge>
         </div>
@@ -101,7 +101,7 @@ function initialCustomerId(): string {
 }
 
 function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
-  const { t } = useLanguage();
+  const { t, n } = useLanguage();
   const initialCustomer = initialCustomerId();
   const [customerId, setCustomerId] = useState(initialCustomer);
   const [dateFrom,   setDateFrom]   = useState(range.from);
@@ -145,7 +145,7 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
                 <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("All Customers", "كل العملاء")}</SelectItem>
-                  {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                  {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{n(c.name, c.nameAr)}</SelectItem>)}
                 <PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent>
               </Select>
             </div>

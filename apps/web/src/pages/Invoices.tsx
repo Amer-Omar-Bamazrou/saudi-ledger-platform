@@ -161,7 +161,7 @@ export default function Invoices() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { t, lang } = useLanguage();
+  const { t, lang, n } = useLanguage();
 
   /**
    * 🔴 A PAGE, and totals that describe the whole set.
@@ -405,7 +405,7 @@ export default function Invoices() {
 
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
-                <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer...", "اختر العميل...")} /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}<PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent></Select>
+                <Select value={form.customerId} onValueChange={v=>setForm(p=>({...p,customerId:v}))}><SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select customer...", "اختر العميل...")} /></SelectTrigger><SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{n(c.name, c.nameAr)}</SelectItem>)}<PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent></Select>
               </div>
               <div><Label className="text-xs text-muted-foreground">{t("Notes", "ملاحظات")}</Label><Input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} className="mt-1 h-8 text-sm" placeholder={t("Optional notes...", "ملاحظات اختيارية...")} /></div>
 
@@ -632,7 +632,7 @@ export default function Invoices() {
                     {inv.badDebtRelief && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-written-off-${inv.id}`}>{t("Written off", "مشطوبة")} {fmtNum(inv.writtenOffAmount)}</Badge>}
                     {inv.documentType === "invoice" && inv.prepaidAmount > 0.005 && <Badge variant="outline" className="ms-2 text-[10px] font-sans" data-testid={`type-prepaid-${inv.id}`}>{t("Advance applied", "طُبّقت دفعة مقدمة")} {fmtNum(inv.prepaidAmount)}</Badge>}
                   </td>
-                  <td className="py-3 pe-4 font-medium" data-label={t("Customer", "العميل")}>{inv.customerName ?? "—"}</td>
+                  <td className="py-3 pe-4 font-medium" data-label={t("Customer", "العميل")}>{n(inv.customerName ?? "", inv.customerNameAr) || "—"}</td>
                   <td className="py-3 pe-4 text-muted-foreground text-xs" data-label={t("Date", "التاريخ")}><DualDate date={inv.date} /></td>
                   <td className="py-3 pe-4 text-muted-foreground text-xs" data-label={t("Due Date", "تاريخ الاستحقاق")}><DualDate date={inv.dueDate} /></td>
                   <td className="py-3 pe-4 font-mono" data-label={t("Amount", "المبلغ")}>{fmtNum(inv.subtotal)}</td>
@@ -646,9 +646,9 @@ export default function Invoices() {
                   <td className="py-3">
                     {/* The actions name what they act on (walk finding 5): at phone width the number and customer can be out of view. */}
                     <p className="md:hidden w-full text-xs text-muted-foreground mb-1" data-testid={`invoice-actions-for-${inv.id}`}>
-                      <span className="font-mono">{inv.invoiceNumber}</span> · {inv.customerName ?? "—"}
+                      <span className="font-mono">{inv.invoiceNumber}</span> · {n(inv.customerName ?? "", inv.customerNameAr) || "—"}
                     </p>
-                    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`${inv.invoiceNumber} · ${inv.customerName ?? ""}`}>
+                    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`${inv.invoiceNumber} · ${n(inv.customerName ?? "", inv.customerNameAr)}`}>
                       {/*
                         🔴 AUD-11/AUD-12: draft-only Edit and Delete. Both routes
                         existed and had no caller, so a mistyped draft could be
@@ -791,7 +791,7 @@ export default function Invoices() {
           <DialogHeader><DialogTitle>{t("Record Payment", "تسجيل دفعة")}</DialogTitle></DialogHeader>
           {invoices.find((i) => i.id === payOpen) && (
             <p className="text-sm" data-testid="pay-invoice-names">
-              <span className="font-mono">{invoices.find((i) => i.id === payOpen)!.invoiceNumber}</span> · {invoices.find((i) => i.id === payOpen)!.customerName ?? "—"}
+              <span className="font-mono">{invoices.find((i) => i.id === payOpen)!.invoiceNumber}</span> · {n(invoices.find((i) => i.id === payOpen)!.customerName ?? "", invoices.find((i) => i.id === payOpen)!.customerNameAr) || "—"}
             </p>
           )}
           <div className="space-y-3 mt-2">
