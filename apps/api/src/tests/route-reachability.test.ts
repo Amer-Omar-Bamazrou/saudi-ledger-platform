@@ -365,3 +365,77 @@ describe("the inverse guard — every URL the web calls hits a mounted route", (
     expect(stale, "these held paths are no longer called by any page — delete the entries").toEqual([]);
   });
 });
+
+/**
+ * 🔴 PER ROUTE, for the three routes the AC-13 document names (F-1, F-2) — carry-over Batch 3 (the owner, 2026-11-07).
+ *
+ * The mount-level guard above counts a WHOLE MOUNT reachable once any web URL starts with it, so a route inside a
+ * reachable mount can have no caller at all and never show: `/assets`, `/recognition-schedules` and `/zatca/onboarding`
+ * all have other callers, which is exactly how F-1 and F-2 stayed invisible to it (register §11.156, the A–Z
+ * certification audit's first item). This block checks these three routes ONE BY ONE. The full per-route test is that
+ * audit item, deliberately not this block.
+ *
+ * A route is reached when `apps/web/src` uses its GENERATED operation (`useX`, `x(`, `getXUrl`) or names its exact path
+ * as a string. Both ways are proven able to see a known caller first, so a "no caller" here is not a blind probe.
+ */
+const PER_ROUTE_CHECKED: Array<{ method: string; mount: string; path: string; file: string; operation: string | null; finding: string }> = [
+  { method: "POST", mount: "/assets", path: "/depreciation-runs", file: "assets.ts", operation: "runAssetDepreciation", finding: "F-1" },
+  { method: "POST", mount: "/recognition-schedules", path: "/runs", file: "recognitionSchedules.ts", operation: "runRecognitionPeriod", finding: "F-1" },
+  { method: "POST", mount: "/zatca/onboarding", path: "/renew", file: "zatcaOnboarding.ts", operation: null, finding: "F-2" },
+];
+
+/**
+ * Per-route gaps, keyed "METHOD /full/path". Each states its reason and LEAVES the day a screen calls the route (the
+ * test below fails while a reached route is still listed). Shrinks only.
+ */
+const KNOWN_UNREACHABLE_ROUTES: Record<string, string> = {
+  "POST /assets/depreciation-runs":
+    "F-1 (AC-13 standing check): the month's depreciation run has no screen yet. Carry-over Batch 3 builds it; this entry leaves in that PR.",
+  "POST /recognition-schedules/runs":
+    "F-1 (AC-13 standing check): the month's accrual/prepayment run has no screen yet. Carry-over Batch 3 builds it; this entry leaves in that PR.",
+  "POST /zatca/onboarding/renew":
+    "F-2 (AC-13 standing check): certificate renewal (the tenant's own OTP) has no screen yet. Carry-over Batch 3 builds it; this entry leaves in that PR.",
+};
+
+const pascal = (op: string) => op[0]!.toUpperCase() + op.slice(1);
+const fullPath = (r: { mount: string; path: string }) => `${r.mount}${r.path}`;
+const keyOf = (r: { method: string; mount: string; path: string }) => `${r.method} ${fullPath(r)}`;
+
+function reachedFromWeb(webSrc: string, r: { method: string; mount: string; path: string; operation: string | null }): boolean {
+  if (r.operation && new RegExp(`\\b(use${pascal(r.operation)}|${r.operation}|get${pascal(r.operation)}Url)\\b`).test(webSrc)) return true;
+  const path = fullPath(r).split("/").map((s) => (s.startsWith(":") ? "\\$\\{[^}]+\\}" : s.replace(/[-.]/g, "\\$&"))).join("/");
+  // The exact path as a string, ending there (a longer path under it is a different route).
+  return new RegExp(`["'\`]${path}["'\`?]`).test(webSrc);
+}
+
+describe("per route — the three routes the AC-13 document names (F-1, F-2)", () => {
+  const webSrc = readAll(WEB_SRC, [".ts", ".tsx"]);
+
+  it("the detector sees a known caller both ways: a generated hook, and a literal path", () => {
+    expect(reachedFromWeb(webSrc, { method: "GET", mount: "/customers", path: "", operation: "listCustomers" }), "useListCustomers (GeneralLedger)").toBe(true);
+    expect(reachedFromWeb(webSrc, { method: "GET", mount: "/zatca/onboarding", path: "", operation: null }), 'apiFetch("/zatca/onboarding") (ZatcaOnboarding)').toBe(true);
+    expect(reachedFromWeb(webSrc, { method: "POST", mount: "/no-such-mount", path: "/nowhere", operation: "noSuchOperation" }), "and nothing for a route nobody calls").toBe(false);
+  });
+
+  it("🔴 each named route is still declared where the AC-13 document says, and mounted where this list says", () => {
+    const indexSrc = readFileSync(join(API_SRC, "routes", "index.ts"), "utf8");
+    for (const r of PER_ROUTE_CHECKED) {
+      const routeSrc = readFileSync(join(API_SRC, "routes", r.file), "utf8");
+      expect(new RegExp(`router\\.${r.method.toLowerCase()}\\(\\s*["']${r.path}["']`).test(routeSrc), `${keyOf(r)} declared in routes/${r.file}`).toBe(true);
+      expect(new RegExp(`["']${r.mount}["']`).test(indexSrc), `${r.mount} mounted in routes/index.ts`).toBe(true);
+    }
+  });
+
+  it("🔴 each named route has a web caller, or is a listed per-route gap with its reason", () => {
+    const unlisted = PER_ROUTE_CHECKED.filter((r) => !reachedFromWeb(webSrc, r) && !(keyOf(r) in KNOWN_UNREACHABLE_ROUTES)).map((r) => `${keyOf(r)} (${r.finding})`);
+    expect(unlisted, "these routes have no web caller and are not listed: the mount-level guard cannot see them").toEqual([]);
+  });
+
+  it("a per-route gap leaves the list the day a screen calls it, and every entry states a reason", () => {
+    const stillListed = PER_ROUTE_CHECKED.filter((r) => reachedFromWeb(webSrc, r) && keyOf(r) in KNOWN_UNREACHABLE_ROUTES).map(keyOf);
+    expect(stillListed, "these routes now have a caller: delete their entries").toEqual([]);
+    const known = new Set(PER_ROUTE_CHECKED.map(keyOf));
+    expect(Object.keys(KNOWN_UNREACHABLE_ROUTES).filter((k) => !known.has(k)), "an entry for a route this block does not check").toEqual([]);
+    expect(Object.entries(KNOWN_UNREACHABLE_ROUTES).filter(([, why]) => !why || why.trim().length < 20).map(([k]) => k), "an entry with no real reason").toEqual([]);
+  });
+});
