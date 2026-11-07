@@ -5,7 +5,8 @@ import { test, expect, request as pwRequest, type APIRequestContext, type Browse
  * 10. Verification documents read السجل التجاري · شهادة ضريبة القيمة المضافة · أخرى.
  * 11. Customer pages: البريد الإلكتروني, and "30 يومًا".
  * 12. Figures show ر.س, not SAR.
- * 14. The review screen says which documents, that the company is reviewed first, and to sign in again. No time promise.
+ * 14. The review screen says which documents, that the company is reviewed first, and that it shows the result itself.
+ *     No time promise. (It said "sign in again" until N-3: the owner reversed that, 2026-11-07.)
  * 15. The two name fields are labelled, and an Arabic name is not tagged as needing translation.
  * 16. The Submit button reads تقديم للاعتماد.
  * 17. One name: الاعتمادات for the menu and the page, بانتظار الاعتماد for the state, and a link to where approval happens.
@@ -106,7 +107,9 @@ test.describe("Arabic wording and steps", () => {
     await expect(steps).toContainText("السجل التجاري");
     await expect(steps).toContainText("شهادة ضريبة القيمة المضافة");
     await expect(steps, "reviewed before it can be used").toContainText("قبل");
-    await expect(steps, "sign in again to check").toContainText("سجّل الدخول");
+    // N-3 (the owner, 2026-11-07): the requirement this line held is reversed; it now holds the reversal and the new step.
+    await expect(steps, "no sign-in-again step").not.toContainText("سجّل الدخول");
+    await expect(steps, "the screen shows the result itself").toContainText("تتحدث تلقائيًا");
     const said = (await steps.innerText()) ?? "";
     for (const promise of ["خلال", "ساعة", "ساعات", "أيام", "يوم", "فور", "قريب"]) expect(said, `no time promise: ${promise}`).not.toContain(promise);
     await expect(page.locator("select option")).toHaveText(["السجل التجاري", "شهادة ضريبة القيمة المضافة", "أخرى"]);

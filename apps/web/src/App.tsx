@@ -12,7 +12,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Layout } from '@/components/Layout';
 import { DemoBanner } from '@/components/DemoBanner';
 import { PeriodClosedDialog } from '@/components/PeriodClosedDialog';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AuthProvider, awaitingReview, useAuth } from '@/contexts/AuthContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 
 import Login from '@/pages/Login';
@@ -201,14 +201,19 @@ const queryClient = new QueryClient({
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  // 🔴 N-3 (carry-over Batch 1, 2026-11-07): a user whose company is not yet approved goes to the review screen at
+  // sign-in and on every load, and the hub is never rendered on the way: the gate below returns before any Layout.
+  const toReview = awaitingReview(user) && location !== "/verification";
 
   // Redirect to login in an effect to avoid setState-during-render
   useEffect(() => {
     if (!loading && !user) {
       navigate('/login');
+    } else if (!loading && toReview) {
+      navigate('/verification', { replace: true });
     }
-  }, [loading, user, navigate]);
+  }, [loading, user, toReview, navigate]);
 
   if (loading) {
     return (
@@ -226,6 +231,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-background flex items-start justify-center p-6" data-testid="password-change-required">
         <ChangePassword />
+      </div>
+    );
+  }
+
+  // N-3: on the way to the review screen nothing of the hub is rendered, not even for one frame.
+  if (toReview) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">{tOutside("Loading…", "جارٍ التحميل…")}</div>
       </div>
     );
   }
