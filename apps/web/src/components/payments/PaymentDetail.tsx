@@ -169,7 +169,7 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
       )}
       {payment.advanceInvoices.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-cards">
             <thead>
               <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                 <th className="text-start pb-2 pe-3 font-medium">{t("Document", "المستند")}</th>
@@ -187,13 +187,13 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
               {payment.advanceInvoices.map((a) => (
                 <Fragment key={a.id}>
                 <tr className="border-b border-border/50" data-testid={`advance-invoice-${a.id}`} data-status={a.status} data-open={a.openAmount}>
-                  <td className="py-2 pe-3 font-mono text-xs"><Link href="/invoices" className="text-primary hover:underline">{a.invoiceNumber}</Link>{a.vatCategory ? <span className="text-muted-foreground"> · {a.vatCategory}</span> : null}</td>
-                  <td className="py-2 pe-3 text-muted-foreground hidden sm:table-cell"><DualDate date={a.date} inline /></td>
-                  <td className="py-2 pe-3 font-mono">{fmtNum(a.total)}</td>
-                  <td className="py-2 pe-3 font-mono text-muted-foreground hidden sm:table-cell">{fmtNum(a.vatAmount)}</td>
-                  <td className="py-2 pe-3 font-mono hidden sm:table-cell">{fmtNum(a.adjustedAmount)}</td>
-                  <td className="py-2 pe-3 font-mono hidden sm:table-cell" data-testid={`advance-credited-${a.id}`}>{fmtNum(a.creditedAmount)}</td>
-                  <td className="py-2 pe-3">
+                  <td className="py-2 pe-3 font-mono text-xs" data-label={t("Document", "المستند")}><Link href="/invoices" className="text-primary hover:underline">{a.invoiceNumber}</Link>{a.vatCategory ? <span className="text-muted-foreground"> · {a.vatCategory}</span> : null}</td>
+                  <td className="py-2 pe-3 text-muted-foreground hidden sm:table-cell" data-label={t("Date", "التاريخ")}><DualDate date={a.date} inline /></td>
+                  <td className="py-2 pe-3 font-mono" data-label={t("Total", "الإجمالي")}>{fmtNum(a.total)}</td>
+                  <td className="py-2 pe-3 font-mono text-muted-foreground hidden sm:table-cell" data-label={t("VAT", "الضريبة")}>{fmtNum(a.vatAmount)}</td>
+                  <td className="py-2 pe-3 font-mono hidden sm:table-cell" data-label={t("Applied", "المطبَّق")}>{fmtNum(a.adjustedAmount)}</td>
+                  <td className="py-2 pe-3 font-mono hidden sm:table-cell" data-label={t("Credited", "المُلغى")} data-testid={`advance-credited-${a.id}`}>{fmtNum(a.creditedAmount)}</td>
+                  <td className="py-2 pe-3" data-label={t("Status", "الحالة")}>
                     <Badge variant={a.status === "draft" || a.status === "submitted" ? "outline" : "default"} className={`text-xs ${a.status === "draft" || a.status === "submitted" ? "" : a.openAmount > 0.005 ? "bg-positive-surface/20 text-positive" : "bg-secondary text-muted-foreground"}`}>
                       {a.status === "draft" || a.status === "submitted" ? statusLabel(a.status) : a.openAmount > 0.005 ? t("Issued · open", "صادرة · متبقٍ") : a.creditedAmount > 0.005 && a.adjustedAmount < 0.005 ? t("Cancelled", "مُلغاة") : t("Applied", "مطبَّقة")}
                     </Badge>
@@ -219,14 +219,14 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
                 {/* AP-3: the credit notes against this advance — the chain receipt → 386 → note → refund, readable on the card. */}
                 {a.creditNotes.map((n) => (
                   <tr key={`cn-${n.id}`} className="border-b border-border/50 bg-secondary/10" data-testid={`advance-credit-note-${n.id}`} data-status={n.status}>
-                    <td className="py-2 pe-3 ps-4 font-mono text-xs" colSpan={2}>
+                    <td className="py-2 pe-3 ps-4 font-mono text-xs" colSpan={2} data-label={t("Document", "المستند")}>
                       <span className="text-muted-foreground">↳ {t("Credit note", "إشعار دائن")}</span> <Link href="/invoices" className="text-primary hover:underline">{n.invoiceNumber}</Link>
                       {n.noteReason && <span className="text-muted-foreground font-sans"> · {n.noteReason}</span>}
                     </td>
-                    <td className="py-2 pe-3 font-mono">−{fmtNum(n.total)}</td>
-                    <td className="py-2 pe-3 font-mono text-muted-foreground hidden sm:table-cell">−{fmtNum(n.vatAmount)}</td>
-                    <td className="py-2 pe-3 text-muted-foreground text-xs hidden sm:table-cell" colSpan={2}><DualDate date={n.date} inline /></td>
-                    <td className="py-2 pe-3"><Badge variant={n.status === "draft" || n.status === "submitted" ? "outline" : "default"} className={`text-xs ${n.status === "draft" || n.status === "submitted" ? "" : "bg-attention-surface/20 text-attention"}`}>{statusLabel(n.status)}</Badge></td>
+                    <td className="py-2 pe-3 font-mono" data-label={t("Total", "الإجمالي")}>−{fmtNum(n.total)}</td>
+                    <td className="py-2 pe-3 font-mono text-muted-foreground hidden sm:table-cell" data-label={t("VAT", "الضريبة")}>−{fmtNum(n.vatAmount)}</td>
+                    <td className="py-2 pe-3 text-muted-foreground text-xs hidden sm:table-cell" colSpan={2} data-label={t("Date", "التاريخ")}><DualDate date={n.date} inline /></td>
+                    <td className="py-2 pe-3" data-label={t("Status", "الحالة")}><Badge variant={n.status === "draft" || n.status === "submitted" ? "outline" : "default"} className={`text-xs ${n.status === "draft" || n.status === "submitted" ? "" : "bg-attention-surface/20 text-attention"}`}>{statusLabel(n.status)}</Badge></td>
                     <td className="py-2 text-end whitespace-nowrap">
                       {(n.status === "draft" || n.status === "submitted") ? (
                         <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!canPost || approveNote.isPending} onClick={() => setConfirming({ id: n.id, note: true })} data-testid={`approve-advance-credit-note-${n.id}`}>
