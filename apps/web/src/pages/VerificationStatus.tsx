@@ -32,6 +32,9 @@ export default function VerificationStatus() {
   const { data: status, isLoading } = useQuery<Status>({
     queryKey: ["onboarding-status"],
     queryFn: () => apiFetch("/onboarding/status"),
+    // N-3 (2026-11-07): the screen shows the review's result itself, so the user is never told to sign in again to
+    // learn it. A minute, and again whenever the tab is focused.
+    refetchInterval: 60_000,
   });
   const { data: docsData } = useQuery<{ documents: Doc[] }>({
     queryKey: ["onboarding-documents"],
@@ -124,8 +127,9 @@ export default function VerificationStatus() {
                   // (CLAUDE.md §5, L3 — the owner decides the target, the
                   // staffing and what this screen may promise). Until then the
                   // screen says what happens, not when.
-                  "Our team reviews each new company before it can be used. Upload your CR certificate and your VAT certificate below. Sign in again later to check whether it has been approved.",
-                  "يراجع فريقنا كل شركة جديدة قبل استخدامها. ارفع أدناه السجل التجاري وشهادة ضريبة القيمة المضافة. سجّل الدخول مرة أخرى لاحقًا لمعرفة نتيجة المراجعة.",
+                  // N-3 (2026-11-07): no "sign in again"; the screen shows the result itself (the status refreshes).
+                  "Our team reviews each new company before it can be used. Upload your CR certificate and your VAT certificate below. This page shows the result of the review and updates by itself.",
+                  "يراجع فريقنا كل شركة جديدة قبل استخدامها. ارفع أدناه السجل التجاري وشهادة ضريبة القيمة المضافة. تعرض هذه الصفحة نتيجة المراجعة وتتحدث تلقائيًا.",
                 )}
               </p>
             )}

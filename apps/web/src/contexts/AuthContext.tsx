@@ -26,6 +26,18 @@ export interface AuthUser {
    * it, the server answers every other request 403 `password_change_required`, so the app shows only the way to.
    */
   passwordChangeRequired?: boolean;
+  /**
+   * N-3: the active organization's verification status (`pending_review`, `needs_info`, `rejected`, `approved`);
+   * `null` with no organization. Anything but `approved` keeps the user on the review screen (AuthGuard). For
+   * rendering only: the server refuses the business routes itself.
+   */
+  organizationVerificationStatus?: string | null;
+}
+
+/** N-3: a user whose active company is not yet approved sees only the review screen. */
+export function awaitingReview(user: AuthUser | null): boolean {
+  const status = user?.organizationVerificationStatus;
+  return status != null && status !== "approved";
 }
 
 interface AuthContextValue {
@@ -98,7 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (down !== null) throw new Error(down);
     if (!res.ok) throw new Error(data.error ?? tOutside("Login failed", "فشل تسجيل الدخول"));
 
-    setUser(data.user);
+    // N-3: the user comes from /auth/me, which carries the active company and its verification status, so the first
+    // navigation after sign-in already knows whether the hub may be shown. The sign-in response is the fallback.
+    const me = await apiCall("/auth/me").catch(() => null);
+    setUser(me?.ok ? await me.json() : data.user);
   };
 
   const logout = async () => {
