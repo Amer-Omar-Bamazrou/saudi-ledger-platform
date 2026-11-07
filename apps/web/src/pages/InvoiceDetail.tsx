@@ -24,7 +24,7 @@ export default function InvoiceDetail() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const valid = Number.isInteger(id) && id > 0;
-  const { t, lang } = useLanguage();
+  const { t, lang, n } = useLanguage();
   const invoice = useGetInvoice(id, { query: { enabled: valid, retry: false, queryKey: getGetInvoiceQueryKey(id) } });
   const view = useGetInvoiceIssueView(id, { query: { enabled: valid, retry: false, queryKey: getGetInvoiceIssueViewQueryKey(id) } });
 
@@ -68,7 +68,7 @@ export default function InvoiceDetail() {
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             {row(t("Date", "التاريخ"), <DualDate date={inv.date} />)}
             {row(t("Due date", "تاريخ الاستحقاق"), <DualDate date={inv.dueDate} />)}
-            {row(t("Customer", "العميل"), inv.customerName ?? "—")}
+            {row(t("Customer", "العميل"), n(inv.customerName ?? "", inv.customerNameAr) || "—")}
           </dl>
         </CardContent>
       </Card>

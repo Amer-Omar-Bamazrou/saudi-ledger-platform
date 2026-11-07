@@ -39,6 +39,11 @@ export interface Invoice {
   customerId: number | null;
   /** @nullable */
   customerName: string | null;
+  /**
+     * N-8: the customer's Arabic name, or null. Shown with customerName through one rule (Arabic mode: this when set, else customerName; English mode: customerName, else this). On an issued invoice both names are the buyer snapshot taken at issue (G32), never the live customer.
+     * @nullable
+     */
+  customerNameAr: string | null;
   status: InvoiceStatus;
   subtotal: number;
   vatAmount: number;

@@ -744,7 +744,7 @@ export const reportsService = {
     const customers = Array.from(custMap.values()).map(({ customer, invoices }) => {
       const pos = customer?.id != null ? positions.get(customer.id) : undefined;
       return {
-        customerId: customer?.id, customerName: customer?.name ?? "Unknown", taxNumber: customer?.taxNumber,
+        customerId: customer?.id, customerName: customer?.name ?? "Unknown", customerNameAr: customer?.nameAr ?? null, taxNumber: customer?.taxNumber,
         invoices,
         totalInvoiced: fmt2(invoices.reduce((s, i) => s + i.total, 0)),
         totalPaid: fmt2(invoices.reduce((s, i) => s + i.paidAmount, 0)),
