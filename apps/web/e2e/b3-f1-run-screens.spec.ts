@@ -154,7 +154,9 @@ const depreciationOf = async (id: number) => (await ok<{ accumulatedDepreciation
 const recognisedOf = async (reference: string) =>
   (await ok<{ items: Array<{ reference: string; recognisedAmount: number }> }>(admin.get("/api/recognition-schedules"), "schedules")).items.find((s) => s.reference === reference)!.recognisedAmount;
 
-test.describe.serial("the month-end run screens (Arabic, 390 px)", () => {
+// Not `.serial`: each test reads its own before-figures, so one failing does not hide the others (the suite runs a
+// file's tests in order, `fullyParallel: false`).
+test.describe("the month-end run screens (Arabic, 390 px)", () => {
   test("🔴 DEPRECIATION: a closed month is refused by its code; an open month posts and lists the skipped asset by its code; a month with nothing due says so", async ({ browser }) => {
     test.setTimeout(120_000);
     const { page, close } = await openArabic(browser, admin, "/assets");
@@ -231,7 +233,8 @@ test.describe.serial("the month-end run screens (Arabic, 390 px)", () => {
 
   test("🔴 PERMISSION: a viewer opens both screens and is refused by its code, with the next step; nothing posts", async ({ browser }) => {
     test.setTimeout(120_000);
-    const before = (await depreciationOf(asset.early.id)).postedPeriods;
+    const before = [(await depreciationOf(asset.early.id)).postedPeriods, (await depreciationOf(asset.later.id)).postedPeriods];
+    const recognisedBefore = [await recognisedOf("B3-EARLY"), await recognisedOf("B3-LATER")];
     for (const [path, prefix, words] of [["/assets", "depreciation-run", "دورك لا يسمح بتشغيل الإهلاك"], ["/recognition-schedules", "recognition-run", "دورك لا يسمح بتشغيل الاعتراف"]] as const) {
       const { page, close } = await openArabic(browser, viewer, path);
       const dlg = await choose(page, prefix, MONTH, 2);
@@ -243,7 +246,7 @@ test.describe.serial("the month-end run screens (Arabic, 390 px)", () => {
       await noSidewaysScroll(page, `${prefix}, refused`);
       await close();
     }
-    expect((await depreciationOf(asset.early.id)).postedPeriods, "the viewer posted nothing").toBe(before);
-    expect(await recognisedOf("B3-LATER")).toBe(100);
+    expect([(await depreciationOf(asset.early.id)).postedPeriods, (await depreciationOf(asset.later.id)).postedPeriods], "the viewer depreciated nothing").toEqual(before);
+    expect([await recognisedOf("B3-EARLY"), await recognisedOf("B3-LATER")], "and recognised nothing").toEqual(recognisedBefore);
   });
 });
