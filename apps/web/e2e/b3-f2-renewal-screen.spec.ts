@@ -122,7 +122,9 @@ async function renewWith(page: Page, otp: string) {
   return card;
 }
 
-test.describe.serial("certificate renewal (Arabic, 390 px)", () => {
+// Not `.serial`: each test reads its own before-state, so one failing does not hide the other (the suite runs a
+// file's tests in order, `fullyParallel: false`).
+test.describe("certificate renewal (Arabic, 390 px)", () => {
   test("🔴 ADMIN: the renewal is refused by its code while the company's ZATCA details are missing, each named in Arabic; nothing is sent and the certificate is unchanged", async ({ browser }) => {
     test.setTimeout(90_000);
     const before = await credentials();
