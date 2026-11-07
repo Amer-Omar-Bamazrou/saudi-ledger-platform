@@ -39,12 +39,25 @@ const DEMO_HIDDEN = new Set(["/zatca"]);
 const ROLE_COLOR: Record<string, string> = {
   admin:      "bg-attention-surface/20 text-attention border-attention-surface/30",
   accountant: "bg-info-surface/20 text-info border-info-surface/30",
+  bookkeeper: "bg-positive-surface/20 text-positive border-positive-surface/30",
   viewer:     "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
 };
 
 const ROLE_AR: Record<string, string> = {
-  admin: "مدير", accountant: "محاسب", viewer: "مشاهد",
+  admin: "مدير", accountant: "محاسب", bookkeeper: "ماسك دفاتر", viewer: "مشاهد",
 };
+
+/**
+ * W-20 (carry-over Batch 1, 2026-11-07): the sections a user opened or closed, kept for the tab's session. The phone
+ * drawer unmounts on every navigation, so state held only in the component reset each section to its default.
+ */
+const NAV_OPEN_KEY = "ksa_nav_open";
+function readNavOpen(): Record<string, boolean> {
+  try { return JSON.parse(sessionStorage.getItem(NAV_OPEN_KEY) ?? "{}") as Record<string, boolean>; } catch { return {}; }
+}
+function writeNavOpen(label: string, open: boolean): void {
+  try { sessionStorage.setItem(NAV_OPEN_KEY, JSON.stringify({ ...readNavOpen(), [label]: open })); } catch { /* storage refused: the default stands */ }
+}
 
 /**
  * One nav entry. A leaf, or a parent that discloses its children.
@@ -180,12 +193,12 @@ function NavGroup({
       i.href.split("?")[0] === location ||
       (i.children ?? []).some((c) => c.href.split("?")[0] === location),
   );
-  const [open, setOpen] = useState(contains || defaultOpen);
+  const [open, setOpen] = useState(() => contains || (readNavOpen()[section.label] ?? defaultOpen));
 
   return (
     <div>
       <button
-        onClick={() => setOpen((p) => !p)}
+        onClick={() => { const next = !open; setOpen(next); writeNavOpen(section.label, next); }}
         // Announced, not merely drawn: the chevron is the only cue a sighted
         // user gets, and a screen reader gets nothing from it. It also gives
         // `rtl-direction.spec.ts` a deterministic way to open every section
@@ -333,8 +346,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <OrgSwitcher />
             <div className="flex items-center justify-between">
-              <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", ROLE_COLOR[user.role] ?? ROLE_COLOR.viewer)}>
-                {lang === "ar" ? (ROLE_AR[user.role] ?? user.role) : user.role.toUpperCase()}
+              {/* N-10 (2026-11-07): the role IN THE ACTIVE ORGANIZATION. `user.role` is the vestigial global role, "viewer" for
+                  every self-signup founder; it is shown only for a user with no organization (a platform operator). */}
+              <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", ROLE_COLOR[user.organizationRole ?? user.role] ?? ROLE_COLOR.viewer)}>
+                {lang === "ar" ? (ROLE_AR[user.organizationRole ?? user.role] ?? (user.organizationRole ?? user.role)) : (user.organizationRole ?? user.role).toUpperCase()}
               </span>
               <div className="flex items-center gap-2">
                 {/* Language toggle EN ⇌ ع */}
