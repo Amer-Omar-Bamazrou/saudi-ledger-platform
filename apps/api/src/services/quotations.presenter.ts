@@ -48,6 +48,8 @@ export interface QuotationOut {
   validUntil: string | null;
   customerId: number | null;
   customerName: string | null;
+  /** N-8: the customer's Arabic name, or null; a screen shows one name through @workspace/shared displayName. */
+  customerNameAr: string | null;
   /** APPROVAL axis: draft | submitted | approved. */
   status: string;
   /** Terminal tenant act: declined | closed | null (= live). */
