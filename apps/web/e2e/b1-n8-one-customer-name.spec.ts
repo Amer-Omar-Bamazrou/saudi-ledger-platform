@@ -101,7 +101,9 @@ async function open(browser: Browser, lang: "ar" | "en", path: string): Promise<
 
 const rowOf = (page: Page, id: number) => page.locator("tr").filter({ has: page.getByTestId(`invoice-open-${id}`) });
 
-test.describe.serial("N-8: one customer, one name per language", () => {
+// Not serial: a failure must not skip the other cases (the first red run showed it). The file runs in order on the one
+// worker (playwright.config: workers 1, fullyParallel false), so the rename case stays last.
+test.describe("N-8: one customer, one name per language", () => {
   for (const [lang, shown, hidden] of [["ar", AR, EN], ["en", EN, AR]] as const) {
     test(`🔴 ${lang}: the invoice list, the detail screen and the confirmation show the ${lang === "ar" ? "Arabic" : "English"} name only`, async ({ browser }) => {
       const { page, close } = await open(browser, lang, "/invoices");
