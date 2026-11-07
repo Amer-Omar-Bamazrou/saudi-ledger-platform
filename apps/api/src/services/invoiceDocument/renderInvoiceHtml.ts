@@ -238,7 +238,7 @@ ${
 
 <table class="totals">
   <tr><td>${esc(t("Subtotal (excl. VAT)", "الإجمالي قبل الضريبة"))}</td><td class="num">${fmt(m.subtotal)} ${esc(currency)}</td></tr>
-  <tr><td>${esc(t("VAT 15%", "ضريبة القيمة المضافة ١٥٪"))}</td><td class="num">${fmt(m.vatAmount)} ${esc(currency)}</td></tr>
+  <tr><td>${esc(t("VAT 15%", "ضريبة القيمة المضافة 15%"))}</td><td class="num">${fmt(m.vatAmount)} ${esc(currency)}</td></tr>
   <tr class="grand"><td>${esc(t("Total (incl. VAT)", "الإجمالي شامل الضريبة"))}</td><td class="num">${fmt(m.total)} ${esc(currency)}</td></tr>
   ${
     m.advanceReceipt

@@ -153,7 +153,7 @@ export default function Payroll() {
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>{t("Generate Payroll Run", "إنشاء مسير رواتب")}</DialogTitle></DialogHeader>
             <div className="mt-2 space-y-3">
-              <div><Label className="text-xs text-muted-foreground">{t("Period (YYYY-MM)", "الفترة (YYYY-MM)")}</Label><Input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1 h-8 text-sm" /></div>
+              <div><Label className="text-xs text-muted-foreground">{t("Period (YYYY-MM)", "الفترة (السنة-الشهر)")}</Label><Input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1 h-8 text-sm" /></div>
               <p className="text-xs text-muted-foreground">{t("This will generate payroll items for all active employees from their current salary setup. GOSI is computed for the period from each employee's GOSI law, on basic pay plus housing up to SAR 45,000.", "سيُنشئ هذا بنود الرواتب لجميع الموظفين النشطين من إعداد الراتب الحالي. وتُحسب التأمينات للفترة وفق نظام التأمينات لكل موظف، على الأساسي مع السكن حتى 45,000 ريال.")}</p>
             </div>
             <Button className="w-full mt-4" onClick={()=>generateMut.mutate(period)} disabled={generateMut.isPending}>{generateMut.isPending ? t("Generating...", "جارٍ الإنشاء...") : t("Generate Payroll", "إنشاء مسير الرواتب")}</Button>

@@ -48,6 +48,23 @@ export function arabicDays(n: number): string {
   return `${n} يومًا`;
 }
 
+/**
+ * W-19 (carry-over Batch 1, 2026-11-07): a count of accounts with the noun form the number takes, in Latin digits:
+ * حساب واحد · حسابان · 3–10 حسابات · 11 فأكثر حسابًا.
+ */
+export function arabicAccounts(n: number): string {
+  if (n === 1) return "حساب واحد";
+  if (n === 2) return "حسابان";
+  if (n >= 3 && n <= 10) return `${n} حسابات`;
+  if (n === 0) return "0 حساب";
+  return `${n} حسابًا`;
+}
+
+/** The English count: 1 account, 2 accounts. */
+export function englishAccounts(n: number): string {
+  return `${n} ${n === 1 ? "account" : "accounts"}`;
+}
+
 export function arabicFieldStatus(value: string | null | undefined): ArStatus {
   if (!value || value.trim() === "" || value.trim() === AR_SENTINEL) return "needs-translation";
   if (!hasArabicScript(value)) return "wrong-script";
