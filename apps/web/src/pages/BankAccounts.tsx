@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Plus, Landmark, CreditCard } from "lucide-react";
+import { arabicAccounts, englishAccounts } from "@/lib/arabicUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -74,7 +75,7 @@ export default function BankAccounts() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("Bank Accounts", "الحسابات البنكية")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Cash & banking", "النقد والبنوك")} · {accounts.length} {t("accounts", "حسابات")}</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("Cash & banking", "النقد والبنوك")} · {t(englishAccounts(accounts.length), arabicAccounts(accounts.length))}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> {t("Add Account", "إضافة حساب")}</Button></DialogTrigger>

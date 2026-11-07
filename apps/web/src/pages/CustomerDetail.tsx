@@ -313,10 +313,10 @@ export default function CustomerDetail() {
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-5 text-sm">
             {[
               { l: t("Current", "جارٍ"), v: aging.current },
-              { l: t("1–30 days", "١–٣٠ يوم"), v: aging.d1to30 },
-              { l: t("31–60 days", "٣١–٦٠ يوم"), v: aging.d31to60 },
-              { l: t("61–90 days", "٦١–٩٠ يوم"), v: aging.d61to90 },
-              { l: t("90+ days", "أكثر من ٩٠ يوم"), v: aging.d90plus },
+              { l: t("1–30 days", "1–30 يومًا"), v: aging.d1to30 },
+              { l: t("31–60 days", "31–60 يومًا"), v: aging.d31to60 },
+              { l: t("61–90 days", "61–90 يومًا"), v: aging.d61to90 },
+              { l: t("90+ days", "أكثر من 90 يومًا"), v: aging.d90plus },
             ].map((b) => (
               <div key={b.l} className="rounded-md border border-border p-3">
                 <p className="text-xs text-muted-foreground mb-1">{b.l}</p>
