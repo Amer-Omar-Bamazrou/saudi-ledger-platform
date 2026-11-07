@@ -3705,6 +3705,8 @@ export interface Quotation {
   validUntil: string | null;
   customerId: number | null;
   customerName: string | null;
+  /** N-8: the customer's Arabic name, or null. Shown with customerName through one rule (Arabic mode: this when set, else customerName; English mode: customerName, else this). */
+  customerNameAr: string | null;
   /** The APPROVAL axis only. */
   status: QuotationStatus;
   /** A terminal act by the TENANT. NULL means live, and NULL is a first-class state - the platform never decides a remainder is dead. */
@@ -3987,6 +3989,11 @@ export interface Invoice {
   customerId: number | null;
   /** @nullable */
   customerName: string | null;
+  /**
+     * N-8: the customer's Arabic name, or null. Shown with customerName through one rule (Arabic mode: this when set, else customerName; English mode: customerName, else this). On an issued invoice both names are the buyer snapshot taken at issue (G32), never the live customer.
+     * @nullable
+     */
+  customerNameAr: string | null;
   status: InvoiceStatus;
   subtotal: number;
   vatAmount: number;
@@ -5552,6 +5559,8 @@ export interface CustomerLedgerCustomer {
   /** @nullable */
   customerId?: number | null;
   customerName: string;
+  /** N-8: the customer's Arabic name, or null. Shown with customerName through one rule (Arabic mode: this when set, else customerName; English mode: customerName, else this). */
+  customerNameAr: string | null;
   /** @nullable */
   taxNumber?: string | null;
   invoices: CustomerLedgerInvoice[];

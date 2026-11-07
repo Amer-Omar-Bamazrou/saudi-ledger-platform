@@ -28,7 +28,7 @@ export function IssueConfirmDialog({ invoiceId, pending, onConfirm, onClose }: {
   onConfirm: (invoiceId: number) => void;
   onClose: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, n } = useLanguage();
   const id = invoiceId ?? 0;
   const { data, isError } = useGetInvoice(id, { query: { enabled: invoiceId != null, queryKey: getGetInvoiceQueryKey(id) } });
   const invoice = invoiceId != null && data?.id === invoiceId ? data : null;
@@ -47,7 +47,7 @@ export function IssueConfirmDialog({ invoiceId, pending, onConfirm, onClose }: {
           {isError && <p className="text-negative">{t("The invoice could not be read. Close this and try again.", "تعذّرت قراءة الفاتورة. أغلق هذه النافذة وحاول مرة أخرى.")}</p>}
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             <dt className="text-muted-foreground">{t("Customer", "العميل")}</dt>
-            <dd className="font-medium">{invoice ? (invoice.customerName ?? "—") : "…"}</dd>
+            <dd className="font-medium">{invoice ? (n(invoice.customerName ?? "", invoice.customerNameAr) || "—") : "…"}</dd>
             {originalId > 0 && (
               <>
                 <dt className="text-muted-foreground">{type === "advance_credit_note" ? t("Cancels", "يلغي") : t("Against", "عن الفاتورة")}</dt>

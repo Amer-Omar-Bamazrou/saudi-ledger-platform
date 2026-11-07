@@ -79,7 +79,7 @@ export default function CreditNotes() {
   const [form, setForm] = useState(makeEmpty());
   const [error, setError] = useState("");
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, n: nameOf } = useLanguage();
   const qc = useQueryClient();
 
   /**
@@ -209,7 +209,7 @@ export default function CreditNotes() {
                   <SelectContent>
                     {correctable.map((i) => (
                       <SelectItem key={i.id} value={String(i.id)}>
-                        {i.invoiceNumber} — {i.customerName ?? "—"} — {fmtNum(i.total)}
+                        {i.invoiceNumber} — {nameOf(i.customerName ?? "", i.customerNameAr) || "—"} — {fmtNum(i.total)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -388,7 +388,7 @@ export default function CreditNotes() {
                         </Badge>
                       </td>
                       <td><DualDate date={n.date} /></td>
-                      <td>{n.customerName ?? "—"}</td>
+                      <td>{nameOf(n.customerName ?? "", n.customerNameAr) || "—"}</td>
                       <td className="max-w-[16rem] truncate">{n.noteReason ?? "—"}</td>
                       <td>
                         <Badge className={STATUS_STYLES[n.status] ?? ""}>{n.status}</Badge>
