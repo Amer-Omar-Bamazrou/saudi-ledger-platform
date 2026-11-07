@@ -118,7 +118,7 @@ export default function Payments() {
                 <div className="text-center py-12 text-muted-foreground"><Banknote className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No payments yet.", "لا توجد مدفوعات بعد.")}</p></div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-cards">
                     <thead>
                       <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                         <th className="text-start pb-2 pe-4 font-medium">{t("Receipt", "الإيصال")}</th>
@@ -136,17 +136,17 @@ export default function Payments() {
                     <tbody>
                       {payments.map((p) => (
                         <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors" data-testid={`payment-row-${p.id}`}>
-                          <td className="py-3 pe-4 font-mono text-xs">{receiptNumber(p.id)}</td>
-                          <td className="py-3 pe-4 text-muted-foreground"><DualDate date={p.paidAt} inline /></td>
-                          <td className="py-3 pe-4">
+                          <td className="py-3 pe-4 font-mono text-xs whitespace-nowrap" data-label={t("Receipt", "الإيصال")}>{receiptNumber(p.id)}</td>
+                          <td className="py-3 pe-4 text-muted-foreground" data-label={t("Received", "الاستلام")}><DualDate date={p.paidAt} inline /></td>
+                          <td className="py-3 pe-4" data-label={t("Customer", "العميل")}>
                             {p.customerId != null ? <Link href={`/customers/${p.customerId}`} className="text-primary hover:underline">{nameOf(p.customerId)}</Link> : nameOf(null)}
                           </td>
-                          <td className="py-3 pe-4 text-muted-foreground hidden md:table-cell"><BankName id={p.bankAccountId} /></td>
-                          <td className="py-3 pe-4 font-mono text-positive">{fmtNum(p.amount)}</td>
-                          <td className="py-3 pe-4 font-mono hidden sm:table-cell">{fmtNum(p.allocatedAmount)}</td>
-                          <td className="py-3 pe-4 font-mono hidden sm:table-cell">{fmtNum(p.unappliedAmount)}</td>
-                          <td className="py-3 pe-4 hidden lg:table-cell"><PaymentStateBadge p={p} /></td>
-                          <td className="py-3 pe-4 hidden lg:table-cell">{p.unappliedAmount > 0.005 || p.classification ? <ClassificationBadge p={p} /> : <span className="text-xs text-muted-foreground">—</span>}</td>
+                          <td className="py-3 pe-4 text-muted-foreground hidden md:table-cell" data-label={t("Bank", "البنك")}><BankName id={p.bankAccountId} /></td>
+                          <td className="py-3 pe-4 font-mono text-positive" data-label={t("Amount", "المبلغ")}>{fmtNum(p.amount)}</td>
+                          <td className="py-3 pe-4 font-mono hidden sm:table-cell" data-label={t("Allocated", "المخصص")}>{fmtNum(p.allocatedAmount)}</td>
+                          <td className="py-3 pe-4 font-mono hidden sm:table-cell" data-label={t("On account", "على الحساب")}>{fmtNum(p.unappliedAmount)}</td>
+                          <td className="py-3 pe-4 hidden lg:table-cell" data-label={t("State", "الحالة")}><PaymentStateBadge p={p} /></td>
+                          <td className="py-3 pe-4 hidden lg:table-cell" data-label={t("Deposit is", "العربون")}>{p.unappliedAmount > 0.005 || p.classification ? <ClassificationBadge p={p} /> : <span className="text-xs text-muted-foreground">—</span>}</td>
                           <td className="py-3 text-end">
                             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelected(p)} data-testid={`payment-open-${p.id}`}>{t("Details", "التفاصيل")}</Button>
                           </td>
@@ -177,7 +177,7 @@ export default function Payments() {
                 <div className="text-center py-12 text-muted-foreground"><Undo2 className="w-8 h-8 mx-auto mb-3 opacity-40" /><p>{t("No refunds yet.", "لا توجد مبالغ مردودة بعد.")}</p></div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-cards">
                     <thead>
                       <tr className="border-b border-border text-muted-foreground text-xs uppercase">
                         <th className="text-start pb-2 pe-4 font-medium">{t("Refund", "الردّ")}</th>
@@ -192,17 +192,17 @@ export default function Payments() {
                     <tbody>
                       {refunds.map((r) => (
                         <tr key={r.id} className="border-b border-border/50" data-testid={`refund-row-${r.id}`}>
-                          <td className="py-3 pe-4 font-mono text-xs">{refundNumber(r.id)}</td>
-                          <td className="py-3 pe-4 text-muted-foreground"><DualDate date={r.refundedAt} inline /></td>
-                          <td className="py-3 pe-4"><Link href={`/customers/${r.customerId}`} className="text-primary hover:underline">{nameOf(r.customerId)}</Link></td>
-                          <td className="py-3 pe-4 text-xs">
+                          <td className="py-3 pe-4 font-mono text-xs whitespace-nowrap" data-label={t("Refund", "الردّ")}>{refundNumber(r.id)}</td>
+                          <td className="py-3 pe-4 text-muted-foreground" data-label={t("Date", "التاريخ")}><DualDate date={r.refundedAt} inline /></td>
+                          <td className="py-3 pe-4" data-label={t("Customer", "العميل")}><Link href={`/customers/${r.customerId}`} className="text-primary hover:underline">{nameOf(r.customerId)}</Link></td>
+                          <td className="py-3 pe-4 text-xs" data-label={t("Origin", "المصدر")}>
                             {r.origin === "deposit"
                               ? <>{t("Deposit", "عربون")} · <span className="font-mono">{receiptNumber(r.paymentId ?? 0)}</span></>
                               : <>{t("Credit note", "إشعار دائن")} · <span className="font-mono">#{r.creditNoteId}</span></>}
                           </td>
-                          <td className="py-3 pe-4 text-muted-foreground hidden md:table-cell"><BankName id={r.bankAccountId} /></td>
-                          <td className="py-3 pe-4 font-mono text-negative">−{fmtNum(r.amount)}</td>
-                          <td className="py-3 pe-4 text-xs text-muted-foreground hidden sm:table-cell max-w-[16rem] truncate">{r.reason}</td>
+                          <td className="py-3 pe-4 text-muted-foreground hidden md:table-cell" data-label={t("Bank", "البنك")}><BankName id={r.bankAccountId} /></td>
+                          <td className="py-3 pe-4 font-mono text-negative" data-label={t("Amount", "المبلغ")}>−{fmtNum(r.amount)}</td>
+                          <td className="py-3 pe-4 text-xs text-muted-foreground hidden sm:table-cell max-w-[16rem] truncate" data-label={t("Reason", "السبب")}>{r.reason}</td>
                         </tr>
                       ))}
                     </tbody>
