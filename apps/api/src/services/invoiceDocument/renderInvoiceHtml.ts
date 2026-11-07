@@ -31,8 +31,10 @@
  *    stylesheet fork.
  */
 import { L, documentTitle, type DocLang } from "./labels";
+import { TRANSLATION_SENTINEL, displayName } from "@workspace/shared";
 
-export const TRANSLATION_SENTINEL = "(not yet translated)";
+// N-8: one definition, in @workspace/shared; re-exported for this module's existing importers.
+export { TRANSLATION_SENTINEL };
 
 export interface DocParty {
   name: string;
@@ -116,8 +118,8 @@ export function renderInvoiceHtml(m: InvoiceDocModel): string {
   const buyerHasVat = !!m.buyer?.vatNumber;
   const title = documentTitle(m.lang, m.documentType, buyerHasVat);
 
-  const partyName = (p: DocParty): string =>
-    m.lang === "ar" ? (p.nameAr?.trim() && p.nameAr.trim() !== TRANSLATION_SENTINEL ? p.nameAr : p.name) : p.name;
+  // N-8: the one rule every screen uses (the English document now falls back to the Arabic name too).
+  const partyName = (p: DocParty): string => displayName(p.name, p.nameAr, m.lang);
 
   const kv = (label: string, value: string | null | undefined): string =>
     value ? `<tr><td class="k">${esc(label)}</td><td class="v">${esc(value)}</td></tr>` : "";

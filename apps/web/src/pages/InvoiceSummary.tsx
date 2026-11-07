@@ -33,7 +33,7 @@ export default function InvoiceSummary() {
 }
 
 function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
-  const { t } = useLanguage();
+  const { t, n } = useLanguage();
   const [from, setFrom] = useState(range.from);
   const [to, setTo] = useState(range.to);
 
@@ -131,7 +131,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
                 {filtered.map(i => (
                   <tr key={i.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-2 pe-3 font-mono text-xs text-primary">{i.invoiceNumber}</td>
-                    <td className="py-2 pe-3 font-medium text-xs">{i.customerName}</td>
+                    <td className="py-2 pe-3 font-medium text-xs">{n(i.customerName ?? "", i.customerNameAr)}</td>
                     <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={i.date} /></td>
                     <td className="py-2 pe-3 text-muted-foreground text-xs"><DualDate date={i.dueDate} /></td>
                     <td className="py-2 pe-3 font-mono text-xs">{fmtNum(i.subtotal)}</td>

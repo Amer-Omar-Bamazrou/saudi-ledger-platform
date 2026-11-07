@@ -12,6 +12,8 @@ export interface CustomerLedgerCustomer {
   /** @nullable */
   customerId?: number | null;
   customerName: string;
+  /** N-8: the customer's Arabic name, or null. Shown with customerName through one rule (Arabic mode: this when set, else customerName; English mode: customerName, else this). */
+  customerNameAr: string | null;
   /** @nullable */
   taxNumber?: string | null;
   invoices: CustomerLedgerInvoice[];

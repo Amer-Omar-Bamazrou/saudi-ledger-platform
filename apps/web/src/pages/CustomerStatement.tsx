@@ -74,7 +74,7 @@ function PositionCard({ title, p, testId, hint }: { title: string; p: CustomerPo
 export default function CustomerStatement() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
-  const { t } = useLanguage();
+  const { t, n } = useLanguage();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
@@ -105,7 +105,7 @@ export default function CustomerStatement() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">{t("Customer statement", "كشف حساب العميل")}</h1>
-            <p className="text-muted-foreground">{data.customerName}{data.customerNameAr ? ` · ${data.customerNameAr}` : ""}</p>
+            <p className="text-muted-foreground">{n(data.customerName, data.customerNameAr)}</p>
           </div>
           <div className="flex items-end gap-2 flex-wrap">
             <div>

@@ -876,7 +876,7 @@ export default function Analytics() {
               <div style={{ height: Math.max(140, decomp.contributors.slice(0, 8).length * 32) }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={decomp.contributors.slice(0, 8)}
+                    data={decomp.contributors.slice(0, 8).map((c) => ({ ...c, name: n(c.name, c.nameAr) }))}
                     layout="vertical"
                     margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
                   >
