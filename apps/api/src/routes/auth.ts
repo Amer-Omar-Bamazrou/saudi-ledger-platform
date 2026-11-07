@@ -11,7 +11,7 @@ import { resetAllRateLimitStores } from "../lib/rateLimitStore";
 // The `db` proxy now REFUSES a query outside a tenant transaction rather than
 // falling back here silently, so this import states what was previously assumed.
 import { ownerDb as db } from "@workspace/db";
-import { usersTable, organizationMembershipsTable } from "@workspace/db";
+import { usersTable, organizationMembershipsTable, organizationsTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
 import { requireAuth, credentialOf, sessionStampFor } from "../lib/auth";
 import { refuseSignupInDemo } from "../lib/demoMode";
@@ -378,10 +378,24 @@ router.get("/me", requireAuth, async (req, res) => {
       .orderBy(asc(organizationMembershipsTable.createdAt));
 
     const active = selectActiveMembership(memberships, req.session.activeOrgId);
+    // 🔴 N-3 (carry-over Batch 1, 2026-11-07): the ACTIVE organization's verification status, so the web app sends a
+    // not-yet-approved company's user to the review screen before the hub paints, instead of learning it from the
+    // first refused request. Identity layer: `organizations` is outside RLS and read here, pre-tenant, for the one
+    // membership the session resolved. For rendering only: the business routes still refuse it themselves.
+    let organizationVerificationStatus: string | null = null;
+    if (active) {
+      const [org] = await db
+        .select({ verificationStatus: organizationsTable.verificationStatus })
+        .from(organizationsTable)
+        .where(eq(organizationsTable.id, active.organizationId))
+        .limit(1);
+      organizationVerificationStatus = org?.verificationStatus ?? null;
+    }
     res.json({
       ...safeUser(user),
       organizationId: active?.organizationId ?? null,
       organizationRole: active?.role ?? null,
+      organizationVerificationStatus,
       // H-15: the web app holds a session that owes a change of password on the way to change it
       passwordChangeRequired: user.passwordChangeRequired,
     });
