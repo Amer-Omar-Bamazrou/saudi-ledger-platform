@@ -14,6 +14,7 @@
  *   n(vendor.name, vendor.nameAr)     → picks correct data name
  */
 import { createContext, useContext, useState, useEffect } from "react";
+import { displayName } from "@workspace/shared";
 
 export type Lang = "en" | "ar";
 
@@ -33,7 +34,7 @@ interface LanguageContextValue {
   isAr: boolean;
 }
 
-const SENTINEL = "(not yet translated)";
+// N-8: the translation sentinel lives with the one name rule, in @workspace/shared (TRANSLATION_SENTINEL).
 
 const LanguageContext = createContext<LanguageContextValue>({
   lang: "en",
@@ -66,13 +67,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     return lang === "ar" ? ar : en;
   }
 
+  // N-8 (2026-11-07): the one rule for a bilingual name, shared with the invoice document (@workspace/shared).
   function n(en: string, ar?: string | null): string {
-    if (lang === "ar") {
-      const arClean = ar?.trim();
-      if (arClean && arClean !== SENTINEL) return arClean;
-      return en || "";           // graceful fallback to English
-    }
-    return en || ar?.trim() || "";
+    return displayName(en, ar, lang);
   }
 
   return (

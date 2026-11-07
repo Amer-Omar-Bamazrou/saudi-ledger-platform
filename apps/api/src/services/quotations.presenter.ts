@@ -48,6 +48,8 @@ export interface QuotationOut {
   validUntil: string | null;
   customerId: number | null;
   customerName: string | null;
+  /** N-8: the customer's Arabic name, or null; a screen shows one name through @workspace/shared displayName. */
+  customerNameAr: string | null;
   /** APPROVAL axis: draft | submitted | approved. */
   status: string;
   /** Terminal tenant act: declined | closed | null (= live). */
@@ -142,6 +144,8 @@ export function buildQuotationOut(
     validUntil: quo.validUntil,
     customerId: quo.customerId,
     customerName: cust?.name ?? null,
+    // N-8: the Arabic name beside it; the screen shows one through the one rule (@workspace/shared displayName).
+    customerNameAr: cust?.nameAr ?? null,
     status: quo.status,
     outcome: quo.outcome,
     conversionState: conversionState(stateBasis),

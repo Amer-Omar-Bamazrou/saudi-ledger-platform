@@ -61,7 +61,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 const emptyLine = (): QuotationLineForm => ({ description: "", descriptionAr: "", quantity: 1, unitPrice: "", vatRate: DEFAULT_VAT_RATE });
 
 export default function Quotations() {
-  const { t, lang } = useLanguage();
+  const { t, lang, n } = useLanguage();
   const { toast } = useToast();
   const applyFilter = (v: string) => { setStatusFilter(v); setPage(0); syncStatusToUrl(v); };
   const qc = useQueryClient();
@@ -350,7 +350,7 @@ export default function Quotations() {
                     <Select value={form.customerId} onValueChange={(v) => setForm((p) => ({ ...p, customerId: v }))}>
                       <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder={t("Select…", "اختر…")} /></SelectTrigger>
                       <SelectContent>
-                        {customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                        {customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{n(c.name, c.nameAr)}</SelectItem>)}
                       <PickerLimitNotice shown={customers.length} total={customersPage?.total ?? customers.length} /></SelectContent>
                     </Select>
                   </div>
@@ -436,7 +436,7 @@ export default function Quotations() {
                   {quotations.map((q) => (
                     <tr key={q.id} className="border-b border-border/50">
                       <td className="py-3 pe-4 font-mono text-xs text-primary">{q.quotationNumber}</td>
-                      <td className="py-3 pe-4">{q.customerName ?? "—"}</td>
+                      <td className="py-3 pe-4">{n(q.customerName ?? "", q.customerNameAr) || "—"}</td>
                       <td className="py-3 pe-4 text-muted-foreground text-xs"><DualDate date={q.date} /></td>
                       <td className="py-3 pe-4 text-muted-foreground text-xs">
                         {q.validUntil ? (

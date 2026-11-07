@@ -51,7 +51,7 @@ export default function JournalEntries() {
   const [lines, setLines] = useState<LineForm[]>([{ ...emptyLine }, { ...emptyLine }]);
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { t, lang } = useLanguage();
+  const { t, lang, n } = useLanguage();
   /**
    * 🔴 This page had NO status filter, while the API had accepted `status`
    * all along — the honest-message shape: nothing here was untrue, a
@@ -200,7 +200,7 @@ export default function JournalEntries() {
                         {systemCodeOf(l.accountId) === "AR" && (
                           <Select value={String(l.customerId??"")} onValueChange={v=>updateLine(i,"customerId",Number(v))}>
                             <SelectTrigger className="h-7 text-xs mt-1"><SelectValue placeholder={t("Customer (required)...", "العميل (مطلوب)...")} /></SelectTrigger>
-                            <SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+                            <SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{n(c.name, c.nameAr)}</SelectItem>)}</SelectContent>
                           </Select>
                         )}
                         {systemCodeOf(l.accountId) === "AP" && (
