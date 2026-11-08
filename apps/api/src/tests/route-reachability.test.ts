@@ -381,7 +381,8 @@ describe("the inverse guard — every URL the web calls hits a mounted route", (
 const PER_ROUTE_CHECKED: Array<{ method: string; mount: string; path: string; file: string; operation: string | null; finding: string }> = [
   { method: "POST", mount: "/assets", path: "/depreciation-runs", file: "assets.ts", operation: "runAssetDepreciation", finding: "F-1" },
   { method: "POST", mount: "/recognition-schedules", path: "/runs", file: "recognitionSchedules.ts", operation: "runRecognitionPeriod", finding: "F-1" },
-  { method: "POST", mount: "/zatca/onboarding", path: "/renew", file: "zatcaOnboarding.ts", operation: null, finding: "F-2" },
+  // F-2: the route entered the contract with its screen (carry-over Batch 3), so it now has a generated operation.
+  { method: "POST", mount: "/zatca/onboarding", path: "/renew", file: "zatcaOnboarding.ts", operation: "renewZatcaCertificate", finding: "F-2" },
 ];
 
 /**

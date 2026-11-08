@@ -1114,3 +1114,4 @@ export * from './zatcaOnboardingStatusEnvironment';
 export * from './zatcaOnboardInput';
 export * from './zatcaOnboardResult';
 export * from './zatcaPrerequisite';
+export * from './zatcaRenewResult';
