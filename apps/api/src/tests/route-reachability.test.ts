@@ -390,9 +390,8 @@ const PER_ROUTE_CHECKED: Array<{ method: string; mount: string; path: string; fi
  * test below fails while a reached route is still listed). Shrinks only.
  */
 const KNOWN_UNREACHABLE_ROUTES: Record<string, string> = {
-  // F-1's two run routes LEFT this list with their screens (components/PeriodRunDialog.tsx, carry-over Batch 3).
-  "POST /zatca/onboarding/renew":
-    "F-2 (AC-13 standing check): certificate renewal (the tenant's own OTP) has no screen yet. Carry-over Batch 3 builds it; this entry leaves in that PR.",
+  // EMPTY. F-1's two run routes left with their screens (components/PeriodRunDialog.tsx) and F-2's renewal route with
+  // its card (components/CertificateRenewal.tsx), carry-over Batch 3. A new entry needs a checkable reason.
 };
 
 const pascal = (op: string) => op[0]!.toUpperCase() + op.slice(1);
