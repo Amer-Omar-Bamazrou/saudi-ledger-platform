@@ -443,7 +443,8 @@ import type {
   ZakatIncomeTaxFilingInput,
   ZatcaOnboardInput,
   ZatcaOnboardResult,
-  ZatcaOnboardingStatus
+  ZatcaOnboardingStatus,
+  ZatcaRenewResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -10340,6 +10341,77 @@ export const useOnboardZatca = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getOnboardZatcaMutationOptions(options));
+    }
+
+export const getRenewZatcaCertificateUrl = () => {
+
+
+
+
+  return `/api/zatca/onboarding/renew`
+}
+
+/**
+ * @summary Renew the company's certificate before it expires. The same flow as onboarding (a fresh CSR authorised by a NEW one-time password the tenant generates in their own Fatoora portal); the new certificate replaces the active one atomically and the old one is kept as superseded. Admin only. Exercised only against ZATCA's sandbox.
+ */
+export const renewZatcaCertificate = async (zatcaOnboardInput: ZatcaOnboardInput, options?: RequestInit): Promise<ZatcaRenewResult> => {
+
+  return customFetch<ZatcaRenewResult>(getRenewZatcaCertificateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(zatcaOnboardInput)
+  }
+);}
+
+
+
+
+
+export const getRenewZatcaCertificateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renewZatcaCertificate>>, TError,{data: BodyType<ZatcaOnboardInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renewZatcaCertificate>>, TError,{data: BodyType<ZatcaOnboardInput>}, TContext> => {
+
+const mutationKey = ['renewZatcaCertificate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renewZatcaCertificate>>, {data: BodyType<ZatcaOnboardInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  renewZatcaCertificate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenewZatcaCertificateMutationResult = NonNullable<Awaited<ReturnType<typeof renewZatcaCertificate>>>
+    export type RenewZatcaCertificateMutationBody = BodyType<ZatcaOnboardInput>
+    export type RenewZatcaCertificateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Renew the company's certificate before it expires. The same flow as onboarding (a fresh CSR authorised by a NEW one-time password the tenant generates in their own Fatoora portal); the new certificate replaces the active one atomically and the old one is kept as superseded. Admin only. Exercised only against ZATCA's sandbox.
+ */
+export const useRenewZatcaCertificate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renewZatcaCertificate>>, TError,{data: BodyType<ZatcaOnboardInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof renewZatcaCertificate>>,
+        TError,
+        {data: BodyType<ZatcaOnboardInput>},
+        TContext
+      > => {
+      return useMutation(getRenewZatcaCertificateMutationOptions(options));
     }
 
 export const getGetSummaryUrl = (params?: GetSummaryParams,) => {

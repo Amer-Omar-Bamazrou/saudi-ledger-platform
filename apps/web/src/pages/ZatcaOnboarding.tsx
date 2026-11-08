@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { CertificateRenewal } from "@/components/CertificateRenewal";
 
 /**
  * ZATCA Phase 2 onboarding (M12.4).
@@ -176,6 +177,9 @@ export default function ZatcaOnboarding() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── F-2: renewal, with the tenant's own OTP (only once a certificate exists) ── */}
+      {cert && <CertificateRenewal cert={cert} labelOf={(key) => PREREQ_TEXT(t)[key]?.label ?? key} />}
 
       {/* ── Prerequisites ──────────────────────────────────────────────── */}
       <Card>

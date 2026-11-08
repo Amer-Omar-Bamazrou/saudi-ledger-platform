@@ -559,6 +559,13 @@ export interface ZatcaOnboardResult {
   activated: boolean;
 }
 
+export interface ZatcaRenewResult {
+  complianceDocuments: ZatcaComplianceDocumentResult[];
+  activated: boolean;
+  /** The new certificate's expiry; null when no new certificate was activated. */
+  certificateExpiresAt: string | null;
+}
+
 export interface CompanyLogoState {
   hasLogo: boolean;
 }
