@@ -9,5 +9,7 @@
 export type RecognitionRunResultSkippedItem = {
   scheduleId: number;
   reference: string;
+  /** recognition_period_not_scheduled (the schedule has no row in the period), recognition_period_already_recognised, or the refusal's own code (e.g. period_closed, recognition_out_of_order, approver_required). */
+  code: string;
   reason: string;
 };

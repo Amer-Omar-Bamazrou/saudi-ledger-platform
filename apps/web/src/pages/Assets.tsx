@@ -25,6 +25,7 @@ import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
 import { Link } from "wouter";
 import { businessToday } from "@workspace/shared";
+import { DepreciationRunDialog } from "@/components/PeriodRunDialog";
 import type { Asset, AssetTotals, AssetCategory, IncomeTaxGroup, CreateAssetInput, CreateAssetCategoryInput } from "@workspace/api-client-react";
 
 type Categories = { items: AssetCategory[]; incomeTaxGroups: IncomeTaxGroup[] };
@@ -98,7 +99,8 @@ export default function Assets() {
           <h1 className="text-2xl font-bold text-foreground">{t("Fixed Assets", "الأصول الثابتة")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("The register · straight-line monthly depreciation · figures derived from the posted schedule", "سجل الأصول · إهلاك شهري بالقسط الثابت · الأرقام مشتقة من الجدول المرحَّل")}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <DepreciationRunDialog inService={totals?.inService} />
           <Dialog open={catOpen} onOpenChange={setCatOpen}>
             <DialogTrigger asChild><Button variant="outline" className="gap-2" data-testid="new-asset-category"><Plus className="w-4 h-4" /> {t("Category", "فئة")}</Button></DialogTrigger>
             <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-md" data-testid="asset-category-dialog">

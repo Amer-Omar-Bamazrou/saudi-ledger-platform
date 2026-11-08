@@ -14771,13 +14771,16 @@ components:
               journalEntryId: { type: integer }
         skipped:
           type: array
-          description: "Every skip carries its reason — silence would be indistinguishable from nothing to do."
+          description: "Every skip carries its reason — silence would be indistinguishable from nothing to do — and a code the client explains it by."
           items:
             type: object
-            required: [scheduleId, reference, reason]
+            required: [scheduleId, reference, code, reason]
             properties:
               scheduleId: { type: integer }
               reference: { type: string }
+              code:
+                type: string
+                description: "recognition_period_not_scheduled (the schedule has no row in the period), recognition_period_already_recognised, or the refusal's own code (e.g. period_closed, recognition_out_of_order, approver_required)."
               reason: { type: string }
 
     FixedAssetControl:

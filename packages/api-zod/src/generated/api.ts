@@ -12936,8 +12936,9 @@ export const RunRecognitionPeriodResponse = zod.object({
   "skipped": zod.array(zod.object({
   "scheduleId": zod.number(),
   "reference": zod.string(),
+  "code": zod.string().describe('recognition_period_not_scheduled (the schedule has no row in the period), recognition_period_already_recognised, or the refusal\'s own code (e.g. period_closed, recognition_out_of_order, approver_required).'),
   "reason": zod.string()
-})).describe('Every skip carries its reason — silence would be indistinguishable from nothing to do.')
+})).describe('Every skip carries its reason — silence would be indistinguishable from nothing to do — and a code the client explains it by.')
 })
 
 

@@ -8484,6 +8484,8 @@ export type RecognitionRunResultPostedItem = {
 export type RecognitionRunResultSkippedItem = {
   scheduleId: number;
   reference: string;
+  /** recognition_period_not_scheduled (the schedule has no row in the period), recognition_period_already_recognised, or the refusal's own code (e.g. period_closed, recognition_out_of_order, approver_required). */
+  code: string;
   reason: string;
 };
 
@@ -8491,7 +8493,7 @@ export interface RecognitionRunResult {
   period: string;
   postedTotal: number;
   posted: RecognitionRunResultPostedItem[];
-  /** Every skip carries its reason — silence would be indistinguishable from nothing to do. */
+  /** Every skip carries its reason — silence would be indistinguishable from nothing to do — and a code the client explains it by. */
   skipped: RecognitionRunResultSkippedItem[];
 }
 
