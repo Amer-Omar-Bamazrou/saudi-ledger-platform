@@ -553,3 +553,46 @@ Moved verbatim from CLAUDE.md §2 to make room under its budget (the budget test
 **2026-10-05** — 🔴 **PHASES 16+17 MERGED (#190)** ([`pack`](../product/phase-16-17-tax-treasury-decision-pack.md) §12–§15). 🔴 **RATE LIMITING BUILT, PR OPEN** ([`design`](../product/design-rate-limiting.md)).
 
 *(2026-10-14: "PR OPEN" was already stale when moved — rate limiting merged as #191 on 2026-10-05. Phases 14+15 merged as #189 on 2026-10-03 and 16+17 as #190 on 2026-10-05, so the two headings above that read "PR — not merged" are as of their own dates. §2 now carries one merged-status line in their place.)*
+
+## CARRY-OVER BATCHES AFTER PHASE 18 (2026-11-07 → 11-08, #309–#316)
+
+Phase 18 closed on 2026-11-06 with AC-14 (the core-path walk) PARTIAL. The owner ordered three carry-over batches, then a re-walk. Every PR passed the same gate:
+- a browser spec pushed first on unmodified code, its red job the proof;
+- local verification in foreground pieces;
+- CI 5/5, and main green after each merge.
+
+**Batch 1, the walk's findings (#309–#313):**
+
+| PR | Merge | What it fixed |
+| --- | --- | --- |
+| #309 | `833924fe` | **N-3.** A user whose company awaits review goes to the review screen at sign-in and on every load, and never sees the hub. `/auth/me` reports the active organisation's verification status. |
+| #310 | `ef3bea9e` | **N-8.** One name per customer. A shared `displayName` gives the Arabic name in Arabic mode and the English otherwise. An issued invoice reads its buyer snapshot. |
+| #311 | `244717b9` | **N-6/N-7.** Payments and customers as cards at 390 px. |
+| #312 | `d2a6ea46` | **N-10, W-20, Close.** The role chip shows the role in the active organisation. Opened menu sections persist for the tab's session. The Close label is Arabic. |
+| #313 | `28824e4f` | **N-9, N-11, W-19, W-21.** Arabic number words and digits. The PDF prints "ضريبة القيمة المضافة 15%". |
+
+**Batch 2:** every accountant answer the owner listed was already built or blocked, so nothing was built.
+
+**Batch 3, the screens the AC-13 standing check found missing (F-1, F-2):**
+
+| PR | Merge | What it built |
+| --- | --- | --- |
+| #314 | `d33ef465` | A per-route reachability check for the three named routes. `route-reachability.test.ts` checked per mount, so a route inside a reachable mount could have no caller and never show. The full per-route test is a later audit item. |
+| #315 | `59969e9c` | **F-1.** "Run depreciation" (Assets) and "Run the month" (accruals). Each shows the month and the count, since no preview endpoint exists, and confirms naming both. It lists posted and skipped items, each explained by its code. The recognition run's skipped items gained a `code`. |
+| #316 | `a2838ba2` | **F-2.** `POST /zatca/onboarding/renew` entered the contract (`renewZatcaCertificate`), with a renewal card that takes the tenant's own OTP. It states on screen that renewal is exercised only against ZATCA's sandbox. A contract test parses the route's responses against the generated schema. |
+
+The per-route gap list is now empty.
+
+**Mutation proof, corrected.** Batch 1's eleven mutant logs had run no test: the test path was doubled, vitest found no file, and the tool counted the exit as "caught".
+- A new tool runs a passing baseline first, and scores CAUGHT only on a failed test file. Re-run with it, all eleven are caught.
+- A class check of Phase 18's #278–#306 found no other log in which no test ran.
+
+**The re-walk (2026-11-08, main `a2838ba2`, Arabic at 390 px):**
+- The core path (sign in → customer → invoice → submit → approve → payment → cash → VAT return) worked end to end, and every figure moved by exactly the right amount.
+- Every Batch 1 fix and #305's two fixes were seen on screen.
+- The PDF's seller, buyer and VAT percentage were checked by rendering the served PDF.
+- **AC-14 MET on that walk.**
+- **Found on the way, off the core path:**
+  - the run screen's posted line reads out of order in Arabic ("100.00 927# · ر.س");
+  - the accruals table scrolls sideways at 390 px and prints its status in English;
+  - "4 عميل نشط" does not agree in number.
