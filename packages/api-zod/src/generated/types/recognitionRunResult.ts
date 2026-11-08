@@ -12,6 +12,6 @@ export interface RecognitionRunResult {
   period: string;
   postedTotal: number;
   posted: RecognitionRunResultPostedItem[];
-  /** Every skip carries its reason — silence would be indistinguishable from nothing to do. */
+  /** Every skip carries its reason — silence would be indistinguishable from nothing to do — and a code the client explains it by. */
   skipped: RecognitionRunResultSkippedItem[];
 }

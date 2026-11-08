@@ -293,6 +293,7 @@ The list is `part6-sweep-hits.txt`.
   - G60's run-item seam (`runItemFailure`) is reached only through these two routes. The control is correct (proven over the service by `g60-run-item-savepoint.test.ts`), but no user can start a run for it to guard.
   - This predates Phase 18, and it is not new: the master plan's **N-G** carries the 2026-10-15 inventory's "run endpoints with no UI/job caller". It is unchanged on main.
   - `route-reachability.test.ts` passes because it checks each mount (`/assets`, `/recognition-schedules`), not each route.
+  - **Closed 2026-11-08 (carry-over Batch 3, PR #315).** A "Run depreciation" screen on the Assets page and a "Run the month" screen on the accruals page call the two generated operations. Each shows the month and the count (assets in service; active schedules), says no preview exists, and confirms naming both. It lists every posted and skipped item, each skip explained by its code. The per-route block that #314 added to `route-reachability.test.ts` now finds both callers, and their gap entries are gone.
 - **F-2: the dedicated ZATCA certificate renewal route has no web caller.**
   - `POST /zatca/onboarding/renew` has no generated client operation, and `apps/web/src` never names the path.
   - The onboarding page calls only `POST /zatca/onboarding`. Its copy tells the tenant that renewal needs a new OTP.

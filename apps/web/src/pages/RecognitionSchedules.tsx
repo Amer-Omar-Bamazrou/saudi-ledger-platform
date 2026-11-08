@@ -27,6 +27,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { businessToday } from "@workspace/shared";
 import type { RecognitionSchedule, RecognitionScheduleDetail } from "@workspace/api-client-react";
 import { accountRefusalToast } from "@/lib/accountRefusals";
+import { RecognitionRunDialog } from "@/components/PeriodRunDialog";
 
 type Category = { id: number; name: string; nameAr: string | null; type: string; systemCode: string | null; isPosting?: boolean };
 
@@ -87,6 +88,8 @@ export default function RecognitionSchedules() {
                "المستحق مصروف تحمّلته ولم تُفاتَر به بعد — ويُقيَّد في المصروفات المستحقة لا في الذمم الدائنة، لأن الذمم الدائنة هي الالتزام المُفاتَر الذي يُظهره كشف المورّد (المعيار 37 فقرة 11). أما المدفوع مقدمًا فقيمة سددتها سلفًا: الأصل قائم فعلًا، ويطلقه الجدول إلى المصروف شهرًا بشهر.")}
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        <RecognitionRunDialog active={data ? data.items.filter((s) => s.status === "active").length : undefined} />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2" data-testid="new-schedule"><Plus className="w-4 h-4" />{t("New schedule", "جدول جديد")}</Button></DialogTrigger>
           <NewScheduleDialog
@@ -94,6 +97,7 @@ export default function RecognitionSchedules() {
             onDone={() => { setOpen(false); invalidate(); }}
           />
         </Dialog>
+        </div>
       </div>
 
       <Card>
