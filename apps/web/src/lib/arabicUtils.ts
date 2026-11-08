@@ -60,6 +60,23 @@ export function arabicAccounts(n: number): string {
   return `${n} حسابًا`;
 }
 
+/**
+ * 🔴 The re-walk (2026-11-08): "4 عميل نشط". The count of active customers, agreeing with its number, as
+ * `arabicAccounts` does: 1 and 2 by the noun's own forms, 3–10 the plural, 11 and over the accusative singular.
+ */
+export function arabicActiveCustomers(n: number): string {
+  if (n === 1) return "عميل نشط واحد";
+  if (n === 2) return "عميلان نشطان";
+  if (n >= 3 && n <= 10) return `${n} عملاء نشطين`;
+  if (n === 0) return "0 عميل نشط";
+  return `${n} عميلًا نشطًا`;
+}
+
+/** The English count: 1 active customer, 2 active customers. */
+export function englishActiveCustomers(n: number): string {
+  return `${n} active ${n === 1 ? "customer" : "customers"}`;
+}
+
 /** The English count: 1 account, 2 accounts. */
 export function englishAccounts(n: number): string {
   return `${n} ${n === 1 ? "account" : "accounts"}`;

@@ -171,7 +171,12 @@ function RunDialog({ testId, trigger, title, what, countLabel, count, note, conf
                 {outcome.posted.map((p) => (
                   <li key={p.key} className="flex justify-between gap-3" data-testid={`${testId}-posted-${p.label}`}>
                     <span className="font-mono" dir="ltr">{p.label}</span>
-                    <span className="font-mono" dir="ltr">{fmtNum(p.amount)} · #{p.journalEntryId}</span>
+                    {/* 🔴 The re-walk (2026-11-08): one left-to-right span holding an Arabic currency mark and "· #927" read
+                        "100.00 927# · ر.س". The amount and the entry number are two elements, and the number is isolated. */}
+                    <span className="flex items-baseline gap-3">
+                      <span className="font-mono" dir="ltr" data-testid={`${testId}-posted-${p.label}-amount`}>{fmtNum(p.amount)}</span>
+                      <span className="text-xs text-muted-foreground" data-testid={`${testId}-posted-${p.label}-entry`}>{t("entry", "قيد")} <bdi dir="ltr" className="font-mono">#{p.journalEntryId}</bdi></span>
+                    </span>
                   </li>
                 ))}
               </ul>

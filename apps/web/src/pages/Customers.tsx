@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { arabicDays, arabicNameStatus } from "@/lib/arabicUtils";
+import { arabicActiveCustomers, arabicDays, arabicNameStatus, englishActiveCustomers } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,7 +38,7 @@ export default function Customers() {
   const [form, setForm] = useState(emptyForm);
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const { data: paged, isLoading } = useQuery<Paged<CustomerWithBalance, CustomerTotals>>({
     queryKey: ["customers", search, page],
@@ -76,7 +76,7 @@ export default function Customers() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("Customers", "العملاء")}</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable", "الحسابات المدينة")} — {paged?.page.total ?? 0} {t("active customers", "عميل نشط")}</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable", "الحسابات المدينة")} — {lang === "ar" ? arabicActiveCustomers(paged?.page.total ?? 0) : englishActiveCustomers(paged?.page.total ?? 0)}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
