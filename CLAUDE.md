@@ -54,14 +54,14 @@ When in doubt, favor evolving the existing system over replacing it.
 
 ## 2. Current State
 
-**Last updated: 2026-10-24.** Full as-built narrative for everything below:
+**Last updated: 2026-11-08.** Full as-built narrative for everything below:
 [`docs/history/milestone-as-built-records.md`](docs/history/milestone-as-built-records.md).
 
 **2026-09-20** — 🔴 **BATCH 1B (D-4) + 1C MERGED**; A4/A5 as invariants (§4); follow-ups built ([`1C pack`](docs/product/batch-1c-migration-opening-balances-decision-pack.md) §17). Open: the partly-settled item (§16.12.5), the PIH question (ZATCA).
 **2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-H BUILT**; its four invariants are in the [`pack`](docs/product/fixed-assets-decision-pack.md) §20–§27. 🔴 THREE CLOCKS (fiscal year · tax period · accounting life) — none stands in for another.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
-**2026-10-03 → 11-05** — 🔴 **MERGED: PHASES 14+15 (#189), 16+17 (#190), RATE LIMITING (#191); PHASE 18 #192–#306 (not #201), CLOSED 11-06**; AC-14 PARTIAL. Record: [`standing check`](docs/history/phase-18-standing-check.md).
+**2026-10-03 → 11-08** — 🔴 **MERGED: PHASES 14+15 (#189), 16+17 (#190), RATE LIMITING (#191); PHASE 18 #192–#306, CLOSED 11-06; CARRY-OVER #309–#316**; AC-14 MET 11-08. Record: [`standing check`](docs/history/phase-18-standing-check.md).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
 **2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
