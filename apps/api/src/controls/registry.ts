@@ -842,6 +842,16 @@ export const CONTROLS: readonly Control[] = [
     provingTests: ["phase18-vat-g2b-filing-clearing.test.ts"],
   },
   {
+    id: "A12",
+    title: "A VAT return's months are filed once: an original overlapping another original is refused; an amendment covers the period it amends (audit A12, A13)",
+    answers: ["G21"],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: ["vat_period_overlaps", "amended_period_mismatch"],
+    points: [code(`${API}/services/periodRecords.service.ts`, "periodRecordsService.recordVatFiling")],
+    provingTests: ["phase18-audit-a12-vat-filing-periods.test.ts"],
+  },
+  {
     id: "DR-38",
     title: "Held VAT claimed after its month was filed is redirected to the next open month",
     answers: ["G67", "G21"],
