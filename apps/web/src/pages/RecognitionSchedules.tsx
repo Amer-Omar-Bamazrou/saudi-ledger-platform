@@ -77,6 +77,9 @@ export default function RecognitionSchedules() {
   const liabilities = all.filter((c) => c.type === "liability" && c.isPosting !== false && c.systemCode !== "AP");
   const assets = all.filter((c) => c.type === "asset" && c.isPosting !== false);
   const name = (c: Category) => (lang === "ar" && c.nameAr ? c.nameAr : c.name);
+  // 🔴 The re-walk (2026-11-08): the badge printed the raw status ("draft", "active") in Arabic mode.
+  // English keeps the text it has always shown (recognition-schedules.spec.ts reads it); Arabic gets its own words.
+  const statusLabel = (st: string) => ({ draft: t("draft", "مسودة"), active: t("active", "نشط"), completed: t("completed", "مكتمل"), cancelled: t("cancelled", "ملغى") } as Record<string, string>)[st] ?? st;
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-full" data-testid="page-recognition-schedules">
@@ -106,7 +109,9 @@ export default function RecognitionSchedules() {
           {isLoading ? <p className="text-sm text-muted-foreground">{t("Loading…", "جارٍ التحميل…")}</p>
            : (data?.items ?? []).length === 0 ? <p className="text-sm text-muted-foreground" data-testid="no-schedules">{t("No accruals or prepayments yet.", "لا توجد مستحقات أو مدفوعات مقدمة بعد.")}</p>
            : (
-            <table className="w-full text-sm">
+            // 🔴 The re-walk (2026-11-08): at 390 px this table scrolled sideways inside its card, so a row's Activate started
+            // off-screen. Below the desktop breakpoint each row is a card and each cell carries its label (index.css `table-cards`).
+            <table className="w-full text-sm table-cards">
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">
                 {[t("Reference", "المرجع"), t("Kind", "النوع"), t("Description", "الوصف"), t("Total", "الإجمالي"), t("Recognised", "المعترف به"), t("Remaining", "المتبقي"), t("Next", "التالي"), t("Status", "الحالة"), ""].map((h, i) => (
                   <th key={i} className="text-start pb-2 pe-3 font-medium whitespace-nowrap">{h}</th>
@@ -115,20 +120,20 @@ export default function RecognitionSchedules() {
               <tbody>
                 {(data?.items ?? []).map((s) => (
                   <tr key={s.id} className="border-b border-border/50" data-testid={`schedule-row-${s.reference}`}>
-                    <td className="py-2 pe-3">
+                    <td className="py-2 pe-3" data-label={t("Reference", "المرجع")}>
                       <button className="font-mono text-primary hover:underline" dir="ltr" onClick={() => setDetailId(s.id)} data-testid={`open-schedule-${s.reference}`}>{s.reference}</button>
                     </td>
-                    <td className="py-2 pe-3">
+                    <td className="py-2 pe-3" data-label={t("Kind", "النوع")}>
                       <Badge variant="outline" className="text-[10px]" data-testid={`kind-${s.reference}`}>
                         {s.kind === "accrual" ? t("Accrual", "مستحق") : t("Prepayment", "مدفوع مقدمًا")}
                       </Badge>
                     </td>
-                    <td className="py-2 pe-3">{s.description}</td>
-                    <td className="py-2 pe-3 text-end"><Money v={s.totalAmount} /></td>
-                    <td className="py-2 pe-3 text-end" data-testid={`recognised-${s.reference}`}><Money v={s.recognisedAmount} /></td>
-                    <td className="py-2 pe-3 text-end font-semibold"><Money v={s.remainingAmount} /></td>
-                    <td className="py-2 pe-3 font-mono text-xs" dir="ltr">{s.nextPeriod ?? "—"}</td>
-                    <td className="py-2 pe-3"><Badge className={`text-xs ${STATUS_STYLES[s.status] ?? ""}`} data-testid={`status-${s.reference}`}>{s.status}</Badge></td>
+                    <td className="py-2 pe-3" data-label={t("Description", "الوصف")}>{s.description}</td>
+                    <td className="py-2 pe-3 text-end" data-label={t("Total", "الإجمالي")}><Money v={s.totalAmount} /></td>
+                    <td className="py-2 pe-3 text-end" data-label={t("Recognised", "المعترف به")} data-testid={`recognised-${s.reference}`}><Money v={s.recognisedAmount} /></td>
+                    <td className="py-2 pe-3 text-end font-semibold" data-label={t("Remaining", "المتبقي")}><Money v={s.remainingAmount} /></td>
+                    <td className="py-2 pe-3 font-mono text-xs" data-label={t("Next", "التالي")}><span dir="ltr">{s.nextPeriod ?? "—"}</span></td>
+                    <td className="py-2 pe-3" data-label={t("Status", "الحالة")}><Badge className={`text-xs ${STATUS_STYLES[s.status] ?? ""}`} data-testid={`status-${s.reference}`}>{statusLabel(s.status)}</Badge></td>
                     <td className="py-2">
                       <div className="flex gap-1">
                         {s.status === "draft" && (
