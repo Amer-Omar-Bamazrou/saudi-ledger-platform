@@ -162,13 +162,18 @@ test.describe("authenticated smoke crawl", () => {
         // as cards or list items rather than a table, and a check that only
         // understood tables would report those as empty — a false red that
         // teaches people to loosen the assertion.
-        const rows = await page.locator("tbody tr, [data-row]").count();
-        expect(
-          rows,
-          `${route} is seeded with data and rendered NO rows.\n` +
-            `Either the fixture regressed or the page did — and note that every\n` +
-            `other assertion in this test passed, because an empty state renders\n` +
-            `perfectly well. That is the whole reason this check exists.`,
+        // 🔴 Phase 18 audit A26 (2026-11-10): the count WAITS. `count()` reads once; `/bank-accounts`' list arrives
+        // ~170 ms after the shell (its ledger balances), and twice the read came first — both saved failure snapshots
+        // show the three seeded cards rendered a moment later. The same assertion, polled until it holds or times out.
+        await expect.poll(
+          () => page.locator("tbody tr, [data-row]").count(),
+          {
+            message:
+              `${route} is seeded with data and rendered NO rows.\n` +
+              `Either the fixture regressed or the page did — and note that every\n` +
+              `other assertion in this test passed, because an empty state renders\n` +
+              `perfectly well. That is the whole reason this check exists.`,
+          },
         ).toBeGreaterThan(0);
       }
 
