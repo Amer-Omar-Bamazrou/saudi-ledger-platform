@@ -63,6 +63,16 @@ export async function loadEInvoiceInput(
   const customer = invoice.customerId
     ? (await customersRepository.findById(invoice.customerId))[0] ?? null
     : null;
+  // 🔴 Phase 18 audit A10 (2026-11-09) — G50's sibling. Every party field the document states comes from the capture
+  // the issuing write took (G32's issued_seller / issued_buyer, 0133; widened by 0156 to every field used below), never
+  // from a second read of the company or customer: an edit committed between the issuing write and this load made the
+  // signed XML disagree with the invoice's own capture (reproduced on main). The live rows are read only for a document
+  // issued before its capture held a field — before 0133 (no capture) or between 0133 and 0156 (no additional number,
+  // province, country or national id); a field the capture holds is always the capture's, null included.
+  const sellerCapture = (invoice.issuedSeller ?? null) as Record<string, unknown> | null;
+  const buyerCapture = (invoice.issuedBuyer ?? null) as Record<string, unknown> | null;
+  const captured = <T,>(capture: Record<string, unknown> | null, key: string, live: T): T =>
+    capture != null && Object.prototype.hasOwnProperty.call(capture, key) ? (capture[key] as T) : live;
 
   // The note's original — the FK, resolved to the row, so the billing reference
   // can never name a document that does not exist. 2026-09-22: an OPENING
@@ -129,28 +139,28 @@ export async function loadEInvoiceInput(
     company: {
       name: invoice.sellerName,
       vatNumber: invoice.sellerVatNumber,
-      crNumber: company.crNumber,
-      buildingNumber: company.buildingNumber,
-      street: company.street,
-      district: company.district,
-      city: company.city,
-      postalCode: company.postalCode,
-      additionalNumber: company.additionalNumber,
+      crNumber: captured(sellerCapture, "crNumber", company.crNumber),
+      buildingNumber: captured(sellerCapture, "buildingNumber", company.buildingNumber),
+      street: captured(sellerCapture, "street", company.street),
+      district: captured(sellerCapture, "district", company.district),
+      city: captured(sellerCapture, "city", company.city),
+      postalCode: captured(sellerCapture, "postalCode", company.postalCode),
+      additionalNumber: captured(sellerCapture, "additionalNumber", company.additionalNumber),
     },
     customer: customer
       ? {
-          name: customer.name,
-          taxNumber: customer.taxNumber,
-          crNumber: customer.crNumber,
-          buildingNumber: customer.buildingNumber,
-          street: customer.street,
-          district: customer.district,
-          city: customer.city,
-          postalCode: customer.postalCode,
-          additionalNumber: customer.additionalNumber,
-          province: customer.province,
-          country: customer.country,
-          nationalId: customer.nationalId,
+          name: captured(buyerCapture, "name", customer.name),
+          taxNumber: captured(buyerCapture, "vatNumber", customer.taxNumber),
+          crNumber: captured(buyerCapture, "crNumber", customer.crNumber),
+          buildingNumber: captured(buyerCapture, "buildingNumber", customer.buildingNumber),
+          street: captured(buyerCapture, "street", customer.street),
+          district: captured(buyerCapture, "district", customer.district),
+          city: captured(buyerCapture, "city", customer.city),
+          postalCode: captured(buyerCapture, "postalCode", customer.postalCode),
+          additionalNumber: captured(buyerCapture, "additionalNumber", customer.additionalNumber),
+          province: captured(buyerCapture, "province", customer.province),
+          country: captured(buyerCapture, "country", customer.country),
+          nationalId: captured(buyerCapture, "nationalId", customer.nationalId),
         }
       : null,
     /**
