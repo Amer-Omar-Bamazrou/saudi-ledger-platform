@@ -56,7 +56,7 @@ import { businessToday, INVOICE_IN_BOOKS_STATUSES, RECOVERY_INVOICE_TYPE } from 
 import { db, migrationOpenItemsTable, type Invoice } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
-import { money2, round2 } from "../lib/money";
+import { money2, round2, moneyInput } from "../lib/money";
 import { assertDateString } from "../lib/writeGuards";
 import { invoiceSettlementRepository, paymentsRepository } from "../repositories/payments.repository";
 import { invoicesRepository } from "../repositories/invoices.repository";
@@ -224,7 +224,7 @@ export const badDebtService = {
     body: { paymentId: unknown; amount: unknown; vatRate?: unknown; notes?: string | null; idempotencyKey?: string | null },
     userId: number | null,
   ) {
-    const amount = Number(body.amount);
+    const amount = moneyInput(body.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("A positive recovered amount is required.");
     const gross = round2(amount);
     const paymentId = Number(body.paymentId);

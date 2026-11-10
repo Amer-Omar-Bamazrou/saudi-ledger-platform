@@ -30,7 +30,7 @@ import { cashAfterWithholding, decideWithholding, recordWithholding, refuseLateW
 import { billsRepository } from "../repositories/bills.repository";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { businessToday } from "@workspace/shared";
-import { fromHalalas, round2, toHalalas } from "../lib/money";
+import { fromHalalas, round2, toHalalas, moneyInput } from "../lib/money";
 
 export interface BillPaymentResult {
   billPaymentId: number;
@@ -122,7 +122,7 @@ export async function payBill(
 
     // Validate the amount up front — a missing/non-numeric amount previously
     // reached the numeric column and surfaced as an unhandled 500.
-    const paid = Number(amount);
+    const paid = moneyInput(amount);
     if (!Number.isFinite(paid) || paid <= 0) {
       throw new BadRequestError("A positive payment amount is required.");
     }

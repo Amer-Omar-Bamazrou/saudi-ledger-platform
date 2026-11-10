@@ -29,6 +29,7 @@
  * deducts nothing. If a future reader is tempted to add a VAT line here, the
  * document they are missing is the supplier's, and it belongs on a bill.
  */
+import { moneyInput } from "../../lib/money";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import {
   db, supplierPaymentsTable, supplierPaymentAllocationsTable,
@@ -345,7 +346,7 @@ export const supplierPaymentsService = {
 
     const date = typeof body.date === "string" && body.date ? body.date : businessToday();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) refuse("date_invalid", "The reversal date is a YYYY-MM-DD date.", "date");
-    const amount = Number(alloc.amount);
+    const amount = moneyInput(alloc.amount);
 
     /**
      * 🔴 A CREDIT-NOTE APPLICATION IS UNDONE WITH NO ENTRY, because applying

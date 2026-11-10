@@ -48,6 +48,16 @@ export const round2 = (n: number): number => Math.round(n * 100) / 100;
 export const money2 = (n: number): string => round2(n).toFixed(2);
 
 /**
+ * 🔴 A money AMOUNT as a service parses it (from a request, or from a row it reads) — rounded at the gate (Phase 18 audit A4, G36's
+ * "round at the gate"). A bare `Number(body.amount)` let a sub-halala figure (1.005) through: JavaScript compared and
+ * posted one value (round2: 1.00) while Postgres's numeric column stored another (1.01), so a bill read PAID with a
+ * halala left in AP. Every request amount is parsed here, once, so the value checked, posted and stored is one value.
+ * Not finite stays NaN (each caller's own validity check refuses it); a positive amount under half a halala becomes 0
+ * (the caller's positivity check refuses it). `tests/money-input-ratchet.test.ts` refuses a bare parse in services.
+ */
+export const moneyInput = (v: unknown): number => round2(Number(v));
+
+/**
  * ── Exact sums: integer halalas (Phase 14, 2026-10-01) ────────────────────
  *
  * A report that adds many money values as JS doubles drifts by representation

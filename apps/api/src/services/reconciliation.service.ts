@@ -31,7 +31,7 @@ import { billsRepository } from "../repositories/bills.repository";
 import { invoicesRepository } from "../repositories/invoices.repository";
 import { transactionsRepository } from "../repositories/transactions.repository";
 import type { transactionsTable } from "@workspace/db";
-import { fromHalalas, round2, toHalalas } from "../lib/money";
+import { fromHalalas, round2, toHalalas, moneyInput } from "../lib/money";
 import { payBill } from "./bills.payment";
 import { baseForCash, decideWithholding } from "./accounting/wht";
 import { paymentsRepository } from "../repositories/payments.repository";
@@ -210,7 +210,7 @@ export const reconciliationService = {
       throw new ConflictError("Only a pending transaction can be settled from review.");
     }
 
-    const amount = Number(tx.amount);
+    const amount = moneyInput(tx.amount);
     // 🔴 D-3: a settlement's bank is the ROW'S bank — the one deterministic
     // fact a statement line carries. A row with no bank cannot settle
     // anything (the pay path would have no account to post cash to); the
