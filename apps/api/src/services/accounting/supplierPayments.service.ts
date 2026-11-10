@@ -29,7 +29,6 @@
  * deducts nothing. If a future reader is tempted to add a VAT line here, the
  * document they are missing is the supplier's, and it belongs on a bill.
  */
-import { moneyInput } from "../../lib/money";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import {
   db, supplierPaymentsTable, supplierPaymentAllocationsTable,
@@ -41,7 +40,7 @@ import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
 import { asSent, idempotencyOf, replayOrRefuse } from "../../lib/idempotency.js";
 import { companyScoped } from "../../repositories/companyScope.js";
 import { idFromBody, isIntegerId } from "../../lib/inputGuards.js";
-import { fromHalalas, round2 } from "../../lib/money.js";
+import { fromHalalas, round2, moneyInput } from "../../lib/money.js";
 import { businessToday } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";

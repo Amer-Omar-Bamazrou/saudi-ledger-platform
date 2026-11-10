@@ -18,7 +18,6 @@
  * An accrual has no invoice; putting it in AP would create a payable that no
  * statement can match and no payment can settle. Refused by name.
  */
-import { moneyInput } from "../../lib/money";
 import { and, eq } from "drizzle-orm";
 import {
   db, recognitionSchedulesTable, recognitionScheduleRowsTable, categoriesTable,
@@ -26,7 +25,7 @@ import {
 } from "@workspace/db";
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
-import { round2, spreadOverPeriods } from "../../lib/money.js";
+import { round2, spreadOverPeriods, moneyInput } from "../../lib/money.js";
 import { runItemFailure } from "../../lib/runItemFailure.js";
 import { withSavepoint } from "../../lib/savepoint.js";
 import { protectedAccountRule } from "@workspace/shared";

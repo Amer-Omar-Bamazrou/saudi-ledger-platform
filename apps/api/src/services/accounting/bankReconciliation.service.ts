@@ -27,9 +27,8 @@
  * reference, inside the window, exactly one candidate, one-to-one across the
  * batch. Never amount alone, never amount and date, never nearest date.
  */
-import { moneyInput } from "../../lib/money";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
-import { round2 } from "../../lib/money.js";
+import { round2, moneyInput } from "../../lib/money.js";
 import { auditService } from "../audit.service.js";
 import { bankReconciliationRepository, type CandidateRow, type LineStatus, type StatementLineRow } from "../../repositories/bankReconciliation.repository.js";
 import { MATCH_DATE_WINDOW_DAYS, referenceTokens } from "./matchingPolicy.js";

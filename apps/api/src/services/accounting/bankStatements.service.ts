@@ -4,8 +4,7 @@
  *
  * A statement upload is ALL OR NOTHING. Every row is validated before the
  * first one is written, because a statement's balances only mean something
- * about the WHOLE file: import { moneyInput } from "../../lib/money";
-import half of it and the stated closing balance
+ * about the WHOLE file: import half of it and the stated closing balance
  * describes lines the books do not have.
  *
  * Three refusals, each a PRODUCT DECISION stricter than both reference
@@ -32,7 +31,7 @@ import half of it and the stated closing balance
  * (Odoo reaches the same place: `is_valid` is a flag, not a constraint.)
  */
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
-import { round2 } from "../../lib/money.js";
+import { round2, moneyInput } from "../../lib/money.js";
 import { assertDateString } from "../../lib/writeGuards.js";
 import { bankStatementsRepository } from "../../repositories/bankStatements.repository.js";
 import type { BankStatement } from "@workspace/db";
