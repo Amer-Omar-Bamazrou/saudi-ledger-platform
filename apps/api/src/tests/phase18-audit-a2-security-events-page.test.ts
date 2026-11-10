@@ -17,6 +17,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
+import { ListOrgSecurityEventsResponse } from "@workspace/api-zod";
 import { g04Harness } from "./helpers/g04Harness";
 
 const url = process.env.DATABASE_URL;
@@ -94,6 +95,14 @@ describeMaybe("Phase 18 audit A2 — the security-events trail is paged, with it
     const after = await page("adminA", orgA, "?limit=1");
     expect(after.total).toBe(before + 1);
     expect(after.events[0]?.action).toBe("invite.sent");
+  });
+
+  it("conformance: the response parses as the contract's SecurityEventPage — and the schema refuses a body with no total", async () => {
+    const r = await h.api("adminA", "GET", `/orgs/${orgA}/security-events?limit=5`);
+    const parsed = ListOrgSecurityEventsResponse.safeParse(JSON.parse(JSON.stringify(r.body)));
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+    expect(parsed.data?.events.length).toBe(5);
+    expect(ListOrgSecurityEventsResponse.safeParse({ events: [] }).success, "the probe sees a known-bad body").toBe(false);
   });
 
   it("a page larger than 200 is served as 200 at most; a missing limit is a page of 50", async () => {

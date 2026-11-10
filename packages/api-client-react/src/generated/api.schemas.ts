@@ -4326,6 +4326,28 @@ export interface AuditLogPage {
   logs?: AuditLogEntry[];
 }
 
+export type SecurityEventMetadata = { [key: string]: unknown } | null;
+
+export interface SecurityEvent {
+  id: string;
+  /** The event's code (invite.sent, membership.role_changed, user.password_breakglass_reset, ...). Free-form by design: the vocabulary is the identity layer's and grows with it. */
+  action: string;
+  actorUserId?: number | null;
+  actorEmail?: string | null;
+  organizationId?: string | null;
+  targetUserId?: number | null;
+  metadata?: SecurityEventMetadata;
+  ipAddress?: string | null;
+  createdAt: string;
+}
+
+export interface SecurityEventPage {
+  events: SecurityEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 /**
  * Per-kind numbers and names the UI renders. No severity anywhere - a finding is a kind plus facts, rendered in words.
  */
@@ -13531,6 +13553,14 @@ export type ListPurchaseOrders200 = {
 export type ListAuditLogsParams = {
 entity_type?: string;
 action?: string;
+/**
+ * @maximum 200
+ */
+limit?: number;
+offset?: number;
+};
+
+export type ListOrgSecurityEventsParams = {
 /**
  * @maximum 200
  */
