@@ -105,6 +105,7 @@ export function refuseUntilPasswordChanged(req: Request, res: Response, next: Ne
     res.status(403).json({
       code: "break_glass_expired",
       error: "The temporary password has expired (it was usable for 24 hours). Sign out and ask the platform for a new reset.",
+      errorAr: "انتهت صلاحية كلمة المرور المؤقتة (كانت صالحة 24 ساعة). سجّل الخروج واطلب من المنصة إعادة تعيين جديدة.",
     });
     return;
   }

@@ -43,6 +43,7 @@ export function keyReusedRefusal(key: string, what: string, detail?: string): Bu
   return new BusinessRuleError(409, {
     code: "idempotency_key_reused",
     error: `Idempotency key "${key}" was already used for a different ${what}${detail ? ` (${detail})` : ""}. Nothing was recorded; use a new key for a new ${what}.`,
+    errorAr: `سبق استخدام مفتاح منع التكرار "${key}" لعملية أخرى${detail ? ` (${detail})` : ""}. لم يُسجَّل شيء؛ استخدم مفتاحًا جديدًا لكل عملية جديدة.`,
   });
 }
 

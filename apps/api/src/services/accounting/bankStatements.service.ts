@@ -175,7 +175,7 @@ async function prepareStatement(bankAccountId: number, input: StatementInput, ro
       if (prior) {
         refuse(409, "statement_already_imported",
           `This file was already imported for this bank as statement #${prior.id} (${prior.periodFrom} to ${prior.periodTo}). Nothing was imported again.`,
-          { statementId: prior.id });
+          { statementId: prior.id, errorAr: `سبق استيراد هذا الملف لهذا البنك كشفًا رقم ${prior.id} (${prior.periodFrom} إلى ${prior.periodTo}). لم يُستورد شيء مرة أخرى.` });
       }
     }
 
@@ -204,7 +204,7 @@ export const bankStatementsService = {
       return row!;
     } catch (err) {
       if (pgError(err).code === "23505") {
-        refuse(409, "statement_already_imported", "This file was imported for this bank by another request a moment ago. Nothing was imported again.");
+        refuse(409, "statement_already_imported", "This file was imported for this bank by another request a moment ago. Nothing was imported again.", { errorAr: "استُورد هذا الملف لهذا البنك بطلب آخر قبل لحظات. لم يُستورد شيء مرة أخرى." });
       }
       throw err;
     }

@@ -189,7 +189,7 @@ const PERIOD_RECORD_UNIQUE_MESSAGE: Record<string, string> = {
 
 export interface DbRefusal {
   status: 403 | 409 | 422 | 423;
-  body: { code: string; error: string; constraint?: string; field?: string };
+  body: { code: string; error: string; constraint?: string; field?: string; errorAr?: string };
 }
 
 /**
@@ -297,7 +297,7 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   // R-8 (G37/G40): the same idempotency key on ANOTHER source at the same moment reaches the per-company,
   // per-operation unique index (one source serialises on its lock and replays) — a different request: refused.
   if (pgCode === "23505" && constraint && /_idempotency(_op)?_unq$/.test(constraint)) {
-    return { status: 409, body: { code: "idempotency_key_reused", error: "This idempotency key was used for a different request in this company at the same moment. Nothing was recorded; use a new key." } };
+    return { status: 409, body: { code: "idempotency_key_reused", error: "This idempotency key was used for a different request in this company at the same moment. Nothing was recorded; use a new key.", errorAr: "استُخدم مفتاح منع التكرار هذا لطلب آخر في هذه الشركة في اللحظة نفسها. لم يُسجَّل شيء؛ استخدم مفتاحًا جديدًا." } };
   }
   if (pgCode === "23505" && constraint) {
     const budget = BUDGET_UNIQUE_MESSAGE[constraint];

@@ -381,7 +381,7 @@ export function taxComputationVersionApprovable(): Approvable<TaxComputationVers
       // 🔴 H-17 — DR-17 (register §11.68; G10): an approval covers the figures that were submitted. A version submitted
       // before this check carries no fingerprint and is not compared.
       if (v.submittedInputsFingerprint != null && v.submittedInputsFingerprint !== live.fingerprint) {
-        refuse(409, "inputs_changed_since_submission", "The figures this computation was submitted on have changed since (a classification, an adjustment or the ledger). Send it back, review it and resubmit: an approval covers the figures that were submitted.");
+        refuse(409, "inputs_changed_since_submission", "The figures this computation was submitted on have changed since (a classification, an adjustment or the ledger). Send it back, review it and resubmit: an approval covers the figures that were submitted.", { errorAr: "تغيّرت الأرقام التي قُدِّم عليها هذا الاحتساب منذ تقديمه (تصنيف، أو تسوية، أو الدفتر). أعده للمراجعة وراجعه ثم قدّمه من جديد: فالاعتماد يغطي الأرقام التي قُدِّمت." });
       }
       if (live.blockers.length || live.amountH == null) refuse(422, "tax_computation_blocked", "This computation cannot be approved: " + live.blockers.map((b) => b.message).join(" "), { blockers: live.blockers });
       const amountH = live.amountH!;
