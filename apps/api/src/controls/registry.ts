@@ -301,8 +301,11 @@ export const CONTROLS: readonly Control[] = [
       check("zakat_income_tax_filings", "zakat_income_tax_filings_kind_chk"),
       check("zakat_income_tax_filings", "zakat_income_tax_filings_reference_chk"),
       check("zakat_income_tax_filings", "zakat_income_tax_filings_after_year_chk"),
+      // audit A11: DR-30 holds on the migration reversal's path too
+      code(`${API}/services/periodLocks.service.ts`, "periodLocksService.reopenForMigrationReversal"),
+      code(`${API}/services/migrationCommit.service.ts`, "migrationCommitService.reversalPreview"),
     ],
-    provingTests: ["phase18-t1e-period-controls.test.ts", "phase18-r13-ac3-writers-outside-the-seam.test.ts"],
+    provingTests: ["phase18-t1e-period-controls.test.ts", "phase18-r13-ac3-writers-outside-the-seam.test.ts", "batch-1c-migration-commit.test.ts"],
   },
   {
     id: "DR-20",

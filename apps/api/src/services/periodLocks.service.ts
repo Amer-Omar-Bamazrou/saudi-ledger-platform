@@ -79,17 +79,30 @@ export const periodLocksService = {
         error: `${period} is the opening month of a committed migration. Its balances are the migration's cut-off position, so it is never reopened. To change them, reverse the migration from the Migration page. Nothing was reopened.`,
       });
     }
-    const auth = await periodLocksRepository.authorisationCovering(`${period}-01`);
-    if (auth) {
-      throw new BusinessRuleError(422, {
-        code: "statements_authorised",
-        error: `${period} belongs to the fiscal year ${auth.fiscalYearStart} – ${auth.fiscalYearEnd}, whose financial statements were authorised for issue on ${auth.authorisedOn} (${auth.authorisedBy}). A month of that year is not reopened; correct it in an open month instead. Nothing was reopened.`,
-      });
-    }
+    await periodLocksService.refuseIfStatementsAuthorised(period);
     const [after] = await periodLocksRepository.update(lock.id, { reopenedAt: new Date(), reopenedBy: userId, reopenReason: reason });
     await periodLocksRepository.appendEvent({ period, event: "reopen", reason, actor: userId });
     await auditService.updated("period_lock", lock.id, lock, after);
     return out(after);
+  },
+
+  /**
+   * 🔴 DR-30: a month of a fiscal year whose statements were authorised for issue is never reopened — by the
+   * ordinary reopen, AND by a migration's reversal (Phase 18 audit A11, 2026-11-09: that path skipped the check, so
+   * reversing a migration reopened the opening month of an authorised year and posted its mirror there).
+   */
+  async statementsAuthorisedCovering(period: string) {
+    return periodLocksRepository.authorisationCovering(`${period}-01`);
+  },
+  async refuseIfStatementsAuthorised(period: string) {
+    const auth = await periodLocksService.statementsAuthorisedCovering(period);
+    if (auth) {
+      throw new BusinessRuleError(422, {
+        code: "statements_authorised",
+        error: `${period} belongs to the fiscal year ${auth.fiscalYearStart} – ${auth.fiscalYearEnd}, whose financial statements were authorised for issue on ${auth.authorisedOn} (${auth.authorisedBy}). A month of that year is not reopened; correct it in an open month instead. Nothing was reopened.`,
+        errorAr: `${period} من السنة المالية ${auth.fiscalYearStart} – ${auth.fiscalYearEnd}، وقد اعتُمدت قوائمها المالية للإصدار في ${auth.authorisedOn} (${auth.authorisedBy}). لا يُعاد فتح أي شهر من تلك السنة؛ صحّح في شهر مفتوح بدلًا من ذلك. لم يُعَد فتح شيء.`,
+      });
+    }
   },
 
   /** The migration's own reversal takes its opening-month lock off — recorded as a reopen, never deleted. */
@@ -97,6 +110,7 @@ export const periodLocksService = {
     await periodLocksRepository.guard(period);
     const [lock] = await periodLocksRepository.findByPeriod(period);
     if (!lock || lock.id !== lockId || lock.reopenedAt != null) return;
+    await periodLocksService.refuseIfStatementsAuthorised(period);
     const reason = `Migration batch ${batchId} reversed`;
     const [after] = await periodLocksRepository.update(lock.id, { reopenedAt: new Date(), reopenedBy: userId, reopenReason: reason });
     await periodLocksRepository.appendEvent({ period, event: "reopen", reason, actor: userId });
