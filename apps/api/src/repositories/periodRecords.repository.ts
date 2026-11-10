@@ -18,6 +18,20 @@ export const periodRecordsRepository = {
     return db.select().from(vatReturnFilingsTable)
       .where(and(eq(vatReturnFilingsTable.companyId, currentCompany), eq(vatReturnFilingsTable.zatcaReference, reference))).limit(1);
   },
+  /**
+   * 🔴 Phase 18 audit A12 (2026-11-09): recording a VAT return is serialised per company, so the check that its
+   * months are not already filed and its insert cannot interleave with another filing's.
+   */
+  async lockVatFilings() {
+    await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext('vat-return-filing:' || current_setting('app.current_company_id', true)))`);
+  },
+  /** The ORIGINAL returns of this company whose months overlap `from`–`to` (months compare as YYYY-MM text). */
+  vatOriginalsOverlapping(from: string, to: string) {
+    return db.select().from(vatReturnFilingsTable)
+      .where(and(eq(vatReturnFilingsTable.companyId, currentCompany), eq(vatReturnFilingsTable.kind, "original"),
+        sql`${vatReturnFilingsTable.periodFrom} <= ${to}`, sql`${vatReturnFilingsTable.periodTo} >= ${from}`))
+      .orderBy(asc(vatReturnFilingsTable.periodFrom), asc(vatReturnFilingsTable.id));
+  },
   insertVatFiling(values: typeof vatReturnFilingsTable.$inferInsert) {
     return db.insert(vatReturnFilingsTable).values(values).returning();
   },

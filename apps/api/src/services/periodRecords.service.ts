@@ -140,8 +140,38 @@ export const periodRecordsService = {
     const zatcaReference = text(body.zatcaReference);
     if (!zatcaReference || zatcaReference.length < 3) refuse("reference_required", "The ZATCA reference of the filing is required.", "zatcaReference");
     const { kind, amends } = kindOf(body);
-    if (amends && (await periodRecordsRepository.vatFilingByReference(amends)).length === 0) {
-      refuse("amended_filing_not_found", `No VAT filing with the reference ${amends} is recorded for this company.`, "amendsZatcaReference");
+    // 🔴 Phase 18 audit A12 (2026-11-09): the check and the insert run under one lock per company — two filings
+    // sent at once would otherwise each see the other's months as unfiled.
+    await periodRecordsRepository.lockVatFilings();
+    if (amends) {
+      const [amended] = await periodRecordsRepository.vatFilingByReference(amends);
+      if (!amended) refuse("amended_filing_not_found", `No VAT filing with the reference ${amends} is recorded for this company.`, "amendsZatcaReference");
+      // 🔴 A13: an amendment corrects the return it names, so it covers that return's months — never others.
+      if (amended!.periodFrom !== periodFrom || amended!.periodTo !== periodTo) {
+        const theirs = amended!.periodFrom === amended!.periodTo ? amended!.periodFrom : `${amended!.periodFrom}–${amended!.periodTo}`;
+        throw new BusinessRuleError(422, {
+          code: "amended_period_mismatch",
+          error: `The return ${amends} covers ${theirs}, so its amendment covers ${theirs} too. A return for other months is an original filing of its own.`,
+          errorAr: `الإقرار ${amends} يغطي ${theirs}، فتعديله يغطي ${theirs} كذلك. أما إقرار أشهر أخرى فهو إقرار أصلي مستقل.`,
+          field: "periodFrom",
+        });
+      }
+    } else {
+      // 🔴 A12: a month is on ONE original return. The unique index catches only an IDENTICAL period; a quarter over
+      // a filed month (or a month inside a filed quarter) cleared that month's VAT a second time, and nothing undoes a
+      // filing's clearing. Identical periods keep their own refusal (the unique index, 409).
+      const overlapping = (await periodRecordsRepository.vatOriginalsOverlapping(periodFrom as string, periodTo as string))
+        .filter((f) => f.periodFrom !== periodFrom || f.periodTo !== periodTo);
+      if (overlapping.length > 0) {
+        const f = overlapping[0]!;
+        const theirs = f.periodFrom === f.periodTo ? f.periodFrom : `${f.periodFrom}–${f.periodTo}`;
+        throw new BusinessRuleError(409, {
+          code: "vat_period_overlaps",
+          error: `${theirs} is already filed (return ${f.zatcaReference}), so ${periodFrom}–${periodTo} would file those months twice and clear their VAT twice. File only the months no return covers, or record an amendment of ${f.zatcaReference}.`,
+          errorAr: `الفترة ${theirs} مُقرَّة مسبقًا (الإقرار ${f.zatcaReference})، فإقرار ${periodFrom}–${periodTo} يُقِرّ تلك الأشهر مرتين ويُسوّي ضريبتها مرتين. أقِرّ الأشهر التي لا يغطيها إقرار فقط، أو سجّل تعديلًا للإقرار ${f.zatcaReference}.`,
+          field: "periodFrom",
+        });
+      }
     }
     const [row] = await periodRecordsRepository.insertVatFiling({
       periodFrom: periodFrom as string, periodTo: periodTo as string, kind, amendsZatcaReference: amends,
