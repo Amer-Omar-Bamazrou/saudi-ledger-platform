@@ -2351,9 +2351,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/VatReturnFiling"
         "409":
-          description: The original for that period, or that reference, is already recorded
+          description: "The original for that period, or that reference, is already recorded; or `vat_period_overlaps` — an original whose months overlap another original's (each month is on one return; change a filed period by an amendment)"
         "422":
-          description: Invalid
+          description: "Invalid; or `amended_period_mismatch` — an amendment covers exactly the period of the return it amends"
         "423":
           description: "`period_closed` — the filing date's month is closed, so its clearing entry cannot post; nothing is recorded"
 
