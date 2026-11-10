@@ -363,6 +363,19 @@ export default function Approvals() {
         title: t("Planned payments", "الدفعات المخططة"), entityKey: "payment-plans", rows: byEntity("payment-plans"), canSubmit: false,
         hint: t("Approving a plan commits it in the cash forecast; it is paid later through the bill's ordinary payment. Nothing is sent to a bank.", "اعتماد الخطة يجعلها ملتزمًا بها في توقع النقد؛ وتُدفع لاحقًا عبر سداد الفاتورة المعتاد. لا يُرسل شيء إلى أي بنك."),
       })}
+      {/* 🔴 Phase 18 audit A17: submitted quotations, purchase orders and budget versions, each approved through its own routes. */}
+      {section({
+        title: t("Quotations", "عروض الأسعار"), entityKey: "quotations", rows: byEntity("quotations"), canSubmit: false,
+        hint: t("Approving a quotation lets it be sent and converted; it posts nothing.", "اعتماد عرض السعر يتيح إرساله وتحويله؛ ولا يرحّل شيئًا."),
+      })}
+      {section({
+        title: t("Purchase orders", "أوامر الشراء"), entityKey: "purchase-orders", rows: byEntity("purchase-orders"), canSubmit: false,
+        hint: t("Approving an order commits the purchase; it posts nothing until the supplier's bill.", "اعتماد أمر الشراء يلتزم بالشراء؛ ولا يرحّل شيئًا حتى فاتورة المورد."),
+      })}
+      {section({
+        title: t("Budgets", "الموازنات"), entityKey: "budgets", rows: byEntity("budgets"), canSubmit: false,
+        hint: t("A budget version's figures are its lines: open it to review them before approving.", "أرقام نسخة الموازنة هي بنودها: افتحها لمراجعتها قبل الاعتماد."),
+      })}
       <IssueConfirmDialog
         invoiceId={issuing?.id ?? null}
         pending={act.isPending}
