@@ -1,6 +1,6 @@
 /** Journal entries repository — tenant-scoped via RLS. */
 import { db, journalEntriesTable, journalEntryLinesTable, categoriesTable, cashLineBankAttributionsTable } from "@workspace/db";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { JE_IN_BOOKS } from "./reports.repository";
 
 /** The default page. Stated once so the API, the UI and the tests agree. */
@@ -163,8 +163,13 @@ export const journalEntriesRepository = {
       .where(and(inArray(categoriesTable.id, accountIds), eq(categoriesTable.isPosting, false)));
   },
 
+  /**
+   * 🔴 Phase 18 audit A26 (g55's order-dependence): in the order they were written. A refusal names a line by its
+   * position here ("Line 2", `lines[1]`), and an unordered read returns rows in physical order, which a delete +
+   * VACUUM or an update reshuffles — so the refusal named the wrong line now and then.
+   */
   linesByEntry(id: number) {
-    return db.select().from(journalEntryLinesTable).where(eq(journalEntryLinesTable.journalEntryId, id));
+    return db.select().from(journalEntryLinesTable).where(eq(journalEntryLinesTable.journalEntryId, id)).orderBy(asc(journalEntryLinesTable.id));
   },
 
   /**
