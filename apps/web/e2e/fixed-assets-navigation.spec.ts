@@ -41,6 +41,11 @@ const SURFACES = [
 async function expandAllSections(page: Page, scope?: ReturnType<Page["locator"]>) {
   const root = scope ?? page.locator("body");
   const collapsed = root.locator('button[data-nav-section][aria-expanded="false"]');
+  // 🔴 Phase 18 audit A26 (2026-11-10): wait for the signed-in sidebar before counting. `setLang` reloads and resolves
+  // at `load`, before the layout renders (its `dir` check passes at once — the pre-paint script sets it, not React);
+  // counting then found NO collapsed section, returned, and the Fixed Assets section stayed shut: the link the next
+  // click waited for never entered the DOM (both failures were the first click after setLang).
+  await expect(root.locator("button[data-nav-section]").first()).toBeVisible();
   for (let pass = 0; pass < 25; pass++) {
     if ((await collapsed.count()) === 0) return;
     await collapsed.first().click();
