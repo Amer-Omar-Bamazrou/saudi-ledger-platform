@@ -463,13 +463,13 @@ export const CONTROLS: readonly Control[] = [
   // ── Invoices: issue, freeze, parties, rejection ───────────────────────────────────────────────
   {
     id: "G31",
-    title: "An issued invoice's seller identity is stamped from the company at issue, never from the request",
+    title: "An issued invoice's seller identity is stamped from the company at issue, never from the request — at every issuing write, by hash or by status (audit A7, 0157)",
     answers: [],
     type: "preventive",
     activation: ALWAYS,
     refusalCodes: [],
     points: [trigger("invoices", "invoices_issued_identity_trg")],
-    provingTests: ["g31-seller-identity-from-company.test.ts"],
+    provingTests: ["g31-seller-identity-from-company.test.ts", "phase18-audit-a7-status-only-issuance.test.ts"],
   },
   {
     id: "G30",
