@@ -35,7 +35,7 @@ import { invoicesRepository, DEFAULT_PAGE, INVOICE_DRAFT_EDITABLE, type InvoiceL
 import { paymentsRepository } from "../repositories/payments.repository";
 import { paymentsService } from "./payments.service";
 import { customersRepository } from "../repositories/customers.repository";
-import { round2 } from "../lib/money";
+import { round2, moneyInput } from "../lib/money";
 import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./accounting/openingReversed";
 import { businessToday, isAdvanceInvoiceType, isAdvanceDocumentType, isAdvanceCreditNoteType, isRecoveryInvoiceType, isVatOnlyDocumentType } from "@workspace/shared";
 import { advanceInvoicesService, prepaymentsOf, shapePrepayment, type PreparedPrepayment } from "./advanceInvoices.service";
@@ -602,7 +602,7 @@ export const invoicesService = {
 
     // Validate up front — a missing/non-numeric amount previously reached the
     // numeric column and surfaced as an unhandled 500.
-    const paid = Number(amount);
+    const paid = moneyInput(amount);
     if (!Number.isFinite(paid) || paid <= 0) {
       throw new BadRequestError("A positive payment amount is required.");
     }

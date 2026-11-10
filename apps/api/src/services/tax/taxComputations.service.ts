@@ -22,7 +22,7 @@ import { createHash } from "node:crypto";
 import { businessToday } from "@workspace/shared";
 import { SYSTEM_ACCOUNTS, type TaxComputation, type TaxComputationVersion, type ZakatClass } from "@workspace/db";
 import { BadRequestError, BusinessRuleError, NotFoundError, PeriodLockedError } from "../../lib/errors";
-import { fromHalalas, toHalalas } from "../../lib/money";
+import { fromHalalas, toHalalas, moneyInput } from "../../lib/money";
 import { isFiscalCalendar, resolveFiscalYear, type FiscalCalendar } from "../../lib/fiscalYear";
 import { zakatScopeFor } from "../../lib/zakatScope";
 import { companiesRepository } from "../../repositories/companies.repository";
@@ -631,7 +631,7 @@ async function parseAdjustment(c: TaxComputation, body: Record<string, unknown>)
   if (!TARGETS[kind].includes(target)) throw new BadRequestError(`target must be one of ${TARGETS[kind].join(", ")} for a ${kind} computation.`);
   const effect = String(body.effect ?? "");
   if (effect !== "increase" && effect !== "decrease") throw new BadRequestError("effect must be increase or decrease.");
-  const amount = Number(body.amount);
+  const amount = moneyInput(body.amount);
   if (!Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6 || amount > 9_999_999_999_999.99) {
     throw new BadRequestError("amount is a positive amount with at most two decimals.");
   }

@@ -20,7 +20,7 @@
 import { businessToday } from "@workspace/shared";
 import { WHT_PAYMENT_TYPES } from "@workspace/db";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../../lib/errors";
-import { fromHalalas, round2, toHalalas } from "../../lib/money";
+import { fromHalalas, round2, toHalalas, moneyInput } from "../../lib/money";
 import { treasuryRepository, type PlanRow } from "../../repositories/treasury.repository";
 import { billsRepository } from "../../repositories/bills.repository";
 import { assertBankAccount } from "../accounting/bankIdentity";
@@ -45,7 +45,7 @@ const validId = (id: number) => {
 async function planOut(p: PlanRow) {
   const today = businessToday();
   const outstanding = Number(p.bill_outstanding);
-  const amount = Number(p.amount);
+  const amount = moneyInput(p.amount);
   // the WHT a non-resident's payment would withhold on the planned date — an ESTIMATE, decided by the pay
   // path's OWN function (QA 2026-10-04: a second rule here ignored the supplier's declared default nature
   // and an approved treaty relief, so a plan said "no estimate" or showed the statutory rate)

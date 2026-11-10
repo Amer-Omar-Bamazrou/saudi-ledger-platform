@@ -16,7 +16,7 @@
 import { businessToday } from "@workspace/shared";
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../../lib/errors";
-import { fromHalalas, round2, toHalalas } from "../../lib/money";
+import { fromHalalas, round2, toHalalas, moneyInput } from "../../lib/money";
 import { treasuryRepository } from "../../repositories/treasury.repository";
 import { reportsRepository } from "../../repositories/reports.repository";
 import { customerStatementRepository } from "../../repositories/customerStatement.repository";
@@ -380,7 +380,7 @@ function parseEntry(body: Record<string, unknown>) {
   if (!ISO.test(entryDate)) throw new BadRequestError("entryDate is a YYYY-MM-DD date.");
   const direction = String(body.direction ?? "");
   if (direction !== "inflow" && direction !== "outflow") throw new BadRequestError("direction is inflow or outflow.");
-  const amount = Number(body.amount);
+  const amount = moneyInput(body.amount);
   if (!Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6 || amount > 9_999_999_999_999.99) throw new BadRequestError("amount is a positive amount with at most two decimals.");
   const category = String(body.category ?? "other");
   if (!(CATEGORIES as readonly string[]).includes(category)) throw new BadRequestError(`category is one of ${CATEGORIES.join(", ")}.`);
