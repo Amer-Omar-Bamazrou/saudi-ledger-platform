@@ -31,7 +31,7 @@
  * (Odoo reaches the same place: `is_valid` is a flag, not a constraint.)
  */
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
-import { round2 } from "../../lib/money.js";
+import { round2, moneyInput } from "../../lib/money.js";
 import { assertDateString } from "../../lib/writeGuards.js";
 import { bankStatementsRepository } from "../../repositories/bankStatements.repository.js";
 import type { BankStatement } from "@workspace/db";
@@ -124,7 +124,7 @@ async function prepareStatement(bankAccountId: number, input: StatementInput, ro
       const date = typeof r.date === "string" ? r.date : "";
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { problems.push(`${label}: the date is not YYYY-MM-DD.`); return; }
       if (!String(r.description ?? "").trim()) problems.push(`${label}: the description is empty.`);
-      const amount = Number(r.amount);
+      const amount = moneyInput(r.amount);
       if (!Number.isFinite(amount) || amount <= 0) problems.push(`${label}: the amount must be a positive number (the direction is the type).`);
       if (r.type !== "debit" && r.type !== "credit") problems.push(`${label}: the type must be debit or credit.`);
       const currency = String(r.currency ?? "SAR").toUpperCase();

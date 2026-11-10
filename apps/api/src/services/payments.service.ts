@@ -41,7 +41,7 @@
  */
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { asSent, idempotencyOf, keyReusedRefusal, replayOrRefuse, type Idempotency } from "../lib/idempotency";
-import { round2 } from "../lib/money";
+import { round2, moneyInput } from "../lib/money";
 import { assertDateString } from "../lib/writeGuards";
 import { businessToday, isReceivableInBooks } from "@workspace/shared";
 import { assertNotRejected } from "./invoiceCorrections.service";
@@ -469,7 +469,7 @@ export const paymentsService = {
    * it refuses an ALLOCATION beyond an invoice's outstanding (§1.3 (3)).
    */
   async receive(body: ReceiveInput, userId: number | null): Promise<PaymentOut> {
-    const amount = Number(body.amount);
+    const amount = moneyInput(body.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("A positive payment amount is required.");
     const rounded = round2(amount);
     const paidAt = body.paidAt ? assertDateString(body.paidAt, "paidAt") : businessToday();
@@ -875,7 +875,7 @@ export const paymentsService = {
     body: { customerId: unknown; origin: unknown; paymentId?: unknown; creditNoteId?: unknown; amount: unknown; bankAccountId?: unknown; refundedAt?: string | null; reason?: string | null; reference?: string | null; idempotencyKey?: string | null },
     userId: number | null,
   ): Promise<RefundOut> {
-    const amount = Number(body.amount);
+    const amount = moneyInput(body.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("A positive refund amount is required.");
     const rounded = round2(amount);
     const reason = body.reason?.trim();

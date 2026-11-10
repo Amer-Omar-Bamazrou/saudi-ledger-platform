@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto";
 import { businessToday } from "@workspace/shared";
 import { WHT_PAYMENT_TYPES } from "@workspace/db";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../../lib/errors";
-import { fromHalalas, round2, toHalalas } from "../../lib/money";
+import { fromHalalas, round2, toHalalas, moneyInput } from "../../lib/money";
 import { fiscalYearContaining, isFiscalCalendar, resolveFiscalYear } from "../../lib/fiscalYear";
 import { taxRepository, type WithholdingRow } from "../../repositories/tax.repository";
 import { companiesRepository } from "../../repositories/companies.repository";
@@ -153,7 +153,7 @@ export const whtService = {
   async preview(q: Record<string, unknown>) {
     const vendorId = Number(q.vendorId);
     if (!Number.isSafeInteger(vendorId) || vendorId <= 0 || vendorId > MAX_ID) throw new BadRequestError("vendorId must be a positive integer.");
-    const amount = Number(q.amount);
+    const amount = moneyInput(q.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("amount must be a positive amount.");
     const date = typeof q.date === "string" && q.date ? q.date : businessToday();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new BadRequestError("date must be YYYY-MM-DD.");
@@ -465,7 +465,7 @@ export const whtService = {
     if (await journalEntriesRepository.reconciledToStatement(r.journalEntryId)) {
       refuse(409, "wht_remittance_reconciled", "A bank statement line is reconciled to this remittance. Undo that reconciliation first.");
     }
-    const amount = Number(r.amount), fine = Number(r.fineAmount);
+    const amount = moneyInput(r.amount), fine = Number(r.fineAmount);
     const label = r.period ?? "OPENING";
     let row;
     try {

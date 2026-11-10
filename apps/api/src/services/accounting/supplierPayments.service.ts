@@ -40,7 +40,7 @@ import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
 import { asSent, idempotencyOf, replayOrRefuse } from "../../lib/idempotency.js";
 import { companyScoped } from "../../repositories/companyScope.js";
 import { idFromBody, isIntegerId } from "../../lib/inputGuards.js";
-import { fromHalalas, round2 } from "../../lib/money.js";
+import { fromHalalas, round2, moneyInput } from "../../lib/money.js";
 import { businessToday } from "@workspace/shared";
 import { auditService } from "../audit.service.js";
 import { postJournalEntry } from "./glPosting.js";
@@ -345,7 +345,7 @@ export const supplierPaymentsService = {
 
     const date = typeof body.date === "string" && body.date ? body.date : businessToday();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) refuse("date_invalid", "The reversal date is a YYYY-MM-DD date.", "date");
-    const amount = Number(alloc.amount);
+    const amount = moneyInput(alloc.amount);
 
     /**
      * 🔴 A CREDIT-NOTE APPLICATION IS UNDONE WITH NO ENTRY, because applying

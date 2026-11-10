@@ -46,7 +46,7 @@
 import { DEFAULT_VAT_RATE, businessToday, ADVANCE_INVOICE_TYPE, ADVANCE_CREDIT_NOTE_TYPE, INVOICE_IN_BOOKS_STATUSES } from "@workspace/shared";
 import { invoiceSettlementRepository } from "../repositories/payments.repository";
 import { BadRequestError, BusinessRuleError, NotFoundError, PeriodLockedError } from "../lib/errors";
-import { round2 } from "../lib/money";
+import { round2, moneyInput } from "../lib/money";
 import { assertDateString } from "../lib/writeGuards";
 import { paymentsRepository } from "../repositories/payments.repository";
 import { advanceInvoicesRepository, type AdvanceFigures } from "../repositories/advanceInvoices.repository";
@@ -211,7 +211,7 @@ export const advanceInvoicesService = {
     body: { amount: unknown; date?: string | null; description?: string | null; descriptionAr?: string | null; taxExemptionReasonCode?: string | null; taxExemptionReasonText?: string | null; notes?: string | null; idempotencyKey?: string | null },
     userId: number | null,
   ) {
-    const amount = Number(body.amount);
+    const amount = moneyInput(body.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("A positive advance amount (VAT inclusive) is required.");
     const gross = round2(amount);
     const idempotencyKey = body.idempotencyKey?.trim() || null;
@@ -424,7 +424,7 @@ export const advanceInvoicesService = {
     body: { amount: unknown; reason?: string | null; date?: string | null; notes?: string | null; idempotencyKey?: string | null },
     userId: number | null,
   ) {
-    const amount = Number(body.amount);
+    const amount = moneyInput(body.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("A positive credit amount (VAT inclusive) is required.");
     const gross = round2(amount);
     const reason = body.reason?.trim();

@@ -25,7 +25,7 @@ import {
 } from "@workspace/db";
 import { SYSTEM_ACCOUNTS } from "@workspace/db";
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
-import { round2, spreadOverPeriods } from "../../lib/money.js";
+import { round2, spreadOverPeriods, moneyInput } from "../../lib/money.js";
 import { runItemFailure } from "../../lib/runItemFailure.js";
 import { withSavepoint } from "../../lib/savepoint.js";
 import { protectedAccountRule } from "@workspace/shared";
@@ -213,7 +213,7 @@ export const recognitionSchedulesService = {
       throw new BusinessRuleError(409, { code: "recognition_out_of_order", error: `Recognise ${firstOpen.period} first — a schedule is recognised in order, or the gap reads like a period nobody has reached yet.` });
     }
 
-    const amount = Number(row.amount);
+    const amount = moneyInput(row.amount);
     const [expense] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, schedule.expenseAccountId)).limit(1);
     const [balance] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, schedule.balanceAccountId)).limit(1);
 

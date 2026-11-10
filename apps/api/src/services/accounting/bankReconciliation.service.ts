@@ -28,7 +28,7 @@
  * batch. Never amount alone, never amount and date, never nearest date.
  */
 import { BusinessRuleError, NotFoundError } from "../../lib/errors.js";
-import { round2 } from "../../lib/money.js";
+import { round2, moneyInput } from "../../lib/money.js";
 import { auditService } from "../audit.service.js";
 import { bankReconciliationRepository, type CandidateRow, type LineStatus, type StatementLineRow } from "../../repositories/bankReconciliation.repository.js";
 import { MATCH_DATE_WINDOW_DAYS, referenceTokens } from "./matchingPolicy.js";
@@ -64,7 +64,7 @@ export function statusOf(amount: number, reconciled: number): LineStatus {
 }
 
 function lineOut(r: StatementLineRow) {
-  const amount = Number(r.amount);
+  const amount = moneyInput(r.amount);
   const reconciled = round2(Number(r.reconciled));
   return {
     id: r.id, bankAccountId: r.bank_account_id, bankStatementId: r.bank_statement_id,
