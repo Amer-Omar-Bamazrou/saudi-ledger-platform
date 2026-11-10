@@ -1100,6 +1100,13 @@
       "when": 1794234845825,
       "tag": "0156_audit_a10_issued_parties_complete",
       "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1794322737743,
+      "tag": "0157_audit_a7_issued_identity_by_status",
+      "breakpoints": true
     }
   ]
 }
