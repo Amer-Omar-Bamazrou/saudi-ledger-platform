@@ -1093,6 +1093,13 @@
       "when": 1793705402576,
       "tag": "0155_dr20_posting_authority",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1794234845825,
+      "tag": "0156_audit_a10_issued_parties_complete",
+      "breakpoints": true
     }
   ]
 }

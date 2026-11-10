@@ -510,13 +510,16 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "G50",
-    title: "The signed document states the seller the issuing write stamped, never a live read",
+    title: "The signed document states the parties the issuing write captured — the seller's stamp and every other party field (audit A10) — never a live read",
     answers: [],
     type: "preventive",
     activation: ALWAYS,
     refusalCodes: [],
-    points: [code(`${API}/services/einvoice/einvoiceInput.loader.ts`, "loadEInvoiceInput")],
-    provingTests: ["phase18-prc-g50-seller-window.test.ts"],
+    points: [
+      code(`${API}/services/einvoice/einvoiceInput.loader.ts`, "loadEInvoiceInput"),
+      code(`${API}/services/issuedParties.ts`, "captureIssuedParties"),
+    ],
+    provingTests: ["phase18-prc-g50-seller-window.test.ts", "phase18-audit-a10-xml-parties-read-once.test.ts"],
   },
   {
     id: "T1c",
