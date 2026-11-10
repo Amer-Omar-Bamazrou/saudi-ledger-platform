@@ -526,6 +526,12 @@ export const migrationCommitService = {
     const [lockNow] = await migrationRepository.periodLockByPeriod(period);
     const ownLock = lockNow != null && batch.periodLockId != null && lockNow.id === batch.periodLockId;
     if (lockNow && !ownLock) blockers.push(`${period} was closed by someone else since the migration (lock #${lockNow.id}); reopen it deliberately first`);
+    // 🔴 Phase 18 audit A11 (DR-30): the reversal reopens the opening month and posts its mirror there. A month of a
+    // fiscal year whose statements were authorised for issue is never reopened — by this path either.
+    const authorised = await periodLocksService.statementsAuthorisedCovering(period);
+    if (authorised) {
+      blockers.push(`${period} belongs to the fiscal year ${authorised.fiscalYearStart} – ${authorised.fiscalYearEnd}, whose financial statements were authorised for issue on ${authorised.authorisedOn}; its months are never reopened, so the opening position cannot be withdrawn — post dated corrections in an open month instead`);
+    }
     const parties = await migrationRepository.parties(batchId);
 
     // ── Q3 (§14.3, Option A): the batch's fixed assets, and the depreciation posted on them since ──

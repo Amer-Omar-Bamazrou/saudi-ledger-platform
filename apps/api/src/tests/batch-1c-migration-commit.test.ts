@@ -384,6 +384,62 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     await inCompany2(() => migrationCommitService.reverse(b.id, { reason: "isolation fixture teardown" }, userId));
   });
 
+  it("🔴 Phase 18 audit A11 (DR-30) — a reversal never reopens a month of a fiscal year whose statements were authorised for issue: the preview names it, the reversal and the lock's own reopen are refused, nothing posts", async () => {
+    // T1e's DR-30 rule on the reversal path (control registry: T1e).
+    // Company 2's migration into a PAST fiscal year (opening 2025-06-30; fiscal years start in January), whose
+    // statements are then authorised for issue — the fact DR-30 protects: such a year's months never reopen.
+    const b = await create("2025-07-01", inCompany2);
+    const existing3100 = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND account_code = '3100'`, [orgId])).rows[0].id;
+    await mapChart(b.id, [
+      { sourceCode: "1100", sourceName: "Co2 bank", sourceType: "asset", openingDebit: 900, sourceRole: "bank", evidenceNote: "stmt" },
+      { sourceCode: "1200", sourceName: "Debtors", sourceType: "asset", openingDebit: 100, sourceRole: "receivable" },
+      { sourceCode: "3100", sourceName: "Capital", sourceType: "equity", openingCredit: 1000 },
+    ], { banks: [bankC2, bankC2], run: inCompany2, mergeInto: { "3100": existing3100 } });
+    await inCompany2(() => migrationStagingService.importParties(b.id, { rows: [{ partyType: "customer", sourceId: "C1", name: "Co2 customer" }] }, userId));
+    await inCompany2(() => migrationStagingService.importOpenItems(b.id, { rows: [{ itemType: "ar", sourceId: "S1", partySourceId: "C1", documentNumber: "INV-A11-1", issueDate: "2025-06-01", dueDate: "2025-06-30", originalAmount: 100, outstandingAmount: 100 }] }, userId));
+    expect((await inCompany2(() => migrationValidationService.validate(b.id, userId))).ok).toBe(true);
+    expect((await inCompany2(() => migrationCommitService.commit(b.id, userId))).status).toBe("committed");
+    const batchState = async () => (await pool.query(
+      // the opening month's lock found by company and month: a reversal clears the batch's own period_lock_id
+      `SELECT b.status, l.period, l.reopened_at, (SELECT count(*)::int FROM journal_entries e WHERE e.company_id = b.company_id AND e.date = b.opening_date::text) AS entries
+         FROM migration_batches b
+         JOIN LATERAL (SELECT period, reopened_at FROM period_locks p WHERE p.company_id = b.company_id AND p.period = to_char(b.opening_date, 'YYYY-MM') ORDER BY p.id DESC LIMIT 1) l ON true
+        WHERE b.id = $1`, [b.id])).rows[0];
+    let auth: number | null = null;
+    try {
+      const before = await batchState();
+      expect(before).toMatchObject({ status: "committed", period: "2025-06", reopened_at: null });
+      // presence of the control: without the authorisation the preview has no blocker
+      expect((await inCompany2(() => migrationCommitService.reversalPreview(b.id))).blockers).toEqual([]);
+
+      auth = (await pool.query(
+        `INSERT INTO statement_authorisations (organization_id, company_id, fiscal_year_start, fiscal_year_end, authorised_on, authorised_by)
+         VALUES ($1,$2,'2025-01-01','2025-12-31','2026-03-01','Board of directors') RETURNING id`, [orgId, company2Id])).rows[0].id as number;
+      const preview = await inCompany2(() => migrationCommitService.reversalPreview(b.id));
+      expect(preview.blockers).toEqual([expect.stringMatching(/2025-06.*authorised for issue/)]);
+      await expectRefusal(inCompany2(() => migrationCommitService.reverse(b.id, { reason: "opening position withdrawn after authorisation" }, userId)), 422, "migration_reversal_blocked", /authorised for issue/);
+      // the seam the reversal uses refuses on its own too — no other caller can reopen such a month through it
+      const lockId = (await pool.query(`SELECT period_lock_id FROM migration_batches WHERE id = $1`, [b.id])).rows[0].period_lock_id;
+      await expectRefusal(inCompany2(() => periodLocksService.reopenForMigrationReversal(lockId, "2025-06", b.id, userId)), 422, "statements_authorised");
+      expect(await batchState(), "absence: still committed, its month still closed, no mirror posted").toEqual(before);
+
+      // movement: the same reversal, once no authorisation covers the year, reopens the month and posts its mirror
+      await replica(pool).query(`DELETE FROM statement_authorisations WHERE id = $1`, [auth]);
+      auth = null;
+      await inCompany2(() => migrationCommitService.reverse(b.id, { reason: "audit A11: no authorisation covers the year now" }, userId));
+      const after = await batchState();
+      expect(after.status).toBe("reversed");
+      expect(after.reopened_at).not.toBeNull();
+      expect(after.entries).toBeGreaterThan(before.entries);
+    } finally {
+      // teardown even on failure: the later cases need company 2 without a committed batch
+      if (auth != null) await replica(pool).query(`DELETE FROM statement_authorisations WHERE id = $1`, [auth]);
+      if ((await pool.query(`SELECT status FROM migration_batches WHERE id = $1`, [b.id])).rows[0].status === "committed") {
+        await inCompany2(() => migrationCommitService.reverse(b.id, { reason: "audit A11 fixture teardown" }, userId));
+      }
+    }
+  });
+
   it("🔴 3 — atomicity: a failure at three different points inside the commit leaves NOTHING behind and the batch recoverable", async () => {
     // A fresh company-1 batch needs the committed one reversed first — done in test 20 below; here a separate fixture company is cheaper: reuse company 2 (its batch was reversed).
     const b = await create("2026-07-01", inCompany2);
