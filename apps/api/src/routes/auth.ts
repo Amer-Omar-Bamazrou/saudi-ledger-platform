@@ -264,7 +264,7 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
     // 🔴 R-1 (DR-27, 24 hours; register §11.83): an operator's break-glass password is refused once its window has
     // passed — checked AFTER the hash verified, so the timing is a wrong password's. Only a new reset answers it.
     if (user.breakGlassExpiresAt && user.breakGlassExpiresAt.getTime() <= Date.now()) {
-      res.status(401).json({ code: "break_glass_expired", error: "The temporary password has expired (it was usable for 24 hours). Ask the platform for a new reset." });
+      res.status(401).json({ code: "break_glass_expired", error: "The temporary password has expired (it was usable for 24 hours). Ask the platform for a new reset.", errorAr: "انتهت صلاحية كلمة المرور المؤقتة (كانت صالحة 24 ساعة). اطلب من المنصة إعادة تعيين جديدة." });
       void recordSignInEvent("auth.login_failed", { id: user.id, email: user.email }, { actor: false, ipAddress: req.ip ?? null, metadata: { reason: "break_glass_expired" } })
         .catch((err) => req.log.error({ err }, "refused sign-in not recorded"));
       return;

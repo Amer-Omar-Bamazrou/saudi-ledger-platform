@@ -351,6 +351,9 @@ export const journalEntriesService = {
           error: protectedRule.classifiableCorrection
             ? `Line ${i + 1} posts to ${acct?.name ?? protectedRule.code}, which only a classified correction reaches: state the correction's kind (error, estimate or policy).`
             : `Line ${i + 1} posts to ${acct?.name ?? protectedRule.code}, which is written only by ${protectedRule.writtenBy} — not by a manual journal.`,
+          errorAr: protectedRule.classifiableCorrection
+            ? `السطر ${i + 1} يرحّل إلى ${acct?.name ?? protectedRule.code}، ولا يصل إليه إلا تصحيح مصنَّف: حدّد نوع التصحيح (خطأ، أو تقدير، أو سياسة).`
+            : `السطر ${i + 1} يرحّل إلى ${acct?.name ?? protectedRule.code}، ولا يكتب فيه إلا ${protectedRule.writtenByAr} — لا القيد اليدوي.`,
           field: `lines[${i}].accountId`,
         });
       }

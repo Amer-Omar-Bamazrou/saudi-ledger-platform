@@ -13,12 +13,12 @@
 import type { NextFunction, Request, Response } from "express";
 import { fitsIntegerColumn, hasNul } from "../lib/inputGuards";
 
-type Refusal = { error: string; code: string; field?: string };
+type Refusal = { error: string; code: string; field?: string; errorAr?: string };
 
-const NUL_IN_TEXT: Refusal = { error: "A text field contains a NUL character.", code: "nul_in_text" };
-const NUL_IN_URL: Refusal = { error: "The address contains a NUL character.", code: "nul_in_url" };
-const INVALID_ID: Refusal = { error: "The address names an id that cannot exist.", code: "invalid_id_in_path" };
-const MALFORMED_PATH: Refusal = { error: "The address is malformed.", code: "malformed_path" };
+const NUL_IN_TEXT: Refusal = { error: "A text field contains a NUL character.", errorAr: "يحتوي حقل نصي على محرف NUL.", code: "nul_in_text" };
+const NUL_IN_URL: Refusal = { error: "The address contains a NUL character.", errorAr: "يحتوي العنوان على محرف NUL.", code: "nul_in_url" };
+const INVALID_ID: Refusal = { error: "The address names an id that cannot exist.", errorAr: "يذكر العنوان معرّفًا لا يمكن أن يوجد.", code: "invalid_id_in_path" };
+const MALFORMED_PATH: Refusal = { error: "The address is malformed.", errorAr: "العنوان غير سليم.", code: "malformed_path" };
 
 /** The dotted path of the first string or key holding a NUL, or null. A loop, not recursion: a deep body must not overflow the stack. */
 export function firstNulField(value: unknown): string | null {

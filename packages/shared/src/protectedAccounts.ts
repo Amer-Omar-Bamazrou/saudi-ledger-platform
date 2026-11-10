@@ -16,19 +16,19 @@
  * line (`bankLineSettles`) and close to the manual journal and recognition.
  */
 export const PROTECTED_SYSTEM_ACCOUNTS = {
-  RETAINED_EARNINGS: { writtenBy: "a classified correction (a manual journal stating its IAS 8 kind: error, estimate or policy)", classifiableCorrection: true, bankLineSettles: false },
-  SALARIES_PAYABLE: { writtenBy: "a payroll run, and the salary bank line that pays it", classifiableCorrection: false, bankLineSettles: true },
-  GOSI_PAYABLE: { writtenBy: "a payroll run, and the GOSI bank line that pays it", classifiableCorrection: false, bankLineSettles: true },
-  VAT_INPUT: { writtenBy: "a bill, an expense, a supplier note, the evidence claim and the VAT return's filing", classifiableCorrection: false, bankLineSettles: false },
-  VAT_OUTPUT: { writtenBy: "an invoice, a credit or debit note and the VAT return's filing", classifiableCorrection: false, bankLineSettles: false },
-  VAT_AWAITING_EVIDENCE: { writtenBy: "a bill awaiting its evidence and the evidence claim", classifiableCorrection: false, bankLineSettles: false },
-  VAT_PAYMENT: { writtenBy: "the VAT return's filing, and the remittance bank line that settles it", classifiableCorrection: false, bankLineSettles: true },
+  RETAINED_EARNINGS: { writtenByAr: "تصحيح مصنَّف (قيد يدوي يذكر نوعه وفق معيار المحاسبة الدولي 8: خطأ، أو تقدير، أو سياسة)", writtenBy: "a classified correction (a manual journal stating its IAS 8 kind: error, estimate or policy)", classifiableCorrection: true, bankLineSettles: false },
+  SALARIES_PAYABLE: { writtenByAr: "مسيّر الرواتب، وحركة البنك للرواتب التي تسدده", writtenBy: "a payroll run, and the salary bank line that pays it", classifiableCorrection: false, bankLineSettles: true },
+  GOSI_PAYABLE: { writtenByAr: "مسيّر الرواتب، وحركة البنك للتأمينات الاجتماعية التي تسدده", writtenBy: "a payroll run, and the GOSI bank line that pays it", classifiableCorrection: false, bankLineSettles: true },
+  VAT_INPUT: { writtenByAr: "فاتورة المورد، أو المصروف، أو إشعار المورد، أو مطالبة الإثبات، أو تسوية إقرار ضريبة القيمة المضافة", writtenBy: "a bill, an expense, a supplier note, the evidence claim and the VAT return's filing", classifiableCorrection: false, bankLineSettles: false },
+  VAT_OUTPUT: { writtenByAr: "الفاتورة، أو الإشعار الدائن أو المدين، أو تسوية إقرار ضريبة القيمة المضافة", writtenBy: "an invoice, a credit or debit note and the VAT return's filing", classifiableCorrection: false, bankLineSettles: false },
+  VAT_AWAITING_EVIDENCE: { writtenByAr: "فاتورة المورد التي تنتظر إثباتها، ومطالبة الإثبات", writtenBy: "a bill awaiting its evidence and the evidence claim", classifiableCorrection: false, bankLineSettles: false },
+  VAT_PAYMENT: { writtenByAr: "تسوية إقرار ضريبة القيمة المضافة، وحركة البنك لسداد الضريبة التي تسويها", writtenBy: "the VAT return's filing, and the remittance bank line that settles it", classifiableCorrection: false, bankLineSettles: true },
 } as const;
 
 export type ProtectedSystemAccount = keyof typeof PROTECTED_SYSTEM_ACCOUNTS;
 
 /** The rule for a system code, or null when the code is not protected (a plain account, or no code at all). */
-export function protectedAccountRule(systemCode: string | null | undefined): { code: ProtectedSystemAccount; writtenBy: string; classifiableCorrection: boolean; bankLineSettles: boolean } | null {
+export function protectedAccountRule(systemCode: string | null | undefined): { code: ProtectedSystemAccount; writtenBy: string; writtenByAr: string; classifiableCorrection: boolean; bankLineSettles: boolean } | null {
   if (!systemCode || !(systemCode in PROTECTED_SYSTEM_ACCOUNTS)) return null;
   const code = systemCode as ProtectedSystemAccount;
   return { code, ...PROTECTED_SYSTEM_ACCOUNTS[code] };
