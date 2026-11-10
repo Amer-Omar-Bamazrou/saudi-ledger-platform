@@ -30,7 +30,7 @@ async function inServiceAsset(request: APIRequestContext) {
     }), "category")).id;
   }
   const asset = await json<{ id: number; assetNumber: string }>(request.post("/api/assets", {
-    data: { name: `A14 sale asset ${stamp}`, categoryId, acquisitionDate: "2026-01-05", cost: 1000 },
+    data: { name: `A14 sale asset ${stamp}`, categoryId, acquisitionDate: "2026-01-05", availableForUseDate: "2026-01-05", cost: 1000 },
   }), "asset");
   const vendors = await json<{ items: Array<{ id: number; name: string }> }>(request.get("/api/vendors?limit=200"), "vendors");
   const vendor = vendors.items.find((v) => /E2E Vendor/.test(v.name)) ?? vendors.items[0]!;
