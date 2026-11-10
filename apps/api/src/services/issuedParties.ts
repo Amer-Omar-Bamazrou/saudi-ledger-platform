@@ -25,6 +25,9 @@ export interface IssuedSeller {
   city: string | null;
   postalCode: string | null;
   logoPath: string | null;
+  /** 🔴 Audit A10 (0156): every further field the signed e-invoice states, so its loader reads nothing live. Absent on
+   * documents issued before 0156. */
+  additionalNumber?: string | null;
 }
 
 export interface IssuedBuyer {
@@ -37,6 +40,11 @@ export interface IssuedBuyer {
   district: string | null;
   city: string | null;
   postalCode: string | null;
+  /** 🔴 Audit A10 (0156): as on IssuedSeller. */
+  additionalNumber?: string | null;
+  province?: string | null;
+  country?: string | null;
+  nationalId?: string | null;
 }
 
 /** Read inside the issuing transaction, beside G31's seller stamp and G30's bank capture. */
@@ -52,6 +60,7 @@ export async function captureIssuedParties(companyId: string, customerId: number
     city: company.city ?? null,
     postalCode: company.postalCode ?? null,
     logoPath: company.logoPath ?? null,
+    additionalNumber: company.additionalNumber ?? null,
   };
   if (customerId == null) return { seller, buyer: null };
   const [customer] = await customersRepository.findById(customerId);
@@ -68,6 +77,10 @@ export async function captureIssuedParties(companyId: string, customerId: number
       district: customer.district ?? null,
       city: customer.city ?? null,
       postalCode: customer.postalCode ?? null,
+      additionalNumber: customer.additionalNumber ?? null,
+      province: customer.province ?? null,
+      country: customer.country ?? null,
+      nationalId: customer.nationalId ?? null,
     },
   };
 }
