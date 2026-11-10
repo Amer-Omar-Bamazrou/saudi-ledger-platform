@@ -57,6 +57,7 @@ import { auditService } from "./audit.service";
 import { buildInvoiceOut, type PrepaymentOut } from "./invoices.presenter";
 import { isNoteType } from "./creditNotes";
 import type { Payment } from "@workspace/db";
+import { isIntegerId } from "../lib/inputGuards";
 
 export type AdvanceVatCategory = "S" | "Z" | "E";
 
@@ -370,7 +371,7 @@ export const advanceInvoicesService = {
     let sum = 0;
     for (const [i, raw] of (input as Array<{ advanceInvoiceId?: unknown; amount?: unknown }>).entries()) {
       const advanceInvoiceId = Number(raw?.advanceInvoiceId);
-      if (!Number.isInteger(advanceInvoiceId) || advanceInvoiceId <= 0) throw new BadRequestError(`prepayments[${i}].advanceInvoiceId must be a positive integer.`);
+      if (!isIntegerId(advanceInvoiceId)) throw new BadRequestError(`prepayments[${i}].advanceInvoiceId must be a positive integer.`);
       if (seen.has(advanceInvoiceId)) throw new BusinessRuleError(422, { error: `Advance tax invoice ${advanceInvoiceId} appears twice — one line per advance invoice.`, code: "prepayment_duplicate_advance", field: "prepayments" });
       seen.add(advanceInvoiceId);
       const [adv] = await invoicesRepository.findById(advanceInvoiceId);

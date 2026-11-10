@@ -67,6 +67,7 @@ import { auditService } from "./audit.service";
 import { buildInvoiceOut } from "./invoices.presenter";
 import { splitGross } from "./advanceInvoices.service";
 import { assertTaxPointPeriodOpen } from "./advanceInvoices.service";
+import { isIntegerId } from "../lib/inputGuards";
 
 const TOL = 0.005;
 const num = (v: unknown) => (v == null ? 0 : Number(v));
@@ -228,7 +229,7 @@ export const badDebtService = {
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError("A positive recovered amount is required.");
     const gross = round2(amount);
     const paymentId = Number(body.paymentId);
-    if (!Number.isInteger(paymentId) || paymentId <= 0) throw new BadRequestError("paymentId must be a positive integer.");
+    if (!isIntegerId(paymentId)) throw new BadRequestError("paymentId must be a positive integer.");
     const idempotencyKey = body.idempotencyKey?.trim() || null;
     if (idempotencyKey) {
       const [existing] = await invoicesRepository.findByIdempotencyKey(idempotencyKey);

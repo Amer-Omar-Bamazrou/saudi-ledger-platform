@@ -13,10 +13,11 @@
  */
 import type { Request } from "express";
 import { BadRequestError } from "./errors";
+import { isIntegerId } from "./inputGuards";
 
 export function requireIdParam(req: Request, name = "id"): number {
   const id = Number(req.params[name]);
-  if (!Number.isInteger(id) || id <= 0) throw new BadRequestError(`Invalid ${name}`);
+  if (!isIntegerId(id)) throw new BadRequestError(`Invalid ${name}`);
   return id;
 }
 

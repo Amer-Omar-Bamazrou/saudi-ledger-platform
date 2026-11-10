@@ -20,6 +20,7 @@ import { categorizeTransaction, SEED_CATEGORIES, type CategorizationMatch } from
 import { resolveAiProvider } from "../ai/provider";
 import { meteredChat } from "../ai/metered";
 import { loadEnv } from "@workspace/config";
+import { isIntegerId } from "../../lib/inputGuards";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -140,7 +141,7 @@ function parseLlmResponse(raw: string): { categoryId: number; confidence: number
     const parsed = JSON.parse(match[0]);
     const categoryId = Number(parsed.categoryId);
     const confidence = Math.min(1, Math.max(0, Number(parsed.confidence ?? 0.7)));
-    if (!Number.isInteger(categoryId) || categoryId < 1) return null;
+    if (!isIntegerId(categoryId)) return null;
     const cat = SEED_CATEGORIES.find(c => c.id === categoryId);
     if (!cat) return null;
     return { categoryId, confidence };

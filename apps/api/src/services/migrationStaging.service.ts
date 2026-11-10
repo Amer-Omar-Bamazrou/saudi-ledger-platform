@@ -29,6 +29,7 @@ import { auditService } from "./audit.service";
 import { migrationService } from "./migration.service";
 import { assetsRepository } from "../repositories/assets.repository";
 import { migratedAssetsService, migrationAssetProblems, type MigrationAssetInput } from "./assets/migratedAssets.service";
+import { isIntegerId } from "../lib/inputGuards";
 
 const ISO_TIME = /^\d{2}:\d{2}(:\d{2})?$/;
 const num = (v: unknown) => Number(v ?? 0);
@@ -404,7 +405,7 @@ export const migrationStagingService = {
     const values: Partial<MigrationParty> = { decision: body.decision, existingCustomerId: null, existingVendorId: null, decidedBy: userId, decidedAt: new Date() };
     if (body.decision === "use_existing") {
       const id = Number(body.existingId);
-      if (!Number.isInteger(id) || id <= 0) throw new BadRequestError("use_existing needs existingId.");
+      if (!isIntegerId(id)) throw new BadRequestError("use_existing needs existingId.");
       const [existing] = row.partyType === "customer" ? await migrationRepository.customersByIds([id]) : await migrationRepository.vendorsByIds([id]);
       if (!existing) throw new BusinessRuleError(422, { error: `${row.partyType} ${id} does not exist for this organisation.`, code: "reference_not_found", field: "existingId" });
       const others = (await migrationRepository.parties(batchId)).filter((p) => p.id !== row.id && p.partyType === row.partyType && (row.partyType === "customer" ? p.existingCustomerId : p.existingVendorId) === id);
