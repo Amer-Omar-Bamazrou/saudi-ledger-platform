@@ -103,6 +103,7 @@ async function assertCategoryExists(categoryId: unknown): Promise<void> {
   if (protectedRule && !protectedRule.bankLineSettles) {
     throw new BusinessRuleError(422, {
       error: `${cat.name} is written only by ${protectedRule.writtenBy} — not by a bank transaction's category.`,
+      errorAr: `${cat.name} لا يكتب فيه إلا ${protectedRule.writtenByAr} — لا تصنيف الحركة البنكية.`,
       code: "protected_account",
       field: "categoryId",
     });

@@ -267,6 +267,9 @@ export async function assertNoteIsValid(input: {
           `This credit note is ${fmt(input.total)} but only ${fmt(remaining)} remains creditable ` +
           `against invoice ${original.invoiceNumber} (invoice total ${fmt(originalTotal)}, ` +
           `already credited ${fmt(alreadyCredited)}).`,
+        errorAr:
+          `قيمة هذا الإشعار الدائن ${fmt(input.total)} لكن المتبقي القابل للإشعار على الفاتورة ${original.invoiceNumber} هو ${fmt(remaining)} فقط ` +
+          `(إجمالي الفاتورة ${fmt(originalTotal)}، والمُشعَر به سابقًا ${fmt(alreadyCredited)}).`,
         originalTotal: fmt(originalTotal),
         alreadyCredited: fmt(alreadyCredited),
         remaining: fmt(remaining),

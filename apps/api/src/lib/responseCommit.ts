@@ -82,6 +82,7 @@ export const COMMIT_FAILED_BODY = {
 export const COMMIT_ROLLED_BACK_BODY = {
   error:
     "The change could not be saved: part of it failed, so nothing was written. Tell your administrator — trying again is likely to fail the same way.",
+  errorAr: "تعذر حفظ التغيير: فشل جزء منه، فلم يُكتب شيء. أبلغ مسؤول النظام — فإعادة المحاولة ستفشل غالبًا بالطريقة نفسها.",
   code: "commit_rolled_back",
 } as const;
 
