@@ -203,7 +203,7 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "DR-22",
-    title: "Acts the audit trail missed are recorded: sign-in events, default-bank flips, ZATCA credential acts, seam postings, outbox transitions, refused references",
+    title: "Acts the audit trail missed are recorded: sign-in events, default-bank flips, ZATCA credential acts, seam postings, outbox transitions, refused references, a bill approval's forced override (audit A5)",
     answers: ["G27"],
     type: "detective",
     activation: ALWAYS,
@@ -215,12 +215,14 @@ export const CONTROLS: readonly Control[] = [
       code(`${API}/services/einvoice/onboarding/zatcaOnboarding.service.ts`, "zatcaOnboardingService.recordCredentialAct"),
       code(`${API}/services/audit.service.ts`, "auditService.postedEntry"),
       code(`${API}/middleware/referenceRefusals.ts`, "recordReferenceRefusal"),
+      code(`${API}/services/bills.approvable.ts`, "billApprovable"),
     ],
     provingTests: [
       "phase18-h12-dr22-sign-in-events.test.ts",
       "phase18-h13-dr22-default-bank-zatca-onboarding.test.ts",
       "phase18-h14-dr22-seam-postings.test.ts",
       "phase18-r9-dr22-outbox-and-refusals.test.ts",
+      "phase18-audit-a5-force-recorded.test.ts",
     ],
   },
   {

@@ -21,6 +21,7 @@
  */
 import { BusinessRuleError, NotFoundError } from "../lib/errors";
 import { round2 } from "../lib/money";
+import { auditService } from "./audit.service";
 import { postJournalEntry } from "./accounting/glPosting";
 import { documentSign } from "../repositories/reports.repository";
 import { billsRepository } from "../repositories/bills.repository";
@@ -262,6 +263,13 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
         `diff=${diff.toFixed(2)} SAR; using computed total ${computed} for GL — ` +
         `userId=${actor.userId ?? "unknown"} at ${new Date().toISOString()}`,
     );
+    // 🔴 Phase 18 audit A5 (G27: "audit coverage for every posting and override"): the override is a fact of the
+    // approval, recorded in its transaction — the check, the figures it disagreed on, the total the GL used. The
+    // actor is the connection's own (T1b). Whether `force` should exist is G13/DR-35 (accountant); this records it.
+    await auditService.record({
+      action: "force_override", entityType: "bill", entityId: bill.id,
+      after: { check: "TOTALS_MISMATCH", billNumber: bill.billNumber, subtotal, vatAmount, computedTotal: computed, storedTotal: total, diff: round2(diff), postedTotal: computed },
+    });
   }
 
   /**
@@ -310,6 +318,11 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
       `[FORCE-POST] bill ${bill.id} (${bill.billNumber}) posted with INVALID_VAT_NUMBER ` +
         `vatNumber=${vendorVat} — userId=${actor.userId ?? "unknown"} at ${new Date().toISOString()}`,
     );
+    // 🔴 Phase 18 audit A5: recorded, as the totals override above.
+    await auditService.record({
+      action: "force_override", entityType: "bill", entityId: bill.id,
+      after: { check: "INVALID_VAT_NUMBER", billNumber: bill.billNumber, vendorId: row.vendor?.id ?? null, vendorVatNumber: vendorVat },
+    });
   }
 
   // ── GL: Dr Purchases/Input VAT / Cr Accounts Payable ──
