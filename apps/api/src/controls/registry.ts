@@ -451,13 +451,13 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "DR-18",
-    title: "The approvals queue lists an entity's waiting items only to a role that can approve them, the caller's own marked; a preparer submits from the document's own page",
+    title: "The approvals queue lists every submitted document — quotations, purchase orders and budget versions included (audit A17) — only to a role that can approve it, the caller's own marked; a preparer submits from the document's own page",
     answers: ["G11"],
     type: "approval",
     activation: ALWAYS,
     refusalCodes: [],
     points: [code(`${API}/services/approvalsQueue.service.ts`, "approvalsQueueService.pending")],
-    provingTests: ["phase18-h11-dr18-approvals-audience.test.ts", "phase18-r12-dr18-submit-routes.test.ts"],
+    provingTests: ["phase18-h11-dr18-approvals-audience.test.ts", "phase18-r12-dr18-submit-routes.test.ts", "phase18-audit-a17-queue-completeness.test.ts"],
   },
 
   // ── Invoices: issue, freeze, parties, rejection ───────────────────────────────────────────────
