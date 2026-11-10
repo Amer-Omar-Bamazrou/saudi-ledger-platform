@@ -8,6 +8,8 @@
  * One map for both surfaces: the credit-note posting (Supplier credit notes,
  * Approvals) and the declaration (Migration → AP open items).
  */
+import { tOutside } from "@/contexts/LanguageContext";
+
 type T = (en: string, ar: string) => string;
 
 const TITLES: Record<string, [string, string]> = {
@@ -61,9 +63,15 @@ export function noteRefusalToast(e: unknown, t: T) {
   return { title: openingVatRefusalTitle(code, t) ?? t("Refused", "مرفوض"), description: words, variant: "destructive" as const };
 }
 
+/**
+ * 🔴 Phase 18 audit A25 (2026-11-10): the server's sentence in the reader's language. A refusal carrying `errorAr` is
+ * shown in Arabic to an Arabic reader; one without it keeps the English sentence (never an empty description).
+ */
 export function refusalOf(e: unknown): { code: string | undefined; words: string } {
-  const err = e as { code?: string; body?: { code?: string; error?: string }; data?: { code?: string; error?: string }; message?: string };
+  const err = e as { code?: string; body?: { code?: string; error?: string; errorAr?: string }; data?: { code?: string; error?: string; errorAr?: string }; message?: string };
   const code = err?.code ?? err?.body?.code ?? err?.data?.code;
-  const words = err?.body?.error ?? err?.data?.error ?? err?.message ?? String(e);
+  const english = err?.body?.error ?? err?.data?.error ?? err?.message ?? String(e);
+  const arabic = err?.body?.errorAr ?? err?.data?.errorAr;
+  const words = typeof arabic === "string" && arabic.trim() !== "" ? tOutside(english, arabic) : english;
   return { code, words };
 }

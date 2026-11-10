@@ -798,6 +798,7 @@ export const paymentsService = {
     if (isRecoveryInvoiceType(inv.documentType)) {
       throw new BusinessRuleError(409, {
         error: `Allocation ${allocationId} is the receipt applied by ${inv.invoiceNumber}, the tax invoice issued under Art. 40(9) for consideration recovered after bad-debt relief; the issued document carries it, there is no receivable to restore, and it cannot be unapplied.`,
+        errorAr: `التخصيص ${allocationId} هو الإيصال الذي طبّقته ${inv.invoiceNumber}، الفاتورة الضريبية الصادرة وفق المادة 40(9) عن مقابل استُرد بعد إعفاء الديون المعدومة؛ المستند الصادر يحمله، ولا ذمة مدينة تُستعاد، فلا يمكن إلغاء تطبيقه.`,
         code: "recovery_allocation_immutable",
         field: "id",
       });

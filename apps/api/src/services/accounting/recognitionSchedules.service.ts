@@ -105,7 +105,13 @@ export const recognitionSchedulesService = {
     // cannot be a classified correction, so retained earnings is refused here outright.
     for (const [side, account] of [["balanceAccountId", balance!], ["expenseAccountId", expense!]] as const) {
       const protectedRule = protectedAccountRule(account.systemCode);
-      if (protectedRule) refuse("protected_account", `“${account.name}” is written only by ${protectedRule.writtenBy} — not by a recognition schedule.`, side);
+      if (protectedRule) {
+        throw new BusinessRuleError(422, {
+          code: "protected_account", field: side,
+          error: `“${account.name}” is written only by ${protectedRule.writtenBy} — not by a recognition schedule.`,
+          errorAr: `«${account.name}» لا يكتب فيه إلا ${protectedRule.writtenByAr} — لا جدول الاعتراف.`,
+        });
+      }
     }
     // 🔴 The one account an accrual may never use.
     if (kind === "accrual" && balance!.systemCode === SYSTEM_ACCOUNTS.AP) {

@@ -193,7 +193,8 @@ const queryClient = new QueryClient({
           : status === 409 ? tOutside("That conflicts with the current state", "هذا يتعارض مع الحالة الحالية")
           : status >= 500 ? tOutside("The server could not complete that", "تعذر على الخادم إتمام العملية")
           : tOutside("That could not be saved", "تعذر الحفظ"),
-        description: error instanceof Error ? error.message : tOutside("Please try again.", "يرجى المحاولة مرة أخرى."),
+        // 🔴 A25: the refusal's own sentence in the reader's language (refusalOf), not the raw English message.
+        description: error instanceof Error ? refusalOf(error).words : tOutside("Please try again.", "يرجى المحاولة مرة أخرى."),
       });
     },
   }),
