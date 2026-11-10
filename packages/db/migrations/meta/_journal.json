@@ -1107,6 +1107,13 @@
       "when": 1794322737743,
       "tag": "0157_audit_a7_issued_identity_by_status",
       "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1794328641297,
+      "tag": "0158_audit_a9_pin_period_lock",
+      "breakpoints": true
     }
   ]
 }

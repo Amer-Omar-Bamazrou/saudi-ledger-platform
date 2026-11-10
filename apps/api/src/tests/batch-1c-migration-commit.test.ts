@@ -440,6 +440,57 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     }
   });
 
+  it("🔴 Phase 18 audit A9 (G57) — a committed batch's period_lock_id is pinned: no writer clears or moves it; the reversal's own write still clears it", async () => {
+    // T1e's batch guard (control registry: T1e): the opening month's lock is found THROUGH the batch, so a batch that
+    // forgot its lock let the ordinary reopen reopen the opening month.
+    // Its OWN company, so the case runs and asserts whatever an earlier case left in company 2.
+    const company3Id = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number, fiscal_year_start) VALUES ($1,'B1C Commit Co 3','1010868384','399999999999883',1) RETURNING id`, [orgId])).rows[0].id as string;
+    const inCompany3 = tenant(orgId, company3Id);
+    const bankC3 = (await inCompany3(() => bankAccountsService.create({ name: "Co3 Main", bankName: "ANB", currency: "SAR" }))).id;
+    const b = await create("2025-04-01", inCompany3);
+    const existing3100 = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND account_code = '3100'`, [orgId])).rows[0].id;
+    await mapChart(b.id, [
+      { sourceCode: "1100", sourceName: "Co2 bank", sourceType: "asset", openingDebit: 900, sourceRole: "bank", evidenceNote: "stmt" },
+      { sourceCode: "1200", sourceName: "Debtors", sourceType: "asset", openingDebit: 100, sourceRole: "receivable" },
+      { sourceCode: "3100", sourceName: "Capital", sourceType: "equity", openingCredit: 1000 },
+    ], { banks: [bankC3, bankC3], run: inCompany3, mergeInto: { "3100": existing3100 } });
+    await inCompany3(() => migrationStagingService.importParties(b.id, { rows: [{ partyType: "customer", sourceId: "C1", name: "Co2 customer" }] }, userId));
+    await inCompany3(() => migrationStagingService.importOpenItems(b.id, { rows: [{ itemType: "ar", sourceId: "S1", partySourceId: "C1", documentNumber: "INV-A9-1", issueDate: "2025-03-01", dueDate: "2025-03-31", originalAmount: 100, outstandingAmount: 100 }] }, userId));
+    expect((await inCompany3(() => migrationValidationService.validate(b.id, userId))).ok).toBe(true);
+    expect((await inCompany3(() => migrationCommitService.commit(b.id, userId))).status).toBe("committed");
+    /** One write in a transaction that is always rolled back: the constraint a refusal named, or "admitted". */
+    const attempt = async (sqlText: string, params: unknown[]) => {
+      const c = await pool.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query(sqlText, params);
+        return "admitted";
+      } catch (e) {
+        return (e as { constraint?: string }).constraint ?? `error: ${(e as Error).message}`;
+      } finally {
+        await c.query("ROLLBACK").catch(() => undefined);
+        c.release();
+      }
+    };
+    let reversal = "not attempted";
+    try {
+      const lockId = (await pool.query(`SELECT period_lock_id FROM migration_batches WHERE id = $1`, [b.id])).rows[0].period_lock_id as number;
+      expect(lockId, "the commit placed its lock").not.toBeNull();
+      expect(await attempt(`UPDATE migration_batches SET period_lock_id = NULL WHERE id = $1`, [b.id]), "cleared on a committed batch").toBe("migration_batch_immutable");
+      const otherLock = (await pool.query(`SELECT id FROM period_locks WHERE id <> $1 ORDER BY id LIMIT 1`, [lockId])).rows[0]?.id ?? lockId + 1;
+      expect(await attempt(`UPDATE migration_batches SET period_lock_id = $2 WHERE id = $1`, [b.id, otherLock]), "moved on a committed batch").toBe("migration_batch_immutable");
+      expect((await pool.query(`SELECT period_lock_id FROM migration_batches WHERE id = $1`, [b.id])).rows[0].period_lock_id, "absence: unchanged").toBe(lockId);
+    } finally {
+      // movement, and teardown: the product's reversal clears the pin in its own write (committed → reversed)
+      if ((await pool.query(`SELECT status FROM migration_batches WHERE id = $1`, [b.id])).rows[0].status === "committed") {
+        reversal = await inCompany3(() => migrationCommitService.reverse(b.id, { reason: "audit A9: the reversal clears its own lock" }, userId))
+          .then(() => "reversed", (e: unknown) => (e as { constraint?: string }).constraint ?? String((e as Error).message));
+      }
+    }
+    expect(reversal, "the reversal's own write clears the pin").toBe("reversed");
+    expect((await pool.query(`SELECT status, period_lock_id FROM migration_batches WHERE id = $1`, [b.id])).rows[0]).toEqual({ status: "reversed", period_lock_id: null });
+  });
+
   it("🔴 3 — atomicity: a failure at three different points inside the commit leaves NOTHING behind and the batch recoverable", async () => {
     // A fresh company-1 batch needs the committed one reversed first — done in test 20 below; here a separate fixture company is cheaper: reuse company 2 (its batch was reversed).
     const b = await create("2026-07-01", inCompany2);
@@ -507,7 +558,10 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     expect((await inTenant(() => migrationCommitService.reversalPreview(committedId))).blockers).toEqual([expect.stringMatching(/2026-06 was closed by someone else/)]);
     await replica(pool).query(`DELETE FROM period_locks WHERE id = $1`, [foreign]);
     const own = (await pool.query(`INSERT INTO period_locks (organization_id, company_id, period, notes) VALUES ($1,$2,'2026-06','restored') RETURNING id`, [orgId, companyId])).rows[0].id;
-    await pool.query(`UPDATE migration_batches SET period_lock_id = $2 WHERE id = $1`, [committedId, own]);
+    // AMENDED (Phase 18 audit A9, setup only): a committed batch's period_lock_id is pinned at the database now (0158), so
+    // this fixture repair — re-pointing the batch at the lock recreated above — runs in replica mode, like the DELETE above.
+    // No assertion changed.
+    await replica(pool).query(`UPDATE migration_batches SET period_lock_id = $2 WHERE id = $1`, [committedId, own]);
     const preview = await inTenant(() => migrationCommitService.reversalPreview(committedId));
     expect(preview.blockers).toEqual([]);
     expect(preview.wouldReverse).toMatchObject({ openingJournalEntryId: openingJeId, periodLock: { id: own, period: "2026-06" }, keeps: { customers: 3, vendors: 2, accountsCreated: 3 } });
