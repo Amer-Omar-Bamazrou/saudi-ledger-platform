@@ -61,6 +61,7 @@ import { isNoteType } from "./creditNotes";
 import { isAdvanceInvoiceType, isRecoveryInvoiceType } from "@workspace/shared";
 import { advanceInvoicesService, type ReceiptAdvanceInvoiceOut } from "./advanceInvoices.service";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
+import { isIntegerId } from "../lib/inputGuards";
 
 export type AllocationInput = { invoiceId: number; amount: number };
 
@@ -307,7 +308,7 @@ function parseAllocations(raw: AllocationInput[] | null | undefined): Allocation
   const list = (raw ?? []).map((a, i) => {
     const invoiceId = Number(a?.invoiceId);
     const amount = Number(a?.amount);
-    if (!Number.isInteger(invoiceId) || invoiceId <= 0) throw new BadRequestError(`allocations[${i}].invoiceId must be a positive integer.`);
+    if (!isIntegerId(invoiceId)) throw new BadRequestError(`allocations[${i}].invoiceId must be a positive integer.`);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestError(`allocations[${i}].amount must be a positive number.`);
     return { invoiceId, amount: round2(amount) };
   });
@@ -497,7 +498,7 @@ export const paymentsService = {
 
     const customerId = body.customerId != null ? Number(body.customerId) : null;
     if (customerId != null) {
-      if (!Number.isInteger(customerId) || customerId <= 0) throw new BadRequestError("customerId must be a positive integer.");
+      if (!isIntegerId(customerId)) throw new BadRequestError("customerId must be a positive integer.");
       const [cust] = await customersRepository.findById(customerId);
       if (!cust) throw new BusinessRuleError(422, { error: "Unknown customer for this organization", code: "reference_not_found", field: "customerId" });
     }
@@ -883,7 +884,7 @@ export const paymentsService = {
     const origin = body.origin;
     if (origin !== "deposit" && origin !== "credit_note") throw new BadRequestError('origin must be "deposit" or "credit_note".');
     const customerId = Number(body.customerId);
-    if (!Number.isInteger(customerId) || customerId <= 0) throw new BadRequestError("customerId must be a positive integer.");
+    if (!isIntegerId(customerId)) throw new BadRequestError("customerId must be a positive integer.");
     const refundedAt = body.refundedAt ? assertDateString(body.refundedAt, "refundedAt") : businessToday();
     const bankAccountId = await assertBankAccount(body.bankAccountId, { what: "the refund is paid from" });
     // 🔴 R-8 (G37/G40): the key's request — the same one replays, a different one is refused (lib/idempotency).
@@ -906,7 +907,7 @@ export const paymentsService = {
     let refundAccount: { systemCode: string; accountName: string } = { systemCode: CUSTOMER_CREDIT_ACCOUNT[origin], accountName: CUSTOMER_CREDIT_ACCOUNT_NAME[origin] };
     if (origin === "deposit") {
       paymentId = Number(body.paymentId);
-      if (!Number.isInteger(paymentId) || paymentId <= 0) throw new BadRequestError("paymentId must name the receipt whose deposit is refunded.");
+      if (!isIntegerId(paymentId)) throw new BadRequestError("paymentId must name the receipt whose deposit is refunded.");
       const [payment] = await paymentsRepository.lockPayment(paymentId);
       if (!payment) throw new BusinessRuleError(422, { error: `Receipt ${paymentId} does not exist for this organization.`, code: "reference_not_found", field: "paymentId" });
       if (payment.direction !== "in" || (payment.customerId ?? null) !== customerId) {
@@ -922,7 +923,7 @@ export const paymentsService = {
       sourceLabel = `receipt ${paymentId}`;
     } else {
       creditNoteId = Number(body.creditNoteId);
-      if (!Number.isInteger(creditNoteId) || creditNoteId <= 0) throw new BadRequestError("creditNoteId must name the credit note whose balance is refunded.");
+      if (!isIntegerId(creditNoteId)) throw new BadRequestError("creditNoteId must name the credit note whose balance is refunded.");
       const [note] = await invoiceSettlementRepository.lockInvoices([creditNoteId]);
       if (!note || note.documentType !== "credit_note") throw new BusinessRuleError(422, { error: `Credit note ${creditNoteId} does not exist for this organization.`, code: "reference_not_found", field: "creditNoteId" });
       if ((note.customerId ?? null) !== customerId) {

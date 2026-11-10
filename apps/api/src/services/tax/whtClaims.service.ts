@@ -23,6 +23,7 @@ import { round2 } from "../../lib/money";
 import { vendorsRepository } from "../../repositories/vendors.repository";
 import { whtClaimsRepository } from "../../repositories/whtClaims.repository";
 import { auditService } from "../audit.service";
+import { isIntegerId } from "../../lib/inputGuards";
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 /** Resolution 1117 (register research 2026-10-26): fines on returns due before 1 July 2026 — WHT months up to May 2026. */
@@ -103,7 +104,7 @@ export const whtClaimsService = {
   async createRefundClaim(body: Record<string, unknown>, userId: number | null) {
     const period = typeof body.period === "string" && MONTH.test(body.period) ? body.period : refuse(400, "period_invalid", "period is the WHT month the excess was withheld in (YYYY-MM).", "period");
     const vendorId = Number(body.vendorId);
-    const [vendor] = Number.isInteger(vendorId) && vendorId > 0 ? await vendorsRepository.findById(vendorId) : [];
+    const [vendor] = isIntegerId(vendorId) ? await vendorsRepository.findById(vendorId) : [];
     if (!vendor) refuse(422, "reference_not_found", `Supplier ${String(body.vendorId)} does not exist for this organization.`, "vendorId");
     const year = Number(body.overpaidTaxYear);
     if (!Number.isInteger(year) || year < 2000 || year > 2100) refuse(400, "tax_year_invalid", "overpaidTaxYear is the tax year the excess was withheld in (e.g. 2026).", "overpaidTaxYear");

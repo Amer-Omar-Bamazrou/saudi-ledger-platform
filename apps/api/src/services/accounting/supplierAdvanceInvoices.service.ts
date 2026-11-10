@@ -42,6 +42,7 @@ import { postJournalEntry } from "./glPosting.js";
 import { checkPeriodOpen } from "./periodLock.js";
 import { documentNumbersRepository } from "../../repositories/documentNumbers.repository.js";
 import { SUPPLIER_ON_ACCOUNT_ASSET_NAME } from "./supplierCreditPolicy.js";
+import { isIntegerId } from "../../lib/inputGuards";
 
 const refuse = (code: string, error: string, field?: string, status = 422, extra: Record<string, unknown> = {}): never => {
   throw new BusinessRuleError(status, { code, error, ...(field ? { field } : {}), ...extra });
@@ -260,7 +261,7 @@ export const supplierAdvanceInvoicesService = {
     if (bill.capitalisesAssetId != null) refuse("prepayment_on_capitalised_bill", "A bill that capitalises a fixed asset cannot deduct an advance yet — record the asset's cost without the advance, or deduct the advance on a separate bill.", "prepayments");
     if (bill.vendorId == null) refuse("prepayment_requires_vendor", "Name the supplier before deducting their advance.", "vendorId");
     const ids = requested.map((r) => Number(r.advanceBillId));
-    if (ids.some((i) => !Number.isInteger(i) || i <= 0)) refuse("advance_invoice_unknown", "Each prepayment names a supplier advance invoice.", "prepayments");
+    if (ids.some((i) => !isIntegerId(i))) refuse("advance_invoice_unknown", "Each prepayment names a supplier advance invoice.", "prepayments");
     if (new Set(ids).size !== ids.length) refuse("prepayment_duplicate", "An advance invoice is named more than once — state one amount per invoice.", "prepayments");
     const open = new Map((await advanceInvoicesOpen({ ids })).map((i) => [i.id, i]));
     const out: PreparedPrepayment[] = [];

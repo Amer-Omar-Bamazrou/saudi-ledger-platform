@@ -11,6 +11,7 @@ import { migrationStagingService } from "../services/migrationStaging.service";
 import { migrationValidationService } from "../services/migrationValidation.service";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
+import { isIntegerId } from "../lib/inputGuards";
 
 /** Bodies are validated against the GENERATED schemas — the spec's constraint is the server's. */
 function parseOr400<T>(result: { success: true; data: T } | { success: false; error: { issues: { path: (string | number)[]; message: string }[] } }): T {
@@ -20,12 +21,12 @@ function parseOr400<T>(result: { success: true; data: T } | { success: false; er
 
 function rowIdParam(req: Request): number {
   const n = Number(req.params.rowId);
-  if (!Number.isInteger(n) || n <= 0) throw new BadRequestError("rowId must be a positive integer");
+  if (!isIntegerId(n)) throw new BadRequestError("rowId must be a positive integer");
   return n;
 }
 function itemIdParam(req: Request): number {
   const n = Number(req.params.itemId);
-  if (!Number.isInteger(n) || n <= 0) throw new BadRequestError("itemId must be a positive integer");
+  if (!isIntegerId(n)) throw new BadRequestError("itemId must be a positive integer");
   return n;
 }
 

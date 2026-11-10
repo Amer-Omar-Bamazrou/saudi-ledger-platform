@@ -41,6 +41,7 @@ import { checkedState, TransitionNotApplied, type Approvable, type ApprovalActor
 import { withSavepoint } from "../lib/savepoint";
 import { pgErrorFields } from "../lib/dbRefusals";
 import type { billsTable, vendorsTable } from "@workspace/db";
+import { isIntegerId } from "../lib/inputGuards";
 
 type Bill = typeof billsTable.$inferSelect;
 type Vendor = typeof vendorsTable.$inferSelect;
@@ -126,7 +127,7 @@ async function resolveExpenseLine(
 
   if (debitAccountId != null && debitAccountId !== "") {
     const id = Number(debitAccountId);
-    const chosen = Number.isInteger(id) && id > 0 ? await categoriesRepository.findById(id) : null;
+    const chosen = isIntegerId(id) ? await categoriesRepository.findById(id) : null;
     // RLS scopes findById to the tenant, so another org's id and a missing id
     // are the same absence; a non-expense account is refused the same way.
     if (!chosen || chosen.type !== "expense") return refuse(`#${String(debitAccountId)}`);

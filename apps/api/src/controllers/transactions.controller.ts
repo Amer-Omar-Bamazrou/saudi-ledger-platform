@@ -11,6 +11,7 @@ import {
 } from "@workspace/api-zod";
 import { BadRequestError } from "../lib/errors";
 import { transactionsService } from "../services/transactions.service";
+import { isIntegerId } from "../lib/inputGuards";
 
 export const transactionsController = {
   async list(req: Request, res: Response) {
@@ -47,14 +48,14 @@ export const transactionsController = {
 
   async acceptPending(req: Request, res: Response) {
     const ids = Array.isArray(req.body?.ids)
-      ? (req.body.ids as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n > 0)
+      ? (req.body.ids as unknown[]).map(Number).filter((n) => isIntegerId(n))
       : undefined;
     res.json(await transactionsService.acceptPending(ids));
   },
 
   async settle(req: Request, res: Response) {
     const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) throw new BadRequestError("Invalid id");
+    if (!isIntegerId(id)) throw new BadRequestError("Invalid id");
     const body = SettleTransactionBody.safeParse(req.body ?? {});
     if (!body.success) throw new BadRequestError(body.error.message);
     res.json(

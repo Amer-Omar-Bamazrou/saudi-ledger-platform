@@ -27,6 +27,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, billsTable } from "@workspace/db";
 import { BusinessRuleError } from "../../lib/errors.js";
 import { round2 } from "../../lib/money.js";
+import { isIntegerId } from "../../lib/inputGuards";
 
 export const PURCHASE_DOCUMENT_TYPES = ["bill", "credit_note", "debit_note"] as const;
 
@@ -70,7 +71,7 @@ export async function assertPurchaseNote(
   }
 
   const againstId = Number(againstBillId);
-  if (!Number.isInteger(againstId) || againstId <= 0) {
+  if (!isIntegerId(againstId)) {
     refuse("against_bill_required", "A purchase note adjusts a bill. Name the bill it corrects.", "creditNoteAgainstBillId");
   }
   const [original] = await db.select().from(billsTable).where(eq(billsTable.id, againstId)).limit(1);

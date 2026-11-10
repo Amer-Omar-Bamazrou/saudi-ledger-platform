@@ -31,7 +31,7 @@ import { categoriesRepository } from "../repositories/categories.repository";
 /** The chosen expense account must be one of THIS tenant's expense accounts (RLS scopes the read). */
 async function assertExpenseAccount(id: unknown): Promise<void> {
   const n = Number(id);
-  const cat = Number.isInteger(n) && n > 0 ? await categoriesRepository.findById(n) : null;
+  const cat = isIntegerId(n) ? await categoriesRepository.findById(n) : null;
   if (!cat || cat.type !== "expense") {
     throw new BusinessRuleError(422, {
       error: `Expense account #${String(id)} is not an expense account in this company's chart of accounts.`,
@@ -130,6 +130,7 @@ async function withPossibleDuplicates<T extends { id: number; vendorId: number |
   return { ...out, possibleDuplicates };
 }
 import { captureService } from "./capture/capture.service";
+import { isIntegerId } from "../lib/inputGuards";
 
 /** The refusal a PATCH gets on anything but a draft — sequentially, and when it loses a race to an approval. */
 const ONLY_DRAFT_BILLS_EDITABLE = "Only draft bills can be edited.";
