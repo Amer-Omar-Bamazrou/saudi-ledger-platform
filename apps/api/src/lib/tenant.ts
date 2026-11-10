@@ -56,6 +56,28 @@ declare global {
   }
 }
 
+/**
+ * The net for responses that never write at all — an aborted connection, or a handler that ends the request without
+ * a body. `close` fires on both normal completion and abort, so it rolls back only if nothing settled it.
+ *
+ * 🔴 Phase 18 audit A29: and it MARKS the request it rolled back (`res.locals.tenantRolledBackOnClose`). The handler
+ * is still running; its next statement is refused by the ended handle, by design. The error boundary reads the mark
+ * to tell that expected refusal from a handler using an ended handle on a live request — the bug the handle exists
+ * to catch, which stays an ERROR.
+ */
+export function rollBackUnsettledOnClose(
+  res: Response,
+  wasSettled: () => boolean,
+  rollBack: () => Promise<void>,
+  log: { error: (obj: unknown, msg?: string) => void },
+): void {
+  res.on("close", () => {
+    if (wasSettled()) return;
+    res.locals.tenantRolledBackOnClose = true;
+    rollBack().catch((err) => log.error({ err }, "tenant rollback failed"));
+  });
+}
+
 export async function resolveTenant(
   req: Request,
   res: Response,
@@ -259,10 +281,7 @@ export async function resolveTenant(
      * or a handler that ends the request without a body. `close` fires on both
      * normal completion and abort, so it rolls back only if nothing settled it.
      */
-    res.on("close", () => {
-      if (wasSettledBySend()) return;
-      finalize(false).catch((err) => req.log.error({ err }, "tenant rollback failed"));
-    });
+    rollBackUnsettledOnClose(res, wasSettledBySend, () => finalize(false), req.log);
 
     // (5) Run the remaining handlers with the tenant-scoped db AND the audit
     //     context (actor/org/IP) bound for the rest of the request.
