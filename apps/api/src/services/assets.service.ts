@@ -23,6 +23,7 @@ import { DEFAULT_PAGE } from "../lib/httpParams";
 import { generateStraightLineSchedule, type ScheduleRow } from "./assets/depreciationSchedule";
 import { businessToday } from "@workspace/shared";
 import type { AssetCategory, FixedAsset, AssetDepreciationScheduleRow, AssetEvent } from "@workspace/db";
+import { isIntegerId } from "../lib/inputGuards";
 
 const num = (v: unknown) => (v != null ? Number(v) : 0);
 const METHODS = ["straight_line", "declining_balance", "units_of_production"] as const;
@@ -159,7 +160,7 @@ export const assetsService = {
     const resolve = async (given: unknown, code: string, wantType: string, field: string) => {
       if (given != null && given !== "") {
         const id = Number(given);
-        if (!Number.isInteger(id) || id <= 0) throw new BadRequestError(`${field} must be an account id.`);
+        if (!isIntegerId(id)) throw new BadRequestError(`${field} must be an account id.`);
         const [acct] = await assetsRepository.accountsByIds([id]);
         if (!acct) throw new BadRequestError(`${field}: account ${id} does not exist in this company.`);
         if (acct.type !== wantType) throw new BusinessRuleError(422, { code: "asset_category_account_type", error: `${field} must be a ${wantType} account; ${acct.name} is ${acct.type}.`, field });
@@ -260,7 +261,7 @@ export const assetsService = {
   /** A DRAFT: the register row with its facts; nothing posts, nothing moves (the zero-movement standard). */
   async create(body: Record<string, unknown>, userId: number | null) {
     const categoryId = Number(body.categoryId);
-    if (!Number.isInteger(categoryId) || categoryId <= 0) throw new BadRequestError("categoryId is required — an asset belongs to a category (its accounts, tax group and VAT class).");
+    if (!isIntegerId(categoryId)) throw new BadRequestError("categoryId is required — an asset belongs to a category (its accounts, tax group and VAT class).");
     const [category] = await assetsRepository.findCategory(categoryId);
     if (!category) throw new BadRequestError(`Asset category ${categoryId} does not exist in this company.`);
     if (!category.isActive) throw new BusinessRuleError(409, { code: "asset_category_inactive", error: `${category.name} is inactive.`, field: "categoryId" });

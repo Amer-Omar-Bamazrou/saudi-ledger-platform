@@ -26,6 +26,7 @@ import { round2 } from "../lib/money";
 import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
 import { migrationRepository } from "../repositories/migration.repository";
 import { auditService } from "./audit.service";
+import { isIntegerId } from "../lib/inputGuards";
 
 const num = (v: unknown) => Number(v ?? 0);
 const fmt = (n: number) => n.toFixed(2);
@@ -379,7 +380,7 @@ export const migrationService = {
       }
       case "map_to_bank": {
         const bankId = Number(body.targetBankAccountId);
-        if (!Number.isInteger(bankId) || bankId <= 0) throw new BadRequestError("map_to_bank needs targetBankAccountId.");
+        if (!isIntegerId(bankId)) throw new BadRequestError("map_to_bank needs targetBankAccountId.");
         if (row.sourceType !== "asset") refuse(`${row.sourceCode} is ${row.sourceType}; only an asset account maps to a bank.`);
         if (row.sourceRole && CONTROL_ROLE_TARGET[row.sourceRole]) refuse(`${row.sourceCode} is a ${row.sourceRole} account and cannot map to a bank.`);
         const [bank] = await migrationRepository.findBankAccount(bankId);
@@ -411,7 +412,7 @@ export const migrationService = {
       }
       case "merge_into": {
         const catId = Number(body.targetCategoryId);
-        if (!Number.isInteger(catId) || catId <= 0) throw new BadRequestError("merge_into needs targetCategoryId.");
+        if (!isIntegerId(catId)) throw new BadRequestError("merge_into needs targetCategoryId.");
         const [cat] = await migrationRepository.findCategory(catId);
         if (!cat) throw new BusinessRuleError(422, { error: `Category ${catId} does not exist.`, code: "reference_not_found", field: "targetCategoryId" });
         if (cat.isSystem) refuse(`${cat.name} is a system account — use map_to_system${cat.systemCode ? ` (${cat.systemCode})` : ""}.`);

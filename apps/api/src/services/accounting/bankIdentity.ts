@@ -23,6 +23,7 @@
  */
 import { BusinessRuleError, BankAccountRequiredError } from "../../lib/errors";
 import { bankAccountsRepository } from "../../repositories/bankAccounts.repository";
+import { isIntegerId } from "../../lib/inputGuards";
 
 export async function assertBankAccount(
   bankAccountId: unknown,
@@ -36,7 +37,7 @@ export async function assertBankAccount(
     );
   }
   const id = Number(bankAccountId);
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!isIntegerId(id)) {
     throw new BusinessRuleError(422, { error: "bankAccountId must be a positive integer", code: "invalid_reference", field });
   }
   const [account] = await bankAccountsRepository.findById(id);

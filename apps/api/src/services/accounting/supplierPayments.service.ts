@@ -816,7 +816,7 @@ export const supplierPaymentsService = {
     const seen = new Set<number>();
     for (const r of requested) {
       const billId = Number(r?.billId);
-      if (!Number.isInteger(billId) || billId <= 0) refuse("bill_unknown", "Each allocation names a bill.", "allocations");
+      if (!isIntegerId(billId)) refuse("bill_unknown", "Each allocation names a bill.", "allocations");
       if (seen.has(billId)) refuse("allocation_duplicate_bill", `Bill ${billId} is named more than once in this request — state one amount per bill.`, "allocations");
       seen.add(billId);
     }

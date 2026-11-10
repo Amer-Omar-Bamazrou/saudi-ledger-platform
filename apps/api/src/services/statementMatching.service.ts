@@ -97,6 +97,7 @@ function toMatchOut(m: StatementMatch, r: StatementMatchReversal | null = null):
 // shared by this AR matcher and the AP reconciliation of Phase 12B).
 export { referenceTokens } from "./accounting/matchingPolicy";
 import { referenceTokens } from "./accounting/matchingPolicy";
+import { isIntegerId } from "../lib/inputGuards";
 
 function shiftDate(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -300,7 +301,7 @@ export const statementMatchingService = {
     const reason = body.reason?.trim();
     if (!reason) throw new BadRequestError("A reason for the override is required.");
     const transactionId = Number(body.transactionId);
-    if (!Number.isInteger(transactionId) || transactionId <= 0) throw new BadRequestError("transactionId must be a positive integer.");
+    if (!isIntegerId(transactionId)) throw new BadRequestError("transactionId must be a positive integer.");
     const paymentId = body.paymentId != null ? Number(body.paymentId) : null;
     const refundId = body.refundId != null ? Number(body.refundId) : null;
     if ((paymentId == null) === (refundId == null)) throw new BadRequestError("Name exactly one of paymentId or refundId.");

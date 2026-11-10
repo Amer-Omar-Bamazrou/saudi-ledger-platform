@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { BadRequestError } from "../lib/errors";
 import { analyticsService, monthsBetween, type Dimension } from "../services/analytics.service";
 import { cashService } from "../services/cash.service";
+import { isIntegerId } from "../lib/inputGuards";
 
 const MONTH = /^\d{4}-\d{2}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -44,7 +45,7 @@ export const analyticsController = {
     let bankAccountId: number | undefined;
     if (req.query.bankAccountId != null && req.query.bankAccountId !== "") {
       bankAccountId = Number(req.query.bankAccountId);
-      if (!Number.isInteger(bankAccountId) || bankAccountId <= 0) throw new BadRequestError("bankAccountId must be a positive integer");
+      if (!isIntegerId(bankAccountId)) throw new BadRequestError("bankAccountId must be a positive integer");
     }
     const { points, summary } = await cashService.reconciliation(from, to, monthsBetween(from, to), bankAccountId);
     res.json({ ...summary, points });
