@@ -7,7 +7,7 @@ import {
   einvoiceDocumentsTable,
   invoiceNumberCountersTable,
 } from "@workspace/db";
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
 import { businessToday } from "@workspace/shared";
 import { invoiceNotReversed } from "./openingReversal";
 import { receivableInBooks } from "./receivableInBooks";
@@ -283,8 +283,9 @@ export const invoicesRepository = {
     return Number(row?.n ?? 0);
   },
 
+  /** 🔴 A26: in the order they were written — the signed e-invoice numbers its lines from this read, and refusals name them by it. */
   itemsByInvoice(id: number) {
-    return db.select().from(invoiceItemsTable).where(eq(invoiceItemsTable.invoiceId, id));
+    return db.select().from(invoiceItemsTable).where(eq(invoiceItemsTable.invoiceId, id)).orderBy(asc(invoiceItemsTable.id));
   },
 
   /**
