@@ -9236,7 +9236,8 @@ export const CreateInvoiceBody = zod.object({
   "prepayments": zod.array(zod.object({
   "advanceInvoiceId": zod.number().describe('An ISSUED advance tax invoice of this customer with an open balance.'),
   "amount": zod.number().min(createInvoiceBodyTwoPrepaymentsItemAmountMin).nullish().describe('VAT-inclusive part to adjust; omitted or null = the whole open balance. Σ over the invoice ≤ its total (over-advance default: limit to the invoice — Guideline §8(g)).')
-})).optional().describe('AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note).')
+})).optional().describe('AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note).'),
+  "disposesAssetId": zod.number().nullish().describe('FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14: the service always accepted it, but it was missing here, so the generated schema dropped it and an invoice made over HTTP sold nothing.\n')
 })).describe('A create makes a DRAFT, for every role — nothing is issued, no ICV is\nconsumed, until approval. At least one line is REQUIRED: a zero-line\ninvoice would issue at SAR 0.00 and, once issued, cannot be corrected or\ndeleted (AUD-13). The server answers a missing\/empty `items` with 400\n`invoice_has_no_lines`.\n')
 
 export const CreateInvoiceResponse = zod.object({
@@ -9482,6 +9483,7 @@ export const UpdateInvoiceBody = zod.object({
   "notes": zod.string().nullish(),
   "termsAndConditions": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "disposesAssetId": zod.number().nullish().describe('FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14: the service always accepted it, but it was missing here, so the generated schema dropped it and an invoice made over HTTP sold nothing.\n'),
   "items": zod.array(zod.object({
   "description": zod.string().min(1),
   "descriptionAr": zod.string().nullish(),

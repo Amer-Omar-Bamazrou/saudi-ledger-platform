@@ -7017,17 +7017,27 @@ export interface InvoiceHeaderInput {
  * deleted (AUD-13). The server answers a missing/empty `items` with 400
  * `invoice_has_no_lines`.
  */
-export type CreateInvoiceInput = InvoiceHeaderInput & {
+export type CreateInvoiceInput = InvoiceHeaderInput & ({
   /** @minItems 1 */
   items: InvoiceLineInput[];
   /** AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note). */
   prepayments?: PrepaymentInput[];
-} & Required<Pick<InvoiceHeaderInput & {
+  /**
+     * FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14: the service always accepted it, but it was missing here, so the generated schema dropped it and an invoice made over HTTP sold nothing.
+     * @nullable
+     */
+  disposesAssetId?: number | null;
+}) & Required<Pick<InvoiceHeaderInput & ({
   /** @minItems 1 */
   items: InvoiceLineInput[];
   /** AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note). */
   prepayments?: PrepaymentInput[];
-}, 'date'>>;
+  /**
+     * FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14: the service always accepted it, but it was missing here, so the generated schema dropped it and an invoice made over HTTP sold nothing.
+     * @nullable
+     */
+  disposesAssetId?: number | null;
+}), 'date'>>;
 
 /**
  * Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed; `prepayments`, when present, replaces the whole adjustment selection (AP-2).
@@ -7048,6 +7058,11 @@ export interface UpdateInvoiceInput {
   termsAndConditions?: string | null;
   /** @nullable */
   reviewNote?: string | null;
+  /**
+     * FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14: the service always accepted it, but it was missing here, so the generated schema dropped it and an invoice made over HTTP sold nothing.
+     * @nullable
+     */
+  disposesAssetId?: number | null;
   /** @minItems 1 */
   items?: InvoiceLineInput[];
 }

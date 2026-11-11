@@ -13902,6 +13902,12 @@ components:
               type: array
               description: "AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note)."
               items: { $ref: "#/components/schemas/PrepaymentInput" }
+            disposesAssetId:
+              type: ["integer", "null"]
+              description: >
+                FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14:
+                the service always accepted it, but it was missing here, so the generated schema dropped
+                it and an invoice made over HTTP sold nothing.
 
     UpdateInvoiceInput:
       description: Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed; `prepayments`, when present, replaces the whole adjustment selection (AP-2).
@@ -13918,6 +13924,12 @@ components:
         notes: { type: ["string", "null"] }
         termsAndConditions: { type: ["string", "null"] }
         reviewNote: { type: ["string", "null"] }
+        disposesAssetId:
+          type: ["integer", "null"]
+          description: >
+            FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14:
+            the service always accepted it, but it was missing here, so the generated schema dropped
+            it and an invoice made over HTTP sold nothing.
         items:
           type: array
           minItems: 1
