@@ -47,6 +47,9 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
+import * as dbSchema from "@workspace/db";
+import { getTableColumns, is } from "drizzle-orm";
+import { PgTable } from "drizzle-orm/pg-core";
 import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -281,15 +284,24 @@ describeMaybe("same-org cross-company isolation", () => {
   // and `payroll`, the removal is the detector's requirement, not an audit.
   /**
    * 🔴 Phase 18 audit A24: the Drizzle exports the detector below treats as company-scoped. Hand-named, it fell
-   * behind: none of the fifteen tables Phase 18 created was on it, so a company-blind reader of any of them would
-   * have passed. The test after the detector compares this set with the database's own.
+   * behind: none of the fifteen tables Phase 18 created was on it (and two of its nineteen names were not exports at
+   * all, so they matched nothing), so a company-blind reader of any of them would have passed. It is now DERIVED:
+   * every exported table with a `company_id` column — a new table is covered the day it is declared. The test
+   * after the detector compares the set with the database's own.
    */
-  const DETECTOR_TABLES = [
-    "invoicesTable", "billsTable", "journalEntriesTable", "transactionsTable", "payrollTable", "fixedAssetsTable",
-    "budgetsTable", "budgetVersionsTable", "budgetLinesTable", "bankAccountsTable", "employeesTable", "invoiceItemsTable",
-    "billItemsTable", "journalEntryLinesTable", "invoicePaymentsTable", "billPaymentsTable", "depreciationEntriesTable",
-    "payrollRunsTable", "payrollItemsTable",
-  ];
+  const DETECTOR_TABLES = Object.entries(dbSchema as Record<string, unknown>)
+    .filter(([, t]) => is(t, PgTable) && Object.values(getTableColumns(t as InstanceType<typeof PgTable>)).some((c) => c.name === "company_id"))
+    .map(([name]) => name);
+  /**
+   * Company-scoped tables the Drizzle schema does NOT declare — read and written by raw SQL, so a derived list cannot
+   * see them. Each is named with its reason, matched by its SQL name, and must stay exactly the database's remainder
+   * (the test below fails on an entry that has gained a schema declaration or left the database).
+   */
+  const RAW_SQL_COMPANY_TABLES: Record<string, string> = {
+    document_number_counters:
+      "0063: the per-company JE/BILL counter, written only by documentNumbers.repository's raw INSERT … ON CONFLICT " +
+      "(company_id, document_type), its organization and company from the column defaults.",
+  };
 
   const NO_COMPANY_FILTER = [
     "assets", "categorize",
@@ -304,7 +316,7 @@ describeMaybe("same-org cross-company isolation", () => {
     const blind: string[] = [];
     for (const f of readdirSync(dir).filter((n) => n.endsWith(".repository.ts"))) {
       const src = readFileSync(join(dir, f), "utf8");
-      const touchesCompanyScoped = new RegExp(`\\b(${DETECTOR_TABLES.join("|")})\\b`).test(src);
+      const touchesCompanyScoped = new RegExp(`\\b(${[...DETECTOR_TABLES, ...Object.keys(RAW_SQL_COMPANY_TABLES)].join("|")})\\b`).test(src);
       if (!touchesCompanyScoped) continue;
       if (!/companyId|company_id/.test(src)) blind.push(f.replace(".repository.ts", ""));
     }
@@ -338,7 +350,13 @@ describeMaybe("same-org cross-company isolation", () => {
     // The probe sees a known-present table on every side, and a Phase 18 table in the schema and the database.
     for (const set of [detected, declared, inDb]) expect(set.has("invoices")).toBe(true);
     expect(declared.has("control_flags") && inDb.has("control_flags"), "a Phase 18 table is visible to the probe").toBe(true);
-    expect([...declared].sort(), "the schema and the database disagree on which tables carry company_id").toEqual([...inDb].sort());
+    // Both directions, named (when a map replaces a map, assert both directions — CLAUDE.md §3).
+    const raw = Object.keys(RAW_SQL_COMPANY_TABLES);
+    expect(raw.filter((t) => declared.has(t) || !inDb.has(t)), "a raw-SQL entry that is now declared, or no longer in the database").toEqual([]);
+    for (const t of raw) declared.add(t);
+    expect({ onlyInDatabase: [...inDb].filter((t) => !declared.has(t)).sort(), onlyInSchema: [...declared].filter((t) => !inDb.has(t)).sort() },
+      "the schema and the database disagree on which tables carry company_id").toEqual({ onlyInDatabase: [], onlyInSchema: [] });
+    for (const t of raw) detected.add(t);
     expect([...inDb].filter((t) => !detected.has(t)).sort(), "company-scoped tables the detector does not name").toEqual([]);
   });
 
