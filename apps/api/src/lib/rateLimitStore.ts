@@ -36,6 +36,7 @@
  * are required.
  */
 import type { Store, IncrementResponse, Options } from "express-rate-limit";
+import { randomUUID } from "node:crypto";
 import { pool } from "@workspace/db";
 import { AppError } from "./errors";
 import { logger } from "./logger";
@@ -78,6 +79,9 @@ function reportStoreFailure(err: unknown, op: string): never {
   }
   throw new RateLimitUnavailableError();
 }
+
+/** This process's own tag for the test namespace (see the constructor). */
+const PROCESS_TAG = randomUUID().slice(0, 8);
 
 /** Every store constructed in this process — what the test reset hook clears. */
 const allStores: PostgresRateLimitStore[] = [];
@@ -130,7 +134,11 @@ export class PostgresRateLimitStore implements Store {
      * keeps the production limits, the production store, and the production
      * code path exactly as they ship.
      */
-    const suffix = process.env.NODE_ENV === "test" ? `:p${process.pid}` : "";
+    // 🔴 Phase 18 audit A26 (the login 429s, 2026-11-10): the PID alone is not a process's identity. Windows hands a new
+    // fork the PID of one that ended seconds earlier (measured: 25 of 150), and the counts live in Postgres for the
+    // window, so a fork inherited a dead fork's logins. PROCESS_TAG is fixed per process (two limiters sharing a name
+    // still share a budget) and new for every process.
+    const suffix = process.env.NODE_ENV === "test" ? `:p${process.pid}-${PROCESS_TAG}` : "";
     this.prefix = `${prefix}${suffix}:`;
     allStores.push(this);
   }
