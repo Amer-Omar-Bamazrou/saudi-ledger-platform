@@ -19,3 +19,5 @@ export type { GetSupplierStatementParams } from './generated/types';
 export type { ExportReportParams, GetBudgetParams, GetBudgetVsActualParams } from './generated/types';
 // Phase 16: the tax computation read (path id + query version_id) and the WHT beneficiary statement (path vendorId + query period).
 export type { GetTaxComputationParams, GetWhtBeneficiaryStatementParams } from './generated/types';
+// Phase 18 audit A2: the security-events trail (path orgId + query limit / offset).
+export type { ListOrgSecurityEventsParams } from './generated/types';

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { lastAdminRefusalToast } from "@/lib/lastAdminRefusal";
+import { SecurityEventsCard } from "@/components/SecurityEventsCard";
 import { Plus, KeyRound, ShieldCheck, Eye, BookUser, PencilRuler } from "lucide-react";
 
 interface User { id: number; email: string; name: string; role: string; isActive: boolean; createdAt: string; }
@@ -82,6 +83,8 @@ export default function UserManagement() {
     enabled: !!activeOrgId,
   });
   const roleByUser = new Map((membersData?.members ?? []).map((m) => [m.userId, m.role]));
+  // The security trail names a user by id; the page already holds this organization's members and users.
+  const nameByUser = new Map<number, string>([...users.map((u) => [u.id, u.name] as const), ...(membersData?.members ?? []).map((m) => [m.userId, m.name] as const)]);
 
   // Change an EXISTING member's role in the active org, or re-activate them. It
   // never adds a new person (G04): the server answers 422 invitation_required
@@ -445,6 +448,9 @@ export default function UserManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 🔴 Phase 18 audit A2: DR-27's tenant-visible audit — the organization's security events, for its admin. */}
+      {isOrgAdmin && activeOrgId && <SecurityEventsCard orgId={activeOrgId} nameOf={(id) => nameByUser.get(id)} />}
 
       {/* Reset password dialog */}
       <Dialog open={!!resetTarget} onOpenChange={o => { if (!o) { setResetTarget(null); setNewPw(""); setResetError(""); } }}>

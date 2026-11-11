@@ -196,13 +196,17 @@ router.delete("/:orgId/invitations/:id", async (req, res) => {
 });
 
 /**
- * GET /api/orgs/:orgId/security-events — the org's identity/security trail
+ * GET /api/orgs/:orgId/security-events?limit=&offset= — the org's identity/security trail, a page at a time
  * (admin of that org only). Membership changes and other org-scoped security
  * events; global (org-less) events are surfaced by the platform-operator surface
  * in a later milestone, not here.
  */
 router.get("/:orgId/security-events", async (req, res) => {
-  res.json({ events: await securityAuditService.listForOrg(req.session.userId!, req.params.orgId) });
+  const { limit, offset } = req.query as Record<string, string | undefined>;
+  res.json(await securityAuditService.listForOrg(req.session.userId!, req.params.orgId, {
+    limit: limit === undefined ? undefined : Number(limit),
+    offset: offset === undefined ? undefined : Number(offset),
+  }));
 });
 
 export default router;
