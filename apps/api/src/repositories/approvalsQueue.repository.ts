@@ -10,6 +10,7 @@
 import {
   db, billsTable, categoriesTable, invoicesTable, journalEntriesTable, payrollRunsTable,
   taxComputationsTable, taxComputationVersionsTable, vendorWhtTreatyReliefsTable, scheduledPaymentsTable, vendorsTable,
+  quotationsTable, purchaseOrdersTable, budgetsTable, budgetVersionsTable, customersTable,
 } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
@@ -123,5 +124,41 @@ export const approvalsQueueRepository = {
       .leftJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))
       .where(and(eq(scheduledPaymentsTable.status, "planned"), sql`${scheduledPaymentsTable.companyId} = ${currentCompany}`))
       .orderBy(desc(scheduledPaymentsTable.plannedDate), desc(scheduledPaymentsTable.id));
+  },
+
+  /**
+   * 🔴 Phase 18 audit A17 (G11's "queue completeness"): a SUBMITTED quotation, purchase order or budget version —
+   * each has its own approve, send-back and reject — waits for an approver. A draft is the preparer's, and is not
+   * listed (each document page has its own Submit, R-12).
+   */
+  pendingQuotations() {
+    return db
+      .select({ id: quotationsTable.id, number: quotationsTable.quotationNumber, status: quotationsTable.status, amount: quotationsTable.total,
+        partyName: customersTable.name, partyNameAr: customersTable.nameAr, createdBy: quotationsTable.createdBy })
+      .from(quotationsTable)
+      .leftJoin(customersTable, eq(customersTable.id, quotationsTable.customerId))
+      .where(and(eq(quotationsTable.status, "submitted"), sql`${quotationsTable.companyId} = ${currentCompany}`))
+      .orderBy(desc(quotationsTable.date), desc(quotationsTable.id));
+  },
+
+  pendingPurchaseOrders() {
+    return db
+      .select({ id: purchaseOrdersTable.id, number: purchaseOrdersTable.orderNumber, status: purchaseOrdersTable.status, amount: purchaseOrdersTable.total,
+        partyName: vendorsTable.name, partyNameAr: vendorsTable.nameAr, createdBy: purchaseOrdersTable.createdBy })
+      .from(purchaseOrdersTable)
+      .leftJoin(vendorsTable, eq(vendorsTable.id, purchaseOrdersTable.vendorId))
+      .where(and(eq(purchaseOrdersTable.status, "submitted"), sql`${purchaseOrdersTable.companyId} = ${currentCompany}`))
+      .orderBy(desc(purchaseOrdersTable.date), desc(purchaseOrdersTable.id));
+  },
+
+  /** A submitted budget VERSION, named by its budget (its routes are nested under the budget). */
+  pendingBudgetVersions() {
+    return db
+      .select({ id: budgetVersionsTable.id, budgetId: budgetVersionsTable.budgetId, versionNo: budgetVersionsTable.versionNo, status: budgetVersionsTable.status,
+        name: budgetsTable.name, nameAr: budgetsTable.nameAr, fiscalLabel: budgetsTable.fiscalLabel, submittedBy: budgetVersionsTable.submittedBy, createdBy: budgetVersionsTable.createdBy })
+      .from(budgetVersionsTable)
+      .innerJoin(budgetsTable, eq(budgetsTable.id, budgetVersionsTable.budgetId))
+      .where(and(eq(budgetVersionsTable.status, "submitted"), sql`${budgetVersionsTable.companyId} = ${currentCompany}`))
+      .orderBy(desc(budgetVersionsTable.id));
   },
 };

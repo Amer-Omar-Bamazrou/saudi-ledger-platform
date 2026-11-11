@@ -9074,7 +9074,10 @@ export interface UpdateAssetInput {
  * computation version (`/tax/computations/{parentId}/versions/{id}/…`),
  * a PENDING treaty relief (`/tax/wht/reliefs/{id}/…`) and a PLANNED
  * payment plan (`/treasury/payment-plans/{id}/…`) — each acted on
- * through its own route and permission.
+ * through its own route and permission. Phase 18 audit A17: a SUBMITTED
+ * quotation (`/quotations/{id}/…`), purchase order (`/purchase-orders/{id}/…`)
+ * and budget version (`/budgets/{parentId}/versions/{id}/…`), each listed only
+ * to a role holding APPROVE on its resource.
  */
 export type ApprovalPendingRowEntity = typeof ApprovalPendingRowEntity[keyof typeof ApprovalPendingRowEntity];
 
@@ -9087,6 +9090,9 @@ export const ApprovalPendingRowEntity = {
   'tax-computations': 'tax-computations',
   'wht-reliefs': 'wht-reliefs',
   'payment-plans': 'payment-plans',
+  quotations: 'quotations',
+  'purchase-orders': 'purchase-orders',
+  budgets: 'budgets',
 } as const;
 
 export type ApprovalPendingRowStatus = typeof ApprovalPendingRowStatus[keyof typeof ApprovalPendingRowStatus];
@@ -9106,7 +9112,10 @@ export interface ApprovalPendingRow {
      * computation version (`/tax/computations/{parentId}/versions/{id}/…`),
      * a PENDING treaty relief (`/tax/wht/reliefs/{id}/…`) and a PLANNED
      * payment plan (`/treasury/payment-plans/{id}/…`) — each acted on
-     * through its own route and permission.
+     * through its own route and permission. Phase 18 audit A17: a SUBMITTED
+     * quotation (`/quotations/{id}/…`), purchase order (`/purchase-orders/{id}/…`)
+     * and budget version (`/budgets/{parentId}/versions/{id}/…`), each listed only
+     * to a role holding APPROVE on its resource.
      */
   entity: ApprovalPendingRowEntity;
   id: number;
