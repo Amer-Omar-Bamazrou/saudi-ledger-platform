@@ -279,6 +279,18 @@ describeMaybe("same-org cross-company isolation", () => {
   // proves the rule per company. Its OLDER readers (list, findById, the
   // figures) still rely on RLS's company arm (0065) alone; as with `bills`
   // and `payroll`, the removal is the detector's requirement, not an audit.
+  /**
+   * 🔴 Phase 18 audit A24: the Drizzle exports the detector below treats as company-scoped. Hand-named, it fell
+   * behind: none of the fifteen tables Phase 18 created was on it, so a company-blind reader of any of them would
+   * have passed. The test after the detector compares this set with the database's own.
+   */
+  const DETECTOR_TABLES = [
+    "invoicesTable", "billsTable", "journalEntriesTable", "transactionsTable", "payrollTable", "fixedAssetsTable",
+    "budgetsTable", "budgetVersionsTable", "budgetLinesTable", "bankAccountsTable", "employeesTable", "invoiceItemsTable",
+    "billItemsTable", "journalEntryLinesTable", "invoicePaymentsTable", "billPaymentsTable", "depreciationEntriesTable",
+    "payrollRunsTable", "payrollItemsTable",
+  ];
+
   const NO_COMPANY_FILTER = [
     "assets", "categorize",
     "employees",
@@ -292,7 +304,7 @@ describeMaybe("same-org cross-company isolation", () => {
     const blind: string[] = [];
     for (const f of readdirSync(dir).filter((n) => n.endsWith(".repository.ts"))) {
       const src = readFileSync(join(dir, f), "utf8");
-      const touchesCompanyScoped = /\b(invoices|bills|journalEntries|transactions|payroll|fixedAssets|budgets|budgetVersions|budgetLines|bankAccounts|employees|invoiceItems|billItems|journalEntryLines|invoicePayments|billPayments|depreciationEntries|payrollRuns|payrollItems)Table\b/.test(src);
+      const touchesCompanyScoped = new RegExp(`\\b(${DETECTOR_TABLES.join("|")})\\b`).test(src);
       if (!touchesCompanyScoped) continue;
       if (!/companyId|company_id/.test(src)) blind.push(f.replace(".repository.ts", ""));
     }
@@ -306,6 +318,28 @@ describeMaybe("same-org cross-company isolation", () => {
     // And the list must not rot: an entry that has since been fixed leaves.
     const stale = NO_COMPANY_FILTER.filter((r) => !blind.includes(r)).sort();
     expect(stale, "NO_COMPANY_FILTER names repositories that now DO filter — remove them").toEqual([]);
+  });
+
+  it("🔴 A24: the detector's tables are exactly the schema's tables that carry company_id — and the database agrees", async () => {
+    const schema = (await import("@workspace/db")) as Record<string, unknown>;
+    const { is, getTableColumns, getTableName } = await import("drizzle-orm");
+    const { PgTable } = await import("drizzle-orm/pg-core");
+    const tableOf = (exportName: string) => { const t = schema[exportName]; return is(t, PgTable) ? t : null; };
+    // Every name the detector uses is a real table export (a name that matches nothing detects nothing).
+    expect(DETECTOR_TABLES.filter((n) => !tableOf(n)), "detector names that are not table exports").toEqual([]);
+    const detected = new Set(DETECTOR_TABLES.map((n) => getTableName(tableOf(n)!)));
+    // The schema's own answer: every exported table with a company_id column.
+    const declared = new Set(Object.values(schema).filter((t): t is InstanceType<typeof PgTable> => is(t, PgTable))
+      .filter((t) => Object.values(getTableColumns(t)).some((c) => c.name === "company_id")).map((t) => getTableName(t)));
+    // And the database's, read independently.
+    const inDb = new Set((await pool.query(
+      `SELECT c.table_name FROM information_schema.columns c JOIN information_schema.tables t USING (table_schema, table_name)
+        WHERE c.table_schema = 'public' AND c.column_name = 'company_id' AND t.table_type = 'BASE TABLE'`)).rows.map((r) => r.table_name as string));
+    // The probe sees a known-present table on every side, and a Phase 18 table in the schema and the database.
+    for (const set of [detected, declared, inDb]) expect(set.has("invoices")).toBe(true);
+    expect(declared.has("control_flags") && inDb.has("control_flags"), "a Phase 18 table is visible to the probe").toBe(true);
+    expect([...declared].sort(), "the schema and the database disagree on which tables carry company_id").toEqual([...inDb].sort());
+    expect([...inDb].filter((t) => !detected.has(t)).sort(), "company-scoped tables the detector does not name").toEqual([]);
   });
 
   it("🔴 the DEFAULT still writes the scoped company — a new row lands in the right books", async () => {
