@@ -28,7 +28,8 @@ import { can } from "../lib/rbac";
 import { approvalsQueueRepository } from "../repositories/approvalsQueue.repository";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 
-export type ApprovalEntity = "invoices" | "bills" | "journal-entries" | "payroll" | "tax-computations" | "wht-reliefs" | "payment-plans";
+export type ApprovalEntity = "invoices" | "bills" | "journal-entries" | "payroll" | "tax-computations" | "wht-reliefs" | "payment-plans"
+  | "quotations" | "purchase-orders" | "budgets";
 
 export interface ApprovalPendingRow {
   entity: ApprovalEntity;
@@ -57,13 +58,17 @@ const pct = (v: unknown) => `${Number((Number(v) * 100).toFixed(2))}%`;
 
 export const approvalsQueueService = {
   async pending(role: string, userId: number | null = null): Promise<ApprovalPendingRow[]> {
-    const [showInvoices, showBills, showJEs, showPayroll, showTax, showTreasury] = await Promise.all([
+    const [showInvoices, showBills, showJEs, showPayroll, showTax, showTreasury, showQuotations, showOrders, showBudgets] = await Promise.all([
       can(role, "invoices", "approve"),
       can(role, "bills", "approve"),
       can(role, "journal_entries", "approve"),
       can(role, "payroll", "approve"),
       can(role, "tax", "approve"),
       can(role, "treasury", "approve"),
+      // 🔴 Phase 18 audit A17: the three documents with a submitted state the queue had never listed.
+      can(role, "quotations", "approve"),
+      can(role, "purchase_orders", "approve"),
+      can(role, "budgets", "approve"),
     ]);
     const mine = (by: number | null | undefined) => userId != null && by === userId;
 
@@ -83,6 +88,22 @@ export const approvalsQueueService = {
       const totals = await journalEntriesRepository.lineTotals(jes.map((j) => j.id));
       for (const r of jes) {
         rows.push({ entity: "journal-entries", id: r.id, label: r.label, status: r.status, amount: totals.get(r.id)?.totalDebit ?? 0, own: mine(r.createdBy) });
+      }
+    }
+    if (showQuotations) {
+      for (const r of await approvalsQueueRepository.pendingQuotations()) {
+        rows.push({ entity: "quotations", id: r.id, label: `${r.number} · ${r.partyName ?? "—"}`, labelAr: r.partyNameAr ? `${r.number} · ${r.partyNameAr}` : null, status: r.status, amount: toNum(r.amount), own: mine(r.createdBy) });
+      }
+    }
+    if (showOrders) {
+      for (const r of await approvalsQueueRepository.pendingPurchaseOrders()) {
+        rows.push({ entity: "purchase-orders", id: r.id, label: `${r.number} · ${r.partyName ?? "—"}`, labelAr: r.partyNameAr ? `${r.number} · ${r.partyNameAr}` : null, status: r.status, amount: toNum(r.amount), own: mine(r.createdBy) });
+      }
+    }
+    if (showBudgets) {
+      for (const r of await approvalsQueueRepository.pendingBudgetVersions()) {
+        // a budget has no single amount: its figure is the version's lines, read on its own page
+        rows.push({ entity: "budgets", id: r.id, parentId: r.budgetId, label: `${r.name} · ${r.fiscalLabel} · v${r.versionNo}`, labelAr: r.nameAr ? `${r.nameAr} · ${r.fiscalLabel} · v${r.versionNo}` : null, status: r.status, amount: null, own: mine(r.submittedBy) || mine(r.createdBy) });
       }
     }
     if (showPayroll) {

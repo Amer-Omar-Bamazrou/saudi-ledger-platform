@@ -13966,6 +13966,12 @@ components:
               type: array
               description: "AP-2: the advance tax invoice(s) of this customer to adjust on this FINAL invoice — a human selection; nothing is auto-applied. Refused on a note (400 prepayments_on_note)."
               items: { $ref: "#/components/schemas/PrepaymentInput" }
+            disposesAssetId:
+              type: ["integer", "null"]
+              description: >
+                FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14:
+                the service always accepted it, but it was missing here, so the generated schema dropped
+                it and an invoice made over HTTP sold nothing.
 
     UpdateInvoiceInput:
       description: Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed; `prepayments`, when present, replaces the whole adjustment selection (AP-2).
@@ -13982,6 +13988,12 @@ components:
         notes: { type: ["string", "null"] }
         termsAndConditions: { type: ["string", "null"] }
         reviewNote: { type: ["string", "null"] }
+        disposesAssetId:
+          type: ["integer", "null"]
+          description: >
+            FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14:
+            the service always accepted it, but it was missing here, so the generated schema dropped
+            it and an invoice made over HTTP sold nothing.
         items:
           type: array
           minItems: 1
@@ -15275,14 +15287,17 @@ components:
       properties:
         entity:
           type: string
-          enum: [invoices, bills, journal-entries, payroll, tax-computations, wht-reliefs, payment-plans]
+          enum: [invoices, bills, journal-entries, payroll, tax-computations, wht-reliefs, payment-plans, quotations, purchase-orders, budgets]
           description: |
             The four documents match the URL segment their actions post to
             (`/{entity}/{id}/approve` …). Phase 16/17 (QA-15): a SUBMITTED tax
             computation version (`/tax/computations/{parentId}/versions/{id}/…`),
             a PENDING treaty relief (`/tax/wht/reliefs/{id}/…`) and a PLANNED
             payment plan (`/treasury/payment-plans/{id}/…`) — each acted on
-            through its own route and permission.
+            through its own route and permission. Phase 18 audit A17: a SUBMITTED
+            quotation (`/quotations/{id}/…`), purchase order (`/purchase-orders/{id}/…`)
+            and budget version (`/budgets/{parentId}/versions/{id}/…`), each listed only
+            to a role holding APPROVE on its resource.
         id: { type: integer }
         label:
           type: string
