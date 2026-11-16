@@ -99,7 +99,8 @@ test.describe("the shell: role chip, menu sections, Close label", () => {
     await page.getByTestId("nav-hamburger").click();
     const drawer = page.getByTestId("nav-drawer");
     const collapsed = drawer.locator('[data-nav-section][aria-expanded="false"]');
-    expect(await collapsed.count(), "there are collapsed sections to open").toBeGreaterThanOrEqual(2);
+    // 🔴 Phase 18 audit A28: the drawer renders after the click; a one-shot count could read it empty.
+    await expect.poll(() => collapsed.count(), { message: "there are collapsed sections to open" }).toBeGreaterThanOrEqual(2);
     const via = await collapsed.nth(0).getAttribute("data-nav-section");
     const kept = await collapsed.nth(1).getAttribute("data-nav-section");
     await drawer.locator(`[data-nav-section="${kept}"]`).click();
