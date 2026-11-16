@@ -187,7 +187,7 @@ export const CONTROLS: readonly Control[] = [
   // ── The audit floor and its detective records ─────────────────────────────────────────────────
   {
     id: "T1b",
-    title: "The audit trail is append-only for every role and names the connection's declared actor; closed months are undeletable",
+    title: "The audit trail is append-only for every role, names the connection's declared actor, and takes its time and order from the database (audit A6); closed months are undeletable",
     answers: ["G24", "G25", "DR-09"],
     type: "preventive",
     activation: ALWAYS,
@@ -196,12 +196,13 @@ export const CONTROLS: readonly Control[] = [
       trigger("audit_logs", "audit_logs_actor_from_session"),
       trigger("audit_logs", "zz_audit_logs_append_only"),
       trigger("audit_logs", "zz_audit_logs_no_truncate"),
+      trigger("audit_logs", "zz_audit_logs_database_time_and_order"),
       trigger("security_audit_logs", "zz_security_audit_logs_append_only"),
       trigger("security_audit_logs", "zz_security_audit_logs_no_truncate"),
       trigger("period_locks", "zz_period_locks_closed_undeletable"),
       trigger("period_locks", "zz_period_locks_no_truncate"),
     ],
-    provingTests: ["phase18-t1b-audit-floor.test.ts", "phase18-t1b-owner-checks.test.ts"],
+    provingTests: ["phase18-t1b-audit-floor.test.ts", "phase18-t1b-owner-checks.test.ts", "phase18-audit-a6-audit-order.test.ts"],
   },
   {
     id: "DR-22",

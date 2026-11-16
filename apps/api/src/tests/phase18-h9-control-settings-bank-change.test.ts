@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { businessToday } from "@workspace/shared";
 import { g04Harness } from "./helpers/g04Harness";
+import { replica } from "./helpers/replica";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -98,7 +99,8 @@ describeMaybe("Phase 18 H-9 — the control-settings table; an empty slot; payme
     const d = (n: number) => { const x = new Date(`${today}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
     const old = (await h.api("admin", "POST", "/vendors", { name: "H9 Old Change", residency: "resident", iban: IBAN_B })).body.id as number;
     // an IBAN change recorded 20 days ago (planted in the append-only audit trail, as the product would have written it)
-    await pool.query(
+    // planted in replica mode: since 0159 (Phase 18 audit A6) the database sets an audit row's time
+    await replica(pool as never).query(
       `INSERT INTO audit_logs (organization_id, action, entity_type, entity_id, before_state, after_state, created_at)
        VALUES ($1, 'update', 'vendor', $2, $3::jsonb, $4::jsonb, ($5::date + time '09:00') AT TIME ZONE 'Asia/Riyadh')`,
       [orgId, String(old), JSON.stringify({ iban: IBAN_A }), JSON.stringify({ iban: IBAN_B }), d(-20)]);
@@ -115,7 +117,7 @@ describeMaybe("Phase 18 H-9 — the control-settings table; an empty slot; payme
     const d = (n: number) => { const x = new Date(`${today}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
     const twice = (await h.api("admin", "POST", "/vendors", { name: "H9 Twice Changed", residency: "resident", iban: IBAN_A })).body.id as number;
     for (const [day, from, to] of [[d(-30), IBAN_A, IBAN_B], [d(-15), IBAN_B, IBAN_A]]) {
-      await pool.query(
+      await replica(pool as never).query( // replica mode: the database sets an audit row's time (0159)
         `INSERT INTO audit_logs (organization_id, action, entity_type, entity_id, before_state, after_state, created_at)
          VALUES ($1, 'update', 'vendor', $2, $3::jsonb, $4::jsonb, ($5::date + time '09:00') AT TIME ZONE 'Asia/Riyadh')`,
         [orgId, String(twice), JSON.stringify({ iban: from }), JSON.stringify({ iban: to }), day]);

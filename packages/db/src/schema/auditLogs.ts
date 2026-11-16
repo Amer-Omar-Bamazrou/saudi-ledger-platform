@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, jsonb, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, integer, jsonb, timestamp, index, bigint, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -16,6 +16,11 @@ import { usersTable } from "./users";
  * CONNECTION's declared actor (`TenantScope.actorUserId` →
  * `app.current_user_id`): `user_id` defaults to it, and a row naming anyone
  * else is refused, so the writer never chooses who acted.
+ *
+ * 🔴 Phase 18 audit A6 (G25, "sequence or chain"; migration 0159): nor WHEN, nor in what ORDER. A BEFORE INSERT
+ * trigger sets `created_at` to the transaction's time and `seq` from the database's own sequence, whatever the writer
+ * supplied; readers order by `seq`. `seq` is NULL only on rows written before 0159 — and on history a test plants
+ * in replica mode, the one bypass 0132 names.
  *
  * Added in Milestone 2 (additive). Population is wired up in a later milestone.
  */
@@ -35,13 +40,16 @@ export const auditLogsTable = pgTable("audit_logs", {
   afterState: jsonb("after_state"),
   ipAddress: varchar("ip_address", { length: 45 }), // holds IPv4 or IPv6
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    // Set by the database (0159); never written by the app.
+    seq: bigint("seq", { mode: "number" }),
   },
-  (t) => [index("audit_logs_org_idx").on(t.organizationId)],
+  (t) => [index("audit_logs_org_idx").on(t.organizationId), uniqueIndex("audit_logs_seq_unq").on(t.seq)],
 );
 
 export const insertAuditLogSchema = createInsertSchema(auditLogsTable).omit({
   id: true,
   createdAt: true,
+  seq: true,
 });
 
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
