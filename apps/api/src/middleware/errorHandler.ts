@@ -10,8 +10,19 @@
  *   - anything else → logged and returned as a generic 500.
  */
 import type { Request, Response, NextFunction } from "express";
+import { TenantTransactionEndedError } from "@workspace/db";
 import { translateDbRefusal } from "../lib/dbRefusals";
 import { recordReferenceRefusal } from "./referenceRefusals";
+
+/** The ended tenant handle's refusal, as thrown or as drizzle wraps it (a "Failed query" whose cause it is). */
+export function isEndedTransactionRefusal(err: unknown): boolean {
+  let e: unknown = err;
+  for (let depth = 0; e && depth < 5; depth++) {
+    if (e instanceof TenantTransactionEndedError || (e as { name?: unknown }).name === "TenantTransactionEndedError") return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
+}
 
 export function errorHandler(
   err: unknown,
@@ -22,6 +33,16 @@ export function errorHandler(
   // If a response was already partially sent, defer to Express' default handler.
   if (res.headersSent) {
     next(err);
+    return;
+  }
+
+  // 🔴 Phase 18 audit A29: the client went away, `resolveTenant` rolled the transaction back, and the handler's next
+  // statement was refused by the ended handle — by design, and nobody is waiting for an answer. Logged as that, at
+  // info, and nothing is sent. It used to be an ERROR with a stack and a 500 to a closed socket, 52–63 times in every
+  // browser run, hiding real failures among them. The same refusal on a request NOT rolled back on close falls
+  // through to the ERROR below: a handler using an ended handle on a live request is a bug.
+  if (res.locals?.tenantRolledBackOnClose === true && isEndedTransactionRefusal(err)) {
+    req.log.info({ method: req.method, path: req.path }, "client went away: the request's transaction was rolled back and its remaining statements refused");
     return;
   }
 
