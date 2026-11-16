@@ -46,7 +46,7 @@ describeMaybe("Phase 18 R-9 (DR-22) — the outbox's transitions and the cross-t
       `INSERT INTO invoices (organization_id, company_id, invoice_number, date, customer_id, status) VALUES ($1,$2,$3,$4,$5,'sent') RETURNING id`,
       [orgA, coA, `R9-${seq}`, DATE, customerA],
     )).rows[0].id;
-    const { rows } = await pool.query(
+    const { rows } = await writeIssuedFixture( // A8 (0160): documents are planted by the fixture writer — the database admits only the issuance's own shape
       `INSERT INTO einvoice_documents (organization_id, company_id, invoice_id, flow, status, invoice_hash, signed_xml, zatca_uuid)
        VALUES ($1,$2,$3,'reporting','pending','SGVsbG8=',$4, gen_random_uuid()) RETURNING id`,
       [orgA, coA, inv, SIGNED_XML],

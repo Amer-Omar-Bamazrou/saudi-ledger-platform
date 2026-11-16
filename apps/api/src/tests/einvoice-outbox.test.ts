@@ -98,7 +98,7 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
       )
     ).rows[0].id;
 
-    const { rows } = await pool.query(
+    const { rows } = await writeIssuedFixture( // A8 (0160): documents are planted by the fixture writer — the database admits only the issuance's own shape
       `INSERT INTO einvoice_documents
          (organization_id, company_id, invoice_id, flow, status, invoice_hash, signed_xml, zatca_uuid)
        VALUES ($1,$2,$3,$4,'pending',$5,$6, gen_random_uuid()) RETURNING id`,
@@ -264,8 +264,9 @@ describeMaybe("M12.6 — outbox transport (mocked at the HTTP boundary)", () => 
   it("one invoice can never have two outbox rows", async () => {
     const id = await queueDocument();
     const { rows } = await pool.query(`SELECT invoice_id FROM einvoice_documents WHERE id = $1`, [id]);
+    // A8 (0160): planted with triggers set aside, so what refuses the duplicate is the unique INDEX this case is about
     await expect(
-      pool.query(
+      writeIssuedFixture(
         `INSERT INTO einvoice_documents (organization_id, company_id, invoice_id, flow) VALUES ($1,$2,$3,'reporting')`,
         [orgId, companyId, rows[0].invoice_id],
       ),

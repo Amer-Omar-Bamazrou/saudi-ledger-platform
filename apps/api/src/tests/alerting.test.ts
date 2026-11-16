@@ -160,7 +160,7 @@ describeMaybe("B2 — alarm evaluation, dedupe and resolution", () => {
       )
     ).rows[0].id;
     const doc = (
-      await pool.query(
+      await writeIssuedFixture( // A8 (0160): documents are planted by the fixture writer — the database admits only the issuance's own shape
         `INSERT INTO einvoice_documents (organization_id, company_id, invoice_id, flow, status, created_at)
          VALUES ($1,$2,$3,'reporting','pending', now() - interval '14 hours') RETURNING id`,
         [org, company, invoice],

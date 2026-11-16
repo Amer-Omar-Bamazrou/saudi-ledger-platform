@@ -436,7 +436,7 @@ describeMaybe("scale and collision — the two classes small unique fixtures can
       const docValues = inv.rows
         .map((r: { id: number }) => `($1, $2, ${r.id}, 'reporting', 'pending', now() - interval '30 hours')`)
         .join(",");
-      await pool.query(
+      await writeIssuedFixture( // A8 (0160): documents are planted by the fixture writer — the database admits only the issuance's own shape
         `INSERT INTO einvoice_documents
            (organization_id, company_id, invoice_id, flow, status, created_at)
          VALUES ${docValues}`,
