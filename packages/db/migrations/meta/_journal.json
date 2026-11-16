@@ -1121,6 +1121,13 @@
       "when": 1794341607302,
       "tag": "0159_a6_audit_order_by_database",
       "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1794843530615,
+      "tag": "0160_a8_einvoice_document_insert_guard",
+      "breakpoints": true
     }
   ]
 }
