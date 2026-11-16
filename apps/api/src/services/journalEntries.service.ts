@@ -227,6 +227,8 @@ export const journalEntriesService = {
       creditAmount: round2(assertAmount(l.creditAmount ?? 0, `line ${i + 1} credit`)),
       customerId: l.customerId == null ? null : Number(l.customerId),
       vendorId: l.vendorId == null ? null : Number(l.vendorId),
+      // 🔴 owner A20: the stated reason a line names no party (blank is no reason)
+      partyNoneReason: l.partyNoneReason == null || String(l.partyNoneReason).trim() === "" ? null : String(l.partyNoneReason).trim(),
     }));
 
     const totalDebit = parsedLines.reduce((s, l) => s + l.debitAmount, 0);
@@ -343,6 +345,10 @@ export const journalEntriesService = {
       const refuse = (error: string, field: string) => {
         throw new BusinessRuleError(422, { error, code: "journal_line_party_invalid", field });
       };
+      // 🔴 owner A20: a no-party reason only means something on the two accounts that take one
+      if (l.partyNoneReason != null && code !== "SECURITY_DEPOSITS_HELD" && code !== "UNIDENTIFIED_RECEIPTS") {
+        refuse(`Line ${i + 1}: a reason for naming no party belongs only on a security-deposit or unidentified-receipt line.`, `lines[${i}].partyNoneReason`);
+      }
       // 🔴 H-19 — DR-33: the ONE protected-account list (@workspace/shared), read at this route's write boundary.
       const protectedRule = protectedAccountRule(code);
       if (protectedRule && !(protectedRule.classifiableCorrection && correctionKind)) {
@@ -378,6 +384,24 @@ export const journalEntriesService = {
           refuse(`Line ${i + 1}: a payable line names a vendor, not a customer.`, `lines[${i}].customerId`);
         const [v] = await vendorsRepository.findById(l.vendorId!);
         if (!v) refuse(`Line ${i + 1}: vendor ${l.vendorId} does not exist for this organization.`, `lines[${i}].vendorId`);
+      } else if (code === "SECURITY_DEPOSITS_HELD" || code === "UNIDENTIFIED_RECEIPTS") {
+        // 🔴 Phase 18 owner decision A20: a customer, or a stated reason why there is none — matching the receipt
+        // paths (the posting seam's `{ type: "none", reason }`). The reason is stored with the line (0162).
+        if (l.vendorId != null) refuse(`Line ${i + 1} posts to ${acct?.name ?? code}: it names a customer, or no one with a reason — never a vendor.`, `lines[${i}].vendorId`);
+        if (l.customerId != null) {
+          if (l.partyNoneReason != null) refuse(`Line ${i + 1}: a line names its customer OR states why it has none — not both.`, `lines[${i}].partyNoneReason`);
+          const [c] = await customersRepository.findById(l.customerId);
+          if (!c) refuse(`Line ${i + 1}: customer ${l.customerId} does not exist for this organization.`, `lines[${i}].customerId`);
+        } else if (l.partyNoneReason == null) {
+          throw new BusinessRuleError(422, {
+            code: "journal_line_party_reason_required",
+            field: `lines[${i}].partyNoneReason`,
+            error: `Line ${i + 1} posts to ${acct?.name ?? code}: pick the customer the balance belongs to, or state why there is none (for example, a payer not yet identified).`,
+            errorAr: `السطر ${i + 1} يرحّل إلى ${acct?.name ?? code}: اختر العميل صاحب الرصيد، أو اذكر سبب عدم وجوده (مثلاً: دافع لم يُعرف بعد).`,
+          });
+        } else if (l.partyNoneReason.length > 500) {
+          refuse(`Line ${i + 1}: keep the reason to 500 characters.`, `lines[${i}].partyNoneReason`);
+        }
       } else if (l.customerId != null || l.vendorId != null) {
         refuse(
           `Line ${i + 1}: a customer/vendor belongs only on a receivable or payable line — this account is neither.`,
@@ -638,6 +662,8 @@ export const journalEntriesService = {
         partyType: l.partyType,
         customerId: l.customerId,
         vendorId: l.vendorId,
+        // owner A20: and its stated reason for naming no party
+        partyNoneReason: l.partyNoneReason,
       })),
     );
     /**

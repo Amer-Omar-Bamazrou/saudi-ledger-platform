@@ -19,6 +19,8 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
+import { postJournalEntry } from "../services/accounting/glPosting";
+import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -27,7 +29,7 @@ const PW = "OwnerA20PartyReasonPw1!";
 
 describeMaybe("Phase 18 owner decision A20 — a manual line on SECURITY_DEPOSITS_HELD / UNIDENTIFIED_RECEIPTS names its customer or states why not", () => {
   const h = g04Harness("owna20");
-  let orgId = "", customerId = 0, vendorId = 0, seq = 0;
+  let orgId = "", companyId = "", adminId = 0, customerId = 0, vendorId = 0, seq = 0;
   const acct: Record<string, number> = {};
 
   const entry = (code: string, party: Record<string, unknown>) => ({
@@ -46,8 +48,8 @@ describeMaybe("Phase 18 owner decision A20 — a manual line on SECURITY_DEPOSIT
   beforeAll(async () => {
     await h.cleanup();
     orgId = await h.mkOrg("org");
-    await h.mkCompany(orgId, "Owner A20 Co", "318181818181663");
-    await h.mkUser("admin", PW, orgId, "admin");
+    companyId = await h.mkCompany(orgId, "Owner A20 Co", "318181818181663");
+    adminId = await h.mkUser("admin", PW, orgId, "admin");
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'A20 Customer') RETURNING id`, [orgId])).rows[0].id;
     vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'A20 Supplier','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     for (const code of ["RENT_UTILITIES", "OFFICE_SUPPLIES", "SECURITY_DEPOSITS_HELD", "UNIDENTIFIED_RECEIPTS"]) {
@@ -94,6 +96,22 @@ describeMaybe("Phase 18 owner decision A20 — a manual line on SECURITY_DEPOSIT
   it("a no-party reason on any other account is refused (it only means something on these two)", async () => {
     const r = await h.api("admin", "POST", "/journal-entries", entry("OFFICE_SUPPLIES", { partyNoneReason: "not here" }));
     expect([r.status, r.body?.code]).toEqual([422, "journal_line_party_invalid"]);
+  });
+
+  it("🔴 the posting seam stores the reason a receipt path states for naming no party (the same column)", async () => {
+    const reason = "simplified invoice — no identified customer (seam probe)";
+    const je = await h.inTenant(orgId, companyId, adminId, () => postJournalEntry({
+      entryNumber: `A20-SEAM-${++seq}`, date: "2026-11-03", description: "A20 seam probe",
+      lines: [
+        { systemCode: "RENT_UTILITIES", accountName: "Rent", debitAmount: 40, creditAmount: 0 },
+        { systemCode: "UNIDENTIFIED_RECEIPTS", accountName: "Unidentified receipts", debitAmount: 0, creditAmount: 40, party: { type: "none", reason } },
+      ],
+    }));
+    try {
+      expect(await line(je.id, "UNIDENTIFIED_RECEIPTS")).toMatchObject({ customer_id: null, party_type: null, party_none_reason: reason });
+    } finally {
+      await releasePostedJournalsForTeardown(`id = $1`, [je.id]);
+    }
   });
 
   it("the database keeps the reason to a line with no party (CHECK)", async () => {

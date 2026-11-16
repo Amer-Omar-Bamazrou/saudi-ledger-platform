@@ -57,7 +57,8 @@ export type GLParty =
    * ("Customer is required against Receivable") cannot be unconditional here.
    * What CAN be unconditional: the caller must say so. `reason` is recorded
    * nowhere (the columns stay NULL) — it exists to make the call site
-   * self-explaining and the thoughtless omission inexpressible.
+   * self-explaining and the thoughtless omission inexpressible. Since 0162 (owner decision A20) the reason is STORED
+   * with the line (`party_none_reason`), matching the manual journal's stated reason on the same accounts.
    */
   | { type: "none"; reason: string };
 
@@ -463,6 +464,7 @@ export async function postJournalEntry(opts: {
       partyType: l.party && l.party.type !== "none" ? l.party.type : null,
       customerId: l.party?.type === "customer" ? l.party.customerId : null,
       vendorId: l.party?.type === "vendor" ? l.party.vendorId : null,
+      partyNoneReason: l.party?.type === "none" ? l.party.reason.trim().slice(0, 500) || null : null,
     }))
   );
 

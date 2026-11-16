@@ -5900,7 +5900,8 @@ export const ListJournalEntriesResponse = zod.object({
   "creditAmount": zod.number(),
   "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
   "customerId": zod.number().nullish(),
-  "vendorId": zod.number().nullish()
+  "vendorId": zod.number().nullish(),
+  "partyNoneReason": zod.string().nullish().describe('Owner decision A20 — the stated reason a line on a party account names no party (0162).')
 }))
 })),
   "page": zod.object({
@@ -5921,6 +5922,8 @@ export const createJournalEntryBodyLinesItemDebitAmountMin = 0;
 
 export const createJournalEntryBodyLinesItemCreditAmountMin = 0;
 
+export const createJournalEntryBodyLinesItemPartyNoneReasonMax = 500;
+
 export const createJournalEntryBodyLinesMin = 2;
 
 
@@ -5938,8 +5941,9 @@ export const CreateJournalEntryBody = zod.object({
   "description": zod.string().nullish(),
   "debitAmount": zod.number().min(createJournalEntryBodyLinesItemDebitAmountMin),
   "creditAmount": zod.number().min(createJournalEntryBodyLinesItemCreditAmountMin),
-  "customerId": zod.number().nullish().describe('N3 — REQUIRED when the line\'s account is the Accounts Receivable control account (a receivable is a receivable FROM someone), and refused on any other account. Tenant-scoped: the id must exist in this organization.\n'),
-  "vendorId": zod.number().nullish().describe('N3 — REQUIRED when the line\'s account is the Accounts Payable control account, refused on any other account. Tenant-scoped.\n')
+  "customerId": zod.number().nullish().describe('N3 — REQUIRED when the line\'s account is the Accounts Receivable control account (a receivable is a receivable FROM someone), and refused on any other account. Tenant-scoped: the id must exist in this organization. Owner decision A20: also accepted on SECURITY_DEPOSITS_HELD and UNIDENTIFIED_RECEIPTS, where a line names its customer or states partyNoneReason.\n'),
+  "vendorId": zod.number().nullish().describe('N3 — REQUIRED when the line\'s account is the Accounts Payable control account, refused on any other account. Tenant-scoped.\n'),
+  "partyNoneReason": zod.string().max(createJournalEntryBodyLinesItemPartyNoneReasonMax).nullish().describe('Owner decision A20: on SECURITY_DEPOSITS_HELD or UNIDENTIFIED_RECEIPTS, the stated reason the line names no customer (required when it names none; refused with a customer, and on any other account). Stored with the line.\n')
 })).min(createJournalEntryBodyLinesMin)
 })
 
@@ -5972,7 +5976,8 @@ export const CreateJournalEntryResponse = zod.object({
   "creditAmount": zod.number(),
   "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
   "customerId": zod.number().nullish(),
-  "vendorId": zod.number().nullish()
+  "vendorId": zod.number().nullish(),
+  "partyNoneReason": zod.string().nullish().describe('Owner decision A20 — the stated reason a line on a party account names no party (0162).')
 }))
 })
 
@@ -6013,7 +6018,8 @@ export const GetJournalEntryResponse = zod.object({
   "creditAmount": zod.number(),
   "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
   "customerId": zod.number().nullish(),
-  "vendorId": zod.number().nullish()
+  "vendorId": zod.number().nullish(),
+  "partyNoneReason": zod.string().nullish().describe('Owner decision A20 — the stated reason a line on a party account names no party (0162).')
 }))
 })
 
@@ -6064,7 +6070,8 @@ export const PostJournalEntryResponse = zod.object({
   "creditAmount": zod.number(),
   "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
   "customerId": zod.number().nullish(),
-  "vendorId": zod.number().nullish()
+  "vendorId": zod.number().nullish(),
+  "partyNoneReason": zod.string().nullish().describe('Owner decision A20 — the stated reason a line on a party account names no party (0162).')
 }))
 })
 
@@ -6118,7 +6125,8 @@ export const ReverseJournalEntryResponse = zod.object({
   "creditAmount": zod.number(),
   "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
   "customerId": zod.number().nullish(),
-  "vendorId": zod.number().nullish()
+  "vendorId": zod.number().nullish(),
+  "partyNoneReason": zod.string().nullish().describe('Owner decision A20 — the stated reason a line on a party account names no party (0162).')
 }))
 })
 })
@@ -7371,7 +7379,8 @@ export const ApproveJournalEntryResponse = zod.object({
   "creditAmount": zod.number(),
   "partyType": zod.union([zod.literal('customer'),zod.literal('vendor'),zod.literal(null)]).nullish().describe('N3 — who this control-account line is with; null on non-AR\/AP lines and on pre-N3 rows.'),
   "customerId": zod.number().nullish(),
-  "vendorId": zod.number().nullish()
+  "vendorId": zod.number().nullish(),
+  "partyNoneReason": zod.string().nullish().describe('Owner decision A20 — the stated reason a line on a party account names no party (0162).')
 }))
 })
 
