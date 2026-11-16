@@ -103,7 +103,7 @@ describeMaybe("Phase 18 owner decision A20 — a manual line on SECURITY_DEPOSIT
     const je = await h.inTenant(orgId, companyId, adminId, () => postJournalEntry({
       entryNumber: `A20-SEAM-${++seq}`, date: "2026-11-03", description: "A20 seam probe",
       lines: [
-        { systemCode: "RENT_UTILITIES", accountName: "Rent", debitAmount: 40, creditAmount: 0 },
+        { accountId: acct.RENT_UTILITIES, accountName: "Rent", debitAmount: 40, creditAmount: 0 },
         { systemCode: "UNIDENTIFIED_RECEIPTS", accountName: "Unidentified receipts", debitAmount: 0, creditAmount: 40, party: { type: "none", reason } },
       ],
     }));
