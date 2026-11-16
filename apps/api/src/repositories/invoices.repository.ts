@@ -538,6 +538,12 @@ export const invoicesRepository = {
    * moved the draft first.
    */
   updateDraft(id: number, values: Partial<typeof invoicesTable.$inferInsert>) {
+    // 🔴 Phase 18 audit A30: an edit naming no header field (an empty body; an invoice's prepayments alone) has nothing
+    // to SET, and an empty UPDATE throws "No values to set" — a 500. Lock and read the invoice under the SAME draft-only
+    // condition instead: the caller gets the row (still a draft) or nothing (no longer one), exactly as from the update.
+    if (Object.keys(values).length === 0) {
+      return db.select().from(invoicesTable).where(and(eq(invoicesTable.id, id), unissued(["draft"]))).for("update");
+    }
     return db.update(invoicesTable).set(values).where(and(eq(invoicesTable.id, id), unissued(["draft"]))).returning();
   },
 

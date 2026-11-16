@@ -221,6 +221,12 @@ export const billsRepository = {
    * row when an approval (or anything else) moved the draft first.
    */
   updateDraft(id: number, values: Partial<typeof billsTable.$inferInsert>) {
+    // 🔴 Phase 18 audit A30: an edit naming no header field (an empty body; an invoice's prepayments alone) has nothing
+    // to SET, and an empty UPDATE throws "No values to set" — a 500. Lock and read the bill under the SAME draft-only
+    // condition instead: the caller gets the row (still a draft) or nothing (no longer one), exactly as from the update.
+    if (Object.keys(values).length === 0) {
+      return db.select().from(billsTable).where(and(eq(billsTable.id, id), eq(billsTable.status, "draft"))).for("update");
+    }
     return db.update(billsTable).set(values).where(and(eq(billsTable.id, id), eq(billsTable.status, "draft"))).returning();
   },
 
