@@ -52,6 +52,9 @@ async function switchToArabic(page: import("@playwright/test").Page) {
 /** Opens every collapsed sidebar section, using the app's own controls. */
 async function expandAllSections(page: import("@playwright/test").Page) {
   const collapsed = page.locator('button[data-nav-section][aria-expanded="false"]');
+  // 🔴 Phase 18 audit A28: wait for the signed-in sidebar before counting — the same helper A26 fixed in
+  // fixed-assets-navigation: a count of 0 before the layout renders returned at once and opened nothing.
+  await expect(page.locator("button[data-nav-section]").first()).toBeVisible();
   // Bounded: click what is closed, re-read, stop when nothing is left. A
   // `while (count > 0)` without a bound would spin forever if a click failed.
   for (let pass = 0; pass < 20; pass++) {

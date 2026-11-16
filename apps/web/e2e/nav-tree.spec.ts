@@ -242,15 +242,22 @@ test.describe("the filters actually filter", () => {
     // The scope is deliberately absent when nothing is filtered — an
     // unfiltered list needs no announcement.
     await expect(page.locator('[data-testid="filter-scope"]')).toHaveCount(0);
+    // 🔴 Phase 18 audit A28: `count()` does not wait. While loading, the page renders no <tbody> at all, so a count
+    // taken before the rows commit reads 0 — main went red on exactly this (run 42891817721, :272).
+    await expect
+      .poll(() => page.locator("tbody tr").count(), { message: "the fixture seeded no invoices — every assertion here would be vacuous" })
+      .toBeGreaterThan(1);
     const allRows = await page.locator("tbody tr").count();
-    expect(
-      allRows,
-      "the fixture seeded no invoices — every assertion here would be vacuous",
-    ).toBeGreaterThan(1);
 
     await page.goto("/invoices?status=paid", { waitUntil: "networkidle" });
     const scope = page.locator('[data-testid="filter-scope"]');
     await expect(scope).toBeVisible();
+    // 🔴 A28: the scope renders WHILE LOADING with data-total="" — and 0 rows with Number("") = 0 agreed, so the two
+    // assertions below could pass on a page that had not loaded. Wait for the server's count first.
+    await expect(scope).toHaveAttribute("data-total", /^\d+$/);
+    await expect
+      .poll(() => page.locator("tbody tr").count(), { message: "the rows shown are the rows the scope counts" })
+      .toBe(Number(await scope.getAttribute("data-total")));
     const paidRows = await page.locator("tbody tr").count();
 
     expect(
@@ -269,7 +276,9 @@ test.describe("the filters actually filter", () => {
     // Showing everything is visibly wrong; showing nothing looks like a fact.
     await page.goto("/invoices?status=not-a-real-status", { waitUntil: "networkidle" });
     await expect(page.locator('[data-testid="filter-scope"]')).toHaveCount(0);
-    expect(await page.locator("tbody tr").count()).toBeGreaterThan(1);
+    // 🔴 Phase 18 audit A28: `count()` does not wait. While loading, the page renders no <tbody> at all, so a count
+    // taken before the rows commit reads 0 — main went red on exactly this (run 42891817721, :272).
+    await expect.poll(() => page.locator("tbody tr").count(), { message: "an unrecognised status emptied the list" }).toBeGreaterThan(1);
   });
 });
 
@@ -362,6 +371,8 @@ test.describe("the navigation itself", () => {
     await page.goto("/", { waitUntil: "networkidle" });
     const soonLinks = page.locator('[data-nav-marker="coming-soon"]');
     // Not disabled, not greyed into uselessness: a real anchor with a real href.
+    // 🔴 A28: wait for the signed-in sidebar before counting (it renders after /api/auth/me).
+    await expect(soonLinks.first(), "no Coming Soon entries rendered in the sidebar at all").toBeAttached();
     const count = await soonLinks.count();
     expect(count, "no Coming Soon entries rendered in the sidebar at all").toBeGreaterThan(0);
     const href = await soonLinks.first().getAttribute("href");

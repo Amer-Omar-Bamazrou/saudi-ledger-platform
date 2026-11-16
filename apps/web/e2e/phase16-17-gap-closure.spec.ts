@@ -278,6 +278,9 @@ test.describe.serial("Phase 16 + 17 — the gaps closed without a decision", () 
     await page.reload();
     await expect(page.getByTestId("zakat-class-filter"), "a reload keeps the filter").toContainText("Not classified — blocking a computation at this date");
     const rows = page.locator(`[data-testid^="zakat-class-row-"]`);
+    // 🔴 Phase 18 audit A28: counted before the reloaded list rendered, 0 rows asserted nothing. Wait for the loaded
+    // state — the rows, or the page's own "nothing blocks" sentence — so an empty answer is one the page GAVE.
+    await expect(rows.first().or(page.getByTestId("zakat-class-empty"))).toBeVisible();
     const n = await rows.count();
     for (let i = 0; i < n; i++) await expect(rows.nth(i).locator(`[data-testid^="zakat-class-blocks-"]`), "every row shown blocks").toHaveCount(1);
     for (const viewport of [PHONE, null]) {
