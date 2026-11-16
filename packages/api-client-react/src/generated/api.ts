@@ -249,6 +249,7 @@ import type {
   ListInvoicesParams,
   ListJournalEntries200,
   ListJournalEntriesParams,
+  ListOrgSecurityEventsParams,
   ListPaymentPlansParams,
   ListPaymentsParams,
   ListPurchaseOrders200,
@@ -349,6 +350,7 @@ import type {
   ReverseWithReasonInput,
   RunAssetDepreciationInput,
   RunRecognitionInput,
+  SecurityEventPage,
   SendBackInput,
   SetZakatClassificationInput,
   SettleTransactionInput,
@@ -3487,6 +3489,97 @@ export function useListAuditLogs<TData = Awaited<ReturnType<typeof listAuditLogs
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAuditLogsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListOrgSecurityEventsUrl = (orgId: string,
+    params?: ListOrgSecurityEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/orgs/${orgId}/security-events?${stringifiedParams}` : `/api/orgs/${orgId}/security-events`
+}
+
+/**
+ * @summary The organization's security trail, for the admins of THIS organization only: sign-ins, invitations, membership and role changes, password resets (an operator's break-glass reset with the operator redacted, DR-27). Newest first, one page at a time, with the organization's total. The route predates the OpenAPI-first rule and gained its spec entry with its first screen, the Users page (Phase 18 audit A2).
+
+ */
+export const listOrgSecurityEvents = async (orgId: string,
+    params?: ListOrgSecurityEventsParams, options?: RequestInit): Promise<SecurityEventPage> => {
+
+  return customFetch<SecurityEventPage>(getListOrgSecurityEventsUrl(orgId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOrgSecurityEventsQueryKey = (orgId: string,
+    params?: ListOrgSecurityEventsParams,) => {
+    return [
+    `/api/orgs/${orgId}/security-events`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOrgSecurityEventsQueryOptions = <TData = Awaited<ReturnType<typeof listOrgSecurityEvents>>, TError = ErrorType<unknown>>(orgId: string,
+    params?: ListOrgSecurityEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrgSecurityEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOrgSecurityEventsQueryKey(orgId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOrgSecurityEvents>>> = ({ signal }) => listOrgSecurityEvents(orgId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orgId !== null && orgId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOrgSecurityEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOrgSecurityEventsQueryResult = NonNullable<Awaited<ReturnType<typeof listOrgSecurityEvents>>>
+export type ListOrgSecurityEventsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The organization's security trail, for the admins of THIS organization only: sign-ins, invitations, membership and role changes, password resets (an operator's break-glass reset with the operator redacted, DR-27). Newest first, one page at a time, with the organization's total. The route predates the OpenAPI-first rule and gained its spec entry with its first screen, the Users page (Phase 18 audit A2).
+
+ */
+
+export function useListOrgSecurityEvents<TData = Awaited<ReturnType<typeof listOrgSecurityEvents>>, TError = ErrorType<unknown>>(
+ orgId: string,
+    params?: ListOrgSecurityEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrgSecurityEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOrgSecurityEventsQueryOptions(orgId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

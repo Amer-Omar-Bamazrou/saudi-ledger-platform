@@ -142,7 +142,7 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "DR-27",
-    title: "An operator's break-glass password expires after 24 hours and is visible to the tenant, the operator redacted",
+    title: "An operator's break-glass password expires after 24 hours and is visible to the tenant, the operator redacted — read on the Users page, a page at a time with its total (audit A2)",
     answers: ["G28", "G51"],
     type: "preventive",
     activation: ALWAYS,
@@ -151,11 +151,13 @@ export const CONTROLS: readonly Control[] = [
       code(`${API}/services/operator.service.ts`, "BREAK_GLASS_WINDOW_MS"),
       code(`${API}/lib/auth.ts`, "refuseUntilPasswordChanged"),
       code(`${API}/routes/auth.ts`, "recordSignInEvent"),
+      code(`${API}/services/securityAudit.service.ts`, "securityAuditService.listForOrg"),
     ],
     provingTests: [
       "phase18-r1-dr27-break-glass-expiry.test.ts",
       "phase18-h15-forced-password-change.test.ts",
       "phase18-h16-tenant-visible-password-resets.test.ts",
+      "phase18-audit-a2-security-events-page.test.ts",
     ],
   },
   {

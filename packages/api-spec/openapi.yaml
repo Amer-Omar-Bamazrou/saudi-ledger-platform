@@ -966,6 +966,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuditLogPage"
 
+  /orgs/{orgId}/security-events:
+    get:
+      operationId: listOrgSecurityEvents
+      tags: [orgs]
+      summary: >
+        The organization's security trail, for the admins of THIS organization
+        only: sign-ins, invitations, membership and role changes, password
+        resets (an operator's break-glass reset with the operator redacted,
+        DR-27). Newest first, one page at a time, with the organization's
+        total. The route predates the OpenAPI-first rule and gained its spec
+        entry with its first screen, the Users page (Phase 18 audit A2).
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 200 }
+        - in: query
+          name: offset
+          schema: { type: integer }
+      responses:
+        "200":
+          description: One page of the trail, newest first, with the organization's total
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityEventPage"
+
   /control-flags:
     get:
       operationId: listControlFlags
@@ -11562,6 +11592,40 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AuditLogEntry"
+
+    SecurityEvent:
+      type: object
+      required: [id, action, createdAt]
+      properties:
+        id: { type: string }
+        action:
+          type: string
+          description: >
+            The event's code (invite.sent, membership.role_changed,
+            user.password_breakglass_reset, ...). Free-form by design: the
+            vocabulary is the identity layer's and grows with it.
+        actorUserId: { type: integer, nullable: true }
+        actorEmail: { type: string, nullable: true }
+        organizationId: { type: string, nullable: true }
+        targetUserId: { type: integer, nullable: true }
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        ipAddress: { type: string, nullable: true }
+        createdAt: { type: string }
+
+    SecurityEventPage:
+      type: object
+      required: [events, total, limit, offset]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/SecurityEvent"
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
 
     Finding:
       type: object

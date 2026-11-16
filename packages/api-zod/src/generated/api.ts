@@ -1846,6 +1846,41 @@ export const ListAuditLogsResponse = zod.object({
 
 
 /**
+ * @summary The organization's security trail, for the admins of THIS organization only: sign-ins, invitations, membership and role changes, password resets (an operator's break-glass reset with the operator redacted, DR-27). Newest first, one page at a time, with the organization's total. The route predates the OpenAPI-first rule and gained its spec entry with its first screen, the Users page (Phase 18 audit A2).
+
+ */
+export const ListOrgSecurityEventsParams = zod.object({
+  "orgId": zod.coerce.string()
+})
+
+export const listOrgSecurityEventsQueryLimitMax = 200;
+
+
+
+export const ListOrgSecurityEventsQueryParams = zod.object({
+  "limit": zod.coerce.number().max(listOrgSecurityEventsQueryLimitMax).optional(),
+  "offset": zod.coerce.number().optional()
+})
+
+export const ListOrgSecurityEventsResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.string(),
+  "action": zod.string().describe('The event\'s code (invite.sent, membership.role_changed, user.password_breakglass_reset, ...). Free-form by design: the vocabulary is the identity layer\'s and grows with it.\n'),
+  "actorUserId": zod.number().nullish(),
+  "actorEmail": zod.string().nullish(),
+  "organizationId": zod.string().nullish(),
+  "targetUserId": zod.number().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish(),
+  "ipAddress": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number()
+})
+
+
+/**
  * @summary Phase 18 R-11a (DR-14): the active company's control flags, newest first - each a record that one person did both halves of something a second person usually does (approved a document they made, or did both acts of one of the five pairs). A flag never blocks an act. Read by the approvers (admin, accountant) only.
 
  */
