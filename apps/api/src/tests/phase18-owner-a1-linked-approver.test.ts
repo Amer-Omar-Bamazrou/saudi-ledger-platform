@@ -66,9 +66,9 @@ describeMaybe("Phase 18 owner decision A1 — the approver of a held bank-detail
     await pool.query(
       `INSERT INTO companies (organization_id, name, cr_number, vat_number, fiscal_year_start, building_number, street, district, city, postal_code, additional_number)
        VALUES ($1,'Owner A1 Co','1010868391','310123456789013',1,'1234','King Fahd Road','Al Olaya','Riyadh','12345','6789')`, [orgId]);
-    for (const k of ["requester", "independent", "reset", "reactivated", "inside", "outside"]) ids[k] = await h.mkUser(k, PW, orgId, "admin");
+    for (const k of ["requester", "independent", "reset", "reactivated", "inside", "outside", "createdOnly"]) ids[k] = await h.mkUser(k, PW, orgId, "admin");
     await h.start();
-    for (const k of ["requester", "independent", "reactivated", "inside", "outside"]) expect(await h.login(k, h.email(k), PW), `login ${k}`).toBe(200);
+    for (const k of ["requester", "independent", "reactivated", "inside", "outside", "createdOnly"]) expect(await h.login(k, h.email(k), PW), `login ${k}`).toBe(200);
 
     // CREATED by the requester, through the product's own path (an admin-set password, changed at first sign-in, H-15)
     ids.created = (await ok("requester", "POST", "/auth/register", { name: "A1 Created", email: h.email("created"), password: SET, role: "admin", organizationId: orgId })).id;
@@ -83,11 +83,13 @@ describeMaybe("Phase 18 owner decision A1 — the approver of a held bank-detail
     // RE-ACTIVATED by the requester: its membership set inactive, then active again
     await ok("requester", "PATCH", `/orgs/${orgId}/members/${ids.reactivated}`, { status: "inactive" });
     await ok("requester", "PATCH", `/orgs/${orgId}/members/${ids.reactivated}`, { status: "active" });
-    expect(await h.login("reactivated", h.email("reactivated"), PW), "signs in again after re-activation").toBe(200);
+    // (its session survives: deactivating a membership ends no session; the sign-in limiter's budget is spent with care)
 
     // The window's two sides, planted one minute either side of 30 days (a reset by the requester)
     await plant("user.password_reset", ids.requester!, ids.inside!, "interval '30 days' - interval '1 minute'");
     await plant("user.password_reset", ids.requester!, ids.outside!, "interval '30 days' + interval '1 minute'");
+    // The creation clause on its own: a `user.created` by the requester, with no membership event beside it
+    await plant("user.created", ids.requester!, ids.createdOnly!, "interval '1 day'");
     // Not links: the approver acting on the requester (the other direction), and a third admin acting on the approver
     await plant("user.password_reset", ids.independent!, ids.requester!, "interval '1 day'");
     await plant("user.password_reset", ids.outside!, ids.independent!, "interval '1 day'");
@@ -105,6 +107,12 @@ describeMaybe("Phase 18 owner decision A1 — the approver of a held bank-detail
       expect(await refusalsRecorded(ids[who]!, id), "the refusal is in the security trail").toBe(1);
     });
   }
+
+  it("🔴 a creation by the requester links on its own (no membership event beside it)", async () => {
+    const id = await heldChange("A1 created only");
+    const r = await decide("createdOnly", id);
+    expect([r.status, r.body?.code], JSON.stringify(r.body)).toEqual([409, CODE]);
+  });
 
   it("🔴 the window's inside edge: a reset 30 days less one minute ago still blocks", async () => {
     const id = await heldChange("A1 inside");

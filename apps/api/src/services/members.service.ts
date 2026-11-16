@@ -130,7 +130,8 @@ export const membersService = {
       actorEmail: ctx.actorEmail,
       organizationId: orgId,
       targetUserId: userId,
-      metadata: { role: membership.role, status: membership.status },
+      // 🔴 Phase 18 owner decision A1: the state before, so a re-activation reads as one (0161)
+      metadata: { role: membership.role, status: membership.status, before: { role: existing.role, status: existing.status } },
       ipAddress: ctx.ipAddress,
     });
     return { userId, organizationId: orgId, role: membership.role, status: membership.status };

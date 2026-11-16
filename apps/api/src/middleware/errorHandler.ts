@@ -12,7 +12,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { TenantTransactionEndedError } from "@workspace/db";
 import { translateDbRefusal } from "../lib/dbRefusals";
-import { recordReferenceRefusal } from "./referenceRefusals";
+import { recordApprovalRefusal, recordReferenceRefusal } from "./referenceRefusals";
 
 /** The ended tenant handle's refusal, as thrown or as drizzle wraps it (a "Failed query" whose cause it is). */
 export function isEndedTransactionRefusal(err: unknown): boolean {
@@ -82,6 +82,7 @@ export function errorHandler(
   if (refusal) {
     req.log.warn({ code: refusal.body.code }, "refusal from the database");
     recordReferenceRefusal(req, refusal.status, refusal.body);
+    recordApprovalRefusal(req, refusal.status, refusal.body);
     res.status(refusal.status).json(refusal.body);
     return;
   }
