@@ -47,6 +47,7 @@ const ACTION_LABEL: Record<string, [string, string]> = {
   "verification.document_viewed": ["Verification document viewed by the platform operator", "اطلاع مشغّل المنصة على مستند التحقق"],
   "account.operator_target_refused": ["Refused: the account is a platform operator", "رُفض: الحساب لمشغّل المنصة"],
   "reference.refused": ["Refused: a reference to another organization", "رُفض: مرجع إلى منشأة أخرى"],
+  "bank_detail_change.approval_refused": ["Refused: a bank-detail approval by an account the requester created, re-activated or reset", "رُفض: اعتماد تغيير بنكي من حساب أنشأه مقدّم الطلب أو أعاد تفعيله أو أعاد تعيين كلمة مروره"],
 };
 
 export function SecurityEventsCard({ orgId, nameOf }: { orgId: string; nameOf: (userId: number) => string | undefined }) {

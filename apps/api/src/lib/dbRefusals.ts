@@ -244,6 +244,12 @@ export const BANK_DETAIL_REFUSALS = {
     error: "This request was already decided. A decision is final; a new change is a new request.",
     errorAr: "سبق البتّ في هذا الطلب، والقرار نهائي؛ أي تغيير جديد يكون بطلب جديد.",
   },
+  // 🔴 Phase 18 owner decision A1 (0161): the approver is not an identity the requester controls.
+  linkedApprover: {
+    code: "bank_detail_approver_linked",
+    error: "You cannot approve this bank-detail change: the admin who asked for it created, re-activated or reset your account within the last 30 days. Another admin of this organisation approves it.",
+    errorAr: "لا يمكنك اعتماد تغيير البيانات البنكية هذا: المسؤول الذي طلبه أنشأ حسابك أو أعاد تفعيله أو أعاد تعيين كلمة مروره خلال آخر 30 يوماً. يعتمده مسؤول آخر في هذه المنشأة.",
+  },
   requiresSecondAdmin: {
     code: "bank_detail_change_requires_second_admin",
     error: "In an organisation with two or more admins, a bank-detail change waits for a second admin's approval. Make the change again so it is recorded as a request.",
@@ -276,6 +282,7 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   // the hold, or the admin count moving under the request) and a decision the database refuses answer as 409s.
   if (pgCode === "23514" && constraint === "bank_detail_dual_control") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.requiresSecondAdmin } as DbRefusal["body"] };
   if (pgCode === "23514" && constraint === "bank_detail_change_second_admin") return { status: 409, body: { code: "second_admin_required", error: pgMessage } };
+  if (pgCode === "23514" && constraint === "bank_detail_change_linked_approver") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.linkedApprover } as DbRefusal["body"] };
   if (pgCode === "23514" && constraint === "bank_detail_change_request_flow") return { status: 409, body: { code: "bank_detail_change_refused", error: pgMessage } };
   // 🔴 R-11b (DR-20, 0155): a bookkeeper's cash, tax or equity posting where the organisation has two or more approvers
   // is an approver's act — an AUTHORITY refusal (403), in the database's words naming what the entry touches.
