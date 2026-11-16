@@ -21,6 +21,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
+import { until } from "./helpers/g08rRace";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -104,6 +105,9 @@ describeMaybe("Phase 18 owner decision A1 — the approver of a held bank-detail
       expect([r.status, r.body?.code], JSON.stringify(r.body)).toEqual([409, CODE]);
       expect(typeof r.body?.errorAr, "the refusal speaks Arabic too").toBe("string");
       expect((await pool.query(`SELECT status FROM bank_detail_change_requests WHERE id = $1`, [id])).rows[0].status).toBe("pending");
+      // The refusal is recorded best-effort, after the response (as R-9's reference refusals are): wait for the row,
+      // bounded, then require exactly one. Reading at once raced the write (CI run 43965670173).
+      await until("the refusal is recorded", async () => (await refusalsRecorded(ids[who]!, id)) >= 1, 5_000).catch(() => undefined);
       expect(await refusalsRecorded(ids[who]!, id), "the refusal is in the security trail").toBe(1);
     });
   }
