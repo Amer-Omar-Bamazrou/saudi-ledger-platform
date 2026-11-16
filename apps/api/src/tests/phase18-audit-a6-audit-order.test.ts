@@ -5,7 +5,7 @@
  * `audit_logs.created_at` was a column DEFAULT, so any writer holding INSERT could name its own time — a row written
  * today could claim to be from 2020, or from 2030, and read as history in that place. There was no sequence, so the
  * order of rows in one transaction (one `now()`) was undefined. G25's contract control is "actor taken from the
- * session only; sequence or chain". The actor half is 0132's (and its re-set gap waits on DR-09's login role); this is
+ * session only; sequence or chain". The actor half is 0132's (control T1b; its re-set gap waits on DR-09's login role); this is
  * the time-and-order half.
  *
  * Presence, absence, movement: a row's time is the transaction's whatever the writer claimed; rows are numbered in the
@@ -110,6 +110,27 @@ describeMaybe("Phase 18 audit A6 — the audit trail's time and order are the da
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     const ids = (r.body.logs as Array<{ entityId: string }>).map((l) => l.entityId).filter((e) => e.startsWith("A6-ORDER-"));
     expect(ids).toEqual(["A6-ORDER-LATER", "A6-ORDER-EARLIER"]);
+  });
+
+  it("🔴 the Audit Trail lists rows written in ONE transaction (one time) newest-first by the database's order", async () => {
+    expect((await asApp(async (c) => { for (const k of ["A6-TX-1", "A6-TX-2", "A6-TX-3"]) await write(c, k); })).error).toBeUndefined();
+    const r = await h.api("admin", "GET", `/audit-logs?entity_type=${KIND}&limit=200`);
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const ids = (r.body.logs as Array<{ entityId: string }>).map((l) => l.entityId).filter((e) => e.startsWith("A6-TX-"));
+    expect(ids).toEqual(["A6-TX-3", "A6-TX-2", "A6-TX-1"]);
+  });
+
+  it("🔴 the reader orders by the database's sequence, not by time: where the two disagree, the later-numbered row is first", async () => {
+    // planted (owner, replica mode): the first-numbered row claims 2030, the next one 2020 — time and order disagree
+    const plant = replica(pool as never);
+    for (const [k, at] of [["A6-DISAGREE-FIRST", "2030-01-01 09:00:00"], ["A6-DISAGREE-SECOND", "2020-01-01 09:00:00"]] as const) {
+      await plant.query(`INSERT INTO audit_logs (organization_id, action, entity_type, entity_id, created_at, seq)
+        VALUES ($1, 'create', '${KIND}', $2, $3, nextval('audit_logs_seq_seq'))`, [orgId, k, at]);
+    }
+    const r = await h.api("admin", "GET", `/audit-logs?entity_type=${KIND}&limit=200`);
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const ids = (r.body.logs as Array<{ entityId: string }>).map((l) => l.entityId).filter((e) => e.startsWith("A6-DISAGREE-"));
+    expect(ids).toEqual(["A6-DISAGREE-SECOND", "A6-DISAGREE-FIRST"]);
   });
 
   it("the owner's replica mode stays the one way to plant history (fixtures), as 0132 documents", async () => {
