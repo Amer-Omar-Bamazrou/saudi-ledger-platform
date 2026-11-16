@@ -24,7 +24,7 @@
  *
  * NEVER put secrets in `metadata` — no password material, no tokens.
  */
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 // 🔴 The OWNER connection, named deliberately rather than inherited.
 // `security_audit_logs` is an owner-only table — likewise already listed on `ownerDb`, and likewise reached through the fallback.
 // The `db` proxy now REFUSES a query outside a tenant transaction rather than
@@ -61,6 +61,9 @@ export interface SecurityEventInput {
   metadata?: Record<string, unknown> | null;
   ipAddress?: string | null;
 }
+
+const DEFAULT_PAGE = 50;
+const MAX_PAGE = 200;
 
 export const securityAuditService = {
   /**
@@ -101,22 +104,30 @@ export const securityAuditService = {
   },
 
   /**
-   * List an organization's security events, newest first. Explicitly authorized:
+   * One PAGE of an organization's security events, newest first, with the organization's total. Explicitly authorized:
    * the caller must be an active admin of THIS org (identity-layer pattern — no
    * ambient tenant context). Only events scoped to the org are returned; global
    * (org-less) events are not exposed here (a platform-operator surface reads
    * those in a later milestone).
+   *
+   * 🔴 Phase 18 audit A2: this returned the newest 100 rows and nothing else — no total, no way to the 101st — so a
+   * reader shown 100 rows could not tell there were more. A page is 50 by default and 200 at most; ties on the time
+   * are broken by id, so the pages together are every row exactly once.
    */
-  async listForOrg(actorUserId: number, orgId: string, limit = 100) {
+  async listForOrg(actorUserId: number, orgId: string, page: { limit?: number; offset?: number } = {}) {
     const role = await membersRepository.activeRole(actorUserId, orgId);
     if (role !== "admin") {
       throw new ForbiddenError("You must be an admin of this organization to view its security events.");
     }
-    return db
-      .select()
-      .from(securityAuditLogsTable)
-      .where(eq(securityAuditLogsTable.organizationId, orgId))
-      .orderBy(desc(securityAuditLogsTable.createdAt))
-      .limit(limit);
+    const limit = Number.isInteger(page.limit) && page.limit! > 0 ? Math.min(page.limit!, MAX_PAGE) : DEFAULT_PAGE;
+    const offset = Number.isInteger(page.offset) && page.offset! > 0 ? page.offset! : 0;
+    const ofOrg = eq(securityAuditLogsTable.organizationId, orgId);
+    const [events, [counted]] = await Promise.all([
+      db.select().from(securityAuditLogsTable).where(ofOrg)
+        .orderBy(desc(securityAuditLogsTable.createdAt), desc(securityAuditLogsTable.id))
+        .limit(limit).offset(offset),
+      db.select({ total: count() }).from(securityAuditLogsTable).where(ofOrg),
+    ]);
+    return { events, total: Number(counted?.total ?? 0), limit, offset };
   },
 };

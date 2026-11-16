@@ -1,5 +1,5 @@
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
@@ -101,6 +101,29 @@ export default function Invoices() {
   const [payOpen, setPayOpen] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   /**
+   * 🔴 Phase 18 audit A14 (FA-C): the fixed asset this invoice SELLS. Set by the asset screen's "Sell"
+   * (`/invoices?sellAsset=<id>`); sent as `disposesAssetId`, so the revenue line credits the disposal gain/loss and
+   * approval derecognises the asset. Before, no screen could create this invoice the asset screen pointed to.
+   */
+  const [sellAsset, setSellAsset] = useState<{ id: number; assetNumber: string; name: string } | null>(null);
+  useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("sellAsset"));
+    if (!Number.isInteger(id) || id <= 0) return;
+    let live = true;
+    apiFetch<{ id: number; assetNumber: string; name: string; status: string }>(`/assets/${id}`)
+      .then((a) => {
+        if (!live || a.status !== "in_service") return;
+        setSellAsset({ id: a.id, assetNumber: a.assetNumber, name: a.name });
+        setEditing(null);
+        setForm(emptyForm);
+        idempotencyKey.current = crypto.randomUUID();
+        setOpen(true);
+      })
+      .catch(() => undefined);
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /**
    * 🔴 THE LINES. This form had none — it collected a number, dates, a status,
    * a customer and notes, and the create mutation hardcoded `items: []`. So
    * every invoice made from this page was SAR 0.00, and because an approver's
@@ -195,6 +218,7 @@ export default function Invoices() {
           dueDate: body.dueDate || null,
           notes: body.notes || null,
           customerId: Number(body.customerId),
+          ...(sellAsset ? { disposesAssetId: sellAsset.id } : {}),
           items: lines
             .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
             .map((l) => ({
@@ -387,6 +411,7 @@ export default function Invoices() {
               setForm(emptyForm);
               setLines([emptyLine()]);
               setPrepayments({});
+              setSellAsset(null);
             }
           }}
         >
@@ -394,6 +419,13 @@ export default function Invoices() {
           <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>{editing ? `${t("Edit invoice", "تعديل الفاتورة")} — ${editing.invoiceNumber}` : t("New Invoice", "فاتورة جديدة")}</DialogTitle></DialogHeader>
             <div className="space-y-3 mt-2">
+              {!editing && sellAsset && (
+                <div className="rounded-md border border-border bg-muted/40 p-2 text-xs" data-testid="invoice-sells-asset">
+                  <p className="font-medium text-foreground">{t(`This invoice sells fixed asset ${sellAsset.assetNumber} — ${sellAsset.name}`, `هذه الفاتورة تبيع الأصل الثابت ${sellAsset.assetNumber} — ${sellAsset.name}`)}</p>
+                  <p className="text-muted-foreground mt-0.5">{t("Its revenue line records the gain or loss on disposal; approving it derecognises the asset.", "يُسجَّل سطر الإيراد ربحًا أو خسارة استبعاد، ويُلغى الاعتراف بالأصل عند اعتمادها.")}</p>
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setSellAsset(null)} data-testid="invoice-sells-asset-clear">{t("Not a sale of this asset", "ليست بيعًا لهذا الأصل")}</Button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div><Label className="text-xs text-muted-foreground">{t("Invoice Number", "رقم الفاتورة")}</Label><Input value={form.invoiceNumber} onChange={e=>setForm(p=>({...p,invoiceNumber:e.target.value}))} placeholder={t("Assigned automatically", "يُخصص تلقائيًا")} className="mt-1 h-8 text-sm" /></div>
                 <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} className="mt-1 h-8 text-sm" /></div>

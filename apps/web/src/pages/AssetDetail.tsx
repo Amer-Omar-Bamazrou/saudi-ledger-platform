@@ -139,6 +139,10 @@ export default function AssetDetail() {
             <Button size="sm" variant="outline" className="gap-1" onClick={() => setEstimateOpen(true)} data-testid="change-estimate"><Pencil className="w-4 h-4" />{t("Change estimate", "تغيير التقدير")}</Button>
           )}
           {asset.status === "in_service" && (
+            // 🔴 Phase 18 audit A14: a SALE is a tax invoice that names this asset — opened here, naming it.
+            <Link href={`/invoices?sellAsset=${asset.id}`}><Button size="sm" variant="outline" className="gap-1" data-testid="sell-asset">{t("Sell (tax invoice)", "بيع (فاتورة ضريبية)")}</Button></Link>
+          )}
+          {asset.status === "in_service" && (
             <Button size="sm" variant="outline" className="gap-1" onClick={() => setDisposeOpen(true)} data-testid="dispose-asset"><Trash2 className="w-4 h-4" />{t("Scrap / write off", "شطب / استبعاد")}</Button>
           )}
         </div>

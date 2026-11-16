@@ -142,7 +142,7 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "DR-27",
-    title: "An operator's break-glass password expires after 24 hours and is visible to the tenant, the operator redacted",
+    title: "An operator's break-glass password expires after 24 hours and is visible to the tenant, the operator redacted — read on the Users page, a page at a time with its total (audit A2)",
     answers: ["G28", "G51"],
     type: "preventive",
     activation: ALWAYS,
@@ -151,11 +151,13 @@ export const CONTROLS: readonly Control[] = [
       code(`${API}/services/operator.service.ts`, "BREAK_GLASS_WINDOW_MS"),
       code(`${API}/lib/auth.ts`, "refuseUntilPasswordChanged"),
       code(`${API}/routes/auth.ts`, "recordSignInEvent"),
+      code(`${API}/services/securityAudit.service.ts`, "securityAuditService.listForOrg"),
     ],
     provingTests: [
       "phase18-r1-dr27-break-glass-expiry.test.ts",
       "phase18-h15-forced-password-change.test.ts",
       "phase18-h16-tenant-visible-password-resets.test.ts",
+      "phase18-audit-a2-security-events-page.test.ts",
     ],
   },
   {
@@ -451,13 +453,13 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "DR-18",
-    title: "The approvals queue lists an entity's waiting items only to a role that can approve them, the caller's own marked; a preparer submits from the document's own page",
+    title: "The approvals queue lists every submitted document — quotations, purchase orders and budget versions included (audit A17) — only to a role that can approve it, the caller's own marked; a preparer submits from the document's own page",
     answers: ["G11"],
     type: "approval",
     activation: ALWAYS,
     refusalCodes: [],
     points: [code(`${API}/services/approvalsQueue.service.ts`, "approvalsQueueService.pending")],
-    provingTests: ["phase18-h11-dr18-approvals-audience.test.ts", "phase18-r12-dr18-submit-routes.test.ts"],
+    provingTests: ["phase18-h11-dr18-approvals-audience.test.ts", "phase18-r12-dr18-submit-routes.test.ts", "phase18-audit-a17-queue-completeness.test.ts"],
   },
 
   // ── Invoices: issue, freeze, parties, rejection ───────────────────────────────────────────────
