@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { reportsService, reportParty } from "../services/reports.service";
 import { exportReport } from "../services/reporting/reportExport.service";
 import { BadRequestError } from "../lib/errors";
+import { isEndedTransactionRefusal } from "../middleware/errorHandler";
 
 /**
  * Reports historically returned `{ error: String(err) }` with 500 on unexpected
@@ -10,12 +11,18 @@ import { BadRequestError } from "../lib/errors";
  * errorHandler; anything else becomes a 500 with the stringified error.
  */
 type Handler = (req: Request, res: Response) => Promise<void>;
-const withReportError =
+export const withReportError =
   (fn: Handler) => async (req: Request, res: Response, next: NextFunction) => {
     try {
       await fn(req, res);
     } catch (err) {
       if (err && typeof (err as { statusCode?: unknown }).statusCode === "number") {
+        next(err);
+        return;
+      }
+      // 🔴 Phase 18 audit A29: the client went away and the transaction was rolled back on close; the refused
+      // statement goes to the central boundary, which logs it as that (an ERROR here hid real failures among them).
+      if (res.locals?.tenantRolledBackOnClose === true && isEndedTransactionRefusal(err)) {
         next(err);
         return;
       }
