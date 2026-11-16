@@ -20,6 +20,7 @@ import type { NextFunction, Request, Response } from "express";
 import { TenantTransactionEndedError } from "@workspace/db";
 import { errorHandler } from "../middleware/errorHandler";
 import * as tenant from "../lib/tenant";
+import * as reports from "../controllers/reports.controller";
 
 const fakeReq = () => {
   const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -82,5 +83,33 @@ describe("Phase 18 audit A29 — the error boundary tells an abandoned request's
       expect(res.locals.tenantRolledBackOnClose, `settled=${settled}`).toBe(settled ? undefined : true);
       expect(rollBack).toHaveBeenCalledTimes(settled ? 0 : 1);
     }
+  });
+});
+
+describe("Phase 18 audit A29 — the reports controller's own catch hands an abandoned request's refusal to the boundary", () => {
+  // Found by #333's live check: 43 refusals went to info, 7 stayed failed queries — every one under /api/reports,
+  // whose wrapper (`withReportError`) logs untyped errors itself and never reaches the error boundary.
+  type Wrap = (fn: (req: Request, res: Response) => Promise<void>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+  const wrap = () => (reports as unknown as Record<string, unknown>).withReportError as Wrap;
+
+  it("🔴 rolled back on close + the ended handle's refusal: passed to the boundary, not logged here", async () => {
+    expect(typeof wrap(), "the reports wrapper is a named, testable seam").toBe("function");
+    const { req, log } = fakeReq();
+    const res = fakeRes(true);
+    const nextFn = vi.fn();
+    const err = failedQuery();
+    await wrap()(async () => { throw err; })(req, res as unknown as Response, nextFn as unknown as NextFunction);
+    expect(log.error).not.toHaveBeenCalled();
+    expect(nextFn).toHaveBeenCalledWith(err);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it("the same refusal on a request NOT rolled back on close keeps the wrapper's own ERROR and 500", async () => {
+    expect(typeof wrap()).toBe("function");
+    const { req, log } = fakeReq();
+    const res = fakeRes(false);
+    await wrap()(async () => { throw failedQuery(); })(req, res as unknown as Response, vi.fn() as unknown as NextFunction);
+    expect(log.error).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(500);
   });
 });
