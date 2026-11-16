@@ -42,7 +42,10 @@ export type JournalEntryOwner =
   // 🔴 Phase 18 R-10 (DR-34 finished, memo §2a, register §11.109): every other source type with its OWN correction
   // path, named by its source type — each refusal names that path.
   | "credit_note_application" | "customer_payment_allocation" | "customer_payment_reclassification"
-  | "supplier_advance_allocation" | "supplier_payment_reclassification" | "vat_return_filing";
+  | "supplier_advance_allocation" | "supplier_payment_reclassification" | "vat_return_filing"
+  // 🔴 Phase 18 owner decision A15: a payroll run's accrual, net pay and GOSI payment — payroll's own correction path
+  // is a build item; until it exists the generic reverse refuses them and says so.
+  | "payroll";
 
 /** One predicate for the rows AND the count — so they cannot describe different sets. */
 const jeConditions = (f: JournalEntryListFilter) =>
@@ -97,6 +100,8 @@ export const journalEntriesRepository = {
                   -- 🔴 R-10: the types with their own correction path, each refused in words naming it
                   WHEN s.st IN ('credit_note_application', 'customer_payment_allocation', 'customer_payment_reclassification',
                                 'supplier_advance_allocation', 'supplier_payment_reclassification', 'vat_return_filing') THEN s.st
+                  -- 🔴 owner A15: payroll's entries
+                  WHEN s.st IN ('payroll_run', 'payroll_net_pay', 'payroll_gosi_payment') THEN 'payroll'
                   ELSE coalesce(input_vat_journal_owner(${entryId}), tax_journal_owner(${entryId}),
                                 -- 🔴 R-10: a type a table owns, when no row of that table names the entry
                                 CASE s.st WHEN 'bill' THEN 'bill' WHEN 'vat_evidence' THEN 'bill_vat_claim'
