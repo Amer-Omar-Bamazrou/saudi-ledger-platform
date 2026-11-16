@@ -32,6 +32,9 @@ import { ClipboardCheck } from "lucide-react";
 import {
   approveTaxComputationVersion, sendBackTaxComputationVersion, rejectTaxComputationVersion,
   approveWhtRelief, revokeWhtRelief, approvePaymentPlan, cancelPaymentPlan,
+  approveQuotation, sendBackQuotation, rejectQuotation,
+  approvePurchaseOrder, sendBackPurchaseOrder, rejectPurchaseOrder,
+  approveBudgetVersion, sendBackBudgetVersion, rejectBudgetVersion,
   type ApprovalPendingRow,
 } from "@workspace/api-client-react";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -86,6 +89,8 @@ const STATUS_STYLES: Record<string, string> = {
 function actionsOf(r: ApprovalPendingRow, canSubmit: boolean): Action[] {
   if (r.entity === "wht-reliefs" || r.entity === "payment-plans") return ["approve", "reject"];
   if (r.entity === "tax-computations") return ["approve", "send-back", "reject"];
+  // 🔴 Phase 18 audit A17: listed once SUBMITTED; each acts through its own route.
+  if (r.entity === "quotations" || r.entity === "purchase-orders" || r.entity === "budgets") return ["approve", "send-back", "reject"];
   const out: Action[] = [];
   if (r.status === "draft" && canSubmit) out.push("submit");
   out.push("approve");
@@ -103,6 +108,9 @@ const SECTIONS: { key: EntityKey; label: [string, string] }[] = [
   { key: "tax-computations", label: ["Zakat and income-tax computations", "احتسابات الزكاة وضريبة الدخل"] },
   { key: "wht-reliefs", label: ["Treaty reliefs", "إعفاءات الاتفاقيات"] },
   { key: "payment-plans", label: ["Planned payments", "الدفعات المخططة"] },
+  { key: "quotations", label: ["Quotations", "عروض الأسعار"] },
+  { key: "purchase-orders", label: ["Purchase orders", "أوامر الشراء"] },
+  { key: "budgets", label: ["Budgets", "الموازنات"] },
 ];
 
 /** A reject that needs the server's reason (≥ 3 characters) rather than a confirmation. */
@@ -113,6 +121,9 @@ function reviewHref(r: ApprovalPendingRow): string | null {
   if (r.entity === "tax-computations" && r.parentId != null) return `/tax/computations/${r.parentId}`;
   if (r.entity === "wht-reliefs") return "/tax/withholding?tab=reliefs";
   if (r.entity === "payment-plans") return "/treasury?tab=plans";
+  if (r.entity === "quotations") return "/quotations";
+  if (r.entity === "purchase-orders") return "/purchase-orders";
+  if (r.entity === "budgets" && r.parentId != null) return `/budgets/${r.parentId}`;
   return null;
 }
 
@@ -137,6 +148,22 @@ async function perform(r: ApprovalPendingRow, action: Action, text: string): Pro
   if (r.entity === "payment-plans") {
     if (action === "approve") return approvePaymentPlan(r.id);
     if (action === "reject") return cancelPaymentPlan(r.id, { reason: text.trim() });
+  }
+  if (r.entity === "quotations") {
+    if (action === "approve") return approveQuotation(r.id);
+    if (action === "send-back") return sendBackQuotation(r.id, { note: text.trim() || null });
+    if (action === "reject") return rejectQuotation(r.id);
+  }
+  if (r.entity === "purchase-orders") {
+    if (action === "approve") return approvePurchaseOrder(r.id);
+    if (action === "send-back") return sendBackPurchaseOrder(r.id, { note: text.trim() || null });
+    if (action === "reject") return rejectPurchaseOrder(r.id);
+  }
+  if (r.entity === "budgets") {
+    if (r.parentId == null) throw new Error("This budget version names no budget.");
+    if (action === "approve") return approveBudgetVersion(r.parentId, r.id);
+    if (action === "send-back") return sendBackBudgetVersion(r.parentId, r.id, { note: text.trim() || null });
+    if (action === "reject") return rejectBudgetVersion(r.parentId, r.id);
   }
   throw new Error(`${action} is not offered for this record.`);
 }
@@ -335,6 +362,19 @@ export default function Approvals() {
       {section({
         title: t("Planned payments", "الدفعات المخططة"), entityKey: "payment-plans", rows: byEntity("payment-plans"), canSubmit: false,
         hint: t("Approving a plan commits it in the cash forecast; it is paid later through the bill's ordinary payment. Nothing is sent to a bank.", "اعتماد الخطة يجعلها ملتزمًا بها في توقع النقد؛ وتُدفع لاحقًا عبر سداد الفاتورة المعتاد. لا يُرسل شيء إلى أي بنك."),
+      })}
+      {/* 🔴 Phase 18 audit A17: submitted quotations, purchase orders and budget versions, each approved through its own routes. */}
+      {section({
+        title: t("Quotations", "عروض الأسعار"), entityKey: "quotations", rows: byEntity("quotations"), canSubmit: false,
+        hint: t("Approving a quotation lets it be sent and converted; it posts nothing.", "اعتماد عرض السعر يتيح إرساله وتحويله؛ ولا يرحّل شيئًا."),
+      })}
+      {section({
+        title: t("Purchase orders", "أوامر الشراء"), entityKey: "purchase-orders", rows: byEntity("purchase-orders"), canSubmit: false,
+        hint: t("Approving an order commits the purchase; it posts nothing until the supplier's bill.", "اعتماد أمر الشراء يلتزم بالشراء؛ ولا يرحّل شيئًا حتى فاتورة المورد."),
+      })}
+      {section({
+        title: t("Budgets", "الموازنات"), entityKey: "budgets", rows: byEntity("budgets"), canSubmit: false,
+        hint: t("A budget version's figures are its lines: open it to review them before approving.", "أرقام نسخة الموازنة هي بنودها: افتحها لمراجعتها قبل الاعتماد."),
       })}
       <IssueConfirmDialog
         invoiceId={issuing?.id ?? null}

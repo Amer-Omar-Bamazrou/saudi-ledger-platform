@@ -27,6 +27,11 @@ export interface UpdateInvoiceInput {
   termsAndConditions?: string | null;
   /** @nullable */
   reviewNote?: string | null;
+  /**
+     * FA-C: the fixed asset this invoice SELLS (see Invoice.disposesAssetId). Phase 18 audit A14: the service always accepted it, but it was missing here, so the generated schema dropped it and an invoice made over HTTP sold nothing.
+     * @nullable
+     */
+  disposesAssetId?: number | null;
   /** @minItems 1 */
   items?: InvoiceLineInput[];
 }

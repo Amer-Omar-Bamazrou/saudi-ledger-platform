@@ -75,7 +75,7 @@ describeMaybe("securityAuditService — records + org-scoped, authorized reads",
       ipAddress: "203.0.113.7",
     });
 
-    const events = await securityAuditService.listForOrg(adminA, orgA);
+    const { events } = await securityAuditService.listForOrg(adminA, orgA);
     const ev = events.find((e) => e.action === "membership.assigned" && e.targetUserId === target);
     expect(ev).toBeTruthy();
     expect(ev?.actorUserId).toBe(adminA);
@@ -86,7 +86,7 @@ describeMaybe("securityAuditService — records + org-scoped, authorized reads",
 
   it("records a membership.role_changed event on an update", async () => {
     await membersService.update(adminA, orgA, target, { role: "accountant" });
-    const events = await securityAuditService.listForOrg(adminA, orgA);
+    const { events } = await securityAuditService.listForOrg(adminA, orgA);
     const ev = events.find((e) => e.action === "membership.role_changed" && e.targetUserId === target);
     expect(ev).toBeTruthy();
     expect(ev?.metadata).toMatchObject({ before: { role: "bookkeeper" }, after: { role: "accountant" } });
@@ -94,7 +94,7 @@ describeMaybe("securityAuditService — records + org-scoped, authorized reads",
 
   it("records a membership.status_changed event when only status changes", async () => {
     await membersService.update(adminA, orgA, target, { status: "inactive" });
-    const events = await securityAuditService.listForOrg(adminA, orgA);
+    const { events } = await securityAuditService.listForOrg(adminA, orgA);
     expect(events.some((e) => e.action === "membership.status_changed" && e.targetUserId === target)).toBe(true);
   });
 
@@ -110,7 +110,7 @@ describeMaybe("securityAuditService — records + org-scoped, authorized reads",
       organizationId: null,
       metadata: { email: "secaudit-test-target@test.local" },
     });
-    const events = await securityAuditService.listForOrg(adminA, orgA);
+    const { events } = await securityAuditService.listForOrg(adminA, orgA);
     expect(events.some((e) => e.action === "user.created")).toBe(false);
   });
 

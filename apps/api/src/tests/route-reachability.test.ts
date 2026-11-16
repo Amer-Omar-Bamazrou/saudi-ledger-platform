@@ -383,6 +383,8 @@ const PER_ROUTE_CHECKED: Array<{ method: string; mount: string; path: string; fi
   { method: "POST", mount: "/recognition-schedules", path: "/runs", file: "recognitionSchedules.ts", operation: "runRecognitionPeriod", finding: "F-1" },
   // F-2: the route entered the contract with its screen (carry-over Batch 3), so it now has a generated operation.
   { method: "POST", mount: "/zatca/onboarding", path: "/renew", file: "zatcaOnboarding.ts", operation: "renewZatcaCertificate", finding: "F-2" },
+  // Phase 18 audit A2: DR-27's tenant-visible audit was built to this route and no screen; `/orgs` has other callers.
+  { method: "GET", mount: "/orgs", path: "/:orgId/security-events", file: "orgs.ts", operation: "listOrgSecurityEvents", finding: "A2" },
 ];
 
 /**
