@@ -351,16 +351,16 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "DR-34",
-    title: "The generic reverse refuses an entry a document or another path owns, and names that path",
+    title: "The generic reverse refuses an entry a document or another path owns, and names that path — payroll's entries included (owner A15)",
     answers: ["G14"],
     type: "preventive",
     activation: ALWAYS,
-    refusalCodes: [],
+    refusalCodes: ["journal_entry_owned_by_payroll"],
     points: [
       code(`${API}/repositories/journalEntries.repository.ts`, "documentOwner"),
       code(`${API}/services/journalEntries.service.ts`, "ownedEntryRefusal"),
     ],
-    provingTests: ["phase18-h6-dr34-generic-reverse-owned.test.ts", "phase18-r10-dr34-source-type-matrix.test.ts"],
+    provingTests: ["phase18-h6-dr34-generic-reverse-owned.test.ts", "phase18-r10-dr34-source-type-matrix.test.ts", "phase18-owner-a15-payroll-reverse.test.ts"],
   },
   {
     id: "DR-32",
