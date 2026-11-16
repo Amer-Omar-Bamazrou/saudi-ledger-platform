@@ -26,7 +26,16 @@
 CREATE SEQUENCE "audit_logs_seq_seq" AS bigint;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "audit_logs_seq_seq" FROM PUBLIC;--> statement-breakpoint
 -- Named explicitly: a hosted project's default privileges may grant new sequences to these roles (CLAUDE.md §4).
-REVOKE ALL ON SEQUENCE "audit_logs_seq_seq" FROM anon, authenticated, service_role;--> statement-breakpoint
+-- Each only where it exists — the CI browser database creates `authenticated` alone.
+DO $$
+DECLARE r text;
+BEGIN
+  FOREACH r IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+      EXECUTE format('REVOKE ALL ON SEQUENCE audit_logs_seq_seq FROM %I', r);
+    END IF;
+  END LOOP;
+END $$;--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD COLUMN "seq" bigint;--> statement-breakpoint
 ALTER SEQUENCE "audit_logs_seq_seq" OWNED BY "audit_logs"."seq";--> statement-breakpoint
 CREATE UNIQUE INDEX "audit_logs_seq_unq" ON "audit_logs" USING btree ("seq");--> statement-breakpoint
