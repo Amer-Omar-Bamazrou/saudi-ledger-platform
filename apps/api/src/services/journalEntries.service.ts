@@ -101,6 +101,23 @@ import { businessToday, isCalendarDate } from "@workspace/shared";
  * The refusal for an entry a document owns — it names the document and the
  * way to correct it (CLAUDE.md §3: explain a refusal; do not hide the control).
  */
+/**
+ * 🔴 Phase 18 owner decision A15: a payroll entry is refused by the generic reverse — reversed from here, the run would
+ * still read approved or paid while its entry is cancelled, and paying it again is refused. The run's status is never
+ * reset through this path. Payroll's own correction path is a build item; the refusal names the step available now.
+ */
+const PAYROLL_ENTRY_REFUSAL = {
+  code: "journal_entry_owned_by_payroll",
+  error:
+    "This entry ({ref}) is a payroll run's own posting — its accrual, net pay or GOSI payment. It cannot be reversed from here: " +
+    "the run would still read as approved or paid while its entry is cancelled. Payroll's own correction path is not built yet; " +
+    "until it is, record the correction as a separate journal entry naming this run, approved like any other. This entry and the run stay as they are.",
+  errorAr:
+    "هذا القيد ({ref}) هو ترحيل مسير رواتب بعينه — استحقاقه أو صافي الرواتب أو اشتراكات التأمينات. لا يمكن عكسه من هنا: " +
+    "سيبقى المسير معتمداً أو مدفوعاً بينما يُلغى قيده. لم يُبنَ بعدُ مسار تصحيح خاص بالرواتب؛ " +
+    "وإلى أن يُبنى، سجّل التصحيح قيدَ يومية مستقلاً يذكر هذا المسير ويُعتمد كأي قيد آخر. يبقى هذا القيد والمسير كما هما.",
+} as const;
+
 function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): string {
   switch (owner) {
     case "bank_transfer":
@@ -147,6 +164,9 @@ function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): strin
       return `This entry reclassifies a supplier payment. Classify the payment again (its classification, on the payment in Supplier payments), which moves it with its own date and reason. Reversed from here, the payment would still read as classified.`;
     case "vat_return_filing":
       return `This entry clears VAT return ${documentRef} as filed. A filed return is corrected by recording an amendment of the filing (under VAT returns filed, on Closed months, naming the reference it amends), which posts its own clearing; an error found later is recorded as a VAT correction. Reversed from here, the return would still read as filed.`;
+    // 🔴 Phase 18 owner decision A15 — the refusal itself is thrown with its Arabic (PAYROLL_ENTRY_REFUSAL, above).
+    case "payroll":
+      return PAYROLL_ENTRY_REFUSAL.error.replace("{ref}", documentRef);
     case "invoice_write_off":
       return `This entry writes off ${documentRef} as a bad debt. The VAT relief rests on that write-off being in the books (Art. 40(7)), and money received later is declared by a recovery invoice (Art. 40(9)); the entry cannot be reversed from here.`;
   }
@@ -511,7 +531,11 @@ export const journalEntriesService = {
     // (0108) adds the supplier advance invoice and advance credit note entries.
     const documentOwner = await journalEntriesRepository.documentOwner(id);
     if (documentOwner && owner.document !== documentOwner) {
-      throw new ConflictError(ownedEntryRefusal(documentOwner, original.reference ?? original.entryNumber));
+      const ref = original.reference ?? original.entryNumber;
+      if (documentOwner === "payroll") {
+        throw new BusinessRuleError(409, { code: PAYROLL_ENTRY_REFUSAL.code, error: PAYROLL_ENTRY_REFUSAL.error.replace("{ref}", ref), errorAr: PAYROLL_ENTRY_REFUSAL.errorAr.replace("{ref}", ref) });
+      }
+      throw new ConflictError(ownedEntryRefusal(documentOwner, ref));
     }
     // 🔴 MG-2 (final audit 2026-10-05) — after the owner check, so an owned entry keeps its owner's own words: a MIRROR is never itself reversed — reversing it re-posts what its original
     // undid while that original still reads `reversed` (a migration reversal's mirror re-imposed a withdrawn opening

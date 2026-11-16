@@ -48,6 +48,8 @@ const PLANTED = 2_100_000_000;
 
 /** The words each correction path is named by. A refusal must name its path. */
 const NAMES = {
+  // 🔴 Phase 18 owner decision A15 (2026-11-16): payroll's entries are refused, naming the step available until payroll has its own correction path
+  payrollCorrection: /payroll's own correction path is not built yet[\s\S]*separate journal entry/i,
   creditNote: /credit or debit note/i,
   writeOff: /bad debt/i,
   unallocate: /Unallocate/,
@@ -95,9 +97,10 @@ const MATRIX: Record<JournalSourceType, Decision> = {
   supplier_refund: allowed,
   bank_transfer: refused(NAMES.reverseTransfer),
   bank_transaction: refused(NAMES.statementLine),
-  payroll_run: allowed,
-  payroll_net_pay: allowed,
-  payroll_gosi_payment: allowed,
+  // 🔴 owner A15 (2026-11-16): allowed → refused (the run would still read approved or paid)
+  payroll_run: refused(NAMES.payrollCorrection),
+  payroll_net_pay: refused(NAMES.payrollCorrection),
+  payroll_gosi_payment: refused(NAMES.payrollCorrection),
   depreciation: allowed,
   asset_disposal: allowed,
   recognition: allowed,

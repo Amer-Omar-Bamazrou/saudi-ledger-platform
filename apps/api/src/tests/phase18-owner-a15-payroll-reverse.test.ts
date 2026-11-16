@@ -70,6 +70,8 @@ describeMaybe("Phase 18 owner decision A15 — the generic reverse refuses payro
       expect(r.status, JSON.stringify(r.body)).toBe(409);
       expect(String(r.body?.error)).toMatch(/payroll/i);
       expect(String(r.body?.error), "the next step is named").toMatch(/journal entry/i);
+      expect(r.body?.code).toBe("journal_entry_owned_by_payroll");
+      expect(String(r.body?.errorAr), "the refusal speaks Arabic too, naming the step").toMatch(/قيدَ يومية/);
       expect(await state(id!), "no mirror; the entry and the run as they were").toEqual(before);
       expect(before.status).toBe("posted");
     });
