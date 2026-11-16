@@ -19,6 +19,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
 import { releaseIssuedInvoicesForTeardown } from "./helpers/issuedInvoiceFixtures";
+import { invoicesRepository } from "../repositories/invoices.repository";
+import { billsRepository } from "../repositories/bills.repository";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -27,7 +29,7 @@ const PW = "AuditA30EmptyDraftEditPw1!";
 
 describeMaybe("Phase 18 audit A30 — a draft edit with no header field to change", () => {
   const h = g04Harness("auda30");
-  let orgId = "", customerId = 0, vendorId = 0;
+  let orgId = "", companyId = "", adminId = 0, customerId = 0, vendorId = 0;
 
   const make = async (path: string, body: unknown) => {
     const r = await h.api("admin", "POST", path, body);
@@ -40,10 +42,10 @@ describeMaybe("Phase 18 audit A30 — a draft edit with no header field to chang
     await releaseIssuedInvoicesForTeardown(`organization_id IN (SELECT id FROM organizations WHERE slug LIKE 'auda30-%')`);
     await h.cleanup();
     orgId = await h.mkOrg("org");
-    await pool.query(
+    companyId = (await pool.query(
       `INSERT INTO companies (organization_id, name, cr_number, vat_number, fiscal_year_start, building_number, street, district, city, postal_code, additional_number)
-       VALUES ($1,'Audit A30 Co','1010868391','310123456789013',1,'1234','King Fahd Road','Al Olaya','Riyadh','12345','6789')`, [orgId]);
-    await h.mkUser("admin", PW, orgId, "admin");
+       VALUES ($1,'Audit A30 Co','1010868391','310123456789013',1,'1234','King Fahd Road','Al Olaya','Riyadh','12345','6789') RETURNING id`, [orgId])).rows[0].id;
+    adminId = await h.mkUser("admin", PW, orgId, "admin");
     customerId = (await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'A30 Buyer') RETURNING id`, [orgId])).rows[0].id;
     vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'A30 Supplier','300000000000003') RETURNING id`, [orgId])).rows[0].id;
     await h.start();
@@ -75,6 +77,17 @@ describeMaybe("Phase 18 audit A30 — a draft edit with no header field to chang
     const r = await h.api("admin", "PATCH", `/bills/${bill.id}`, {});
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(r.body).toMatchObject({ id: bill.id, status: "draft" });
+  });
+
+  it("🔴 at the seam: the no-op answers NOTHING for a document that is no longer a draft (the condition the race relies on)", async () => {
+    const inv = await make("/invoices", { date: "2026-06-01", customerId, items });
+    expect((await h.api("admin", "POST", `/invoices/${inv.id}/approve`, {})).status).toBe(200);
+    const invRows = await h.inTenant(orgId, companyId, adminId, () => invoicesRepository.updateDraft(inv.id, {}));
+    expect(invRows, "an issued invoice is not a draft").toEqual([]);
+    const bill = await make("/bills", { vendorId, billNumber: `A30-B2-${Date.now()}`, supplierDocumentKind: "tax_invoice", vendorReference: "A30-SUP-2", date: "2026-06-01", subtotal: 1000, vatAmount: 150, total: 1150, items: [] });
+    expect((await h.api("admin", "POST", `/bills/${bill.id}/approve`, {})).status).toBe(200);
+    const billRows = await h.inTenant(orgId, companyId, adminId, () => billsRepository.updateDraft(bill.id, {}));
+    expect(billRows, "an approved bill is not a draft").toEqual([]);
   });
 
   it("absence: an empty edit of an ISSUED invoice is still refused 409 — the no-op keeps the draft-only condition", async () => {
