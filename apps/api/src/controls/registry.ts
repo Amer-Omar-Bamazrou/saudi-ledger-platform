@@ -709,7 +709,7 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "DR-23",
-    title: "A bank-detail change is held for a second admin where two usable admins exist; the database refuses it otherwise",
+    title: "A bank-detail change is held for a second admin where two usable admins exist — never one the requester created, re-activated or reset within 30 days (owner A1); the database refuses it otherwise",
     answers: ["G30", "G33"],
     type: "approval",
     activation: { kind: "organisation_fact", fact: "two or more usable admins" },
@@ -720,6 +720,7 @@ export const CONTROLS: readonly Control[] = [
       "bank_detail_change_decided",
       "bank_detail_change_requires_second_admin",
       "bank_detail_change_refused",
+      "bank_detail_approver_linked",
     ],
     points: [
       trigger("bank_detail_change_requests", "bank_detail_change_requests_guard_trg"),
@@ -731,7 +732,7 @@ export const CONTROLS: readonly Control[] = [
       check("bank_detail_change_requests", "bank_detail_change_decision_chk"),
       code(`${API}/services/bankDetailChanges.service.ts`, "bankDetailChangesService"),
     ],
-    provingTests: ["phase18-r6-dr23-dual-control.test.ts", "phase18-h8-dr23-iban-validation.test.ts"],
+    provingTests: ["phase18-r6-dr23-dual-control.test.ts", "phase18-h8-dr23-iban-validation.test.ts", "phase18-owner-a1-linked-approver.test.ts"],
   },
   {
     id: "DR-19",

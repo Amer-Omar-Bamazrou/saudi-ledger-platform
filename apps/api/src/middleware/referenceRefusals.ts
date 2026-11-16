@@ -24,6 +24,24 @@ import { securityAuditService } from "../services/securityAudit.service";
 const scalar = (v: unknown): number | string | null =>
   (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && v.length > 0 && v.length <= 64) ? v : null;
 
+/**
+ * 🔴 Phase 18 owner decision A1: an approval of a held bank-detail change refused because the approver is an identity
+ * the requester controls is RECORDED. The request's transaction rolls back with the refusal, so the record is written
+ * where reference refusals go — the security trail, outside it (best-effort), which the organisation's admins read.
+ */
+export function recordApprovalRefusal(req: Request, status: number, body: unknown): void {
+  const b = body as { code?: unknown } | null;
+  if (status !== 409 || b?.code !== "bank_detail_approver_linked") return;
+  const changeId = /\/bank-detail-changes\/(\d+)\/decision/.exec(req.originalUrl ?? req.url ?? "")?.[1];
+  void securityAuditService.record({
+    action: "bank_detail_change.approval_refused",
+    actorUserId: req.tenant?.userId ?? req.session?.userId ?? null,
+    organizationId: req.tenant?.organizationId ?? null,
+    ipAddress: req.ip ?? null,
+    metadata: { companyId: req.tenant?.companyId ?? null, changeId: changeId ? Number(changeId) : null, rule: "approver_linked_to_requester" },
+  });
+}
+
 export function recordReferenceRefusal(req: Request, status: number, body: unknown): void {
   const b = body as { code?: unknown; field?: unknown } | null;
   if (status !== 422 || b?.code !== "reference_not_found") return;
