@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PaymentAfterBankChangeItemKind } from './paymentAfterBankChangeItemKind';
+import type { PaymentAfterBankChangeItemMatchedBy } from './paymentAfterBankChangeItemMatchedBy';
 
 export interface PaymentAfterBankChangeItem {
   kind: PaymentAfterBankChangeItemKind;
@@ -18,4 +19,8 @@ export interface PaymentAfterBankChangeItem {
   paidAt: Date;
   /** The business day (Asia/Riyadh) the supplier's IBAN was changed. */
   changedOn: Date;
+  /** The instant the payment was recorded (its row's time), whatever date it carries. */
+  recordedAt: Date;
+  /** Owner decision A23 (2026-11-16): what fell inside the window after the change. `date`: the change's business day D <= the payment's date <= D + N (calendar days, Asia/Riyadh, both ends inclusive). `recorded`: the change's instant T <= the recording instant <= T + N x 24 h (both ends inclusive). `both`: each. N is the company's bankChangePaymentWindowDays. */
+  matchedBy: PaymentAfterBankChangeItemMatchedBy;
 }

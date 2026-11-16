@@ -2,7 +2,7 @@
  * 🔴 Phase 18 owner decision A23 (2026-11-16) — the change-then-pay finding reads BOTH the payment's date and its
  * recording time.
  *
- * DR-21's finding lists a payment to a supplier made soon after that supplier's IBAN changed. It compared business
+ * DR-21's finding (control DR-19's first slot) lists a payment to a supplier made soon after that supplier's IBAN changed. It compared business
  * dates only, so a payment RECORDED after the change but DATED before it (back-dated) was never listed — the audit's
  * A23. The owner's rule: the payment is listed when EITHER falls inside the window after the change.
  *
@@ -89,9 +89,10 @@ describeMaybe("Phase 18 owner decision A23 — a payment is listed when its date
     await pay(v.before!, businessDateShift(today, -1));
     await ok("PATCH", `/vendors/${v.before}`, { iban: IBAN_B });
 
-    // back-dated: the change now (through the product), the payment recorded after it but dated five days earlier
+    // back-dated: the change now (through the product), the payment recorded after it but dated 40 days earlier —
+    // before every change of the company, so only the recording time can bring it in (the repository's filter too)
     await ok("PATCH", `/vendors/${v.backdated}`, { iban: IBAN_B });
-    await pay(v.backdated!, businessDateShift(today, -5));
+    await pay(v.backdated!, businessDateShift(today, -40));
 
     // the recording edge: changes N days less / more one minute ago; payments recorded now, dated 3 days before D
     d.recInside = await plantChange(v.recInside!, `interval '${N} days' - interval '1 minute'`);
@@ -109,7 +110,7 @@ describeMaybe("Phase 18 owner decision A23 — a payment is listed when its date
 
   it("🔴 a BACK-DATED payment (recorded after the change, dated before it) is listed, matched by its recording time", async () => {
     const mine = of(await items(), "backdated");
-    expect(mine.map((i) => [i.paidAt, i.matchedBy])).toEqual([[businessDateShift(today, -5), "recorded"]]);
+    expect(mine.map((i) => [i.paidAt, i.matchedBy])).toEqual([[businessDateShift(today, -40), "recorded"]]);
     expect(typeof mine[0]?.recordedAt, "the recording instant is named").toBe("string");
   });
 

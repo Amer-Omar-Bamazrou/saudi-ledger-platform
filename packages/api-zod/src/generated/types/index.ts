@@ -670,6 +670,7 @@ export * from './payment';
 export * from './paymentAfterBankChangeFinding';
 export * from './paymentAfterBankChangeItem';
 export * from './paymentAfterBankChangeItemKind';
+export * from './paymentAfterBankChangeItemMatchedBy';
 export * from './paymentAllocation';
 export * from './paymentAllocationDetail';
 export * from './paymentAllocationInput';
