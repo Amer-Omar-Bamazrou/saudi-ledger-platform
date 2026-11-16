@@ -22,7 +22,8 @@ export const auditLogsRepository = {
       .select()
       .from(auditLogsTable)
       .where(whereFor(f))
-      .orderBy(desc(auditLogsTable.createdAt))
+      // 🔴 Phase 18 audit A6: the database's order (0159), then — for rows written before it — their time.
+      .orderBy(sql`${auditLogsTable.seq} DESC NULLS LAST`, desc(auditLogsTable.createdAt), desc(auditLogsTable.id))
       .limit(f.limit ?? 50)
       .offset(f.offset ?? 0);
   },
