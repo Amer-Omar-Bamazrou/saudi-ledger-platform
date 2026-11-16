@@ -489,7 +489,7 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "G29",
-    title: "An issued invoice, its items and its signed e-invoice document are frozen for every role, TRUNCATE included",
+    title: "An issued invoice, its items and its signed e-invoice document are frozen for every role, TRUNCATE included; a document is inserted only in the issuance's own shape (audit A8)",
     answers: ["AC-4"],
     type: "preventive",
     activation: ALWAYS,
@@ -500,8 +500,9 @@ export const CONTROLS: readonly Control[] = [
       trigger("invoice_items", "invoice_items_issued_freeze_trg"),
       trigger("einvoice_documents", "einvoice_documents_frozen_trg"),
       trigger("einvoice_documents", "einvoice_documents_no_truncate_trg"),
+      trigger("einvoice_documents", "einvoice_documents_issuance_shape"),
     ],
-    provingTests: ["phase18-prc-g29-issued-freeze.test.ts", "prc-issued-invoice-freeze.test.ts"],
+    provingTests: ["phase18-prc-g29-issued-freeze.test.ts", "prc-issued-invoice-freeze.test.ts", "phase18-audit-a8-einvoice-document-insert.test.ts"],
   },
   {
     id: "G49",

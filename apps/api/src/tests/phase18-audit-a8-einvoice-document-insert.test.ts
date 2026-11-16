@@ -19,7 +19,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { releaseIssuedInvoicesForTeardown, writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
-import { deleterFor } from "./helpers/replica";
+import { deleterFor, replica } from "./helpers/replica";
 
 const connectionString = process.env.DATABASE_URL;
 const describeMaybe = connectionString && !connectionString.includes("placeholder") ? describe : describe.skip;
@@ -30,9 +30,10 @@ type Attempt = { refused: boolean; code: string | null; constraint: string | nul
 const UUID_A1 = "a8a8a8a8-0000-4000-8000-000000000001";
 const UUID_A2 = "a8a8a8a8-0000-4000-8000-000000000002";
 const UUID_B1 = "a8a8a8a8-0000-4000-8000-0000000000b1";
+const UUID_C1 = "a8a8a8a8-0000-4000-8000-0000000000c1";
 
 describeMaybe("Phase 18 audit A8 — an e-invoice document is inserted only in the issuance's own shape", () => {
-  let orgId = "", companyA = "", companyB = "", draftId = 0, olderId = 0, newestId = 0, otherCompanyId = 0;
+  let orgId = "", companyA = "", companyB = "", companyC = "", draftId = 0, olderId = 0, newestId = 0, otherCompanyId = 0, unissuedWithIcvId = 0;
 
   /** One INSERT as `role`, scoped to company A, in a transaction that is always rolled back. */
   async function attempt(role: Role, values: { companyId?: string; invoiceId: number; zatcaUuid: string }): Promise<Attempt> {
@@ -86,12 +87,22 @@ describeMaybe("Phase 18 audit A8 — an e-invoice document is inserted only in t
     olderId = await issued(companyA, "A8-001", 1, UUID_A1);
     newestId = await issued(companyA, "A8-002", 2, UUID_A2);
     otherCompanyId = await issued(companyB, "A8-B-001", 1, UUID_B1);
+    companyC = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1, 'A8 Co C', '1010101023', '399999999999933') RETURNING id`, [orgId])).rows[0].id;
+    // planted (replica mode): an UNISSUED invoice carrying an ICV and UUID — the product cannot make one (drafts consume
+    // no ICV); its company's newest, with its own UUID, so only the issued check can refuse a document for it
+    unissuedWithIcvId = (await replica(pool as never).query(
+      `INSERT INTO invoices (organization_id, company_id, invoice_number, date, status, subtotal, vat_amount, total, icv, zatca_uuid)
+       VALUES ($1, $2, 'A8-C-SUBMITTED', '2026-10-01', 'submitted', 100, 15, 115, 1, $3) RETURNING id`, [orgId, companyC, UUID_C1])).rows[0]!.id as number;
   });
   afterAll(cleanup);
 
   for (const role of ["authenticated", "postgres"] as const) {
     it(`🔴 ${role}: a document for an invoice that is not issued (a draft) is refused`, async () => {
       expect(refusedByGuard(await attempt(role, { invoiceId: draftId, zatcaUuid: UUID_A2 }))).toEqual(GUARD);
+    });
+
+    it(`🔴 ${role}: a document for an UNISSUED invoice that carries its company's newest ICV and its own UUID is refused`, async () => {
+      expect(refusedByGuard(await attempt(role, { companyId: companyC, invoiceId: unissuedWithIcvId, zatcaUuid: UUID_C1 }))).toEqual(GUARD);
     });
 
     it(`🔴 ${role}: a document filed under one company for another company's invoice is refused`, async () => {

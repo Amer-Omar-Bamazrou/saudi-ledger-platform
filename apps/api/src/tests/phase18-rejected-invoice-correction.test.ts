@@ -20,6 +20,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
+import { writeIssuedFixture } from "./helpers/issuedInvoiceFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -44,7 +45,7 @@ describeMaybe("The correction route for a rejected invoice — the sale recorded
   };
   /** The submission ZATCA answered with a 400 (the worker leaves it failed / needs review; register §11.8). */
   const submissionFailed = (invoiceId: number) =>
-    pool.query(`INSERT INTO einvoice_documents (organization_id, company_id, invoice_id, flow, status) VALUES ($1, $2, $3, 'clearance', 'failed')`, [orgId, companyId, invoiceId]);
+    writeIssuedFixture(`INSERT INTO einvoice_documents (organization_id, company_id, invoice_id, flow, status) VALUES ($1, $2, $3, 'clearance', 'failed')`, [orgId, companyId, invoiceId]); // A8 (0160): documents are planted by the fixture writer — the database admits only the issuance's own shape
   const reject = (id: number, body: Record<string, unknown> = { zatcaResponse: ZATCA_400, reason: "BR-KSA-37: the buyer VAT number is invalid" }, who = "admin") =>
     h.api(who, "POST", `/invoices/${id}/rejection`, body);
   const correct = async (id: number, unitPrice: number) => {
