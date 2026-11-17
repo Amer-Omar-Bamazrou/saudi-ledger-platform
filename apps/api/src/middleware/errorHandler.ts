@@ -13,6 +13,8 @@ import type { Request, Response, NextFunction } from "express";
 import { TenantTransactionEndedError } from "@workspace/db";
 import { translateDbRefusal } from "../lib/dbRefusals";
 import { recordApprovalRefusal, recordReferenceRefusal } from "./referenceRefusals";
+import { normaliseErrorBody, requestIdOf } from "./errorBodies";
+import { SAFE_MESSAGES, codeForStatus, isStableCode } from "../lib/userMessages";
 
 /** The ended tenant handle's refusal, as thrown or as drizzle wraps it (a "Failed query" whose cause it is). */
 export function isEndedTransactionRefusal(err: unknown): boolean {
@@ -46,17 +48,42 @@ export function errorHandler(
     return;
   }
 
+  // 🔴 The error-handling work package (2026-11-17): every body below goes through `send`, the ONE shape
+  // (`normaliseErrorBody`): a stable code, English and Arabic, the request id; a 5xx never carries its exception's text.
+  const send = (status: number, body: Record<string, unknown>) => {
+    res.status(status).json(normaliseErrorBody(status, body, requestIdOf(req)));
+  };
+
   const code = (err as { statusCode?: unknown })?.statusCode;
   if (typeof code === "number" && code >= 400 && code < 600) {
+    // A 5xx is OUR failure: its message (an installation hint, a signing fault, SQL) goes to the log only, with the
+    // request id the response carries; the body says what the user may know (its stable code's safe sentence).
+    if (code >= 500) {
+      req.log.error({ err, requestId: requestIdOf(req) }, "server error (5xx) — the message stays in this log");
+      const ownCode = (err as { code?: unknown }).code;
+      send(code, isStableCode(ownCode) ? { code: ownCode } : {});
+      return;
+    }
+    // A LIBRARY's 4xx (body-parser: malformed JSON, a body too large) carries the library's text ("Unexpected token
+    // … at position 12") — not a sentence written for users. Named by its own `type`, answered by status.
+    const libraryType = (err as { type?: unknown }).type;
+    if (typeof libraryType === "string" && /^(entity|request|encoding|charset|parameters|stream)\./.test(libraryType)) {
+      req.log.warn({ err, requestId: requestIdOf(req) }, "request refused by the body parser");
+      send(code, { code: libraryType === "entity.parse.failed" ? "invalid_json" : codeForStatus(code) });
+      return;
+    }
     // Preserve rich, structured error bodies (e.g. { error, code, detail }).
     const payload = (err as { payload?: unknown }).payload;
     if (payload && typeof payload === "object") {
       // R-9 (DR-22): a cross-tenant reference refusal is recorded in the security trail (best-effort).
       recordReferenceRefusal(req, code, payload);
-      res.status(code).json(payload);
+      send(code, payload as Record<string, unknown>);
       return;
     }
-    res.status(code).json({ error: (err as Error).message });
+    // The platform's own 4xx (an AppError, or one of our classes tagged with a status): its sentence was written for
+    // users. Its own code, where it has one, is kept.
+    const ownCode = (err as { code?: unknown }).code;
+    send(code, { error: (err as Error).message, ...(isStableCode(ownCode) ? { code: ownCode } : {}) });
     return;
   }
 
@@ -68,8 +95,8 @@ export function errorHandler(
   // error translation). The driver does not reliably name the column, so the
   // message stays generic; the log line carries the full error.
   if ((err as { code?: string })?.code === "22001") {
-    req.log.warn({ err }, "varchar overflow mapped to 400");
-    res.status(400).json({ error: "A field exceeds its maximum allowed length." });
+    req.log.warn({ err, requestId: requestIdOf(req) }, "varchar overflow mapped to 400");
+    send(400, { code: "field_too_long", error: SAFE_MESSAGES.field_too_long.en, errorAr: SAFE_MESSAGES.field_too_long.ar });
     return;
   }
 
@@ -83,10 +110,10 @@ export function errorHandler(
     req.log.warn({ code: refusal.body.code }, "refusal from the database");
     recordReferenceRefusal(req, refusal.status, refusal.body);
     recordApprovalRefusal(req, refusal.status, refusal.body);
-    res.status(refusal.status).json(refusal.body);
+    send(refusal.status, refusal.body as Record<string, unknown>);
     return;
   }
 
-  req.log.error({ err });
-  res.status(500).json({ error: "Internal server error" });
+  req.log.error({ err, requestId: requestIdOf(req) }, "unexpected error — the message stays in this log");
+  send(500, { code: "internal_error" });
 }

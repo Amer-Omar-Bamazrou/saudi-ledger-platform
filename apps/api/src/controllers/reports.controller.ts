@@ -2,13 +2,13 @@ import type { NextFunction, Request, Response } from "express";
 import { reportsService, reportParty } from "../services/reports.service";
 import { exportReport } from "../services/reporting/reportExport.service";
 import { BadRequestError } from "../lib/errors";
-import { isEndedTransactionRefusal } from "../middleware/errorHandler";
 
 /**
- * Reports historically returned `{ error: String(err) }` with 500 on unexpected
- * failures (not the generic message). This wrapper preserves that exactly:
- * typed AppErrors (e.g. the account-statement 400) propagate to the central
- * errorHandler; anything else becomes a 500 with the stringified error.
+ * 🔴 The error-handling work package (2026-11-17): every failure goes to the central errorHandler. This wrapper used
+ * to answer an unexpected failure with `{ error: String(err) }` — the exception's own text (a SQL message, a table
+ * name) sent to the browser. The central boundary logs it with the request id and answers `internal_error` in the one
+ * safe shape; a typed AppError (e.g. the account-statement 400) and A29's ended-transaction refusal are handled there
+ * exactly as before.
  */
 type Handler = (req: Request, res: Response) => Promise<void>;
 export const withReportError =
@@ -16,18 +16,7 @@ export const withReportError =
     try {
       await fn(req, res);
     } catch (err) {
-      if (err && typeof (err as { statusCode?: unknown }).statusCode === "number") {
-        next(err);
-        return;
-      }
-      // 🔴 Phase 18 audit A29: the client went away and the transaction was rolled back on close; the refused
-      // statement goes to the central boundary, which logs it as that (an ERROR here hid real failures among them).
-      if (res.locals?.tenantRolledBackOnClose === true && isEndedTransactionRefusal(err)) {
-        next(err);
-        return;
-      }
-      req.log.error({ err });
-      res.status(500).json({ error: String(err) });
+      next(err);
     }
   };
 

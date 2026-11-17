@@ -13,12 +13,17 @@ import { chromium, type Browser } from "playwright-core";
 export class RendererUnavailableError extends Error {
   readonly statusCode = 503;
   readonly code = "pdf_renderer_unavailable";
+  /**
+   * 🔴 The error-handling work package (2026-11-17): the OPERATOR's diagnosis — the launch failure and how to fix the
+   * deployment — lives here, for the server log only (pino serialises it with the error, beside the request id). The
+   * message is the user's sentence; it used to carry the installation command to whoever pressed "Download PDF".
+   */
+  readonly diagnostic: string;
   constructor(cause: string) {
-    super(
-      `The PDF renderer is unavailable: ${cause}. ` +
-        `The document service needs a Chromium executable — install one with \`npx playwright install chromium\` ` +
-        `(deployment: the ~150 MB Chromium image layer is a C6 hosting line).`,
-    );
+    super("The PDF renderer is unavailable.");
+    this.diagnostic =
+      `${cause}. The document service needs a Chromium executable — install one with \`npx playwright install chromium\` ` +
+      `(deployment: the ~150 MB Chromium image layer is a C6 hosting line).`;
     this.name = "RendererUnavailableError";
   }
   /**
@@ -26,6 +31,7 @@ export class RendererUnavailableError extends Error {
    * `{ error }` only and the `code` above never left the server — the 503 was
    * named in the type and anonymous on the wire (pre-merge audit 2026-10-02:
    * CI, which has no Chromium, was the only place that ever took this branch).
+   * A 5xx body is built from the code's safe sentences (`middleware/errorBodies.ts`), never from this message.
    */
   get payload() {
     return { error: this.message, code: this.code };
