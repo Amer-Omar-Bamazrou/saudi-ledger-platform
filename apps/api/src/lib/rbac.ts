@@ -196,7 +196,7 @@ export function requirePermission(resource: string) {
          * D4's rule intact in both directions, since a UI that silently forbids
          * what the API allows is the defect D4 was written about.
          */
-        res.status(403).json(permissionRefusal(role, resource, action));
+        res.status(403).json(permissionRefusal(role, resource, action, permissions));
         return;
       }
       next();
@@ -208,16 +208,30 @@ export function requirePermission(resource: string) {
 }
 
 /** The one body a missing grant is refused with — every guard answers in it, so the client renders it once, by its code. */
-function permissionRefusal(role: string, resource: string, action: PermissionAction) {
+function permissionRefusal(role: string, resource: string, action: PermissionAction, permissions: Set<string>) {
+  /**
+   * 🔴 Walk W4 (2026-11-17): "can prepare and edit … send it for approval" was said to EVERY role refused an approval,
+   * a read-only viewer included — a sentence that is false for it, and a next step it cannot take. The prepare-and-send
+   * sentence is now said only to a role that holds create or update on THIS resource; a role that reads only is told so.
+   * Every branch carries Arabic (the reader's language: A25's rule).
+   */
+  const canPrepare = permissions.has(permKey(role, resource, "create")) || permissions.has(permKey(role, resource, "update"));
+  const what = resource.replace(/_/g, " ");
+  const [error, errorAr] = ACTIVATION_ACTIONS.has(action) && canPrepare
+    ? [`This needs an accountant or admin to ${action} it. Your role (${role}) can prepare and edit, ` +
+        `but releasing it is a separate review step — send it for approval and someone with that ` +
+        `authority will action it.`,
+       "يحتاج هذا إلى محاسب أو مدير لاعتماده. دورك يتيح الإعداد والتعديل، أما الإصدار فخطوة مراجعة منفصلة — أرسله للاعتماد ليتولّاه من يملك هذه الصلاحية."]
+    : !canPrepare && permissions.has(permKey(role, resource, "read"))
+      ? [`Your role (${role}) can read ${what} but not change ${action === "read" ? "them" : "them — this needs " + action + " authority"}. ` +
+          `An admin can change your role in User Management.`,
+         "دورك يتيح الاطلاع على هذه السجلات للقراءة فقط، دون تغييرها. يمكن لمدير النظام تغيير دورك من إدارة المستخدمين."]
+      : [`Your role (${role}) cannot ${action} ${what}. An admin can grant that in User Management.`,
+         "دورك لا يسمح بهذا الإجراء. يمكن لمدير النظام منح الصلاحية من إدارة المستخدمين."];
   return {
     code: "requires_approval_authority",
-    error:
-      ACTIVATION_ACTIONS.has(action)
-        ? `This needs an accountant or admin to ${action} it. Your role (${role}) can prepare and edit, ` +
-          `but releasing it is a separate review step — send it for approval and someone with that ` +
-          `authority will action it.`
-        : `Your role (${role}) cannot ${action} ${resource.replace(/_/g, " ")}. ` +
-          `An admin can grant that in User Management.`,
+    error,
+    errorAr,
     role,
     resource,
     action,
@@ -246,7 +260,7 @@ export function requireReadOf(resourceOf: (req: Request) => string | null) {
     }
     try {
       if (!(await can(role, resource, "read"))) {
-        res.status(403).json(permissionRefusal(role, resource, "read"));
+        res.status(403).json(permissionRefusal(role, resource, "read", await getPermissions()));
         return;
       }
       next();
