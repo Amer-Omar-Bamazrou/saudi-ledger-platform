@@ -865,6 +865,19 @@ export const CONTROLS: readonly Control[] = [
     provingTests: ["phase18-audit-a12-vat-filing-periods.test.ts"],
   },
   {
+    id: "A20",
+    title: "A manual journal line on SECURITY_DEPOSITS_HELD or UNIDENTIFIED_RECEIPTS names its customer, or states why there is none; the reason is stored with the line, as the receipt paths' is (owner decision A20)",
+    answers: ["G15"],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: ["journal_line_party_reason_required", "journal_line_party_invalid"],
+    points: [
+      code(`${API}/services/journalEntries.service.ts`, "journalEntriesService.create"),
+      check("journal_entry_lines", "journal_entry_lines_party_none_reason_chk"),
+    ],
+    provingTests: ["phase18-owner-a20-manual-party-reason.test.ts"],
+  },
+  {
     id: "DR-38",
     title: "Held VAT claimed after its month was filed is redirected to the next open month",
     answers: ["G67", "G21"],
