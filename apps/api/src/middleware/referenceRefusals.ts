@@ -36,6 +36,8 @@ export function recordApprovalRefusal(req: Request, status: number, body: unknow
   void securityAuditService.record({
     action: "bank_detail_change.approval_refused",
     actorUserId: req.tenant?.userId ?? req.session?.userId ?? null,
+    // 🔴 Walk W3 (2026-11-17): the trail prints the actor's EMAIL; without it the refusal read "By —".
+    actorEmail: req.session?.userEmail ?? null,
     organizationId: req.tenant?.organizationId ?? null,
     ipAddress: req.ip ?? null,
     metadata: { companyId: req.tenant?.companyId ?? null, changeId: changeId ? Number(changeId) : null, rule: "approver_linked_to_requester" },
@@ -51,6 +53,7 @@ export function recordReferenceRefusal(req: Request, status: number, body: unkno
   void securityAuditService.record({
     action: "reference.refused",
     actorUserId: req.tenant?.userId ?? req.session?.userId ?? null,
+    actorEmail: req.session?.userEmail ?? null,
     organizationId: req.tenant?.organizationId ?? null,
     ipAddress: req.ip ?? null,
     metadata: {
