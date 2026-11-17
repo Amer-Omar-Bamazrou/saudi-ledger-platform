@@ -26,6 +26,12 @@ export const SAFE_MESSAGES: Record<string, SafeMessage> = {
   rate_limited: { en: "Too many attempts. Wait a moment and try again.", ar: "محاولات كثيرة. انتظر قليلاً ثم حاول مرة أخرى." },
   internal_error: { en: "The request could not be completed. If it happens again, quote the reference to support.", ar: "تعذّر إكمال الطلب. إن تكرر ذلك فاذكر الرقم المرجعي للدعم." },
   service_unavailable: { en: "This service is unavailable right now. Try again shortly.", ar: "هذه الخدمة غير متاحة حالياً. حاول بعد قليل." },
+  storage_unavailable: { en: "File storage is unavailable right now, so nothing was uploaded. Try again later.", ar: "تخزين الملفات غير متاح حالياً، لذا لم يُرفع شيء. حاول لاحقاً." },
+  storage_failed: { en: "The file could not be stored or read right now. Try again shortly.", ar: "تعذّر حفظ الملف أو قراءته الآن. حاول بعد قليل." },
+  scanner_unavailable: { en: "File scanning is temporarily unavailable. Please try again shortly.", ar: "فحص الملفات غير متاح مؤقتاً. يرجى المحاولة بعد قليل." },
+  assistant_disabled: { en: "The assistant is not available.", ar: "المساعد غير متاح." },
+  commit_rolled_back: { en: "Nothing was saved: the change could not be completed. Try again.", ar: "لم يُحفظ شيء: تعذّر إكمال التغيير. حاول مرة أخرى." },
+  rate_limit_unavailable: { en: "The service is temporarily unavailable. Please try again shortly.", ar: "الخدمة غير متاحة مؤقتاً. يرجى المحاولة بعد قليل." },
   pdf_renderer_unavailable: { en: "The PDF could not be produced right now. Try again later; nothing else was affected.", ar: "تعذّر إنشاء ملف PDF الآن. حاول لاحقاً؛ لم يتأثر شيء آخر." },
 };
 
@@ -48,5 +54,9 @@ export function codeForStatus(status: number): string {
   }
 }
 
-/** A stable code: lower snake case, letters first. Anything else is not a code the client may key on. */
-export const isStableCode = (v: unknown): v is string => typeof v === "string" && /^[a-z][a-z0-9_]{1,63}$/.test(v);
+/**
+ * A code a body already carries is KEPT as written — clients key on it, so it is never rewritten (three legacy codes are
+ * upper case: TOTALS_MISMATCH, INVALID_VAT_NUMBER, ZERO_TOTAL). Only a missing or unusable value (not a string, empty,
+ * spaces, over 64 characters) is replaced by the status class's code.
+ */
+export const isStableCode = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z][A-Za-z0-9_.-]{1,63}$/.test(v);

@@ -60,7 +60,8 @@ export function errorHandler(
     // request id the response carries; the body says what the user may know (its stable code's safe sentence).
     if (code >= 500) {
       req.log.error({ err, requestId: requestIdOf(req) }, "server error (5xx) — the message stays in this log");
-      const ownCode = (err as { code?: unknown }).code;
+      // Its code is kept — on the error itself, or in an AppError's payload (`rate_limit_unavailable`): clients key on it.
+      const ownCode = (err as { code?: unknown }).code ?? ((err as { payload?: { code?: unknown } }).payload?.code);
       send(code, isStableCode(ownCode) ? { code: ownCode } : {});
       return;
     }

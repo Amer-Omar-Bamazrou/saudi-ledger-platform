@@ -104,12 +104,20 @@ describe("Phase 18 audit A29 — the reports controller's own catch hands an aba
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  it("the same refusal on a request NOT rolled back on close keeps the wrapper's own ERROR and 500", async () => {
+  it("the same refusal on a request NOT rolled back on close is still an ERROR and a 500 — now at the central boundary", async () => {
+    // The error-handling work package (2026-11-17): the reports wrapper no longer answers failures itself (it sent
+    // `String(err)` to the browser); it forwards every one to errorHandler. A29's property is unchanged and held where
+    // it now lives: on a LIVE request the ended handle's refusal is a bug — logged at ERROR, answered 500.
     expect(typeof wrap()).toBe("function");
     const { req, log } = fakeReq();
     const res = fakeRes(false);
-    await wrap()(async () => { throw failedQuery(); })(req, res as unknown as Response, vi.fn() as unknown as NextFunction);
+    const nextFn = vi.fn();
+    const err = failedQuery();
+    await wrap()(async () => { throw err; })(req, res as unknown as Response, nextFn as unknown as NextFunction);
+    expect(nextFn).toHaveBeenCalledWith(err);
+    errorHandler(nextFn.mock.calls[0]![0], req, res as unknown as Response, next);
     expect(log.error).toHaveBeenCalledTimes(1);
+    expect(log.info).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(500);
   });
 });

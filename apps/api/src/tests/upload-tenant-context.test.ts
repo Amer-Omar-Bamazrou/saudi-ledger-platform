@@ -289,7 +289,10 @@ describeMaybe("DEF-1 — uploads keep the request's tenant context at real sizes
       // Storage is not configured here; the lookup ran FIRST, in the tenant
       // context, and the refusal is storage's — never the lost-context 500.
       expect(res.status, JSON.stringify(body)).toBe(503);
-      expect(body?.error).toMatch(/Object storage is not configured/);
+      // (the error-handling work package, 2026-11-17: storage's refusal is named by its CODE; the environment-variable
+      // names it used to carry are an operator's detail and stay in the log)
+      expect((body as { code?: string } | null)?.code).toBe("storage_unavailable");
+      expect(JSON.stringify(body)).not.toMatch(/SUPABASE|SERVICE_ROLE/);
     }
   });
 });

@@ -109,7 +109,8 @@ describeMaybe("the request budget — per user, per organization, per class; bef
   function expect429(r: Res) {
     expect(r.status, r.text).toBe(429);
     expect(r.headers.get("content-type")).toMatch(/application\/json/);
-    expect(r.json).toEqual({ code: "rate_limited", retryAfterSeconds: expect.any(Number), error: expect.any(String) });
+    // (the error-handling work package, 2026-11-17: the one error shape adds the Arabic sentence and the request's reference)
+    expect(r.json).toEqual({ code: "rate_limited", retryAfterSeconds: expect.any(Number), error: expect.any(String), errorAr: expect.stringMatching(/[؀-ۿ]/), requestId: expect.stringMatching(/^[0-9a-f-]{36}$/) });
     expect(r.headers.get("retry-after"), "Retry-After equals the body's wait").toBe(String(r.json.retryAfterSeconds));
     expect(r.json.retryAfterSeconds).toBeGreaterThanOrEqual(1);
   }
@@ -347,7 +348,8 @@ describeMaybe("the request budget — per user, per organization, per class; bef
       const before = await count(`SELECT count(*) n FROM customers WHERE organization_id = $1`, [orgX]);
       const r = await as.admin("POST", "/customers", { name: "Never Created" });
       expect(r.status, r.text).toBe(503);
-      expect(r.json).toEqual({ code: "rate_limit_unavailable", error: expect.any(String) });
+      expect(r.json).toEqual({ code: "rate_limit_unavailable", error: expect.any(String), errorAr: expect.stringMatching(/[؀-ۿ]/), requestId: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+      expect(r.text, "a 5xx never carries the exception's text").not.toMatch(/simulated store outage/);
       expect(await count(`SELECT count(*) n FROM customers WHERE organization_id = $1`, [orgX])).toBe(before);
     } finally {
       spy.mockRestore();

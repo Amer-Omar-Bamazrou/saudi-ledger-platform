@@ -72,6 +72,14 @@ describe("the central handler — a 5xx never carries its exception's text; the 
     expect(JSON.stringify(r.body)).not.toMatch(/KMS|arn:aws|Decrypt/);
   });
 
+  it("🔴 a 5xx AppError keeps the code in its payload (the limiter's rate_limit_unavailable is keyed on by the client)", async () => {
+    const { RateLimitUnavailableError } = await import("../lib/rateLimitStore");
+    const r = drive(new RateLimitUnavailableError());
+    expect(r.status).toBe(503);
+    shaped(r.body);
+    expect(r.body.code).toBe("rate_limit_unavailable");
+  });
+
   it("🔴 a library's 4xx (malformed JSON) is answered by its kind, not by the parser's text", () => {
     const e = Object.assign(new SyntaxError("Unexpected token } in JSON at position 12"), { statusCode: 400, type: "entity.parse.failed" });
     const r = drive(e);
@@ -85,6 +93,13 @@ describe("the central handler — a 5xx never carries its exception's text; the 
     const r = drive(new BusinessRuleError(422, { code: "journal_line_party_reason_required", field: "lines[1].partyNoneReason", error: "Line 2: state why.", errorAr: "السطر 2: اذكر السبب." }), "ref-422");
     expect(r.status).toBe(422);
     expect(r.body).toEqual({ code: "journal_line_party_reason_required", field: "lines[1].partyNoneReason", error: "Line 2: state why.", errorAr: "السطر 2: اذكر السبب.", requestId: "ref-422" });
+  });
+
+  it("movement — a code the body already carries is never rewritten, whatever its case (TOTALS_MISMATCH is keyed on)", () => {
+    const r = drive(new BusinessRuleError(400, { code: "TOTALS_MISMATCH", error: "Totals don't reconcile.", detail: { difference: 5 } }));
+    expect(r.status).toBe(400);
+    expect(r.body).toMatchObject({ code: "TOTALS_MISMATCH", error: "Totals don't reconcile.", detail: { difference: 5 } });
+    expect(r.body.errorAr).toMatch(ARABIC);
   });
 
   it("a refusal with no code and no Arabic keeps its English sentence and gains a status code, Arabic and the reference", () => {
