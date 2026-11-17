@@ -18,7 +18,7 @@ import {
   supplierPaymentsTable,
   vendorsTable,
 } from "@workspace/db";
-import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 import { billNotReversed } from "./openingReversal";
 
@@ -30,6 +30,8 @@ export type PaymentToSupplier = {
   vendorName: string;
   amount: string;
   paidAt: string;
+  /** The instant the payment was recorded, as epoch milliseconds computed by the database (owner A23). */
+  recordedMs: number;
 };
 
 export const companyControlsRepository = {
@@ -56,7 +58,9 @@ export const companyControlsRepository = {
   /** Every vendor update record whose before and after IBAN differ, oldest first. */
   vendorIbanChanges() {
     return db
-      .select({ entityId: auditLogsTable.entityId, createdAt: auditLogsTable.createdAt })
+      // 🔴 owner A23: the change's instant as epoch milliseconds, computed by the database (`timestamp` read into JS
+      // would depend on the process's zone); its business day is taken from it through the Asia/Riyadh seam.
+      .select({ entityId: auditLogsTable.entityId, ms: sql<string>`(extract(epoch from ${auditLogsTable.createdAt}::timestamptz) * 1000)::bigint` })
       .from(auditLogsTable)
       .where(
         and(
@@ -68,8 +72,12 @@ export const companyControlsRepository = {
       .orderBy(asc(auditLogsTable.createdAt), asc(auditLogsTable.id));
   },
 
-  /** This company's bill payments and supplier payments to the given suppliers, dated on or after `from`. */
-  async paymentsToVendors(vendorIds: number[], from: string): Promise<PaymentToSupplier[]> {
+  /**
+   * This company's bill payments and supplier payments to the given suppliers, DATED on or after `from` or RECORDED at
+   * or after `fromMs` (owner A23: a back-dated payment recorded after a change is read too).
+   */
+  async paymentsToVendors(vendorIds: number[], from: string, fromMs: number): Promise<PaymentToSupplier[]> {
+    const fromInstant = sql`to_timestamp(${fromMs / 1000})`;
     if (vendorIds.length === 0) return [];
     const billPayments = await db
       .select({
@@ -79,6 +87,7 @@ export const companyControlsRepository = {
         vendorName: vendorsTable.name,
         amount: billPaymentsTable.amount,
         paidAt: billPaymentsTable.paidAt,
+        recordedMs: sql<string>`(extract(epoch from ${billPaymentsTable.createdAt}) * 1000)::bigint`,
       })
       .from(billPaymentsTable)
       .innerJoin(billsTable, eq(billsTable.id, billPaymentsTable.billId))
@@ -88,7 +97,7 @@ export const companyControlsRepository = {
           companyScoped(billPaymentsTable.companyId),
           billNotReversed(),
           inArray(billsTable.vendorId, vendorIds),
-          gte(billPaymentsTable.paidAt, from),
+          or(gte(billPaymentsTable.paidAt, from), sql`${billPaymentsTable.createdAt} >= ${fromInstant}`),
         ),
       );
     const supplierPayments = await db
@@ -98,6 +107,7 @@ export const companyControlsRepository = {
         vendorName: vendorsTable.name,
         amount: supplierPaymentsTable.amount,
         paidAt: supplierPaymentsTable.paidAt,
+        recordedMs: sql<string>`(extract(epoch from ${supplierPaymentsTable.createdAt}) * 1000)::bigint`,
       })
       .from(supplierPaymentsTable)
       .innerJoin(vendorsTable, eq(vendorsTable.id, supplierPaymentsTable.vendorId))
@@ -105,12 +115,12 @@ export const companyControlsRepository = {
         and(
           companyScoped(supplierPaymentsTable.companyId),
           inArray(supplierPaymentsTable.vendorId, vendorIds),
-          gte(supplierPaymentsTable.paidAt, from),
+          or(gte(supplierPaymentsTable.paidAt, from), sql`${supplierPaymentsTable.createdAt} >= ${fromInstant}`),
         ),
       );
     return [
-      ...billPayments.map((p) => ({ kind: "bill_payment" as const, ...p, vendorId: p.vendorId as number })),
-      ...supplierPayments.map((p) => ({ kind: "supplier_payment" as const, billId: null, ...p })),
+      ...billPayments.map((p) => ({ kind: "bill_payment" as const, ...p, vendorId: p.vendorId as number, recordedMs: Number(p.recordedMs) })),
+      ...supplierPayments.map((p) => ({ kind: "supplier_payment" as const, billId: null, ...p, recordedMs: Number(p.recordedMs) })),
     ];
   },
 };

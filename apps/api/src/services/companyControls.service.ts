@@ -35,7 +35,13 @@ export type PaymentAfterBankChangeItem = {
   amount: number;
   paidAt: string;
   changedOn: string;
+  /** The instant the payment was recorded (ISO). */
+  recordedAt: string;
+  /** Owner A23: which fell inside the window after the change — the payment's date, its recording time, or both. */
+  matchedBy: "date" | "recorded" | "both";
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function windowDaysOf(value: unknown): number | null {
   if (value === null) return null;
@@ -73,25 +79,45 @@ export const companyControlsService = {
     const { bankChangePaymentWindowDays: windowDays } = await settings();
     if (windowDays == null) return { enabled: false, windowDays: null, items: [] };
 
-    // each supplier's change days, ascending
-    const changes = new Map<number, string[]>();
+    /*
+     * 🔴 Owner decision A23 (2026-11-16): the window after a change is read on BOTH clocks, and either lists the payment.
+     *   - the change: its instant T and its business day D = businessDate(T) (Asia/Riyadh seam);
+     *   - by DATE:      D <= the payment's date <= D + N calendar days (both ends inclusive);
+     *   - by RECORDING: T <= the payment's recording instant <= T + N x 24 h (both ends inclusive).
+     * Each measures from the LATEST change at or before it on its own clock — the nearest, so if that one is outside
+     * the window every earlier one is too. A back-dated payment (recorded after the change, dated before it) used to
+     * escape the date-only reading (the audit's A23).
+     */
+    const changes = new Map<number, Array<{ ms: number; day: string }>>(); // each supplier's changes, ascending
     for (const c of await companyControlsRepository.vendorIbanChanges()) {
       const vendorId = Number(c.entityId);
       if (!Number.isInteger(vendorId)) continue;
-      const day = businessDate(c.createdAt);
-      const days = changes.get(vendorId) ?? [];
-      if (days[days.length - 1] !== day) days.push(day);
-      changes.set(vendorId, days);
+      const ms = Number(c.ms);
+      const list = changes.get(vendorId) ?? [];
+      list.push({ ms, day: businessDate(new Date(ms)) });
+      changes.set(vendorId, list);
     }
     if (changes.size === 0) return { enabled: true, windowDays, items: [] };
 
-    const earliest = [...changes.values()].map((d) => d[0]).sort()[0];
+    const all = [...changes.values()].flat();
+    const earliestDay = all.map((c) => c.day).sort()[0]!;
+    const earliestMs = Math.min(...all.map((c) => c.ms));
     const items: PaymentAfterBankChangeItem[] = [];
-    for (const p of await companyControlsRepository.paymentsToVendors([...changes.keys()], earliest)) {
-      // the latest change on or before the payment — the nearest, so if it is outside the window every earlier one is too
-      const changedOn = (changes.get(p.vendorId) ?? []).filter((d) => d <= p.paidAt).pop();
-      if (changedOn == null || p.paidAt > businessDateShift(changedOn, windowDays)) continue;
-      items.push({ ...p, amount: Number(p.amount), changedOn });
+    for (const p of await companyControlsRepository.paymentsToVendors([...changes.keys()], earliestDay, earliestMs)) {
+      const mine = changes.get(p.vendorId) ?? [];
+      const byDate = mine.filter((c) => c.day <= p.paidAt).pop();
+      const dateInside = byDate != null && p.paidAt <= businessDateShift(byDate.day, windowDays);
+      const byRecording = mine.filter((c) => c.ms <= p.recordedMs).pop();
+      const recordedInside = byRecording != null && p.recordedMs <= byRecording.ms + windowDays * DAY_MS;
+      if (!dateInside && !recordedInside) continue;
+      const { recordedMs, ...row } = p;
+      items.push({
+        ...row,
+        amount: Number(p.amount),
+        changedOn: (dateInside ? byDate! : byRecording!).day,
+        recordedAt: new Date(recordedMs).toISOString(),
+        matchedBy: dateInside && recordedInside ? "both" : dateInside ? "date" : "recorded",
+      });
     }
     items.sort((a, b) => b.paidAt.localeCompare(a.paidAt) || a.kind.localeCompare(b.kind) || b.paymentId - a.paymentId);
     return { enabled: true, windowDays, items };

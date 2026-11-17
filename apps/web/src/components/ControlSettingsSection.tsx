@@ -22,6 +22,7 @@ import {
   getGetPaymentAfterBankChangeFindingQueryKey,
 } from "@workspace/api-client-react";
 import { fmtNum } from "@/lib/api";
+import { BUSINESS_TIME_ZONE } from "@workspace/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +32,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export function ControlSettingsSection() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { isOrgAdmin } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -119,8 +120,8 @@ export function ControlSettingsSection() {
             <>
               <p className="text-sm">
                 {t(
-                  `Payments made on, or within ${f.windowDays} days after, a change of the supplier's IBAN`,
-                  `الدفعات التي تمت في يوم تغيير رقم الآيبان للمورد أو خلال ${f.windowDays} يوماً بعده`,
+                  `Payments dated, or recorded, on or within ${f.windowDays} days after a change of the supplier's IBAN`,
+                  `الدفعات المؤرخة أو المسجّلة في يوم تغيير رقم الآيبان للمورد أو خلال ${f.windowDays} يوماً بعده`,
                 )}
               </p>
               {f.items.length === 0 ? (
@@ -135,6 +136,7 @@ export function ControlSettingsSection() {
                         <th className="py-1 text-end font-medium">{t("Amount", "المبلغ")}</th>
                         <th className="py-1 text-start font-medium">{t("Paid on", "تاريخ الدفع")}</th>
                         <th className="py-1 text-start font-medium">{t("IBAN changed on", "تاريخ تغيير الآيبان")}</th>
+                        <th className="py-1 text-start font-medium">{t("Recorded", "وقت التسجيل")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -145,6 +147,11 @@ export function ControlSettingsSection() {
                           <td className="py-1 text-end tabular-nums">{fmtNum(i.amount)}</td>
                           <td className="py-1 tabular-nums">{i.paidAt}</td>
                           <td className="py-1 tabular-nums">{i.changedOn}</td>
+                          {/* 🔴 owner A23: a payment listed by its recording time says so — its date may be before the change */}
+                          <td className="py-1 tabular-nums" data-testid={`control-finding-recorded-${i.kind}-${i.paymentId}`} data-matched-by={i.matchedBy}>
+                            {new Date(i.recordedAt).toLocaleString(lang === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-SA", { timeZone: BUSINESS_TIME_ZONE, dateStyle: "medium", timeStyle: "short" })}
+                            {i.matchedBy !== "date" && <span className="block text-xs text-muted-foreground">{t("recorded after the change", "سُجّلت بعد التغيير")}</span>}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
