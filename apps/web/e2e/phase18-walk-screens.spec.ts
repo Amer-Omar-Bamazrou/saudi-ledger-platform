@@ -83,10 +83,11 @@ test("🔴 W5/W8/W9/W10: the entry shows its stated reason and Arabic status; th
   await row.click();
   await expect(page.getByTestId("je-line-party-1")).toContainText(`لا عميل — ${REASON}`);
   await page.getByTestId("je-new").click();
-  const box = await page.getByTestId("je-dialog").boundingBox();
-  expect(box, "the dialog is on screen").not.toBeNull();
-  expect(box!.x).toBeGreaterThanOrEqual(0);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(PHONE.width);
+  // The dialog slides in (its open animation starts it off to one side), so its SETTLED box is the one asserted: polled,
+  // not read once at the click (CI run 44083067839 read x = -96.9 mid-animation).
+  const dialog = page.getByTestId("je-dialog");
+  await expect.poll(async () => (await dialog.boundingBox())?.x ?? -1, { message: "the dialog's left edge is on screen" }).toBeGreaterThanOrEqual(0);
+  await expect.poll(async () => { const b = await dialog.boundingBox(); return b ? b.x + b.width : Infinity; }, { message: "the dialog's right edge is on screen" }).toBeLessThanOrEqual(PHONE.width);
   await close();
 });
 
