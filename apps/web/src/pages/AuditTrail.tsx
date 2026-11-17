@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollText, ChevronDown, ChevronRight } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DualDate } from "@/components/DualDate";
+import { businessInstant, fmtCount } from "@/lib/businessTime";
 
 interface AuditLog {
   id: string;
@@ -105,7 +106,7 @@ export default function AuditTrail() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="text-base">
               {t("Entries", "الإدخالات")}
-              {total > 0 && <span className="text-muted-foreground font-normal"> · {total.toLocaleString()}</span>}
+              {total > 0 && <span className="text-muted-foreground font-normal"> · {fmtCount(total)}</span>}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Select value={entityType} onValueChange={(v) => { setEntityType(v); resetPaging(); }}>
@@ -156,8 +157,9 @@ export default function AuditTrail() {
                           {expanded === l.id ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                         </td>
                         <td className="py-2 pe-4 text-xs whitespace-nowrap">
-                          <DualDate date={l.createdAt.slice(0, 10)} />
-                          <span className="text-muted-foreground ms-1">{l.createdAt.slice(11, 19)}</span>
+                          {/* 🔴 Walk W1: the business day and clock (Asia/Riyadh), never the UTC clock */}
+                          <DualDate date={businessInstant(l.createdAt).date} />{" · "}
+                          <span className="text-muted-foreground" dir="ltr">{businessInstant(l.createdAt, { seconds: true }).time}</span>
                         </td>
                         <td className="py-2 pe-4">
                           {/* An unresolved actor stays a number, honestly —
@@ -205,7 +207,7 @@ export default function AuditTrail() {
           {total > PAGE_SIZE && (
             <div className="flex items-center justify-between pt-3">
               <span className="text-xs text-muted-foreground">
-                {t("Showing", "عرض")} {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} {t("of", "من")} {total.toLocaleString()}
+                {t("Showing", "عرض")} {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} {t("of", "من")} {fmtCount(total)}
               </span>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>

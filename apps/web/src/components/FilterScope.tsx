@@ -20,6 +20,7 @@
  * announcement, and a permanent "All" banner is noise that teaches nothing.
  */
 import { useLanguage } from "@/contexts/LanguageContext";
+import { fmtCount } from "@/lib/businessTime";
 import { filterLabel, type FilterOption } from "@/lib/listFilters";
 
 export function FilterScope({
@@ -53,7 +54,7 @@ export function FilterScope({
         {filterLabel(options, value, lang)}
       </span>
       <span data-testid="filter-scope-count" className="font-mono text-muted-foreground">
-        {total === undefined ? "—" : `· ${total.toLocaleString()}`}
+        {total === undefined ? "—" : `· ${fmtCount(total)}`}
       </span>
       <button
         type="button"

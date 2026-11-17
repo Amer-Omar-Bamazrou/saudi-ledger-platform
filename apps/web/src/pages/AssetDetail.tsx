@@ -119,7 +119,7 @@ export default function AssetDetail() {
     [t("Useful life", "العمر الإنتاجي"), `${asset.postedPeriods}/${asset.usefulLifeMonths} ${t("months", "شهرًا")}`, "detail-life"],
     [t("Available for use", "جاهز للاستخدام"), asset.availableForUseDate ? <DualDate date={asset.availableForUseDate} inline /> : "—", "detail-available"],
     [t("Income tax group (Art. 17)", "مجموعة ضريبة الدخل (المادة 17)"), `${asset.incomeTaxGroup} · ${asset.incomeTaxRatePct}%`, "detail-tax-group"],
-    [t("VAT capital asset (Art. 52)", "أصل رأسمالي لضريبة القيمة المضافة (المادة 52)"), asset.vatAdjustmentPeriodYears != null ? `${asset.vatCapitalAssetClass} · ${asset.vatAdjustmentPeriodYears} ${t("years", "سنوات")}` : t("not a capital asset", "ليس أصلًا رأسماليًا"), "detail-vat-class"],
+    [t("VAT capital asset (Art. 52)", "أصل رأسمالي لضريبة القيمة المضافة (المادة 52)"), asset.vatAdjustmentPeriodYears != null ? `${asset.vatCapitalAssetClass === "immovable" ? t("immovable", "غير منقول") : asset.vatCapitalAssetClass === "movable" ? t("movable", "منقول") : asset.vatCapitalAssetClass} · ${asset.vatAdjustmentPeriodYears} ${t("years", "سنوات")}` : t("not a capital asset", "ليس أصلًا رأسماليًا"), "detail-vat-class"],
   ];
 
   return (
@@ -222,7 +222,7 @@ export default function AssetDetail() {
               {rows.map((r) => (
                 <tr key={r.sequence} className="border-b border-border/50" data-testid={`schedule-${r.period}`}>
                   <td className="py-1.5 pe-3 text-xs text-muted-foreground">{r.sequence}</td>
-                  <td className="py-1.5 pe-3 font-mono text-xs" dir="ltr">{r.period}</td>
+                  <td className="py-1.5 pe-3 font-mono text-xs whitespace-nowrap" dir="ltr">{r.period}</td>
                   <td className="py-1.5 pe-3 font-mono">{fmtNum(r.amount)}</td>
                   <td className="py-1.5 pe-3 font-mono text-muted-foreground">{fmtNum(r.accumulatedAfter)}</td>
                   <td className="py-1.5 pe-3 font-mono">{fmtNum(r.carryingAfter)}</td>

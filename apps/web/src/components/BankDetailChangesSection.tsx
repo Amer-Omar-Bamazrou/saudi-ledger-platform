@@ -26,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { refusalOf } from "@/lib/openingVatRefusals";
 
 export function BankDetailChangesSection() {
   const { t, lang } = useLanguage();
@@ -50,7 +51,8 @@ export function BankDetailChangesSection() {
       case "bank_detail_change_decided":
         return t("This request was already decided. A decision is final.", "سبق البتّ في هذا الطلب، والقرار نهائي.");
       default:
-        return e instanceof Error ? e.message : String(e);
+        // 🔴 Walk W2: the server's sentence in the reader's language (A25), never "HTTP 409 Conflict: …" in English
+        return refusalOf(e).words;
     }
   };
 

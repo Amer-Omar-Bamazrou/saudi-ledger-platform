@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { refusalOf } from "@/lib/openingVatRefusals";
 import { fmtNum } from "@/lib/api";
 import { correctionRouteText } from "@/lib/vatCorrections";
 
@@ -38,7 +39,7 @@ export function VatCorrections({ canRecord, filings }: { canRecord: boolean; fil
   const record = useRecordVatCorrection({
     mutation: {
       onSuccess: () => { setC(empty); qc.invalidateQueries({ queryKey: getListVatCorrectionsQueryKey() }); toast({ title: t("Recorded", "سُجِّل") }); },
-      onError: (e: unknown) => toast({ title: t("Not recorded", "لم يُسجَّل"), description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
+      onError: (e: unknown) => toast({ title: t("Not recorded", "لم يُسجَّل"), description: refusalOf(e).words, variant: "destructive" }),
     },
   });
   const withErrors = (view.data?.returns ?? []).filter((r) => r.errors > 0);

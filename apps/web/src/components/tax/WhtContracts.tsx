@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { refusalOf } from "@/lib/openingVatRefusals";
 
 type T = (en: string, ar: string) => string;
 export const taxBearingLabel = (b: string, t: T) =>
@@ -43,7 +44,7 @@ export function WhtContracts() {
         setF({ vendorId: f.vendorId, reference: "", taxBearing: "", confirmed: false, note: "" });
         toast({ title: t("Contract recorded", "سُجّل العقد") });
       },
-      onError: (e) => toast({ title: t("Not recorded", "لم يُسجَّل"), description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
+      onError: (e) => toast({ title: t("Not recorded", "لم يُسجَّل"), description: refusalOf(e).words, variant: "destructive" }),
     },
   });
 

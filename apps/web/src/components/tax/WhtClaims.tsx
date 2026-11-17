@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { refusalOf } from "@/lib/openingVatRefusals";
 
 type T = (en: string, ar: string) => string;
 const ITEMS = ["contractAndInvoice", "correctCategoryAndRate", "originalStatementAndReceipt", "reconciliation", "whoBoreTheExcess", "beneficiaryAuthorisation"] as const;
@@ -42,7 +43,7 @@ export function WhtClaims({ canRecord }: { canRecord: boolean }) {
   const { t } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const fail = (e: unknown) => toast({ title: t("Not recorded", "لم يُسجَّل"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+  const fail = (e: unknown) => toast({ title: t("Not recorded", "لم يُسجَّل"), description: refusalOf(e).words, variant: "destructive" });
   const claims = useListWhtRefundClaims();
   const requests = useListWhtInstalmentRequests();
   const vendors = useListVendors({ limit: 200 });
