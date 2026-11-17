@@ -30,6 +30,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { refusalOf } from "@/lib/openingVatRefusals";
+import { daysAr } from "@/lib/businessTime";
 
 export function ControlSettingsSection() {
   const { t, lang } = useLanguage();
@@ -53,7 +55,7 @@ export function ControlSettingsSection() {
             : t("Control saved", "تم حفظ الضابط"),
         });
       },
-      onError: (e) => toast({ title: t("Not saved", "لم يُحفظ"), description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
+      onError: (e) => toast({ title: t("Not saved", "لم يُحفظ"), description: refusalOf(e).words, variant: "destructive" }),
     },
   });
   const send = (value: number | null) => update.mutate({ data: { bankChangePaymentWindowDays: value } });
@@ -121,7 +123,7 @@ export function ControlSettingsSection() {
               <p className="text-sm">
                 {t(
                   `Payments dated, or recorded, on or within ${f.windowDays} days after a change of the supplier's IBAN`,
-                  `الدفعات المؤرخة أو المسجّلة في يوم تغيير رقم الآيبان للمورد أو خلال ${f.windowDays} يوماً بعده`,
+                  `الدفعات المؤرخة أو المسجّلة في يوم تغيير رقم الآيبان للمورد أو خلال ${daysAr(f.windowDays ?? 0)} بعده`,
                 )}
               </p>
               {f.items.length === 0 ? (

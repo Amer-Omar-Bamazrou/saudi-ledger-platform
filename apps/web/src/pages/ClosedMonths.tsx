@@ -46,7 +46,7 @@ interface PeriodLock {
 function monthLabel(period: string, lang: string): string {
   const [y, m] = period.split("-").map(Number);
   if (!y || !m) return period;
-  return new Intl.DateTimeFormat(lang === "ar" ? "ar-SA" : "en-US", {
+  return new Intl.DateTimeFormat(lang === "ar" ? "ar-SA-u-nu-latn" : "en-US", { // Walk W12: the app's digits
     month: "long",
     year: "numeric",
     calendar: "gregory", // calendar months — the filing rhythm (M20.2)

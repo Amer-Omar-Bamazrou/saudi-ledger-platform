@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtDate } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { refusalOf } from "@/lib/openingVatRefusals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,7 +98,7 @@ export default function UserManagement() {
       qc.invalidateQueries({ queryKey: ["members", activeOrgId] });
       toast({ title: t("Role assigned", "تم تعيين الدور") });
     },
-    onError: (e: Error) => toast(lastAdminRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(lastAdminRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
 
   // Create the account WITH its membership in the active org, in ONE request —
@@ -116,7 +117,7 @@ export default function UserManagement() {
       setCreateError("");
       toast({ title: t("User created & added to organization", "تم إنشاء المستخدم وإضافته إلى المنظمة") });
     },
-    onError: (e: Error) => setCreateError(e.message),
+    onError: (e: Error) => setCreateError(refusalOf(e).words),
   });
 
   // Global identity ops (activate/deactivate the account) stay on /auth/users.
@@ -127,7 +128,7 @@ export default function UserManagement() {
       qc.invalidateQueries({ queryKey: ["users"] });
       toast({ title: t("User updated", "تم تحديث المستخدم") });
     },
-    onError: (e: Error) => toast(lastAdminRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(lastAdminRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
 
   // ── Invitations (M11.7) ────────────────────────────────────────────────────
@@ -149,20 +150,20 @@ export default function UserManagement() {
       setInviteError("");
       refreshInvites();
     },
-    onError: (e: Error) => setInviteError(e.message),
+    onError: (e: Error) => setInviteError(refusalOf(e).words),
   });
 
   const revokeMut = useMutation({
     mutationFn: (id: string) => apiFetch(`/orgs/${activeOrgId}/invitations/${id}`, { method: "DELETE" }),
     onSuccess: () => { refreshInvites(); toast({ title: t("Invitation revoked", "تم إلغاء الدعوة") }); },
-    onError: (e: Error) => setInviteError(e.message),
+    onError: (e: Error) => setInviteError(refusalOf(e).words),
   });
 
   const resendMut = useMutation({
     mutationFn: (id: string) =>
       apiFetch<{ link: string }>(`/orgs/${activeOrgId}/invitations/${id}/resend`, { method: "POST" }),
     onSuccess: (res) => { setInviteLink(res.link); refreshInvites(); },
-    onError: (e: Error) => setInviteError(e.message),
+    onError: (e: Error) => setInviteError(refusalOf(e).words),
   });
 
   const removeMemberMut = useMutation({
@@ -172,7 +173,7 @@ export default function UserManagement() {
       qc.invalidateQueries({ queryKey: ["members", activeOrgId] });
       toast({ title: t("Member removed", "تمت إزالة العضو") });
     },
-    onError: (e: Error) => toast(lastAdminRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(lastAdminRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
 
   const resetMut = useMutation({
@@ -184,7 +185,7 @@ export default function UserManagement() {
       setResetError("");
       toast({ title: t("Password reset successfully", "تمت إعادة تعيين كلمة المرور بنجاح") });
     },
-    onError: (e: Error) => setResetError(e.message),
+    onError: (e: Error) => setResetError(refusalOf(e).words),
   });
 
   // Wait for the memberships to load before deciding (avoids a flash of "denied").

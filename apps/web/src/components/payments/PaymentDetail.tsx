@@ -10,6 +10,7 @@ import { Fragment, useState } from "react";
 import { Link } from "wouter";
 import { fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { refusalOf } from "@/lib/openingVatRefusals";
 import { Button } from "@/components/ui/button";
 import { IssueConfirmDialog } from "@/components/invoices/IssueConfirmDialog";
 import { Badge } from "@/components/ui/badge";
@@ -130,12 +131,12 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
   const approve = useMutation({
     mutationFn: (id: number) => apiFetch(`/invoices/${id}/approve`, { method: "POST" }),
     onSuccess: () => { invalidatePaymentQueries(qc); toast({ title: t("Advance tax invoice issued", "صدرت الفاتورة الضريبية للدفعة المقدمة") }); },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
   const approveNote = useMutation({
     mutationFn: (id: number) => apiFetch(`/invoices/${id}/approve`, { method: "POST" }),
     onSuccess: () => { invalidatePaymentQueries(qc); toast({ title: t("Credit note issued — the advance is cancelled", "صدر الإشعار الدائن — أُلغيت الدفعة المقدمة") }); },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
   if (!isAdvance && payment.advanceInvoices.length === 0) return null;
   const statusLabel = (s: string) => (s === "draft" ? t("Draft", "مسودة") : s === "submitted" ? t("Submitted", "مُرسلة") : t("Issued", "صادرة"));

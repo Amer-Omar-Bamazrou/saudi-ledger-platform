@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, BookOpen, CheckCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { refusalOf } from "@/lib/openingVatRefusals";
+import { fmtCount } from "@/lib/businessTime";
+import { journalStatusLabel, linePartyText, partyHint } from "@/lib/journalLine";
 import { DualDate } from "@/components/DualDate";
 import { FilterScope } from "@/components/FilterScope";
 import { JOURNAL_ENTRY_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
@@ -105,7 +108,7 @@ export default function JournalEntries() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["journal-entries"] }); setOpen(false); toast({ title: t("Journal entry created", "تم إنشاء قيد اليومية") }); },
     // G55: a line on an account this company cannot post to (another company's bank) is explained in both languages;
     // so are this screen's own refusals (all-zero amounts, a reserved entry number).
-    onError: (e: Error) => toast(journalRefusalToast(e, t) ?? accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(journalRefusalToast(e, t) ?? accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -115,13 +118,13 @@ export default function JournalEntries() {
       setConfirmDelete(null);
       toast({ title: t("Draft deleted", "تم حذف المسودة") });
     },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
 
   const postMut = useMutation({
     mutationFn: (id: number) => apiFetch(`/journal-entries/${id}/post`, { method: "POST" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry posted to ledger", "تم ترحيل القيد إلى دفتر الأستاذ") }); },
-    onError: (e: Error) => toast(journalRefusalToast(e, t) ?? accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast(journalRefusalToast(e, t) ?? accountRefusalToast(e, t) ?? { title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
 
   const reverseMut = useMutation({
@@ -133,7 +136,7 @@ export default function JournalEntries() {
       correctionKind: rev.correctionKind || undefined, // H-18 (DR-15): optional; an empty choice is sent as nothing
     }) }),
     onSuccess: () => { setReversing(null); setRev({ reason: "", discoveredOn: "", apparentOn: "", discoveryEvidence: "", correctionKind: "" }); qc.invalidateQueries({ queryKey: ["journal-entries"] }); toast({ title: t("Entry reversed", "تم عكس القيد") }); },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
 
   const totalDebit = lines.reduce((s, l) => s + Number(l.debitAmount || 0), 0);
@@ -149,6 +152,16 @@ export default function JournalEntries() {
     if (code && CUSTOMER_OR_REASON.has(code)) return l.customerId == null && !(l.partyNoneReason ?? "").trim();
     return code === "AP" && l.vendorId == null;
   });
+  // 🔴 Walk W6: the hint names the rule the line misses — a customer-or-reason line is not a receivable/payable line
+  const reasonMissing = lines.some((l) => {
+    const code = systemCodeOf(l.accountId);
+    return !!code && CUSTOMER_OR_REASON.has(code) && l.customerId == null && !(l.partyNoneReason ?? "").trim();
+  });
+  /** Walk W5: the names the entry's detail prints beside a line's party. */
+  const partyNames = {
+    customer: (id: number) => { const c = customers.find((x) => x.id === id); return c ? n(c.name, c.nameAr) : undefined; },
+    vendor: (id: number) => { const v = vendors.find((x) => x.id === id); return v ? n(v.name, v.nameAr) : undefined; },
+  };
 
   const updateLine = (i: number, k: keyof LineForm, v: any) => setLines(prev => prev.map((l, idx) => idx === i ? { ...l, [k]: v } : l));
 
@@ -161,7 +174,7 @@ export default function JournalEntries() {
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2" data-testid="je-new"><Plus className="w-4 h-4" /> {t("New Entry", "قيد جديد")}</Button></DialogTrigger>
-          <DialogContent className="max-w-2xl" data-testid="je-dialog">
+          <DialogContent className="w-[calc(100vw-1rem)] max-w-2xl max-h-[90vh] overflow-y-auto [&>*]:min-w-0" data-testid="je-dialog">
             <DialogHeader><DialogTitle>{t("New Journal Entry", "قيد يومية جديد")}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-3 gap-3 mt-2">
               <div><Label className="text-xs text-muted-foreground">{t("Entry Number", "رقم القيد")}</Label><Input value={form.entryNumber} onChange={e=>setForm(p=>({...p,entryNumber:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
@@ -246,39 +259,10 @@ export default function JournalEntries() {
               </table></div>
               {!balanced && <p className="text-xs text-negative mt-1">⚠ {t("Entry must balance: debits", "يجب أن يكون القيد متوازناً: المدين")} ({fmtNum(totalDebit)}) ≠ {t("credits", "الدائن")} ({fmtNum(totalCredit)})</p>}
 
-            {/*
-              🔴 The page says what it is showing and of how many, and gives a
-              way to the rest. A list that silently stops at 50 is the same
-              defect as a count that saturates at 200 — the number describes a
-              set the reader does not think they are looking at (B-6).
-            */}
-            {jePageInfo && jePageInfo.total > 0 && (
-              <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
-                <span>
-                  {t(
-                    `Showing ${jePageInfo.offset + 1}–${Math.min(jePageInfo.offset + entries.length, jePageInfo.total)} of ${jePageInfo.total}`,
-                    `عرض ${jePageInfo.offset + 1}–${Math.min(jePageInfo.offset + entries.length, jePageInfo.total)} من ${jePageInfo.total}`,
-                  )}
-                </span>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
-                    {t("Previous", "السابق")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={jePageInfo.offset + entries.length >= jePageInfo.total}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    {t("Next", "التالي")}
-                  </Button>
-                </div>
-              </div>
-            )}
             </div>
 
             {recordsNothing && <p className="text-xs text-muted-foreground mt-1" data-testid="je-zero-hint">{t("Enter the debit and credit amounts: an entry whose amounts are all blank or zero records nothing.", "أدخل مبالغ المدين والدائن: القيد الذي جميع مبالغه فارغة أو صفر لا يسجّل شيئاً.")}</p>}
-            {partyMissing && <p className="text-xs text-negative mt-1">⚠ {t("A receivable/payable line must name its customer/vendor.", "سطر الذمم المدينة/الدائنة يجب أن يحدد العميل/المورّد.")}</p>}
+            {partyMissing && <p className="text-xs text-negative mt-1" data-testid="je-party-hint">⚠ {partyHint(reasonMissing ? "customer-or-reason" : "named", t)}</p>}
             <Button className="w-full mt-4" data-testid="je-save" onClick={()=>createMut.mutate({ ...form, correctionKind: form.correctionKind ? (form.correctionKind as "error" | "estimate" | "policy") : undefined, lines: lines.map(l => ({ ...l, accountId: l.accountId as number, debitAmount: Number(l.debitAmount), creditAmount: Number(l.creditAmount) })) })} disabled={!form.date||!form.description||!balanced||recordsNothing||partyMissing||createMut.isPending}>
               {createMut.isPending ? t("Saving...", "جارٍ الحفظ...") : t("Save Journal Entry", "حفظ قيد اليومية")}
             </Button>
@@ -308,7 +292,7 @@ export default function JournalEntries() {
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold font-mono text-primary">
-              {jePageInfo ? jePageInfo.total.toLocaleString() : "—"}
+              {jePageInfo ? fmtCount(jePageInfo.total) : "—"}
             </div>
           </CardContent>
         </Card>
@@ -353,7 +337,7 @@ export default function JournalEntries() {
                     <td className="py-2 pe-3 max-w-[140px] truncate">{e.description}</td>
                     <td className="py-2 pe-3 font-mono text-xs text-positive">{fmtNum(e.totalDebit)}</td>
                     <td className="py-2 pe-3 font-mono text-xs text-negative">{fmtNum(e.totalCredit)}</td>
-                    <td className="py-2 pe-3"><Badge className={`text-xs ${STATUS_STYLES[e.status]??""}`}>{e.status}</Badge></td>
+                    <td className="py-2 pe-3"><Badge className={`text-xs ${STATUS_STYLES[e.status]??""}`}>{journalStatusLabel(e.status, t)}</Badge></td>
                     <td className="py-2">
                       {e.status==="draft"&&<Button variant="ghost" size="sm" className="h-6 text-xs text-positive" onClick={ev=>{ev.stopPropagation();postMut.mutate(e.id);}}>{t("Post", "ترحيل")}</Button>}
                       {/* 🔴 AUD-12: draft-only delete. `DELETE /journal-entries/:id`
@@ -367,6 +351,35 @@ export default function JournalEntries() {
                 ))}</tbody>
               </table></div>
             )}
+            {/* 🔴 Walk W8: on the PAGE — it was inside the new-entry dialog, so past one page no entry could be reached.
+              🔴 The page says what it is showing and of how many, and gives a
+              way to the rest. A list that silently stops at 50 is the same
+              defect as a count that saturates at 200 — the number describes a
+              set the reader does not think they are looking at (B-6).
+            */}
+            {jePageInfo && jePageInfo.total > 0 && (
+              <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+                <span>
+                  {t(
+                    `Showing ${jePageInfo.offset + 1}–${Math.min(jePageInfo.offset + entries.length, jePageInfo.total)} of ${jePageInfo.total}`,
+                    `عرض ${jePageInfo.offset + 1}–${Math.min(jePageInfo.offset + entries.length, jePageInfo.total)} من ${jePageInfo.total}`,
+                  )}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                    {t("Previous", "السابق")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={jePageInfo.offset + entries.length >= jePageInfo.total}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    {t("Next", "التالي")}
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -375,7 +388,7 @@ export default function JournalEntries() {
           <CardContent>
             {!selectedEntry ? <div className="text-center py-8 text-muted-foreground text-sm">{t("Select an entry to view its lines", "اختر قيداً لعرض سطوره")}</div> : (
               <div className="space-y-3">
-                <div className="flex justify-between text-sm"><span className="text-muted-foreground">{selectedEntry.entryNumber}</span><Badge className={`text-xs ${STATUS_STYLES[selectedEntry.status]??""}`}>{selectedEntry.status}</Badge></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">{selectedEntry.entryNumber}</span><Badge className={`text-xs ${STATUS_STYLES[selectedEntry.status]??""}`}>{journalStatusLabel(selectedEntry.status, t)}</Badge></div>
                 <p className="text-xs text-foreground font-medium">{selectedEntry.description}</p>
                 {selectedEntry.reference && <p className="text-xs text-muted-foreground">{t("Ref:", "المرجع:")} {selectedEntry.reference}</p>}
                 <div className="overflow-x-auto"><table className="w-full text-xs mt-2">
@@ -386,7 +399,7 @@ export default function JournalEntries() {
                   ].map(h=><th key={h} className="text-start pb-1 pe-2">{h}</th>)}</tr></thead>
                   <tbody>{selectedEntry.lines.map((l, i) => (
                     <tr key={i} className="border-b border-border/30">
-                      <td className="py-1 pe-2 text-foreground">{l.accountName}</td>
+                      <td className="py-1 pe-2 text-foreground">{l.accountName}{(() => { const p = linePartyText(l, partyNames, t); return p ? <div className="text-[11px] text-muted-foreground" data-testid={`je-line-party-${i}`}>{p}</div> : null; })()}</td>
                       <td className={`py-1 pe-2 font-mono ${l.debitAmount>0?"text-positive":"text-muted-foreground"}`}>{l.debitAmount>0?fmtNum(l.debitAmount):"—"}</td>
                       <td className={`py-1 font-mono ${l.creditAmount>0?"text-negative":"text-muted-foreground"}`}>{l.creditAmount>0?fmtNum(l.creditAmount):"—"}</td>
                     </tr>

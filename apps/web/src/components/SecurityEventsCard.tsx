@@ -12,6 +12,7 @@ import { useListOrgSecurityEvents, type SecurityEvent } from "@workspace/api-cli
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DualDate } from "@/components/DualDate";
+import { businessInstant, fmtCount } from "@/lib/businessTime";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 const PAGE_SIZE = 25;
@@ -77,7 +78,7 @@ export function SecurityEventsCard({ orgId, nameOf }: { orgId: string; nameOf: (
       <CardHeader className="pb-3">
         <CardTitle className="text-base">
           {t("Security events", "سجل الأمان")}
-          <span className="text-muted-foreground font-normal" data-testid="security-events-count"> · {total.toLocaleString()}</span>
+          <span className="text-muted-foreground font-normal" data-testid="security-events-count"> · {fmtCount(total)}</span>
         </CardTitle>
         <CardDescription>
           {t(
@@ -102,8 +103,9 @@ export function SecurityEventsCard({ orgId, nameOf }: { orgId: string; nameOf: (
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="text-sm font-medium text-foreground">{label(e)}</span>
                     <span className="text-xs text-muted-foreground">
-                      <DualDate date={e.createdAt.slice(0, 10)} />
-                      <span className="ms-1" dir="ltr">{e.createdAt.slice(11, 16)}</span>
+                      {/* 🔴 Walk W1: the business day and clock (Asia/Riyadh), never the UTC clock of the served ISO string */}
+                      <DualDate date={businessInstant(e.createdAt).date} />{" · "}
+                      <span dir="ltr">{businessInstant(e.createdAt).time}</span>
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground break-all">
@@ -118,7 +120,7 @@ export function SecurityEventsCard({ orgId, nameOf }: { orgId: string; nameOf: (
         {total > PAGE_SIZE && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
             <span className="text-xs text-muted-foreground">
-              {t("Showing", "عرض")} {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} {t("of", "من")} {total.toLocaleString()}
+              {t("Showing", "عرض")} {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} {t("of", "من")} {fmtCount(total)}
             </span>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
