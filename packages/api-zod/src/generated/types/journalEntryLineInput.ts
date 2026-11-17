@@ -18,7 +18,7 @@ export interface JournalEntryLineInput {
   /** @minimum 0 */
   creditAmount: number;
   /**
-     * N3 — REQUIRED when the line's account is the Accounts Receivable control account (a receivable is a receivable FROM someone), and refused on any other account. Tenant-scoped: the id must exist in this organization.
+     * N3 — REQUIRED when the line's account is the Accounts Receivable control account (a receivable is a receivable FROM someone), and refused on any other account. Tenant-scoped: the id must exist in this organization. Owner decision A20: also accepted on SECURITY_DEPOSITS_HELD and UNIDENTIFIED_RECEIPTS, where a line names its customer or states partyNoneReason.
      * @nullable
      */
   customerId?: number | null;
@@ -27,4 +27,10 @@ export interface JournalEntryLineInput {
      * @nullable
      */
   vendorId?: number | null;
+  /**
+     * Owner decision A20: on SECURITY_DEPOSITS_HELD or UNIDENTIFIED_RECEIPTS, the stated reason the line names no customer (required when it names none; refused with a customer, and on any other account). Stored with the line.
+     * @maxLength 500
+     * @nullable
+     */
+  partyNoneReason?: string | null;
 }

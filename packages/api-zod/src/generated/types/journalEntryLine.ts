@@ -26,4 +26,9 @@ export interface JournalEntryLine {
   customerId?: number | null;
   /** @nullable */
   vendorId?: number | null;
+  /**
+     * Owner decision A20 — the stated reason a line on a party account names no party (0162).
+     * @nullable
+     */
+  partyNoneReason?: string | null;
 }

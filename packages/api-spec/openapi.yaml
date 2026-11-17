@@ -10947,6 +10947,9 @@ components:
           type: ["integer", "null"]
         vendorId:
           type: ["integer", "null"]
+        partyNoneReason:
+          type: ["string", "null"]
+          description: Owner decision A20 — the stated reason a line on a party account names no party (0162).
 
     JournalEntry:
       type: object
@@ -14136,12 +14139,21 @@ components:
             N3 — REQUIRED when the line's account is the Accounts Receivable
             control account (a receivable is a receivable FROM someone), and
             refused on any other account. Tenant-scoped: the id must exist in
-            this organization.
+            this organization. Owner decision A20: also accepted on
+            SECURITY_DEPOSITS_HELD and UNIDENTIFIED_RECEIPTS, where a line names
+            its customer or states partyNoneReason.
         vendorId:
           type: ["integer", "null"]
           description: >
             N3 — REQUIRED when the line's account is the Accounts Payable
             control account, refused on any other account. Tenant-scoped.
+        partyNoneReason:
+          type: ["string", "null"]
+          maxLength: 500
+          description: >
+            Owner decision A20: on SECURITY_DEPOSITS_HELD or UNIDENTIFIED_RECEIPTS, the stated reason the line
+            names no customer (required when it names none; refused with a customer, and on any other account).
+            Stored with the line.
 
     CreateJournalEntryInput:
       type: object

@@ -32,6 +32,10 @@ const JE_PAGE_SIZE = 50;
 const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", posted: "bg-positive-surface/20 text-positive", reversed: "bg-negative-surface/20 text-negative" };
 
 const emptyLine: LineForm = { accountName: "", description: "", debitAmount: 0, creditAmount: 0 };
+/** The accounts whose line names a customer (D-4 for the credit liabilities) — the server's rule, shown before saving. */
+const CUSTOMER_REQUIRED = new Set(["AR", "CUSTOMER_DEPOSITS", "CUSTOMER_CREDITS"]);
+/** 🔴 owner A20: a customer, or a stated reason why there is none. */
+const CUSTOMER_OR_REASON = new Set(["SECURITY_DEPOSITS_HELD", "UNIDENTIFIED_RECEIPTS"]);
 
 export default function JournalEntries() {
   const [open, setOpen] = useState(false);
@@ -137,9 +141,13 @@ export default function JournalEntries() {
   const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
   const recordsNothing = journalRecordsNothing(totalDebit, totalCredit);
   // N3 — an AR/AP line without its party would only 422 on save; say so before.
+  // 🔴 owner A20: and a customer-deposit or customer-credit line without its customer (D-4), and a security-deposit or
+  // unidentified-receipt line with neither a customer nor a stated reason.
   const partyMissing = lines.some((l) => {
     const code = systemCodeOf(l.accountId);
-    return (code === "AR" && l.customerId == null) || (code === "AP" && l.vendorId == null);
+    if (code && CUSTOMER_REQUIRED.has(code)) return l.customerId == null;
+    if (code && CUSTOMER_OR_REASON.has(code)) return l.customerId == null && !(l.partyNoneReason ?? "").trim();
+    return code === "AP" && l.vendorId == null;
   });
 
   const updateLine = (i: number, k: keyof LineForm, v: any) => setLines(prev => prev.map((l, idx) => idx === i ? { ...l, [k]: v } : l));
@@ -189,7 +197,7 @@ export default function JournalEntries() {
                   {lines.map((l, i) => (
                     <tr key={i}>
                       <td className="pe-2 py-1">
-                        <Select value={String(l.accountId??"")} onValueChange={v=>{const cat=categories.find(c=>String(c.id)===v);setLines(prev=>prev.map((ln,idx)=>idx===i?{...ln,accountId:Number(v),accountName:cat?.name??v,customerId:null,vendorId:null}:ln));}}>
+                        <Select value={String(l.accountId??"")} onValueChange={v=>{const cat=categories.find(c=>String(c.id)===v);setLines(prev=>prev.map((ln,idx)=>idx===i?{...ln,accountId:Number(v),accountName:cat?.name??v,customerId:null,vendorId:null,partyNoneReason:null}:ln));}}>
                           <SelectTrigger className="h-7 text-xs" data-testid={`je-line-account-${i}`}><SelectValue placeholder={t("Account...", "الحساب...")} /></SelectTrigger>
                           {/* D-3: a header account ("Cash and Bank") accepts no line — each bank's own
                               cash account is offered instead. The server refuses a header too
@@ -197,11 +205,23 @@ export default function JournalEntries() {
                           <SelectContent>{categories.filter((c) => c.isPosting !== false).map(c=><SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
                         </Select>
                         {/* N3 — a control-account line names its party; the picker appears exactly when the rule applies. */}
-                        {systemCodeOf(l.accountId) === "AR" && (
+                        {CUSTOMER_REQUIRED.has(systemCodeOf(l.accountId) ?? "") && (
                           <Select value={String(l.customerId??"")} onValueChange={v=>updateLine(i,"customerId",Number(v))}>
-                            <SelectTrigger className="h-7 text-xs mt-1"><SelectValue placeholder={t("Customer (required)...", "العميل (مطلوب)...")} /></SelectTrigger>
+                            <SelectTrigger className="h-7 text-xs mt-1" data-testid={`je-line-customer-${i}`}><SelectValue placeholder={t("Customer (required)...", "العميل (مطلوب)...")} /></SelectTrigger>
                             <SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{n(c.name, c.nameAr)}</SelectItem>)}</SelectContent>
                           </Select>
+                        )}
+                        {CUSTOMER_OR_REASON.has(systemCodeOf(l.accountId) ?? "") && (
+                          <>
+                            <Select value={String(l.customerId??"")} onValueChange={v=>setLines(prev=>prev.map((ln,idx)=>idx===i?{...ln,customerId:Number(v),partyNoneReason:null}:ln))}>
+                              <SelectTrigger className="h-7 text-xs mt-1" data-testid={`je-line-customer-${i}`}><SelectValue placeholder={t("Customer, if known...", "العميل إن كان معروفاً...")} /></SelectTrigger>
+                              <SelectContent>{customers.map(c=><SelectItem key={c.id} value={String(c.id)}>{n(c.name, c.nameAr)}</SelectItem>)}</SelectContent>
+                            </Select>
+                            {l.customerId == null && (
+                              <Input value={l.partyNoneReason ?? ""} maxLength={500} onChange={e=>updateLine(i,"partyNoneReason",e.target.value)} className="h-7 text-xs mt-1" data-testid={`je-line-party-reason-${i}`}
+                                placeholder={t("No customer? Say why (required)...", "لا عميل؟ اذكر السبب (مطلوب)...")} />
+                            )}
+                          </>
                         )}
                         {systemCodeOf(l.accountId) === "AP" && (
                           <Select value={String(l.vendorId??"")} onValueChange={v=>updateLine(i,"vendorId",Number(v))}>

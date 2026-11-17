@@ -43,6 +43,8 @@ export function buildJEOut(je: JournalEntry, lines?: JournalEntryLine[]) {
       partyType: l.partyType ?? null,
       customerId: l.customerId ?? null,
       vendorId: l.vendorId ?? null,
+      // owner A20 — the stated reason a line names no party (null where it names one, or none was stated)
+      partyNoneReason: l.partyNoneReason ?? null,
     })),
   };
 }

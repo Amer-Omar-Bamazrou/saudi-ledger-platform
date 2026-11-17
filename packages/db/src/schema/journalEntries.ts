@@ -213,6 +213,13 @@ export const journalEntryLinesTable = pgTable(
     partyType: text("party_type"),
     customerId: integer("customer_id"),
     vendorId: integer("vendor_id"),
+    /**
+     * 🔴 Phase 18 owner decision A20 (migration 0162): the STATED reason a line on a party account names no party —
+     * "no party" is a statement, not an omission. Written by the posting seam (a receipt path's `{ type: "none",
+     * reason }`) and by the manual journal on SECURITY_DEPOSITS_HELD / UNIDENTIFIED_RECEIPTS; the CHECK keeps it to a
+     * line with no customer and no vendor, 1–500 characters.
+     */
+    partyNoneReason: text("party_none_reason"),
     description: text("description"),
     debitAmount: numeric("debit_amount", { precision: 15, scale: 2 }).notNull().default("0"),
     creditAmount: numeric("credit_amount", { precision: 15, scale: 2 }).notNull().default("0"),
