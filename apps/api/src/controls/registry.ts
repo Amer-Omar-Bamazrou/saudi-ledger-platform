@@ -736,7 +736,7 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "DR-19",
-    title: "A company's control settings are typed, one column per control; the first slot warns of a payment soon after a bank change",
+    title: "A company's control settings are typed, one column per control; the first slot warns of a payment soon after a bank change — by its date or its recording time (owner A23)",
     answers: ["DR-21", "G09"],
     type: "detective",
     activation: { kind: "company_setting", setting: "bank_change_payment_window_days" },
@@ -745,7 +745,7 @@ export const CONTROLS: readonly Control[] = [
       check("company_control_settings", "company_control_settings_bank_window_chk"),
       code(`${API}/services/companyControls.service.ts`, "companyControlsService"),
     ],
-    provingTests: ["phase18-h9-control-settings-bank-change.test.ts"],
+    provingTests: ["phase18-h9-control-settings-bank-change.test.ts", "phase18-owner-a23-change-then-pay-window.test.ts"],
   },
 
   // ── Payroll and GOSI ──────────────────────────────────────────────────────────────────────────

@@ -4900,7 +4900,9 @@ export const GetPaymentAfterBankChangeFindingResponse = zod.object({
   "vendorName": zod.string(),
   "amount": zod.number(),
   "paidAt": zod.coerce.date(),
-  "changedOn": zod.coerce.date().describe('The business day (Asia\/Riyadh) the supplier\'s IBAN was changed.')
+  "changedOn": zod.coerce.date().describe('The business day (Asia\/Riyadh) the supplier\'s IBAN was changed.'),
+  "recordedAt": zod.coerce.date().describe('The instant the payment was recorded (its row\'s time), whatever date it carries.'),
+  "matchedBy": zod.enum(['date', 'recorded', 'both']).describe('Owner decision A23 (2026-11-16): what fell inside the window after the change. `date`: the change\'s business day D <= the payment\'s date <= D + N (calendar days, Asia\/Riyadh, both ends inclusive). `recorded`: the change\'s instant T <= the recording instant <= T + N x 24 h (both ends inclusive). `both`: each. N is the company\'s bankChangePaymentWindowDays.\n')
 }))
 })
 

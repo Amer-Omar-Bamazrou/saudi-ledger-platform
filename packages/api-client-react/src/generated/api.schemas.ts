@@ -600,6 +600,18 @@ export const PaymentAfterBankChangeItemKind = {
   supplier_payment: 'supplier_payment',
 } as const;
 
+/**
+ * Owner decision A23 (2026-11-16): what fell inside the window after the change. `date`: the change's business day D <= the payment's date <= D + N (calendar days, Asia/Riyadh, both ends inclusive). `recorded`: the change's instant T <= the recording instant <= T + N x 24 h (both ends inclusive). `both`: each. N is the company's bankChangePaymentWindowDays.
+ */
+export type PaymentAfterBankChangeItemMatchedBy = typeof PaymentAfterBankChangeItemMatchedBy[keyof typeof PaymentAfterBankChangeItemMatchedBy];
+
+
+export const PaymentAfterBankChangeItemMatchedBy = {
+  date: 'date',
+  recorded: 'recorded',
+  both: 'both',
+} as const;
+
 export interface PaymentAfterBankChangeItem {
   kind: PaymentAfterBankChangeItemKind;
   paymentId: number;
@@ -611,6 +623,10 @@ export interface PaymentAfterBankChangeItem {
   paidAt: string;
   /** The business day (Asia/Riyadh) the supplier's IBAN was changed. */
   changedOn: string;
+  /** The instant the payment was recorded (its row's time), whatever date it carries. */
+  recordedAt: string;
+  /** Owner decision A23 (2026-11-16): what fell inside the window after the change. `date`: the change's business day D <= the payment's date <= D + N (calendar days, Asia/Riyadh, both ends inclusive). `recorded`: the change's instant T <= the recording instant <= T + N x 24 h (both ends inclusive). `both`: each. N is the company's bankChangePaymentWindowDays. */
+  matchedBy: PaymentAfterBankChangeItemMatchedBy;
 }
 
 export interface PaymentAfterBankChangeFinding {
