@@ -55,6 +55,7 @@ import { billsService } from "../services/bills.service";
 import { periodLocksService } from "../services/periodLocks.service";
 import { recognitionSchedulesService } from "../services/accounting/recognitionSchedules.service";
 import { g04Harness } from "./helpers/g04Harness";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 /** The ways a database error's text gives itself away. Empty means the reason is safe to show. */
 const SQL_TELLS = [/failed query/i, /insert into/i, /\bparams\b/i, /journal_entries/i, /\$\d/, /\b(select|update|delete) /i];
@@ -159,9 +160,9 @@ describeMaybe("G60 — the month-end runs, each item in its own savepoint (real 
    */
   async function draftNumbered(orgId: string, entryNumber: string, date: string) {
     if (/^DEP-/i.test(entryNumber)) {
-      const { rows: [e] } = await pool.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-         VALUES ($1, $2, $3, $4, 'G60 — a draft that happens to carry this number', 'draft') RETURNING id`, [orgId, coA, entryNumber, date]);
+      const { rows: [e] } = await fixtureQuery(pool,
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+         VALUES ($1, $2, $3, $4, 'G60 — a draft that happens to carry this number', 'draft', 'test_fixture') RETURNING id`, [orgId, coA, entryNumber, date]);
       await pool.query(
         `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
          VALUES ($1, $2, $3, $4, 'debit', 10, 0), ($1, $2, $3, $5, 'credit', 0, 10)`,

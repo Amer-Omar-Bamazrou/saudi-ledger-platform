@@ -54,6 +54,7 @@ import { assetsService } from "../services/assets.service";
 import { billsService } from "../services/bills.service";
 import { recognitionSchedulesService } from "../services/accounting/recognitionSchedules.service";
 import { g04Harness } from "./helpers/g04Harness";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -89,9 +90,9 @@ describeMaybe("Phase 18 S1 · G60 proof — a run that answers 2xx for work that
    */
   async function draftEntryNumbered(entryNumber: string, date: string) {
     if (/^DEP-/i.test(entryNumber)) {
-      const { rows: [e] } = await pool.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-         VALUES ($1, $2, $3, $4, 'S1 G60 — a draft that happens to carry this number', 'draft') RETURNING id`, [orgId, companyId, entryNumber, date]);
+      const { rows: [e] } = await fixtureQuery(pool,
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+         VALUES ($1, $2, $3, $4, 'S1 G60 — a draft that happens to carry this number', 'draft', 'test_fixture') RETURNING id`, [orgId, companyId, entryNumber, date]);
       await pool.query(
         `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
          VALUES ($1, $2, $3, $4, 'debit', 10, 0), ($1, $2, $3, $5, 'credit', 0, 10)`,

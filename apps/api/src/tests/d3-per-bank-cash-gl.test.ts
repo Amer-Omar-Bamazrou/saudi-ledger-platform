@@ -38,6 +38,8 @@ import { postJournalEntry, NonPostingAccountError, BankAccountUnresolvedError } 
 import { BankAccountRequiredError } from "../lib/errors";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 import { deleterFor } from "./helpers/replica";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -273,13 +275,13 @@ describeMaybe("D-3 — per-bank cash GL", () => {
   it("🔴 the header accepts NO line: by system code, by id (422 account_not_posting), and by raw SQL at the database — even from the owner", async () => {
     const header = await headerOf(orgId);
     await expect(
-      inTenant(() => postJournalEntry({ entryNumber: "D3-HDR-CODE", date: DATE, description: "cash by code", lines: [
+      inTenant(() => postFixtureJournalEntry({ entryNumber: "D3-HDR-CODE", date: DATE, description: "cash by code", lines: [
         { systemCode: "CASH", accountName: "Cash and Bank", debitAmount: 10, creditAmount: 0 },
         { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 10 },
       ] })),
     ).rejects.toBeInstanceOf(NonPostingAccountError);
     await expect(
-      inTenant(() => postJournalEntry({ entryNumber: "D3-HDR-ID", date: DATE, description: "cash by id", lines: [
+      inTenant(() => postFixtureJournalEntry({ entryNumber: "D3-HDR-ID", date: DATE, description: "cash by id", lines: [
         { accountId: header.id, accountName: "Cash and Bank", debitAmount: 10, creditAmount: 0 },
         { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 10 },
       ] })),
@@ -295,7 +297,7 @@ describeMaybe("D-3 — per-bank cash GL", () => {
     // And the database itself, for any writer. (G16, 0126: a header is inserted only as a draft — and a
     // draft's lines are written before it is posted — so the line below meets the non-posting-account
     // guard, not the posted-journal freeze.)
-    const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'D3-HDR-RAW',$3,'raw','draft') RETURNING id`, [orgId, companyId, DATE])).rows[0].id;
+    const je = (await fixtureQuery(pool, `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type) VALUES ($1,$2,'D3-HDR-RAW',$3,'raw','draft', 'test_fixture') RETURNING id`, [orgId, companyId, DATE])).rows[0].id;
     await expect(
       pool.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'Cash and Bank',10,0)`, [orgId, companyId, je, header.id]),
     ).rejects.toMatchObject({ code: "23514" });
@@ -409,7 +411,7 @@ describeMaybe("D-3 — per-bank cash GL", () => {
     await expect(c2(() => invoicesService.pay(inv.id, { amount: 115, bankAccountId: bank1 }, userId)))
       .rejects.toMatchObject({ statusCode: 422, payload: expect.objectContaining({ code: "reference_not_found" }) });
     await expect(
-      c2(() => postJournalEntry({ entryNumber: "D3-CO2-SEAM", date: DATE, description: "other company's bank", lines: [
+      c2(() => postFixtureJournalEntry({ entryNumber: "D3-CO2-SEAM", date: DATE, description: "other company's bank", lines: [
         { bankAccountId: bank1, debitAmount: 10, creditAmount: 0 },
         { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 10 },
       ] })),
@@ -430,14 +432,14 @@ describeMaybe("D-3 — per-bank cash GL", () => {
     expect(mine.find((c) => c.systemCode === "CASH")?.isPosting).toBe(false);
     const before = await inTenant(() => bankAccountsService.getById(bank1));
     await expect(
-      other(() => postJournalEntry({ entryNumber: "D3-XORG", date: DATE, description: "org A's bank from org B", lines: [
+      other(() => postFixtureJournalEntry({ entryNumber: "D3-XORG", date: DATE, description: "org A's bank from org B", lines: [
         { bankAccountId: bank1, debitAmount: 10, creditAmount: 0 },
         { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 10 },
       ] })),
     ).rejects.toBeInstanceOf(BankAccountUnresolvedError);
     expect((await inTenant(() => bankAccountsService.getById(bank1))).ledgerBalance).toBe(before.ledgerBalance);
     // Movement: org B posting to its OWN bank moves its own figure only.
-    await other(() => postJournalEntry({ entryNumber: "D3-OTHER-OWN", date: DATE, description: "own bank", lines: [
+    await other(() => postFixtureJournalEntry({ entryNumber: "D3-OTHER-OWN", date: DATE, description: "own bank", lines: [
       { bankAccountId: bankOther, debitAmount: 77, creditAmount: 0 },
       { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 77 },
     ] }));

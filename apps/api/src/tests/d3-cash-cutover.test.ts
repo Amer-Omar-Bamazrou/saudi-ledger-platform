@@ -42,6 +42,7 @@ import { reportsService } from "../services/reports.service";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { cashService } from "../services/cash.service";
 import { deleterFor } from "./helpers/replica";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -149,7 +150,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
     const c = await pool.connect();
     try {
       await c.query("BEGIN"); await c.query("SET LOCAL session_replication_role = replica");
-      const je = (await c.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, reversal_of, posted_at) VALUES ($1,$2,$3,$4,'fixture','posted',$5,now()) RETURNING id`, [org, companyId, entryNumber, date, reversalOf])).rows[0].id as number;
+      const je = (await fixtureQuery(c, `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, reversal_of, posted_at, source_type) VALUES ($1,$2,$3,$4,'fixture','posted',$5,now(), 'test_fixture') RETURNING id`, [org, companyId, entryNumber, date, reversalOf])).rows[0].id as number;
       for (const l of lines) await c.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [org, companyId, je, l.accountId, l.accountName, l.dr, l.cr]);
       await c.query("COMMIT");
       return je;
@@ -159,7 +160,7 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
   // the flip to `posted` (unless the fixture needs a draft) — on `client` when given, else on its own.
   const entry = async (org: string, companyId: string, entryNumber: string, date: string, lines: Array<{ accountId: number; accountName: string; dr: number; cr: number }>, opts: { status?: "draft" | "posted"; reversalOf?: number | null; reference?: string | null } = {}, client?: Parameters<typeof insertJournalFixture>[2]) =>
     insertJournalFixture(
-      { organizationId: org, companyId, entryNumber, date, description: "fixture", status: opts.status ?? "posted", reversalOf: opts.reversalOf ?? null, reference: opts.reference ?? null },
+      { organizationId: org, companyId, entryNumber, date, description: "fixture", sourceType: "test_fixture", status: opts.status ?? "posted", reversalOf: opts.reversalOf ?? null, reference: opts.reference ?? null },
       lines.map((l) => ({ accountId: l.accountId, accountName: l.accountName, debitAmount: l.dr, creditAmount: l.cr })),
       client,
     );
@@ -571,18 +572,23 @@ describeMaybe("D-3 — the per-bank cash cut-over (annotation)", () => {
 
   it("🔴 NO STRAGGLER: reversing an attributed entry after the cut-over gives the mirror the same bank at the moment of reversal; a raw mirror that slipped through is attributed by the next run (A3), and a rerun is a no-op", async () => {
     const t3 = tenant(orgId, c3);
-    const jeA = (await pool.query(`SELECT je.id FROM journal_entries je WHERE je.company_id = $1 AND je.entry_number LIKE 'GL-CO-INV-4-PAY-%'`, [c3])).rows[0].id;
-    await t3(() => journalEntriesService.reverse(jeA));
+    // 🔴 A15 (owner, 2026-11-17): the generic reverse refuses an entry whose source is unknown — the old B4 receipt
+    // (`GL-<invoice>-PAY-<n>`) reads `legacy_unclassified` after the 0163 back-fill — so the attributed entry reversed
+    // here is the statement line's, through the line's OWN correction path (what Transactions calls when a line is
+    // changed or deleted): the same reversal, the same inheritance of the bank.
+    const jeA = (await pool.query(`SELECT je.id FROM journal_entries je WHERE je.company_id = $1 AND je.entry_number ~ '^TXN-[0-9]+$' AND je.status = 'posted'`, [c3])).rows[0].id;
+    await t3(() => journalEntriesService.reverse(jeA, {}, { document: "statement_line" }));
     expect(await unattributed(c3), "the mirror carries its bank from the reversal itself").toBe(0);
-    const mirror = (await pool.query(`SELECT a.bank_account_id, a.rule, a.run_id FROM cash_line_bank_attributions a JOIN journal_entries je ON je.id = a.journal_entry_id WHERE je.company_id = $1 AND je.entry_number LIKE 'GL-CO-INV-4-PAY-%-REV'`, [c3])).rows[0];
+    const mirror = (await pool.query(`SELECT a.bank_account_id, a.rule, a.run_id FROM cash_line_bank_attributions a JOIN journal_entries je ON je.id = a.journal_entry_id WHERE je.company_id = $1 AND je.reversal_of = $2`, [c3, jeA])).rows[0];
     expect(mirror).toMatchObject({ bank_account_id: c3BankA, rule: "A3_mirror_of_attributed", run_id: null });
-    expect((await t3(() => bankAccountsService.getById(c3BankA))).ledgerBalance, "the mirror cancels on the SAME bank").toBe(3000);
+    expect((await t3(() => bankAccountsService.getById(c3BankA))).ledgerBalance, "the mirror cancels on the SAME bank: the 2,300 receipt is what remains").toBe(2300);
     // A straggler: a mirror inserted without an attribution (the race the
     // review named). The header trigger permits it (reversal_of set); the
     // next run attributes it; nothing is stranded, nothing duplicated.
-    const orig = (await pool.query(`SELECT je.id FROM journal_entries je WHERE je.company_id = $1 AND je.entry_number LIKE 'TXN-%' AND je.status = 'posted' AND je.reversal_of IS NULL ORDER BY je.id LIMIT 1`, [c3])).rows[0].id;
-    const sales = await accountByCode(orgId, "SALES");
-    await reversedWithMirror(orig, c3, "STRAGGLER-REV", "2026-03-20", [{ accountId: sales.id, accountName: sales.name, dr: 3000, cr: 0 }, { accountId: headerId, accountName: "Cash and Bank", dr: 0, cr: 3000 }]);
+    // (A15: the straggler mirrors the attributed receipt that still stands posted — the B4 one.)
+    const orig = (await pool.query(`SELECT je.id FROM journal_entries je WHERE je.company_id = $1 AND je.entry_number LIKE 'GL-CO-INV-4-PAY-%' AND je.status = 'posted' AND je.reversal_of IS NULL`, [c3])).rows[0].id;
+    const ar = await accountByCode(orgId, "AR");
+    await reversedWithMirror(orig, c3, "STRAGGLER-REV", "2026-03-20", [{ accountId: ar.id, accountName: ar.name, dr: 2300, cr: 0 }, { accountId: headerId, accountName: "Cash and Bank", dr: 0, cr: 2300 }]);
     expect(await unattributed(c3)).toBe(1);
     const dry = await t3(() => cashCutoverService.dryRun());
     expect(dry.lines).toHaveLength(1);

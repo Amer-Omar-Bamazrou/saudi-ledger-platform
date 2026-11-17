@@ -32,6 +32,7 @@ import { ConflictError } from "../lib/errors";
 import { createApproved } from "./helpers/createApproved";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
 import { replica } from "./helpers/replica";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -206,7 +207,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
   it("🔴 a systemCode AR line that does not even DECLARE a party is refused, and nothing posts", async () => {
     await expect(
       inTenant(() =>
-        postJournalEntry({
+        postFixtureJournalEntry({
           entryNumber: "N3-NOPARTY-1",
           date: DATE,
           description: "AR line with an undeclared party",
@@ -225,7 +226,7 @@ describeMaybe("N3 — party on the line, and a number means one document", () =>
 
     // And a DECLARED absence posts — the B2C case must keep working.
     await inTenant(() =>
-      postJournalEntry({
+      postFixtureJournalEntry({
         entryNumber: "N3-B2C-1",
         date: DATE,
         description: "declared no-party AR line",

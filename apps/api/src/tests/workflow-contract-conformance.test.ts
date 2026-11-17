@@ -170,8 +170,8 @@ describeMaybe("workflow contract conformance — quotations, POs, budgets, recur
     );
     jeId = (
       await pool.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-         VALUES ($1,$2,'WC-JE-1','2026-05-03','queue fixture','draft') RETURNING id`,
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+         VALUES ($1,$2,'WC-JE-1','2026-05-03','queue fixture','draft','manual') RETURNING id`,
         [orgId, companyId],
       )
     ).rows[0].id;

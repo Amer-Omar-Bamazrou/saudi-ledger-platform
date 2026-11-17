@@ -29,6 +29,7 @@ import { supplierPaymentsService } from "../services/accounting/supplierPayments
 import { bankReconciliationService } from "../services/accounting/bankReconciliation.service";
 import { bankReconciliationsService } from "../services/accounting/bankReconciliations.service";
 import { bankTransfersService } from "../services/accounting/bankTransfers.service";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -303,7 +304,7 @@ describeMaybe("Phase 12D — bank reconciliation as of a date (real rows)", () =
       await cl.query("BEGIN");
       await cl.query("SET LOCAL session_replication_role = replica");
       // (1) a June cash movement written past the lock
-      plantedEntry = (await cl.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'PLANT-12D','2026-06-15','planted','posted') RETURNING id`, [orgId, companyId])).rows[0].id;
+      plantedEntry = (await fixtureQuery(cl, `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type) VALUES ($1,$2,'PLANT-12D','2026-06-15','planted','posted', 'test_fixture') RETURNING id`, [orgId, companyId])).rows[0].id;
       await cl.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'planted',9,0)`, [orgId, companyId, plantedEntry, leaf]);
       // (2) the transfer's entry reversed behind the transfer
       await cl.query(`UPDATE journal_entries SET status = 'reversed' WHERE id = $1`, [trf.journalEntryId]);

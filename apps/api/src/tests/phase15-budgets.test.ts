@@ -23,6 +23,7 @@ import { reportsService } from "../services/reports.service";
 import { analyticsService } from "../services/analytics.service";
 import { fiscalMonths, resolveFiscalYear } from "../lib/fiscalYear";
 import { businessToday } from "@workspace/shared";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -368,7 +369,7 @@ describeMaybe("Phase 15 — budgets on real rows", () => {
     const inM = <T,>(fn: () => Promise<T>) => inCo(orgId, coM, fn);
     const bank = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'M Main','SNB') RETURNING id`, [orgId, coM])).rows[0].id as number;
     const { postJournalEntry } = await import("../services/accounting/glPosting");
-    await inM(() => postJournalEntry({ entryNumber: "P15-M-OPEN", date: "2026-06-30", description: "Opening position", source: "opening", lines: [
+    await inM(() => postFixtureJournalEntry({ entryNumber: "P15-M-OPEN", date: "2026-06-30", description: "Opening position", source: "opening", lines: [
       { bankAccountId: bank, debitAmount: 900, creditAmount: 0 },
       { accountId: ids.sales!, accountName: "Sales", debitAmount: 0, creditAmount: 900 },
     ] }));

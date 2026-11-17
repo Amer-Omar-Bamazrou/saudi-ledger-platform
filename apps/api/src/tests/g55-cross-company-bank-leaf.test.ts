@@ -39,6 +39,8 @@ import { journalEntriesService } from "../services/journalEntries.service";
 import { postJournalEntry } from "../services/accounting/glPosting";
 import { bankLeavesOutsideCompany } from "../services/accounting/tenantReferences";
 import { g04Harness } from "./helpers/g04Harness";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -93,15 +95,20 @@ describeMaybe("G55 / DR-42 — a bank's cash account takes entries only from its
   /** FIXTURE: a manual journal as a pre-rule writer left it — a draft, or posted — in company A, Cr `creditAccount` 100. */
   async function preRuleEntry(creditAccount: number, status: "draft" | "posted"): Promise<number> {
     seq += 1;
+    // A15: a MANUAL journal (the scenario this suite reverses), so its own tag — and, posted, its approver recorded on
+    // the draft before the flip, as the manual approval records it (0129).
     const id = (await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1,$2,$3,$4,'G55 pre-rule fixture','draft') RETURNING id`, [orgX, coA, `G55R-OLD-${seq}`, DATE],
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+       VALUES ($1,$2,$3,$4,'G55 pre-rule fixture','draft', 'manual') RETURNING id`, [orgX, coA, `G55R-OLD-${seq}`, DATE],
     )).rows[0].id as number;
     await pool.query(
       `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
        VALUES ($1,$2,$3,$4,'debit',100,0), ($1,$2,$3,$5,'credit',0,100)`, [orgX, coA, id, expense, creditAccount],
     );
-    if (status === "posted") await pool.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [id]);
+    if (status === "posted") {
+      await pool.query(`UPDATE journal_entries SET approved_by = $2 WHERE id = $1 AND status = 'draft'`, [id, adminId]);
+      await pool.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [id]);
+    }
     return id;
   }
 
@@ -189,13 +196,13 @@ describeMaybe("G55 / DR-42 — a bank's cash account takes entries only from its
       { accountId: credit, accountName: "credit", debitAmount: 0, creditAmount: 50 },
     ];
     await expect(
-      h.inTenant(orgX, coA, adminId, () => postJournalEntry({ entryNumber: "G55R-SEAM-1", date: DATE, description: "seam", lines: lines(leafB) })),
+      h.inTenant(orgX, coA, adminId, () => postFixtureJournalEntry({ entryNumber: "G55R-SEAM-1", date: DATE, description: "seam", lines: lines(leafB) })),
     ).rejects.toMatchObject({ statusCode: 422, payload: { code: "reference_not_found", field: "lines[1].accountId" } });
     expect(await linesOn(leafB, coA), "absence: nothing on B's leaf in A's books").toEqual(before.b);
     const headers = (await pool.query(`SELECT count(*)::int AS n FROM journal_entries WHERE organization_id = $1 AND entry_number = 'G55R-SEAM-1'`, [orgX])).rows[0].n;
     expect(headers, "no header row either").toBe(0);
 
-    await h.inTenant(orgX, coA, adminId, () => postJournalEntry({ entryNumber: "G55R-SEAM-2", date: DATE, description: "seam", lines: lines(leafA) }));
+    await h.inTenant(orgX, coA, adminId, () => postFixtureJournalEntry({ entryNumber: "G55R-SEAM-2", date: DATE, description: "seam", lines: lines(leafA) }));
     expect(await linesOn(leafA, coA), "movement: A's own leaf").toEqual({ n: before.a.n + 1, net: before.a.net - 50 });
   });
 

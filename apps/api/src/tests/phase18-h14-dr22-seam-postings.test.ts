@@ -18,6 +18,7 @@ import { pool, beginTenantConnection } from "@workspace/db";
 import { businessToday } from "@workspace/shared";
 import { postJournalEntry } from "../services/accounting/glPosting";
 import { g04Harness } from "./helpers/g04Harness";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -64,7 +65,7 @@ describeMaybe("Phase 18 H-14 — DR-22: every entry the posting seam posts is re
     const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated" });
     let entryId = 0;
     try {
-      const je = await conn.run(() => postJournalEntry({
+      const je = await conn.run(() => postFixtureJournalEntry({
         entryNumber: `H14-SEAM-${++seq}`, date: today, description: "H14 posted with no request context",
         lines: [
           { accountId: expense, accountName: "debit", debitAmount: 40, creditAmount: 0 },

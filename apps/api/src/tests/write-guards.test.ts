@@ -15,6 +15,7 @@ import { invoicesService } from "../services/invoices.service";
 import { billsService } from "../services/bills.service";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { replica } from "./helpers/replica";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -243,9 +244,9 @@ describeMaybe("H1/H2 — a client cannot forge workflow state or post garbage am
   it("🔴 THE BACKSTOP: the DB refuses a negative journal line even if a future path skips the service", async () => {
     // migration 0049 — an invariant several writers can violate belongs at the
     // write boundary, not in per-path code.
-    const { rows: [je] } = await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1,$2,'H1-RAW','2026-08-04','raw','draft') RETURNING id`,
+    const { rows: [je] } = await fixtureQuery(pool,
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+       VALUES ($1,$2,'H1-RAW','2026-08-04','raw','draft', 'test_fixture') RETURNING id`,
       [orgId, companyId],
     );
     await expect(

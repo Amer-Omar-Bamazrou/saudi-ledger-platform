@@ -41,6 +41,7 @@ import { postJournalEntry } from "../services/accounting/glPosting";
 import { billsRepository } from "../repositories/bills.repository";
 import { findingsRepository } from "../repositories/findings.repository";
 import { migrationRepository } from "../repositories/migration.repository";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -305,7 +306,7 @@ describeMaybe("Phase 11 Part 2 — the AP subledger's edges, hardened (real rows
     expect(clean.onAccount, "on-account subledger = the three asset accounts").toEqual([]);
 
     // PLANTED: 5.00 on SUPPLIER_ADVANCES for this vendor that no payment explains
-    await inTenant(() => postJournalEntry({
+    await inTenant(() => postFixtureJournalEntry({
       entryNumber: "P11-PLANTED-1", date: "2026-07-20", description: "planted — no payment explains this",
       lines: [
         { systemCode: "SUPPLIER_ADVANCES", accountName: "Supplier advances", description: "planted", debitAmount: 5, creditAmount: 0, party: { type: "vendor", vendorId } },

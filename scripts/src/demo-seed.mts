@@ -29,7 +29,20 @@ function refuseOutsideDemoMode(): void {
       "demo-seed refuses to run: DEMO_MODE=1 is not set. It deletes and re-creates demo rows in the 'default' organization, so it runs only on a demo database.",
     );
   }
+  // 🔴 A15 (owner, 2026-11-17): its journal entries are tagged `demo_seed`, which is restricted to development and test
+  // environments — never production.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("demo-seed refuses to run: NODE_ENV is production. Demo data (source tag demo_seed) is written only to development and test databases.");
+  }
 }
+
+/**
+ * 🔴 A15 (migration 0163): the demo seed's journal entries carry the `demo_seed` source tag — synthetic, naming no
+ * source row. The database writes that tag only while the transaction declares it, which this seed (and nothing in
+ * the product) does; the generic reverse refuses such entries. Provenance is stated here, never inferred later.
+ */
+const DEMO_SEED_SOURCE = "demo_seed";
+const SYNTHETIC_SOURCE_SETTING = "app.journal_synthetic_source";
 
 async function main() {
   refuseOutsideDemoMode();
@@ -252,10 +265,11 @@ async function main() {
     const je = await pool.connect();
     try {
       await je.query("BEGIN");
+      await je.query(`SELECT set_config($1, $2, true)`, [SYNTHETIC_SOURCE_SETTING, DEMO_SEED_SOURCE]); // A15: declared for this transaction only
       const r = await je.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, posted_at)
-         VALUES ($1,$2,$3,$4,$5,'draft',NULL) RETURNING id`,
-        [orgId, companyId, num, date, status === "posted" ? "Posted entry" : "Awaiting approval"],
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, posted_at, source_type)
+         VALUES ($1,$2,$3,$4,$5,'draft',NULL,$6) RETURNING id`,
+        [orgId, companyId, num, date, status === "posted" ? "Posted entry" : "Awaiting approval", DEMO_SEED_SOURCE],
       );
       for (const [a, dr, cr] of lines) {
         await je.query(

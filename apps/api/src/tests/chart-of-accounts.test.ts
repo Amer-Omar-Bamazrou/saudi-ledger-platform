@@ -24,6 +24,7 @@ import { journalEntriesService } from "../services/journalEntries.service";
 import { summaryService } from "../services/summary.service";
 import { periodLocksService } from "../services/periodLocks.service";
 import { replica } from "./helpers/replica";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -367,7 +368,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       };
 
       await inTenant(() =>
-        postJournalEntry({
+        postFixtureJournalEntry({
           entryNumber: "COA-GL-ONLY",
           date: "2026-06-15",
           description: "GL-only revenue with no invoice behind it",
@@ -405,7 +406,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
     it("🔴 refuses to post when an account cannot be resolved", async () => {
       await expect(
         inTenant(() =>
-          postJournalEntry({
+          postFixtureJournalEntry({
             entryNumber: "COA-FAIL-1",
             date: "2026-06-15",
             description: "unresolvable",
@@ -475,7 +476,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       try {
         await connB.run(() =>
           auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.13" }, () =>
-            postJournalEntry({
+            postFixtureJournalEntry({
               entryNumber: "COA-B-1",
               date: "2026-06-20",
               description: "company B posts into a period company A closed",
@@ -497,7 +498,7 @@ describeMaybe("M13 — chart of accounts + GL classification", () => {
       await expect(
         connA.run(() =>
           auditContext.run({ userId, organizationId: orgId, ipAddress: "203.0.113.13" }, () =>
-            postJournalEntry({
+            postFixtureJournalEntry({
               entryNumber: "COA-A-LOCKED",
               date: "2026-06-20",
               description: "company A is locked",

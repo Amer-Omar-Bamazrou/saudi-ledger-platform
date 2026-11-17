@@ -23,6 +23,7 @@ import { journalEntriesService } from "../services/journalEntries.service";
 import { postJournalEntry, MissingPartyError } from "../services/accounting/glPosting";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { replica } from "./helpers/replica";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -150,7 +151,7 @@ describeMaybe("N3 — the manual-JE party gate", () => {
   it("🔴 the GL boundary's accountId arm: naming AR BY ID party-less throws MissingPartyError — no path remains", async () => {
     await expect(
       inTenant(() =>
-        postJournalEntry({
+        postFixtureJournalEntry({
           entryNumber: nextNumber(),
           date: "2026-09-10",
           description: "accountId arm",
@@ -164,7 +165,7 @@ describeMaybe("N3 — the manual-JE party gate", () => {
     // Movement: the same entry WITH a party posts — the gate refuses the
     // omission, not the account.
     const je = await inTenant(() =>
-      postJournalEntry({
+      postFixtureJournalEntry({
         entryNumber: nextNumber(),
         date: "2026-09-10",
         description: "accountId arm, with party",

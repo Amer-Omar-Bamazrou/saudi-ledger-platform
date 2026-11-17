@@ -19,6 +19,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { replica } from "./helpers/replica";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -101,9 +102,9 @@ describeMaybe("journal entry date — required at the write boundary", () => {
     // between the application and the column when the application is wrong.
     for (const bad of ["", "2026-9-1", "not-a-date"]) {
       await expect(
-        pool.query(
-          `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description)
-           VALUES ($1, $2, $3, $4, 'floor probe')`,
+        fixtureQuery(pool,
+          `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, source_type)
+           VALUES ($1, $2, $3, $4, 'floor probe', 'test_fixture')`,
           [orgId, companyId, `CHK-${bad.length}`, bad],
         ),
         `the column must refuse ${JSON.stringify(bad)}`,

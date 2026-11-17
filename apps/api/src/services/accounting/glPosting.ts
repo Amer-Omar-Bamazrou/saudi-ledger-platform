@@ -16,7 +16,11 @@
 import { db } from "@workspace/db";
 import { round2 } from "../../lib/money";
 import { journalEntriesTable, journalEntryLinesTable, categoriesTable, bankAccountsTable } from "@workspace/db";
-import type { JournalSourceType, SystemAccountCode } from "@workspace/db";
+import type { JournalSourceType, SystemAccountCode, UnsourcedJournalSourceType } from "@workspace/db";
+import { JOURNAL_SOURCE_TYPES } from "@workspace/db";
+
+/** 🔴 A15 (migration 0163): the tags the posting seam writes — each names its source row (`sourceId`). */
+export type PostingSourceType = Exclude<JournalSourceType, "manual" | "recurring" | "reversal" | UnsourcedJournalSourceType>;
 import { approverContext, auditContext } from "../../lib/auditContext";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { checkPeriodOpen } from "./periodLock";
@@ -296,10 +300,20 @@ export async function postJournalEntry(opts: {
    * also records its creator (the request's actor) and, when an approval
    * posted it, its approver (bound by the approval engine), on the draft,
    * before the flip.
+   * 🔴 A15 (owner, 2026-11-17; migration 0163): REQUIRED, both of them — every product tag the seam writes names its
+   * source row, and the database refuses an entry with no tag. The type cannot name the three unsourced tags
+   * (`UNSOURCED_JOURNAL_SOURCE_TYPES`): no product path writes `legacy_unclassified`, `demo_seed` or `test_fixture`.
+   * (The tests' synthetic entries pass `test_fixture` through `tests/helpers/fixturePosting.ts`, which declares it to the
+   * database first; nothing in the product does.)
    */
-  sourceType?: Exclude<JournalSourceType, "manual" | "recurring" | "reversal">;
-  sourceId?: number;
+  sourceType: PostingSourceType;
+  sourceId: number;
 }): Promise<typeof journalEntriesTable.$inferSelect> {
+  // 🔴 A15: a call that names no recognised source tag is refused before anything is read or written. The type already
+  // requires one; this holds the rule for a call the type cannot see (an `as never`, a value from data).
+  if (typeof opts.sourceType !== "string" || !(JOURNAL_SOURCE_TYPES as readonly string[]).includes(opts.sourceType)) {
+    throw new Error(`postJournalEntry: entry ${String(opts.entryNumber)} names no source tag it may write (got ${JSON.stringify(opts.sourceType)}). Every journal entry names its source (A15); nothing was posted.`);
+  }
   if (opts.reversalOf != null && opts.source !== "opening_reversal") {
     throw new BusinessRuleError(422, { error: "reversalOf is only written by the migration's reversal.", code: "reversal_of_refused", field: "reversalOf" });
   }
@@ -434,7 +448,7 @@ export async function postJournalEntry(opts: {
       migrationBatchId: opts.migrationBatchId ?? null,
       reversalOf: opts.reversalOf ?? null,
       // 🔴 T1d: on the DRAFT, before the flip — G16's flip check lets only status and posted_at change.
-      sourceType: opts.sourceType ?? null,
+      sourceType: opts.sourceType,
       sourceId: opts.sourceId ?? null,
       createdBy: auditContext.get()?.userId ?? null,
       approvedBy: approverContext.get() ?? null,

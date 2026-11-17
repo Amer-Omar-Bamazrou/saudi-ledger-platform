@@ -31,6 +31,8 @@ import { businessToday } from "@workspace/shared";
 import { g04Harness } from "./helpers/g04Harness";
 import { createApproved } from "./helpers/createApproved";
 import { postJournalEntry } from "../services/accounting/glPosting";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
+import { SYNTHETIC_SOURCE_SETTING } from "./helpers/journalFixtures";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { invoicesService } from "../services/invoices.service";
 import { paymentsService } from "../services/payments.service";
@@ -66,6 +68,9 @@ const NAMES = {
   itselfCorrection: /itself the correction/i,
   mirror: /itself the reversal of another entry/i,
   migration: /migration workspace/i,
+  // 🔴 A15 (owner, 2026-11-17; migration 0163): an entry whose source is unknown, or synthetic
+  unclassified: /source could not be established[\s\S]*accountant-approved policy/i,
+  synthetic: /demonstration or test data/i,
 } as const;
 
 type Decision = { refused: RegExp } | { allowed: true; question: boolean };
@@ -111,11 +116,15 @@ const MATRIX: Record<JournalSourceType, Decision> = {
   migration_reversal: refused(NAMES.migration),
   opening_correction: refused(NAMES.migration),
   vat_return_filing: refused(NAMES.amendFiling),
+  // 🔴 A15: no document stands behind these; the generic reverse refuses each, by name
+  legacy_unclassified: refused(NAMES.unclassified),
+  demo_seed: refused(NAMES.synthetic),
+  test_fixture: refused(NAMES.synthetic),
 };
 
 describe("R-10 — the matrix is register §11.109's table, over T1d's list exactly", () => {
-  it("names every T1d source type and only those (35)", () => {
-    expect(JOURNAL_SOURCE_TYPES.length).toBe(35);
+  it("names every T1d source type and only those (35, and A15's three unsourced tags: 38)", () => {
+    expect(JOURNAL_SOURCE_TYPES.length).toBe(38);
     expect(Object.keys(MATRIX).sort()).toEqual([...JOURNAL_SOURCE_TYPES].sort());
   });
 });
@@ -170,8 +179,43 @@ describeMaybe("Phase 18 R-10 (DR-34) — the generic reverse, decided per source
     if (!out.ok) throw out.e;
     return out.r.reversalId as number;
   };
+  /**
+   * 🔴 A15: an unsourced tag is never written through the seam's own type, and names no source id — each is planted
+   * the way its only writer leaves one: `legacy_unclassified` as the 0163 back-fill does (here with triggers set aside,
+   * since only the back-fill may write it), `demo_seed` declared as the demo seed declares it, `test_fixture` through
+   * the tests' fixture helper.
+   */
+  const plantUnsourced = async (type: "legacy_unclassified" | "demo_seed" | "test_fixture") => {
+    const n = ++seq;
+    if (type === "test_fixture") {
+      return run(async () => (await postFixtureJournalEntry({ entryNumber: `R10-${n}-${type}`, date: DATE, description: `R-10 planted ${type}`, lines: [
+        { accountId: expense, accountName: "Other Expenses", debitAmount: 100, creditAmount: 0 },
+        { accountId: income, accountName: "Other Income", debitAmount: 0, creditAmount: 100 },
+      ] })).id as number);
+    }
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      if (type === "legacy_unclassified") await c.query("SET LOCAL session_replication_role = replica");
+      else await c.query(`SELECT set_config($1, $2, true)`, [SYNTHETIC_SOURCE_SETTING, type]);
+      const { rows: [e] } = await c.query(
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type) VALUES ($1, $2, $3, $4, $5, 'draft', $6) RETURNING id`,
+        [orgId, companyId, `R10-${n}-${type}`, DATE, `R-10 planted ${type}`, type]);
+      await c.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
+                     VALUES ($1, $2, $3, $4, 'Other Expenses', 100, 0), ($1, $2, $3, $5, 'Other Income', 0, 100)`, [orgId, companyId, e.id, expense, income]);
+      await c.query("COMMIT");
+      await pool.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1 AND status = 'draft'`, [e.id]);
+      return e.id as number;
+    } catch (err) {
+      await c.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally {
+      c.release();
+    }
+  };
   const make = (type: JournalSourceType) =>
-    type === "manual" ? manual() : type === "recurring" ? manual({ sourceType: "recurring" }) : type === "reversal" ? manual().then(mirrorOf) : plant(type);
+    type === "manual" ? manual() : type === "recurring" ? manual({ sourceType: "recurring" }) : type === "reversal" ? manual().then(mirrorOf)
+      : type === "legacy_unclassified" || type === "demo_seed" || type === "test_fixture" ? plantUnsourced(type) : plant(type);
 
   // ── the two verdicts ────────────────────────────────────────────────────────
   async function expectRefused(id: number, words: RegExp) {

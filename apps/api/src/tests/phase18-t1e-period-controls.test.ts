@@ -16,6 +16,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -34,11 +35,11 @@ describeMaybe("T1e — closed months at the database; reopen with a reason and h
   let income = 0;
 
   const connect = async () => (await pool.connect()) as unknown as Client;
-  /** A balanced draft (owner role; no source_type, as a pre-0129 row stands) and its lines. */
+  /** A balanced draft (owner role; a synthetic `test_fixture` — since A15, 0163, no entry is untagged) and its lines. */
   const draft = async (c: Client, n: string, date: string) => {
-    const { rows: [e] } = await c.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1, $2, $3, $4, 'T1e', 'draft') RETURNING id`, [orgId, companyId, n, date]);
+    const { rows: [e] } = await fixtureQuery(c,
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+       VALUES ($1, $2, $3, $4, 'T1e', 'draft', 'test_fixture') RETURNING id`, [orgId, companyId, n, date]);
     await c.query(
       `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
        VALUES ($1, $2, $3, $4, 'Office', 10, 0), ($1, $2, $3, $5, 'Income', 0, 10)`, [orgId, companyId, e.id, office, income]);
