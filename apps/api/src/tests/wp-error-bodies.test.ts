@@ -102,6 +102,18 @@ describe("the central handler — a 5xx never carries its exception's text; the 
     expect(r.body.errorAr).toMatch(ARABIC);
   });
 
+  it("🔴 an Arabic reader keeps the REASON: a 4xx whose own English sentence has no Arabic one carries that sentence inside its Arabic message (CI e2e, 13B-3 over-credit)", () => {
+    const reason = "You cannot credit more VAT than the invoice charged: only 150.00 of the 150.00 VAT charged on INV-9 remains.";
+    const r = drive(new BusinessRuleError(422, { code: "credit_note_exceeds_invoice_vat", error: reason }), "ref-reason");
+    expect(r.body.error).toBe(reason);
+    expect(r.body.errorAr, "Arabic first").toMatch(/^[؀-ۿ]/);
+    expect(r.body.errorAr, "and the reason itself, not only a generic sentence").toContain(reason);
+    // the movement: where the English IS the generic sentence, nothing is repeated — the Arabic is the generic one alone
+    const generic = drive(new BusinessRuleError(422, { code: "credit_note_exceeds_invoice_vat" }), "ref-generic");
+    expect(generic.body.errorAr).toMatch(ARABIC);
+    expect(generic.body.errorAr).not.toContain(String(generic.body.error));
+  });
+
   it("a refusal with no code and no Arabic keeps its English sentence and gains a status code, Arabic and the reference", () => {
     const r = drive(new NotFoundError("Invoice not found"));
     expect(r.status).toBe(404);
