@@ -1,8 +1,9 @@
 import { createRoot } from 'react-dom/client';
-import { setApiErrorHandler } from '@workspace/api-client-react';
+import { setApiErrorHandler, setErrorMessageResolver } from '@workspace/api-client-react';
 
 import App from './App';
 import { handleApiErrorResponse } from './lib/api';
+import { userMessage } from './lib/userMessage';
 import { limiterUnavailableMessage, rateLimitMessage, rateLimitedSeconds } from './lib/rateLimit';
 
 import './index.css';
@@ -13,7 +14,11 @@ import './index.css';
 // so without this a gated organization would sit on a broken page instead of
 // being routed to /verification.
 //
-// The generated client's message is "HTTP 429 Too Many Requests: <English>";
+// 🔴 The error-handling work package (2026-11-17): the generated client's error message is the reader's own sentence
+// (`userMessage`) — no status line, never a 5xx's raw text. Registered before the first request.
+setErrorMessageResolver(userMessage);
+
+// The generated client's message used to be "HTTP 429 Too Many Requests: <English>";
 // for the rate limit it is replaced, before the error is thrown, with the
 // reader's own language — the same sentence `apiFetch`'s ApiError carries.
 setApiErrorHandler((error) => {

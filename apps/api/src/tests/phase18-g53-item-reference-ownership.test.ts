@@ -36,6 +36,7 @@ import { pool } from "@workspace/db";
 import { businessToday } from "@workspace/shared";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { g04Harness, type Res } from "./helpers/g04Harness";
+import { withoutReference } from "./helpers/refusalBody";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -178,8 +179,8 @@ describeMaybe("G53 — a line's product and a schedule's vendor are the organiza
       expect({ status: foreign.status, code: foreign.body?.code, field: foreign.body?.field }, JSON.stringify(foreign.body).slice(0, 300))
         .toEqual({ status: 422, code: "reference_not_found", field: c.field });
       const missing = await c.send(MISSING);
-      expect({ status: missing.status, body: missing.body }, "the missing id's refusal is byte-identical to the foreign one's")
-        .toEqual({ status: foreign.status, body: foreign.body });
+      expect({ status: missing.status, body: withoutReference(missing.body) }, "the missing id's refusal is byte-identical to the foreign one's")
+        .toEqual({ status: foreign.status, body: withoutReference(foreign.body) });
       expect(await written(), "nothing written by either refusal").toEqual(before);
       expect(await crossEdges()).toEqual(ZERO);
     });

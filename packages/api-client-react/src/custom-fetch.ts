@@ -172,6 +172,46 @@ function truncate(text: string, maxLength = 300): string {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
+/**
+ * 🔴 The error-handling work package (owner-approved 2026-11-17): what a failed request SAYS to its reader comes from the
+ * host application (`setErrorMessageResolver` — the web registers its `userMessage`, which answers in the reader's
+ * language). This package stays language-agnostic; without a resolver it falls back to the server's own sentence for a
+ * 4xx and a fixed safe sentence otherwise. Never a status line: the "HTTP 409 Conflict: …" prefix this message carried
+ * reached users in toasts (the 2026-11-17 walk). `buildErrorMessage` survives as `diagnostic` — for a developer's
+ * console, never a user's screen.
+ */
+export type ErrorMessageResolver = (status: number, data: unknown) => string;
+
+let _messageResolver: ErrorMessageResolver | null = null;
+
+export function setErrorMessageResolver(resolver: ErrorMessageResolver | null): void {
+  _messageResolver = resolver;
+}
+
+const SAFE_FALLBACK = "The request could not be completed.";
+
+function userFacingMessage(status: number, data: unknown): string {
+  try {
+    const m = _messageResolver?.(status, data);
+    if (typeof m === "string" && m.trim() !== "") return m;
+  } catch {
+    /* a failing resolver must never mask the error itself */
+  }
+  const own = getStringField(data, "error");
+  return status > 0 && status < 500 && own ? own : SAFE_FALLBACK;
+}
+
+/** A request that never reached a response (offline, DNS, the server down): safe words, the cause kept for debugging. */
+export class NetworkError extends Error {
+  readonly name = "NetworkError";
+  readonly cause: unknown;
+  constructor(cause: unknown) {
+    super(userFacingMessage(0, { code: "network_error" }));
+    Object.setPrototypeOf(this, new.target.prototype);
+    this.cause = cause;
+  }
+}
+
 function buildErrorMessage(response: Response, data: unknown): string {
   const prefix = `HTTP ${response.status} ${response.statusText}`;
 
@@ -204,15 +244,18 @@ export class ApiError<T = unknown> extends Error {
   readonly response: Response;
   readonly method: string;
   readonly url: string;
+  /** The technical description (status line + body text) — for a developer's console, never shown to a user. */
+  readonly diagnostic: string;
 
   constructor(
     response: Response,
     data: T | null,
     requestInfo: { method: string; url: string },
   ) {
-    super(buildErrorMessage(response, data));
+    super(userFacingMessage(response.status, data));
     Object.setPrototypeOf(this, new.target.prototype);
 
+    this.diagnostic = buildErrorMessage(response, data);
     this.status = response.status;
     this.statusText = response.statusText;
     this.data = data;
@@ -233,6 +276,8 @@ export class ResponseParseError extends Error {
   readonly url: string;
   readonly rawBody: string;
   readonly cause: unknown;
+  /** The technical description — for a developer's console, never shown to a user. */
+  readonly diagnostic: string;
 
   constructor(
     response: Response,
@@ -240,11 +285,12 @@ export class ResponseParseError extends Error {
     cause: unknown,
     requestInfo: { method: string; url: string },
   ) {
-    super(
-      `Failed to parse response from ${requestInfo.method} ${response.url || requestInfo.url} ` +
-        `(${response.status} ${response.statusText}) as JSON`,
-    );
+    // The work package: a user sees a safe sentence; the technical line is kept on `diagnostic`.
+    super(userFacingMessage(response.status, { code: "unreadable_response" }));
     Object.setPrototypeOf(this, new.target.prototype);
+    this.diagnostic =
+      `Failed to parse response from ${requestInfo.method} ${response.url || requestInfo.url} ` +
+      `(${response.status} ${response.statusText}) as JSON`;
 
     this.status = response.status;
     this.statusText = response.statusText;
@@ -394,12 +440,18 @@ export async function customFetch<T = unknown>(
 
   // Send the httpOnly session cookie with every request so the generated client
   // authenticates the same way as apiFetch (cookie-based, no bearer token in web).
-  const response = await fetch(input, {
-    ...init,
-    method,
-    headers,
-    credentials: "include",
-  });
+  let response: Response;
+  try {
+    response = await fetch(input, {
+      ...init,
+      method,
+      headers,
+      credentials: "include",
+    });
+  } catch (cause) {
+    // Never reached a response: "Failed to fetch" was the user's message. Safe words; the cause kept for debugging.
+    throw new NetworkError(cause);
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

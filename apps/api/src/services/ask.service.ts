@@ -280,7 +280,7 @@ export const askService = {
     if (!chat) {
       // No deterministic floor exists for an ANSWER — unavailability is an
       // honest 503, not an improvised reply. Not stored: no exchange happened.
-      throw new AppError(503, "The assistant is not enabled on this deployment.");
+      throw new AppError(503, "The assistant is not enabled on this deployment.", { code: "assistant_disabled" });
     }
 
     const store = async (row: {

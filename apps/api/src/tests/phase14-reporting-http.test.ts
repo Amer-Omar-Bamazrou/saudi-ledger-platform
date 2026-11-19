@@ -246,9 +246,15 @@ describe("the PDF renderer's refusal through the error handler", () => {
   it("🔴 503 with { error, code: 'pdf_renderer_unavailable' } — the code the export client keys on", () => {
     let status = 0;
     let body: unknown;
+    const logged: unknown[] = [];
     const res = { headersSent: false, status(s: number) { status = s; return this; }, json(b: unknown) { body = b; return this; } };
-    errorHandler(new RendererUnavailableError("no Chromium here"), { log: { warn() {}, error() {} } } as never, res as never, () => {});
+    errorHandler(new RendererUnavailableError("no Chromium here"), { log: { warn() {}, error(o: unknown) { logged.push(o); } } } as never, res as never, () => {});
     expect(status).toBe(503);
-    expect(body).toMatchObject({ code: "pdf_renderer_unavailable", error: expect.stringContaining("no Chromium here") });
+    // 🔴 The error-handling work package (owner, 2026-11-17): the user gets the code and a safe sentence in both
+    // languages; the cause and the installation instruction go to the server log ONLY. (This assertion used to require
+    // the cause in the body — the leak the owner ordered removed; it is replaced by the stronger pair below.)
+    expect(body).toMatchObject({ code: "pdf_renderer_unavailable", error: expect.any(String), errorAr: expect.stringMatching(/[؀-ۿ]/) });
+    expect(JSON.stringify(body)).not.toMatch(/no Chromium here|npx|playwright|C6/i);
+    expect(JSON.stringify(logged)).toMatch(/no Chromium here/);
   });
 });

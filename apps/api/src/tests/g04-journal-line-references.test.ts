@@ -39,6 +39,7 @@ import { postJournalEntry } from "../services/accounting/glPosting";
 import { g04Harness } from "./helpers/g04Harness";
 import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 import { fixtureQuery } from "./helpers/journalFixtures";
+import { withoutReference } from "./helpers/refusalBody";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -193,16 +194,17 @@ describeMaybe("G04 — a journal line references only its own organization's acc
     const missing = await api("x", "POST", "/journal-entries", entry(MISSING));
     const deleted = await api("x", "POST", "/journal-entries", entry(acct.deleted));
     expect(missing.status).toBe(422);
-    expect(missing.body, "missing ≡ foreign").toEqual(foreign.body);
-    expect(deleted.body, "deleted ≡ foreign").toEqual(foreign.body);
+    const foreignBody = withoutReference(foreign.body);
+    expect(withoutReference(missing.body), "missing ≡ foreign").toEqual(foreignBody);
+    expect(withoutReference(deleted.body), "deleted ≡ foreign").toEqual(foreignBody);
   });
 
   it("🔴 every other shape of another tenant's account is refused the same way: system AR, header, same name, bank cash leaf", async () => {
-    const ref = (await api("x", "POST", "/journal-entries", entry(MISSING))).body;
+    const ref = withoutReference((await api("x", "POST", "/journal-entries", entry(MISSING))).body);
     for (const [label, id] of [["system AR", acct.yAR], ["header", acct.yHeader], ["same name", acct.ySameName], ["bank cash leaf", acct.yBankLeaf]] as const) {
       const r = await createAndApprove(entry(id));
       expect(r.status, `${label}: ${JSON.stringify(r.body)}`).toBe(422);
-      expect(r.body, `${label} ≡ missing`).toEqual(ref);
+      expect(withoutReference(r.body), `${label} ≡ missing`).toEqual(ref);
     }
     // The tenant's OWN header is still refused by its own rule.
     expect((await api("x", "POST", "/journal-entries", entry(acct.xHeader))).body.code).toBe("account_not_posting");
@@ -231,8 +233,8 @@ describeMaybe("G04 — a journal line references only its own organization's acc
     const fv = await createAndApprove(ap(party.yVendor));
     const mv = await api("x", "POST", "/journal-entries", ap(MISSING));
     for (const r of [fc, mc, fv, mv]) expect(r.status, JSON.stringify(r.body)).toBe(422);
-    expect(mc.body, "missing customer ≡ foreign customer").toEqual(fc.body);
-    expect(mv.body, "missing vendor ≡ foreign vendor").toEqual(fv.body);
+    expect(withoutReference(mc.body), "missing customer ≡ foreign customer").toEqual(withoutReference(fc.body));
+    expect(withoutReference(mv.body), "missing vendor ≡ foreign vendor").toEqual(withoutReference(fv.body));
     expect(await counts()).toEqual(before);
   });
 

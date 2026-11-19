@@ -39,6 +39,7 @@ import bcrypt from "bcryptjs";
 import { pool } from "@workspace/db";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { replica } from "./helpers/replica";
+import { withoutReference } from "./helpers/refusalBody";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -199,7 +200,7 @@ describeMaybe("F1 — an org admin cannot take over an account that reaches anot
       });
       const victim = await api("attacker", "POST", `/orgs/${attackerOrg}/members`, { userId: victimUserId, role: "viewer" });
       expect(r.status).toBe(422); // G04 (was 404 "User not found.")
-      expect(r.body, "byte-identical to the real account's refusal").toEqual(victim.body);
+      expect(withoutReference(r.body), "byte-identical to the real account's refusal").toEqual(withoutReference(victim.body));
     });
 
     it("step 2 is therefore out of reach: reset-password on the victim is 404", async () => {
