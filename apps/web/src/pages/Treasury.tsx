@@ -696,7 +696,7 @@ function PlansTab({ forecast, onTab }: { forecast: TreasuryForecast | undefined;
           <p>{t("A plan is an intention, not a payment: it moves nothing in the books. An approver approves it — from then it counts as committed — and pays it through the bill's ordinary payment, withholding tax included. Nothing is sent to a bank, and nothing runs on a schedule.",
             "الخطة نية وليست دفعة: لا تحرّك شيئًا في الدفاتر. يعتمدها معتمِد — فتُحتسب بعدها ملتزمًا بها — ثم يدفعها عبر سداد الفاتورة المعتاد، بما في ذلك ضريبة الاستقطاع. لا يُرسل شيء إلى أي بنك، ولا يُنفَّذ شيء تلقائيًا بجدول زمني.")}</p>
           <p className="text-xs text-muted-foreground" data-testid="treasury-plans-roles">{t("Approving, paying and cancelling are an approver's acts (accountant or administrator). Deleting a plan not yet approved is an administrator's act — anyone else asks an approver to cancel it with a reason. The server refuses what a role may not do, and says why.",
-            "الاعتماد والدفع والإلغاء من صلاحيات المعتمِد (المحاسب أو المدير). وحذف خطة لم تُعتمد من صلاحيات المدير وحده — ويطلب غيره من معتمِد إلغاءها مع ذكر السبب. يرفض الخادم ما لا يسمح به الدور ويذكر السبب.")}</p>
+            "الاعتماد والدفع والإلغاء من صلاحيات المعتمِد (المحاسب أو المسؤول). وحذف خطة لم تُعتمد من صلاحيات المسؤول وحده — ويطلب غيره من معتمِد إلغاءها مع ذكر السبب. يرفض الخادم ما لا يسمح به الدور ويذكر السبب.")}</p>
         </CardContent>
       </Card>
 
@@ -1177,7 +1177,7 @@ function PlanDeletePanel({ p, onClose }: { p: PaymentPlan; onClose: () => void }
   const remove = useGuarded(useDeletePaymentPlan({ mutation: { onSuccess: () => { refresh(); toast({ title: t("Plan deleted", "حُذفت الخطة") }); onClose(); } } }));
   return (
     <div className="space-y-2">
-      <p className="text-sm">{t("Delete this plan? It was never approved, so no record of a commitment is lost. Deleting is an administrator's act — anyone else asks an approver to cancel it with a reason.", "حذف هذه الخطة؟ لم تُعتمد قط، فلا يضيع سجل التزام. الحذف من صلاحيات المدير — ويطلب غيره من معتمِد إلغاءها مع ذكر السبب.")}</p>
+      <p className="text-sm">{t("Delete this plan? It was never approved, so no record of a commitment is lost. Deleting is an administrator's act — anyone else asks an approver to cancel it with a reason.", "حذف هذه الخطة؟ لم تُعتمد قط، فلا يضيع سجل التزام. الحذف من صلاحيات المسؤول — ويطلب غيره من معتمِد إلغاءها مع ذكر السبب.")}</p>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" disabled={remove.isPending} onClick={() => remove.mutate({ id: p.id })} data-testid="treasury-plan-delete-confirm">{t("Delete plan", "حذف الخطة")}</Button>
         <Button size="sm" variant="ghost" onClick={onClose}>{t("Back", "رجوع")}</Button>
@@ -1224,7 +1224,7 @@ function AssumptionsTab() {
         <CardContent className="pt-4 space-y-2 text-sm">
           <p>{t("Money the books cannot know is coming or going — a loan drawdown, an asset purchase, a capital injection. Each counts in the forecast as a manual assumption on its date; it is never posted. A past-dated one is stale and not counted.",
             "أموال لا يمكن للدفاتر معرفة ورودها أو صرفها — سحب قرض، شراء أصل، زيادة رأس مال. يُحتسب كل منها في التوقع افتراضًا يدويًا في تاريخه، ولا يُرحَّل أبدًا. ما مضى تاريخه يُعد متقادمًا ولا يُحتسب.")}</p>
-          <p className="text-xs text-muted-foreground" data-testid="treasury-assumptions-roles">{t("Deleting an assumption is an administrator's act; anyone else edits it instead, or asks an administrator. The server refuses what a role may not do, and says why.", "حذف الافتراض من صلاحيات المدير؛ ويعدّله غيره بدلًا من ذلك أو يطلب ذلك من المدير. يرفض الخادم ما لا يسمح به الدور ويذكر السبب.")}</p>
+          <p className="text-xs text-muted-foreground" data-testid="treasury-assumptions-roles">{t("Deleting an assumption is an administrator's act; anyone else edits it instead, or asks an administrator. The server refuses what a role may not do, and says why.", "حذف الافتراض من صلاحيات المسؤول؛ ويعدّله غيره بدلًا من ذلك أو يطلب ذلك من المسؤول. يرفض الخادم ما لا يسمح به الدور ويذكر السبب.")}</p>
         </CardContent>
       </Card>
 
@@ -1368,7 +1368,7 @@ function SettingsTab() {
             </div>
             <p className="text-xs text-muted-foreground" data-testid="treasury-settings-roles">
               {t("Saving is an approver's act (accountant or administrator) — the server refuses a bookkeeper and says so. The minimum balance is your own policy: the funding requirement is measured against it, or against zero when none is declared.",
-                "الحفظ من صلاحيات المعتمِد (المحاسب أو المدير) — يرفض الخادم طلب أمين الدفاتر ويذكر السبب. الحد الأدنى للرصيد سياستك أنت: يُقاس الاحتياج التمويلي مقابله، أو مقابل الصفر إن لم يُحدَّد.")}
+                "الحفظ من صلاحيات المعتمِد (المحاسب أو المسؤول) — يرفض الخادم طلب أمين الدفاتر ويذكر السبب. الحد الأدنى للرصيد سياستك أنت: يُقاس الاحتياج التمويلي مقابله، أو مقابل الصفر إن لم يُحدَّد.")}
             </p>
             {s.data && (
               <p className="text-xs text-muted-foreground">

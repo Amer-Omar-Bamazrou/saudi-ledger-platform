@@ -80,7 +80,7 @@ export function PeriodClosedDialog() {
               )}
             </li>
             <li>
-              {t("An admin can reopen the month from ", "يمكن لمدير النظام إعادة فتح الشهر من ")}
+              {t("An admin can reopen the month from ", "يمكن لمسؤول النظام إعادة فتح الشهر من ")}
               <Link href="/closed-months" className="text-primary underline" onClick={() => setEvent(null)}>
                 {t("Closed months", "الأشهر المُقفلة")}
               </Link>
