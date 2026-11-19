@@ -62,6 +62,7 @@ import Vendors from '@/pages/Vendors';
 import VendorDetail from '@/pages/VendorDetail';
 import Bills from '@/pages/Bills';
 import JournalEntries from '@/pages/JournalEntries';
+import UnclassifiedEntries from '@/pages/UnclassifiedEntries';
 import Employees from '@/pages/Employees';
 import Payroll from '@/pages/Payroll';
 import Assets from '@/pages/Assets';
@@ -348,6 +349,8 @@ function Router() {
               <Route path="/reports/activity" component={ActivityReport} />
               <Route path="/reports/aging" component={AgingReports} />
               {/* General Ledger */}
+              {/* 🔴 A15 review (0164): before /journal-entries */}
+              <Route path="/journal-entries/unclassified" component={UnclassifiedEntries} />
               <Route path="/journal-entries" component={JournalEntries} />
               <Route path="/trial-balance" component={TrialBalance} />
               {/* Financial Reports */}

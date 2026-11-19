@@ -180,6 +180,9 @@ test.describe("the tree is internally consistent", () => {
       "/tax/computations/:id",
       // The placeholder route itself; its entries are counted individually.
       "/coming-soon/:slug",
+      // A15 review (0164): reached from the General Ledger's link while an entry awaits review (walked by clicking in
+      // a15-review-screen.spec); a company with none — every new one — has nothing to open it for.
+      "/journal-entries/unclassified",
     ]);
     const unreachable = declaredRoutes().filter(r => !EXEMPT.has(r) && !navPaths.has(r));
     expect(

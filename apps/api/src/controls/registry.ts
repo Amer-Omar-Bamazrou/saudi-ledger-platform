@@ -284,11 +284,16 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "A15",
-    title: "Every journal entry names its source (NOT NULL): the old ones back-filled once from authoritative relationships, each change recorded; the unclassified and synthetic tags are written only by their own writers, never change, and are refused by the generic reverse; an unclassified draft is never posted (owner decision A15, migration 0163)",
+    title: "Every journal entry names its source (NOT NULL): the old ones back-filled once from authoritative relationships, each change recorded; the unclassified and synthetic tags are written only by their own writers, never change, and are refused by the generic reverse; an unclassified draft is never posted; an admin's review classifies one only as a candidate the rules confirm then, never as manual, each review recorded (owner decision A15, migrations 0163 and 0164)",
     answers: ["G07"],
     type: "preventive",
     activation: ALWAYS,
-    refusalCodes: ["journal_entry_unclassified", "journal_entry_synthetic", "journal_entry_classify_first"],
+    refusalCodes: [
+      "journal_entry_unclassified", "journal_entry_synthetic", "journal_entry_classify_first",
+      "journal_source_review_forbidden", "journal_source_review_admin_only", "journal_source_review_entry_not_found",
+      "journal_source_review_not_unclassified", "journal_source_review_manual_needs_policy",
+      "journal_source_review_type_invalid", "journal_source_review_no_evidence",
+    ],
     points: [
       trigger("journal_entries", "journal_entries_source_tag_guard"),
       trigger("journal_entries", "journal_entries_unclassified_post_guard"),
@@ -298,11 +303,18 @@ export const CONTROLS: readonly Control[] = [
       check("journal_source_backfill", "journal_source_backfill_previous_chk"),
       check("journal_source_backfill", "journal_source_backfill_unclassified_chk"),
       check("journal_source_backfill", "journal_source_backfill_not_synthetic_chk"),
+      // 🔴 A15 review (0164): the review's own record — owner-only, append-only, never `manual`
+      trigger("journal_source_reviews", "zz_journal_source_reviews_append_only"),
+      trigger("journal_source_reviews", "zz_journal_source_reviews_no_truncate"),
+      check("journal_source_reviews", "journal_source_reviews_rule_chk"),
+      check("journal_source_reviews", "journal_source_reviews_previous_chk"),
+      check("journal_source_reviews", "journal_source_reviews_new_chk"),
       code(`${API}/services/accounting/glPosting.ts`, "postJournalEntry"),
       code(`${API}/services/journalEntries.service.ts`, "UNCLASSIFIED_ENTRY_REFUSAL"),
       code(`${API}/services/journalEntries.approvable.ts`, "UNCLASSIFIED_DRAFT_REFUSAL"),
+      code(`${API}/services/journalSourceReview.service.ts`, "REVIEW_REFUSALS"),
     ],
-    provingTests: ["a15-source-tag-mandatory.test.ts", "phase18-r10-dr34-source-type-matrix.test.ts"],
+    provingTests: ["a15-source-tag-mandatory.test.ts", "phase18-r10-dr34-source-type-matrix.test.ts", "a15-review-unclassified-entries.test.ts"],
   },
   {
     id: "T1e",
