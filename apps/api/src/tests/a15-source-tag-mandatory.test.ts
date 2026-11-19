@@ -380,10 +380,18 @@ describeMaybe("A15 — every journal entry names its source (migration 0163)", (
     expect(found).toEqual([
       "apps/api/src/tests/helpers/journalFixtures.ts",
       "packages/db/migrations/0163_a15_source_tag_mandatory.sql",
+      // 0164 (the review route) re-states the tag guard whole, so it READS the setting too — see below
+      "packages/db/migrations/0164_a15_review_classification.sql",
       "packages/db/src/schema/journalEntries.ts",
       "scripts/src/demo-seed.mts",
     ]);
     expect(readFileSync(join(root, "scripts/src/demo-seed.mts"), "utf8"), "the demo seed declares its own tag").toMatch(/demo_seed/);
+    // 🔴 a migration only READS the setting (in the guard); none declares it
+    for (const m of found.filter((p) => p.startsWith("packages/db/migrations/"))) {
+      const text = readFileSync(join(root, m), "utf8");
+      expect(text, `${m} reads it`).toContain(`current_setting('${SYNTHETIC_SOURCE_SETTING}', true)`);
+      expect(text, `${m} never declares it`).not.toMatch(new RegExp(`set_config\\(\\s*'${SYNTHETIC_SOURCE_SETTING.replace(/\./g, "\\.")}'`));
+    }
   });
 
   it("🔴 the rules reproduce the tag each writer stamped — a manual entry, an invoice, its receipt, a reversal — and say legacy_unclassified where nothing explains an entry", async () => {

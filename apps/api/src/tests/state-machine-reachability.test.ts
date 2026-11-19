@@ -142,6 +142,10 @@ const SEMANTICS: Record<string, { from: State[]; to: State }> = {
   // state (a posted bill whose VAT is held is claimed by it, and stays posted).
   // Offered on the VAT-evidence page, for drafts and posted bills alike.
   "vat-figures-confirmation": { from: ["draft"], to: "draft" },
+  // 🔴 A15 review (0164): an admin classifies an unclassified journal entry's SOURCE as a candidate the rules confirm
+  // — only the two tag columns change, never the lifecycle state. Offered for posted entries and drafts alike (a
+  // classified draft is then approved by the ordinary `approve`); modelled on the posted entry, the common case.
+  classify: { from: ["approved"], to: "approved" },
 };
 
 /**

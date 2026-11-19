@@ -3256,6 +3256,83 @@ paths:
         "409":
           description: Not posted, already reversed, or OWNED by a document — a bank transfer, a statement line, a bill's or supplier note's own posting, a bill's input-VAT claim, or an input-VAT event (Phase 13B-1) — which is corrected through that document, never reversed generically
 
+  /journal-entries/unclassified:
+    get:
+      operationId: listUnclassifiedJournalEntries
+      tags: [journal-entries]
+      summary: The review screen's list — entries the A15 back-fill left `legacy_unclassified`, with their evidence
+      description: >
+        Owner decisions 2026-11-17 / 2026-11-19 (A15, migration 0164). Every entry of the current organisation (and
+        company) that the 0163 back-fill recorded as `legacy_unclassified`, newest first: the back-fill's evidence,
+        the candidates 0163's rules find TODAY for an entry still unclassified, its review status, and the review that
+        classified it, if any. Read by an admin or an accountant; refused to every other role.
+      parameters:
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+        - { in: query, name: offset, required: false, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: One page of the review list, with the total
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnclassifiedJournalEntryList" }
+        "403":
+          description: Not an admin or an accountant of this organisation (`journal_source_review_forbidden`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /journal-entries/{id}/classify:
+    post:
+      operationId: classifyJournalEntry
+      tags: [journal-entries]
+      summary: Classify an unclassified entry as a candidate the rules confirm now (admin only; never `manual`)
+      description: >
+        The review act (A15, migration 0164). An active admin classifies a `legacy_unclassified` entry ONLY as a
+        candidate 0163's rules confirm at the moment of the act (rule F, N, S or R, its checks passing). Never
+        `manual`: that waits for an accountant-approved policy. The act is recorded first; only the entry's two
+        source-tag columns change.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassifyJournalEntryInput" }
+      responses:
+        "200":
+          description: The entry as the review list shows it, now classified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnclassifiedJournalEntry" }
+        "400":
+          description: The body is not a source type with an optional source id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Not an active admin of this organisation (`journal_source_review_admin_only`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Not an entry the review list holds for this organisation and company (`journal_source_review_entry_not_found`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: The entry is no longer unclassified (`journal_source_review_not_unclassified`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: >
+            `manual`, which waits for an accountant-approved policy (`journal_source_review_manual_needs_policy`); a
+            tag no source row stands behind (`journal_source_review_type_invalid`); or a candidate the rules do not
+            confirm now (`journal_source_review_no_evidence`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
   /payroll:
     get:
       operationId: listPayrollRuns
@@ -14188,6 +14265,79 @@ components:
         message: { type: string }
         reversalId: { type: integer }
         reversal: { $ref: "#/components/schemas/JournalEntry" }
+
+    UnclassifiedJournalEntryCandidate:
+      type: object
+      description: One relationship 0163's rules found for the entry, with the checks it passed or failed.
+      required: [rule, type, sourceId, checksPass, classifiable, evidence]
+      properties:
+        rule: { type: string, enum: [F, N, S, A, R], description: "F a document's own key; N the number its writer composes; S Batch 1C's source; A the manual route's audit row; R reversal_of" }
+        type: { type: string }
+        sourceId: { type: ["integer", "null"] }
+        checksPass: { type: boolean }
+        classifiable: { type: boolean, description: "The checks pass and the review may write this type (rule F, N, S or R; never manual)" }
+        evidence: { type: object, additionalProperties: true }
+
+    UnclassifiedJournalEntryReview:
+      type: object
+      required: [id, newSourceType, newSourceId, rule, reviewedAt]
+      properties:
+        id: { type: integer }
+        newSourceType: { type: string }
+        newSourceId: { type: ["integer", "null"] }
+        rule: { type: string, enum: [F, N, S, R] }
+        reviewedAt: { type: string, format: date-time }
+
+    UnclassifiedJournalEntry:
+      type: object
+      required: [id, entryNumber, date, status, description, total, currentSourceType, currentSourceId, reviewStatus,
+                 backfillOutcome, backfillEvidence, candidates, review]
+      properties:
+        id: { type: integer }
+        entryNumber: { type: ["string", "null"] }
+        date: { type: string }
+        status: { type: string, enum: [draft, posted, reversed] }
+        description: { type: ["string", "null"] }
+        total: { type: number, description: "The entry's total debits — one entry's own figure, never summed across entries" }
+        currentSourceType: { type: string }
+        currentSourceId: { type: ["integer", "null"] }
+        reviewStatus:
+          type: string
+          enum: [classifiable, awaiting_policy, classified]
+          description: >
+            classified — a review classified it (see `review`); classifiable — still unclassified, and the rules
+            confirm at least one candidate the review may write; awaiting_policy — still unclassified, and nothing the
+            review may write is confirmed: it stays as it is until an accountant-approved policy says how such entries
+            are treated
+        backfillOutcome: { type: string, enum: [ambiguous, no_authoritative_relationship], description: "Why the 0163 back-fill left it unclassified" }
+        backfillEvidence: { type: object, additionalProperties: true, description: "The back-fill's own record of what it found (rule P's finding for an old GL-<invoice>-PAY receipt included)" }
+        candidates:
+          type: array
+          description: What the rules find today (empty once classified)
+          items: { $ref: "#/components/schemas/UnclassifiedJournalEntryCandidate" }
+        review:
+          oneOf:
+            - { $ref: "#/components/schemas/UnclassifiedJournalEntryReview" }
+            - { type: "null" }
+
+    UnclassifiedJournalEntryList:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/UnclassifiedJournalEntry" }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+
+    ClassifyJournalEntryInput:
+      type: object
+      additionalProperties: false
+      required: [sourceType]
+      properties:
+        sourceType: { type: string, minLength: 1, maxLength: 64 }
+        sourceId: { type: ["integer", "null"] }
 
     PayrollItem:
       type: object
