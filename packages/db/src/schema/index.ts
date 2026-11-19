@@ -61,3 +61,4 @@ export * from "./featureFlags";
 export * from "./statementMatches";
 export * from "./migrationBatches";
 export * from "./journalSourceBackfill";
+export * from "./journalSourceReviews";

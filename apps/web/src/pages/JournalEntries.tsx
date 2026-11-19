@@ -21,6 +21,9 @@ import { accountRefusalToast } from "@/lib/accountRefusals";
 import { journalRecordsNothing, journalRefusalToast } from "@/lib/journalRefusals";
 
 import type { Category, CreateJournalEntryInput, Customer, JournalEntry, JournalEntryLineInput, ListJournalEntries200, Vendor } from "@workspace/api-client-react";
+import { useListUnclassifiedJournalEntries, getListUnclassifiedJournalEntriesQueryKey } from "@workspace/api-client-react";
+import { Link } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
 import { fetchPickerOptions } from "@/lib/pagedList";
 import { businessToday } from "@workspace/shared";
 
@@ -41,6 +44,10 @@ const CUSTOMER_REQUIRED = new Set(["AR", "CUSTOMER_DEPOSITS", "CUSTOMER_CREDITS"
 const CUSTOMER_OR_REASON = new Set(["SECURITY_DEPOSITS_HELD", "UNIDENTIFIED_RECEIPTS"]);
 
 export default function JournalEntries() {
+  const { user } = useAuth();
+  const canReview = user?.organizationRole === "admin" || user?.organizationRole === "accountant";
+  const unclassified = useListUnclassifiedJournalEntries({ limit: 1, offset: 0 }, { query: { enabled: canReview, queryKey: getListUnclassifiedJournalEntriesQueryKey({ limit: 1, offset: 0 }) } });
+  const unclassifiedTotal = canReview ? (unclassified.data?.total ?? 0) : 0;
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(0);
   /** Two-step delete: the second click is the confirmation (draft only). */
@@ -171,6 +178,12 @@ export default function JournalEntries() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("General Ledger", "دفتر الأستاذ العام")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Double-entry journal entries", "قيود اليومية ذات القيد المزدوج")} · {entries.length} {t("entries", "قيود")}</p>
+          {/* 🔴 A15 review (0164): where an unclassified entry is classified — shown when there is one to review */}
+          {unclassifiedTotal > 0 && (
+            <Link href="/journal-entries/unclassified" className="text-sm text-primary hover:underline mt-1 inline-block" data-testid="je-unclassified-link">
+              {t(`Unclassified entries to review: ${fmtCount(unclassifiedTotal)}`, `قيود غير مصنَّفة للمراجعة: ${fmtCount(unclassifiedTotal)}`)}
+            </Link>
+          )}
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button className="gap-2" data-testid="je-new"><Plus className="w-4 h-4" /> {t("New Entry", "قيد جديد")}</Button></DialogTrigger>

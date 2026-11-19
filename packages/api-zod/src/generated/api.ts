@@ -6135,6 +6135,103 @@ export const ReverseJournalEntryResponse = zod.object({
 
 
 /**
+ * Owner decisions 2026-11-17 / 2026-11-19 (A15, migration 0164). Every entry of the current organisation (and company) that the 0163 back-fill recorded as `legacy_unclassified`, newest first: the back-fill's evidence, the candidates 0163's rules find TODAY for an entry still unclassified, its review status, and the review that classified it, if any. Read by an admin or an accountant; refused to every other role.
+ * @summary The review screen's list — entries the A15 back-fill left `legacy_unclassified`, with their evidence
+ */
+export const listUnclassifiedJournalEntriesQueryLimitMax = 200;
+
+export const listUnclassifiedJournalEntriesQueryOffsetMin = 0;
+
+
+
+export const ListUnclassifiedJournalEntriesQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listUnclassifiedJournalEntriesQueryLimitMax).optional(),
+  "offset": zod.coerce.number().min(listUnclassifiedJournalEntriesQueryOffsetMin).optional()
+})
+
+export const ListUnclassifiedJournalEntriesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string().nullable(),
+  "date": zod.string(),
+  "status": zod.enum(['draft', 'posted', 'reversed']),
+  "description": zod.string().nullable(),
+  "total": zod.number().describe('The entry\'s total debits — one entry\'s own figure, never summed across entries'),
+  "currentSourceType": zod.string(),
+  "currentSourceId": zod.number().nullable(),
+  "reviewStatus": zod.enum(['classifiable', 'awaiting_policy', 'classified']).describe('classified — a review classified it (see `review`); classifiable — still unclassified, and the rules confirm at least one candidate the review may write; awaiting_policy — still unclassified, and nothing the review may write is confirmed: it stays as it is until an accountant-approved policy says how such entries are treated\n'),
+  "backfillOutcome": zod.enum(['ambiguous', 'no_authoritative_relationship']).describe('Why the 0163 back-fill left it unclassified'),
+  "backfillEvidence": zod.record(zod.string(), zod.unknown()).describe('The back-fill\'s own record of what it found (rule P\'s finding for an old GL-<invoice>-PAY receipt included)'),
+  "candidates": zod.array(zod.object({
+  "rule": zod.enum(['F', 'N', 'S', 'A', 'R']).describe('F a document\'s own key; N the number its writer composes; S Batch 1C\'s source; A the manual route\'s audit row; R reversal_of'),
+  "type": zod.string(),
+  "sourceId": zod.number().nullable(),
+  "checksPass": zod.boolean(),
+  "classifiable": zod.boolean().describe('The checks pass and the review may write this type (rule F, N, S or R; never manual)'),
+  "evidence": zod.record(zod.string(), zod.unknown())
+}).describe('One relationship 0163\'s rules found for the entry, with the checks it passed or failed.')).describe('What the rules find today (empty once classified)'),
+  "review": zod.union([zod.object({
+  "id": zod.number(),
+  "newSourceType": zod.string(),
+  "newSourceId": zod.number().nullable(),
+  "rule": zod.enum(['F', 'N', 'S', 'R']),
+  "reviewedAt": zod.coerce.date()
+}),zod.null()])
+})),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number()
+})
+
+
+/**
+ * The review act (A15, migration 0164). An active admin classifies a `legacy_unclassified` entry ONLY as a candidate 0163's rules confirm at the moment of the act (rule F, N, S or R, its checks passing). Never `manual`: that waits for an accountant-approved policy. The act is recorded first; only the entry's two source-tag columns change.
+ * @summary Classify an unclassified entry as a candidate the rules confirm now (admin only; never `manual`)
+ */
+export const ClassifyJournalEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const classifyJournalEntryBodySourceTypeMax = 64;
+
+
+
+export const ClassifyJournalEntryBody = zod.object({
+  "sourceType": zod.string().min(1).max(classifyJournalEntryBodySourceTypeMax),
+  "sourceId": zod.number().nullish()
+})
+
+export const ClassifyJournalEntryResponse = zod.object({
+  "id": zod.number(),
+  "entryNumber": zod.string().nullable(),
+  "date": zod.string(),
+  "status": zod.enum(['draft', 'posted', 'reversed']),
+  "description": zod.string().nullable(),
+  "total": zod.number().describe('The entry\'s total debits — one entry\'s own figure, never summed across entries'),
+  "currentSourceType": zod.string(),
+  "currentSourceId": zod.number().nullable(),
+  "reviewStatus": zod.enum(['classifiable', 'awaiting_policy', 'classified']).describe('classified — a review classified it (see `review`); classifiable — still unclassified, and the rules confirm at least one candidate the review may write; awaiting_policy — still unclassified, and nothing the review may write is confirmed: it stays as it is until an accountant-approved policy says how such entries are treated\n'),
+  "backfillOutcome": zod.enum(['ambiguous', 'no_authoritative_relationship']).describe('Why the 0163 back-fill left it unclassified'),
+  "backfillEvidence": zod.record(zod.string(), zod.unknown()).describe('The back-fill\'s own record of what it found (rule P\'s finding for an old GL-<invoice>-PAY receipt included)'),
+  "candidates": zod.array(zod.object({
+  "rule": zod.enum(['F', 'N', 'S', 'A', 'R']).describe('F a document\'s own key; N the number its writer composes; S Batch 1C\'s source; A the manual route\'s audit row; R reversal_of'),
+  "type": zod.string(),
+  "sourceId": zod.number().nullable(),
+  "checksPass": zod.boolean(),
+  "classifiable": zod.boolean().describe('The checks pass and the review may write this type (rule F, N, S or R; never manual)'),
+  "evidence": zod.record(zod.string(), zod.unknown())
+}).describe('One relationship 0163\'s rules found for the entry, with the checks it passed or failed.')).describe('What the rules find today (empty once classified)'),
+  "review": zod.union([zod.object({
+  "id": zod.number(),
+  "newSourceType": zod.string(),
+  "newSourceId": zod.number().nullable(),
+  "rule": zod.enum(['F', 'N', 'S', 'R']),
+  "reviewedAt": zod.coerce.date()
+}),zod.null()])
+})
+
+
+/**
  * @summary Every payroll run, newest first, with its employee count and gross
  */
 export const ListPayrollRunsResponseItem = zod.object({

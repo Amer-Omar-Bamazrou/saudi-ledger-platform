@@ -82,6 +82,8 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/invoices": "app",
   "/invoice-summary": "app",
   "/journal-entries": "app",
+  // A15 review (0164): renders its list, or that nothing awaits review
+  "/journal-entries/unclassified": "app",
   "/payments": "app",
   "/payroll": "app",
   "/payroll-report": "app",

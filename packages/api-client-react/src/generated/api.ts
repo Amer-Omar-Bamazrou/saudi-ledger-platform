@@ -84,6 +84,7 @@ import type {
   ChangeAssetEstimateInput,
   ClassifyApReconciliation200,
   ClassifyApReconciliationParams,
+  ClassifyJournalEntryInput,
   ClassifyPaymentInput,
   ClassifyStatementRowsParams,
   ClassifySupplierPaymentInput,
@@ -270,6 +271,7 @@ import type {
   ListSupplierPositionsParams,
   ListTaxComputationsParams,
   ListTransactionsParams,
+  ListUnclassifiedJournalEntriesParams,
   ListVendors200,
   ListVendorsParams,
   ListWhtContractsParams,
@@ -386,6 +388,8 @@ import type {
   TrendPoint,
   TrialBalanceReport,
   UnallocateInput,
+  UnclassifiedJournalEntry,
+  UnclassifiedJournalEntryList,
   UnmatchInput,
   UpdateAssetCategoryInput,
   UpdateAssetInput,
@@ -12566,6 +12570,164 @@ export const useReverseJournalEntry = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReverseJournalEntryMutationOptions(options));
+    }
+
+export const getListUnclassifiedJournalEntriesUrl = (params?: ListUnclassifiedJournalEntriesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/journal-entries/unclassified?${stringifiedParams}` : `/api/journal-entries/unclassified`
+}
+
+/**
+ * Owner decisions 2026-11-17 / 2026-11-19 (A15, migration 0164). Every entry of the current organisation (and company) that the 0163 back-fill recorded as `legacy_unclassified`, newest first: the back-fill's evidence, the candidates 0163's rules find TODAY for an entry still unclassified, its review status, and the review that classified it, if any. Read by an admin or an accountant; refused to every other role.
+ * @summary The review screen's list — entries the A15 back-fill left `legacy_unclassified`, with their evidence
+ */
+export const listUnclassifiedJournalEntries = async (params?: ListUnclassifiedJournalEntriesParams, options?: RequestInit): Promise<UnclassifiedJournalEntryList> => {
+
+  return customFetch<UnclassifiedJournalEntryList>(getListUnclassifiedJournalEntriesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnclassifiedJournalEntriesQueryKey = (params?: ListUnclassifiedJournalEntriesParams,) => {
+    return [
+    `/api/journal-entries/unclassified`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListUnclassifiedJournalEntriesQueryOptions = <TData = Awaited<ReturnType<typeof listUnclassifiedJournalEntries>>, TError = ErrorType<ErrorResponse>>(params?: ListUnclassifiedJournalEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listUnclassifiedJournalEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnclassifiedJournalEntriesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnclassifiedJournalEntries>>> = ({ signal }) => listUnclassifiedJournalEntries(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnclassifiedJournalEntries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListUnclassifiedJournalEntriesQueryResult = NonNullable<Awaited<ReturnType<typeof listUnclassifiedJournalEntries>>>
+export type ListUnclassifiedJournalEntriesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary The review screen's list — entries the A15 back-fill left `legacy_unclassified`, with their evidence
+ */
+
+export function useListUnclassifiedJournalEntries<TData = Awaited<ReturnType<typeof listUnclassifiedJournalEntries>>, TError = ErrorType<ErrorResponse>>(
+ params?: ListUnclassifiedJournalEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listUnclassifiedJournalEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListUnclassifiedJournalEntriesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getClassifyJournalEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/journal-entries/${id}/classify`
+}
+
+/**
+ * The review act (A15, migration 0164). An active admin classifies a `legacy_unclassified` entry ONLY as a candidate 0163's rules confirm at the moment of the act (rule F, N, S or R, its checks passing). Never `manual`: that waits for an accountant-approved policy. The act is recorded first; only the entry's two source-tag columns change.
+ * @summary Classify an unclassified entry as a candidate the rules confirm now (admin only; never `manual`)
+ */
+export const classifyJournalEntry = async (id: number,
+    classifyJournalEntryInput: ClassifyJournalEntryInput, options?: RequestInit): Promise<UnclassifiedJournalEntry> => {
+
+  return customFetch<UnclassifiedJournalEntry>(getClassifyJournalEntryUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(classifyJournalEntryInput)
+  }
+);}
+
+
+
+
+
+export const getClassifyJournalEntryMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifyJournalEntry>>, TError,{id: number;data: BodyType<ClassifyJournalEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifyJournalEntry>>, TError,{id: number;data: BodyType<ClassifyJournalEntryInput>}, TContext> => {
+
+const mutationKey = ['classifyJournalEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifyJournalEntry>>, {id: number;data: BodyType<ClassifyJournalEntryInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  classifyJournalEntry(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifyJournalEntryMutationResult = NonNullable<Awaited<ReturnType<typeof classifyJournalEntry>>>
+    export type ClassifyJournalEntryMutationBody = BodyType<ClassifyJournalEntryInput>
+    export type ClassifyJournalEntryMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Classify an unclassified entry as a candidate the rules confirm now (admin only; never `manual`)
+ */
+export const useClassifyJournalEntry = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifyJournalEntry>>, TError,{id: number;data: BodyType<ClassifyJournalEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof classifyJournalEntry>>,
+        TError,
+        {id: number;data: BodyType<ClassifyJournalEntryInput>},
+        TContext
+      > => {
+      return useMutation(getClassifyJournalEntryMutationOptions(options));
     }
 
 export const getListPayrollRunsUrl = () => {

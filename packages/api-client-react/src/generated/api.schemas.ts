@@ -7307,6 +7307,134 @@ export interface JournalEntryReversal {
 }
 
 /**
+ * F a document's own key; N the number its writer composes; S Batch 1C's source; A the manual route's audit row; R reversal_of
+ */
+export type UnclassifiedJournalEntryCandidateRule = typeof UnclassifiedJournalEntryCandidateRule[keyof typeof UnclassifiedJournalEntryCandidateRule];
+
+
+export const UnclassifiedJournalEntryCandidateRule = {
+  F: 'F',
+  N: 'N',
+  S: 'S',
+  A: 'A',
+  R: 'R',
+} as const;
+
+export type UnclassifiedJournalEntryCandidateEvidence = { [key: string]: unknown };
+
+/**
+ * One relationship 0163's rules found for the entry, with the checks it passed or failed.
+ */
+export interface UnclassifiedJournalEntryCandidate {
+  /** F a document's own key; N the number its writer composes; S Batch 1C's source; A the manual route's audit row; R reversal_of */
+  rule: UnclassifiedJournalEntryCandidateRule;
+  type: string;
+  /** @nullable */
+  sourceId: number | null;
+  checksPass: boolean;
+  /** The checks pass and the review may write this type (rule F, N, S or R; never manual) */
+  classifiable: boolean;
+  evidence: UnclassifiedJournalEntryCandidateEvidence;
+}
+
+export type UnclassifiedJournalEntryReviewRule = typeof UnclassifiedJournalEntryReviewRule[keyof typeof UnclassifiedJournalEntryReviewRule];
+
+
+export const UnclassifiedJournalEntryReviewRule = {
+  F: 'F',
+  N: 'N',
+  S: 'S',
+  R: 'R',
+} as const;
+
+export interface UnclassifiedJournalEntryReview {
+  id: number;
+  newSourceType: string;
+  /** @nullable */
+  newSourceId: number | null;
+  rule: UnclassifiedJournalEntryReviewRule;
+  reviewedAt: string;
+}
+
+export type UnclassifiedJournalEntryStatus = typeof UnclassifiedJournalEntryStatus[keyof typeof UnclassifiedJournalEntryStatus];
+
+
+export const UnclassifiedJournalEntryStatus = {
+  draft: 'draft',
+  posted: 'posted',
+  reversed: 'reversed',
+} as const;
+
+/**
+ * classified — a review classified it (see `review`); classifiable — still unclassified, and the rules confirm at least one candidate the review may write; awaiting_policy — still unclassified, and nothing the review may write is confirmed: it stays as it is until an accountant-approved policy says how such entries are treated
+ */
+export type UnclassifiedJournalEntryReviewStatus = typeof UnclassifiedJournalEntryReviewStatus[keyof typeof UnclassifiedJournalEntryReviewStatus];
+
+
+export const UnclassifiedJournalEntryReviewStatus = {
+  classifiable: 'classifiable',
+  awaiting_policy: 'awaiting_policy',
+  classified: 'classified',
+} as const;
+
+/**
+ * Why the 0163 back-fill left it unclassified
+ */
+export type UnclassifiedJournalEntryBackfillOutcome = typeof UnclassifiedJournalEntryBackfillOutcome[keyof typeof UnclassifiedJournalEntryBackfillOutcome];
+
+
+export const UnclassifiedJournalEntryBackfillOutcome = {
+  ambiguous: 'ambiguous',
+  no_authoritative_relationship: 'no_authoritative_relationship',
+} as const;
+
+/**
+ * The back-fill's own record of what it found (rule P's finding for an old GL-<invoice>-PAY receipt included)
+ */
+export type UnclassifiedJournalEntryBackfillEvidence = { [key: string]: unknown };
+
+export interface UnclassifiedJournalEntry {
+  id: number;
+  /** @nullable */
+  entryNumber: string | null;
+  date: string;
+  status: UnclassifiedJournalEntryStatus;
+  /** @nullable */
+  description: string | null;
+  /** The entry's total debits — one entry's own figure, never summed across entries */
+  total: number;
+  currentSourceType: string;
+  /** @nullable */
+  currentSourceId: number | null;
+  /** classified — a review classified it (see `review`); classifiable — still unclassified, and the rules confirm at least one candidate the review may write; awaiting_policy — still unclassified, and nothing the review may write is confirmed: it stays as it is until an accountant-approved policy says how such entries are treated */
+  reviewStatus: UnclassifiedJournalEntryReviewStatus;
+  /** Why the 0163 back-fill left it unclassified */
+  backfillOutcome: UnclassifiedJournalEntryBackfillOutcome;
+  /** The back-fill's own record of what it found (rule P's finding for an old GL-<invoice>-PAY receipt included) */
+  backfillEvidence: UnclassifiedJournalEntryBackfillEvidence;
+  /** What the rules find today (empty once classified) */
+  candidates: UnclassifiedJournalEntryCandidate[];
+  review: UnclassifiedJournalEntryReview | null;
+}
+
+export interface UnclassifiedJournalEntryList {
+  items: UnclassifiedJournalEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ClassifyJournalEntryInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  sourceType: string;
+  /** @nullable */
+  sourceId?: number | null;
+}
+
+/**
  * GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated).
  * @nullable
  */
@@ -14053,6 +14181,18 @@ offset?: number;
 export type ListJournalEntries200 = {
   items: JournalEntry[];
   page: PageInfo;
+};
+
+export type ListUnclassifiedJournalEntriesParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 };
 
 export type ListEmployeesParams = {

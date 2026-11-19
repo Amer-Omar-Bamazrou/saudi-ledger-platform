@@ -41,6 +41,14 @@ export function journalRefusalToast(e: unknown, t: T) {
       variant: "destructive" as const,
     };
   }
+  // 🔴 A15 (owner, 2026-11-19): an unclassified draft is classified on the review screen before it is posted
+  if (code === "journal_entry_classify_first") {
+    return {
+      title: t("Classify this entry first", "صنِّف هذا القيد أولاً"),
+      description: words,
+      variant: "destructive" as const,
+    };
+  }
   return null;
 }
 

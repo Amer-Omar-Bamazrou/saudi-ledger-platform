@@ -149,7 +149,9 @@ describeMaybe("journal entry balance — checked on the STORED values, and again
     const { join } = await import("node:path");
     const routes = readFileSync(join(import.meta.dirname, "../routes/journalEntries.ts"), "utf8");
     const verbs = [...routes.matchAll(/router\.(get|post|patch|put|delete)\("([^"]+)"/g)].map((m) => `${m[1]} ${m[2]}`);
-    expect(verbs).toEqual(["get /", "get /:id", "post /", "post /:id/approve", "post /:id/reject", "post /:id/post", "post /:id/reverse", "delete /:id"]);
+    // A15 review (0164) adds a read and the classify act, which writes only the two source-tag columns (its own suite
+    // proves every other column of the entry unchanged; it touches no line).
+    expect(verbs).toEqual(["get /", "get /unclassified", "get /:id", "post /", "post /:id/approve", "post /:id/reject", "post /:id/post", "post /:id/reverse", "post /:id/classify", "delete /:id"]);
     expect(verbs.some((v) => /lines?/.test(v) || v.startsWith("patch") || v.startsWith("put"))).toBe(false);
   });
 });
