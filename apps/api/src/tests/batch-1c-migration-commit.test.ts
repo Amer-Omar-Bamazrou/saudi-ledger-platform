@@ -36,6 +36,7 @@ import { findingsRepository } from "../repositories/findings.repository";
 import { postJournalEntry } from "../services/accounting/glPosting";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { replica } from "./helpers/replica";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -315,8 +316,8 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     // 14 — the opening month is locked in the migration's name: nothing else posts into it; the day after is open.
     const lock = (await pool.query(`SELECT period, notes FROM period_locks WHERE id = $1`, [out.periodLockId])).rows[0];
     expect(lock).toEqual({ period: "2026-06", notes: `Opening balances — migration batch ${b.id} from PreviousERP` });
-    await expectRefusal(inTenant(() => postJournalEntry({ entryNumber: "X-1", date: "2026-06-15", description: "late", lines: [{ systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 1, creditAmount: 0 }, { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 1 }] })), 423);
-    const later = await inTenant(() => postJournalEntry({ entryNumber: "X-2", date: "2026-07-01", description: "first live entry", lines: [{ systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 1, creditAmount: 0 }, { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 1 }] }));
+    await expectRefusal(inTenant(() => postFixtureJournalEntry({ entryNumber: "X-1", date: "2026-06-15", description: "late", lines: [{ systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 1, creditAmount: 0 }, { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 1 }] })), 423);
+    const later = await inTenant(() => postFixtureJournalEntry({ entryNumber: "X-2", date: "2026-07-01", description: "first live entry", lines: [{ systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 1, creditAmount: 0 }, { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 1 }] }));
     expect(later.source).toBeNull();
     await releasePostedJournalsForTeardown(`id = $1`, [later.id]); // G16 (0126): the fixture entry back to draft so the removal below is a draft's
     await pool.query(`DELETE FROM journal_entries WHERE id = $1`, [later.id]);
@@ -833,7 +834,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
 
     // 6/7. No clearing exists — not as a method, not as a journal source, not as a row anywhere.
     expect((migrationCommitService as Record<string, unknown>).clearObe).toBeUndefined();
-    await expect(inCompany2(() => postJournalEntry({ entryNumber: "B1C-CLR-X", date: "2026-07-01", description: "no such thing", source: "opening_clearing" as never, lines: [
+    await expect(inCompany2(() => postFixtureJournalEntry({ entryNumber: "B1C-CLR-X", date: "2026-07-01", description: "no such thing", source: "opening_clearing" as never, lines: [
       { systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 1, creditAmount: 0 },
       { systemCode: "RETAINED_EARNINGS", accountName: "Retained earnings", debitAmount: 0, creditAmount: 1 },
     ] }))).rejects.toSatisfy((e: unknown) => /journal_entries_source_chk/.test(String((e as { cause?: { message?: string } }).cause?.message ?? (e as Error).message)));
@@ -851,7 +852,7 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     await mapChart(b.id, [{ sourceCode: "1100", sourceName: "Co2 bank", sourceType: "asset", openingDebit: 0, sourceRole: "bank", evidenceNote: "stmt" }], { banks: [bankC2, bankC2], run: inCompany2 });
     expect(check(await inCompany2(() => migrationValidationService.validate(b.id, userId)), "LEDGER_EMPTY").status).toBe("pass");
     // An ORDINARY entry before the opening date is history.
-    const prior = await inCompany2(() => postJournalEntry({ entryNumber: "H-1", date: "2026-06-15", description: "history", lines: [{ systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 7, creditAmount: 0 }, { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 7 }] }));
+    const prior = await inCompany2(() => postFixtureJournalEntry({ entryNumber: "H-1", date: "2026-06-15", description: "history", lines: [{ systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 7, creditAmount: 0 }, { systemCode: "SALES", accountName: "Sales", debitAmount: 0, creditAmount: 7 }] }));
     const v = await inCompany2(() => migrationValidationService.validate(b.id, userId));
     expect(check(v, "LEDGER_EMPTY")).toMatchObject({ status: "fail", actual: 2 });
     expect(check(v, "LEDGER_EMPTY").detail).toMatch(/2 line\(s\) \(Dr 7\.00 \/ Cr 7\.00\) already sit on or before 2026-06-30 — this company has history in Saudi Ledger/);

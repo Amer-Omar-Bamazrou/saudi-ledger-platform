@@ -150,7 +150,7 @@ describeMaybe("Phase 13B-1 — generic reversal protection (A-5)", () => {
     const pur = (await pool.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = 'PURCHASES'`, [orgA])).rows[0];
     // G16: the opening stand-in is written as the product writes an entry: a draft header, its lines, then the flip to posted.
     id.opening = await insertJournalFixture(
-      { organizationId: orgA, companyId: coA, entryNumber: "P13B1G-OPEN", date: "2026-01-01", description: "opening stand-in", source: "opening" },
+      { organizationId: orgA, companyId: coA, entryNumber: "P13B1G-OPEN", sourceType: "test_fixture", date: "2026-01-01", description: "opening stand-in", source: "opening" },
       [{ accountId: pur.id, accountName: pur.name, debitAmount: 5, creditAmount: 0 }, { accountId: sus.id, accountName: sus.name, debitAmount: 0, creditAmount: 5 }],
     );
 

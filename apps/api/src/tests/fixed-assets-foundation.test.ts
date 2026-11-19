@@ -30,6 +30,7 @@ import { postJournalEntry } from "../services/accounting/glPosting";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { generateStraightLineSchedule, lastDayOf, shiftPeriod } from "../services/assets/depreciationSchedule";
 import { deleterFor } from "./helpers/replica";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -191,7 +192,7 @@ describeMaybe("FA-A foundation — the register on real rows", () => {
     expect(dup.ok).toBe(false);
     expect(dup.ok === false && (dup.error.cause?.code ?? (dup.error as { code?: string }).code)).toBe("23505");
     // post row 1 through a real entry (the shape FA-B posts), then it is frozen
-    const je = await inTenant(() => postJournalEntry({ entryNumber: `DEP-TEST-${Date.now()}`, date: "2026-03-31", description: "test", lines: [
+    const je = await inTenant(() => postJournalEntry({ sourceType: "depreciation", sourceId: draftId, entryNumber: `DEP-TEST-${Date.now()}`, date: "2026-03-31", description: "test", lines: [
       { systemCode: "DEPRECIATION_EXPENSE", accountName: "Depreciation expense", debitAmount: 1875, creditAmount: 0 },
       { systemCode: "ACCUMULATED_DEPRECIATION", accountName: "Accumulated depreciation", debitAmount: 0, creditAmount: 1875 },
     ] }));
@@ -228,7 +229,7 @@ describeMaybe("FA-A foundation — the register on real rows", () => {
   it("🔴 a capitalised asset's facts of record are frozen by the DB (cost, dates, group, class, provenance, entry) while its descriptive fields may change; a cancelled draft is frozen whole; the service names the refusal first", async () => {
     // put the draft in service by hand (the FA-B act will do this through postJournalEntry; here the state's guard is under test)
     const faAccountId = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = 'FIXED_ASSETS'`, [orgId])).rows[0].id as number;
-    const je = await inTenant(() => postJournalEntry({ entryNumber: `CAP-TEST-${Date.now()}`, date: "2026-03-10", description: "test", lines: [
+    const je = await inTenant(() => postFixtureJournalEntry({ entryNumber: `CAP-TEST-${Date.now()}`, date: "2026-03-10", description: "test", lines: [
       { accountId: faAccountId, accountName: "Fixed Assets", debitAmount: 100_000, creditAmount: 0 },
       { systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 0, creditAmount: 100_000 },
     ] }));

@@ -34,6 +34,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness, type Res } from "./helpers/g04Harness";
 import { postJournalEntry } from "../services/accounting/glPosting";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -200,7 +201,7 @@ describeMaybe("G18 — a calendar-invalid date is refused at every posting path,
       let body: unknown = null;
       try {
         const je = await h.inTenant(orgId, companyId, adminId, () =>
-          postJournalEntry({
+          postFixtureJournalEntry({
             entryNumber: `G18-SEAM-${next()}`, date, description: "G18 seam",
             lines: [
               { accountId: expenseAcct, accountName: "debit", debitAmount: 25, creditAmount: 0 },
@@ -223,7 +224,7 @@ describeMaybe("G18 — a calendar-invalid date is refused at every posting path,
 
     const before = await ledger();
     const je = await h.inTenant(orgId, companyId, adminId, () =>
-      postJournalEntry({
+      postFixtureJournalEntry({
         entryNumber: `G18-SEAM-${next()}`, date: VALID, description: "G18 seam control",
         lines: [
           { accountId: expenseAcct, accountName: "debit", debitAmount: 25, creditAmount: 0 },

@@ -26,6 +26,7 @@ import { auditContext } from "../lib/auditContext";
 import { reportsService } from "../services/reports.service";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { replica } from "./helpers/replica";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -75,9 +76,9 @@ describeMaybe("M18.2 — the balance sheet splits current from non-current", () 
   /** Post a balanced two-line entry directly, so the fixture is unambiguous. */
   async function post(debitAccount: number, creditAccount: number, amount: number) {
     entryNo += 1;
-    const { rows } = await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1,$2,$3,'2026-06-15','breakout fixture','draft') RETURNING id`,
+    const { rows } = await fixtureQuery(pool,
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+       VALUES ($1,$2,$3,'2026-06-15','breakout fixture','draft', 'test_fixture') RETURNING id`,
       [orgId, companyId, `BRK-${entryNo}`],
     );
     const jeId = rows[0].id;

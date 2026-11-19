@@ -1142,6 +1142,13 @@
       "when": 1794866539304,
       "tag": "0162_owner_a20_party_none_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1794939931886,
+      "tag": "0163_a15_source_tag_mandatory",
+      "breakpoints": true
     }
   ]
 }

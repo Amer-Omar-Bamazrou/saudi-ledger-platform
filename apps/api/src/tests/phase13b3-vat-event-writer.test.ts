@@ -25,6 +25,7 @@ import { supplierAdvanceInvoicesService } from "../services/accounting/supplierA
 import { inputVatLedgerService } from "../services/accounting/inputVatLedger.service";
 import { billsRepository } from "../repositories/bills.repository";
 import { replica } from "./helpers/replica";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -340,9 +341,9 @@ describeMaybe("Phase 13B-3 — the input-VAT event writer", () => {
     await tx(async (cl) => {
       const acct = async (code: string) => (await cl.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = $2`, [orgA, code])).rows[0];
       const [cost, adj] = [await acct("PURCHASES"), await acct("VAT_ADJ_NONPAYMENT")];
-      const { rows: [je] } = await cl.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source)
-         VALUES ($1, $2, 'VATADJ-P13B3-NI4', '2027-03-31', 'planted 40(10) reversal', 'draft', 'input_vat_event') RETURNING id`, [orgA, coA]);
+      const { rows: [je] } = await fixtureQuery(cl,
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, source_type)
+         VALUES ($1, $2, 'VATADJ-P13B3-NI4', '2027-03-31', 'planted 40(10) reversal', 'draft', 'input_vat_event', 'test_fixture') RETURNING id`, [orgA, coA]);
       for (const [a, dr, cr] of [[cost, 50, 0], [adj, 0, 50]] as const) {
         await cl.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [orgA, coA, je.id, a.id, a.name, dr, cr]);
       }
@@ -527,9 +528,9 @@ describeMaybe("Phase 13B-3 — the input-VAT event writer", () => {
     const lapseWithoutCache = async (cl: PoolClient) => {
       const acct = async (code: string) => (await cl.query(`SELECT id, name FROM categories WHERE organization_id = $1 AND system_code = $2`, [orgA, code])).rows[0];
       const [cost, held] = [await acct("PURCHASES"), await acct("VAT_AWAITING_EVIDENCE")];
-      const { rows: [je] } = await cl.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source)
-         VALUES ($1, $2, 'VATLAP-P13B3-CACHE', '2026-12-31', 'planted write-off', 'draft', 'input_vat_event') RETURNING id`, [orgA, coA]);
+      const { rows: [je] } = await fixtureQuery(cl,
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, source_type)
+         VALUES ($1, $2, 'VATLAP-P13B3-CACHE', '2026-12-31', 'planted write-off', 'draft', 'input_vat_event', 'test_fixture') RETURNING id`, [orgA, coA]);
       for (const [a, dr, cr] of [[cost, 40, 0], [held, 0, 40]] as const) {
         await cl.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [orgA, coA, je.id, a.id, a.name, dr, cr]);
       }

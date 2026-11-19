@@ -28,7 +28,7 @@ import { journalEntriesRepository, DEFAULT_PAGE as JE_PAGE, type JournalEntryOwn
 import { categoriesRepository } from "../repositories/categories.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
-import { RESERVED_ENTRY_NUMBER_PREFIXES, type journalEntriesTable } from "@workspace/db";
+import { RESERVED_ENTRY_NUMBER_PREFIXES, UNSOURCED_JOURNAL_SOURCE_TYPES, type journalEntriesTable } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { protectedAccountRule } from "@workspace/shared";
 import { companiesRepository } from "../repositories/companies.repository";
@@ -116,6 +116,29 @@ const PAYROLL_ENTRY_REFUSAL = {
     "هذا القيد ({ref}) هو ترحيل مسير رواتب بعينه — استحقاقه أو صافي الرواتب أو اشتراكات التأمينات. لا يمكن عكسه من هنا: " +
     "سيبقى المسير معتمداً أو مدفوعاً بينما يُلغى قيده. لم يُبنَ بعدُ مسار تصحيح خاص بالرواتب؛ " +
     "وإلى أن يُبنى، سجّل التصحيح قيدَ يومية مستقلاً يذكر هذا المسير ويُعتمد كأي قيد آخر. يبقى هذا القيد والمسير كما هما.",
+} as const;
+
+/**
+ * 🔴 A15 (owner decisions 2026-11-16/17): an entry with no known source is refused by the generic reverse — reversed
+ * from here, nothing would say what the reversal means. `legacy_unclassified` marks an entry written before T1d whose
+ * source the 0163 back-fill could not establish; an administrator's stated reason does NOT reclassify it (owner): that
+ * waits for an accountant-approved policy. `demo_seed` and `test_fixture` are synthetic, never a real transaction.
+ */
+const UNCLASSIFIED_ENTRY_REFUSAL = {
+  code: "journal_entry_unclassified",
+  error:
+    "This entry ({ref}) was written before the platform recorded what produced each entry, and its source could not be established from the records. " +
+    "It cannot be reversed from here until an accountant-approved policy says how such entries are corrected. " +
+    "Record any correction as a separate journal entry, approved like any other. This entry stays as it is.",
+  errorAr:
+    "سُجِّل هذا القيد ({ref}) قبل أن تبدأ المنصة بتسجيل مصدر كل قيد، وتعذّر تحديد مصدره من السجلات. " +
+    "لا يمكن عكسه من هنا إلى أن تحدد سياسة يعتمدها المحاسب طريقة تصحيح مثل هذه القيود. " +
+    "سجّل أي تصحيح قيدَ يومية مستقلاً يُعتمد كأي قيد آخر. يبقى هذا القيد كما هو.",
+} as const;
+const SYNTHETIC_ENTRY_REFUSAL = {
+  code: "journal_entry_synthetic",
+  error: "This entry ({ref}) is demonstration or test data, not the record of a real transaction. It cannot be reversed from here. This entry stays as it is.",
+  errorAr: "هذا القيد ({ref}) بيانات عرض أو اختبار، وليس سجلاً لمعاملة حقيقية. لا يمكن عكسه من هنا. يبقى هذا القيد كما هو.",
 } as const;
 
 function ownedEntryRefusal(owner: JournalEntryOwner, documentRef: string): string {
@@ -583,6 +606,13 @@ export const journalEntriesService = {
         code: "journal_migration_owned",
         error: `Entry ${original.entryNumber} belongs to a migration batch. An opening position is withdrawn by reversing its batch in the migration workspace (which marks every row it created), and one item is changed by a dated correction there — never by reversing the journal alone.`,
       });
+    }
+    // 🔴 A15: no known source, or a synthetic one — refused here, after every refusal that names a more specific
+    // provenance (a document, a mirror, a migration); an owner's own path (`owner.document`) is unaffected.
+    if (!owner.document && (UNSOURCED_JOURNAL_SOURCE_TYPES as readonly string[]).includes(original.sourceType)) {
+      const ref = original.reference ?? original.entryNumber;
+      const r = original.sourceType === "legacy_unclassified" ? UNCLASSIFIED_ENTRY_REFUSAL : SYNTHETIC_ENTRY_REFUSAL;
+      throw new BusinessRuleError(409, { code: r.code, error: r.error.replace("{ref}", ref), errorAr: r.errorAr.replace("{ref}", ref) });
     }
     // 🔴 Phase 12C: a statement line reconciled to this entry would go on
     // "reconciling" money the books now cancel. Refused in words here; the

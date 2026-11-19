@@ -37,6 +37,8 @@ import { journalEntriesService } from "../services/journalEntries.service";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import { postJournalEntry } from "../services/accounting/glPosting";
 import { g04Harness } from "./helpers/g04Harness";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
+import { fixtureQuery } from "./helpers/journalFixtures";
 import { withoutReference } from "./helpers/refusalBody";
 
 const url = process.env.DATABASE_URL;
@@ -265,7 +267,8 @@ describeMaybe("G04 — a journal line references only its own organization's acc
 
   it("🔴 REPOSITORY: insertLines naming another tenant's account is refused by the database (the composite key)", async () => {
     const out = await inTenant(org.x, co.x1, uid.x, async () => {
-      const [je] = await journalEntriesRepository.insertEntry({ entryNumber: `G04J-R-${++seq}`, date: "2026-10-01", description: "repository layer" } as any);
+      // A15: the repository's own product writer is the manual route — a manual draft (a draft needs no approver)
+      const [je] = await journalEntriesRepository.insertEntry({ entryNumber: `G04J-R-${++seq}`, date: "2026-10-01", description: "repository layer", sourceType: "manual" } as any);
       await journalEntriesRepository.insertLines([{ journalEntryId: je.id, accountId: acct.yExpense, accountName: "repo", debitAmount: "100.00", creditAmount: "0.00" } as any]);
     }).then(() => "accepted", (e) => `refused:${e.code ?? e.cause?.code}:${e.constraint ?? e.cause?.constraint}`);
     expect(out).toBe("refused:23503:journal_entry_lines_account_tenant_fk");
@@ -280,8 +283,8 @@ describeMaybe("G04 — a journal line references only its own organization's acc
           await c.query("SET LOCAL ROLE authenticated");
           await c.query("SELECT set_config('app.current_org_id', $1, true), set_config('app.current_company_id', $2, true)", [org.x, co.x1]);
         }
-        const je = (await c.query(
-          `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description) VALUES ($1,$2,$3,'2026-10-01','db layer') RETURNING id`,
+        const je = (await fixtureQuery(c,
+          `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, source_type) VALUES ($1,$2,$3,'2026-10-01','db layer', 'test_fixture') RETURNING id`,
           [org.x, co.x1, `G04J-D-${++seq}`])).rows[0].id;
         const keys = Object.keys(cols);
         await c.query(
@@ -325,7 +328,7 @@ describeMaybe("G04 — a journal line references only its own organization's acc
 
   describe("🔴 POSTING SEAM — postJournalEntry trusts no caller", () => {
     const seam = (lines: any[]) => inTenant(org.x, co.x1, uid.x, () =>
-      postJournalEntry({ entryNumber: `G04J-S-${++seq}`, date: "2026-10-01", description: "seam", lines } as any)).then((je: any) => `accepted:${je?.status}`, refusalOf);
+      postFixtureJournalEntry({ entryNumber: `G04J-S-${++seq}`, date: "2026-10-01", description: "seam", lines } as any)).then((je: any) => `accepted:${je?.status}`, refusalOf);
     const credit = { accountId: 0, accountName: "seam credit", debitAmount: 0, creditAmount: 100 };
 
     it("an accountId of another tenant, and a missing one, are refused identically — before anything is written", async () => {

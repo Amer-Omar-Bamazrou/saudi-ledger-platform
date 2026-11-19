@@ -40,6 +40,7 @@ import { invoicesRepository } from "../repositories/invoices.repository";
 import { postJournalEntry, UnbalancedEntryError } from "../services/accounting/glPosting";
 import { createApproved } from "./helpers/createApproved";
 import { replica } from "./helpers/replica";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -217,7 +218,7 @@ describeMaybe("N2 — payroll approves at the measured failing salary; KPIs agre
     // the check never saw. Rounded first, 10.01 vs 10.00 throws.
     await expect(
       inTenant(() =>
-        postJournalEntry({
+        postFixtureJournalEntry({
           entryNumber: "N2-ROUND-1",
           date: DATE,
           description: "raw-under-tolerance, rounded-imbalanced",

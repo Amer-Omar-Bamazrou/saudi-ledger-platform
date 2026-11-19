@@ -50,6 +50,7 @@ import {
 import { auditContext } from "../lib/auditContext";
 import { reportsService } from "../services/reports.service";
 import { replica } from "./helpers/replica";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -106,9 +107,9 @@ describeMaybe("report contract conformance — 14 endpoints against the generate
   }
 
   async function post(entryNumber: string, date: string, status: string, lines: [Acct, number, number][]) {
-    const { rows } = await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1,$2,$3,$4,'contract fixture','draft') RETURNING id`,
+    const { rows } = await fixtureQuery(pool,
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+       VALUES ($1,$2,$3,$4,'contract fixture','draft', 'test_fixture') RETURNING id`,
       [orgId, companyId, entryNumber, date],
     );
     for (const [a, debit, credit] of lines) {

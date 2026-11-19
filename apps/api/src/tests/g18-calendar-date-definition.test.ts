@@ -17,6 +17,8 @@ import { isCalendarDate } from "@workspace/shared";
 import { assertDateString } from "../lib/writeGuards";
 import { postJournalEntry } from "../services/accounting/glPosting";
 
+import { TEST_FIXTURE_SOURCE } from "./helpers/journalFixtures";
+
 const REAL_DAYS = ["2026-01-01", "2026-02-28", "2026-04-30", "2026-12-31", "2028-02-29", "2000-02-29"];
 const NOT_DAYS: unknown[] = [
   "2026-02-29", "1900-02-29", "2026-02-30", "2026-02-31", "2026-04-31", "2026-06-31", "2026-09-31", "2026-11-31",
@@ -42,7 +44,10 @@ describe("G18 — isCalendarDate is the one definition of a real day", () => {
 });
 
 describe("G18 — the posting seam refuses a non-day for every caller, before any query", () => {
+  // 🔴 A15: never reaches the database (refused before any write) — names the synthetic tag directly.
   const entry = (date: string) => ({
+    sourceType: TEST_FIXTURE_SOURCE as never,
+    sourceId: undefined as never,
     entryNumber: "G18-UNIT",
     date,
     description: "G18 seam unit",

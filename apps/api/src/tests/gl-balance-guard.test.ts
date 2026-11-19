@@ -42,7 +42,13 @@ import {
   postJournalEntry,
 } from "../services/accounting/glPosting";
 
+import { TEST_FIXTURE_SOURCE } from "./helpers/journalFixtures";
+
+// 🔴 A15: the seam refuses a call naming no source tag before anything else. These entries never reach the database
+// (each is refused, or fails for want of one, before any write), so they name the synthetic tag directly.
 const entry = (debit: number, credit: number) => ({
+  sourceType: TEST_FIXTURE_SOURCE as never,
+  sourceId: undefined as never,
   entryNumber: "BAL-TEST",
   date: "2026-08-27",
   description: "balance guard",

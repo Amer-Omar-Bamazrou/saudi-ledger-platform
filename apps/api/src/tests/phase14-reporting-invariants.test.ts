@@ -42,6 +42,8 @@ import { analyticsService } from "../services/analytics.service";
 import { buildReportDocument, exportReport } from "../services/reporting/reportExport.service";
 import { RendererUnavailableError } from "../services/document/htmlToPdf";
 import { purgeInputVatLedger } from "./helpers/purgeInputVatLedger";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -312,7 +314,7 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
     const inD = <T,>(fn: () => Promise<T>) => inCo(orgId, coD, fn);
     const bankD = await newBank(orgId, coD, "D Main");
     const { postJournalEntry } = await import("../services/accounting/glPosting");
-    await inD(() => postJournalEntry({ entryNumber: "P14-D-OPEN", date: "2026-02-01", description: "Opening position", source: "opening", lines: [{ bankAccountId: bankD, debitAmount: 7000, creditAmount: 0 }, { accountId: ids.capital, accountName: "Owner capital", debitAmount: 0, creditAmount: 7000 }] }));
+    await inD(() => postFixtureJournalEntry({ entryNumber: "P14-D-OPEN", date: "2026-02-01", description: "Opening position", source: "opening", lines: [{ bankAccountId: bankD, debitAmount: 7000, creditAmount: 0 }, { accountId: ids.capital, accountName: "Owner capital", debitAmount: 0, creditAmount: 7000 }] }));
     await manual(inD, "P14-D-SALE", "2026-03-05", [[await bankLeaf(bankD), 800, 0], [ids.sales, 0, 800]]);
 
     const cf = await inD(() => reportsService.cashFlow(FY.from, FY.to));
@@ -441,7 +443,7 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
     const expenseG = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, is_posting) VALUES ($1,'P14 G operating costs','تكاليف','expense',true) RETURNING id`, [orgId])).rows[0].id as number;
     const { postJournalEntry } = await import("../services/accounting/glPosting");
     // cut-over 2026-07-01: the previous system's Jan–Jun — sales 900, costs 700, the 200 profit sitting in the bank — plus capital 1,000
-    await inG(() => postJournalEntry({ entryNumber: "P14-G-OPEN", date: "2026-06-30", description: "Opening position", source: "opening", lines: [
+    await inG(() => postFixtureJournalEntry({ entryNumber: "P14-G-OPEN", date: "2026-06-30", description: "Opening position", source: "opening", lines: [
       { bankAccountId: bankG, debitAmount: 1200, creditAmount: 0 },
       { accountId: expenseG, accountName: "P14 G operating costs", debitAmount: 700, creditAmount: 0 },
       { accountId: ids.sales!, accountName: "Sales", debitAmount: 0, creditAmount: 900 },
@@ -506,7 +508,7 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
   it("🔴 review M4 — a ledger ONE HALALA out of balance is reported unbalanced (the tolerance used to admit it)", async () => {
     const coI = (await pool.query(`INSERT INTO companies (organization_id, name, fiscal_year_start, fiscal_calendar) VALUES ($1,'P14 Co I',1,'gregorian') RETURNING id`, [orgId])).rows[0].id as string;
     // raw rows: the posting path refuses an unbalanced entry, so the defect is planted beneath it, as a legacy row would be
-    const je = (await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,'P14-I-1','2026-02-02','one halala off','draft') RETURNING id`, [orgId, coI])).rows[0].id;
+    const je = (await fixtureQuery(pool, `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type) VALUES ($1,$2,'P14-I-1','2026-02-02','one halala off','draft', 'test_fixture') RETURNING id`, [orgId, coI])).rows[0].id;
     await pool.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'Equipment',100.00,0), ($1,$2,$3,$5,'Owner capital',0,99.99)`, [orgId, coI, je, ids.equipment, ids.capital]);
     // G16 (0126) refuses to post an unbalanced entry, so ONLY the flip of the planted legacy row to
     // `posted` is written with triggers set aside (replica mode); the header and lines above go through

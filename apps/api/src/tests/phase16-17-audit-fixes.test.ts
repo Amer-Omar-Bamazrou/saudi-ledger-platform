@@ -368,7 +368,7 @@ describeMaybe("Phase 16 + 17 — the final audit's fixes (real rows)", () => {
     expect((await q(`SELECT status FROM migration_batches WHERE id = $1`, [batchId]))[0].status).toBe("reversed");
     // the DATABASE refuses the same mirrors from any path (as the app role, a raw insert)
     const mirrorOf = (target: number, source: string | null) => asApp(orgId, coM, (c) => c.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, reversal_of, source) VALUES ($1,$2,$3,'2026-10-01','raw','posted',$4,$5)`, [orgId, coM, `RAW-${++seq}`, target, source]));
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, reversal_of, source, source_type, source_id) VALUES ($1,$2,$3,'2026-10-01','raw','posted',$4,$5,'reversal',$4)`, [orgId, coM, `RAW-${++seq}`, target, source]));
     expect((await refusal(mirrorOf(batch.r, null))).constraint).toBe("journal_mirror_not_reversible");
     expect((await refusal(mirrorOf(depMirror.id, null))).constraint).toBe("journal_mirror_not_reversible");
     expect((await refusal(mirrorOf(batch.o, null))).constraint).toBe("journal_migration_owned");

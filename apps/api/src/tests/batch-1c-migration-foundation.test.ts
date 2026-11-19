@@ -25,6 +25,8 @@ import { migrationService, dayBefore } from "../services/migration.service";
 import { bankAccountsService } from "../services/bankAccounts.service";
 import { categoriesService } from "../services/categories.service";
 import { postJournalEntry } from "../services/accounting/glPosting";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -237,7 +239,7 @@ describeMaybe("Batch 1C — migration foundation and chart mapping", () => {
     expect(Object.values(SYSTEM_ACCOUNTS)).not.toContain("OPENING_BALANCE_EQUITY");
     expect(Object.values(SYSTEM_ACCOUNTS)).toContain("RETAINED_EARNINGS");
     // The seam: naming the former code is "unknown system account", not a special case.
-    await expect(inTenant(() => postJournalEntry({ entryNumber: "B1C-SEAM-1", date: "2026-06-15", description: "ordinary", lines: [
+    await expect(inTenant(() => postFixtureJournalEntry({ entryNumber: "B1C-SEAM-1", date: "2026-06-15", description: "ordinary", lines: [
       { systemCode: "SUSPENSE", accountName: "Suspense", debitAmount: 10, creditAmount: 0 },
       { systemCode: "OPENING_BALANCE_EQUITY" as never, accountName: "OBE", debitAmount: 0, creditAmount: 10 },
     ] }))).rejects.toThrow();
@@ -246,14 +248,14 @@ describeMaybe("Batch 1C — migration foundation and chart mapping", () => {
       { systemCode: "SUSPENSE" as const, accountName: "Suspense", debitAmount: 10, creditAmount: 0 },
       { systemCode: "RETAINED_EARNINGS" as const, accountName: "Retained earnings", debitAmount: 0, creditAmount: 10 },
     ];
-    const je = await inTenant(() => postJournalEntry({ entryNumber: "B1C-SEAM-3", date: "2026-06-15", description: "opening", lines, source: "opening" }));
+    const je = await inTenant(() => postFixtureJournalEntry({ entryNumber: "B1C-SEAM-3", date: "2026-06-15", description: "opening", lines, source: "opening" }));
     expect(je.source).toBe("opening");
     // G16 (owner approval 2026-10-23): a POSTED entry's `source` is frozen at the database before any
     // CHECK is evaluated, so the CHECK is probed on a DRAFT carrying the same source. Its rule names no
     // status (`source IS NULL OR source IN (...)`), so it binds the draft exactly as it binds a posted row.
-    const draft = (await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source)
-       VALUES ($1, $2, 'B1C-SEAM-3D', '2026-06-15', 'opening (the CHECK probe)', 'draft', 'opening') RETURNING id`, [orgId, companyId])).rows[0];
+    const draft = (await fixtureQuery(pool,
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, source_type)
+       VALUES ($1, $2, 'B1C-SEAM-3D', '2026-06-15', 'opening (the CHECK probe)', 'draft', 'opening', 'test_fixture') RETURNING id`, [orgId, companyId])).rows[0];
     await expect(pool.query(`UPDATE journal_entries SET source = 'opening_clearing' WHERE id = $1`, [draft.id])).rejects.toThrow(/journal_entries_source_chk/);
     await expect(pool.query(`UPDATE journal_entries SET source = 'whatever' WHERE id = $1`, [draft.id])).rejects.toThrow(/journal_entries_source_chk/);
     await pool.query(`UPDATE journal_entries SET source = 'opening_reversal' WHERE id = $1`, [draft.id]); // the other admitted value — the CHECK is not refusing everything

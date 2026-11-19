@@ -32,6 +32,7 @@ import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { billsService } from "../services/bills.service";
 import { withinClaimWindow } from "../services/purchaseEvidence/vatEvidence";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -123,9 +124,9 @@ describeMaybe("Phase 13B-1 — the input-VAT event ledger foundation", () => {
   /** A posted entry the ledger would post itself — `source = 'input_vat_event'`. G16: written as the product writes one — a draft header, its lines, then the flip to posted, all in the caller's transaction. */
   const ledgerEntry = async (c: PoolClient, number: string, date: string, lines: Array<[string, number, number]>, opts: { source?: string | null; org?: string; co?: string } = {}) => {
     const org = opts.org ?? orgA, co = opts.co ?? coA;
-    const { rows: [je] } = await c.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source)
-       VALUES ($1, $2, $3, $4, 'Phase 13B-1 test entry', 'draft', $5) RETURNING id`,
+    const { rows: [je] } = await fixtureQuery(c,
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, source_type)
+       VALUES ($1, $2, $3, $4, 'Phase 13B-1 test entry', 'draft', $5, 'test_fixture') RETURNING id`,
       [org, co, number, date, opts.source === undefined ? "input_vat_event" : opts.source]);
     for (const [code, dr, cr] of lines) {
       const a = await acct(org, code);
