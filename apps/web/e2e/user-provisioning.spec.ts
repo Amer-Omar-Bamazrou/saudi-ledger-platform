@@ -127,8 +127,8 @@ test.describe.serial("G04 — a team member is created WITH their membership, th
     expect(calls[0]!.body).toMatchObject({ email: HIRE, role: "accountant", organizationId: orgA });
     // The database: born with exactly its membership.
     expect(await memberships(HIRE)).toEqual([{ org: orgA, role: "accountant", status: "active" }]);
-    // The screen: the new person is listed with the governing role.
-    await expect(page.locator("div", { hasText: HIRE }).getByText("ACCOUNTANT").first()).toBeVisible();
+    // The screen: the new person is listed with the governing role — in Arabic, as walk L3 fixed (it read ACCOUNTANT).
+    await expect(page.locator("div.flex.items-center", { hasText: HIRE }).first().locator('[data-testid^="role-badge-"]')).toHaveText("محاسب");
     await ctx.close();
   });
 
