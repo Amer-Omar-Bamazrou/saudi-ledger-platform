@@ -52,8 +52,24 @@ export const JOURNAL_SOURCE_TYPES = [
   "migration_reversal",                // migration_batches.id
   "opening_correction",                // migration_open_items.id (the opening item corrected)
   "vat_return_filing",                 // vat_return_filings.id (Phase 18 G2b: the clearing entry a filing posts, A5(c))
+  // 🔴 A15 (owner decisions 2026-11-16/17; migration 0163) — three tags that name NO source row (no source_id), and that
+  // no product write path can produce (`UNSOURCED_JOURNAL_SOURCE_TYPES` below):
+  "legacy_unclassified",               // an entry written before T1d whose source the 0163 back-fill could not establish
+  "demo_seed",                         // the demo seed's own entries (development and test databases only)
+  "test_fixture",                      // a test's synthetic entry (tests/helpers only)
 ] as const;
 export type JournalSourceType = (typeof JOURNAL_SOURCE_TYPES)[number];
+
+/**
+ * 🔴 A15 (owner decisions 2026-11-16/17; migration 0163): the tags that name no source row and that no ordinary product
+ * operation may write. The database is the boundary (`journal_entries_source_tag_guard`): `legacy_unclassified` is
+ * written only by the 0163 back-fill; `demo_seed` and `test_fixture` only while the transaction declares them
+ * (`app.journal_synthetic_source`), which only the demo seed and the tests' fixture helpers do
+ * (`a15-source-tag-mandatory.test.ts` pins who). The posting seam's type cannot name them, and the generic reverse
+ * refuses all three (no document stands behind the entry to say what reversing it means).
+ */
+export const UNSOURCED_JOURNAL_SOURCE_TYPES = ["legacy_unclassified", "demo_seed", "test_fixture"] as const satisfies readonly JournalSourceType[];
+export type UnsourcedJournalSourceType = (typeof UNSOURCED_JOURNAL_SOURCE_TYPES)[number];
 
 /**
  * 🔴 T1d (SG-11 / G17): the entry-number prefixes the system writes for a
@@ -126,11 +142,14 @@ export const journalEntriesTable = pgTable(
     migrationBatchId: integer("migration_batch_id"),
     /**
      * 🔴 T1d (Phase 18, G07/G17; migration 0129): what produced the entry
-     * (`JOURNAL_SOURCE_TYPES`) and the row it came from. NULL on every entry
-     * written before 0129 (no back-fill: their provenance stays the number
-     * prefix). Every writer from 0129 on sets it.
+     * (`JOURNAL_SOURCE_TYPES`) and the row it came from. Every writer from 0129
+     * on sets it.
+     * 🔴 A15 (migration 0163): NOT NULL. The entries written before 0129 were
+     * back-filled once, from authoritative relationships only, each change
+     * recorded in `journal_source_backfill`; an entry whose source could not be
+     * established reads `legacy_unclassified`, never a guess.
      */
-    sourceType: text("source_type"),
+    sourceType: text("source_type").$type<JournalSourceType>().notNull(),
     sourceId: integer("source_id"),
     /**
      * 🔴 T1d (G07): the user whose approval posted the entry; NULL where no

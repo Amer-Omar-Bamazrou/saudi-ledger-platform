@@ -50,6 +50,8 @@ import { g04Harness } from "./helpers/g04Harness";
 import { postJournalEntry } from "../services/accounting/glPosting";
 import { bankReconciliationsService } from "../services/accounting/bankReconciliations.service";
 import { translateDbRefusal } from "../lib/dbRefusals";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -93,6 +95,15 @@ describeMaybe("G16 — the posted-journal freeze", () => {
   async function asOwner(sql: string, params: unknown[] = []): Promise<Attempt> {
     try {
       const r = await pool.query(sql, params);
+      return { refused: false, rowCount: r.rowCount, constraint: null, message: null };
+    } catch (e) {
+      return fail(e);
+    }
+  }
+  /** 🔴 A15: as the owner, a statement writing a `test_fixture` entry (the tag declared for that statement only). */
+  async function asOwnerFixture(sql: string, params: unknown[] = []): Promise<Attempt> {
+    try {
+      const r = await fixtureQuery(pool, sql, params);
       return { refused: false, rowCount: r.rowCount, constraint: null, message: null };
     } catch (e) {
       return fail(e);
@@ -173,9 +184,9 @@ describeMaybe("G16 — the posted-journal freeze", () => {
   }
   /** A draft header written directly (the T2 shape), with lines; returns its id. */
   async function rawDraft(c: PoolClient, lines: Array<[number, number, number]>, extra: { reversalOf?: number; company?: string } = {}): Promise<number> {
-    const { rows: [je] } = await c.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, reversal_of)
-       VALUES ($1, $2, $3, $4, 'G16 raw draft', 'draft', $5) RETURNING id`,
+    const { rows: [je] } = await fixtureQuery(c,
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, reversal_of, source_type)
+       VALUES ($1, $2, $3, $4, 'G16 raw draft', 'draft', $5, 'test_fixture') RETURNING id`,
       [orgId, extra.company ?? companyId, `G16-RAW-${++seq}`, DATE, extra.reversalOf ?? null]);
     for (const [acct, dr, cr] of lines) {
       await c.query(
@@ -220,7 +231,7 @@ describeMaybe("G16 — the posted-journal freeze", () => {
     expect([original.status, mirror.status, mirror.reversal_of, mirror.posted_at !== null], "T5: the mirror is posted").toEqual(["reversed", "posted", created.body.id, true]);
     expect((await linesOf(r.body.reversalId)).map((l) => [Number(l.debit_amount), Number(l.credit_amount)])).toEqual([[0, 250], [250, 0]]);
     // The seam itself: draft → lines → flip, one transaction.
-    const je = await tenant(() => postJournalEntry({ entryNumber: `G16-SEAM-${++seq}`, date: DATE, description: "G16 seam", lines: [
+    const je = await tenant(() => postFixtureJournalEntry({ entryNumber: `G16-SEAM-${++seq}`, date: DATE, description: "G16 seam", lines: [
       { accountId: office, accountName: "Office", debitAmount: 40, creditAmount: 0 },
       { bankAccountId: bankId, debitAmount: 0, creditAmount: 40 },
     ] }));
@@ -309,8 +320,8 @@ describeMaybe("G16 — the posted-journal freeze", () => {
   }, 60_000);
 
   it("🔴 a header is born a draft: an INSERT as posted or reversed is refused AT COMMIT, and draft → reversed is refused", async () => {
-    const insertAs = (status: string) => asOwner(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,$3,$4,'born',$5)`,
+    const insertAs = (status: string) => asOwnerFixture(
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type) VALUES ($1,$2,$3,$4,'born',$5,'test_fixture')`,
       [orgId, companyId, `G16-BORN-${++seq}`, DATE, status]);
     const draftToReversed = await ownerTx(async (c) => {
       const d = await rawDraft(c, [[office, 10, 0], [bankLeaf, 0, 10]]);
@@ -394,7 +405,7 @@ describeMaybe("G16 — the posted-journal freeze", () => {
     await tenant(() => bankReconciliationsService.complete({ bankAccountId: bank2.body.id, asOf: "2026-06-30", statementBalance: 0 }, adminId));
     type SeamOpts = Parameters<typeof postJournalEntry>[0];
     const seam = (date: string, extra: Record<string, unknown> = {}, lines?: unknown[]) =>
-      tenant(() => postJournalEntry({ entryNumber: `G16-GUARD-${++seq}`, date, description: "G16 guard", lines: lines ?? [
+      tenant(() => postFixtureJournalEntry({ entryNumber: `G16-GUARD-${++seq}`, date, description: "G16 guard", lines: lines ?? [
         { accountId: office, accountName: "Office", debitAmount: 20, creditAmount: 0 },
         { bankAccountId: bank2.body.id, debitAmount: 0, creditAmount: 20 },
       ], ...extra } as SeamOpts)).then(() => null, (e) => ({ constraint: constraintOf(e), message: messageOf(e) }));

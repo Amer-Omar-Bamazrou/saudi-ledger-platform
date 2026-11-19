@@ -22,6 +22,7 @@ import { analyticsService } from "../services/analytics.service";
 import { reportsService } from "../services/reports.service";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { replica } from "./helpers/replica";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -68,9 +69,9 @@ describeMaybe("M19.1 — the liquidity/solvency trend", () => {
 
   async function post(date: string, debitAccount: number, creditAccount: number, amount: number) {
     entryNo += 1;
-    const { rows } = await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1,$2,$3,$4,'trend fixture','draft') RETURNING id`,
+    const { rows } = await fixtureQuery(pool,
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+       VALUES ($1,$2,$3,$4,'trend fixture','draft', 'test_fixture') RETURNING id`,
       [orgId, companyId, `TR-${entryNo}`, date],
     );
     const jeId = rows[0].id;

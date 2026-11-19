@@ -32,6 +32,7 @@ import { zakatClassificationService } from "../services/tax/zakatClassification.
 import { paymentPlansService } from "../services/treasury/paymentPlans.service";
 import { addDays } from "../services/tax/taxComputations.service";
 import { replica } from "./helpers/replica";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -227,7 +228,7 @@ describeMaybe("Phase 16 + 17 — the joint audit's regressions", () => {
     const c = await pool.connect();
     try {
       await c.query("BEGIN"); await c.query("SET LOCAL session_replication_role = replica");
-      const je = (await c.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, posted_at) VALUES ($1,$2,'AUD-PRE-D3','2025-03-01','pre-D-3 history','posted',now()) RETURNING id`, [orgId, coH])).rows[0].id;
+      const je = (await fixtureQuery(c, `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, posted_at, source_type) VALUES ($1,$2,'AUD-PRE-D3','2025-03-01','pre-D-3 history','posted',now(), 'test_fixture') RETURNING id`, [orgId, coH])).rows[0].id;
       await c.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount) VALUES ($1,$2,$3,$4,'Cash and Bank',80000,0), ($1,$2,$3,$5,'Audit capital',0,80000)`, [orgId, coH, je, header, ids.capital]);
       await c.query("COMMIT");
     } catch (e) { await c.query("ROLLBACK"); throw e; } finally { c.release(); }

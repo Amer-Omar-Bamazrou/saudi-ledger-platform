@@ -39,6 +39,7 @@ import { meteredChat } from "../services/ai/metered";
 import type { AiProvider } from "../services/ai/provider";
 import { transactionPostingService } from "../services/transactionPosting.service";
 import { g04Harness } from "./helpers/g04Harness";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -242,8 +243,8 @@ describeMaybe("B-O6-PRE — a database error caught inside a transaction leaves 
       const taken = await acceptedRow("BO6PRE-C entry number taken");
       const last = await acceptedRow("BO6PRE-C last");
       // The number `post()` will choose for `taken` (one prior entry → "-P1") is already used by a draft.
-      await pool.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1, $2, $3, '2026-09-10', 'B-O6-PRE planted', 'draft')`,
+      await fixtureQuery(pool,
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type) VALUES ($1, $2, $3, '2026-09-10', 'B-O6-PRE planted', 'draft', 'test_fixture')`,
         [orgId, companyId, `TXN-${taken}-P1`],
       );
 

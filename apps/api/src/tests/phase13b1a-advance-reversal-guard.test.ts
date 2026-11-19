@@ -28,6 +28,7 @@ import { journalEntriesService } from "../services/journalEntries.service";
 import { journalEntriesRepository } from "../repositories/journalEntries.repository";
 import { supplierPaymentsService } from "../services/accounting/supplierPayments.service";
 import { supplierAdvanceInvoicesService } from "../services/accounting/supplierAdvanceInvoices.service";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -150,13 +151,33 @@ describeMaybe("Phase 13B-1a — supplier advance VAT entries are owned (D-2)", (
     // 🔴 T1d (0129): a manual entry can no longer TAKE a document's number (422 `entry_number_reserved`, and the
     // database refuses it), so the look-alike is written as one written before 0129 stands in the ledger: no
     // source_type, through no service. Historical rows like it are what this precision check still covers.
-    const { rows: [fake] } = await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, created_by)
-       VALUES ($1, $2, 'BILLADV-P13B1A-B1', '2026-05-16', 'look-alike', 'draft', $3) RETURNING id`, [orgA, coA, userA]);
+    // 🔴 A15 (0163): such a row now stands as the back-fill leaves it — `legacy_unclassified` (nothing establishes its
+    // source) — planted with triggers set aside, since only the back-fill writes that tag.
+    const fakeClient = await pool.connect();
+    let fake: { id: number };
+    try {
+      await fakeClient.query("BEGIN");
+      await fakeClient.query("SET LOCAL session_replication_role = replica");
+      fake = (await fakeClient.query(
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, created_by, source_type)
+         VALUES ($1, $2, 'BILLADV-P13B1A-B1', '2026-05-16', 'look-alike', 'draft', $3, 'legacy_unclassified') RETURNING id`, [orgA, coA, userA])).rows[0];
+      await fakeClient.query("COMMIT");
+    } finally {
+      fakeClient.release();
+    }
     await pool.query(
       `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, description, debit_amount, credit_amount)
        VALUES ($1, $2, $3, $4, $5, 'x', 5, 0), ($1, $2, $3, $6, $7, 'x', 0, 5)`, [orgA, coA, fake.id, purchases.id, purchases.name, suspense.id, suspense.name]);
-    await pool.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [fake.id]);
+    // posted as the back-fill leaves one — it tags an entry already posted, and an unclassified DRAFT is never posted (0163)
+    const flipClient = await pool.connect();
+    try {
+      await flipClient.query("BEGIN");
+      await flipClient.query("SET LOCAL session_replication_role = replica");
+      await flipClient.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [fake.id]);
+      await flipClient.query("COMMIT");
+    } finally {
+      flipClient.release();
+    }
     id.fakeAdv = fake.id;
 
     const app = (await import("../app")).default;
@@ -265,11 +286,19 @@ describeMaybe("Phase 13B-1a — supplier advance VAT entries are owned (D-2)", (
     expect(await probe(async (c) => (await c.query(`UPDATE journal_entry_lines SET description = 'x' WHERE id = $1`, [manualLine])).rowCount)).toBe(1);
   });
 
-  it("🔴 planted positives over HTTP: a manual entry, an ordinary bill PAYMENT and a look-alike number still reverse", async () => {
-    for (const entry of [id.manual, id.billPayment, id.fakeAdv]) {
+  it("🔴 planted positives over HTTP: a manual entry and an ordinary bill PAYMENT still reverse; a look-alike number is never refused AS AN ADVANCE", async () => {
+    for (const entry of [id.manual, id.billPayment]) {
       const r = await reverseHttp(entry);
       expect(r.status, JSON.stringify(r.body)).toBe(200);
       expect(await statusOf(entry)).toBe("reversed");
     }
+    // 🔴 A15 (owner, 2026-11-17): the look-alike is an untraceable historical entry — `legacy_unclassified` — which the
+    // generic reverse refuses BY THAT NAME. The precision this suite holds still holds: the advance guard does not claim
+    // it by its number (no advance wording, no database guard), so the refusal is A15's own.
+    const r = await reverseHttp(id.fakeAdv);
+    expect([r.status, (r.body as { code?: string } | null)?.code], JSON.stringify(r.body)).toEqual([409, "journal_entry_unclassified"]);
+    expect(String(r.body?.error)).not.toMatch(/advance/i);
+    expect(await statusOf(id.fakeAdv)).toBe("posted");
+    expect(await mirrors(id.fakeAdv), "no mirror entry was written").toBe(0);
   });
 });

@@ -21,6 +21,7 @@ import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
 import { postJournalEntry } from "../services/accounting/glPosting";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
+import { postFixtureJournalEntry } from "./helpers/fixturePosting";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -100,7 +101,7 @@ describeMaybe("Phase 18 owner decision A20 — a manual line on SECURITY_DEPOSIT
 
   it("🔴 the posting seam stores the reason a receipt path states for naming no party (the same column)", async () => {
     const reason = "simplified invoice — no identified customer (seam probe)";
-    const je = await h.inTenant(orgId, companyId, adminId, () => postJournalEntry({
+    const je = await h.inTenant(orgId, companyId, adminId, () => postFixtureJournalEntry({
       entryNumber: `A20-SEAM-${++seq}`, date: "2026-11-03", description: "A20 seam probe",
       lines: [
         { accountId: acct.RENT_UTILITIES, accountName: "Rent", debitAmount: 40, creditAmount: 0 },

@@ -67,8 +67,8 @@ describeMaybe("The manual-journal refusal — blank or all-zero amounts are neve
 
   it("🔴 POSTING a draft whose stored amounts are all zero is refused (a draft written before the rule, or by any other writer)", async () => {
     const { rows: [e] } = await pool.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-       VALUES ($1, $2, 'MJZ-LEGACY-1', '2026-08-11', 'MJZ-LEGACY', 'draft') RETURNING id`, [orgId, companyId]);
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+       VALUES ($1, $2, 'MJZ-LEGACY-1', '2026-08-11', 'MJZ-LEGACY', 'draft', 'manual') RETURNING id`, [orgId, companyId]);
     await pool.query(
       `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
        VALUES ($1, $2, $3, $4, 'Office', 0, 0), ($1, $2, $3, $5, 'Income', 0, 0)`, [orgId, companyId, e.id, office, income]);

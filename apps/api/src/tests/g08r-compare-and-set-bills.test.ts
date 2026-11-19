@@ -27,6 +27,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
 import { auditsOf, brief, entriesNumbered, lockWaiters, queuedBehind, statuses, until } from "./helpers/g08rRace";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -150,7 +151,7 @@ describeMaybe("G08 residuals, PR A — VAT-bearing bills, M2, and supplier advan
 
   it("NEGATIVE CONTROL (M1 does not over-match): a committed manual entry already holds the bill's entry number (G17) — the approval keeps today's refusal (409 concurrent_conflict), never \"already approved\"; the bill stays a draft", async () => {
     const b = await draftBill(0);
-    await pool.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,$3,$4,'G17 squat','draft')`, [orgId, companyId, `BILL-${b.no}`, DATE]);
+    await fixtureQuery(pool, `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type) VALUES ($1,$2,$3,$4,'G17 squat','draft', 'test_fixture')`, [orgId, companyId, `BILL-${b.no}`, DATE]);
     const r = await approve("admin", b.id)();
     log("M1 negative control", { approve: brief(r) });
     expect(r.status).toBe(409);
@@ -181,7 +182,7 @@ describeMaybe("G08 residuals, PR A — VAT-bearing bills, M2, and supplier advan
       open = true;
       const holderPid = Number((await holder.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid);
       // Squat the bill's own entry number: the approval is held at its entry insert, before it touches the bill.
-      await holder.query(`INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status) VALUES ($1,$2,$3,$4,'M2 squat','draft')`, [orgId, companyId, `BILL-${b.no}`, DATE]);
+      await fixtureQuery(holder, `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type) VALUES ($1,$2,$3,$4,'M2 squat','draft', 'test_fixture')`, [orgId, companyId, `BILL-${b.no}`, DATE]);
       const approving = approve("admin", b.id, { captureId: capture })();
       await until("the approval did not wait on its entry number", async () => (await lockWaiters(holderPid)) >= 1);
       rej = await reject(b.id)();

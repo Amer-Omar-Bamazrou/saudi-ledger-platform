@@ -24,6 +24,7 @@ import { auditContext } from "../lib/auditContext";
 import { journalEntriesService } from "../services/journalEntries.service";
 import { releasePostedJournalsForTeardown } from "./helpers/journalFixtures";
 import { replica } from "./helpers/replica";
+import { fixtureQuery } from "./helpers/journalFixtures";
 
 const connectionString = process.env.DATABASE_URL;
 const describeMaybe = connectionString ? describe : describe.skip;
@@ -110,9 +111,9 @@ describeMaybe("journal entry balance — checked on the STORED values, and again
     // Plant the exact state the create path used to produce: a draft with lines
     // that do not balance, inserted below the application.
     const je = (
-      await pool.query(
-        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status)
-         VALUES ($1, $2, 'JBF-UNBAL', '2026-09-10', 'planted unbalanced draft', 'draft') RETURNING id`,
+      await fixtureQuery(pool,
+        `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source_type)
+         VALUES ($1, $2, 'JBF-UNBAL', '2026-09-10', 'planted unbalanced draft', 'draft', 'test_fixture') RETURNING id`,
         [orgId, companyId],
       )
     ).rows[0].id;

@@ -39,6 +39,43 @@ export async function releasePostedJournalsForTeardown(where: string, params: un
   }
 }
 
+/**
+ * 🔴 A15 (owner decision 2026-11-17) — `test_fixture` is the source tag of a SYNTHETIC journal entry: one a test writes
+ * to exercise something other than a document's own posting. The database admits it only while the connection
+ * declares it (`SYNTHETIC_SOURCE_SETTING`, refused otherwise by `journal_entries_source_tag_guard`, 0163); these
+ * helpers (and `fixturePosting.ts`, through the posting seam) are the only test code that declares it, and no product
+ * path does (`a15-source-tag-mandatory.test.ts` pins both). A test of a document's OWN behaviour — an invoice's, a
+ * payment's, a bill's, payroll's, the generic reverse's — writes that document's tag, never this one.
+ */
+export const TEST_FIXTURE_SOURCE = "test_fixture" as const;
+export const SYNTHETIC_SOURCE_SETTING = "app.journal_synthetic_source";
+
+/** Any pg-shaped connection or pool the suites hold (their local client types differ only in what they declare). */
+type Queryable = { query: (text: string, params?: any[]) => Promise<any> };
+
+/**
+ * FIXTURE ONLY. Runs ONE statement that writes `test_fixture` journal entries, with the tag declared on its connection
+ * for that statement only (a session setting, reset after — so it holds whether or not the caller is inside a
+ * transaction; a rolled-back transaction reverts it anyway). Given the pool, it takes a connection of its own.
+ */
+export async function fixtureQuery(q: Queryable & { connect?: () => Promise<unknown> }, text: string, params: unknown[] = []): Promise<{ rows: any[]; rowCount: number | null }> {
+  if (!text.includes(`'${TEST_FIXTURE_SOURCE}'`) && !params.includes(TEST_FIXTURE_SOURCE)) {
+    throw new Error(`fixtureQuery writes ${TEST_FIXTURE_SOURCE} journal entries only: name the tag in the statement`);
+  }
+  const own = !("release" in q) && typeof q.connect === "function";
+  const c = own ? ((await q.connect!()) as PoolClient) : (q as Queryable);
+  try {
+    await c.query(`SELECT set_config($1, $2, false)`, [SYNTHETIC_SOURCE_SETTING, TEST_FIXTURE_SOURCE]);
+    try {
+      return await c.query(text, params);
+    } finally {
+      await c.query(`SELECT set_config($1, '', false)`, [SYNTHETIC_SOURCE_SETTING]).catch(() => undefined);
+    }
+  } finally {
+    if (own) (c as PoolClient).release();
+  }
+}
+
 export type JournalFixtureHeader = {
   organizationId: string;
   companyId: string;
@@ -50,6 +87,12 @@ export type JournalFixtureHeader = {
   source?: string | null;
   reference?: string | null;
   reversalOf?: number | null;
+  /**
+   * 🔴 A15: the entry's source tag, named by the caller — `test_fixture` for a synthetic entry, or the document's own
+   * tag (with `sourceId`) when the test exercises that document's behaviour.
+   */
+  sourceType: string;
+  sourceId?: number | null;
 };
 export type JournalFixtureLine = {
   accountId: number;
@@ -70,11 +113,12 @@ export type JournalFixtureLine = {
  */
 export async function insertJournalFixture(header: JournalFixtureHeader, lines: JournalFixtureLine[], client?: PoolClient): Promise<number> {
   const run = async (c: PoolClient) => {
-    const { rows: [je] } = await c.query(
-      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, reference, reversal_of)
-       VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7, $8) RETURNING id`,
+    const insert = header.sourceType === TEST_FIXTURE_SOURCE ? (t: string, p: unknown[]) => fixtureQuery(c, t, p) : (t: string, p: unknown[]) => c.query(t, p);
+    const { rows: [je] } = await insert(
+      `INSERT INTO journal_entries (organization_id, company_id, entry_number, date, description, status, source, reference, reversal_of, source_type, source_id)
+       VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7, $8, $9, $10) RETURNING id`,
       [header.organizationId, header.companyId, header.entryNumber, header.date, header.description ?? "Fixture entry",
-        header.source ?? null, header.reference ?? null, header.reversalOf ?? null],
+        header.source ?? null, header.reference ?? null, header.reversalOf ?? null, header.sourceType, header.sourceId ?? null],
     );
     for (const l of lines) {
       await c.query(
