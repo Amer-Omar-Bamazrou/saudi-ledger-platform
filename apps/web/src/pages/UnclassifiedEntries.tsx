@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useListUnclassifiedJournalEntries,
-  useClassifyJournalEntry,
   getListUnclassifiedJournalEntriesQueryKey,
+  type ClassifyJournalEntryInput,
   type UnclassifiedJournalEntry,
   type UnclassifiedJournalEntryCandidate,
 } from "@workspace/api-client-react";
-import { fmtNum } from "@/lib/api";
+import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,24 +49,26 @@ export default function UnclassifiedEntries() {
   const list = useListUnclassifiedJournalEntries({ limit: PAGE, offset });
   const [confirm, setConfirm] = useState<{ entry: UnclassifiedJournalEntry; candidate: UnclassifiedJournalEntryCandidate } | null>(null);
 
-  const classify = useClassifyJournalEntry({
-    mutation: {
-      onSuccess: (e) => {
-        qc.invalidateQueries({ queryKey: getListUnclassifiedJournalEntriesQueryKey() });
-        qc.invalidateQueries({ queryKey: ["journal-entries"] });
-        toast({
-          title: t("Entry classified", "صُنِّف القيد"),
-          description: t(
-            `${e.entryNumber ?? `#${e.id}`} now reads ${journalSourceLabel(e.currentSourceType, t)}.`,
-            `أصبح مصدر ${e.entryNumber ?? `#${e.id}`}: ${journalSourceLabel(e.currentSourceType, t)}.`,
-          ),
-        });
-        setConfirm(null);
-      },
-      onError: (err) => {
-        toast({ title: t("Not classified", "لم يُصنَّف"), description: refusalOf(err).words, variant: "destructive" });
-        setConfirm(null);
-      },
+  // The path is written here (P4's reachability guard reads call sites in apps/web); the body and the answer are the
+  // GENERATED types, so a request the server does not accept is a compile error.
+  const classify = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: ClassifyJournalEntryInput }) =>
+      apiFetch<UnclassifiedJournalEntry>(`/journal-entries/${id}/classify`, { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: (e) => {
+      qc.invalidateQueries({ queryKey: getListUnclassifiedJournalEntriesQueryKey() });
+      qc.invalidateQueries({ queryKey: ["journal-entries"] });
+      toast({
+        title: t("Entry classified", "صُنِّف القيد"),
+        description: t(
+          `${e.entryNumber ?? `#${e.id}`} now reads ${journalSourceLabel(e.currentSourceType, t)}.`,
+          `أصبح مصدر ${e.entryNumber ?? `#${e.id}`}: ${journalSourceLabel(e.currentSourceType, t)}.`,
+        ),
+      });
+      setConfirm(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: t("Not classified", "لم يُصنَّف"), description: refusalOf(err).words, variant: "destructive" });
+      setConfirm(null);
     },
   });
 
