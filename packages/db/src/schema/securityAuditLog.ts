@@ -51,6 +51,9 @@ export const securityAuditLogsTable = pgTable(
     action: varchar("action", { length: 100 }).notNull(),
     metadata: jsonb("metadata"),
     ipAddress: varchar("ip_address", { length: 45 }), // holds IPv4 or IPv6
+    // 🔴 Phase 19A (19.8): the request that wrote the event — the reference a user quotes and support finds in the log
+    // (X-Request-Id). Server-generated, never taken from the client; null for events written outside a request.
+    requestId: varchar("request_id", { length: 64 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [

@@ -91,6 +91,7 @@ import AuditTrail from '@/pages/AuditTrail';
 import ZatcaOnboarding from '@/pages/ZatcaOnboarding';
 import Approvals from '@/pages/Approvals';
 import ChangePassword from '@/pages/ChangePassword';
+import SecuritySessions from '@/pages/SecuritySessions';
 import TrialBalance from '@/pages/TrialBalance';
 import IncomeStatement from '@/pages/IncomeStatement';
 import BalanceSheet from '@/pages/BalanceSheet';
@@ -405,6 +406,7 @@ function Router() {
               <Route path="/zatca" component={ZatcaOnboarding} />
               <Route path="/users" component={UserManagement} />
               <Route path="/change-password" component={ChangePassword} />
+              <Route path="/security/sessions" component={SecuritySessions} />
               {/*
                 Every COMING SOON entry in the navigation resolves here, by
                 slug. One route rather than forty, for the reason given in

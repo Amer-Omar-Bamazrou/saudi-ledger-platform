@@ -467,16 +467,6 @@ export const COMING_SOON: readonly ComingSoonEntry[] = [
     whenClearedAr: "لا توجد شيفرة. يُنفَّذ بعد استعادة كلمة المرور — عامل ثانٍ بلا مسار استعادة يحبس المستخدمين خارج حساباتهم نهائيًا.",
   },
   {
-    slug: "session-management",
-    title: "Session management",
-    titleAr: "إدارة الجلسات",
-    summary: "Seeing where you are signed in, and signing other devices out.",
-    summaryAr: "معرفة أجهزة تسجيل دخولك، وإنهاء جلسات الأجهزة الأخرى.",
-    blocker: "build",
-    whenCleared: "Sessions are stored in Postgres already, so the data exists; what is missing is the surface and the revoke path.",
-    whenClearedAr: "الجلسات مخزَّنة في قاعدة البيانات فعلًا، فالبيانات موجودة؛ الناقص هو الواجهة ومسار الإبطال.",
-  },
-  {
     slug: "ip-restrictions",
     title: "IP restrictions",
     titleAr: "تقييد عناوين IP",

@@ -7,6 +7,8 @@ servers:
   - url: /api
     description: Base API path
 tags:
+  - name: sessions
+    description: Phase 19A — a person's sessions, seen and ended
   - name: health
     description: Health operations
   - name: transactions
@@ -995,6 +997,150 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SecurityEventPage"
+
+  /auth/sessions:
+    get:
+      operationId: listMySessions
+      tags: [sessions]
+      summary: >
+        Phase 19A (19.4): the caller's own active sessions — one per sign-in, the asking one marked current. A session
+        is shown by its record id, never by the session id (a bearer credential that stays on the server). Client is a
+        coarse description ("Chrome · Windows"), never the user-agent.
+      responses:
+        "200":
+          description: The caller's active sessions, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionList"
+
+  /auth/sessions/members:
+    get:
+      operationId: listMemberSessions
+      tags: [sessions]
+      summary: >
+        Phase 19A (19.4): for an admin of a verified organization — the active sessions of the accounts they
+        administer (active members confined to their organizations; never a platform operator). 403
+        sessions_admin_only for anyone else.
+      responses:
+        "200":
+          description: The administered accounts' active sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberSessionList"
+
+  /auth/sessions/end-others:
+    post:
+      operationId: endMyOtherSessions
+      tags: [sessions]
+      summary: >
+        Phase 19A (19.5): end every one of the caller's sessions except the one asking. Writes one security event,
+        session.revoked_all.
+      responses:
+        "200":
+          description: How many sessions ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionsEnded"
+
+  /auth/sessions/{sessionId}/end:
+    post:
+      operationId: endMySession
+      tags: [sessions]
+      summary: >
+        Phase 19A (19.5): end ONE of the caller's own sessions. Its next request is refused (401). Not the asking one
+        (409 session_is_current: sign out instead); another person's is concealed (404 session_not_found). Writes one
+        security event, session.revoked.
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The session ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionsEnded"
+
+  /auth/users/{userId}/sessions/end:
+    post:
+      operationId: endMemberSessions
+      tags: [sessions]
+      summary: >
+        Phase 19A (19.5): an admin ends every session of an account they administer — in scope (404 otherwise) and
+        confined to their organizations (409 when the account also belongs elsewhere). Writes one security event,
+        session.revoked_all.
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: How many sessions ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionsEnded"
+
+  /operator/sessions:
+    get:
+      operationId: listOperatorSessions
+      tags: [sessions]
+      summary: >
+        Phase 19A (19.4): platform operators' own active sessions — the operator surface only.
+      responses:
+        "200":
+          description: Operators' active sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberSessionList"
+
+  /operator/sessions/{sessionId}/end:
+    post:
+      operationId: operatorEndSession
+      tags: [sessions]
+      summary: >
+        Phase 19A (19.5): an operator ends any one session (not the one asking). Writes one security event,
+        session.revoked.
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The session ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionsEnded"
+
+  /operator/users/end-sessions:
+    post:
+      operationId: operatorEndUserSessions
+      tags: [sessions]
+      summary: >
+        Phase 19A (19.5): an operator ends every session of the account with this email. Writes one security event,
+        session.revoked_all.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndUserSessionsInput"
+      responses:
+        "200":
+          description: How many sessions ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionsEnded"
 
   /control-flags:
     get:
@@ -11705,7 +11851,70 @@ components:
           nullable: true
           additionalProperties: true
         ipAddress: { type: string, nullable: true }
+        requestId:
+          type: string
+          nullable: true
+          description: Phase 19A (19.8) — the request that wrote the event (X-Request-Id); null for events from before 19A or written outside a request
         createdAt: { type: string }
+
+    SessionRecord:
+      type: object
+      required: [id, current, kind, createdAt, lastSeenAt, client, ipAddress]
+      properties:
+        id: { type: string, description: "The session's record id — never the session id" }
+        current: { type: boolean, description: "The session making this request" }
+        kind: { type: string, enum: [sign_in, signup, invitation] }
+        createdAt: { type: string }
+        lastSeenAt: { type: string, description: "Written at most every five minutes" }
+        client: { type: string, nullable: true, description: "Coarse: browser · system" }
+        ipAddress: { type: string, nullable: true, description: "The sign-in IP" }
+
+    SessionUser:
+      type: object
+      required: [id, name, email]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+
+    MemberSessionRecord:
+      allOf:
+        - $ref: "#/components/schemas/SessionRecord"
+        - type: object
+          required: [user]
+          properties:
+            user:
+              $ref: "#/components/schemas/SessionUser"
+
+    SessionList:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionRecord"
+
+    MemberSessionList:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberSessionRecord"
+
+    SessionsEnded:
+      type: object
+      required: [ended]
+      properties:
+        ended: { type: integer }
+
+    EndUserSessionsInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, maxLength: 320 }
 
     SecurityEventPage:
       type: object

@@ -60,7 +60,7 @@ router.post("/:token/accept", acceptRateLimiter, async (req, res) => {
   }
 
   // New account — establish the session (rotating the id, as login does).
-  const stamp = await sessionStampFor(accepted.userId);
+  const stamp = await sessionStampFor(accepted.userId, { kind: "invitation", req });
   req.session.regenerate((regenErr) => {
     if (regenErr) { req.log.error({ err: regenErr }); res.status(500).json({ error: "Session error." }); return; }
     req.session.userId = accepted.userId;

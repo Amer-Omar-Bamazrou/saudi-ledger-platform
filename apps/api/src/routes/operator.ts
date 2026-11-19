@@ -10,6 +10,7 @@
 import { Router } from "express";
 import { refuseNonUuidParam } from "../middleware/refuseUnusableInput";
 import { operatorService } from "../services/operator.service";
+import { sessionsService } from "../services/sessions.service";
 import { operatorZatcaService } from "../services/operatorZatca.service";
 import { documentsService } from "../services/documents.service";
 import { sendDocument } from "./documentHttp";
@@ -24,6 +25,11 @@ router.param("docId", refuseNonUuidParam);
 /** Actor context for the security-audit trail, from the authenticated session. */
 function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
   return { actorEmail: req.session.userEmail ?? null, ipAddress: req.ip ?? null };
+}
+
+/** 🔴 Phase 19A: the operator and the session they act from (its record — never the session id). */
+function operatorSessionActor(req: { session: { userId?: number; userEmail?: string; sessionRecordId?: string }; ip?: string }) {
+  return { userId: req.session.userId!, email: req.session.userEmail ?? null, ipAddress: req.ip ?? null, currentRecordId: req.session.sessionRecordId ?? null };
 }
 
 /** GET /api/operator/applications — the review queue (all non-approved orgs). */
@@ -55,6 +61,21 @@ router.get("/applications/:orgId/documents/:docId", async (req, res) => {
  */
 router.post("/users/reset-password", async (req, res) => {
   res.json(await operatorService.resetUserPassword(req.session.userId!, req.body?.email, actorCtx(req)));
+});
+
+/**
+ * 🔴 Phase 19A (19.4/19.5) — GET /api/operator/sessions: platform operators' own active sessions. POST
+ * /api/operator/sessions/:id/end: end any one session. POST /api/operator/users/end-sessions { email }: end every
+ * session of that account. Each act writes one security event (services/sessions.service.ts).
+ */
+router.get("/sessions", async (req, res) => {
+  res.json(await sessionsService.listOperators(operatorSessionActor(req)));
+});
+router.post("/sessions/:id/end", async (req, res) => {
+  res.json(await sessionsService.operatorEndOne(operatorSessionActor(req), String(req.params.id)));
+});
+router.post("/users/end-sessions", async (req, res) => {
+  res.json(await sessionsService.operatorEndUser(operatorSessionActor(req), req.body?.email));
 });
 
 /** POST /api/operator/applications/:orgId/approve — grant the org full access. */

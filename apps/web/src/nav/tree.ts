@@ -456,7 +456,7 @@ export const NAV_TREE: readonly NavSection[] = [
           built("/change-password", "Change Password", "تغيير كلمة المرور"),
           soon("password-reset", "Password Reset", "إعادة تعيين كلمة المرور"),
           soon("two-factor", "Two-Factor Authentication", "التحقق بخطوتين"),
-          soon("session-management", "Session Management", "إدارة الجلسات"),
+          built("/security/sessions", "Session Management", "إدارة الجلسات"),
           soon("ip-restrictions", "IP Restrictions", "تقييد عناوين IP"),
           built("/audit-trail", "Login History", "سجل تسجيل الدخول", undefined, true),
         ],
