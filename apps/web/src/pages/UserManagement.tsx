@@ -16,6 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { lastAdminRefusalToast } from "@/lib/lastAdminRefusal";
 import { SecurityEventsCard } from "@/components/SecurityEventsCard";
+import { invitationStatusLabel, roleName } from "@/lib/walkLabels";
 import { Plus, KeyRound, ShieldCheck, Eye, BookUser, PencilRuler } from "lucide-react";
 
 interface User { id: number; email: string; name: string; role: string; isActive: boolean; createdAt: string; }
@@ -311,8 +312,9 @@ export default function UserManagement() {
                     </div>
 
                     {/* Membership role badge (the governing role) */}
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${ROLE_COLOR[orgRole] ?? "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"}`}>
-                      {orgRole ? orgRole.toUpperCase() : t("NO MEMBERSHIP", "بدون عضوية")}
+                    <span data-testid={`role-badge-${u.id}`} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${ROLE_COLOR[orgRole] ?? "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"}`}>
+                      {/* Walk L3: the role in the reader's language, as the page's own role pickers say it */}
+                      {orgRole ? roleName(orgRole, t) : t("No membership", "بدون عضوية")}
                     </span>
 
                     {/* Membership role change (upsert in the active org) */}
@@ -394,7 +396,7 @@ export default function UserManagement() {
                 value={invite.role}
                 onChange={e => setInvite(p => ({ ...p, role: e.target.value }))}
               >
-                {MEMBERSHIP_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                {MEMBERSHIP_ROLES.map(r => <option key={r} value={r}>{roleName(r, t)}</option>)}
               </select>
             </div>
             <Button
@@ -428,11 +430,11 @@ export default function UserManagement() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground truncate">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    {inv.role} · {t("expires", "تنتهي")} {fmtDate(inv.expiresAt)}
+                    {roleName(inv.role, t)} · {t("expires", "تنتهي")} {fmtDate(inv.expiresAt)}
                   </p>
                 </div>
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-border text-muted-foreground uppercase">
-                  {inv.status}
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-border text-muted-foreground">
+                  {invitationStatusLabel(inv.status, t)}
                 </span>
                 {inv.status === "pending" && (
                   <>

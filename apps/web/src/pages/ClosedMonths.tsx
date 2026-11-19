@@ -251,7 +251,7 @@ export default function ClosedMonths() {
             <p>
               {t(
                 "Its figures will stop changing: nothing can be added to that month until an admin reopens it.",
-                "ستتوقف أرقامه عن التغيّر: لا يمكن إضافة أي شيء إلى ذلك الشهر حتى يعيد مدير النظام فتحه.",
+                "ستتوقف أرقامه عن التغيّر: لا يمكن إضافة أي شيء إلى ذلك الشهر حتى يعيد مسؤول النظام فتحه.",
               )}
             </p>
             {isCurrentOrFuture && (

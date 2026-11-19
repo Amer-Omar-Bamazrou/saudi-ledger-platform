@@ -82,7 +82,7 @@ async function open(browser: Browser, api: APIRequestContext, lang: "ar" | "en",
 
 test.describe("the shell: role chip, menu sections, Close label", () => {
   for (const [who, lang, shown] of [
-    ["founder", "ar", "مدير"], ["bookkeeper", "ar", "ماسك دفاتر"],
+    ["founder", "ar", "مسؤول"], ["bookkeeper", "ar", "ماسك دفاتر"],
     ["founder", "en", "ADMIN"], ["bookkeeper", "en", "BOOKKEEPER"],
   ] as const) {
     test(`🔴 N-10: the ${who}'s role chip reads "${shown}" (${lang}), not viewer`, async ({ browser }) => {

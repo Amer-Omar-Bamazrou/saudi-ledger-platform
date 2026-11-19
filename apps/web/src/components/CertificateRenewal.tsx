@@ -39,7 +39,7 @@ export function renewalRefusalTitle(code: string | undefined, t: T): { title: st
     case "zatca_otp_required":
       return { title: t("Paste the one-time password from your Fatoora portal", "الصق كلمة المرور المؤقتة من بوابة فاتورة"), next: "" };
     case "requires_approval_authority":
-      return { title: t("Only an admin can renew the certificate", "تجديد الشهادة لمدير النظام فقط"), next: t("Ask an admin of this organization to renew it. The current certificate stays active.", "اطلب من مدير هذه المنشأة تجديدها. وتبقى الشهادة الحالية سارية.") };
+      return { title: t("Only an admin can renew the certificate", "تجديد الشهادة لمسؤول النظام فقط"), next: t("Ask an admin of this organization to renew it. The current certificate stays active.", "اطلب من مسؤول هذه المنشأة تجديدها. وتبقى الشهادة الحالية سارية.") };
     default:
       return { title: t("The renewal could not be completed", "تعذّر إتمام التجديد"), next: t("The current certificate stays active.", "تبقى الشهادة الحالية سارية.") };
   }

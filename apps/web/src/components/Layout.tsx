@@ -44,7 +44,7 @@ const ROLE_COLOR: Record<string, string> = {
 };
 
 const ROLE_AR: Record<string, string> = {
-  admin: "مدير", accountant: "محاسب", bookkeeper: "ماسك دفاتر", viewer: "مشاهد",
+  admin: "مسؤول", accountant: "محاسب", bookkeeper: "ماسك دفاتر", viewer: "مشاهد",
 };
 
 /**

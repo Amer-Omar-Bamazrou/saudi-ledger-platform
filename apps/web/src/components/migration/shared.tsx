@@ -99,7 +99,7 @@ export function MigrationPermissionHint() {
   return (
     <p className="text-xs text-muted-foreground" data-testid="migration-permission-hint">
       {t("Staging, validating, committing and reversing a migration needs the admin role — you can review everything here, but not change it.",
-         "يتطلب تجهيز الترحيل والتحقق منه واعتماده وعكسه دور المدير — يمكنك مراجعة كل شيء هنا دون تغييره.")}
+         "يتطلب تجهيز الترحيل والتحقق منه واعتماده وعكسه دور المسؤول — يمكنك مراجعة كل شيء هنا دون تغييره.")}
     </p>
   );
 }

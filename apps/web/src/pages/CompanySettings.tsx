@@ -240,7 +240,8 @@ export default function CompanySettings() {
                 <Input id="nameAr" dir="rtl" value={form.nameAr ?? ""} onChange={set("nameAr")} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            {/* Walk L5: one column at 390 px — two clipped the 15-digit VAT number */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="vatNumber">{t("VAT registration number", "الرقم الضريبي")}</Label>
                 <Input id="vatNumber" inputMode="numeric" value={form.vatNumber ?? ""} onChange={set("vatNumber")} placeholder="3XXXXXXXXXXXXX3" />

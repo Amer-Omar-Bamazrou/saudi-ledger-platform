@@ -4,6 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
+import { businessInstant } from "@/lib/businessTime";
 import {
   TrendingUp, ShieldCheck, ListChecks, FileText, FileInput, BarChart3, ChevronRight, SearchCheck,
 } from "lucide-react";
@@ -153,9 +154,12 @@ function UnreadFindingsMarker() {
           <SearchCheck className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold">
+              {/* Walk L4: the run's BUSINESS date (Asia/Riyadh), never the UTC slice, kept on one line */}
+              {t("Scheduled findings from ", "ملاحظات الفحص المجدول بتاريخ ")}
+              <span dir="ltr" className="whitespace-nowrap" data-testid="findings-banner-date">{businessInstant(data.lastScheduledRun.ranAt).date}</span>
               {t(
-                `Scheduled findings from ${data.lastScheduledRun.ranAt.slice(0, 10)} have not been opened — ${data.lastScheduledRun.openAfter} open`,
-                `ملاحظات الفحص المجدول بتاريخ ${data.lastScheduledRun.ranAt.slice(0, 10)} لم تُفتح بعد — ${data.lastScheduledRun.openAfter} مفتوحة`,
+                ` have not been opened — ${data.lastScheduledRun.openAfter} open`,
+                ` لم تُفتح بعد — ${data.lastScheduledRun.openAfter} مفتوحة`,
               )}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
