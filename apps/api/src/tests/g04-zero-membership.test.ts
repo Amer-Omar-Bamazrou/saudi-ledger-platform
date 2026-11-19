@@ -35,6 +35,10 @@ import { organizationMembershipsTable, ownerDb, pool } from "@workspace/db";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { assertAccountConfinedTo } from "../lib/accountScope";
 import { g04Harness } from "./helpers/g04Harness";
+import { withoutReference } from "./helpers/refusalBody";
+
+/** A response as an existence oracle would compare it: status and body, without the per-request reference. */
+const asOracle = (r: { status: number; body: unknown }) => ({ status: r.status, body: withoutReference(r.body) });
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -125,7 +129,7 @@ describeMaybe("Zero-membership accounts — born with a membership, attached onl
     const pending = await register("adminA", "nope-pending", org.pendingA);
     const malformed = await register("adminA", "nope-malformed", "not-a-uuid");
     expect(notAdmin.status, JSON.stringify(notAdmin.body)).toBe(403);
-    for (const r of [bookkeeperOnly, unknown, pending, malformed]) expect(r, "identical to the not-administered refusal").toEqual(notAdmin);
+    for (const r of [bookkeeperOnly, unknown, pending, malformed]) expect(asOracle(r), "identical to the not-administered refusal").toEqual(asOracle(notAdmin));
     for (const k of ["nope-b", "nope-c", "nope-unknown", "nope-pending", "nope-malformed"]) expect(await userIdOf(email(k)), `${k}: no account`).toBeUndefined();
   });
 
@@ -189,9 +193,9 @@ describeMaybe("Zero-membership accounts — born with a membership, attached onl
     const noMembership = await attach("adminB", org.b, uid.orphan);
     expect(unknown.status).toBe(422);
     expect(unknown.body.code).toBe("invitation_required");
-    expect(operator).toEqual(unknown);
-    expect(foreignMember).toEqual(unknown);
-    expect(noMembership).toEqual(unknown);
+    expect(asOracle(operator)).toEqual(asOracle(unknown));
+    expect(asOracle(foreignMember)).toEqual(asOracle(unknown));
+    expect(asOracle(noMembership)).toEqual(asOracle(unknown));
     for (const id of [uid.op, uid.memberA, uid.orphan]) {
       expect((await memberships(id)).filter((m) => m.organization_id === org.b), "no membership in B").toEqual([]);
     }

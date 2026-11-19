@@ -25,6 +25,7 @@ import { __resetRateLimitsForTests } from "../routes/auth";
 import { assetsService } from "../services/assets.service";
 import { invoicesService } from "../services/invoices.service";
 import { g04Harness } from "./helpers/g04Harness";
+import { withoutReference } from "./helpers/refusalBody";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -160,7 +161,7 @@ describeMaybe("G04 — composite tenant keys refuse a cross-tenant reference fro
     const missing = await custodian(MISSING);
     expect(foreign.status, JSON.stringify(foreign.body)).toBe(422);
     expect(foreign.body.code).toBe("reference_not_found");
-    expect(missing.body).toEqual(foreign.body);
+    expect(withoutReference(missing.body)).toEqual(withoutReference(foreign.body));
     expect(JSON.stringify(foreign.body)).not.toMatch(/violates|foreign key|organization_memberships|Key \(/i);
     expect(Number((await pool.query(`SELECT count(*)::int AS n FROM fixed_assets WHERE organization_id = $1 AND name = 'G04K api'`, [org.x])).rows[0].n), "no asset written").toBe(0);
   });

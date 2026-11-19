@@ -6,7 +6,9 @@ import connectPgSimple from "connect-pg-simple";
 import { sessionPool } from "@workspace/db";
 import { loadEnv } from "@workspace/config";
 import router from "./routes";
+import { randomUUID } from "node:crypto";
 import { errorHandler } from "./middleware/errorHandler";
+import { errorBodies } from "./middleware/errorBodies";
 import { logger } from "./lib/logger";
 import { endEndedSessions } from "./lib/auth";
 import { refuseCrossSiteWrites } from "./lib/csrf";
@@ -45,6 +47,16 @@ if (env.TRUST_PROXY_HOPS > 0) {
 app.use(
   pinoHttp({
     logger,
+    /**
+     * 🔴 The error-handling work package (2026-11-17): the request id is the REFERENCE a user quotes and support finds
+     * in this log — so it is unique across processes and restarts (pino-http's default counter restarts at 1), sent as
+     * `X-Request-Id`, and carried by every error body (`middleware/errorBodies.ts`). Never taken from the client.
+     */
+    genReqId: (_req, res) => {
+      const id = randomUUID();
+      res.setHeader("X-Request-Id", id);
+      return id;
+    },
     serializers: {
       req(req) {
         return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
@@ -55,6 +67,10 @@ app.use(
     },
   }),
 );
+
+// 🔴 Every error response, whichever line sends it, in one shape — code, English, Arabic, request id; a 5xx never
+// carries its exception's text (middleware/errorBodies.ts). Before every guard and router, so they are all covered.
+app.use(errorBodies);
 
 // Explicit CORS allow-list from config (replaces the old reflect-any
 // `origin: true`, which combined with credentials let any site call the API).

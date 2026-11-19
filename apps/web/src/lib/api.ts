@@ -11,6 +11,16 @@ import { formatSar } from "./moneyFormat";
 import { emitPeriodClosed } from "./periodClosed";
 import { limiterUnavailableMessage, rateLimitMessage, rateLimitedSeconds } from "./rateLimit";
 import { tOutside } from "@/contexts/LanguageContext";
+import { userMessage } from "./userMessage";
+
+/** A fetch that never reached a response (offline, DNS, the server down) — the same `ApiError`, status 0, safe words. */
+async function reach(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch {
+    throw new ApiError(0, { code: "network_error" });
+  }
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -19,8 +29,10 @@ export class ApiError extends Error {
   constructor(status: number, body: any) {
     // The rate limit speaks the reader's language: every surface that prints
     // `message` (a form's inline error, an export's refusal) then does too.
+    // 🔴 The error-handling work package (2026-11-17): every other failure through `userMessage` — the server's own
+    // sentence in the reader's language, or a safe one; never the raw text of a 5xx or a proxy's page.
     const wait = rateLimitedSeconds(status, body);
-    super(wait !== null ? rateLimitMessage(wait) : limiterUnavailableMessage(status, body) ?? body?.error ?? `Request failed (${status})`);
+    super(wait !== null ? rateLimitMessage(wait) : limiterUnavailableMessage(status, body) ?? userMessage(status, body));
     this.name = "ApiError";
     this.status = status;
     this.code = body?.code;
@@ -71,7 +83,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
 
   // Auth is carried by the httpOnly session cookie only (credentials: "include").
-  const res = await fetch(`${API}${path}`, {
+  const res = await reach(`${API}${path}`, {
     credentials: "include",
     ...init,
     headers: {
@@ -100,7 +112,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
  * throws the SAME `ApiError` with the server's own words, never a broken file.
  */
 export async function apiDownload(path: string, fallbackFilename: string): Promise<void> {
-  const res = await fetch(`${API}${path}`, { credentials: "include" });
+  const res = await reach(`${API}${path}`, { credentials: "include" });
   if (res.status === 401) {
     window.location.href = `${import.meta.env.BASE_URL}login`;
     throw new ApiError(401, { error: tOutside("Session expired. Please log in.", "انتهت الجلسة. يرجى تسجيل الدخول.") });

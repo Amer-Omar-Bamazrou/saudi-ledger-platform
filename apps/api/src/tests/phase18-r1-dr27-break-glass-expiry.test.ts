@@ -74,7 +74,9 @@ describeMaybe("Phase 18 R-1 — DR-27: a break-glass password expires after 24 h
     await expect.poll(async () => (await refusedRows(targetId)).map((x) => x.organization_id)).toEqual([orgId]);
     // a wrong password on the same expired account is still a wrong password, not an oracle for the window
     const wrong = await h.api("target", "POST", "/auth/login", { email: h.email("target"), password: "not-the-temporary-one-1!" });
-    expect([wrong.status, wrong.body?.code]).toEqual([401, undefined]);
+    // (the error-handling work package, 2026-11-17: every codeless 401 now carries the generic `unauthorized` — the
+    // same code any wrong password gets, so still no oracle for the window; never `break_glass_expired`)
+    expect([wrong.status, wrong.body?.code]).toEqual([401, "unauthorized"]);
   });
 
   it("🔴 a session opened INSIDE the window reaches nothing but the way out once it has passed — the change included", async () => {

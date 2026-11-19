@@ -33,7 +33,7 @@ export interface StorageConfig {
 export function bucketConfig(bucket: string): StorageConfig {
   const env = loadEnv();
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new AppError(503, "Object storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
+    throw new AppError(503, "Object storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).", { code: "storage_unavailable" });
   }
   return {
     baseUrl: env.SUPABASE_URL.replace(/\/+$/, ""),
@@ -87,7 +87,7 @@ export const storage = {
     // The body carries the reason (auth, tenant, quota). It is OUR storage
     // backend's error, not user input, and it never reaches the client — the
     // 502 payload stays generic while the detail goes to the server log.
-    throw new AppError(502, `Storage bucket provisioning failed (${res.status}): ${body.slice(0, 300)}`);
+    throw new AppError(502, `Storage bucket provisioning failed (${res.status}): ${body.slice(0, 300)}`, { code: "storage_failed" });
   },
 
   /** Upload bytes to `objectPath` (no upsert — paths are unique per document). */
@@ -105,7 +105,7 @@ export const storage = {
       // Same reasoning as `ensureBucket`: the status alone sent an operator
       // hunting. The backend's own message names the cause.
       const body = await res.text().catch(() => "");
-      throw new AppError(502, `Storage upload failed (${res.status}): ${body.slice(0, 300)}`);
+      throw new AppError(502, `Storage upload failed (${res.status}): ${body.slice(0, 300)}`, { code: "storage_failed" });
     }
   },
 
@@ -114,7 +114,7 @@ export const storage = {
     const c = config();
     const res = await fetch(objectUrl(c, objectPath), { headers: authHeader(c) });
     if (res.status === 404) throw new AppError(404, "Document not found in storage.");
-    if (!res.ok) throw new AppError(502, `Storage download failed (${res.status}).`);
+    if (!res.ok) throw new AppError(502, `Storage download failed (${res.status}).`, { code: "storage_failed" });
     const bytes = Buffer.from(await res.arrayBuffer());
     return { bytes, contentType: res.headers.get("content-type") ?? "application/octet-stream" };
   },

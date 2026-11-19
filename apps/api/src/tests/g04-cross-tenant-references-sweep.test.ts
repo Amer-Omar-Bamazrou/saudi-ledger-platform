@@ -40,6 +40,7 @@ import { bankAccountsService } from "../services/bankAccounts.service";
 import { invoicesService } from "../services/invoices.service";
 import { assetsService } from "../services/assets.service";
 import { g04Harness, type Res } from "./helpers/g04Harness";
+import { withoutReference } from "./helpers/refusalBody";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -451,7 +452,7 @@ describeMaybe("G04 sweep — ids from the request body never reach across tenant
       expect(missing.status, `missing id: a controlled 4xx, never ${missing.status}`).toBeGreaterThanOrEqual(400);
       expect(missing.status).toBeLessThan(500);
       expect(missing.status, "missing ≡ foreign (status)").toBe(results[0]!.status);
-      if (c.fixed) expect(missing.body, "missing ≡ foreign (the whole body)").toEqual(results[0]!.body);
+      if (c.fixed) expect(withoutReference(missing.body), "missing ≡ foreign (the whole body)").toEqual(withoutReference(results[0]!.body));
     }, 120_000);
   }
 });

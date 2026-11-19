@@ -113,7 +113,8 @@ describeMaybe("rate limits before a session: login per IP and per account, invit
 
   function expect429(r: Res) {
     expect(r.status, r.text).toBe(429);
-    expect(r.json).toEqual({ code: "rate_limited", retryAfterSeconds: expect.any(Number), error: expect.any(String) });
+    // (the error-handling work package, 2026-11-17: the one error shape adds the Arabic sentence and the request's reference)
+    expect(r.json).toEqual({ code: "rate_limited", retryAfterSeconds: expect.any(Number), error: expect.any(String), errorAr: expect.stringMatching(/[؀-ۿ]/), requestId: expect.stringMatching(/^[0-9a-f-]{36}$/) });
     expect(r.headers.get("retry-after")).toBe(String(r.json.retryAfterSeconds));
   }
 
@@ -191,7 +192,8 @@ describeMaybe("rate limits before a session: login per IP and per account, invit
     const ghost = await client()("POST", "/auth/login", { email: email("ghost-never-registered"), password: "a-guess" });
     expect429(real);
     expect429(ghost);
-    const shape = (r: Res) => ({ ...r.json, retryAfterSeconds: 0, error: String(r.json.error).replace(/\d+/g, "N") });
+    // (requestId is the request's own reference, a fresh UUID each time — never a function of the account)
+    const shape = (r: Res) => ({ ...r.json, retryAfterSeconds: 0, error: String(r.json.error).replace(/\d+/g, "N"), errorAr: String(r.json.errorAr).replace(/\d+/g, "N"), requestId: typeof r.json.requestId });
     expect(shape(ghost)).toEqual(shape(real));
     expect(Math.abs(real.json.retryAfterSeconds - ghost.json.retryAfterSeconds)).toBeLessThanOrEqual(1);
     expect(Object.keys(ghost.json).sort()).toEqual(Object.keys(real.json).sort());

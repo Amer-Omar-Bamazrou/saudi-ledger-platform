@@ -45,6 +45,7 @@ import { assertAccountConfinedTo } from "../lib/accountScope";
 import { membersService } from "../services/members.service";
 import { userAdminService } from "../services/userAdmin.service";
 import { replica } from "./helpers/replica";
+import { withoutReference } from "./helpers/refusalBody";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -168,7 +169,7 @@ describeMaybe("G01 — a tenant admin cannot gain control of a platform-operator
     const nonexistent = await api("admin", "POST", `/orgs/${tenantOrg}/members`, { userId: 2_000_000_000, role: "admin" });
     // G04: every non-member gets ONE 422 invitation_required (it was 404 here).
     expect(attempt.status, "operator target must be refused").toBe(422);
-    expect(attempt.body, "the refusal must not distinguish an operator from a missing id").toEqual(nonexistent.body);
+    expect(withoutReference(attempt.body), "the refusal must not distinguish an operator from a missing id").toEqual(withoutReference(nonexistent.body));
     expect(await membershipCount(ids.op)).toBe(0);
   });
 

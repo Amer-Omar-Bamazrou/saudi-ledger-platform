@@ -201,9 +201,10 @@ describeMaybe("Phase 15 — budgets over HTTP: the approver split, the gate, the
     expect(run({ cause: { code: "23514", constraint: "budget_version_tenant", message: "x" }, message: "wrapped" })).toEqual([422, "budget_version_tenant"]);
     expect(run({ code: "23505", constraint: "budget_versions_one_open_unq", message: "dup" })).toEqual([409, "budget_conflict"]);
     // an EXACT allow-list: an unrelated constraint, a plain CHECK on a budget table, or a primary-key
-    // fault is a bug — a logged 500, never translated into a refusal the caller is told to fix
-    expect(run({ code: "23514", constraint: "invoices_total_chk", message: "x" })).toEqual([500, undefined]);
-    expect(run({ code: "23514", constraint: "budget_lines_amount_chk", message: "x" })).toEqual([500, undefined]);
-    expect(run({ code: "23505", constraint: "budgets_pkey", message: "x" })).toEqual([500, undefined]);
+    // fault is a bug — a logged 500, never translated into a refusal the caller is told to fix. (The error-handling
+    // work package, 2026-11-17: every 500 now names itself `internal_error` — still never the constraint's code.)
+    expect(run({ code: "23514", constraint: "invoices_total_chk", message: "x" })).toEqual([500, "internal_error"]);
+    expect(run({ code: "23514", constraint: "budget_lines_amount_chk", message: "x" })).toEqual([500, "internal_error"]);
+    expect(run({ code: "23505", constraint: "budgets_pkey", message: "x" })).toEqual([500, "internal_error"]);
   });
 });
