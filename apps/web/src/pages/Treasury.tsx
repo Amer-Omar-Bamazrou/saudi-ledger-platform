@@ -619,7 +619,8 @@ function ClosingChart({ f }: { f: TreasuryForecast }) {
   }));
   // the chart is a time axis: drawn left-to-right in both languages, its tooltip in the page's own words
   return (
-    <div className="h-[260px] text-muted-foreground" dir="ltr" data-testid="treasury-chart">
+    <div className="text-muted-foreground" data-testid="treasury-chart">
+      <div className="h-[260px]" dir="ltr">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 18, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
@@ -631,11 +632,17 @@ function ClosingChart({ f }: { f: TreasuryForecast }) {
           />
           <ReferenceLine
             y={buffer} stroke="currentColor" strokeDasharray="6 4" opacity={0.6} ifOverflow="extendDomain"
-            label={{ value: f.funding.bufferDeclared ? t("Minimum balance", "الحد الأدنى للرصيد") : t("Zero — no minimum declared", "الصفر — لا حد أدنى محدد"), position: "insideTopLeft", fontSize: 11, fill: "currentColor" }}
           />
           <Line type="linear" dataKey="closing" name={t("Projected closing", "الإقفال المتوقع")} stroke={SERIES_1} strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
+      </div>
+      {/* Walk L5: the dashed line is named BELOW the chart — drawn inside it, at zero its label lay over the week numbers */}
+      <p className="text-[11px] mt-1 text-center" data-testid="treasury-chart-reference">
+        {f.funding.bufferDeclared
+          ? t("Dashed line: the minimum balance", "الخط المتقطع: الحد الأدنى للرصيد")
+          : t("Dashed line: zero — no minimum declared", "الخط المتقطع: الصفر — لا حد أدنى محدد")}
+      </p>
     </div>
   );
 }
