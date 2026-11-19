@@ -886,7 +886,9 @@ entries, and no run's status is changed to make a reversal look resolved (owner,
   dated at the RECEIPT date, the tax point, and any other date is refused.
 - **If the receipt's month is closed,** issuing the 386 is refused
   (`423 advance_tax_point_period_locked`), naming the remedy: reopen the month, issue,
-  close it again, and correct the filed return under IR Art. 63.
+  close it again, and correct under IR Art. 63: an understatement of SAR 15,000 or more by
+  correcting the filed return within 20 days (63(1)); below that, in the return for the period
+  in which it was discovered (63(3), as amended by Res. 01-06-24).
 - **This follows the accountant's answer 1(b) of 2026-09-22**
   ([advance-payments pack](advance-payments-decision-pack.md) §17.1): the VAT belongs to
   the receipt's month, corrected through the return. This question asks the tax adviser to

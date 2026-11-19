@@ -105,6 +105,34 @@ read reversed, as in the guideline extract above — check a figure against the
 PDF page). 🔴 **For any paragraph in the table above, and for 53(1)(c), cite
 the Arabic Tenth Edition, never the English `.txt` alone.**
 
+🔴 **Every citation reviewed against the Tenth Edition (2026-11-19).** Lines
+that rely on text a later amendment changed — Art. 63(3) corrected the same
+day; the rest OPEN, each a decision for the owner and the tax adviser, not a
+silent edit:
+
+- **Art. 50(1) re-lettered** (Res. 01-06-24: a new (c), employees' insurance and
+  healthcare, blocked unless a law requires them; restricted vehicles moved to
+  (d), fuel from (e) to (f); read in the Arabic):
+  fixture reasons citing 50(1)(c) for vehicles in
+  `fixed-assets-capitalisation.test.ts`, `phase13b3-backfill.test.ts`,
+  `vat-capital-asset.test.ts`, `fixed-assets-disposal.test.ts`,
+  `fixed-assets-foundation.test.ts`; `fixed-assets-decision-pack.md`;
+  migration `0048` and `docs/tax/vat-treatment-verification.md` (50(1)(e)).
+- **Art. 50(1)(b) gained an exception**: catering an employer is required by
+  law to provide to employees at the workplace is deductible. Treated as always
+  blocked: `vat-blocked-input.test.ts`, `VatReport.tsx`, `FOOD_MEALS` in
+  `schema/categories.ts`, C9 in the known-issues file, migration `0048`.
+- **Art. 40(10)** (bad-debt relief: the twelve months count from the month after
+  the supply's, reported in the return for the month they end, financing
+  contracts excepted): the Batch 1C pack's "twelve months from the date of
+  Supply".
+- **Art. 9(5)** (Res. 1-4-23: a government body acts outside economic activity
+  only when three conditions hold) — the GOVT_FEES reasoning that "no
+  sovereign-capacity article exists" (`docs/tax/gcc-framework-verification.md`,
+  migration `0057`); the default treatment probably survives, unsettled.
+- **Art. 40(7)(d)**: other evidence ZATCA may accept from a person not obliged
+  to appoint an auditor; the bad-debt service accepts the certificate only.
+
 **Local documents that cite the English file or the amended articles** (a
 coverage list to re-check, not a verdict that each is wrong — found by grepping
 `docs/` for the file name and for Art. 40 / 50 / 53 / 54 / 63):
