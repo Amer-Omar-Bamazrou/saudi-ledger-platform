@@ -45,6 +45,19 @@ for lang in AR EN; do
   curl -sS -L --max-time 180 -o "specs/$name" "https://zatca.gov.sa/$dir/HelpCenter/guidelines/Documents/Guideline-for-Tax-Invoicing-and-Records-under-VAT-Provisions.pdf" && echo "ok"
 done
 
+# 🔴 The CURRENT VAT Implementing Regulations are ARABIC (2026-11-19): the Tenth Edition, amended through
+# Res. 01-06-24. The English file above is the Eighth Edition (2021), the only English ZATCA serves.
+name="KSA_VAT_Implementing_Regulations_AR_10th_Edition_2025-04.pdf"
+printf '%-70s ' "$name"
+curl -sS -L --max-time 180 -o "specs/$name" "https://zatca.gov.sa/ar/RulesRegulations/Taxes/Documents/Implmenting%20Regulations%20of%20the%20VAT%20Law.pdf" && echo "ok"
+# ZATCA's guideline explaining Res. 01-06-24 (Issue 1, April 2025); both languages share one file name on the server.
+for lang in AR EN; do
+  dir=$(printf '%s' "$lang" | tr 'A-Z' 'a-z')
+  name="ZATCA_VAT_IR_Amendments_Guideline_2025-04_$lang.pdf"
+  printf '%-70s ' "$name"
+  curl -sS -L --max-time 180 -o "specs/$name" "https://zatca.gov.sa/$dir/HelpCenter/guidelines/Documents/Amendments-to-the-Implementing-Regulation-of-(VAT).PDF" && echo "ok"
+done
+
 # The sandbox portal serves its own, more frequently updated, manual.
 printf '%-70s ' "sandbox_Developer_Portal_User_Manual.pdf"
 curl -sS -L --max-time 180 \

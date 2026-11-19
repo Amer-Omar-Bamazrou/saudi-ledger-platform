@@ -897,14 +897,15 @@ entries, and no run's status is changed to make a reversal look resolved (owner,
   reason creates no receipt record, so no 386 can be issued from it. Once the payer is
   identified, the manual journal that moves the balance to `CUSTOMER_DEPOSITS` posts no
   VAT, so that advance's VAT would reach no return through the platform.
-- **Two definitions of Art. 63(3)'s threshold disagree.** The pack (§17.1, 1(b)) reads
-  "below SAR 5,000". The 423 refusal's text reads "below SAR 15,000 … as amended
-  19/11/2024". Nothing is changed here: which is right is for the tax adviser to confirm,
-  against the Arabic text.
+- **Art. 63(3)'s threshold: RESOLVED 2026-11-19, not a question for the adviser.** The
+  pack (§17.1, 1(b)) read "below SAR 5,000" from the superseded English Eighth Edition;
+  the refusal reads SAR 15,000. The current Arabic text (Tenth Edition, April 2025,
+  pinned in `docs/zatca/specs/`) reads SAR 15,000, corrected in the return for the period
+  of discovery (Res. 01-06-24). The refusal was right; the pack is corrected.
 
 **What changes.**
 - **If the receipt's period** (as today): the manual-journal path needs a way to declare the
-  VAT, and the refusal's threshold is corrected if it is wrong.
+  VAT.
 - **If the identification's period:** the 386's tax point for an identified unknown receipt
   becomes the identification date, and the 423 refusal no longer applies to it.
 

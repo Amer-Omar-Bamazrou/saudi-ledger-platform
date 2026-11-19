@@ -1,0 +1,1671 @@
+   VAT
+
+
+
+
+Guideline for
+Amendments to the Implementing
+Regulation of Value Added Tax (VAT)
+Issued by ZATCA’s Board of Directors
+Resolution No. (01-06-24) dated
+November 19, 2024
+
+
+
+
+  Note: The English version is for guidance purposes
+  only. In case of any discrepancy between the Arabic
+Issue 1 | April 2025   and English versions, the Arabic version shall prevail
+The Zakat, Tax and Customs Authority (ZATCA) has issued this simplified guideline to clarify
+specific procedures related to the application of statutory provisions, effective as of the date of
+issuance. This document does not constitute an amendment to any applicable laws or regulations
+  in the Kingdom of Saudi Arabia.
+
+ZATCA affirms that the clarifications provided in this guideline-where applicable-should be
+interpreted in accordance with the relevant statutory provisions. If any clarification or content
+in this guideline is subsequently modified without a corresponding change to the statutory text,
+the updated clarification shall apply only to transactions conducted after the revised version is
+  published on ZATCA’s official website.
+
+This guideline has been prepared to explain Decision No. (01-06-24), dated November 19,
+2024, issued by the Board of Directors of ZATCA concerning amendments to the Implementing
+Regulation of Value Added Tax (VAT) (hereinafter referred to as “the Regulations”).
+
+
+
+
+2
+Table of Contents
+1. Introduction  05
+
+1.1 Implementation of the VAT Law in Saudi Arabia  05
+
+1.2 Zakat, Tax and Customs Authority (ZATCA)  05
+
+1.3 What is Value-Added Tax (VAT)?  06
+
+1.4 About the Guideline  06
+
+2. Key Clarifications on Amendments to the Implementing Regulation of Value Added  07
+Tax (VAT)
+
+2.1 Provisions for Tax Group Registration  07
+
+2.1.1 Requirements for Tax Group Registration  07
+
+2.1.2 Responsibilities of the Tax Group Representative  13
+
+2.1.3 Legal Implications of Tax Group Registration  14
+
+2.2 Cessation of Economic Activity by a Taxable Person  15
+
+2.3 Supply of Services  17
+
+2.4 Deemed Supply  19
+
+2.5 Transfer of Economic Activity  21
+
+2.5.1 Tax Rights and Obligations After Completion of the Transfer  22
+
+2.6 VAT Suspension Regulations  23
+
+2.7 Provisions for Services Supplied to Non-GCC Residents  27
+
+2.8 Government Subsidies Paid to Suppliers  28
+
+2.9 Input VAT Deduction for Goods Supplied Under Financing Contracts  29
+
+2.10 Electronic Marketplace  31
+
+2.10.1 Definition  31
+
+2.10.2 Facilitation of Service Supply by an Electronic Marketplace from a Non-Resident   33
+Supplier
+
+
+
+
+3
+2.10.3 Facilitation of Goods or Services Supply by an Electronic Marketplace   37
+from a Non-Registered Resident
+
+2.11 Input VAT Deduction on Certain Restricted Purchases When Service  40
+Provision Is Mandatory
+
+2.12 Provisions on Correcting VAT Returns  42
+
+2.13 Offsetting Refundable Amounts Against Other Amounts Owed to ZATCA  43
+
+2.14 VAT Refunds  44
+
+
+
+
+4
+1. Introduction
+
+1.1 Implementation of the VAT Law in the Kingdom of Saudi Arabia
+
+The Kingdom of Saudi Arabia (hereinafter referred to as “the Kingdom”) ratified the Unified VAT
+Agreement for the Gulf Cooperation Council (GCC) Countries under Royal Decree No. (M/51),
+dated Jumada Al-Awwal 3, 1438 AH (hereinafter referred to as “Unified VAT Agreement”).
+Pursuant to the provisions of the Unified VAT Agreement, the Kingdom issued the Value-Added
+Tax (VAT) Law under Royal Decree No. (M/113), dated Dhul-Qi’dah 2, 1438 AH, along with
+the Implementing Regulations of the VAT Law (hereinafter referred to as “the Regulations”),
+initially issued under Decision No. (3839), dated Dhul-Hijjah 14, 1438 AH, by the former General
+Authority of Zakat and Tax (now the Zakat, Tax and Customs Authority). These Regulations
+have since been amended through subsequent decisions issued by the Board of Directors of the
+Zakat, Tax and Customs Authority (ZATCA).
+
+1.2 Zakat, Tax and Customs Authority (ZATCA)
+
+ZATCA is the government entity responsible for the implementation and administration of val-
+ueadded tax (hereinafter referred to as “the tax”, unless otherwise specified) in the Kingdom.
+Its core responsibilities include: registering and deregistering taxable persons, managing
+VAT return filings and refund processes, conducting tax audits and field inspections, and im-
+posing penalties and fines for non-compliance with VAT regulations.
+ZATCA was established by a decision of the Ministerial Council, following the merger of the
+General Authority of Zakat and Tax and the General Customs Authority into a unified entity.
+Accordingly, any reference in this guideline to either of the former entities shall be understood
+as referring to the Zakat, Tax and Customs Authority (ZATCA).
+
+
+
+
+5
+1.3 What is Value-Added Tax (VAT)?
+
+Value-added tax (VAT) is an indirect tax levied on the import and supply of goods and services at
+each stage of the production and distribution process, with certain exceptions. It is a consumption-
+based tax that is currently implemented in over 160 countries worldwide. VAT is collected and
+remitted throughout the supply chain-from manufacturers acquiring raw materials to retailers
+selling the final product to end consumers.
+
+Unlike other forms of taxation, VAT-registered individuals are required to:
+• Collect VAT from their customers on each taxable sale at the applicable tax rate;
+• Pay VAT to their suppliers on taxable goods and services purchased, also at the applicable
+   tax rate.
+
+
+In the Kingdom of Saudi Arabia, VAT-registered individuals must charge VAT at a standard
+rate of 15%, where applicable. This amount is added to the final sale price of goods or services
+provided. Registered persons must separately account for the VAT collected on taxable sales-
+referred to as “output VAT-and remit this to the Zakat, Tax and Customs Authority (ZATCA).
+Conversely, VAT is also applied to the purchases made by registered individuals, with 15% VAT
+charged-again assuming the standard rate applies. The VAT paid on such purchases is called
+“input VAT”.
+
+
+For more comprehensive information on VAT in the Kingdom of Saudi Arabia, please consult the
+official VAT Guidelines available on the ZATCA website.
+
+1.4 About the Guideline
+
+This guideline is intended for all individuals and entities affected by the amendments to the
+Implementing Regulation of Value Added Tax (VAT). It explains the changes to the relevant
+statutory provisions and aims to assist taxpayers by providing additional clarifications for those
+subject to VAT regulations.
+
+
+
+
+6
+For guidance on specific transactions, individuals may submit a request for an interpretive decision
+or may visit ZATCA’s official website. The website offers a wide range of tools and resources
+designed to assist VAT-registered? individuals, including visual instructional materials, relevant
+data, and answers to frequently asked questions.
+
+
+2. Key Clarifications on Amendments to the Implementing Regulation of Value
+Added Tax (VAT)
+
+2.1 Provisions for Tax Group Registration
+
+2.1.1 Requirements for Tax Group Registration
+
+
+The recent amendments to the Implementing Regulation of Value Added Tax (VAT) introduce
+key changes to the requirements for tax group registration, clarifying the responsibilities of the
+group representative and the implications of forming a VAT tax group.
+
+
+A tax group refers to two or more legal persons (entities) residing in the Kingdom who are
+treated as a single taxable entity for VAT purposes. The group is registered under a unique
+Taxpayer Identification Number (TIN), issued by the Zakat, Tax and Customs Authority (ZATCA)
+and communicated to the group representative.
+
+
+The registration criteria have been revised to include two new restrictions: A tax group cannot
+include a person who is eligible for VAT refunds or an investor in a special economic zone.
+VAT group registration must comply with the conditions and requirements set out in Article (10)
+of the Regulations. These requirements are as follows:
+
+
+(1) Residency and VAT Registration Eligibility
+
+
+All members of the tax group must be resident in the Kingdom, This means that each legal
+entity must have a legal establishment or a fixed place of business in the Kingdom. In addition,
+each member must be eligible for VAT registration; all members must meet the voluntary
+registration threshold as defined in the Regulations.
+
+
+
+
+7
+(2) Ownership Structure and Control Requirements
+
+
+50% or more of the capital, voting rights, or market value of each legal entity in the tax group
+must be owned-directly or indirectly-by: the same legal entity, the same legal entities or a legal
+entity (inside or outside the tax group) that exercises control and authority over the other group
+members.
+
+
+This requirement emphasizes the necessity of having economic, financial or organizational links
+between legal entities within a tax group through ownership or control. Specifically, at least one
+person-or a group of persons-must hold 50% or more of the capital, voting rights, or market
+value of each legal entity in the tax group.
+
+
+Ownership may be established directly, such as through the outright acquisition of shares, or
+indirectly, where the ultimate owner exercises actual ownership through intermediary entities.
+
+
+In addition to ownership, the requirement can also be satisfied when a legal entity-whether part
+of the tax group or not-exerts authority and control over the other entities within the group.
+
+
+This means that qualifying links may exist not only through direct or indirect ownership but also
+where a legal entity possesses the ability to manage and direct the strategic and operational
+decisions of the group’s members. Thus, the term “authority and control” refers to the ability to
+manage and steer the strategic and operational direction of other legal entities, either directly or
+indirectly.
+
+
+
+ZATCA reserves the right to request supporting documentation to verify the existence of such
+control and authority among the legal entities within the tax group.
+
+
+
+
+8
+Example 1:
+
+
+Company “A”, headquartered in the Kingdom of Saudi Arabia, owns 100% of the capital
+of companies “B” and “C”, which are also resident entities in the Kingdom. Since all three
+companies are eligible for VAT registration as taxable persons, conduct economic activities, and
+exceed the annual voluntary registration threshold, they meet the necessary conditions for
+VAT registration. Therefore, a tax group may be formed including companies A, B, and C.
+
+
+
+
+  Company (A)
+
+
+  100%  100%
+
+
+
+  Company (C)  Company (B)
+
+
+
+
+  Tax Group
+
+
+
+
+9
+Example 2:
+
+
+Company “A” is a resident entity and registered for VAT. It owns 50% of the capital in Company
+“B”, and 40% of the capital in Company “C”. The remaining 60% of Company “C” is owned by
+another legal entity.
+
+
+In this case, a single tax group including companies A, B, and C cannot be formed because
+Company “A” does not meet the required threshold of 50% or more ownership, voting rights, or
+market value in Company “C”.
+
+However, a tax group can be formed between companies “A” and “B”, as the ownership threshold
+and other eligibility requirements are satisfied in the case of these two companies.
+Company (A)
+
+
+
+
+  Company (A)
+
+
+  40%  50%
+
+
+
+  Company (C)  Company (B)
+
+
+
+
+  A single tax group including
+  companies A, B, and C cannot
+  be formed
+
+
+
+
+10
+(3) Restrictions on Tax Group Membership
+
+
+None of the members of the group shall be licensed to operate in any special zone that enjoys
+customs suspension status, in accordance with the relevant regulatory provisions for those
+zones, and/or be a member of another tax group.
+
+
+Economic activities in special zones are subject to a zero percent tax rate under specific
+regulations. Accordingly, this condition prevents any member of the tax group from being
+licensed to operate in any special zone with customs suspension status. Further clarification
+regarding supplies related to special economic zones will follow, based on the amendment to
+Article (32 bis) in the Regulations, as detailed in section 2.5 of this guideline.
+
+
+
+To ensure the clarity and accuracy of tax obligations, a legal entity that is already a registered
+member of one tax group is not permitted to join or form another tax group simultaneously.
+
+
+Example 3:
+
+
+Company “A” is licensed to operate in a special economic zone with customs suspension status.
+As a result, it cannot join a tax group with other companies.
+To comply with VAT regulations, companies seeking tax group registration must ensure that all
+prospective members operate outside special economic zones that have customs suspension
+status.
+
+
+(4) Restrictions on Tax Group Members Being Eligible for VAT Refund
+
+
+The applicant, or any member of the group, must not be eligible for a refund under the provisions
+of Article (70) of the Regulations, except in the following cases: individuals recognized as being
+eligible for a refund as licensed real estate developers whose licensed real estate activities are
+exclusively limited to supplying real estate for sale and ownership transfer to their employees;
+or individuals recognized as being eligible for a refund as donors to public benefit projects. This
+condition ensures that neither the applicant nor any member of the group qualifies for a
+value-added tax (VAT) refund under Article (70) of the Regulations.
+
+
+
+
+11
+All requirements must be continuously met by every member of the group throughout the entire
+period of the tax group’s registration as a taxable entity. It is not enough for the group to meet
+these conditions only at the time of registration; rather, compliance must be maintained for the
+duration of the tax group’s registration.
+
+
+If any change occurs that causes a member to no longer meet one of these conditions-such as
+losing control, failing to maintain the required ownership percentage, or being registered as
+an eligible-applicant for VAT refund contrary to the permitted criteria-the Authority may take
+necessary actions in accordance with its powers.
+
+
+Furthermore, existing tax groups containing members who become ineligible due to these
+amendments will be granted a six-month grace period from the effective date of the amendments
+in order for the group representative to adjust the group’s status and achieve compliance with
+the new regulations.
+
+
+Example 4:
+
+
+Company “A” is registered as a VAT refund-eligible entity. Its licensed activities are strictly
+limited to the sale and transfer of property ownership exclusively to its employees. Since
+Company “A” qualifies under the exception outlined in Article (10), Paragraph (1)(D)(1) of the
+Regulations, it may be included in a VAT tax group without affecting the group’s eligibility. It
+is important to note that a tax group is treated as a single taxable person for VAT purposes.
+Therefore, supplies of goods or services between members of the same tax group are considered
+outside the scope of VAT.
+
+
+
+However, there are two cases in which an individual eligible for a refund may be part of a tax
+group, which are the following:
+1. A licensed real estate developer eligible for a refund whose licensed real estate activities
+   are exclusively limited to supplying real estate for sale and transferring ownership to their
+   employees.
+2. An individual recognized as being eligible for a refund as a donor to public benefit projects.
+
+
+
+
+12
+2.1.2 Responsibilities of the Tax Group Representative
+
+
+In accordance with the amendment to Paragraph (1) of Article (11) of the Implementing Regulation
+of Value Added Tax (VAT), the representative of the tax group bears the primary responsibility
+for all rights and obligations arising from the group’s VAT registration, acting on behalf of all its
+members.
+
+
+The representative serves as the principal liaison between the tax group and the Zakat, Tax,
+and Customs Authority and is responsible for the following: submitting VAT returns on behalf
+of the group, and managing correspondence and communication with ZATCA, ensuring overall
+compliance with VAT obligations applicable to the group as a single taxable entity.
+
+
+This designation of responsibility does not override the joint liability of all tax group members.
+Each member remains jointly and severally liable for all tax obligations, including any penalties
+or liabilities incurred during their membership period, in accordance with the VAT Law and
+Regulations. This framework ensures shared accountability for tax compliance across all group
+members.
+
+
+Pursuant to the amendment to Paragraph (6) of Article (11) of the Regulations:
+
+● Upon approval of a tax group registration, ZATCA will issue a new Taxpayer Identification
+  Number (TIN) for the tax group and notify the representative accordingly.
+● The individual TINs of previously registered group members will be suspended for VAT
+  purposes.
+● The tax group will be treated as a separate and independent taxable entity, distinct from its
+  individual members.
+● A new VAT registration certificate, reflecting the group’s unique TIN, will be issued by ZATCA
+  and delivered to the group representative.
+
+
+For tax groups that were registered prior to the effective date of these amendments, the group
+representative will be granted a transition period of 180 days from the date the amendments
+are published in the official gazette. During this period, the group representative must review
+and adjust the group’s membership to ensure full compliance with the updated requirements
+specified in Article (10) of the Implementing Regulation of Value Added Tax (VAT).
+
+
+
+
+13
+2.1.3 Legal Implications of Tax Group Registration
+
+
+The tax group formation request is submitted using the form prepared by ZATCA, which must,
+at a minimum, include information about all group members as stipulated in Article 8 of the
+Regulations. Additionally, a copy of the agreement between group members, designating the
+tax representative and confirming representative’s own acceptance of the appointment, must
+be provided. This agreement serves as an acknowledgment by the tax group that all conditions
+and requirements for registration as a tax group have been met.
+
+
+
+The registration of a tax group entails a number of regulatory provisions introduced through
+amendments, including the addition of Paragraph (7) to Article (11) of the Regulations, which
+clarifies the regulatory implications of tax group registration and establishes guidelines on how
+tax groups should be handled. Once registered, a tax group is treated as a single entity, meaning
+that any economic activity conducted by a member is considered to have been carried out by the
+tax group as a whole.
+
+
+
+Similarly, any supply made by a group member is regarded as a supply made by the tax group,
+and the same applies to imports of goods and services. Additionally, the amendments clarify the
+treatment of output and input tax, stipulating that any output tax imposed by a member of the
+tax group is deemed to be imposed by the tax group, and any input tax incurred by a member is
+considered to have been borne by the tax group.
+
+
+
+The amendments also include modifications to Paragraph (7) of Article (12), addressing the
+ZATCA’s power to remove tax group status for any transactions between group members or to
+cancel the group’s registration-effective from either a past or future date-if maintaining the tax
+group results in, or would result in, tax advantages that conflict with the purpose of the system
+or regulations. ZATCA is empowered to exclude a group member, with notification to the tax
+group representative, while maintaining the tax group status for the remaining members, in the
+following cases:
+
+
+
+
+14
+1. where the member’s continued inclusion leads to, or would lead to, tax advantages conflicting
+   with the purpose of the Law or Regulations; or
+2. if it is proven that the member does not meet the conditions for joining the tax group.
+
+2.2 Cessation of Economic Activity by a Taxable Person
+
+The recent amendments to the Implementing Regulation of Value Added Tax (VAT) include
+revisions to Article (13), which clarify the obligations of a taxable person following the
+cancellation of their VAT registration. Specifically, the amendments confirm that the transfer of
+an economic activity resulting in the full cessation of that activity constitutes a valid reason for
+VAT deregistration.
+
+Regardless of the reason for deregistration, the taxable person is required to retain invoices,
+credit and debit notes, books, and records as stipulated under Article (66) of the Regulations, for
+the duration specified therein.
+
+In all cases, cancellation of VAT registration does not absolve the taxable person of any
+outstanding obligations owed to ZATCA prior to the cancellation date.
+
+
+
+
+15
+Example 5:
+
+
+Company “A”, a contracting company registered with ZATCA as a taxable person, decides to
+cease conducting its economic activity. Instead of liquidating or closing the business, it opts to
+transfer the entirety of its operations to Company “B”, another company operating in the same
+sector.
+
+
+As a result of this transfer, Company “A” ceases all economic activity, and all associated
+operations are transferred to Company “B”.
+
+
+In this case, Company “A” must submit a request for VAT deregistration. Deregistration will take
+effect from the date determined by ZATCA, subject to its approval. In all cases, Company “A”
+must fulfill all outstanding tax obligations before ZATCA can approve the deregistration request.
+
+
+In addition, the transferee (company B) is required to notify ZATCA of the transfer within thirty
+(30) days from the date of the transfer, unless the transferor (company A) has already submitted
+a deregistration request in accordance with Paragraph (4) of Article (13).
+
+
+After deregistration, Company “A” remains obligated to retain all invoices, credit/debit notes,
+books, and records for the periods specified in Article (66) of the Regulations. Furthermore,
+Company “A” must settle any VAT liabilities related to periods prior to the effective deregistration
+date.
+
+
+
+
+16
+Example (6):
+
+
+Building on the previous example, suppose Company “A” has partially transferred its busi-
+nessspecifically its residential construction activities-to another entity but continues to operate
+its commercial contracting services.
+
+
+In this case, Company “A” cannot cancel its VAT registration, as it still engages in ongoing
+economic activity. Therefore, it must continue to fulfill its tax obligations as a VAT-registered
+taxable person, provided it continues to meet the mandatory registration criteria.
+
+
+2.3 Supply of Services
+
+
+The concept of “supply” under VAT regulations is broadly defined to include any form of goods
+and/or services provided for consideration.
+
+
+According to Article (7) of the Unified VAT Agreement, “A supply of services means any
+transaction that does not constitute a supply of goods under the provisions of this Agreement.”
+Most business transactions involve the provision of goods, services, or both, from the supplier
+to the customer.
+
+As part of the amendments to the Implementing Regulation of Value Added Tax (VAT) , Paragraph
+(2) of Article (14) has been added to clarify the meaning of service supplies. A supply of services
+is defined as any transaction that does not constitute a supply of goods, including (but not limited
+to) the following:
+
+a. Granting, transferring, assigning, suspending, or relinquishing a right.
+b. Providing a facility or benefit.
+c. Committing to refrain from performing an action or allowing it to occur.
+d. Agreeing to waive participation in an activity or preventing its occurrence.
+e. Transferring or assigning an indivisible share in a good.
+f. Allowing the use of intangible rights or transferring them, such as: Copyrights, patents,
+   artistic rights, trademarks, and other intellectual property rights protected under applicable
+   laws in the Kingdom.
+
+
+
+
+17
+Example (7):
+
+
+Company “A”, a cybersecurity technology firm, grants Company “B” the right to use a data
+protection software for ten years in exchange for a specific monetary fee. This transaction
+constitutes a supply of services, as it involves granting a usage license.
+
+
+Example (8):
+
+
+Company “A” and Company “B” agreed that Company “B” will not launch a specific product in the
+market for a defined period, in exchange for a fixed payment. Since this agreement involves a
+commitment to ‘refrain from an action’, it qualifies as a supply of services under VAT regulations.
+
+
+Example (9):
+
+
+Company “A” holds a patent on advanced manufacturing technology and grants Company “B”
+the right to use this patent for five years in exchange for annual fees. This transaction constitutes
+a supply of services because it involves granting the right to exploit intangible assets.
+
+
+
+
+18
+2.4 Deemed Supply
+
+The amendments to the Implementing Regulation of Value Added Tax (VAT) modified certain
+paragraphs of Article (15) to clarify the concept of deemed supply in alignment with the statutory
+provisions outlined in Article (8) of the Unified VAT Agreement. It was emphasized that deemed
+supply applies only to cases explicitly stated in the Agreement, Law, and Regulations, unless
+otherwise specified.
+
+
+
+The scope of deemed supply has been expanded to include cases where goods are retained
+after the cessation of economic activity or when a person is no longer eligible for VAT registration
+under the VAT Law and Regulations.
+
+
+
+
+Additionally, the revised provisions extend the scope of application to cover all direct input VAT
+costs related to importing, purchasing, producing, or supplying goods and services associated
+with deemed supply, rather than applying input VAT only on purchases or imports. The new text
+also includes partial VAT recovery adjustments alongside deduction handling, stating that the
+value of deemed supply must be modified to reflect the actual percentage of tax deducted or
+recovered.
+
+
+
+The exemptions from deemed supply classification when providing goods or services free of
+charge have been expanded. The new text introduces a condition stating that input VAT incurred
+must neither be deducted nor recovered, while requiring VAT-registered persons to maintain
+documentation proving non-deduction or non-recovery.
+
+
+The determination of deemed supply value has been further clarified, specifying that the value
+should be either the purchase cost or production cost. If these cannot be determined, the fair
+market value at the date of deemed supply will be used, referencing the rules outlined in Article
+(38) of the Regulations.
+
+
+
+
+19
+A deemed supply occurring due to the cessation of economic activity or because a VA-
+Tregistered person is no longer eligible for VAT registration is considered to have occurred on the
+date of economic activity cessation or the date of VAT deregistration, whichever is earlier.
+
+
+Example (10):
+
+
+An engineering consultancy firm provided free advisory services to a charitable organization.
+The firm did not deduct or reclaim input VAT related to the costs of the provided services. It
+retained documentation proving the incurred tax and its non-deduction.
+
+Treatment:
+
+Providing free services does not constitute a deemed supply, as the firm did not deduct or reclaim
+input VAT associated with the services.
+
+Example (11):
+
+
+An agricultural company imported agricultural chemicals worth 500,000 SAR for use in its
+business activities and paid 75,000 SAR in input VAT, which it deducted in its VAT return. A year
+later, the company decided to cease business operations and retain the equipment for personal
+use.
+
+
+Treatment:
+
+
+Retaining equipment after ceasing business operations qualifies as a deemed supply of goods.
+The value of the deemed supply is determined based on the purchase cost or production cost. If
+neither can be identified, the valuation is based on the fair market value at the time of the deemed
+supply, in accordance with the valuation rules in Article (38) of the Regulations. VAT is imposed
+on the deemed supply, which must be disclosed in the VAT return covering the tax period in
+which the business cessation or VAT deregistration occurred, and the applicable tax must be
+paid accordingly.
+
+
+
+
+20
+2.5 Transfer of Economic Activity
+
+
+The new amendments to the Implementing Regulation of Value Added Tax (VAT) establish
+provisions for transferring taxable economic activity from one person to another, whether fully
+or partially, for the purpose of continuing the same activity by the recipient. Such transfers do not
+qualify as taxable supplies, provided that the following conditions are met:
+
+a. The goods and services representing the economic activity (or part of it) must be operationally
+   independent, meaning they can function as a standalone economic activity for the recipient.
+   The transferred business must include all tangible and intangible assets necessary for
+   conducting the economic activity. This includes physical assets such as equipment and
+   buildings, as well as intangible assets like intellectual property rights and trademarks.
+b. The recipient must be a taxable person registered with ZATCA or must become a taxable
+   person as a result of the transfer. The recipient must use the transferred goods, services, and
+   assets directly to conduct the same economic activity as the supplier. If the recipient is not
+   already VAT-registered, they must register due to the transfer and immediately begin using
+   the transferred assets and services for the same taxable business.
+c. Both the supplier and recipient must formally agree in writing that they intend for the transfer
+   to be treated as a transfer of economic activity for the purposes of the Regulations.
+d. The supplier and recipient must notify ZATCA of the transfer by the end of the month following
+  the transfer date, using the designated form. The notification must include the following
+  details:
+1. Names and addresses of the supplier and recipient.
+2. Taxpayer Identification Number (TIN) of the supplier (and the recipient, if registered).
+3. Proof of VAT registration application by the recipient, if not previously registered.
+4. Date of the economic activity transfer.
+5. Detailed list of goods and services included in the transfer.
+6. Signed agreement between the supplier and recipient confirming the economic activity
+  transfer.
+7. Any additional documents required by ZATCA.
+If the transfer of economic activity does not meet all the above conditions, including proper
+notification to ZATCA, the transferred goods and services will be treated as taxable supplies
+subject to VAT.
+
+
+
+
+21
+2.5.1 Tax Rights and Obligations After Completion of the Transfer
+
+
+First: Succession of the recipient to the position of the supplier
+
+
+Upon completing the transfer of economic activity according to the agreement between the
+supplier and recipient, the recipient assumes certain tax rights and obligations in place of the
+supplier:
+
+● Right to Deduct or Recover Input VAT: The recipient is entitled to exercise the right to deduct
+  or recover input VAT associated with the transferred activity, including adjustment of input
+  VAT or output VAT previously declared by the supplier, in accordance with the provisions of
+  Article (40) of the Regulations.
+● Record-Keeping Obligations: The recipient is responsible for maintaining records related to
+  the transferred activity in compliance with regulatory requirements.
+
+Second: Ongoing Responsibility of Supplier and Recipient
+
+Both the supplier and recipient remain jointly responsible for tax obligations that arise before or
+after the transfer, as per the VAT Law and Regulations, unless otherwise agreed. In all cases,
+the recipient does not assume liability for tax violations committed by the supplier before the
+transfer date, specifically those related to the transferred goods and services.
+
+Third: Taxpayer Identification Number
+The recipient must apply for VAT registration with ZATCA to obtain a separate Taxpayer
+Identification Number (TIN) unless they were already registered before the transfer. The
+transfer does not result in the supplier’s Taxpayer Identification Number being transferred to the
+recipient-the recipient must obtain a new TIN upon registration.
+
+
+
+
+22
+2.6 VAT Suspension Regulations
+
+The amendments to the Implementing Regulation of Value Added Tax (VAT) introduced a new
+article titled “VAT Suspension on Imports and Supply Transactions Linked to Tax Suspension”.
+This article aims to regulate the tax treatment for goods subject to suspended customs duties
+upon importation, as well as transactions within special economic zones where VAT suspension
+applies. The key provisions of this article are outlined below:
+
+
+
+1. VAT Rate of 0% on Certain Supplies
+
+
+A 0% VAT rate applies to supplies made to or within customs suspension schemes, in accordance
+with the Unified Customs Law, under the following circumstances:
+● When goods are supplied to customs suspension zones.
+● When goods are transferred or supplied within such zones, meaning goods already under
+  customs suspension remain within the suspended framework.
+● When temporarily imported and transferred goods are re-exported for specific purposes,
+  such as:
+O Repair: Goods imported for repair purposes.
+O Restoration: Goods requiring restoration to perserve their original condition.
+O Processing or transformation: Example-importing machinery for repairs.
+O Additional services: Any services related to goods while they remain in the Kingdom, provided
+  they comply with the procedures outlined in the Unified Customs Law regulating temporary
+  import and export transactions.
+
+2. VAT Collection in Tax Suspension Cases
+
+VAT is suspended on imported goods placed under customs suspension regimes, provided
+they comply with the Unified Customs Law conditions. VAT becomes payable when goods exit
+customs suspension, in line with the procedures specified in the Unified Customs Law.
+
+
+
+
+23
+3. Export Treatment of Goods
+
+
+Goods exiting customs suspension zones for export outside GCC countries are treated as exports
+in accordance with applicable VAT rules.
+
+
+4. VAT Treatment of Goods in Special Economic Zones
+
+
+Tax treatment for goods imported into special economic zones, supplied within them, transferred
+between special zones, or exiting customs suspension follows the same VAT mechanisms
+applied to supplies to customs suspension zones, temporary imports of goods, or exit of goods
+from customs suspension to the Kingdom or GCC territory.
+
+
+These transactions comply with Paragraphs (1), (2), (3), and (4) of Article (32 bis) of the
+Regulations, provided the following conditions are met:
+
+
+● The special zone has customs suspension status.
+● The goods are linked to licensed activities within the zone.
+● The goods are placed under customs suspension.
+● Effective control measures are in place to monitor the movement of goods within and outside
+  the special zone.
+
+
+Taxpayers must retain invoices and supporting documents related to transactions within special
+economic zones to ensure compliance, including: invoices, supporting documents (such as
+transport contracts, customs clearance forms), or any other relevant records proving the nature
+of the transaction and its link to the special zone.
+
+
+
+
+24
+5. Documentation Compliance
+
+
+Taxable persons must retain documentation proving the location of goods at the time of supply,
+including movement records and customs suspension status, especially for goods in special
+economic zones. Documentation must comply with customs regulations under the Unified
+Customs Law.
+
+
+6. Exemptions
+
+
+Water and all forms of energy (electricity, gas, lighting, heating, cooling, air conditioning)
+are exempt from these VAT suspension rules, as they do not fall under customs suspension
+procedures.
+
+
+Example (12):
+
+
+A plumbing company in a special economic zone imported raw materials worth 2 million SAR
+from abroad, placing them under customs suspension in a warehouse within the zone. The
+imported materials were intended for manufacturing plastic products inside the Kingdom.
+
+Treatment:
+
+VAT is suspended on the raw materials while under customs suspension. VAT becomes payable
+once the materials exit suspension for domestic consumption, requiring VAT return submission
+and payment of the due tax.
+
+
+
+
+25
+Example (13):
+
+
+A mobile phone manufacturing company supplied glass materials worth 8 million SAR to a
+special economic zone for use in a licensed project within the zone.
+
+Treatment:
+A 0% VAT rate applies to the supply to the special economic zone, provided that:
+● The zone has customs suspension status.
+● The supplied materials are associated with licensed activities in the zone.
+● The goods are placed under customs suspension.
+● Effective control measures are in place to monitor the movement and supply of goods within
+  and outside the zone.
+
+Example (14):
+
+An industrial equipment company transferred machinery worth 50,000 SAR from a special
+zone in Jeddah Port to a special zone in Dammam Port, without changing the equipment’s status.
+Treatment:
+A 0% VAT rate applies to the transfer between the two special zones, provided that:
+● The zone operates under customs suspension.
+● The equipment is associated with licensed activities within the special zone.
+● The goods remain under customs suspension.
+● Effective control measures track the movement and supply of goods within and outside the
+  zone.
+
+
+
+
+26
+Example (15):
+
+
+A company established in the Kingdom (outside the special zone) supplied electricity worth 50
+million SAR to a special zone for industrial facility operations.
+
+
+Treatment:
+
+
+Imported electricity does not qualify for the 0% VAT rate. VAT applies to electricity at the
+standard rate of 15%, since electricity is not subject to customs suspension procedures under
+applicable tax laws.
+
+
+2.7 Provisions for Services Supplied to Non-GCC Residents
+
+The amendments to the Implementing Regulation of Value Added Tax (VAT) introduced
+clarifications on the tax treatment of services supplied to non-GCC residents, which qualify for a
+0% VAT rate provided the applicable conditions are met.
+
+
+The key modifications are found in Paragraphs (C) and (D) of Paragraph (2) of Article (33) of
+the Regulations, which specify that for a service to qualify for the 0% VAT rate, the following
+conditions must be met:
+
+
+•  The Customer or any related person must not directly benefit from the supplied service while
+  present in a GCC member state.
+•  The service must not be physically performed on tangible goods located in a GCC member
+  state during the supply process.
+
+
+
+
+27
+Example (16):
+
+
+Company “A”, a registered VAT taxpayer specializing in industrial equipment maintenance,
+supplied a service to a non-GCC resident regarding the repair method for a specific pump.
+However, the actual repair work was carried out by another company based in the Kingdom.
+Treatment:
+
+Since the service was physically performed on tangible goods in the Kingdom, the transaction
+does not qualify for the 0% VAT rate.
+
+2.8 Government Subsidies Paid to Suppliers
+
+Paragraph (6) of Article (26) of the Unified VAT Agreement states: “The taxable supply value
+shall be reduced by the following: - (b) The value of subsidies granted by the member state to
+the supplier.”
+
+
+To clarify the definition of subsidies in VAT provisions and distinguish them from consideration
+for taxable supplies, the amendments introduced Paragraph (2) of Article (39) of the Regulations,
+stating:
+
+“Amounts paid by a government entity to a supplier are not considered subsidies if they constitute
+full or partial compensation for the supply of goods or services to the government entity.” Thus,
+if the paid amount (or part of it) corresponds to the supply of goods or services benefiting the
+government directly or indirectly, it is not considered a subsidy but rather taxable consideration
+for those supplies.
+
+
+
+
+28
+Example (17):
+
+
+A government entity contracts Supplier “A” to develop infrastructure in a remote area, with the
+aim of making land ready for real estate development at competitive prices by various property
+developers, including Supplier “A” itself. Under the agreement, the government provides a
+specified financial sum to Supplier “A” as financial support, covering all infrastructure costs
+incurred by Supplier “A”.
+
+
+
+Treatment:
+
+
+In this case, the supply is made for the benefit of the government entity and in accordance with
+the agreement between the two parties. Therefore, the amount paid is not considered a subsidy
+but rather compensation for the supply of infrastructure, the costs of which will be incurred by
+the supplier in the execution of the project on behalf of the government entity.
+
+
+2.9 Input VAT Deduction for Goods Supplied Under Financing Contracts
+
+As a general rule, a VAT-registered person who deducts input VAT on a received supply but has
+not fully paid for it within twelve months following the month of supply must adjust the deductible
+input VAT by an amount equivalent to the unpaid tax. This adjustment must be included in the
+VAT return for the tax period corresponding to the expiration of the twelve-month period. 1 As
+an exception to this rule-recognizing the nature of financing contracts for taxable purchases
+entered into with licensed financial institutions-the Regulations amendments allow the full
+deduction of input VAT incurred on goods supplied under financing contracts such as lease
+financing, murabaha agreements, and lease-to-own arrangements, provided the following
+conditions are met:
+
+
+1. The contract or agreement remains in effect.
+2. There is no legal dispute concerning the contract or agreement.
+3. The supplier has declared the full amount of VAT due on the supply in the VAT return for the
+   relevant tax period.
+4. The customer holds a written certificate issued by the supplier, confirming full VAT
+   declaration.
+
+
+1.   Paragraph (10) of Article (40) of the Regulations.
+
+
+
+
+29
+Example (18):
+
+
+In August 2025, Company “A” entered into a lease financing contract with Company ”B”
+to acquire industrial equipment worth 100,000 SAR, agreeing to pay monthly installments
+of 3,194.45 SAR over three years, inclusive of 15% VAT (15,000 SAR). Upon signing the
+contract, Company “B” issued an invoice for the full supply value (115,000 SAR) and declared the
+entire VAT due in its VAT return. Company “A” consistently paid its installments and obtained a
+written certificate from Company “B” confirming full VAT declaration.
+
+
+
+Treatment:
+
+
+Since all exception conditions under Paragraph (10) of Article (40) of the Regulations are met,
+Company “A” is entitled to deduct the full input VAT in its tax return.
+
+
+Example (19):
+
+
+Using the same scenario as Example (18), six months later, Company “A” discovered that the
+equipment was defective and did not meet the agreed specifications, leading it to stop paying
+the remaining installments and file a lawsuit.
+
+
+Treatment:
+
+
+Due to the legal dispute jeopardizing the continuity of the contract, the exception allowing
+full input tax deduction under financing contracts does not apply in this case. Accordingly,
+Company “B” must adjust the value of the supply in proportion to the VAT related to the unpaid
+installments. The total value of the outstanding installments after six months is SAR 95,833.30.
+This adjustment must be reported in the VAT return for September 2026, which marks the end
+of the 12-month period following the month of the original supply transaction.
+
+
+
+
+30
+If the input tax has been adjusted in accordance with the above and the taxable person later settles
+the previously unpaid consideration, they may increase the deductible input tax accordingly. This
+increase should correspond to the VAT calculated on the amount paid and must be included in
+the VAT return for the tax period in which the payment was made, or in a subsequent tax period.
+
+
+2.10 Electronic Marketplace
+
+2.10.1 Definition
+
+
+The amendments to the Implementing Regulation of Value Added Tax (VAT) define an Electronic
+Marketplace for VAT purposes as:
+
+
+“A digital or electronic platform, or its equivalent, whose primary or secondary purpose is to
+enable suppliers to showcase, offer, provide, or contract for their products-whether goods or
+services-with benefiting customers.”2
+
+
+
+
+2.   Paragraph (4/b) of Article (47) of the Regulations.
+
+
+
+
+31
+For a platform to be classified as an electronic marketplace, it must actively facilitate the supply
+process for goods or services. Thus, if its role is limited to processing payments related to
+purchases, advertising and marketing, or simply redirecting customers to another electronic
+marketplace-which then facilitates the actual supply-it does not qualify as a facilitator of supply.3
+The following examples offer further clarification:
+
+
+
+  Does it qualify as an electronic
+ No.  Example
+  marketplace facilitating supply?
+
+ 1  An electronic payment platform facilitates online
+  payments between customers and e-commerce stores
+  by enabling transactions via credit cards or bank transfers.
+  When a purchase is made through an online store,
+  the platform transfers the payment amount from the
+  customer’s account directly to the store’s account only.
+
+ 2  A marketing platform promotes goods and services on
+  behalf of e-commerce stores through advertisements,
+  including images, videos, and promotional articles, to
+  attract potential buyers. However, it does not process
+  transactions; instead, it redirects customers to another  X
+  e-commerce platform that manages the purchasing
+  process.
+ 3  The Best Choice platform showcases electronic products-
+  such as smartphones and other electronic devices-
+  allowing customers to compare features and prices
+  across multiple e-commerce stores. This enables users
+  to identify the best deals. Like the marketing platform,
+  Best Choice does not handle transactions but redirects
+  customers to another platform where the actual purchase
+  takes place.
+
+ Since the platforms described in examples (1), (2), and (3) are limited to processing payments, conducting
+ marketing and advertising activities, or redirecting customers to other platforms for the actual supply of goods or
+ services, they are not considered to be facilitating the supply process.
+
+
+
+
+3.   Paragraph (4/a) of Article (47) of the Regulations.
+
+
+
+
+32
+2.10.2 Facilitation of Service Supply by an Electronic Marketplace from a Non-Resident Supplier
+
+
+  Electronic Marketplace
+  T
+  fV
+  A  (Resident or Non-  Ta
+  o  xa
+  oe  Resident)  ble
+  p
+  Sc  Su
+  he  ply
+  iedt  p
+  Outs
+  ply
+  Su
+
+
+
+
+  Supplier  Beneficiary Customer
+  (Non-Resident)  (Resident)
+
+
+
+  Outside the Kingdom  Within the Kingdom
+
+
+
+
+  Facilitation of the supply process between the supplier and the customer
+  Supply chain for tax purposes (Deemed Supply) Actual supply from the
+  supplier to the customer
+
+
+
+
+The amendments to the Implementing Regulation of Value Added Tax (VAT) provide further
+clarifications regarding the conditions under which an electronic marketplace is not liable
+for tax payments on electronic services supplied through its platform-whether the electronic
+marketplace is resident or non-resident and acts as an intermediary for a non-resident supplier.
+
+
+The provisions in Paragraph (2) of Article (47) of the Regulations extend the application of Article
+(9) of the VAT Law, which states that if a VAT-registered taxable person supplies goods or
+services in their own name on behalf of another party, they are treated as making the supplies
+for themselves under VAT regulations.
+
+
+
+
+33
+In cases where an electronic marketplace facilitates the supply of services as an intermediary
+for one or more non-resident suppliers, the market is considered to have purchased the services
+from the non-resident suppliers for its own account and to have resupplied them under its
+own name to the final customer. Consequently, the electronic marketplace is responsible for
+collecting and remitting VAT on taxable supplies made through its platform within the Kingdom.
+
+
+
+This regulation results in two separate supplies, with tax treatment explained as follows:
+
+1. The First Supply: From the Non-Resident Supplier to the Electronic Marketplace
+
+
+a. If both the supplier and electronic marketplace are non-resident in the Kingdom: The supply
+   of services from the non-resident supplier to the non-resident electronic marketplace is
+   outside the scope of VAT. This means the supplier is not required to register for VAT in the
+   Kingdom and cannot claim input VAT incurred in the Kingdom.
+b. If the supplier is non-resident and the electronic marketplace is VAT-registered in the
+   Kingdom: The supply of services from the non-resident supplier to the VAT-registered
+   electronic marketplace is subject to the reverse charge mechanism. The electronic
+   marketplace must declare the supply in its VAT return, while the non-resident supplier
+   remains exempt from VAT registration and cannot claim input VAT incurred in the Kingdom.
+c. If the supplier is non-resident and the electronic marketplace is resident in the Kingdom but
+   not VAT-registered: The supply of services from the non-resident supplier to the resident
+   electronic marketplace is subject to VAT under standard rules. The non-resident supplier
+   is responsible for VAT payment and must register for VAT in the Kingdom upon their first
+   taxable supply, regardless of its value, while being eligible to deduct input VAT incurred in
+   the Kingdom related to taxable supplies.
+
+
+
+
+34
+2. The Second Supply: From the Electronic Marketplace to the Customer Receiving the
+Facilitated Service
+
+
+a. If the electronic marketplace is non-resident and deals with non-registered customers in the
+   Kingdom: The electronic marketplace must register for VAT in the Kingdom, regardless of
+   the value of its supplies in the Kingdom. VAT is applicable on the total supply amount paid
+   by the customer, and the market has the right to deduct input VAT incurred in the Kingdom
+   related to taxable supplies.
+
+b. If the electronic marketplace is resident and VAT-registered in the Kingdom: The same VAT
+   treatment applies as in scenario (a).
+c. If the electronic marketplace is resident but not registered or not required to register (Its
+   revenues do not exceed the mandatory registration threshold): The supply of services
+   through the market is not subject to VAT. However, the market bears the VAT imposed on
+   the first supply from the non-resident supplier, who must register for VAT due to their supply
+   to a non-registered resident entity (the electronic marketplace).
+
+The above provision does not apply if all of the following conditions are met:
+
+
+● It is explicitly stated that the supplier-or non-resident suppliers-are the actual providers of
+  the supply taking place within the Kingdom, and that the transaction is conducted through
+  the electronic marketplace on behalf of the customer. This must be clearly reflected in the
+  contractual arrangements between all parties involved, as well as in the tax invoice and the
+  receipt issued to the customer.
+● The electronic marketplace does not set the terms and conditions related to the supply of
+  services offered through it, determine the consideration for such supplies, charge or invoice
+  customers for the consideration, collect payments from customers, handle customer
+  complaints, or provide promotions or compensation to customers in relation to the supply.
+
+
+
+
+35
+Example (20):
+
+
+Company “A”, a non-resident gaming company, sells electronic games via Platform “B”, an
+electronic marketplace also non-resident in the Kingdom. Several customers based in the
+Kingdom purchase games through the platform.
+
+
+Treatment:
+
+
+Since both the supplier (Company A) and the electronic marketplace (Platform B) are non-
+resident, their transactions are outside the scope of VAT in the Kingdom. The second sup-
+ply from the electronic marketplace to resident customers is treated based on the customer’s
+VAT registration status:
+
+
+● If the supply is made by a non-resident to non-registered customers, the supplier must
+  register for VAT in the Kingdom.
+● If the supply is made by a non-resident to VAT-registered customers, the resident customers
+  must declare these supplies under the reverse charge mechanism.
+
+Example (21):
+
+Company “A” is an electronic marketplace that acts as an intermediary for selling online
+consultancy services. The market facilitates the sale of consultancy services provided by a non-
+resident supplier (a consultant not residing in the Kingdom) to customers located in the Kingdom.
+The market sets the prices, issues tax invoices to customers in its own name, collects payments
+from customers, and defines the terms and conditions related to the service.
+
+Treatment:
+
+Since the electronic marketplace controls pricing and manages all aspects of the supply, it is
+responsible for collecting and remitting VAT on taxable supplies within the Kingdom.
+
+
+
+
+36
+Example (22):
+
+
+Using the same scenario, the customer purchases consultancy services directly from the non-
+resident supplier (the consultant), as evidenced by the tax invoice issued to the customer, which
+explicitly identifies the non-resident supplier as the provider of the service. Moreover, the
+electronic marketplace does not set the prices or terms, handle customer complaints, or provide
+promotions or compensation related to the supply.
+
+Treatment:
+Since the non-resident supplier is directly responsible for the supply, the VAT collection and
+payment obligations fall on the supplier, provided the customer is not VAT-registered in the
+Kingdom.
+
+
+2.10.3 Facilitation of Goods or Services Supply by an Electronic Marketplace from a Non-
+Registered Resident
+
+
+
+
+  VA
+  T  Electronic Marketplace
+  of  Ta
+  oe  (Resident or Non-  xa
+  ble
+  cp  Resident)  Su
+  eS  ply
+  dth  p
+  t  sie
+  Ou
+  ply
+  Su
+
+
+
+
+  Supplier (Resident,  Beneficiary Customer
+  Non-Registered)  (Resident)
+
+
+
+
+  Facilitation of the supply process between the supplier and the customer
+  Supply chain for tax purposes (Deemed Supply) Actual supply from the
+  supplier to the customer
+
+
+
+
+37
+Starting from January 2026, amendments to Paragraph (3) of Article (47) of the Regulations will
+regulate situations where an electronic marketplace facilitates the supply of goods or services in
+the Kingdom as an intermediary for one or more resident suppliers who are not VAT-registered.
+
+
+In such cases, the electronic marketplace is deemed to have purchased the goods or services
+from the non-registered resident suppliers for its own account and then resupplied them under its
+own name to the final customer. As a result, the electronic marketplace bears the responsibility
+for collecting and remitting VAT on all taxable supplies conducted through its platform in the
+Kingdom.
+
+
+
+This framework creates two distinct supplies, with the tax treatment outlined as follows:
+
+1. The First Supply: From the Non-Registered Resident Supplier to the Electronic Marketplace
+
+
+a. If goods are supplied by a non-registered resident supplier or a supplier not required to
+   register for VAT with ZATCA in the Kingdom, and the supply is made through a taxable
+   electronic marketplace (whether resident or non-resident), the supply is considered outside
+   the scope of VAT. In this case, the resident supplier is not required to issue a tax invoice or
+   collect VAT on its supplies.
+b. If services are supplied by a non-registered resident supplier or a supplier not required to
+   register for VAT through a taxable electronic marketplace (whether resident or non-resident),
+   the supply is likewise considered outside the scope of VAT, and the resident supplier is not
+   required to issue a tax invoice or collect VAT on its supplies.
+
+
+
+
+38
+2. The Second Supply: From the Electronic Marketplace to the Customer Benefiting from the
+Supply Facilitation Service
+
+
+a. If the electronic marketplace is non-resident in the Kingdom and supplies are made to
+   individual (non-registered) customers, the electronic marketplace must register for VAT
+   purposes, regardless of the value of its supplies in the Kingdom. In this case, the full value
+   of goods or services supplied through the electronic marketplace will be subject to VAT, and
+   the market will have the right to deduct input tax incurred on expenses or inputs related to its
+   economic activity in the Kingdom.
+
+b. If the electronic marketplace is resident and registered for VAT purposes with ZATCA, the
+   same VAT treatment as outlined in (a) will apply.
+c. If the electronic marketplace is resident but not registered or not required to register, then
+   supplies made through it will not be subject to VAT.
+
+The above provision does not apply if all of the following conditions are met:
+
+
+● It is explicitly stated that the non-registered resident supplier(s) are identified as the actual
+  suppliers conducting the supply within the Kingdom, in both the contractual arrangements
+  between all parties and the tax invoice/payment receipt issued.
+● There exists a direct and independent contractual relationship between the non-registered
+  resident supplier(s) and the final customer, compliant with applicable VAT regulations in the
+  Kingdom, and the supplier(s) set all terms and conditions of the supply.
+● The electronic marketplace does not set terms and conditions, determine pricing, charge
+  customers, collect payments, handle complaints, offer promotions, or provide compensation
+  related to the supply.
+
+
+
+
+39
+2.11 Input VAT Deduction on Certain Restricted Purchases When Service Provision Is
+Mandatory
+
+Article 50 of the Implementing Regulation of Value Added Tax (VAT) defines specific categories
+of goods and services that are considered to be received outside the scope of economic activity,
+for which input tax deduction is not permitted. If a taxable person incurs costs or expenses for
+any of these restricted categories and uses them for non-economic purposes, such input tax is
+not deductible.
+
+
+
+These expenses are typically incurred for the personal benefit of the employer, employees,
+or related persons. However, amendments to the regulations have introduced an exception,
+permitting input tax deduction when the provision of certain services is legally mandatory for
+the taxable person to offer to employees under applicable laws in the Kingdom.
+
+
+Based on the amendment to Article 50, input tax may not be deducted on the following expenses
+unless the goods or services are resupplied as taxable supplies:
+
+
+•  Entertainment, sports, or cultural services, including attendance at entertainment-related
+  events.
+•  Hospitality services and food and beverage catering, unless the taxable person is legally
+  obligated to provide such services to employees at the workplace under applicable Kingdom
+  regulations.
+•  Insurance or healthcare services provided to employees and their dependents, unless there
+  is a statutory obligation for the taxable person to provide these services under the Kingdom’s
+  applicable regulations.
+•  Purchase or lease of restricted vehicles, defined as vehicles designed to carry no more than
+  ten persons. Exceptions to this restriction include:
+
+
+
+
+40
+a. Trucks, cranes, and other heavy machinery used exclusively for economic activity, without
+   being made available for personal use.
+b. Vehicles acquired for resale as part of the taxable person’s economic activity, through sale,
+   lease, or similar arrangements.
+
+c. Vehicles registered as emergency vehicles, such as ambulances, fire trucks, security, or
+   patrol vehicles.
+d. Vehicles used exclusively for economic activity, without being made available for personal
+   use.
+• Insurance, repairs, modifications, maintenance, or similar services related to restricted
+   vehicles.
+• Fuel consumption for restricted vehicles.
+• Any goods or services intended for personal use or purposes unrelated to economic activity.
+
+Example (23):
+
+Ahmad, the owner of a retail company specializing in beauty products, invited his marketing
+team to a dinner as a gesture of appreciation for their efforts in boosting sales. During the dinner,
+they discussed departmental operations and future development opportunities.
+
+Treatment:
+
+Although the expense was incurred for the benefit of the team, the VAT on the dinner is non-
+deductible, as the food and beverage costs represent a personal initiative and are not a legal or
+regulatory obligation.
+
+Example (24):
+
+Al-Dhahabi Construction Company, a VAT-registered entity in the Kingdom, specializes in
+construction projects located in remote areas. To accommodate its employees in these remote
+locations, the company incurs several costs, including food and catering expenses.
+
+
+
+
+41
+Treatment:
+
+
+The food and catering expenses incurred for employees in remote areas are deductible, as
+providing such services is a legal obligation for employers under the applicable Kingdom
+regulations.
+
+
+Timeframe for Issuing Credit and Debit Notes
+
+
+The amendments to the Regulations introduced a new provision specifying the timeframe for
+issuing credit and/or debit notes, as required under Article (54) of the Regulations. Taxable
+persons must issue the required notes within 15 days following the end of the month in which
+the event necessitating their issuance occurred.
+
+
+2.12 Provisions on Correcting VAT Returns
+
+The amendments clarify Paragraphs (1) to (4) of Article (63) of the VAT Regulations regarding
+cases where a taxable person mistakenly submits a VAT return. The updated provisions explain
+the procedure for correcting errors and how to report the corrections in the tax return. The
+following examples illustrate the process:
+
+
+Example (25):
+
+
+Company “A”, a VAT-registered logistics provider, submitted its VAT return for Q1 2024. Later, it
+discovered an error in the return, resulting in a 10,000 SAR understatement of the net VAT due.
+Treatment:
+
+The company can correct the error using the “Corrections” section in the VAT return for the tax
+period in which the error was discovered, by adding the missing amount to the net VAT due.
+
+
+
+
+42
+Example (26):
+
+
+Company “B”, a VAT-registered legal consultancy firm, submitted its VAT return for Q4 2023,
+but later identified an error that led to an overstatement of the net VAT due.
+
+
+Treatment:
+
+
+The company can correct the overstatement by adjusting the amount in any subsequent VAT
+return, provided it complies with the correction timeframe specified in Paragraph (4) of Article
+(63) of the Regulations.
+
+
+2.13 Offsetting Refundable Amounts Against Other Amounts Owed to ZATCA
+
+The amendment to Paragraph (5) of Article (69) of the Regulations affirms ZATCA’s right to offset
+any refundable amounts due to VAT-registered persons against outstanding taxes, penalties, or
+other amounts owed under any regulation administered by ZATCA.
+
+
+Example (27):
+
+
+Company “A” submitted its VAT return for Q2 2024, which showed a net tax credit in its favor.
+However, the company had outstanding fines related to import/export violations that remained
+unpaid.
+
+
+Treatment:
+
+
+ZATCA may deduct these fines from the refundable VAT amount due to the company.
+
+
+
+
+43
+2.14 VAT Refunds
+
+
+The amendments to Article (70) of the Regulations introduce several clarifications regarding
+the categories of persons who may be designated as eligible for VAT refunds, as well as the
+procedures for submitting refund applications. Individuals or entities within these designated
+categories may apply for recognition as eligible for a refund-subject to approval by the Minister
+of Finance-for VAT incurred and paid on purchases of taxable goods or services within the
+Kingdom.
+
+
+
+The designated categories eligible for VAT refunds are as follows:
+a. Foreign governments, international organizations, diplomatic and consular missions, military
+   entities, and accredited members of the diplomatic and consular corps in the Kingdom.
+b. Charitable organizations, foundations, public benefit associations, and similar entities.
+c. Individuals not engaged in economic activity or operating in a specific economic sector.
+
+
+ZATCA reviews refund requests based on a list of approved categories established by the
+Minister of Finance, in accordance with Board of Directors’ requirements. It may request
+supporting documentation to verify eligibility. If an applicant fails to meet the required conditions,
+ZATCA may reject the request, providing written notification with the reason for rejection. Upon
+approval, ZATCA issues a personal identification number (PIN) for the refund process.
+
+
+It is worth noting that the amendments specify several requirements for refund requests,
+including the timeframe for submission, which must not exceed six months from the end
+of the relevant refund period. Additionally, modifications to the request are not allowed after
+submission, and the total refund amount must be at least 5,000 SAR.
+
+
+The amendments also require that the refund request include only VAT paid on goods or services
+documented by a customs declaration or a tax invoice dated within the refund period. Exceptions
+apply to monthly or quarterly refund requests, which may include VAT paid on tax invoices dated
+before the refund period, provided they do not predate the beginning of the calendar year for the
+refund period. Furthermore, the request must include at least the following details:
+
+
+
+
+44
+a. Supplier’s name and Taxpayer Identification Number.
+b. Tax invoice or customs declaration number and issue date.
+
+c. Total amount of the tax invoice or customs declaration.
+d. Date of tax invoice or customs declaration payment.
+e. VAT amount.
+f. Description of the purchased goods or services.
+g. Banking details for the refund transfer.
+h. Any additional information, data, or documents required by ZATCA within the refund request.
+
+
+The default refund request submission frequency is quarterly or annually, but ZATCA may allow
+monthly requests under conditions set by the Board. The refund period may be changed once
+every twelve calendar months, either upon request by the refund-eligible person or at ZATCA’s
+discretion.
+
+
+A refund-eligible person may not claim VAT refunds on taxable economic activities where they
+deduct VAT as a registered taxable person under standard VAT return procedures. If VAT eligible
+for refund cannot be distinguished from deductible VAT or non-refundable VAT, the proportional
+deduction method outlined in Article (51) of the Regulations must be applied.
+
+
+The amendments clarify ZATCA’s right to review refund requests and request additional
+documents to complete the review, such as tax invoices, payment verification, or other
+necessary details. The refund applicant must provide the requested documents within twenty
+(20) business days. If the documents are not submitted within the specified period, ZATCA may
+reject the refund request.
+
+
+If the request is approved, ZATCA shall pay the approved amount to the refund-eligible person’s
+account within thirty (30) business days from the date the taxpayer is notified of the decision.
+Moreover, ZATCA may offset the refund against outstanding amounts owed. If the refund
+recipient receives an incorrect or undue refund, they must immediately notify ZATCA and repay
+
+
+
+
+45
+Refund requests are subject to examination, assessment, and appeals procedures as outlined
+in the Regulations. ZATCA may cancel a person’s refund eligibility, and cancellation does not
+exempt the individual from repaying any outstanding dues that accrued before the cancellation
+date. ZATCA will notify refund-eligible persons of their registration cancellation and its effective
+date in the following cases:
+
+1. The refund-eligible person fails to meet any qualification requirement.
+
+2. The refund-eligible person intentionally submits multiple unjustified refund claims.
+3. The Minister of Finance issues a decision revoking the eligibility status of a specific category
+
+
+
+
+46
+  Scan this code to view the last
+  version and all published documents
+  Or visit the website zatca.gov.sa
+
+
+
+47
