@@ -31,6 +31,21 @@ import type { journalEntriesTable } from "@workspace/db";
 
 type JournalEntry = typeof journalEntriesTable.$inferSelect;
 
+/**
+ * 🔴 A15 (owner, 2026-11-19): a draft the 0163 back-fill left `legacy_unclassified` is never posted. Nothing on record
+ * shows what produced it, so its source is classified on the review screen first — the code names that step. The
+ * database refuses the flip whoever writes it (0163, `journal_entry_unclassified_not_posted`).
+ */
+const UNCLASSIFIED_DRAFT_REFUSAL = {
+  code: "journal_entry_classify_first",
+  error:
+    "This draft ({ref}) was written before the platform recorded what produced each entry, and its source could not be established from the records, so it cannot be posted. " +
+    "Classify its source first on the review screen for unclassified entries (Journal entries → Unclassified entries). Nothing was posted.",
+  errorAr:
+    "سُجِّلت هذه المسودة ({ref}) قبل أن تبدأ المنصة بتسجيل مصدر كل قيد، وتعذّر تحديد مصدرها من السجلات، لذا لا يمكن ترحيلها. " +
+    "صنِّف مصدرها أولًا في شاشة مراجعة القيود غير المصنَّفة (القيود اليومية ← القيود غير المصنَّفة). لم يُرحَّل شيء.",
+} as const;
+
 export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> = {
   entityType: "journal_entry",
   // 🔴 G08 residuals (PR A): every write below applies only from the state the engine checked.
@@ -56,6 +71,16 @@ export const journalEntryApprovable: Approvable<JournalEntry, JournalEntryOut> =
   async onApprove(je, actor) {
     // Approval is the ledger-affecting moment — enforce the period lock here.
     await checkPeriodOpen(je.date);
+    // 🔴 A15: an unclassified draft is classified before it is posted (after the period lock, which no classification
+    // could cure — a draft in a closed month is never posted whatever its source).
+    if (je.sourceType === "legacy_unclassified") {
+      const ref = je.entryNumber ?? `#${je.id}`;
+      throw new BusinessRuleError(409, {
+        code: UNCLASSIFIED_DRAFT_REFUSAL.code,
+        error: UNCLASSIFIED_DRAFT_REFUSAL.error.replace("{ref}", ref),
+        errorAr: UNCLASSIFIED_DRAFT_REFUSAL.errorAr.replace("{ref}", ref),
+      });
+    }
     // 🔴 And the balance — on the STORED lines, not on whatever request created
     // them (2026-09-15, review item 2). The invariant that matters is that an
     // entry cannot BECOME posted while unbalanced; the create path's check is a

@@ -168,7 +168,16 @@ describeMaybe("Phase 13B-1a — supplier advance VAT entries are owned (D-2)", (
     await pool.query(
       `INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, description, debit_amount, credit_amount)
        VALUES ($1, $2, $3, $4, $5, 'x', 5, 0), ($1, $2, $3, $6, $7, 'x', 0, 5)`, [orgA, coA, fake.id, purchases.id, purchases.name, suspense.id, suspense.name]);
-    await pool.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [fake.id]);
+    // posted as the back-fill leaves one — it tags an entry already posted, and an unclassified DRAFT is never posted (0163)
+    const flipClient = await pool.connect();
+    try {
+      await flipClient.query("BEGIN");
+      await flipClient.query("SET LOCAL session_replication_role = replica");
+      await flipClient.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [fake.id]);
+      await flipClient.query("COMMIT");
+    } finally {
+      flipClient.release();
+    }
     id.fakeAdv = fake.id;
 
     const app = (await import("../app")).default;

@@ -32,6 +32,10 @@
 --      is first written onto an existing row ONLY by this back-fill, as the
 --      table owner, where the back-fill record holds the same change; the three
 --      unsourced tags never change, and nothing becomes one.
+--  4b. `journal_entries_unclassified_post_guard` — a `legacy_unclassified`
+--      DRAFT is never posted (owner, 2026-11-19): its source is classified on
+--      the review screen first. The approval route refuses it by code
+--      (`journal_entry_classify_first`); this refuses the flip whoever writes it.
 --   5. The posted-journal freeze (G16, 0126) gains ONE admission: on a posted or
 --      reversed entry, `source_type` / `source_id` written from NULL, nothing
 --      else changing, while this back-fill runs and its record holds the same
@@ -446,6 +450,22 @@ DROP TRIGGER IF EXISTS journal_entries_source_tag_guard ON "journal_entries";-->
 CREATE TRIGGER journal_entries_source_tag_guard
   BEFORE INSERT OR UPDATE OF source_type, source_id ON "journal_entries"
   FOR EACH ROW EXECUTE FUNCTION journal_entries_source_tag_guard();--> statement-breakpoint
+
+-- ── 4b. 🔴 A `legacy_unclassified` DRAFT is never posted (owner, 2026-11-19). ────────────────────────────
+-- Nothing on record shows what produced it, so its source is classified on the review screen before it can post. The
+-- approval route refuses it by code (`journal_entry_classify_first`, English and Arabic); this refuses the flip out of
+-- draft whoever writes it. The draft may still be deleted; nothing else about it is refused here.
+CREATE OR REPLACE FUNCTION journal_entries_unclassified_post_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+BEGIN
+  RAISE EXCEPTION 'journal entry % (%) is legacy_unclassified: its source is classified on the review screen before it is posted', NEW.id, NEW.entry_number
+    USING ERRCODE = 'check_violation', CONSTRAINT = 'journal_entry_unclassified_not_posted';
+END $$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS journal_entries_unclassified_post_guard ON "journal_entries";--> statement-breakpoint
+CREATE TRIGGER journal_entries_unclassified_post_guard
+  BEFORE UPDATE OF status ON "journal_entries"
+  FOR EACH ROW WHEN (OLD.status = 'draft' AND NEW.status IS DISTINCT FROM 'draft' AND NEW.source_type = 'legacy_unclassified')
+  EXECUTE FUNCTION journal_entries_unclassified_post_guard();--> statement-breakpoint
 
 -- ── 5. G16's freeze (0126), unchanged except ONE admission, marked 🔴 A15 below. ──────────────────
 CREATE OR REPLACE FUNCTION zz_journal_entries_posted_frozen() RETURNS trigger

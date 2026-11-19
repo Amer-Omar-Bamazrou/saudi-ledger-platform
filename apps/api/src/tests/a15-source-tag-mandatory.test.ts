@@ -11,6 +11,8 @@
  *    tag, not any other column — even with the back-fill declared and a record present.
  *  - The back-fill's record is owner-only and append-only.
  *  - The generic reverse refuses the three unsourced tags, by code, in English and Arabic.
+ *  - A `legacy_unclassified` DRAFT is never approved (owner, 2026-11-19): the approval route refuses it by a code naming
+ *    the next step (classify it on the review screen), and the database refuses the flip whoever writes it.
  *  - The rules (`journal_source_classify`) reproduce the tag each writer stamps, and leave an ambiguous or failed
  *    relationship unclassified; the owner's candidate rule for the old `GL-<invoice>-PAY…` entries reports its
  *    verdicts and is never applied by the migration.
@@ -115,6 +117,40 @@ describeMaybe("A15 — every journal entry names its source (migration 0163)", (
   const tagOf = async (id: number) => (await pool.query(`SELECT to_jsonb(j.*) AS j FROM journal_entries j WHERE id = $1`, [id])).rows[0].j as Record<string, any>;
   const fnExists = async (name: string) => Number((await pool.query(`SELECT count(*)::int AS n FROM pg_proc WHERE proname = $1`, [name])).rows[0].n) > 0;
   const tableExists = async (name: string) => Number((await pool.query(`SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`, [name])).rows[0].n) === 1;
+  /**
+   * Posts a planted `legacy_unclassified` draft as the back-fill leaves a POSTED one: the back-fill tags an entry that was
+   * posted before it ran, so the flip is planted with the tag (triggers set aside) — 0163 refuses posting such a draft.
+   */
+  const flipPlanted = async (entryId: number) => {
+    const c = (await pool.connect()) as unknown as Client;
+    try {
+      await c.query("BEGIN");
+      await c.query("SET LOCAL session_replication_role = replica");
+      await c.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1 AND status = 'draft'`, [entryId]);
+      await c.query("COMMIT");
+    } catch (err) {
+      await c.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally {
+      c.release();
+    }
+  };
+  /** A `legacy_unclassified` DRAFT, as the back-fill leaves one (only the back-fill writes the tag, so it is planted). */
+  const plantUnclassifiedDraft = async (entryNumber: string) => {
+    const c = (await pool.connect()) as unknown as Client;
+    try {
+      await c.query("BEGIN");
+      await c.query("SET LOCAL session_replication_role = replica");
+      const { rows: [e] } = await c.query(`INSERT INTO journal_entries (${columns}, source_type) VALUES ($1, $2, $3, $4, 'planted legacy draft', 'draft', 'legacy_unclassified') RETURNING id`, [orgId, companyId, entryNumber, DATE]);
+      await c.query("COMMIT");
+      return e.id as number;
+    } catch (err) {
+      await c.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally {
+      c.release();
+    }
+  };
 
   beforeAll(async () => {
     await h.cleanup();
@@ -281,7 +317,7 @@ describeMaybe("A15 — every journal entry names its source (migration 0163)", (
     expect(legacy.ok, "a legacy_unclassified entry can stand (as the back-fill leaves one)").toBe(true);
     const legacyId = (legacy as { rows: any[] }).rows[0].id as number;
     await lines(legacyId, 12);
-    await flip(legacyId);
+    await flipPlanted(legacyId); // posted as the back-fill leaves one — an unclassified DRAFT is never posted (0163)
     const demo = await declared("demo_seed", `INSERT INTO journal_entries (${columns}, source_type) VALUES ($1, $2, $3, $4, 'demo', 'draft', 'demo_seed') RETURNING id`, [orgId, companyId, num("A15-DEMO"), DATE]);
     expect(demo.ok, JSON.stringify(demo)).toBe(true);
     const demoId = (demo as { rows: any[] }).rows[0].id as number;
@@ -302,6 +338,31 @@ describeMaybe("A15 — every journal entry names its source (migration 0163)", (
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     expect((await h.api("checker", "POST", `/journal-entries/${created.body.id}/approve`, {})).status).toBe(200);
     expect((await h.api("checker", "POST", `/journal-entries/${created.body.id}/reverse`, { reason: "A15 movement" })).status).toBe(200);
+  });
+
+  it("🔴 a legacy_unclassified DRAFT is never approved (owner, 2026-11-19): refused by a code naming the next step — classify it on the review screen first — in English and Arabic, and by the database whoever writes the flip; nothing is written; a manual draft still approves", async () => {
+    const legacyDraft = await plantUnclassifiedDraft(num("A15-OLDDRAFT"));
+    await lines(legacyDraft, 11);
+    const before = await tagOf(legacyDraft);
+    const r = await h.api("checker", "POST", `/journal-entries/${legacyDraft}/approve`, {});
+    expect([r.status, r.body?.code], JSON.stringify(r.body)).toEqual([409, "journal_entry_classify_first"]);
+    expect(String(r.body?.error)).toMatch(/review/i);
+    expect(String(r.body?.errorAr)).toMatch(ARABIC);
+    expect(await tagOf(legacyDraft), "nothing written: still a draft, no approver recorded").toEqual(before);
+    // the database refuses the flip whoever writes it — with the approver recorded first, as the product records it
+    const flipped = await ownerTx([
+      [`UPDATE journal_entries SET approved_by = $1 WHERE id = $2`, [checkerId, legacyDraft]],
+      [`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [legacyDraft]],
+    ]);
+    expect(!flipped.ok && flipped.constraint, "the database").toBe("journal_entry_unclassified_not_posted");
+    expect((await tagOf(legacyDraft)).status, "still a draft").toBe("draft");
+    // the movement: a manual draft of the same shape approves and posts
+    const created = await h.api("admin", "POST", "/journal-entries", { date: DATE, description: "A15 manual draft", lines: [
+      { accountId: office, accountName: "Office", debitAmount: 11, creditAmount: 0 }, { accountId: income, accountName: "Income", debitAmount: 0, creditAmount: 11 }] });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const approved = await h.api("checker", "POST", `/journal-entries/${created.body.id}/approve`, {});
+    expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+    expect((await tagOf(created.body.id)).status).toBe("posted");
   });
 
   it("🔴 only the fixture helpers and the demo seed declare a synthetic source (beside the migration that reads it and the schema that documents it)", () => {

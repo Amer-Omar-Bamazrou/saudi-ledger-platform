@@ -203,6 +203,8 @@ describeMaybe("Phase 18 R-10 (DR-34) — the generic reverse, decided per source
         [orgId, companyId, `R10-${n}-${type}`, DATE, `R-10 planted ${type}`, type]);
       await c.query(`INSERT INTO journal_entry_lines (organization_id, company_id, journal_entry_id, account_id, account_name, debit_amount, credit_amount)
                      VALUES ($1, $2, $3, $4, 'Other Expenses', 100, 0), ($1, $2, $3, $5, 'Other Income', 0, 100)`, [orgId, companyId, e.id, expense, income]);
+      // the back-fill tags an entry already POSTED, and an unclassified DRAFT is never posted (0163) — so it is planted posted
+      if (type === "legacy_unclassified") await c.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1`, [e.id]);
       await c.query("COMMIT");
       await pool.query(`UPDATE journal_entries SET status = 'posted', posted_at = now() WHERE id = $1 AND status = 'draft'`, [e.id]);
       return e.id as number;
