@@ -76,7 +76,7 @@ async function postPayrollGL(run: PayrollRun, from: "draft" | "submitted"): Prom
     });
   }
   /**
-   * 🔴 Phase 18 H-5 — G68 (the owner's final-run memo §H; register §11.51; IAS 19.11): payroll is accrued on the
+   * 🔴 Phase 18 H-5 — G68 (the owner's final-run memo §H; register §11.51; IAS 19.11, IFRS for SMEs Section 28): payroll is accrued on the
    * LAST DAY of its service period (`run.period`, YYYY-MM), never the approval day — a run approved in a later month
    * belongs to its own. When that month is closed, approval is refused here, before anything is written, with how
    * to correct it: reopen the month with a reason, approve the run, close the month again.

@@ -180,7 +180,7 @@ export default function JournalEntries() {
               <div><Label className="text-xs text-muted-foreground">{t("Entry Number", "رقم القيد")}</Label><Input value={form.entryNumber} onChange={e=>setForm(p=>({...p,entryNumber:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Date", "التاريخ")}</Label><Input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
               <div><Label className="text-xs text-muted-foreground">{t("Reference", "المرجع")}</Label><Input value={form.reference} onChange={e=>setForm(p=>({...p,reference:e.target.value}))} className="mt-1 h-8 text-sm" /></div>
-              <div className="col-span-3"><Label className="text-xs text-muted-foreground">{t("Kind of correction (IAS 8) — needed for a line on retained earnings", "نوع التصحيح (IAS 8) — مطلوب لبند على الأرباح المبقاة")}</Label>
+              <div className="col-span-3"><Label className="text-xs text-muted-foreground">{t("Kind of correction (IAS 8, or IFRS for SMEs Section 10) — needed for a line on retained earnings", "نوع التصحيح (معيار المحاسبة الدولي 8، أو القسم 10 من المعيار الدولي للمنشآت الصغيرة والمتوسطة) — مطلوب لبند على الأرباح المبقاة")}</Label>
                 <Select value={form.correctionKind} onValueChange={(v) => setForm((p) => ({ ...p, correctionKind: v === "none" ? "" : v }))}>
                   <SelectTrigger data-testid="je-kind"><SelectValue placeholder={t("Not a correction", "ليس تصحيحاً")} /></SelectTrigger>
                   <SelectContent>
@@ -418,7 +418,7 @@ export default function JournalEntries() {
           <DialogHeader><DialogTitle>{t("Reverse this entry?", "عكس هذا القيد؟")}</DialogTitle></DialogHeader>
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">{t("A mirror entry is posted today; the original stays in the books, marked reversed.", "يُرحَّل قيد معاكس اليوم، ويبقى القيد الأصلي في الدفاتر معلَّمًا بأنه معكوس.")}</p>
-            <div className="grid gap-1"><Label htmlFor="rev-kind">{t("Kind of correction (IAS 8)", "نوع التصحيح (IAS 8)")}</Label>
+            <div className="grid gap-1"><Label htmlFor="rev-kind">{t("Kind of correction (IAS 8, or IFRS for SMEs Section 10)", "نوع التصحيح (معيار المحاسبة الدولي 8، أو القسم 10 من المعيار الدولي للمنشآت الصغيرة والمتوسطة)")}</Label>
               <Select value={rev.correctionKind} onValueChange={(v) => setRev({ ...rev, correctionKind: v === "none" ? "" : v })}>
                 <SelectTrigger id="rev-kind" data-testid="rev-kind"><SelectValue placeholder={t("Not classified", "غير مصنف")} /></SelectTrigger>
                 <SelectContent>

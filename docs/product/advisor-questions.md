@@ -21,6 +21,7 @@ because it was already wrong once (it read "not four" while carrying five).
 | **H** | GOSI | The contributory-wage minimum and who the 2024 law covers |
 | **I** | §5 | Still to ask, and to watch |
 | **J** | S-1 | Qawaem's XBRL mapping. **Closed** |
+| **K** | Owner's regulatory review, 2026-11-19 | 🔴 The accountant FIRST: correcting an approved payroll run. Then the framework per tenant, the `manual` policy for untraceable entries, and (tax adviser) an identified advance's VAT period |
 
 ## 🔴 If one firm cannot cover both specialisms — SEQUENCE, do not split
 
@@ -790,6 +791,122 @@ formal compatibility claim needs confirming with the Saudi Business Center.
   statutory** ([Phase 16/17 pack](phase-16-17-tax-treasury-decision-pack.md)).
 - **Source status:** CITED-NOT-READ: Companies Law Arts. 17(2) and 262(1)(e). The absence
   of a mandate is the documents' finding, not a search made here.
+
+---
+
+## Block K — the 2026-11-19 regulatory review: payroll correction, the framework, an identified advance's VAT (added 2026-11-19)
+
+**Why.** A regulatory review of A1, A15, A20 and A23 against ZATCA, SOCPA and IFRS found
+none of them mandatory in its exact form (owner, 2026-11-19). From that date A1, A23 and
+A20's stated-reason rule are labelled internal controls wherever a screen describes them.
+Four questions follow; **K1 is the accountant's first**.
+
+**Source status for this block:** the facts about the platform were read in its code on
+2026-11-19 (`main`); no regulatory reading is made here.
+
+### K1. 🔴 For the accountant — HIGHER PRIORITY (owner, 2026-11-19): how is an approved payroll run corrected?
+
+**What exists.**
+- **What a run posts.** Approval posts `Dr SALARIES` (gross) and `Dr GOSI_EXPENSE` (the
+  employer's GOSI), against `Cr SALARIES_PAYABLE` (net pay) and `Cr GOSI_PAYABLE` (both
+  shares of GOSI). Paying net pay posts `Dr SALARIES_PAYABLE / Cr` the bank's cash account;
+  paying GOSI posts `Dr GOSI_PAYABLE / Cr` the bank's cash account.
+- **What a manual adjusting entry can reach.** An approved manual entry reaches
+  `SALARIES`, `GOSI_EXPENSE` and a bank's cash account, provided the line names a bank of
+  the entry's own company. A correction found after the month closed posts in the current
+  open month.
+- 🔴 **What it cannot reach.** It cannot reach `SALARIES_PAYABLE` or `GOSI_PAYABLE`. Both
+  are protected accounts (`@workspace/shared` `protectedAccounts.ts`), written only by a
+  payroll run and the bank line that pays it. A manual journal on either is refused
+  (`protected_account`), even when it states a correction kind; only `RETAINED_EARNINGS`
+  admits a classified correction. The database's own writer restriction,
+  `wht_payable_line_owned`, is on `WHT_PAYABLE`, which is not a payroll account.
+- **So a manual entry corrects the expense side only,** against some account other than the
+  payables the run created.
+- **At the run level, nothing is corrected after approval:**
+  - the status, `approved` and then `paid`, never goes back;
+  - send-back and delete apply only before approval;
+  - no route edits a run's per-employee lines (its payslips) at any stage — a run is
+    created already computed;
+  - the generic reverse refuses the run's three entries (A15, 2026-11-16);
+  - a second run for the same period recomputes full salaries and cannot carry a
+    correction amount.
+- **The gap.** An error found in an approved run leaves the run's status, its payslips and
+  the two payables wrong. A ledger fix through other accounts leaves the payroll records
+  disagreeing with the ledger.
+
+**The question.** Which corrections are permitted for an approved run, and what each must
+produce:
+- the correction types allowed, for example an adjustment run with signed per-employee
+  amounts, a reversal and re-run, or an adjusting entry;
+- the ledger entries each produces;
+- whether corrected payslips are issued;
+- how a correction found after the month closed is dated: IAS 19 / IFRS for SMEs Section 28
+  for the accrual's period, IAS 8 / Section 10 for the error.
+
+**What changes.** The dedicated payroll correction workflow, proposed separately and outside
+Phase 19, is built only on the answer. Until then the generic reverse keeps refusing payroll
+entries, and no run's status is changed to make a reversal look resolved (owner, 2026-11-17).
+
+### K2. For the accountant: which reporting framework does each tenant use?
+
+- **The endorsement.** SOCPA's endorsement document (rev. 24/12/2025; VERIFIED in its
+  English column) endorses IFRS and IFRS for SMEs, the third edition of IFRS for SMEs from
+  1 January 2027. Which non-listed entities must use which is SA-UNVERIFIED: that page is
+  behind a login.
+- **What the platform cites.** Its controls cite full IFRS: IAS 8 for corrections, IAS 19 for
+  the payroll accrual, IFRS 15 for an advance as a contract liability. From 2026-11-19 the
+  matching IFRS for SMEs section stands beside each: Section 10, Section 28 and Section 23.
+- **The question.** Confirm the framework each tenant reports under, and whether any
+  treatment the platform applies differs under IFRS for SMEs.
+- **What changes.** If tenants differ, a per-company framework record, with the references a
+  screen shows read from it. If no treatment differs, the references only.
+
+### K3. For the accountant (open since 2026-11-17): may an untraceable historical entry be classified `manual`?
+
+- **Where things stand.** A15 (migration 0163) tags an entry whose source nothing establishes
+  `legacy_unclassified`. The generic reverse refuses it, and a `legacy_unclassified` draft is
+  never posted (2026-11-19).
+- **Why it matters.** Classifying such an entry `manual` would unlock the generic reverse
+  for it.
+- **The owner's position (2026-11-17).** Never on an administrator's stated reason alone. The
+  review screen shows the evidence and the review status; classification as `manual` waits
+  for an accountant-approved policy.
+
+### K4. For the tax adviser: an unidentified receipt later identified as an advance for a taxable supply — does its VAT belong to the receipt's period (possibly a return already filed) or the identification's?
+
+**What exists.**
+- **At receipt: no VAT.** An identified customer's receipt of unknown purpose is classified
+  `unknown`, on `UNIDENTIFIED_RECEIPTS`. An unknown payer's money reaches the same account
+  through a bank line, or a manual line that states why there is no customer (A20).
+- **When it is identified as an advance** (classification `advance`, VAT category S), one
+  reclassification entry moves the balance to `CUSTOMER_DEPOSITS`, dated the
+  classification's effective date. It still posts no VAT.
+- **VAT is declared only by the advance tax invoice (386)** issued from the receipt. It is
+  dated at the RECEIPT date, the tax point, and any other date is refused.
+- **If the receipt's month is closed,** issuing the 386 is refused
+  (`423 advance_tax_point_period_locked`), naming the remedy: reopen the month, issue,
+  close it again, and correct the filed return under IR Art. 63.
+- **This follows the accountant's answer 1(b) of 2026-09-22**
+  ([advance-payments pack](advance-payments-decision-pack.md) §17.1): the VAT belongs to
+  the receipt's month, corrected through the return. This question asks the tax adviser to
+  confirm or correct that.
+
+🔴 **Two findings from reading it:**
+- **A receipt recorded by a manual journal has no path to its VAT.** An A20 line with a
+  reason creates no receipt record, so no 386 can be issued from it. Once the payer is
+  identified, the manual journal that moves the balance to `CUSTOMER_DEPOSITS` posts no
+  VAT, so that advance's VAT would reach no return through the platform.
+- **Two definitions of Art. 63(3)'s threshold disagree.** The pack (§17.1, 1(b)) reads
+  "below SAR 5,000". The 423 refusal's text reads "below SAR 15,000 … as amended
+  19/11/2024". Nothing is changed here: which is right is for the tax adviser to confirm,
+  against the Arabic text.
+
+**What changes.**
+- **If the receipt's period** (as today): the manual-journal path needs a way to declare the
+  VAT, and the refusal's threshold is corrected if it is wrong.
+- **If the identification's period:** the 386's tax point for an identified unknown receipt
+  becomes the identification date, and the 423 refusal no longer applies to it.
 
 ---
 
