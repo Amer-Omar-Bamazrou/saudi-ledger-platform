@@ -56,13 +56,13 @@ export function refusalTitle(code: string | undefined, period: string, what: str
   if (code === "period_closed") {
     return {
       title: t(`${period} is closed — nothing was posted`, `شهر ${period} مُقفل — لم يُرحَّل شيء`),
-      next: t("Run an open month, or an admin can reopen this one from Closed months.", "شغّله لشهر مفتوح، أو يمكن لمدير النظام إعادة فتح هذا الشهر من الأشهر المُقفلة."),
+      next: t("Run an open month, or an admin can reopen this one from Closed months.", "شغّله لشهر مفتوح، أو يمكن لمسؤول النظام إعادة فتح هذا الشهر من الأشهر المُقفلة."),
     };
   }
   if (code === "requires_approval_authority") {
     return {
       title: t(`Your role cannot run ${what}`, `دورك لا يسمح بتشغيل ${what}`),
-      next: t("An admin can grant it in User Management, or ask someone who holds it to run the month.", "يمكن لمدير النظام منح الصلاحية من إدارة المستخدمين، أو اطلب ممن يملكها تشغيل الشهر."),
+      next: t("An admin can grant it in User Management, or ask someone who holds it to run the month.", "يمكن لمسؤول النظام منح الصلاحية من إدارة المستخدمين، أو اطلب ممن يملكها تشغيل الشهر."),
     };
   }
   if (code === "recognition_period_invalid") {

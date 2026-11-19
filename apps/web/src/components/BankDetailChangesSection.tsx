@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { refusalOf } from "@/lib/openingVatRefusals";
+import { ibanChangeText } from "@/lib/walkLabels";
 
 export function BankDetailChangesSection() {
   const { t, lang } = useLanguage();
@@ -85,7 +86,7 @@ export function BankDetailChangesSection() {
       : s === "approved"
         ? t("Approved", "تمت الموافقة")
         : t("Rejected", "مرفوض");
-  const iban = (v: string | null) => v ?? t("none", "لا يوجد");
+
 
   const items = list.data?.items ?? [];
   // 🔴 An empty block does not print its emptiness (CLAUDE.md §3): a company with one admin never holds a change,
@@ -118,7 +119,7 @@ export function BankDetailChangesSection() {
                   </span>
                 </div>
                 <p className="font-mono text-xs break-all" dir="ltr">
-                  {iban(c.ibanBefore)} → {iban(c.ibanAfter)}
+                  {ibanChangeText(c.ibanBefore, c.ibanAfter, t)}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   {t("Asked by", "طلبه")} {c.requestedByName ?? `#${c.requestedBy}`} · {fmtDate(c.requestedAt, lang)}
