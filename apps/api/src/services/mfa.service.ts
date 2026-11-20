@@ -30,6 +30,7 @@ import { hashPassword, verifyPassword } from "../lib/password";
 import { BadRequestError, BusinessRuleError } from "../lib/errors";
 import { hasNul } from "../lib/inputGuards";
 import { mailer } from "../lib/mailer";
+import { logger } from "../lib/logger";
 import { securityAuditService } from "./securityAudit.service";
 
 export type MfaStep = "code" | "enrol";
@@ -87,8 +88,8 @@ export const MFA_REFUSALS = {
   userNotFound: { status: 404, code: "user_not_found", error: "No user with that email.", errorAr: "لا يوجد مستخدم بهذا البريد." },
   kmsRefused: {
     status: 503, code: "mfa_key_unavailable",
-    error: "Two-step verification cannot be checked right now. Try again shortly.",
-    errorAr: "تعذّر التحقق بخطوتين الآن. حاول بعد قليل.",
+    error: "Two-step verification is not available right now: its key service could not be reached. Try again shortly, or contact the platform.",
+    errorAr: "التحقق بخطوتين غير متاح الآن: تعذّر الوصول إلى خدمة المفاتيح. حاول بعد قليل أو تواصل مع المنصة.",
   },
 } as const;
 
@@ -110,9 +111,22 @@ async function record(action: string, actor: MfaActor, metadata: Record<string, 
   });
 }
 
+/**
+ * The configured key wrapper — or the NAMED refusal when it cannot be built (no key configured). Found by CI's browser
+ * job: a missing development key surfaced as a bare 500; a person setting up a factor is owed a sentence instead.
+ */
+function keyWrapperOrRefuse() {
+  try {
+    return getKeyWrapper();
+  } catch (err) {
+    logger.error({ err }, "mfa: the key wrapper is not available — secrets cannot be sealed or opened");
+    return refuse(MFA_REFUSALS.kmsRefused);
+  }
+}
+
 /** Unseal a factor's secret — in memory only, for the length of one check. */
 async function secretOf(factor: NonNullable<Awaited<ReturnType<typeof mfaRepository.factorOf>>>): Promise<Buffer> {
-  const wrapper = getKeyWrapper();
+  const wrapper = keyWrapperOrRefuse();
   // the vault's own rule (signing.service): a development-wrapped row is never trusted in production, and a row
   // wrapped by another provider is not unwrapped by this one
   if ((loadEnv().NODE_ENV === "production" && factor.kmsProvider === "local-dev") || factor.kmsProvider !== wrapper.provider) refuse(MFA_REFUSALS.kmsRefused);
@@ -159,8 +173,8 @@ export const mfaService = {
   /** Start (or restart) enrolment: a new sealed secret, returned ONCE with its QR. Never over an active factor. */
   async beginEnrolment(actor: MfaActor) {
     if (await mfaRepository.hasActiveFactor(actor.userId)) refuse(MFA_REFUSALS.alreadyActive);
+    const wrapper = keyWrapperOrRefuse();
     const secret = generateTotpSecret();
-    const wrapper = getKeyWrapper();
     const dataKey = generateDataKey();
     try {
       const sealed = sealWithDataKey(secret, dataKey);
