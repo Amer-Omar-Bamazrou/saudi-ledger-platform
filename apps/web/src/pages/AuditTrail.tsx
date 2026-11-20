@@ -166,7 +166,7 @@ export default function AuditTrail() {
                             {auditActionLabel(l.action, t)}
                           </Badge>
                           {/* Walk L3: on a phone the record is named under its action; the Record column shows from sm */}
-                          <div className="sm:hidden text-[11px] text-muted-foreground mt-1" data-testid="audit-record-compact">
+                          <div className="sm:hidden text-[11px] text-muted-foreground mt-1 break-all" data-testid="audit-record-compact">
                             {auditEntityLabel(l.entityType, t)} <span dir="ltr">#{l.entityId}</span>
                           </div>
                         </td>
