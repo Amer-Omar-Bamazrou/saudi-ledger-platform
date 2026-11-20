@@ -95,7 +95,10 @@ in the session scratchpad. What follows is the record each decision cites.
   - Art. 66 — records kept 6 years (15 for real estate), in Arabic, in the
     Kingdom.
   - Art. 62(2) — the content of the VAT return.
-  - Art. 63(3) — corrections under SAR 5,000 go through the next return.
+  - Art. 63(3) — an understatement below SAR 15,000 is corrected in the return
+    for the tax period in which it was discovered (as amended by Res. 01-06-24
+    of 19/11/2024; corrected 2026-11-19 from "SAR 5,000 … the next return",
+    the superseded English Eighth Edition).
 - **ZATCA VAT-return form:** 16 boxes, each with an Amount / Adjustment / VAT
   column (simplified VAT-return guide, 2023; e-services manual 009,
   2026-07-29).

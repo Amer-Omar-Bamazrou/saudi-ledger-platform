@@ -35,7 +35,7 @@ import { companiesRepository } from "../repositories/companies.repository";
 import { periodRecordsService } from "./periodRecords.service";
 import { fiscalYearContaining, isFiscalCalendar, type FiscalCalendar } from "../lib/fiscalYear";
 
-/** H-18 (DR-15): the three IAS 8 kinds a correction is classified as (8.5, 8.32–36); NULL = unclassified. */
+/** H-18 (DR-15): the three IAS 8 kinds a correction is classified as (8.5, 8.32–36; IFRS for SMEs Section 10); NULL = unclassified. */
 const CORRECTION_KINDS = ["error", "estimate", "policy"] as const;
 type CorrectionKind = (typeof CORRECTION_KINDS)[number];
 
@@ -250,7 +250,7 @@ export const journalEntriesService = {
     // it (a classified correction is the one way a free route reaches that account). The kinds are H-18's.
     const correctionKind: CorrectionKind | null = body.correctionKind == null || body.correctionKind === "" ? null
       : (CORRECTION_KINDS as readonly unknown[]).includes(body.correctionKind) ? (body.correctionKind as CorrectionKind)
-      : (() => { throw new BadRequestError(`correctionKind is one of ${CORRECTION_KINDS.join(", ")} (IAS 8), or omitted.`); })();
+      : (() => { throw new BadRequestError(`correctionKind is one of ${CORRECTION_KINDS.join(", ")} (IAS 8, or IFRS for SMEs Section 10), or omitted.`); })();
 
     // 🔴 H2 — validate each line amount BEFORE the balance check. A non-numeric
     // amount made `Math.abs(NaN - NaN) > 0.01` false, so garbage PASSED the
@@ -439,8 +439,9 @@ export const journalEntriesService = {
           throw new BusinessRuleError(422, {
             code: "journal_line_party_reason_required",
             field: `lines[${i}].partyNoneReason`,
-            error: `Line ${i + 1} posts to ${acct?.name ?? code}: pick the customer the balance belongs to, or state why there is none (for example, a payer not yet identified).`,
-            errorAr: `السطر ${i + 1} يرحّل إلى ${acct?.name ?? code}: اختر العميل صاحب الرصيد، أو اذكر سبب عدم وجوده (مثلاً: دافع لم يُعرف بعد).`,
+            // owner A20's stated-reason rule — an internal control of the platform, labelled as one (owner, 2026-11-19)
+            error: `Line ${i + 1} posts to ${acct?.name ?? code}: pick the customer the balance belongs to, or state why there is none (for example, a payer not yet identified). This is an internal control of this platform.`,
+            errorAr: `السطر ${i + 1} يرحّل إلى ${acct?.name ?? code}: اختر العميل صاحب الرصيد، أو اذكر سبب عدم وجوده (مثلاً: دافع لم يُعرف بعد). هذا ضابط رقابة داخلية في المنصة.`,
           });
         } else if (l.partyNoneReason.length > 500) {
           refuse(`Line ${i + 1}: keep the reason to 500 characters.`, `lines[${i}].partyNoneReason`);
@@ -663,7 +664,7 @@ export const journalEntriesService = {
     // H-18 (DR-15): the classification, when the caller states one (a system correction states none)
     const correctionKind: CorrectionKind | null = body.correctionKind == null || body.correctionKind === "" ? null
       : (CORRECTION_KINDS as readonly unknown[]).includes(body.correctionKind) ? (body.correctionKind as CorrectionKind)
-      : (() => { throw new BadRequestError(`correctionKind is one of ${CORRECTION_KINDS.join(", ")} (IAS 8), or omitted.`); })();
+      : (() => { throw new BadRequestError(`correctionKind is one of ${CORRECTION_KINDS.join(", ")} (IAS 8, or IFRS for SMEs Section 10), or omitted.`); })();
     const attribution = await correctionAttributionOf(originalDate);
     // 🔴 Throws the structured PeriodLockedError (423) that names the month.
     await checkPeriodOpen(date);

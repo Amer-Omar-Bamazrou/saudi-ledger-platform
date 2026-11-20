@@ -244,11 +244,12 @@ export const BANK_DETAIL_REFUSALS = {
     error: "This request was already decided. A decision is final; a new change is a new request.",
     errorAr: "سبق البتّ في هذا الطلب، والقرار نهائي؛ أي تغيير جديد يكون بطلب جديد.",
   },
-  // 🔴 Phase 18 owner decision A1 (0161): the approver is not an identity the requester controls.
+  // 🔴 Phase 18 owner decision A1 (0161): the approver is not an identity the requester controls. An INTERNAL
+  // CONTROL of the platform (owner, 2026-11-19): never presented as a ZATCA, SOCPA or IFRS requirement.
   linkedApprover: {
     code: "bank_detail_approver_linked",
-    error: "You cannot approve this bank-detail change: the admin who asked for it created, re-activated or reset your account within the last 30 days. Another admin of this organisation approves it.",
-    errorAr: "لا يمكنك اعتماد تغيير البيانات البنكية هذا: المسؤول الذي طلبه أنشأ حسابك أو أعاد تفعيله أو أعاد تعيين كلمة مروره خلال آخر 30 يوماً. يعتمده مسؤول آخر في هذه المنشأة.",
+    error: "You cannot approve this bank-detail change: the admin who asked for it created, re-activated or reset your account within the last 30 days. Another admin of this organisation approves it. (An internal control of this platform.)",
+    errorAr: "لا يمكنك اعتماد تغيير البيانات البنكية هذا: المسؤول الذي طلبه أنشأ حسابك أو أعاد تفعيله أو أعاد تعيين كلمة مروره خلال آخر 30 يوماً. يعتمده مسؤول آخر في هذه المنشأة. (ضابط رقابة داخلية في المنصة.)",
   },
   requiresSecondAdmin: {
     code: "bank_detail_change_requires_second_admin",
