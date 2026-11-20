@@ -2019,7 +2019,8 @@ export const GetMfaStatusResponse = zod.object({
   "step": zod.union([zod.literal('code'),zod.literal('enrol'),zod.literal(null)]).nullable().describe('What THIS session still owes'),
   "recoveryCodesLeft": zod.number(),
   "activatedAt": zod.string().nullable(),
-  "lastResetAt": zod.string().nullable().describe('When the platform last reset this account\'s factor')
+  "lastResetAt": zod.string().nullable().describe('When this account\'s factor was last reset'),
+  "lastResetBy": zod.union([zod.literal('admin'),zod.literal('platform'),zod.literal(null)]).nullable().describe('Who reset it: an admin of the person\'s organization, or the platform')
 })
 
 
@@ -2088,7 +2089,22 @@ export const UseMfaRecoveryCodeResponse = zod.object({
 
 
 /**
- * @summary Phase 19A (19.3): the ASSISTED RESET of a person's two-step verification — a platform security operator only, after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes, ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409 mfa_reset_own_refused.
+ * @summary Phase 19A follow-up (owner, 2026-11-20): an admin of a verified organization resets ANOTHER member's two-step verification — removes the factor and the recovery codes, ends every session of the account, is recorded in each of the member's organizations, tells the person, and counts under A1. 403 mfa_reset_admin_only; 404 user_not_found (no such account, or not the admin's to see); 409 mfa_reset_own_refused, mfa_reset_account_shared (the account also belongs to another organization: the platform resets it), mfa_not_set_up.
+
+ */
+export const AdminResetMemberMfaParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const AdminResetMemberMfaResponse = zod.object({
+  "sessionsEnded": zod.number(),
+  "recoveryCodesInvalidated": zod.number(),
+  "notified": zod.enum(['email_and_next_sign_in', 'next_sign_in'])
+})
+
+
+/**
+ * @summary Phase 19A (19.3, owner 2026-11-20): the platform's reset of a person's two-step verification, the break-glass — only when no admin of the person's organization can (409 mfa_reset_admin_available otherwise), after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes, ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409 mfa_reset_own_refused, mfa_not_set_up.
 
  */
 export const operatorResetMfaBodyEmailMax = 320;

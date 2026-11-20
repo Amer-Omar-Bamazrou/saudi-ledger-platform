@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Browser, type Locator, type Page } from "./fixtures";
+import { fitsAtPhoneWidth } from "./phoneFit";
 import { base32Decode, currentTotpStep, totpAt } from "../../api/src/lib/totp";
 
 /**
@@ -115,10 +116,8 @@ async function open(browser: Browser, state: APIRequestContext | null, path: str
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   return { page, close: () => ctx.close() };
 }
-const fits = async (page: Page, where: string) => {
-  await page.waitForTimeout(300);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${where}: no horizontal scroll at 390 px`).toBeLessThanOrEqual(0);
-};
+/** Nothing clipped sideways at 390 px: the document, the app's content area, an open dialog (e2e/phoneFit.ts). */
+const fits = (page: Page, where: string) => fitsAtPhoneWidth(page, where);
 const style = (l: Locator, prop: "overflowWrap" | "wordBreak") => l.evaluate((el, p) => getComputedStyle(el)[p as "overflowWrap"], prop);
 /** The VALUE breaks only where it would overflow; the line it sits in keeps normal word breaking (the Arabic). */
 async function valueOnly(value: Locator, line: Locator | null, what: string) {

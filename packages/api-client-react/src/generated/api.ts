@@ -4584,6 +4584,79 @@ export const useUseMfaRecoveryCode = <TError = ErrorType<unknown>,
       return useMutation(getUseMfaRecoveryCodeMutationOptions(options));
     }
 
+export const getAdminResetMemberMfaUrl = (userId: number,) => {
+
+
+
+
+  return `/api/auth/users/${userId}/mfa-reset`
+}
+
+/**
+ * @summary Phase 19A follow-up (owner, 2026-11-20): an admin of a verified organization resets ANOTHER member's two-step verification — removes the factor and the recovery codes, ends every session of the account, is recorded in each of the member's organizations, tells the person, and counts under A1. 403 mfa_reset_admin_only; 404 user_not_found (no such account, or not the admin's to see); 409 mfa_reset_own_refused, mfa_reset_account_shared (the account also belongs to another organization: the platform resets it), mfa_not_set_up.
+
+ */
+export const adminResetMemberMfa = async (userId: number, options?: RequestInit): Promise<MfaResetResult> => {
+
+  return customFetch<MfaResetResult>(getAdminResetMemberMfaUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminResetMemberMfaMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminResetMemberMfa>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminResetMemberMfa>>, TError,{userId: number}, TContext> => {
+
+const mutationKey = ['adminResetMemberMfa'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminResetMemberMfa>>, {userId: number}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  adminResetMemberMfa(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminResetMemberMfaMutationResult = NonNullable<Awaited<ReturnType<typeof adminResetMemberMfa>>>
+
+    export type AdminResetMemberMfaMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A follow-up (owner, 2026-11-20): an admin of a verified organization resets ANOTHER member's two-step verification — removes the factor and the recovery codes, ends every session of the account, is recorded in each of the member's organizations, tells the person, and counts under A1. 403 mfa_reset_admin_only; 404 user_not_found (no such account, or not the admin's to see); 409 mfa_reset_own_refused, mfa_reset_account_shared (the account also belongs to another organization: the platform resets it), mfa_not_set_up.
+
+ */
+export const useAdminResetMemberMfa = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminResetMemberMfa>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminResetMemberMfa>>,
+        TError,
+        {userId: number},
+        TContext
+      > => {
+      return useMutation(getAdminResetMemberMfaMutationOptions(options));
+    }
+
 export const getOperatorResetMfaUrl = () => {
 
 
@@ -4593,7 +4666,7 @@ export const getOperatorResetMfaUrl = () => {
 }
 
 /**
- * @summary Phase 19A (19.3): the ASSISTED RESET of a person's two-step verification — a platform security operator only, after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes, ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409 mfa_reset_own_refused.
+ * @summary Phase 19A (19.3, owner 2026-11-20): the platform's reset of a person's two-step verification, the break-glass — only when no admin of the person's organization can (409 mfa_reset_admin_available otherwise), after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes, ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409 mfa_reset_own_refused, mfa_not_set_up.
 
  */
 export const operatorResetMfa = async (mfaResetInput: MfaResetInput, options?: RequestInit): Promise<MfaResetResult> => {
@@ -4643,7 +4716,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type OperatorResetMfaMutationError = ErrorType<unknown>
 
     /**
- * @summary Phase 19A (19.3): the ASSISTED RESET of a person's two-step verification — a platform security operator only, after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes, ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409 mfa_reset_own_refused.
+ * @summary Phase 19A (19.3, owner 2026-11-20): the platform's reset of a person's two-step verification, the break-glass — only when no admin of the person's organization can (409 mfa_reset_admin_available otherwise), after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes, ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409 mfa_reset_own_refused, mfa_not_set_up.
 
  */
 export const useOperatorResetMfa = <TError = ErrorType<unknown>,

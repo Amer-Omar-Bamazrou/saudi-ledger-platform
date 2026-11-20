@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Browser, type Page } from "./fixtures";
+import { fitsAtPhoneWidth } from "./phoneFit";
 
 /**
  * 🔴 Phase 19A slice 1 (19.4/19.5/19.8) — Session Management, CLICKED: in Arabic at 390 px (the settled layout, no
@@ -94,9 +95,7 @@ test.describe.serial("Phase 19A — Session Management", () => {
     await expect(page.getByTestId("end-other-sessions")).toHaveText("إنهاء جميع الجلسات الأخرى (1)");
     await expect(mine).toContainText("Chrome · Windows");
     await expect(page.getByTestId(`end-member-sessions-${memberId}`)).toHaveText("إنهاء جميع جلساته (1)");
-    await page.waitForTimeout(300);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow, "no horizontal scroll at 390 px").toBeLessThanOrEqual(0);
+    await fitsAtPhoneWidth(page, "Session Management");
     await close();
   });
 

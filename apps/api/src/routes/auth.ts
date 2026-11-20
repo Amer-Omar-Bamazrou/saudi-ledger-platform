@@ -515,6 +515,16 @@ router.post("/mfa/recovery", requireAuth, mfaAccountLimiter, async (req, res) =>
   res.json({ ok: true, ...out });
 });
 
+/**
+ * 🔴 Phase 19A follow-up (owner, 2026-11-20) — POST /auth/users/:id/mfa-reset: an admin resets ANOTHER member's second
+ * factor in their own organization (never their own; never an account that also belongs elsewhere). The factor and
+ * the recovery codes go, every session of the account ends, the person is told, and A1 counts it. An admin act on
+ * another account: the user-admin limiter.
+ */
+router.post("/users/:id/mfa-reset", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(await mfaService.adminReset(mfaActor(req), requireIdParam(req)));
+});
+
 /** POST /auth/change-password — logged-in user changes their own password */
 router.post("/change-password", authRateLimiter, requireAuth, changePasswordAccountLimiter, async (req, res) => {
   try {

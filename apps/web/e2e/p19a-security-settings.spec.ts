@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Browser, type Page } from "./fixtures";
+import { fitsAtPhoneWidth } from "./phoneFit";
 
 /**
  * 🔴 Phase 19A slice 3 (19.7) — Security Settings, CLICKED, in Arabic at 390 px: a value past the platform's limit is
@@ -83,10 +84,8 @@ async function open(browser: Browser, state: APIRequestContext | null, path: str
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   return { page, close: () => ctx.close() };
 }
-const fits = async (page: Page) => {
-  await page.waitForTimeout(300);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "no horizontal scroll at 390 px").toBeLessThanOrEqual(0);
-};
+/** Nothing clipped sideways at 390 px: the document, the app's content area, an open dialog (e2e/phoneFit.ts). */
+const fits = (page: Page) => fitsAtPhoneWidth(page);
 const stored = async () => (await db.query(`SELECT mfa_required_for_all, session_lifetime_hours, idle_timeout_minutes FROM org_security_settings WHERE organization_id = $1`, [orgId])).rows[0];
 
 test.describe.serial("Phase 19A — Security Settings", () => {

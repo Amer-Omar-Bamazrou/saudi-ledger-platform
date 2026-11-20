@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { MfaResetResult } from "@workspace/api-client-react";
 import { apiFetch, fmtDate } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -17,7 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { lastAdminRefusalToast } from "@/lib/lastAdminRefusal";
 import { SecurityEventsCard } from "@/components/SecurityEventsCard";
 import { invitationStatusLabel, roleName } from "@/lib/walkLabels";
-import { Plus, KeyRound, ShieldCheck, Eye, BookUser, PencilRuler } from "lucide-react";
+import { fmtCount } from "@/lib/businessTime";
+import { Plus, KeyRound, ShieldCheck, ShieldOff, Eye, BookUser, PencilRuler } from "lucide-react";
 
 interface User { id: number; email: string; name: string; role: string; isActive: boolean; createdAt: string; }
 interface Member { userId: number; name: string; email: string; role: string; status: string; }
@@ -50,6 +52,10 @@ export default function UserManagement() {
   const [newPw, setNewPw] = useState("");
   const [createError, setCreateError] = useState("");
   const [resetError, setResetError] = useState("");
+  // 🔴 Phase 19A follow-up (owner, 2026-11-20): an admin resets another member's two-step verification
+  const [mfaTarget, setMfaTarget] = useState<User | null>(null);
+  const [mfaError, setMfaError] = useState("");
+  const [mfaDone, setMfaDone] = useState<MfaResetResult | null>(null);
   const [invite, setInvite] = useState({ email: "", role: "bookkeeper" });
   const [inviteLink, setInviteLink] = useState("");
   const [inviteError, setInviteError] = useState("");
@@ -189,6 +195,15 @@ export default function UserManagement() {
     onError: (e: Error) => setResetError(refusalOf(e).words),
   });
 
+  // The server decides who may be reset (never the admin's own factor; never an account that also belongs to another
+  // organization) and says why in the reader's language — the control is offered on every row, and a refusal explains.
+  const mfaResetMut = useMutation({
+    mutationFn: (id: number) => apiFetch<MfaResetResult>(`/auth/users/${id}/mfa-reset`, { method: "POST" }),
+    onSuccess: (res) => { setMfaDone(res); setMfaError(""); },
+    onError: (e: Error) => setMfaError(refusalOf(e).words),
+  });
+  const closeMfa = () => { setMfaTarget(null); setMfaError(""); setMfaDone(null); };
+
   // Wait for the memberships to load before deciding (avoids a flash of "denied").
   if (orgsData && !isOrgAdmin) {
     return (
@@ -297,7 +312,10 @@ export default function UserManagement() {
                 const Icon = ROLE_ICON[orgRole] ?? Eye;
                 const isMe = u.id === me?.id;
                 return (
-                  <div key={u.id} className="flex items-center gap-4 px-6 py-3">
+                  // 🔴 At phone width the controls take their own line: in one line the row was wider than the phone,
+                  // and the content area CLIPS sideways (Layout.tsx), so its last controls were off screen and
+                  // unreachable (found 2026-11-20 — e2e/phoneFit.ts).
+                  <div key={u.id} data-testid={`user-row-${u.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-6 py-3">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                       <span className="text-xs font-bold text-primary">{u.name.charAt(0).toUpperCase()}</span>
                     </div>
@@ -317,6 +335,7 @@ export default function UserManagement() {
                       {orgRole ? roleName(orgRole, t) : t("No membership", "بدون عضوية")}
                     </span>
 
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 w-full sm:w-auto">
                     {/* Membership role change (upsert in the active org) */}
                     <select
                       className="h-7 text-xs rounded border border-input bg-background px-2"
@@ -358,6 +377,17 @@ export default function UserManagement() {
                     >
                       <KeyRound className="w-3.5 h-3.5" />
                     </button>
+
+                    <button
+                      onClick={() => { setMfaTarget(u); setMfaError(""); setMfaDone(null); }}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                      title={t("Reset two-step verification", "إعادة تعيين التحقق بخطوتين")}
+                      aria-label={t("Reset two-step verification", "إعادة تعيين التحقق بخطوتين")}
+                      data-testid={`user-mfa-reset-${u.id}`}
+                    >
+                      <ShieldOff className="w-3.5 h-3.5" />
+                    </button>
+                    </div>
                   </div>
                 );
               })}
@@ -454,6 +484,48 @@ export default function UserManagement() {
 
       {/* 🔴 Phase 18 audit A2: DR-27's tenant-visible audit — the organization's security events, for its admin. */}
       {isOrgAdmin && activeOrgId && <SecurityEventsCard orgId={activeOrgId} nameOf={(id) => nameByUser.get(id)} />}
+
+      {/* 🔴 Reset two-step verification dialog (Phase 19A follow-up) */}
+      <Dialog open={!!mfaTarget} onOpenChange={o => { if (!o) closeMfa(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("Reset two-step verification", "إعادة تعيين التحقق بخطوتين")} — {mfaTarget?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2" data-testid="user-mfa-reset-dialog">
+            {mfaError && <Alert variant="destructive"><AlertDescription data-testid="user-mfa-reset-error">{mfaError}</AlertDescription></Alert>}
+            {mfaDone ? (
+              <Alert data-testid="user-mfa-reset-result">
+                <AlertDescription>
+                  {t(
+                    `Reset. ${fmtCount(mfaDone.sessionsEnded)} session(s) ended, ${fmtCount(mfaDone.recoveryCodesInvalidated)} recovery code(s) invalidated.`,
+                    `تمت إعادة التعيين. أُنهيت ${fmtCount(mfaDone.sessionsEnded)} جلسة وأُبطل ${fmtCount(mfaDone.recoveryCodesInvalidated)} رمز استرداد.`,
+                  )}{" "}
+                  {mfaDone.notified === "email_and_next_sign_in"
+                    ? t("The person was told by email, and will see it at their next sign-in.", "أُبلغ الشخص بالبريد، وسيراه عند دخوله التالي.")
+                    : t("No mail provider is configured: the person will see it at their next sign-in. Tell them yourself as well.", "لا يوجد مزوّد بريد: سيراه الشخص عند دخوله التالي. أبلغه بنفسك أيضاً.")}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  {t(
+                    "For a person who has lost their authenticator app and their recovery codes. Their factor and recovery codes are removed and they are signed out everywhere; they set it up again afterwards. For 30 days they cannot approve a held bank-detail change. Recorded with your name.",
+                    "لمن فقد تطبيق المصادقة ورموز الاسترداد. يُزال عامل التحقق ورموز الاسترداد وتُنهى جلساته كلها، ثم يُعِدّه من جديد. لا يستطيع اعتماد تغيير بيانات بنكية معلّق لمدة 30 يوماً. تُسجَّل باسمك.",
+                  )}
+                </p>
+                <Button
+                  className="w-full"
+                  onClick={() => mfaTarget && mfaResetMut.mutate(mfaTarget.id)}
+                  disabled={mfaResetMut.isPending}
+                  data-testid="user-mfa-reset-confirm"
+                >
+                  {mfaResetMut.isPending ? t("Resetting…", "جارٍ الإعادة…") : t("Reset two-step verification", "إعادة تعيين التحقق بخطوتين")}
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset password dialog */}
       <Dialog open={!!resetTarget} onOpenChange={o => { if (!o) { setResetTarget(null); setNewPw(""); setResetError(""); } }}>

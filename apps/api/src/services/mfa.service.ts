@@ -11,9 +11,12 @@
  *   code is checked. Production depends on the KMS (queue C3): a row wrapped by the development wrapper is refused there.
  * - A CODE is accepted once: the step it belongs to must be later than the last step the factor accepted.
  * - RECOVERY CODES are single-use, stored only as hashes made by the password seam, shown once at activation.
- * - A RESET is a platform security operator's act — never an org admin's — after stating that the person's identity
- *   was verified and on what basis. It removes the factor and the recovery codes, ends every session of the account,
- *   is recorded (and feeds A1 for 30 days), and the person is told. No recovery by email exists.
+ * - A RESET (owner, 2026-11-20) is an org ADMIN's act on another member of their own organization — never on their own
+ *   factor, and never on an account that also belongs to an organization they do not administer (F1 confinement). A
+ *   platform security operator resets only as the break-glass: when NO admin can, after stating that the person's
+ *   identity was verified and on what basis. Either way it removes the factor and the recovery codes, ends every
+ *   session of the account, is recorded (and feeds A1 for 30 days), and the person is told. A reset needs an active
+ *   factor to remove. No recovery by email exists.
  * Every act writes one security event (19.8).
  */
 import { randomInt } from "node:crypto";
@@ -28,7 +31,8 @@ import { securitySettingsRepository } from "../repositories/securitySettings.rep
 import { generateDataKey, getKeyWrapper, openWithDataKey, sealWithDataKey } from "./einvoice/signing/keyWrapper";
 import { base32Encode, generateTotpSecret, matchTotp, otpauthUri } from "../lib/totp";
 import { hashPassword, verifyPassword } from "../lib/password";
-import { BadRequestError, BusinessRuleError } from "../lib/errors";
+import { BadRequestError, BusinessRuleError, ConflictError, NotFoundError } from "../lib/errors";
+import { assertAccountConfinedTo } from "../lib/accountScope";
 import { hasNul } from "../lib/inputGuards";
 import { mailer } from "../lib/mailer";
 import { logger } from "../lib/logger";
@@ -86,7 +90,34 @@ export const MFA_REFUSALS = {
     error: "You cannot reset your own two-step verification. Another platform security operator does it.",
     errorAr: "لا يمكنك إعادة تعيين التحقق بخطوتين لحسابك. يجريها مشغّل أمن آخر في المنصة.",
   },
+  resetOwnAdmin: {
+    status: 409, code: "mfa_reset_own_refused",
+    error: "You cannot reset your own two-step verification. Ask another admin of your organization, or the platform when there is no other admin.",
+    errorAr: "لا يمكنك إعادة تعيين التحقق بخطوتين لحسابك. اطلب ذلك من مسؤول آخر في منشأتك، أو من المنصة إن لم يوجد مسؤول آخر.",
+  },
+  adminOnly: {
+    status: 403, code: "mfa_reset_admin_only",
+    error: "Only an admin of a verified organization can reset a member's two-step verification.",
+    errorAr: "لا يعيد تعيين التحقق بخطوتين لعضو إلا مسؤول في منشأة موثّقة.",
+  },
+  accountShared: {
+    status: 409, code: "mfa_reset_account_shared",
+    error: "This person's account also belongs to another organization, so its two-step verification cannot be reset from here. The platform resets it, after verifying the person's identity.",
+    errorAr: "ينتمي حساب هذا الشخص إلى منشأة أخرى أيضاً، لذا لا يمكن إعادة تعيين التحقق بخطوتين له من هنا. تعيد المنصة تعيينه بعد التحقق من هويته.",
+  },
+  adminAvailable: {
+    status: 409, code: "mfa_reset_admin_available",
+    error: "An admin of this person's organization can reset their two-step verification from the Users page. The platform resets it only when no admin of the organization can.",
+    errorAr: "يستطيع مسؤول في منشأة هذا الشخص إعادة تعيين التحقق بخطوتين له من صفحة المستخدمين. لا تعيد المنصة تعيينه إلا إذا لم يستطع ذلك أي مسؤول في المنشأة.",
+  },
+  notSetUp: {
+    status: 409, code: "mfa_not_set_up",
+    error: "This person has not set up two-step verification, so there is nothing to reset.",
+    errorAr: "لم يُعِدّ هذا الشخص التحقق بخطوتين، فلا يوجد ما يُعاد تعيينه.",
+  },
   userNotFound: { status: 404, code: "user_not_found", error: "No user with that email.", errorAr: "لا يوجد مستخدم بهذا البريد." },
+  /** The admin path names a user by id: one answer for "no such account" and "not yours to see" (no existence leak). */
+  memberNotFound: { status: 404, code: "user_not_found", error: "User not found.", errorAr: "لم يُعثر على المستخدم." },
   kmsRefused: {
     status: 503, code: "mfa_key_unavailable",
     error: "Two-step verification is not available right now: its key service could not be reached. Try again shortly, or contact the platform.",
@@ -139,6 +170,68 @@ async function secretOf(factor: NonNullable<Awaited<ReturnType<typeof mfaReposit
   }
 }
 
+/**
+ * 🔴 THE ONE DEFINITION of "this admin may reset this account's factor" — the admin path acts on it, and the operator
+ * path refuses while it holds for ANY usable admin, so the two can never disagree into a person nobody may reset.
+ * Returns the organizations the admin administers; throws the named refusal otherwise.
+ */
+async function adminResetScope(adminUserId: number, targetUserId: number, actor?: MfaActor): Promise<string[]> {
+  if (targetUserId === adminUserId) refuse(MFA_REFUSALS.resetOwnAdmin);
+  const orgIds = await userAdminRepository.administeredOrgIds(adminUserId);
+  if (orgIds.length === 0) refuse(MFA_REFUSALS.adminOnly);
+  if (!(await userAdminRepository.isMemberOfAny(targetUserId, orgIds))) refuse(MFA_REFUSALS.memberNotFound);
+  try {
+    // F1: a factor is account-wide, so its reset is the account-wide act confinement governs
+    await assertAccountConfinedTo(targetUserId, orgIds, "explain", actor && {
+      actorUserId: actor.userId, actorEmail: actor.email, ipAddress: actor.ipAddress, attempted: "mfa.reset",
+    });
+  } catch (err) {
+    if (err instanceof ConflictError) refuse(MFA_REFUSALS.accountShared);
+    if (err instanceof NotFoundError) refuse(MFA_REFUSALS.memberNotFound);
+    throw err;
+  }
+  return orgIds;
+}
+
+/** Can any usable admin reset this account's factor? (Any other failure propagates: the operator path fails closed.) */
+async function anAdminCanReset(targetUserId: number): Promise<boolean> {
+  for (const adminUserId of await membersRepository.usableAdminIdsAround(targetUserId)) {
+    try {
+      await adminResetScope(adminUserId, targetUserId);
+      return true;
+    } catch (err) {
+      if (!(err instanceof BusinessRuleError)) throw err;
+    }
+  }
+  return false;
+}
+
+/** The reset's effects, whoever resets: the factor and every recovery code go, and every session of the account ends. */
+async function removeFactorAndEndSessions(targetUserId: number, endedBy: "ended_by_admin" | "ended_by_operator", actorUserId: number) {
+  const removed = await mfaRepository.removeAll(targetUserId);
+  // every session of the account ends: its records (the guarantee, at the next request) and its rows (hygiene)
+  const ended = await sessionRecordsRepository.end((await sessionRecordsRepository.activeForUser(targetUserId)).map((r) => r.id), endedBy, actorUserId);
+  await userAdminRepository.revokeSessions(targetUserId);
+  return { hadFactor: removed.hadFactor, sessionsEnded: ended.length, recoveryCodesInvalidated: removed.recoveryCodesInvalidated };
+}
+
+/** The person is told: by email when a provider is configured, and always in the app at their next sign-in. */
+async function tellThePerson(email: string, by: "admin" | "platform"): Promise<"email_and_next_sign_in" | "next_sign_in"> {
+  const [who, whoAr] = by === "admin"
+    ? ["An admin of your organization reset the two-step verification on your account.", "أعاد مسؤول في منشأتك تعيين التحقق بخطوتين لحسابك."]
+    : ["The platform reset the two-step verification on your account after verifying your identity.", "أعادت المنصة تعيين التحقق بخطوتين لحسابك بعد التحقق من هويتك."];
+  const mail = await mailer.send({
+    to: email,
+    subject: "Your two-step verification was reset | أُعيد تعيين التحقق بخطوتين لحسابك",
+    text:
+      `${who} Every session was signed out and your recovery codes no longer work. ` +
+      "Set it up again from the Security menu; if your role requires it, you will be asked at your next sign-in. If you did not ask for this, contact the platform immediately.\n\n" +
+      `${whoAr} أُنهيت جميع الجلسات ولم تعد رموز الاسترداد صالحة. ` +
+      "أعِدّه من جديد من قائمة الأمان؛ وإن كان دورك يتطلبه فسيُطلب منك عند دخولك التالي. إن لم تطلب ذلك فتواصل مع المنصة فوراً.",
+  });
+  return mail.delivered ? "email_and_next_sign_in" : "next_sign_in";
+}
+
 function newRecoveryCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
   const part = () => Array.from({ length: 5 }, () => alphabet[randomInt(alphabet.length)]).join("");
@@ -163,14 +256,15 @@ export const mfaService = {
 
   async status(actor: MfaActor, step: MfaStep | null) {
     const factor = await mfaRepository.factorOf(actor.userId);
-    const lastResetAt = await mfaRepository.lastResetAt(actor.userId);
+    const lastReset = await mfaRepository.lastReset(actor.userId);
     return {
       required: await this.isRequiredFor(actor.userId),
       state: (factor?.state ?? "none") as "none" | "pending" | "active",
       step,
       recoveryCodesLeft: factor?.state === "active" ? (await mfaRepository.unusedRecoveryCodes(actor.userId)).length : 0,
       activatedAt: factor?.activatedAt?.toISOString() ?? null,
-      lastResetAt: lastResetAt?.toISOString() ?? null,
+      lastResetAt: lastReset?.at.toISOString() ?? null,
+      lastResetBy: lastReset?.by ?? null,
     };
   },
 
@@ -250,8 +344,34 @@ export const mfaService = {
   },
 
   /**
-   * 🔴 THE ASSISTED RESET — a platform security operator's act (the route is on the operator surface; an org admin has
-   * no path to it). The operator states that the person's identity was verified and on what basis; both are recorded.
+   * 🔴 THE ADMIN'S RESET (owner, 2026-11-20) — POST /auth/users/:id/mfa-reset: an admin of a verified organization resets
+   * another member's factor. Out of scope reads as no such user; an account that also belongs elsewhere is refused by
+   * name (the platform resets it). Recorded once in each of the member's organizations, the admin named.
+   */
+  async adminReset(admin: MfaActor, targetUserId: number) {
+    const orgIds = await adminResetScope(admin.userId, targetUserId, admin);
+    if (!(await mfaRepository.hasActiveFactor(targetUserId))) refuse(MFA_REFUSALS.notSetUp);
+    const target = await userAdminRepository.findById(targetUserId);
+    if (!target) refuse(MFA_REFUSALS.memberNotFound);
+    const effects = await removeFactorAndEndSessions(targetUserId, "ended_by_admin", admin.userId);
+    const shared = (await membersRepository.activeOrgIds(targetUserId)).filter((o) => orgIds.includes(o)).sort();
+    for (const organizationId of shared.length > 0 ? shared : [null]) {
+      await securityAuditService.record({
+        action: "mfa.reset", actorUserId: admin.userId, actorEmail: admin.email ?? null, targetUserId, organizationId,
+        ipAddress: admin.ipAddress ?? null, metadata: { by: "admin", ...effects },
+      });
+    }
+    return {
+      sessionsEnded: effects.sessionsEnded,
+      recoveryCodesInvalidated: effects.recoveryCodesInvalidated,
+      notified: await tellThePerson(target.email, "admin"),
+    };
+  },
+
+  /**
+   * 🔴 THE PLATFORM'S RESET — the break-glass of a second factor, on the operator surface: only when NO admin can reset
+   * it (a sole admin, an account that also belongs elsewhere, an organization not yet verified). The operator states
+   * that the person's identity was verified and on what basis; both are recorded.
    */
   async operatorReset(operator: MfaActor, input: { email?: unknown; identityVerified?: unknown; basis?: unknown }) {
     const email = String(input.email ?? "").trim().toLowerCase();
@@ -261,13 +381,11 @@ export const mfaService = {
     const target = await userAdminRepository.findByEmail(email);
     if (!target) refuse(MFA_REFUSALS.userNotFound);
     if (target.id === operator.userId) refuse(MFA_REFUSALS.resetOwn);
+    if (await anAdminCanReset(target.id)) refuse(MFA_REFUSALS.adminAvailable);
+    if (!(await mfaRepository.hasActiveFactor(target.id))) refuse(MFA_REFUSALS.notSetUp);
 
-    const removed = await mfaRepository.removeAll(target.id);
-    // every session of the account ends: its records (the guarantee, at the next request) and its rows (hygiene)
-    const ended = await sessionRecordsRepository.end((await sessionRecordsRepository.activeForUser(target.id)).map((r) => r.id), "ended_by_operator", operator.userId);
-    await userAdminRepository.revokeSessions(target.id);
-
-    const metadata = { identityVerified: true, basis, hadFactor: removed.hadFactor, sessionsEnded: ended.length, recoveryCodesInvalidated: removed.recoveryCodesInvalidated };
+    const effects = await removeFactorAndEndSessions(target.id, "ended_by_operator", operator.userId);
+    const metadata = { by: "platform_operator", identityVerified: true, basis, ...effects };
     // the operator-identified record carries no organization (operators belong to none) …
     await securityAuditService.record({
       action: "mfa.reset", actorUserId: operator.userId, actorEmail: operator.email ?? null, targetUserId: target.id,
@@ -278,23 +396,14 @@ export const mfaService = {
     for (const organizationId of await membersRepository.activeOrgIds(target.id)) {
       await securityAuditService.record({
         action: "mfa.reset", actorUserId: null, actorEmail: null, targetUserId: target.id, organizationId,
-        metadata: { by: "platform_operator", sessionsEnded: ended.length },
+        metadata: { by: "platform_operator", sessionsEnded: effects.sessionsEnded },
       });
     }
-    const mail = await mailer.send({
-      to: target.email,
-      subject: "Your two-step verification was reset | أُعيد تعيين التحقق بخطوتين لحسابك",
-      text:
-        "The platform reset the two-step verification on your account after verifying your identity. Every session was signed out and your recovery codes no longer work. " +
-        "At your next sign-in you will set it up again. If you did not ask for this, contact the platform immediately.\n\n" +
-        "أعادت المنصة تعيين التحقق بخطوتين لحسابك بعد التحقق من هويتك. أُنهيت جميع الجلسات ولم تعد رموز الاسترداد صالحة. " +
-        "عند تسجيل دخولك التالي ستُعِدّه من جديد. إن لم تطلب ذلك فتواصل مع المنصة فوراً.",
-    });
     return {
-      sessionsEnded: ended.length,
-      recoveryCodesInvalidated: removed.recoveryCodesInvalidated,
+      sessionsEnded: effects.sessionsEnded,
+      recoveryCodesInvalidated: effects.recoveryCodesInvalidated,
       // the truth about the notice: by email when a provider is configured; always in the app at the next sign-in
-      notified: mail.delivered ? "email_and_next_sign_in" : "next_sign_in",
+      notified: await tellThePerson(target.email, "platform"),
     };
   },
 };
