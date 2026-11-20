@@ -50,6 +50,16 @@ const ACTION_LABEL: Record<string, [string, string]> = {
   "reference.refused": ["Refused: a reference to another organization", "رُفض: مرجع إلى منشأة أخرى"],
   // owner A1 — an internal control of the platform, labelled as one (owner, 2026-11-19)
   "bank_detail_change.approval_refused": ["Refused (internal control): a bank-detail approval by an account the requester created, re-activated or reset", "رُفض (ضابط رقابة داخلية): اعتماد تغيير بنكي من حساب أنشأه مقدّم الطلب أو أعاد تفعيله أو أعاد تعيين كلمة مروره"],
+  // 🔴 Phase 19A (19.8): every event 19A's acts write — held to the server's list by phase19a-event-labels.test.ts
+  "session.revoked": ["A session was ended", "إنهاء جلسة"],
+  "session.revoked_all": ["Sessions were ended", "إنهاء الجلسات"],
+  "mfa.enrolled": ["Two-step verification: set-up started", "التحقق بخطوتين: بدء الإعداد"],
+  "mfa.activated": ["Two-step verification turned on", "تفعيل التحقق بخطوتين"],
+  "mfa.verified": ["Two-step code accepted", "قبول رمز التحقق بخطوتين"],
+  "mfa.failed": ["Two-step code refused", "رفض رمز التحقق بخطوتين"],
+  "mfa.recovery_code_used": ["Recovery code used", "استخدام رمز استرداد"],
+  "mfa.reset": ["Two-step verification reset by the platform", "إعادة تعيين التحقق بخطوتين من المنصة"],
+  "security_settings.changed": ["Security settings changed", "تغيير إعدادات الأمان"],
 };
 
 export function SecurityEventsCard({ orgId, nameOf }: { orgId: string; nameOf: (userId: number) => string | undefined }) {

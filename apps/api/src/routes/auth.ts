@@ -1,7 +1,7 @@
 /**
  * Auth routes: POST /auth/register, POST /auth/login, POST /auth/logout, GET /auth/me
  */
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { decoyHash, hashPassword, MAX_PASSWORD, needsRehash, verifyPassword } from "../lib/password";
 import { hasNul } from "../lib/inputGuards";
 import { loginEmailOf, preSessionLimiter } from "../lib/rateLimit";
@@ -20,14 +20,24 @@ import { securityAuditService } from "../services/securityAudit.service";
 import { signupService } from "../services/signup.service";
 import { userAdminService, safeUser } from "../services/userAdmin.service";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
+import { sessionRecordsRepository } from "../repositories/sessionRecords.repository";
 import { membersRepository } from "../repositories/members.repository";
 import { requireIdParam } from "../lib/httpParams";
+import { sessionsService } from "../services/sessions.service";
 
 const router = Router();
 
 /** Actor context for the security-audit trail, from the authenticated session. */
 function actorCtx(req: { session: { userEmail?: string }; ip?: string }) {
   return { actorEmail: req.session.userEmail ?? null, ipAddress: req.ip ?? null };
+}
+
+/** 🔴 Phase 19A: who is asking, and from which session (its record — never the session id). */
+function sessionActor(req: Request) {
+  return {
+    userId: req.session.userId!, email: req.session.userEmail ?? null, ipAddress: req.ip ?? null,
+    currentRecordId: req.session.sessionRecordId ?? null, activeOrgId: req.session.activeOrgId ?? null,
+  };
 }
 
 /**
@@ -161,7 +171,7 @@ router.post("/register", userAdminRateLimiter, requireAuth, async (req, res) => 
  */
 router.post("/signup", refuseSignupInDemo, signupRateLimiter, async (req, res) => {
   const created = await signupService.signup(req.body ?? {}, { ipAddress: req.ip ?? null });
-  const stamp = await sessionStampFor(created.userId);
+  const stamp = await sessionStampFor(created.userId, { kind: "signup", req });
 
   // Rotate the session id on the anonymous → authenticated transition, then sign
   // the new admin in (same posture as /auth/login).
@@ -292,7 +302,7 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
     // G02: the session's sign-in time and credential, from the hash as now stored.
-    const stamp = await sessionStampFor(user.id);
+    const stamp = await sessionStampFor(user.id, { kind: "sign_in", req });
 
     // Rotate the session ID on the anonymous → authenticated transition to
     // defend against session fixation: any pre-login session identifier an
@@ -328,6 +338,11 @@ router.post("/logout", requireAuth, async (req, res) => {
   if (req.session.userId != null) {
     await recordSignInEvent("auth.logout", { id: req.session.userId, email: req.session.userEmail ?? "" }, { actor: true, ipAddress: req.ip ?? null })
       .catch((e) => req.log.error({ err: e }, "sign-out not recorded"));
+  }
+  // 🔴 Phase 19A (19.4): the record shows the session as signed out — it leaves every list at once
+  if (req.session.sessionRecordId) {
+    await sessionRecordsRepository.end([req.session.sessionRecordId], "signed_out", req.session.userId ?? null)
+      .catch((e) => req.log.error({ err: e }, "sign-out not marked on the session record"));
   }
   req.session.destroy((err) => {
     if (err) { res.status(500).json({ error: "Could not destroy session." }); return; }
@@ -419,6 +434,29 @@ router.patch("/users/:id", userAdminRateLimiter, requireAuth, async (req, res) =
   res.json(
     await userAdminService.update(req.session.userId!, requireIdParam(req), req.body ?? {}, actorCtx(req)),
   );
+});
+
+/**
+ * 🔴 Phase 19A (19.4/19.5) — sessions. GET /auth/sessions: the caller's own active sessions, the asking one marked.
+ * GET /auth/sessions/members: an admin's view of the accounts they administer. POST /auth/sessions/:id/end: one of
+ * one's own (not the asking one — that is Sign out). POST /auth/sessions/end-others: all of one's own but the asking
+ * one. POST /auth/users/:id/sessions/end: an admin ends a member's. Each act writes one security event
+ * (services/sessions.service.ts).
+ */
+router.get("/sessions", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(await sessionsService.listMine(sessionActor(req)));
+});
+router.get("/sessions/members", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(await sessionsService.listMembers(sessionActor(req)));
+});
+router.post("/sessions/end-others", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(await sessionsService.endMyOthers(sessionActor(req)));
+});
+router.post("/sessions/:id/end", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(await sessionsService.endMine(sessionActor(req), String(req.params.id)));
+});
+router.post("/users/:id/sessions/end", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(await sessionsService.endMember(sessionActor(req), requireIdParam(req)));
 });
 
 /** POST /auth/change-password — logged-in user changes their own password */

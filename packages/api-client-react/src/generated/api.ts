@@ -142,6 +142,7 @@ import type {
   DisposeAssetInput,
   Employee,
   EmployeeInputFields,
+  EndUserSessionsInput,
   ErrorResponse,
   ExpensesPage,
   ExportReportParams,
@@ -280,6 +281,7 @@ import type {
   ListZakatClassificationsParams,
   MatchOverrideInput,
   MatchingApplyResult,
+  MemberSessionList,
   MigratedOpenItemCorrection,
   MigratedOpenItemIdentity,
   MigrationAdvances,
@@ -354,6 +356,8 @@ import type {
   RunRecognitionInput,
   SecurityEventPage,
   SendBackInput,
+  SessionList,
+  SessionsEnded,
   SetZakatClassificationInput,
   SettleTransactionInput,
   StatementAuthorisation,
@@ -3595,6 +3599,608 @@ export function useListOrgSecurityEvents<TData = Awaited<ReturnType<typeof listO
 
 
 
+
+export const getListMySessionsUrl = () => {
+
+
+
+
+  return `/api/auth/sessions`
+}
+
+/**
+ * @summary Phase 19A (19.4): the caller's own active sessions — one per sign-in, the asking one marked current. A session is shown by its record id, never by the session id (a bearer credential that stays on the server). Client is a coarse description ("Chrome · Windows"), never the user-agent.
+
+ */
+export const listMySessions = async ( options?: RequestInit): Promise<SessionList> => {
+
+  return customFetch<SessionList>(getListMySessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMySessionsQueryKey = () => {
+    return [
+    `/api/auth/sessions`
+    ] as const;
+    }
+
+
+export const getListMySessionsQueryOptions = <TData = Awaited<ReturnType<typeof listMySessions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMySessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMySessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMySessions>>> = ({ signal }) => listMySessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMySessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMySessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listMySessions>>>
+export type ListMySessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 19A (19.4): the caller's own active sessions — one per sign-in, the asking one marked current. A session is shown by its record id, never by the session id (a bearer credential that stays on the server). Client is a coarse description ("Chrome · Windows"), never the user-agent.
+
+ */
+
+export function useListMySessions<TData = Awaited<ReturnType<typeof listMySessions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMySessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMySessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMemberSessionsUrl = () => {
+
+
+
+
+  return `/api/auth/sessions/members`
+}
+
+/**
+ * @summary Phase 19A (19.4): for an admin of a verified organization — the active sessions of the accounts they administer (active members confined to their organizations; never a platform operator). 403 sessions_admin_only for anyone else.
+
+ */
+export const listMemberSessions = async ( options?: RequestInit): Promise<MemberSessionList> => {
+
+  return customFetch<MemberSessionList>(getListMemberSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMemberSessionsQueryKey = () => {
+    return [
+    `/api/auth/sessions/members`
+    ] as const;
+    }
+
+
+export const getListMemberSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listMemberSessions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMemberSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMemberSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMemberSessions>>> = ({ signal }) => listMemberSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMemberSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMemberSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listMemberSessions>>>
+export type ListMemberSessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 19A (19.4): for an admin of a verified organization — the active sessions of the accounts they administer (active members confined to their organizations; never a platform operator). 403 sessions_admin_only for anyone else.
+
+ */
+
+export function useListMemberSessions<TData = Awaited<ReturnType<typeof listMemberSessions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMemberSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMemberSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getEndMyOtherSessionsUrl = () => {
+
+
+
+
+  return `/api/auth/sessions/end-others`
+}
+
+/**
+ * @summary Phase 19A (19.5): end every one of the caller's sessions except the one asking. Writes one security event, session.revoked_all.
+
+ */
+export const endMyOtherSessions = async ( options?: RequestInit): Promise<SessionsEnded> => {
+
+  return customFetch<SessionsEnded>(getEndMyOtherSessionsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndMyOtherSessionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMyOtherSessions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endMyOtherSessions>>, TError,void, TContext> => {
+
+const mutationKey = ['endMyOtherSessions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endMyOtherSessions>>, void> = () => {
+
+
+          return  endMyOtherSessions(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndMyOtherSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof endMyOtherSessions>>>
+
+    export type EndMyOtherSessionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.5): end every one of the caller's sessions except the one asking. Writes one security event, session.revoked_all.
+
+ */
+export const useEndMyOtherSessions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMyOtherSessions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof endMyOtherSessions>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getEndMyOtherSessionsMutationOptions(options));
+    }
+
+export const getEndMySessionUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/auth/sessions/${sessionId}/end`
+}
+
+/**
+ * @summary Phase 19A (19.5): end ONE of the caller's own sessions. Its next request is refused (401). Not the asking one (409 session_is_current: sign out instead); another person's is concealed (404 session_not_found). Writes one security event, session.revoked.
+
+ */
+export const endMySession = async (sessionId: string, options?: RequestInit): Promise<SessionsEnded> => {
+
+  return customFetch<SessionsEnded>(getEndMySessionUrl(sessionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndMySessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMySession>>, TError,{sessionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endMySession>>, TError,{sessionId: string}, TContext> => {
+
+const mutationKey = ['endMySession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endMySession>>, {sessionId: string}> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  endMySession(sessionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndMySessionMutationResult = NonNullable<Awaited<ReturnType<typeof endMySession>>>
+
+    export type EndMySessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.5): end ONE of the caller's own sessions. Its next request is refused (401). Not the asking one (409 session_is_current: sign out instead); another person's is concealed (404 session_not_found). Writes one security event, session.revoked.
+
+ */
+export const useEndMySession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMySession>>, TError,{sessionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof endMySession>>,
+        TError,
+        {sessionId: string},
+        TContext
+      > => {
+      return useMutation(getEndMySessionMutationOptions(options));
+    }
+
+export const getEndMemberSessionsUrl = (userId: number,) => {
+
+
+
+
+  return `/api/auth/users/${userId}/sessions/end`
+}
+
+/**
+ * @summary Phase 19A (19.5): an admin ends every session of an account they administer — in scope (404 otherwise) and confined to their organizations (409 when the account also belongs elsewhere). Writes one security event, session.revoked_all.
+
+ */
+export const endMemberSessions = async (userId: number, options?: RequestInit): Promise<SessionsEnded> => {
+
+  return customFetch<SessionsEnded>(getEndMemberSessionsUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndMemberSessionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMemberSessions>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endMemberSessions>>, TError,{userId: number}, TContext> => {
+
+const mutationKey = ['endMemberSessions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endMemberSessions>>, {userId: number}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  endMemberSessions(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndMemberSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof endMemberSessions>>>
+
+    export type EndMemberSessionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.5): an admin ends every session of an account they administer — in scope (404 otherwise) and confined to their organizations (409 when the account also belongs elsewhere). Writes one security event, session.revoked_all.
+
+ */
+export const useEndMemberSessions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMemberSessions>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof endMemberSessions>>,
+        TError,
+        {userId: number},
+        TContext
+      > => {
+      return useMutation(getEndMemberSessionsMutationOptions(options));
+    }
+
+export const getListOperatorSessionsUrl = () => {
+
+
+
+
+  return `/api/operator/sessions`
+}
+
+/**
+ * @summary Phase 19A (19.4): platform operators' own active sessions — the operator surface only.
+
+ */
+export const listOperatorSessions = async ( options?: RequestInit): Promise<MemberSessionList> => {
+
+  return customFetch<MemberSessionList>(getListOperatorSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOperatorSessionsQueryKey = () => {
+    return [
+    `/api/operator/sessions`
+    ] as const;
+    }
+
+
+export const getListOperatorSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listOperatorSessions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOperatorSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOperatorSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOperatorSessions>>> = ({ signal }) => listOperatorSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOperatorSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOperatorSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listOperatorSessions>>>
+export type ListOperatorSessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 19A (19.4): platform operators' own active sessions — the operator surface only.
+
+ */
+
+export function useListOperatorSessions<TData = Awaited<ReturnType<typeof listOperatorSessions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOperatorSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOperatorSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getOperatorEndSessionUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/operator/sessions/${sessionId}/end`
+}
+
+/**
+ * @summary Phase 19A (19.5): an operator ends any one session (not the one asking). Writes one security event, session.revoked.
+
+ */
+export const operatorEndSession = async (sessionId: string, options?: RequestInit): Promise<SessionsEnded> => {
+
+  return customFetch<SessionsEnded>(getOperatorEndSessionUrl(sessionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getOperatorEndSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof operatorEndSession>>, TError,{sessionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof operatorEndSession>>, TError,{sessionId: string}, TContext> => {
+
+const mutationKey = ['operatorEndSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof operatorEndSession>>, {sessionId: string}> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  operatorEndSession(sessionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OperatorEndSessionMutationResult = NonNullable<Awaited<ReturnType<typeof operatorEndSession>>>
+
+    export type OperatorEndSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.5): an operator ends any one session (not the one asking). Writes one security event, session.revoked.
+
+ */
+export const useOperatorEndSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof operatorEndSession>>, TError,{sessionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof operatorEndSession>>,
+        TError,
+        {sessionId: string},
+        TContext
+      > => {
+      return useMutation(getOperatorEndSessionMutationOptions(options));
+    }
+
+export const getOperatorEndUserSessionsUrl = () => {
+
+
+
+
+  return `/api/operator/users/end-sessions`
+}
+
+/**
+ * @summary Phase 19A (19.5): an operator ends every session of the account with this email. Writes one security event, session.revoked_all.
+
+ */
+export const operatorEndUserSessions = async (endUserSessionsInput: EndUserSessionsInput, options?: RequestInit): Promise<SessionsEnded> => {
+
+  return customFetch<SessionsEnded>(getOperatorEndUserSessionsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(endUserSessionsInput)
+  }
+);}
+
+
+
+
+
+export const getOperatorEndUserSessionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof operatorEndUserSessions>>, TError,{data: BodyType<EndUserSessionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof operatorEndUserSessions>>, TError,{data: BodyType<EndUserSessionsInput>}, TContext> => {
+
+const mutationKey = ['operatorEndUserSessions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof operatorEndUserSessions>>, {data: BodyType<EndUserSessionsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  operatorEndUserSessions(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OperatorEndUserSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof operatorEndUserSessions>>>
+    export type OperatorEndUserSessionsMutationBody = BodyType<EndUserSessionsInput>
+    export type OperatorEndUserSessionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.5): an operator ends every session of the account with this email. Writes one security event, session.revoked_all.
+
+ */
+export const useOperatorEndUserSessions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof operatorEndUserSessions>>, TError,{data: BodyType<EndUserSessionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof operatorEndUserSessions>>,
+        TError,
+        {data: BodyType<EndUserSessionsInput>},
+        TContext
+      > => {
+      return useMutation(getOperatorEndUserSessionsMutationOptions(options));
+    }
 
 export const getListControlFlagsUrl = (params?: ListControlFlagsParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -4359,7 +4359,60 @@ export interface SecurityEvent {
   targetUserId?: number | null;
   metadata?: SecurityEventMetadata;
   ipAddress?: string | null;
+  /** Phase 19A (19.8) — the request that wrote the event (X-Request-Id); null for events from before 19A or written outside a request */
+  requestId?: string | null;
   createdAt: string;
+}
+
+export type SessionRecordKind = typeof SessionRecordKind[keyof typeof SessionRecordKind];
+
+
+export const SessionRecordKind = {
+  sign_in: 'sign_in',
+  signup: 'signup',
+  invitation: 'invitation',
+} as const;
+
+export interface SessionRecord {
+  /** The session's record id — never the session id */
+  id: string;
+  /** The session making this request */
+  current: boolean;
+  kind: SessionRecordKind;
+  createdAt: string;
+  /** Written at most every five minutes */
+  lastSeenAt: string;
+  /** Coarse: browser · system */
+  client: string | null;
+  /** The sign-in IP */
+  ipAddress: string | null;
+}
+
+export interface SessionUser {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export type MemberSessionRecord = SessionRecord & {
+  user: SessionUser;
+};
+
+export interface SessionList {
+  sessions: SessionRecord[];
+}
+
+export interface MemberSessionList {
+  sessions: MemberSessionRecord[];
+}
+
+export interface SessionsEnded {
+  ended: number;
+}
+
+export interface EndUserSessionsInput {
+  /** @maxLength 320 */
+  email: string;
 }
 
 export interface SecurityEventPage {

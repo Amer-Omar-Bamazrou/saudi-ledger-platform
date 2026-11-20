@@ -11,6 +11,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { errorBodies } from "./middleware/errorBodies";
 import { logger } from "./lib/logger";
 import { endEndedSessions } from "./lib/auth";
+import { bindRequestContext } from "./lib/requestContext";
 import { refuseCrossSiteWrites } from "./lib/csrf";
 import { refuseUnusableInput } from "./middleware/refuseUnusableInput";
 
@@ -67,6 +68,9 @@ app.use(
     },
   }),
 );
+
+// 🔴 Phase 19A (19.8): the request id, for the code that cannot see `req` — every security event carries it.
+app.use(bindRequestContext);
 
 // 🔴 Every error response, whichever line sends it, in one shape — code, English, Arabic, request id; a 5xx never
 // carries its exception's text (middleware/errorBodies.ts). Before every guard and router, so they are all covered.

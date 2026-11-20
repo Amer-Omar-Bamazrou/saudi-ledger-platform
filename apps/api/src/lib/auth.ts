@@ -6,6 +6,8 @@ import type { Request, Response, NextFunction } from "express";
 import { createHmac } from "node:crypto";
 import { loadEnv } from "@workspace/config";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
+import { sessionRecordsRepository } from "../repositories/sessionRecords.repository";
+import { describeClient } from "./sessionClient";
 
 export type UserRole = "admin" | "accountant" | "bookkeeper" | "viewer";
 
@@ -21,6 +23,8 @@ declare module "express-session" {
     authenticatedAt: number;
     /** G02: the credential this session was issued for — a keyed fingerprint of the stored password hash. */
     credential: string;
+    /** 🔴 Phase 19A (19.4/19.5): this session's record — what the person sees and ends. Never the session id itself. */
+    sessionRecordId: string;
   }
 }
 
@@ -41,11 +45,21 @@ export function credentialOf(passwordHash: string): string {
  * login that re-hashes the password (M-4) stamps the hash it just wrote. Called
  * at each place a session is created: login, signup, invitation acceptance.
  */
-export async function sessionStampFor(userId: number): Promise<{ authenticatedAt: number; credential: string }> {
+export async function sessionStampFor(
+  userId: number,
+  opened: { kind: "sign_in" | "signup" | "invitation"; req: Request },
+): Promise<{ authenticatedAt: number; credential: string; sessionRecordId: string }> {
   const account = await userAdminRepository.sessionAccount(userId);
   if (!account) throw new Error(`sessionStampFor: no account ${userId}`);
-  return { authenticatedAt: Date.now(), credential: credentialOf(account.passwordHash) };
+  // 🔴 Phase 19A (19.4): one record per sign-in — the sign-in IP and a coarse client description, never the user-agent
+  const sessionRecordId = await sessionRecordsRepository.create({
+    userId, kind: opened.kind, ipAddress: opened.req.ip ?? null, client: describeClient(opened.req.get("user-agent")),
+  });
+  return { authenticatedAt: Date.now(), credential: credentialOf(account.passwordHash), sessionRecordId };
 }
+
+/** 19.4: how often a session's "last seen" is written — at most once in this window, not on every request. */
+export const SESSION_LAST_SEEN_RESOLUTION_MS = 5 * 60 * 1000;
 
 /**
  * 🔴 G02 — A SESSION ENDS WHEN WHAT IT WAS ISSUED FOR ENDS (owner D-4: sessions
@@ -79,6 +93,16 @@ export async function endEndedSessions(req: Request, res: Response, next: NextFu
     res.locals.passwordChangeRequired = account?.passwordChangeRequired === true;
     // R-1 (DR-27, 24 hours): from the same row — whether the break-glass window the session was opened in has passed
     res.locals.breakGlassExpired = !!account?.breakGlassExpiresAt && account.breakGlassExpiresAt.getTime() <= Date.now();
+  }
+  if (!ended) {
+    // 🔴 Phase 19A (19.5): a session whose RECORD has ended (by its owner, an admin or an operator) ends here, on its
+    // next request — and one that carries no record (opened before records existed) fails closed, once.
+    const recordId = s.sessionRecordId;
+    const record = recordId ? await sessionRecordsRepository.openRecord(recordId, s.userId) : undefined;
+    ended = !record;
+    if (record && Date.now() - record.lastSeenAt.getTime() >= SESSION_LAST_SEEN_RESOLUTION_MS) {
+      sessionRecordsRepository.touch(recordId!).catch((err) => req.log?.warn({ err }, "session last-seen not written"));
+    }
   }
   if (!ended) return next();
   s.regenerate((err) => next(err));

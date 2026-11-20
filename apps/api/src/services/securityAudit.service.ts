@@ -33,6 +33,7 @@ import { ownerDb as db, securityAuditLogsTable } from "@workspace/db";
 import { ForbiddenError } from "../lib/errors";
 import { alerter } from "../lib/alerter";
 import { logger } from "../lib/logger";
+import { requestContext } from "../lib/requestContext";
 import { membersRepository } from "../repositories/members.repository";
 
 export type SecurityAuditAction =
@@ -45,8 +46,29 @@ export type SecurityAuditAction =
   | "membership.assigned"
   | "membership.role_changed"
   | "membership.status_changed"
+  // 🔴 Phase 19A (19.8) — the vocabulary, closed in PHASE19A_SECURITY_EVENTS below
+  | Phase19aSecurityEvent
   // Open-ended: later milestones add verification.* / invite.* / operator.* .
   | (string & {});
+
+/**
+ * 🔴 Phase 19A (19.8, owner approval 2026-11-17): the security events 19A's acts write — each act EXACTLY ONE, with
+ * actor, target, organization and the request id. The web's event list labels every one in both languages (a test
+ * holds the two lists together). Written as each act is built: the session acts in slice 1, MFA in slice 2, the
+ * security settings in slice 3.
+ */
+export const PHASE19A_SECURITY_EVENTS = [
+  "session.revoked",
+  "session.revoked_all",
+  "mfa.enrolled",
+  "mfa.activated",
+  "mfa.verified",
+  "mfa.failed",
+  "mfa.recovery_code_used",
+  "mfa.reset",
+  "security_settings.changed",
+] as const;
+export type Phase19aSecurityEvent = (typeof PHASE19A_SECURITY_EVENTS)[number];
 
 export interface SecurityEventInput {
   action: SecurityAuditAction;
@@ -77,6 +99,8 @@ export const securityAuditService = {
         actorUserId: input.actorUserId ?? null,
         actorEmail: input.actorEmail ?? null,
         organizationId: input.organizationId ?? null,
+        // 19.8: the request that wrote it, from the request's own context (never from the client)
+        requestId: requestContext.get()?.requestId ?? null,
         targetUserId: input.targetUserId ?? null,
         metadata: (input.metadata ?? null) as SecurityEventInput["metadata"],
         ipAddress: input.ipAddress ?? null,

@@ -17,5 +17,7 @@ export interface SecurityEvent {
   targetUserId?: number | null;
   metadata?: SecurityEventMetadata;
   ipAddress?: string | null;
+  /** Phase 19A (19.8) — the request that wrote the event (X-Request-Id); null for events from before 19A or written outside a request */
+  requestId?: string | null;
   createdAt: string;
 }

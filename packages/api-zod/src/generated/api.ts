@@ -1872,11 +1872,140 @@ export const ListOrgSecurityEventsResponse = zod.object({
   "targetUserId": zod.number().nullish(),
   "metadata": zod.record(zod.string(), zod.unknown()).nullish(),
   "ipAddress": zod.string().nullish(),
+  "requestId": zod.string().nullish().describe('Phase 19A (19.8) — the request that wrote the event (X-Request-Id); null for events from before 19A or written outside a request'),
   "createdAt": zod.string()
 })),
   "total": zod.number(),
   "limit": zod.number(),
   "offset": zod.number()
+})
+
+
+/**
+ * @summary Phase 19A (19.4): the caller's own active sessions — one per sign-in, the asking one marked current. A session is shown by its record id, never by the session id (a bearer credential that stays on the server). Client is a coarse description ("Chrome · Windows"), never the user-agent.
+
+ */
+export const ListMySessionsResponse = zod.object({
+  "sessions": zod.array(zod.object({
+  "id": zod.string().describe('The session\'s record id — never the session id'),
+  "current": zod.boolean().describe('The session making this request'),
+  "kind": zod.enum(['sign_in', 'signup', 'invitation']),
+  "createdAt": zod.string(),
+  "lastSeenAt": zod.string().describe('Written at most every five minutes'),
+  "client": zod.string().nullable().describe('Coarse: browser · system'),
+  "ipAddress": zod.string().nullable().describe('The sign-in IP')
+}))
+})
+
+
+/**
+ * @summary Phase 19A (19.4): for an admin of a verified organization — the active sessions of the accounts they administer (active members confined to their organizations; never a platform operator). 403 sessions_admin_only for anyone else.
+
+ */
+export const ListMemberSessionsResponse = zod.object({
+  "sessions": zod.array(zod.object({
+  "id": zod.string().describe('The session\'s record id — never the session id'),
+  "current": zod.boolean().describe('The session making this request'),
+  "kind": zod.enum(['sign_in', 'signup', 'invitation']),
+  "createdAt": zod.string(),
+  "lastSeenAt": zod.string().describe('Written at most every five minutes'),
+  "client": zod.string().nullable().describe('Coarse: browser · system'),
+  "ipAddress": zod.string().nullable().describe('The sign-in IP')
+}).and(zod.object({
+  "user": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "email": zod.string()
+})
+})))
+})
+
+
+/**
+ * @summary Phase 19A (19.5): end every one of the caller's sessions except the one asking. Writes one security event, session.revoked_all.
+
+ */
+export const EndMyOtherSessionsResponse = zod.object({
+  "ended": zod.number()
+})
+
+
+/**
+ * @summary Phase 19A (19.5): end ONE of the caller's own sessions. Its next request is refused (401). Not the asking one (409 session_is_current: sign out instead); another person's is concealed (404 session_not_found). Writes one security event, session.revoked.
+
+ */
+export const EndMySessionParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const EndMySessionResponse = zod.object({
+  "ended": zod.number()
+})
+
+
+/**
+ * @summary Phase 19A (19.5): an admin ends every session of an account they administer — in scope (404 otherwise) and confined to their organizations (409 when the account also belongs elsewhere). Writes one security event, session.revoked_all.
+
+ */
+export const EndMemberSessionsParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const EndMemberSessionsResponse = zod.object({
+  "ended": zod.number()
+})
+
+
+/**
+ * @summary Phase 19A (19.4): platform operators' own active sessions — the operator surface only.
+
+ */
+export const ListOperatorSessionsResponse = zod.object({
+  "sessions": zod.array(zod.object({
+  "id": zod.string().describe('The session\'s record id — never the session id'),
+  "current": zod.boolean().describe('The session making this request'),
+  "kind": zod.enum(['sign_in', 'signup', 'invitation']),
+  "createdAt": zod.string(),
+  "lastSeenAt": zod.string().describe('Written at most every five minutes'),
+  "client": zod.string().nullable().describe('Coarse: browser · system'),
+  "ipAddress": zod.string().nullable().describe('The sign-in IP')
+}).and(zod.object({
+  "user": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "email": zod.string()
+})
+})))
+})
+
+
+/**
+ * @summary Phase 19A (19.5): an operator ends any one session (not the one asking). Writes one security event, session.revoked.
+
+ */
+export const OperatorEndSessionParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const OperatorEndSessionResponse = zod.object({
+  "ended": zod.number()
+})
+
+
+/**
+ * @summary Phase 19A (19.5): an operator ends every session of the account with this email. Writes one security event, session.revoked_all.
+
+ */
+export const operatorEndUserSessionsBodyEmailMax = 320;
+
+
+
+export const OperatorEndUserSessionsBody = zod.object({
+  "email": zod.string().max(operatorEndUserSessionsBodyEmailMax)
+})
+
+export const OperatorEndUserSessionsResponse = zod.object({
+  "ended": zod.number()
 })
 
 

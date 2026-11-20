@@ -69,6 +69,8 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/categories": "app",
   "/categorize": "app",
   "/change-password": "app",
+  // Phase 19A (19.4): your sessions, and — for an admin — the members' sessions
+  "/security/sessions": "app",
   "/closed-months": "app",
   "/company": "app",
   "/migration": "app",
