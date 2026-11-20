@@ -1,7 +1,8 @@
 /**
- * 🔴 Phase 19A (19.3) — the ASSISTED RESET of a person's two-step verification, on the operator surface only. The
- * operator confirms that the person's identity was verified and states the basis; both are recorded. The reset ends
- * every session of the account and its recovery codes, and the person sets a factor up again at their next sign-in.
+ * 🔴 Phase 19A (19.3; owner, 2026-11-20) — the platform's reset of a person's two-step verification, the break-glass:
+ * only when no admin of the person's organization can do it (the server refuses by name otherwise). The operator
+ * confirms that the person's identity was verified and states the basis; both are recorded. The reset ends every
+ * session of the account and its recovery codes, and the person sets a factor up again.
  */
 import { useState } from "react";
 import type { MfaResetResult } from "@workspace/api-client-react";
@@ -14,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { fmtCount } from "@/lib/businessTime";
+import { refusalOf } from "@/lib/openingVatRefusals";
 
 export function OperatorMfaResetCard() {
   const { t } = useLanguage();
@@ -33,7 +35,7 @@ export function OperatorMfaResetCard() {
       }));
       setEmail(""); setVerified(false); setBasis("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(refusalOf(err).words);
     } finally {
       setBusy(false);
     }
@@ -45,8 +47,8 @@ export function OperatorMfaResetCard() {
         <CardTitle className="text-base">{t("Reset a person's two-step verification", "إعادة تعيين التحقق بخطوتين لشخص")}</CardTitle>
         <CardDescription>
           {t(
-            "Only after verifying the person's identity. It removes their factor and recovery codes and signs them out everywhere; they set it up again at their next sign-in. For 30 days they cannot approve a held bank-detail change. Recorded with your name and the basis you state.",
-            "بعد التحقق من هوية الشخص فقط. تزيل عامل التحقق ورموز الاسترداد وتنهي جلساته كلها، ويُعِدّه من جديد عند دخوله التالي. لا يستطيع اعتماد تغيير بيانات بنكية معلّق لمدة 30 يوماً. تُسجَّل باسمك وبالأساس الذي تذكره.",
+            "Only when no admin of the person's organization can do it (a sole admin, an account that also belongs to another organization, an organization not yet verified), and only after verifying the person's identity. It removes their factor and recovery codes and signs them out everywhere; they set it up again afterwards. For 30 days they cannot approve a held bank-detail change. Recorded with your name and the basis you state.",
+            "فقط إذا لم يستطع ذلك أي مسؤول في منشأة الشخص (مسؤول وحيد، أو حساب ينتمي إلى منشأة أخرى أيضاً، أو منشأة لم تُوثَّق بعد)، وبعد التحقق من هوية الشخص فقط. تزيل عامل التحقق ورموز الاسترداد وتنهي جلساته كلها، ثم يُعِدّه من جديد. لا يستطيع اعتماد تغيير بيانات بنكية معلّق لمدة 30 يوماً. تُسجَّل باسمك وبالأساس الذي تذكره.",
           )}
         </CardDescription>
       </CardHeader>

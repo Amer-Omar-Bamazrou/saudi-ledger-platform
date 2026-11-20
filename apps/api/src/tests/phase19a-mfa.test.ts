@@ -8,9 +8,10 @@
  *     limit is reached and named; the session id rotates on success;
  *   - BREAK-GLASS satisfies the password step only: then the code, never break-glass alone;
  *   - RECOVERY: a recovery code works once; no email path exists;
- *   - RESET: only a platform operator, after stating the identity check — never an org admin; it ends the account's
- *     sessions and recovery codes, is recorded, and for 30 days that account cannot approve a held bank-detail change
- *     (A1), tested just inside and just outside the window;
+ *   - RESET (owner, 2026-11-20): an org admin resets another member's factor; the platform operator, stating the
+ *     identity check, only when no admin of the organization can (tests/phase19a-admin-mfa-reset.test.ts holds both
+ *     paths in full). It ends the account's sessions and recovery codes, is recorded, and for 30 days that account
+ *     cannot approve a held bank-detail change (A1), tested just inside and just outside the window;
  *   - a member who is not an admin is not forced to enrol, and another organisation is untouched (movement).
  *
  * DB-backed (sl_test / CI); skips on the DB-free placeholder. Logins are spread over accounts; the per-IP auth limit
@@ -251,11 +252,12 @@ describeMaybe("Phase 19A slice 2 — MFA: enrolment, verification, recovery, the
     expect((await h.api("admin-g", "GET", BUSINESS_GET)).status).toBe(200);
   });
 
-  it("🔴 19.3 — an org admin CANNOT reset another person's factor; only a platform operator can, stating the identity check", async () => {
+  it("🔴 19.3 — an org admin resets another member's factor; the operator, stating the identity check, is refused while an admin can (owner, 2026-11-20)", async () => {
     await resetLimits();
     await enrol("admin2", "admin2");
+    // the admin's reset is ONE route: no other shape reaches it, and the operator surface is not theirs
     for (const [method, path, body] of [
-      ["POST", `/auth/users/${ids.admin2}/mfa/reset`, {}], ["POST", `/auth/users/${ids.admin2}/mfa-reset`, {}], ["DELETE", `/auth/users/${ids.admin2}/mfa`, {}],
+      ["POST", `/auth/users/${ids.admin2}/mfa/reset`, {}], ["DELETE", `/auth/users/${ids.admin2}/mfa`, {}],
       ["POST", "/operator/users/mfa-reset", { email: h.email("admin2"), identityVerified: true, basis: "an admin trying the operator route" }],
     ] as const) {
       const res = await h.api("admin-g", method, path, body);
@@ -267,17 +269,20 @@ describeMaybe("Phase 19A slice 2 — MFA: enrolment, verification, recovery, the
     expect(noCheck.body).toMatchObject({ code: "mfa_reset_identity_unverified" });
     const noBasis = await h.api("op", "POST", "/operator/users/mfa-reset", { email: h.email("admin2"), identityVerified: true, basis: "  " });
     expect(noBasis.status).toBe(422);
+    // organization A has other usable admins, so the platform does not reset its member
+    const opRefused = await h.api("op", "POST", "/operator/users/mfa-reset", { email: h.email("admin2"), identityVerified: true, basis: "Video call; CR extract and national ID matched the verification file." });
+    expect(opRefused.status, JSON.stringify(opRefused.body)).toBe(409);
+    expect(opRefused.body).toMatchObject({ code: "mfa_reset_admin_available", errorAr: expect.any(String) });
     expect((await h.api("admin2", "GET", BUSINESS_GET)).status, "anti-vacuity: the account's session works before the reset").toBe(200);
-    const done = await h.api("op", "POST", "/operator/users/mfa-reset", { email: h.email("admin2"), identityVerified: true, basis: "Video call; CR extract and national ID matched the verification file." });
+    const done = await h.api("admin-g", "POST", `/auth/users/${ids.admin2}/mfa-reset`);
     expect(done.status, JSON.stringify(done.body)).toBe(200);
     expect(done.body).toMatchObject({ sessionsEnded: 1, recoveryCodesInvalidated: 10, notified: expect.any(String) });
     expect((await h.api("admin2", "GET", BUSINESS_GET)).status, "its sessions ended").toBe(401);
     expect((await pool.query(`SELECT count(*)::int n FROM user_mfa_factors WHERE user_id = $1`, [ids.admin2])).rows[0].n).toBe(0);
     expect((await pool.query(`SELECT count(*)::int n FROM user_mfa_recovery_codes WHERE user_id = $1`, [ids.admin2])).rows[0].n).toBe(0);
     const ev = await events("mfa.reset", ids.admin2!);
-    expect(ev.filter((e) => e.actor_user_id === ids.op), "one operator-identified record").toHaveLength(1);
-    expect(ev.find((e) => e.actor_user_id === ids.op)!.metadata).toMatchObject({ identityVerified: true, basis: expect.stringContaining("Video call"), sessionsEnded: 1 });
-    expect(ev.filter((e) => e.organization_id === orgA), "and the organisation's admins see it").toHaveLength(1);
+    expect(ev, "one record, the admin named, in the organisation's trail").toHaveLength(1);
+    expect(ev[0]).toMatchObject({ actor_user_id: ids.admin, organization_id: orgA, metadata: { by: "admin", sessionsEnded: 1 } });
     // an operator does not reset their own factor, and the reset account must enrol again
     expect((await h.api("op", "POST", "/operator/users/mfa-reset", { email: h.email("op"), identityVerified: true, basis: "The operator asking for their own reset." })).status).toBe(409);
     const relogin = await h.api("admin2", "POST", "/auth/login", { email: h.email("admin2"), password: PW });

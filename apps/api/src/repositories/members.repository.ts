@@ -12,19 +12,23 @@
 // The `db` proxy now REFUSES a query outside a tenant transaction instead of
 // silently falling back to this connection.
 import { ownerDb as db, ownerDb, organizationMembershipsTable, usersTable } from "@workspace/db";
-import { and, asc, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
 
 /** A transaction on the owner connection (the last-admin guard's). */
 export type OwnerTx = Parameters<Parameters<typeof ownerDb.transaction>[0]>[0];
 
-/** G03: usable admins per organization — active admin membership AND an active account. */
+/** G03: a USABLE admin — active admin membership AND an active account (joined to `users`). One predicate, read by the count and the list. */
+const usableAdmin = () =>
+  and(eq(organizationMembershipsTable.role, "admin"), eq(organizationMembershipsTable.status, "active"), eq(usersTable.isActive, true));
+
+/** G03: usable admins per organization. */
 async function usableAdminCounts(tx: OwnerTx, orgIds: string[]): Promise<Map<string, number>> {
   const m = organizationMembershipsTable;
   const rows = await tx
     .select({ organizationId: m.organizationId, n: sql<number>`count(*)::int` })
     .from(m)
     .innerJoin(usersTable, eq(usersTable.id, m.userId))
-    .where(and(inArray(m.organizationId, orgIds), eq(m.role, "admin"), eq(m.status, "active"), eq(usersTable.isActive, true)))
+    .where(and(inArray(m.organizationId, orgIds), usableAdmin()))
     .groupBy(m.organizationId);
   return new Map(rows.map((r) => [r.organizationId, Number(r.n)]));
 }
@@ -80,6 +84,23 @@ export const membersRepository = {
   async usableAdminCount(orgId: string): Promise<number> {
     const { rows } = await ownerDb.execute<{ n: number }>(sql`SELECT org_usable_admin_count(${orgId}::uuid) AS n`);
     return Number(rows[0]?.n ?? 0);
+  },
+
+  /**
+   * 🔴 Phase 19A follow-up (owner, 2026-11-20): the usable admins of every organization this account holds a membership
+   * in (of any status), the account itself excluded — the people who MIGHT reset its second factor. Which of them can
+   * is decided by `mfa.service`, with the admin path's own checks.
+   */
+  async usableAdminIdsAround(targetUserId: number): Promise<number[]> {
+    const m = organizationMembershipsTable;
+    const orgIds = [...new Set((await ownerDb.select({ organizationId: m.organizationId }).from(m).where(eq(m.userId, targetUserId))).map((r) => r.organizationId))];
+    if (orgIds.length === 0) return [];
+    const rows = await ownerDb
+      .selectDistinct({ userId: m.userId })
+      .from(m)
+      .innerJoin(usersTable, eq(usersTable.id, m.userId))
+      .where(and(inArray(m.organizationId, orgIds), usableAdmin(), ne(m.userId, targetUserId)));
+    return rows.map((r) => r.userId).sort((a, b) => a - b);
   },
 
   async memberNamesByIds(orgId: string, userIds: number[]): Promise<Map<number, string>> {

@@ -582,6 +582,7 @@ export * from './mfaResetInput';
 export * from './mfaResetResult';
 export * from './mfaResetResultNotified';
 export * from './mfaStatus';
+export * from './mfaStatusLastResetBy';
 export * from './mfaStatusState';
 export * from './mfaStatusStep';
 export * from './mfaVerified';
