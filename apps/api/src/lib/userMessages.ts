@@ -32,6 +32,8 @@ export const SAFE_MESSAGES: Record<string, SafeMessage> = {
   assistant_disabled: { en: "The assistant is not available.", ar: "المساعد غير متاح." },
   commit_rolled_back: { en: "Nothing was saved: the change could not be completed. Try again.", ar: "لم يُحفظ شيء: تعذّر إكمال التغيير. حاول مرة أخرى." },
   rate_limit_unavailable: { en: "The service is temporarily unavailable. Please try again shortly.", ar: "الخدمة غير متاحة مؤقتاً. يرجى المحاولة بعد قليل." },
+  // Phase 19A: the key that seals second-factor secrets cannot be reached (no key configured, or the KMS is down)
+  mfa_key_unavailable: { en: "Two-step verification is not available right now: its key service could not be reached. Try again shortly, or contact the platform.", ar: "التحقق بخطوتين غير متاح الآن: تعذّر الوصول إلى خدمة المفاتيح. حاول بعد قليل أو تواصل مع المنصة." },
   pdf_renderer_unavailable: { en: "The PDF could not be produced right now. Try again later; nothing else was affected.", ar: "تعذّر إنشاء ملف PDF الآن. حاول لاحقاً؛ لم يتأثر شيء آخر." },
 };
 
