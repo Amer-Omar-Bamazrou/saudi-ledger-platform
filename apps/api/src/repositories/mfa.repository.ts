@@ -65,11 +65,15 @@ export const mfaRepository = {
     });
   },
 
-  /** When this account's factor was last reset (the security trail's own fact), if ever. */
-  async lastResetAt(userId: number): Promise<Date | null> {
-    const res = await db.execute(sql`SELECT max(created_at) AS at FROM security_audit_logs WHERE action = 'mfa.reset' AND target_user_id = ${userId}`);
-    const at = (res.rows[0] as any)?.at;
-    return at ? new Date(at) : null;
+  /**
+   * When this account's factor was last reset, and by whom — an admin of its organization or the platform (the security
+   * trail's own fact), if ever.
+   */
+  async lastReset(userId: number): Promise<{ at: Date; by: "admin" | "platform" } | null> {
+    const res = await db.execute(sql`SELECT created_at AS at, metadata ->> 'by' AS by FROM security_audit_logs
+      WHERE action = 'mfa.reset' AND target_user_id = ${userId} ORDER BY created_at DESC, id DESC LIMIT 1`);
+    const row = res.rows[0] as { at?: string | Date; by?: string | null } | undefined;
+    return row?.at ? { at: new Date(row.at), by: row.by === "admin" ? "admin" : "platform" } : null;
   },
 
   /** Is this account an ACTIVE admin of any organization (whatever its verification state)? */

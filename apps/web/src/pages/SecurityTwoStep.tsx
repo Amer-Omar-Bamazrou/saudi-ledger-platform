@@ -75,7 +75,9 @@ export default function SecurityTwoStep() {
           {s?.lastResetAt && (
             <Alert data-testid="two-step-last-reset">
               <AlertDescription>
-                {t("The platform reset two-step verification on this account on", "أعادت المنصة تعيين التحقق بخطوتين لهذا الحساب في")}{" "}
+                {s.lastResetBy === "admin"
+                  ? t("An admin of your organization reset two-step verification on this account on", "أعاد مسؤول في منشأتك تعيين التحقق بخطوتين لهذا الحساب في")
+                  : t("The platform reset two-step verification on this account on", "أعادت المنصة تعيين التحقق بخطوتين لهذا الحساب في")}{" "}
                 <DualDate date={businessInstant(s.lastResetAt).date} />.{" "}
                 {t("If you did not ask for it, contact the platform.", "إن لم تطلب ذلك فتواصل مع المنصة.")}
               </AlertDescription>

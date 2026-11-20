@@ -80,9 +80,10 @@ router.post("/users/end-sessions", async (req, res) => {
 });
 
 /**
- * 🔴 Phase 19A (19.3) — POST /api/operator/users/mfa-reset { email, identityVerified: true, basis }: the ASSISTED RESET
- * of a person's second factor, by a platform security operator only, after the person's identity was verified. It
- * removes the factor and the recovery codes, ends every session of the account, is recorded, and the person is told.
+ * 🔴 Phase 19A (19.3; owner, 2026-11-20) — POST /api/operator/users/mfa-reset { email, identityVerified: true, basis }:
+ * the platform's reset of a person's second factor, the break-glass — only when no admin of the person's organization
+ * can (409 mfa_reset_admin_available), after the person's identity was verified. It removes the factor and the
+ * recovery codes, ends every session of the account, is recorded, and the person is told.
  */
 router.post("/users/mfa-reset", async (req, res) => {
   res.json(await mfaService.operatorReset(
