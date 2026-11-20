@@ -443,7 +443,7 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
      *
      * The receipt already posted Dr Bank / Cr Customer deposits for the
      * GROSS (Batch 1B, unchanged). This entry splits the deposit: what
-     * remains on the liability is the NET contract liability (IFRS 15.47 —
+     * remains on the liability is the NET contract liability (IFRS 15.47, IFRS for SMEs Section 23 —
      * consideration excludes amounts collected for the government), and the
      * VAT is declared. Together the two dated documents equal exactly the
      * accountant's receipt entry (Dr Bank / Cr Deposit / Cr Output VAT).

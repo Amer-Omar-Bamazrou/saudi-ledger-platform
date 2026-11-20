@@ -61,10 +61,10 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-22** — 🔴 **FIXED ASSETS FA-A…FA-H BUILT**; its four invariants are in the [`pack`](docs/product/fixed-assets-decision-pack.md) §20–§27. 🔴 THREE CLOCKS (fiscal year · tax period · accounting life) — none stands in for another.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
-**2026-10-03 → 11-16** — 🔴 **MERGED: PHASES 14+15 (#189), 16+17 (#190), RATE LIMITING (#191); PHASE 18 #192–#306, CLOSED 11-06; CARRY-OVER #309–#318; AUDIT ROUND #319–#337**. Record: [`standing check`](docs/history/phase-18-standing-check.md).
+**2026-10-03 → 11-19** — 🔴 **MERGED: PHASES 14+15 (#189), 16+17 (#190), RATE LIMITING (#191); PHASE 18 #192–#306, CLOSED 11-06; CARRY-OVER #309–#318; AUDIT ROUND #319–#337; OWNER DECISIONS #339–#347**. Record: [`standing check`](docs/history/phase-18-standing-check.md).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
-**2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17): the tax point is the RECEIPT (Art. 63); Art. 40(7) relief posted; the Art. 40(9) recovery a NEW document. Open: Z1.
+**2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17). Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -573,7 +573,7 @@ the order is not the severity order.**
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
 | **1** | **Password recovery** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
-| **2** | 🔴 **The generic journal reverse accepts an entry a receipt, payroll, depreciation or recognition OWNS** — the document reads live while its entry is cancelled (invoices, notes, write-offs refused: DR-34, §11.53). | posts + hides. | DR-34; Phase 12 §7 #8. |
+| **2** | 🔴 **The generic journal reverse accepts an entry a receipt, depreciation or recognition OWNS** — the document reads live while its entry is cancelled (DR-34 refuses invoices, notes, write-offs; A15 payroll, unclassified). | posts + hides. | DR-34; Phase 12 §7 #8. |
 | **3** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | Official identity documents. | Audited, operator-only. P6: no statutory expiry. |
 | **4** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
 
@@ -588,12 +588,11 @@ needs a checkable reason and leaves the day it is fixed.
 
 ### Arabic coverage
 
-Arabic is a **launch requirement**; coverage is MEASURED by
-`scripts/arabic-sweep.mjs` and believed only after a HELD-OUT round (§3).
-Measured 2026-09-15 (frame: 105 files): **30 sites of untranslated
-user-facing English remain, UNFIXED**; one held-out round only. Re-run with a
-fresh hold-out before launch. Record: findings file,
-"THE HELD-OUT VALIDATION".
+Arabic is a **launch requirement**, MEASURED by `scripts/arabic-sweep.mjs`,
+believed only after a HELD-OUT round (§3): 2026-09-15 (frame: 105 files), **30
+untranslated sites, UNFIXED**, one round; re-run with a fresh hold-out before
+launch (findings file, "THE HELD-OUT VALIDATION"). 🔴 **English-only refusal reasons** reach Arabic
+readers labelled English (#346): each needs real Arabic.
 
 ### Traps and known-dead surfaces
 

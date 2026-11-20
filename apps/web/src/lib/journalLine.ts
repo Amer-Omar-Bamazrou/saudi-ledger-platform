@@ -39,8 +39,9 @@ export type PartyRuleMissed = "named" | "customer-or-reason";
 export function partyHint(missed: PartyRuleMissed, t: T): string {
   return missed === "customer-or-reason"
     ? t(
-        "A security-deposit or unidentified-receipt line names its customer, or says why there is none.",
-        "سطر التأمينات المحتجزة أو المقبوضات غير المحددة يحدد عميله، أو يذكر سبب عدم وجوده.",
+        // owner A20's stated-reason rule — an internal control of the platform, labelled as one (owner, 2026-11-19)
+        "A security-deposit or unidentified-receipt line names its customer, or says why there is none (an internal control of this platform).",
+        "سطر التأمينات المحتجزة أو المقبوضات غير المحددة يحدد عميله، أو يذكر سبب عدم وجوده (ضابط رقابة داخلية في المنصة).",
       )
     : t(
         "A receivable, customer-deposit or customer-credit line names its customer; a payable line names its supplier.",

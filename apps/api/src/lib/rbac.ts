@@ -221,13 +221,13 @@ function permissionRefusal(role: string, resource: string, action: PermissionAct
     ? [`This needs an accountant or admin to ${action} it. Your role (${role}) can prepare and edit, ` +
         `but releasing it is a separate review step — send it for approval and someone with that ` +
         `authority will action it.`,
-       "يحتاج هذا إلى محاسب أو مدير لاعتماده. دورك يتيح الإعداد والتعديل، أما الإصدار فخطوة مراجعة منفصلة — أرسله للاعتماد ليتولّاه من يملك هذه الصلاحية."]
+       "يحتاج هذا إلى محاسب أو مسؤول لاعتماده. دورك يتيح الإعداد والتعديل، أما الإصدار فخطوة مراجعة منفصلة — أرسله للاعتماد ليتولّاه من يملك هذه الصلاحية."]
     : !canPrepare && permissions.has(permKey(role, resource, "read"))
       ? [`Your role (${role}) can read ${what} but not change ${action === "read" ? "them" : "them — this needs " + action + " authority"}. ` +
           `An admin can change your role in User Management.`,
-         "دورك يتيح الاطلاع على هذه السجلات للقراءة فقط، دون تغييرها. يمكن لمدير النظام تغيير دورك من إدارة المستخدمين."]
+         "دورك يتيح الاطلاع على هذه السجلات للقراءة فقط، دون تغييرها. يمكن لمسؤول النظام تغيير دورك من إدارة المستخدمين."]
       : [`Your role (${role}) cannot ${action} ${what}. An admin can grant that in User Management.`,
-         "دورك لا يسمح بهذا الإجراء. يمكن لمدير النظام منح الصلاحية من إدارة المستخدمين."];
+         "دورك لا يسمح بهذا الإجراء. يمكن لمسؤول النظام منح الصلاحية من إدارة المستخدمين."];
   return {
     code: "requires_approval_authority",
     error,

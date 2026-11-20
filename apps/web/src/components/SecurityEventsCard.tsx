@@ -48,7 +48,8 @@ const ACTION_LABEL: Record<string, [string, string]> = {
   "verification.document_viewed": ["Verification document viewed by the platform operator", "اطلاع مشغّل المنصة على مستند التحقق"],
   "account.operator_target_refused": ["Refused: the account is a platform operator", "رُفض: الحساب لمشغّل المنصة"],
   "reference.refused": ["Refused: a reference to another organization", "رُفض: مرجع إلى منشأة أخرى"],
-  "bank_detail_change.approval_refused": ["Refused: a bank-detail approval by an account the requester created, re-activated or reset", "رُفض: اعتماد تغيير بنكي من حساب أنشأه مقدّم الطلب أو أعاد تفعيله أو أعاد تعيين كلمة مروره"],
+  // owner A1 — an internal control of the platform, labelled as one (owner, 2026-11-19)
+  "bank_detail_change.approval_refused": ["Refused (internal control): a bank-detail approval by an account the requester created, re-activated or reset", "رُفض (ضابط رقابة داخلية): اعتماد تغيير بنكي من حساب أنشأه مقدّم الطلب أو أعاد تفعيله أو أعاد تعيين كلمة مروره"],
   // 🔴 Phase 19A (19.8): every event 19A's acts write — held to the server's list by phase19a-event-labels.test.ts
   "session.revoked": ["A session was ended", "إنهاء جلسة"],
   "session.revoked_all": ["Sessions were ended", "إنهاء الجلسات"],

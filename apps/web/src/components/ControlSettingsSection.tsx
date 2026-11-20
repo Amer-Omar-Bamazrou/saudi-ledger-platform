@@ -69,6 +69,11 @@ export function ControlSettingsSection() {
           {t(
             "Each control starts empty and switched off. Nothing is checked until an administrator sets its number.",
             "يبدأ كل ضابط فارغاً ومتوقفاً. لا يُفحص شيء حتى يحدد مسؤول النظام رقمه.",
+          )}{" "}
+          {/* owner A23 — labelled as what it is (owner, 2026-11-19) */}
+          {t(
+            "These are internal controls of this platform, not ZATCA, SOCPA or IFRS requirements.",
+            "هذه ضوابط رقابة داخلية في المنصة، وليست من متطلبات هيئة الزكاة والضريبة والجمارك أو الهيئة السعودية للمراجعين والمحاسبين أو المعايير الدولية للتقرير المالي.",
           )}
         </CardDescription>
       </CardHeader>

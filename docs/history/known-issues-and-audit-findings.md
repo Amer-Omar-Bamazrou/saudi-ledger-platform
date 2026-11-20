@@ -2310,7 +2310,9 @@ vs issuance-period question stays with the accountant (pack §16.5).
 receipt date — the 386 is dated at it, its KSA-5 supply date is it, its
 IssueDate is the real issuance; a LOCKED receipt month fails closed naming
 the IR Art. 63 remedy (a correction submission within 20 days, or the next
-return below SAR 5,000; reopen → issue → close) — no conflict between the
+return below SAR 5,000 [🔴 2026-11-19: superseded — below SAR 15,000, the return
+for the period of discovery, Res. 01-06-24; this record read the English Eighth
+Edition]; reopen → issue → close) — no conflict between the
 answer and the text; customer money is FOUR liabilities on four accounts,
 moved between them by one dated reclassification entry; bad-debt relief
 (Art. 40(7)) is a structured, posted fact with its conditions enforced and

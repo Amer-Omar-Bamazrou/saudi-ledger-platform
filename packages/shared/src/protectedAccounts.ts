@@ -7,7 +7,7 @@
  * set is met: the payroll pay paths and the VAT filing's clearing exist.
  *
  * Retained earnings is the one entry a free route may still reach — through a
- * CLASSIFIED correction only (a manual journal carrying an IAS 8 kind).
+ * CLASSIFIED correction only (a manual journal carrying an IAS 8 kind — IFRS for SMEs Section 10 for a tenant on it).
  *
  * 🔴 ROUTE-AWARE (register §11.77): a bank line is the PAY or SETTLEMENT path of
  * three of these — a salary line pays the run (Dr payable / Cr bank, DR-41), a
@@ -16,7 +16,7 @@
  * line (`bankLineSettles`) and close to the manual journal and recognition.
  */
 export const PROTECTED_SYSTEM_ACCOUNTS = {
-  RETAINED_EARNINGS: { writtenByAr: "تصحيح مصنَّف (قيد يدوي يذكر نوعه وفق معيار المحاسبة الدولي 8: خطأ، أو تقدير، أو سياسة)", writtenBy: "a classified correction (a manual journal stating its IAS 8 kind: error, estimate or policy)", classifiableCorrection: true, bankLineSettles: false },
+  RETAINED_EARNINGS: { writtenByAr: "تصحيح مصنَّف (قيد يدوي يذكر نوعه وفق معيار المحاسبة الدولي 8، أو القسم 10 من المعيار الدولي للمنشآت الصغيرة والمتوسطة: خطأ، أو تقدير، أو سياسة)", writtenBy: "a classified correction (a manual journal stating its kind under IAS 8, or IFRS for SMEs Section 10: error, estimate or policy)", classifiableCorrection: true, bankLineSettles: false },
   SALARIES_PAYABLE: { writtenByAr: "مسيّر الرواتب، وحركة البنك للرواتب التي تسدده", writtenBy: "a payroll run, and the salary bank line that pays it", classifiableCorrection: false, bankLineSettles: true },
   GOSI_PAYABLE: { writtenByAr: "مسيّر الرواتب، وحركة البنك للتأمينات الاجتماعية التي تسدده", writtenBy: "a payroll run, and the GOSI bank line that pays it", classifiableCorrection: false, bankLineSettles: true },
   VAT_INPUT: { writtenByAr: "فاتورة المورد، أو المصروف، أو إشعار المورد، أو مطالبة الإثبات، أو تسوية إقرار ضريبة القيمة المضافة", writtenBy: "a bill, an expense, a supplier note, the evidence claim and the VAT return's filing", classifiableCorrection: false, bankLineSettles: false },

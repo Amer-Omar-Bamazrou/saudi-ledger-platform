@@ -153,7 +153,7 @@ test.describe("certificate renewal (Arabic, 390 px)", () => {
     const card = await renewWith(page, "654321");
     const refused = card.getByTestId("renewal-refused");
     await expect(refused).toHaveAttribute("data-code", "requires_approval_authority");
-    await expect(refused).toContainText("تجديد الشهادة لمدير النظام فقط");
+    await expect(refused).toContainText("تجديد الشهادة لمسؤول النظام فقط");
     expect(await credentials(), "the active certificate is untouched").toEqual(before);
     await close();
   });

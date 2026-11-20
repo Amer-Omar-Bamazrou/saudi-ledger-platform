@@ -22,7 +22,10 @@ the date printed inside the PDF, which is often the original release). Verified
 | `Fatoora_Portal_User_Manual_English.pdf` | 2023-06-07 (PDF creation) | `6fec08254aac8f3aab2247f96bd7b4ac2dc3558fb48c2a4b598dde564ad14c52` |
 | `sandbox_Developer_Portal_User_Manual.pdf` | **2026-07-07** ← most recently updated | `5d66f4e4502dba499a1936ac3174ba10041ded87ca0e8d1dc518c5fcbcd26e49` |
 | `QRCodeCreation.pdf` | 2021-11-22 (Phase 1 era) | `a27159ab6f6e7ba024f8bdda41a1e3ddfe232c5738a93076ec7523f719361092` |
-| `KSA_VAT_Implementing_Regulations_EN.pdf` 🔴 **legal text** | **2023-08-30** (Eighth Edition) | `659fb67cc8ed6afcd4bdb5628be81e0b3c70f683b8bd8876c6631770f1215cb3` |
+| `KSA_VAT_Implementing_Regulations_EN.pdf` 🔴 **legal text**, English, **superseded for amended articles** (below; re-checked 2026-11-19: ZATCA still serves this exact file) | **2023-08-30** (Eighth Edition) | `659fb67cc8ed6afcd4bdb5628be81e0b3c70f683b8bd8876c6631770f1215cb3` |
+| `KSA_VAT_Implementing_Regulations_AR_10th_Edition_2025-04.pdf` 🔴 **legal text — the Arabic prevails; the CURRENT edition** (Tenth Edition, Shawwal 1446H / April 2025, amended through Res. 01-06-24 of 19/11/2024; added 2026-11-19, text extract committed beside it) | **2025-04-18** | `6edf0cb12d4b0736fd534f1e68074a19e6cce49cc8354c706aac6a27f22dc5d8` |
+| `ZATCA_VAT_IR_Amendments_Guideline_2025-04_AR.pdf` (ZATCA's guideline explaining Res. 01-06-24, Issue 1, April 2025; guidance, not law; added 2026-11-19, extract beside it) | **2025-04-27** | `866785ca5227ad856b046fdc3961ad716786a3496fbc9244a67845e19968b3b1` |
+| `ZATCA_VAT_IR_Amendments_Guideline_2025-04_EN.pdf` (the same guideline in English; the Arabic prevails; added 2026-11-19, extract beside it) | **2026-05-18** | `eeaa3369fd32e0791e51c803776962f7c3f2cda9d26fa82e999f97f74f383757` |
 | `ZATCA_E-Invoicing_Implementation_Resolution_20230519_EN.pdf` 🔴 **legal text** | **2023-05-19** | `06a7ce0a3e113a142554b9293e148fd99eb058e6075f1c4c75c7d99354d16066` |
 | `20230519_ZATCA_Electronic_Invoice_XML_Implementation_Standard_vTrack.pdf` (v1.2 — the UBL tags, calculations and BR-KSA rules; **¶9.5 prepayment**, §11.2.1 type 386; added 2026-09-21 for AP-2, text extract committed beside it) | **2023-05-19** | `f4a14e3e601748435bb425e9caa9f2db305af38d0322d154c59a16aa4b228dc9` |
 | `ZATCA_VAT_Tax_Invoicing_and_Records_Guideline_v3_2026-05_AR.pdf` 🔴 **the Arabic prevails** (§8.3 record location and retention; added 2026-11-06, text extract committed beside it, NFKC-normalised so Arabic can be searched) | **2026-06-02** (Version 3, May 2026) | `97df821c6c897308749d23e8e2f5f9c7eddd44c3cc984bacb4b18a2996ce7fd2` |
@@ -67,11 +70,20 @@ the current Arabic edition (2025, 1446H) at
 `https://zatca.gov.sa/ar/RulesRegulations/Taxes/Documents/Implmenting%20Regulations%20of%20the%20VAT%20Law.pdf`
 carries three amendments the English file does not:
 
-| Amendment | Date | Articles it changed (in what Phase 13 read) |
+| Amendment | Date | Paragraphs it changed (from the Tenth Edition's footnotes, mapped 2026-11-19; Phase 13's reading in bold) |
 | --- | --- | --- |
-| Res. 22-09-05 | 1444H (2022) | per its footnotes in the Arabic edition |
-| Res. 23-4-1 | 26/11/1444H = 15/06/2023 | Art. 40(7)(d) |
-| Res. 24-06-01 (01-06-24) | 17/05/1446H = 19/11/2024 | Art. 40(3), 40(10)–(11); **Art. 50(1)–(2)** (the blocked list and the restricted-vehicle definition); new **Art. 54(6)** (notes within 15 days of the following month); **Art. 63(1)–(4)** (SAR 15,000, the discovery-period return) |
+| Res. 05-09-22 (printed 22-09-05) | 05/05/1444H = 29/11/2022 | Art. 34(1), 34(8), 36(3) |
+| Res. 1-4-23 (printed 23-4-1) | 26/11/1444H = 15/06/2023 | Art. 9(5)–(7), 29(7), 34(4), 34(9)–(10), 36(3), **40(7)(d)**, 45(2), 45(12) |
+| Res. 01-06-24 (printed 24-06-01) | 17/05/1446H = 19/11/2024 | Art. 10(1)–(2), 11(1)–(2), 11(6), 12(7), 13(1), 13(13)–(14), 14(1)–(2), 15(1), 15(7)–(9), 17(1)–(2), 17(5)–(6), 20(6), 32(6), 33(1)–(2), 36(3), 38(1), 38(4), 39(1)–(2), **40(3), 40(10)–(11)**, 45(12), 47(2)–(3), 47(5), **50(1)–(2)** (the blocked list and the restricted-vehicle definition), new **54(6)** (notes within 15 days of the following month), 60(5), **63(1)–(4)** (SAR 15,000, the discovery-period return), 64(10), 68(1), 69(5), 69(7), 70(1)–(13), 70(15)–(18), 70(20), 73(1)–(12), 78(3) |
+
+The map is mechanical (each footnote's reference placed under the article and
+paragraph marker above it); it reproduced Phase 13's four readings, and a
+paragraph that spans a page can be off by one. 🔴 **Art. 63(3) in the Tenth
+Edition** (p. 58, fn 91): «يقل صافي قيمته عن خمسة عشر (15,000) ألف ريال» —
+corrected «في الإقرار الضريبي الذي يقدم للهيئة عن الفترة الضريبية التي تم
+خلالها اكتشاف الخطأ». The edition's appendix of old and new texts (p. 130)
+shows 63(3)'s figure as 5,000 (Res. 2-4-17), then 15,000, then the current
+wording (Res. 01-06-24).
 
 Also a **translation error** that is not an amendment: the English Art.
 53(1)(c) says "summary Tax Invoice"; the Arabic says **simplified** tax
@@ -82,11 +94,44 @@ to the Implementing Regulation of VAT", Issue 1, April 2025
 Articles read in Phase 13 with NO later amendment footnote: 49, 51, 52,
 53(5)/(7)/(8)/(11), 62.
 
-**The files were NOT replaced**, deliberately: a regulatory source is not
-swapped silently, and the Arabic PDF has no extractable text layer (Phase 13
-read it as page images). The rule until a current text is added beside this
-one: 🔴 **for Art. 40, 50, 53(1)(c), 54 or 63, cite the Arabic edition (or
-ZATCA's April 2025 amendments guideline), never the English `.txt` alone.**
+**The current Arabic text is pinned beside the English (2026-11-19).** The
+English file was not replaced: a regulatory source is not swapped silently,
+and it is still the only English edition ZATCA serves. Phase 13 read the Arabic
+as page images because its text did not extract; poppler's `pdftotext
+-layout` does extract it, and that extract is committed as
+`specs/KSA_VAT_Implementing_Regulations_AR_10th_Edition_2025-04.txt`
+(NFKC-normalised, bidi controls and tatweel removed; brackets and digits can
+read reversed, as in the guideline extract above — check a figure against the
+PDF page). 🔴 **For any paragraph in the table above, and for 53(1)(c), cite
+the Arabic Tenth Edition, never the English `.txt` alone.**
+
+🔴 **Every citation reviewed against the Tenth Edition (2026-11-19).** Lines
+that rely on text a later amendment changed — Art. 63(3) corrected the same
+day; the rest OPEN, each a decision for the owner and the tax adviser, not a
+silent edit:
+
+- **Art. 50(1) re-lettered** (Res. 01-06-24: a new (c), employees' insurance and
+  healthcare, blocked unless a law requires them; restricted vehicles moved to
+  (d), fuel from (e) to (f); read in the Arabic):
+  fixture reasons citing 50(1)(c) for vehicles in
+  `fixed-assets-capitalisation.test.ts`, `phase13b3-backfill.test.ts`,
+  `vat-capital-asset.test.ts`, `fixed-assets-disposal.test.ts`,
+  `fixed-assets-foundation.test.ts`; `fixed-assets-decision-pack.md`;
+  migration `0048` and `docs/tax/vat-treatment-verification.md` (50(1)(e)).
+- **Art. 50(1)(b) gained an exception**: catering an employer is required by
+  law to provide to employees at the workplace is deductible. Treated as always
+  blocked: `vat-blocked-input.test.ts`, `VatReport.tsx`, `FOOD_MEALS` in
+  `schema/categories.ts`, C9 in the known-issues file, migration `0048`.
+- **Art. 40(10)** (bad-debt relief: the twelve months count from the month after
+  the supply's, reported in the return for the month they end, financing
+  contracts excepted): the Batch 1C pack's "twelve months from the date of
+  Supply".
+- **Art. 9(5)** (Res. 1-4-23: a government body acts outside economic activity
+  only when three conditions hold) — the GOVT_FEES reasoning that "no
+  sovereign-capacity article exists" (`docs/tax/gcc-framework-verification.md`,
+  migration `0057`); the default treatment probably survives, unsettled.
+- **Art. 40(7)(d)**: other evidence ZATCA may accept from a person not obliged
+  to appoint an auditor; the bad-debt service accepts the certificate only.
 
 **Local documents that cite the English file or the amended articles** (a
 coverage list to re-check, not a verdict that each is wrong — found by grepping

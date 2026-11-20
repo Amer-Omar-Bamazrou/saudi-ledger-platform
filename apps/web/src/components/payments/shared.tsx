@@ -103,7 +103,7 @@ export function PermissionHint() {
   if (can) return null;
   return (
     <p className="text-xs text-muted-foreground" data-testid="permission-hint">
-      {t("Recording, allocating and refunding money needs the accountant or admin role — ask an approver.", "يتطلب تسجيل الأموال وتخصيصها وردّها دور المحاسب أو المدير — اطلب ذلك من معتمِد.")}
+      {t("Recording, allocating and refunding money needs the accountant or admin role — ask an approver.", "يتطلب تسجيل الأموال وتخصيصها وردّها دور المحاسب أو المسؤول — اطلب ذلك من معتمِد.")}
     </p>
   );
 }

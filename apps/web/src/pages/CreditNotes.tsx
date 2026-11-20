@@ -389,7 +389,8 @@ export default function CreditNotes() {
                       </td>
                       <td><DualDate date={n.date} /></td>
                       <td>{nameOf(n.customerName ?? "", n.customerNameAr) || "—"}</td>
-                      <td className="max-w-[16rem] truncate">{n.noteReason ?? "—"}</td>
+                      {/* Walk L5: the reason wraps; truncated, "Goods returned" read "…ods returned" */}
+                      <td className="max-w-[16rem] min-w-[8rem] whitespace-normal break-words" data-testid="credit-note-reason">{n.noteReason ?? "—"}</td>
                       <td>
                         <Badge className={STATUS_STYLES[n.status] ?? ""}>{n.status}</Badge>
                       </td>
