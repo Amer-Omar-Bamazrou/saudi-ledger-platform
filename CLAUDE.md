@@ -62,9 +62,9 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-09-22** — 🔴 **PHASE 11 BUILT: A1–A4, and AP AS A SUBLEDGER (B3–B7 + B8’s foundation)** ([`pack`](docs/product/phase-11-deep-accounting-ap-decision-pack.md) §16–§17). Its invariants are §4. 🔴 **IAS 37.11: an ACCRUAL credits ACCRUED_LIABILITIES, NEVER AP**; refused by name. `spreadOverPeriods` (`lib/money.ts`) is the ONE split convention.
 **2026-09-27** — 🔴 **PHASE 13 13A/13C/13E BUILT, accountant X1–X5 APPLIED** ([`pack`](docs/product/phase-13-expenses-decision-pack.md) §9); 13D waits on P13-N1.
 **2026-10-03 → 11-19** — 🔴 **MERGED: PHASES 14+15 (#189), 16+17 (#190), RATE LIMITING (#191); PHASE 18 #192–#306, CLOSED 11-06; CARRY-OVER #309–#318; AUDIT ROUND #319–#337; OWNER DECISIONS #339–#347**. Record: [`standing check`](docs/history/phase-18-standing-check.md).
+**2026-11-20** — 🔴 **19A BUILT** (#352–#354): sessions, MFA, security settings; production MFA needs C3 (§5).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
 **2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
-**2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** (advance-payments pack §17). Open: Z1.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -541,7 +541,7 @@ advisor · mail provider · R1 design · deployment + Groq.
 | --- | --- |
 | **B1/B2 wiring** | Pick a mail provider + verify a sending domain (`MAIL_PROVIDER`/`MAIL_API_KEY`/`MAIL_FROM`); point `ALERT_WEBHOOK_URL` at a real destination and confirm one test page arrives. An unwired alarm is what B2 exists to prevent. |
 | **C1 (remaining half)** | Confirm exactly `TRUST_PROXY_HOPS` proxies rewrite `X-Forwarded-For` in the real deployment. A wrong number is a spoofable limiter either way. |
-| **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, a CloudTrail alarm on deletion attempts, a multi-region CMK replica. If the CMK dies, every tenant re-onboards. |
+| **C3** | **KMS deployment verification** — IAM/key policy, 30-day deletion window, break-glass-only `kms:ScheduleKeyDeletion`, a CloudTrail alarm on deletion attempts, a multi-region CMK replica. If the CMK dies, every tenant re-onboards. 🔴 It also seals 19A's MFA secrets. |
 | **C4 (remaining half)** | Deploy a clamd sidecar, `MALWARE_SCANNER=clamd`. M-5 closes with it. |
 | **C6** | **Residency / hosting.** (1) 🔴 Sign the **Groq Enterprise agreement** (Dammam pinning + contractual ZDR) — **BLOCKING before any tenant data reaches Groq**; the free tier routes globally and "development" is no exception. (2) An Arabic-capable vision model in Dammam. (3) Hosting + KMS: an owner decision; VAT records need a Kingdom region (§4). No hosted Supabase project yet. |
 

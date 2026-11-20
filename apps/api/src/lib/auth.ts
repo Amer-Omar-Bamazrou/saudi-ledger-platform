@@ -68,8 +68,11 @@ export async function sessionStampFor(
   return { authenticatedAt: Date.now(), credential: credentialOf(account.passwordHash), sessionRecordId, ...(mfaStep ? { mfaStep } : {}) };
 }
 
-/** 19.4: how often a session's "last seen" is written — at most once in this window, not on every request. */
-export const SESSION_LAST_SEEN_RESOLUTION_MS = 5 * 60 * 1000;
+/**
+ * 19.4: how often a session's "last seen" is written — at most once in this window, not on every request. One minute,
+ * because 19.7's idle timeout is measured from it and the shortest idle timeout an organization may set is 15 minutes.
+ */
+export const SESSION_LAST_SEEN_RESOLUTION_MS = 60 * 1000;
 
 /**
  * 🔴 G02 — A SESSION ENDS WHEN WHAT IT WAS ISSUED FOR ENDS (owner D-4: sessions
@@ -110,7 +113,14 @@ export async function endEndedSessions(req: Request, res: Response, next: NextFu
     const recordId = s.sessionRecordId;
     const record = recordId ? await sessionRecordsRepository.openRecord(recordId, s.userId) : undefined;
     ended = !record;
-    if (record && Date.now() - record.lastSeenAt.getTime() >= SESSION_LAST_SEEN_RESOLUTION_MS) {
+    // 🔴 Phase 19A (19.7): the organization's own figures — never looser than the platform's (the 12-hour check above
+    // and the cookie's 8-hour idle limit stay) — end the session here: its lifetime from sign-in, its idle time from
+    // the record's last-seen.
+    if (record && (Date.now() - s.authenticatedAt! >= record.lifetimeHours * 60 * 60 * 1000
+                || Date.now() - record.lastSeenAt.getTime() >= record.idleMinutes * 60 * 1000)) {
+      ended = true;
+    }
+    if (!ended && record && Date.now() - record.lastSeenAt.getTime() >= SESSION_LAST_SEEN_RESOLUTION_MS) {
       sessionRecordsRepository.touch(recordId!).catch((err) => req.log?.warn({ err }, "session last-seen not written"));
     }
   }

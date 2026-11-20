@@ -2112,6 +2112,219 @@ export const OperatorResetMfaResponse = zod.object({
 
 
 /**
+ * @summary Phase 19A (19.7): the organization's security settings, for ITS admins only — two-step verification for everyone, the session lifetime, the idle timeout — with the platform's bounds, any change waiting for a second admin, and how many usable admins the organization has.
+
+ */
+export const GetOrgSecuritySettingsParams = zod.object({
+  "orgId": zod.coerce.string()
+})
+
+export const getOrgSecuritySettingsResponseSettingsSessionLifetimeHoursMax = 12;
+
+export const getOrgSecuritySettingsResponseSettingsIdleTimeoutMinutesMin = 15;
+export const getOrgSecuritySettingsResponseSettingsIdleTimeoutMinutesMax = 480;
+
+export const getOrgSecuritySettingsResponsePendingChangeOneBeforeSessionLifetimeHoursMax = 12;
+
+export const getOrgSecuritySettingsResponsePendingChangeOneBeforeIdleTimeoutMinutesMin = 15;
+export const getOrgSecuritySettingsResponsePendingChangeOneBeforeIdleTimeoutMinutesMax = 480;
+
+export const getOrgSecuritySettingsResponsePendingChangeOneAfterSessionLifetimeHoursMax = 12;
+
+export const getOrgSecuritySettingsResponsePendingChangeOneAfterIdleTimeoutMinutesMin = 15;
+export const getOrgSecuritySettingsResponsePendingChangeOneAfterIdleTimeoutMinutesMax = 480;
+
+
+
+export const GetOrgSecuritySettingsResponse = zod.object({
+  "settings": zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(getOrgSecuritySettingsResponseSettingsSessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(getOrgSecuritySettingsResponseSettingsIdleTimeoutMinutesMin).max(getOrgSecuritySettingsResponseSettingsIdleTimeoutMinutesMax)
+}),
+  "bounds": zod.object({
+  "sessionLifetimeHours": zod.object({
+  "min": zod.number(),
+  "max": zod.number()
+}),
+  "idleTimeoutMinutes": zod.object({
+  "min": zod.number(),
+  "max": zod.number()
+})
+}),
+  "pendingChange": zod.object({
+  "id": zod.string(),
+  "requestedBy": zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}),
+  "requestedAt": zod.string(),
+  "before": zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(getOrgSecuritySettingsResponsePendingChangeOneBeforeSessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(getOrgSecuritySettingsResponsePendingChangeOneBeforeIdleTimeoutMinutesMin).max(getOrgSecuritySettingsResponsePendingChangeOneBeforeIdleTimeoutMinutesMax)
+}),
+  "after": zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(getOrgSecuritySettingsResponsePendingChangeOneAfterSessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(getOrgSecuritySettingsResponsePendingChangeOneAfterIdleTimeoutMinutesMin).max(getOrgSecuritySettingsResponsePendingChangeOneAfterIdleTimeoutMinutesMax)
+})
+}).nullable(),
+  "usableAdmins": zod.number()
+})
+
+
+/**
+ * @summary Phase 19A (19.7): change the settings. A value outside the platform's bounds is refused (422 security_setting_out_of_bounds, naming the field). A strengthening change applies at once (200). A weakening change in an organization with two or more admins is held as a request for a second admin (202); 409 security_settings_change_pending while one is waiting.
+
+ */
+export const ChangeOrgSecuritySettingsParams = zod.object({
+  "orgId": zod.coerce.string()
+})
+
+export const changeOrgSecuritySettingsBodySessionLifetimeHoursMax = 12;
+
+export const changeOrgSecuritySettingsBodyIdleTimeoutMinutesMin = 15;
+export const changeOrgSecuritySettingsBodyIdleTimeoutMinutesMax = 480;
+
+
+
+export const ChangeOrgSecuritySettingsBody = zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(changeOrgSecuritySettingsBodySessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(changeOrgSecuritySettingsBodyIdleTimeoutMinutesMin).max(changeOrgSecuritySettingsBodyIdleTimeoutMinutesMax)
+})
+
+export const changeOrgSecuritySettingsResponseOneSettingsSessionLifetimeHoursMax = 12;
+
+export const changeOrgSecuritySettingsResponseOneSettingsIdleTimeoutMinutesMin = 15;
+export const changeOrgSecuritySettingsResponseOneSettingsIdleTimeoutMinutesMax = 480;
+
+export const changeOrgSecuritySettingsResponseOnePendingChangeOneBeforeSessionLifetimeHoursMax = 12;
+
+export const changeOrgSecuritySettingsResponseOnePendingChangeOneBeforeIdleTimeoutMinutesMin = 15;
+export const changeOrgSecuritySettingsResponseOnePendingChangeOneBeforeIdleTimeoutMinutesMax = 480;
+
+export const changeOrgSecuritySettingsResponseOnePendingChangeOneAfterSessionLifetimeHoursMax = 12;
+
+export const changeOrgSecuritySettingsResponseOnePendingChangeOneAfterIdleTimeoutMinutesMin = 15;
+export const changeOrgSecuritySettingsResponseOnePendingChangeOneAfterIdleTimeoutMinutesMax = 480;
+
+
+
+export const ChangeOrgSecuritySettingsResponse = zod.object({
+  "settings": zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(changeOrgSecuritySettingsResponseOneSettingsSessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(changeOrgSecuritySettingsResponseOneSettingsIdleTimeoutMinutesMin).max(changeOrgSecuritySettingsResponseOneSettingsIdleTimeoutMinutesMax)
+}),
+  "bounds": zod.object({
+  "sessionLifetimeHours": zod.object({
+  "min": zod.number(),
+  "max": zod.number()
+}),
+  "idleTimeoutMinutes": zod.object({
+  "min": zod.number(),
+  "max": zod.number()
+})
+}),
+  "pendingChange": zod.object({
+  "id": zod.string(),
+  "requestedBy": zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}),
+  "requestedAt": zod.string(),
+  "before": zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(changeOrgSecuritySettingsResponseOnePendingChangeOneBeforeSessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(changeOrgSecuritySettingsResponseOnePendingChangeOneBeforeIdleTimeoutMinutesMin).max(changeOrgSecuritySettingsResponseOnePendingChangeOneBeforeIdleTimeoutMinutesMax)
+}),
+  "after": zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(changeOrgSecuritySettingsResponseOnePendingChangeOneAfterSessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(changeOrgSecuritySettingsResponseOnePendingChangeOneAfterIdleTimeoutMinutesMin).max(changeOrgSecuritySettingsResponseOnePendingChangeOneAfterIdleTimeoutMinutesMax)
+})
+}).nullable(),
+  "usableAdmins": zod.number()
+}).and(zod.object({
+  "applied": zod.boolean(),
+  "held": zod.boolean().optional()
+}))
+
+
+/**
+ * @summary Phase 19A (19.7): approve or reject a held change. An approval is a second admin's — never the requester's (409 security_settings_second_admin_required) — and writes the settings in the same transaction. 409 security_settings_change_stale when the settings moved since the request.
+
+ */
+export const DecideOrgSecuritySettingsChangeParams = zod.object({
+  "orgId": zod.coerce.string(),
+  "changeId": zod.coerce.string()
+})
+
+export const DecideOrgSecuritySettingsChangeBody = zod.object({
+  "decision": zod.enum(['approve', 'reject'])
+})
+
+export const decideOrgSecuritySettingsChangeResponseOneSettingsSessionLifetimeHoursMax = 12;
+
+export const decideOrgSecuritySettingsChangeResponseOneSettingsIdleTimeoutMinutesMin = 15;
+export const decideOrgSecuritySettingsChangeResponseOneSettingsIdleTimeoutMinutesMax = 480;
+
+export const decideOrgSecuritySettingsChangeResponseOnePendingChangeOneBeforeSessionLifetimeHoursMax = 12;
+
+export const decideOrgSecuritySettingsChangeResponseOnePendingChangeOneBeforeIdleTimeoutMinutesMin = 15;
+export const decideOrgSecuritySettingsChangeResponseOnePendingChangeOneBeforeIdleTimeoutMinutesMax = 480;
+
+export const decideOrgSecuritySettingsChangeResponseOnePendingChangeOneAfterSessionLifetimeHoursMax = 12;
+
+export const decideOrgSecuritySettingsChangeResponseOnePendingChangeOneAfterIdleTimeoutMinutesMin = 15;
+export const decideOrgSecuritySettingsChangeResponseOnePendingChangeOneAfterIdleTimeoutMinutesMax = 480;
+
+
+
+export const DecideOrgSecuritySettingsChangeResponse = zod.object({
+  "settings": zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(decideOrgSecuritySettingsChangeResponseOneSettingsSessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(decideOrgSecuritySettingsChangeResponseOneSettingsIdleTimeoutMinutesMin).max(decideOrgSecuritySettingsChangeResponseOneSettingsIdleTimeoutMinutesMax)
+}),
+  "bounds": zod.object({
+  "sessionLifetimeHours": zod.object({
+  "min": zod.number(),
+  "max": zod.number()
+}),
+  "idleTimeoutMinutes": zod.object({
+  "min": zod.number(),
+  "max": zod.number()
+})
+}),
+  "pendingChange": zod.object({
+  "id": zod.string(),
+  "requestedBy": zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}),
+  "requestedAt": zod.string(),
+  "before": zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(decideOrgSecuritySettingsChangeResponseOnePendingChangeOneBeforeSessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(decideOrgSecuritySettingsChangeResponseOnePendingChangeOneBeforeIdleTimeoutMinutesMin).max(decideOrgSecuritySettingsChangeResponseOnePendingChangeOneBeforeIdleTimeoutMinutesMax)
+}),
+  "after": zod.object({
+  "mfaRequiredForAll": zod.boolean().describe('Two-step verification for every member (admins always need it)'),
+  "sessionLifetimeHours": zod.number().min(1).max(decideOrgSecuritySettingsChangeResponseOnePendingChangeOneAfterSessionLifetimeHoursMax),
+  "idleTimeoutMinutes": zod.number().min(decideOrgSecuritySettingsChangeResponseOnePendingChangeOneAfterIdleTimeoutMinutesMin).max(decideOrgSecuritySettingsChangeResponseOnePendingChangeOneAfterIdleTimeoutMinutesMax)
+})
+}).nullable(),
+  "usableAdmins": zod.number()
+}).and(zod.object({
+  "applied": zod.boolean(),
+  "held": zod.boolean().optional()
+}))
+
+
+/**
  * @summary Phase 18 R-11a (DR-14): the active company's control flags, newest first - each a record that one person did both halves of something a second person usually does (approved a document they made, or did both acts of one of the five pairs). A flag never blocks an act. Read by the approvers (admin, accountant) only.
 
  */

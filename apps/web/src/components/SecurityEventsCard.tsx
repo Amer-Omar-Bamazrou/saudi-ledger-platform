@@ -119,9 +119,10 @@ export function SecurityEventsCard({ orgId, nameOf }: { orgId: string; nameOf: (
                       <span dir="ltr">{businessInstant(e.createdAt).time}</span>
                     </span>
                   </div>
-                  <div className="text-xs text-muted-foreground break-all">
-                    {t("By", "بواسطة")} <span dir="ltr">{actor(e)}</span>
-                    {whom && <> · {t("Concerning", "بشأن")} <span dir="auto">{whom}</span></>}
+                  {/* the values (an email, a name) may break where they would overflow; the Arabic words beside them never do */}
+                  <div className="text-xs text-muted-foreground" data-testid="security-event-line">
+                    {t("By", "بواسطة")} <span dir="ltr" className="wrap-anywhere" data-testid="security-event-actor">{actor(e)}</span>
+                    {whom && <> · {t("Concerning", "بشأن")} <span dir="auto" className="wrap-anywhere" data-testid="security-event-target">{whom}</span></>}
                   </div>
                 </li>
               );

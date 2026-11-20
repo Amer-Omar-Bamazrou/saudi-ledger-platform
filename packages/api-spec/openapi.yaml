@@ -1259,6 +1259,90 @@ paths:
               schema:
                 $ref: "#/components/schemas/MfaResetResult"
 
+  /orgs/{orgId}/security-settings:
+    get:
+      operationId: getOrgSecuritySettings
+      tags: [orgs]
+      summary: >
+        Phase 19A (19.7): the organization's security settings, for ITS admins only — two-step verification for
+        everyone, the session lifetime, the idle timeout — with the platform's bounds, any change waiting for a second
+        admin, and how many usable admins the organization has.
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The settings, the bounds and any pending change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgSecuritySettingsView"
+    put:
+      operationId: changeOrgSecuritySettings
+      tags: [orgs]
+      summary: >
+        Phase 19A (19.7): change the settings. A value outside the platform's bounds is refused (422
+        security_setting_out_of_bounds, naming the field). A strengthening change applies at once (200). A weakening
+        change in an organization with two or more admins is held as a request for a second admin (202); 409
+        security_settings_change_pending while one is waiting.
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgSecuritySettings"
+      responses:
+        "200":
+          description: Applied (or nothing to change)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgSecuritySettingsChangeResult"
+        "202":
+          description: Held for a second admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgSecuritySettingsChangeResult"
+
+  /orgs/{orgId}/security-settings/changes/{changeId}/decision:
+    put:
+      operationId: decideOrgSecuritySettingsChange
+      tags: [orgs]
+      summary: >
+        Phase 19A (19.7): approve or reject a held change. An approval is a second admin's — never the requester's (409
+        security_settings_second_admin_required) — and writes the settings in the same transaction. 409
+        security_settings_change_stale when the settings moved since the request.
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: changeId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgSecuritySettingsDecision"
+      responses:
+        "200":
+          description: The decision, and the settings as they now stand
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgSecuritySettingsChangeResult"
+
   /control-flags:
     get:
       operationId: listControlFlags
@@ -12088,6 +12172,73 @@ components:
         sessionsEnded: { type: integer }
         recoveryCodesInvalidated: { type: integer }
         notified: { type: string, enum: [email_and_next_sign_in, next_sign_in] }
+
+    OrgSecuritySettings:
+      type: object
+      required: [mfaRequiredForAll, sessionLifetimeHours, idleTimeoutMinutes]
+      properties:
+        mfaRequiredForAll: { type: boolean, description: "Two-step verification for every member (admins always need it)" }
+        sessionLifetimeHours: { type: integer, minimum: 1, maximum: 12 }
+        idleTimeoutMinutes: { type: integer, minimum: 15, maximum: 480 }
+
+    SecuritySettingBound:
+      type: object
+      required: [min, max]
+      properties:
+        min: { type: integer }
+        max: { type: integer }
+
+    OrgSecuritySettingsPendingChange:
+      type: object
+      required: [id, requestedBy, requestedAt, before, after]
+      properties:
+        id: { type: string }
+        requestedBy:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        requestedAt: { type: string }
+        before:
+          $ref: "#/components/schemas/OrgSecuritySettings"
+        after:
+          $ref: "#/components/schemas/OrgSecuritySettings"
+
+    OrgSecuritySettingsView:
+      type: object
+      required: [settings, bounds, pendingChange, usableAdmins]
+      properties:
+        settings:
+          $ref: "#/components/schemas/OrgSecuritySettings"
+        bounds:
+          type: object
+          required: [sessionLifetimeHours, idleTimeoutMinutes]
+          properties:
+            sessionLifetimeHours:
+              $ref: "#/components/schemas/SecuritySettingBound"
+            idleTimeoutMinutes:
+              $ref: "#/components/schemas/SecuritySettingBound"
+        pendingChange:
+          allOf:
+            - $ref: "#/components/schemas/OrgSecuritySettingsPendingChange"
+          nullable: true
+        usableAdmins: { type: integer }
+
+    OrgSecuritySettingsChangeResult:
+      allOf:
+        - $ref: "#/components/schemas/OrgSecuritySettingsView"
+        - type: object
+          required: [applied]
+          properties:
+            applied: { type: boolean }
+            held: { type: boolean }
+
+    OrgSecuritySettingsDecision:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
 
     SecurityEventPage:
       type: object

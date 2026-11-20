@@ -549,6 +549,7 @@ Record: [`phase-13b-vat-claim-ledger-architecture.md`](../product/phase-13b-vat-
 
 Moved verbatim from CLAUDE.md §2 to make room under its budget (the budget test); link targets re-pointed to this folder. Each line keeps its own date.
 
+**2026-09-22** — 🔴 **AP-1…AP-4 MERGED, THE ANSWERS APPLIED** ([`pack`](../product/advance-payments-decision-pack.md) §17). Open: Z1. *(moved 2026-11-20 for 19A's line)*
 **2026-10-01** — 🔴 **PHASES 14+15 BUILT** (`docs/product/phase-14-15-*` pack).
 **2026-10-05** — 🔴 **PHASES 16+17 MERGED (#190)** ([`pack`](../product/phase-16-17-tax-treasury-decision-pack.md) §12–§15). 🔴 **RATE LIMITING BUILT, PR OPEN** ([`design`](../product/design-rate-limiting.md)).
 

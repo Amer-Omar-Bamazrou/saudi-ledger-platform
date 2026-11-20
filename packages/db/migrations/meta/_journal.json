@@ -1170,6 +1170,13 @@
       "when": 1795170192860,
       "tag": "0166_19a_mfa",
       "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1795174947633,
+      "tag": "0167_19a_security_settings",
+      "breakpoints": true
     }
   ]
 }

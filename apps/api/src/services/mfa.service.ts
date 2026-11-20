@@ -24,6 +24,7 @@ import { operatorsRepository } from "../repositories/operators.repository";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
 import { membersRepository } from "../repositories/members.repository";
 import { sessionRecordsRepository } from "../repositories/sessionRecords.repository";
+import { securitySettingsRepository } from "../repositories/securitySettings.repository";
 import { generateDataKey, getKeyWrapper, openWithDataKey, sealWithDataKey } from "./einvoice/signing/keyWrapper";
 import { base32Encode, generateTotpSecret, matchTotp, otpauthUri } from "../lib/totp";
 import { hashPassword, verifyPassword } from "../lib/password";
@@ -147,6 +148,9 @@ function newRecoveryCode(): string {
 export const mfaService = {
   /** Must this account hold a second factor? Operators and active org admins, when enforcement is `required`. */
   async isRequiredFor(userId: number): Promise<boolean> {
+    // 🔴 Phase 19A (19.7): an organization that requires two-step verification for EVERYONE has said so itself — that
+    // binds its members under either enforcement value (the setting below relaxes only the platform's role mandate).
+    if (await securitySettingsRepository.mfaRequiredForAllOf(userId)) return true;
     if (loadEnv().MFA_ENFORCEMENT !== "required") return false;
     return (await operatorsRepository.isOperator(userId)) || (await mfaRepository.isAdminAnywhere(userId));
   },

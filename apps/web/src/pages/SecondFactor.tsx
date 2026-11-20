@@ -50,7 +50,7 @@ export default function SecondFactor({ step }: { step: "code" | "enrol" }) {
                   "Your role requires two-step verification. Set it up to continue — until then, nothing else opens.",
                   "دورك يتطلب التحقق بخطوتين. أكمل إعداده للمتابعة — لن يُفتح أي شيء آخر قبل ذلك.",
                 )}
-            {user?.email && <span className="block mt-1" dir="ltr">{user.email}</span>}
+            {user?.email && <span className="block mt-1 wrap-anywhere" dir="ltr" data-testid="mfa-step-email">{user.email}</span>}
           </CardDescription>
         </CardHeader>
         <CardContent>

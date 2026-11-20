@@ -98,6 +98,17 @@ const mfaAccountLimiter = preSessionLimiter({
   accountOf: (req) => req.session.userEmail ?? null,
 });
 
+/**
+ * 🔴 Phase 19A: a person's reads and acts on their OWN security state (their sessions, their second factor) are
+ * counted per ACCOUNT. The per-IP user-admin budget (60 in 15 minutes) is shared by everyone behind one address — an
+ * office, a mobile carrier — so a colleague's activity would refuse your own security page (found by the 390 px walk:
+ * a 429 on GET /auth/mfa). The admin acts on OTHER accounts keep the user-admin limiter.
+ */
+const ownSecurityLimiter = preSessionLimiter({
+  name: "own-security", dimension: "account", windowMs: 15 * 60 * 1000, limit: 120,
+  accountOf: (req) => req.session.userEmail ?? null,
+});
+
 const signupRateLimiter = preSessionLimiter({ name: "signup", dimension: "ip", windowMs: 60 * 60 * 1000, limit: 5 });
 
 /**
@@ -457,16 +468,16 @@ router.patch("/users/:id", userAdminRateLimiter, requireAuth, async (req, res) =
  * one. POST /auth/users/:id/sessions/end: an admin ends a member's. Each act writes one security event
  * (services/sessions.service.ts).
  */
-router.get("/sessions", userAdminRateLimiter, requireAuth, async (req, res) => {
+router.get("/sessions", requireAuth, ownSecurityLimiter, async (req, res) => {
   res.json(await sessionsService.listMine(sessionActor(req)));
 });
 router.get("/sessions/members", userAdminRateLimiter, requireAuth, async (req, res) => {
   res.json(await sessionsService.listMembers(sessionActor(req)));
 });
-router.post("/sessions/end-others", userAdminRateLimiter, requireAuth, async (req, res) => {
+router.post("/sessions/end-others", requireAuth, ownSecurityLimiter, async (req, res) => {
   res.json(await sessionsService.endMyOthers(sessionActor(req)));
 });
-router.post("/sessions/:id/end", userAdminRateLimiter, requireAuth, async (req, res) => {
+router.post("/sessions/:id/end", requireAuth, ownSecurityLimiter, async (req, res) => {
   res.json(await sessionsService.endMine(sessionActor(req), String(req.params.id)));
 });
 router.post("/users/:id/sessions/end", userAdminRateLimiter, requireAuth, async (req, res) => {
@@ -482,10 +493,10 @@ router.post("/users/:id/sessions/end", userAdminRateLimiter, requireAuth, async 
 const mfaActor = (req: Request) => ({
   userId: req.session.userId!, email: req.session.userEmail ?? null, ipAddress: req.ip ?? null, activeOrgId: req.session.activeOrgId ?? null,
 });
-router.get("/mfa", userAdminRateLimiter, requireAuth, async (req, res) => {
+router.get("/mfa", requireAuth, ownSecurityLimiter, async (req, res) => {
   res.json(await mfaService.status(mfaActor(req), req.session.mfaStep ?? null));
 });
-router.post("/mfa/enrol", userAdminRateLimiter, requireAuth, async (req, res) => {
+router.post("/mfa/enrol", requireAuth, ownSecurityLimiter, async (req, res) => {
   res.json(await mfaService.beginEnrolment(mfaActor(req)));
 });
 router.post("/mfa/activate", requireAuth, mfaAccountLimiter, async (req, res) => {

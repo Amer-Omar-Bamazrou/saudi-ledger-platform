@@ -40,14 +40,24 @@ export const sessionRecordsRepository = {
     return row!.id;
   },
 
-  /** What `endEndedSessions` asks on every request: is this user's record still open, and when was it last seen? */
-  async openRecord(recordId: string, userId: number): Promise<{ lastSeenAt: Date } | undefined> {
-    const [row] = await db
-      .select({ lastSeenAt: sessionRecordsTable.lastSeenAt })
-      .from(sessionRecordsTable)
-      .where(and(eq(sessionRecordsTable.id, recordId), eq(sessionRecordsTable.userId, userId), isNull(sessionRecordsTable.endedAt)))
-      .limit(1);
-    return row;
+  /**
+   * What `endEndedSessions` asks on every request, in ONE statement: is this user's record still open, when was it
+   * last seen, and — 🔴 Phase 19A (19.7) — the session lifetime and idle timeout that apply to the account NOW: the
+   * strictest among the organizations it is an active member of (a missing settings row is the platform default; an
+   * account in no organization, such as a platform operator, gets the platform default). Read on every request, so a
+   * stricter setting binds the sessions already open.
+   */
+  async openRecord(recordId: string, userId: number): Promise<{ lastSeenAt: Date; lifetimeHours: number; idleMinutes: number } | undefined> {
+    const row = (await db.execute(sql`SELECT r.last_seen_at AS "lastSeenAt",
+        COALESCE((SELECT min(COALESCE(s.session_lifetime_hours, 12)) FROM organization_memberships m
+                    LEFT JOIN org_security_settings s ON s.organization_id = m.organization_id
+                   WHERE m.user_id = r.user_id AND m.status = 'active'), 12)::int AS "lifetimeHours",
+        COALESCE((SELECT min(COALESCE(s.idle_timeout_minutes, 480)) FROM organization_memberships m
+                    LEFT JOIN org_security_settings s ON s.organization_id = m.organization_id
+                   WHERE m.user_id = r.user_id AND m.status = 'active'), 480)::int AS "idleMinutes"
+      FROM session_records r WHERE r.id = ${recordId}::uuid AND r.user_id = ${userId} AND r.ended_at IS NULL`)).rows[0] as
+      { lastSeenAt: string | Date; lifetimeHours: number; idleMinutes: number } | undefined;
+    return row ? { lastSeenAt: new Date(row.lastSeenAt), lifetimeHours: Number(row.lifetimeHours), idleMinutes: Number(row.idleMinutes) } : undefined;
   },
 
   async touch(recordId: string): Promise<void> {

@@ -93,6 +93,7 @@ import Approvals from '@/pages/Approvals';
 import ChangePassword from '@/pages/ChangePassword';
 import SecuritySessions from '@/pages/SecuritySessions';
 import SecurityTwoStep from '@/pages/SecurityTwoStep';
+import SecuritySettings from '@/pages/SecuritySettings';
 import SecondFactor from '@/pages/SecondFactor';
 import TrialBalance from '@/pages/TrialBalance';
 import IncomeStatement from '@/pages/IncomeStatement';
@@ -420,6 +421,7 @@ function Router() {
               <Route path="/change-password" component={ChangePassword} />
               <Route path="/security/sessions" component={SecuritySessions} />
               <Route path="/security/two-step" component={SecurityTwoStep} />
+              <Route path="/security/settings" component={SecuritySettings} />
               {/*
                 Every COMING SOON entry in the navigation resolves here, by
                 slug. One route rather than forty, for the reason given in
