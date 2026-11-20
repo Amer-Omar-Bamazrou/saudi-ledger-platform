@@ -144,8 +144,13 @@ test.describe("The walk's listed items, in Arabic at 390 px", () => {
     // the record is named in Arabic — on a phone, under its action
     await expect(action.getByTestId("audit-record-compact")).toHaveText(ARABIC);
     // 🔴 font-independent (main run 44713001354: CI fonts clipped the header by 1.5 px, Windows fonts fitted): a record id
-    // that is a UUID must be able to break ANYWHERE, so the table can never be wider than the phone
-    expect(await action.getByTestId("audit-record-compact").evaluate((el) => getComputedStyle(el).wordBreak), "the record id breaks anywhere").toBe("break-all");
+    // that is a UUID must be able to break, so the table can never be wider than the phone — and the rule is on the ID
+    // ONLY (owner, 2026-11-20): `break-all` on the whole line also broke the Arabic label mid-word (at 11 px «والضريبة»
+    // split into «و» / «الضريبة»). `overflow-wrap: anywhere` breaks the id only where it would overflow, and still
+    // lowers the table's minimum width.
+    const compact = action.getByTestId("audit-record-compact");
+    expect(await compact.locator('span[dir="ltr"]').evaluate((el) => getComputedStyle(el).overflowWrap), "the record id breaks only where it would overflow").toBe("anywhere");
+    expect(await compact.evaluate((el) => getComputedStyle(el).wordBreak), "the Arabic label never breaks mid-word").toBe("normal");
     await expect(page.getByRole("columnheader", { name: "الإجراء" })).toBeInViewport({ ratio: 1 });
     await expect(action, "the whole action cell on screen").toBeInViewport({ ratio: 1 });
     // nothing in the table scrolls sideways, and both filters are on screen

@@ -165,9 +165,11 @@ export default function AuditTrail() {
                           <Badge data-testid="audit-action" className={`text-xs ${ACTION_STYLES[l.action] ?? "bg-secondary text-muted-foreground"}`}>
                             {auditActionLabel(l.action, t)}
                           </Badge>
-                          {/* Walk L3: on a phone the record is named under its action; the Record column shows from sm */}
-                          <div className="sm:hidden text-[11px] text-muted-foreground mt-1 break-all" data-testid="audit-record-compact">
-                            {auditEntityLabel(l.entityType, t)} <span dir="ltr">#{l.entityId}</span>
+                          {/* Walk L3: on a phone the record is named under its action; the Record column shows from sm.
+                              The ID alone may break (a UUID has no spaces), and only where it would overflow — never the
+                              Arabic label beside it (owner, 2026-11-20). */}
+                          <div className="sm:hidden text-[11px] text-muted-foreground mt-1" data-testid="audit-record-compact">
+                            {auditEntityLabel(l.entityType, t)} <span dir="ltr" className="wrap-anywhere">#{l.entityId}</span>
                           </div>
                         </td>
                         <td className="py-2 pe-4 font-mono text-xs hidden sm:table-cell">
