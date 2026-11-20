@@ -78,7 +78,12 @@ test.beforeAll(async () => {
   const ran = new Date(Date.now() - 8 * 86_400_000);
   ran.setUTCHours(22, 30, 0, 0);
   ranOnRiyadh = new Date(ran.getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
-  await db.query(`INSERT INTO finding_runs (organization_id, period_key, trigger, ran_at, open_after) VALUES ($1, $2, 'scheduled', $3, 2)`, [orgId, `walkui-${STAMP}`, ran.toISOString()]);
+  // 🔴 under the CURRENT period's key (the scheduler's own: findings.schedule.service periodKeyFor, quarterly): the in-process
+  // scheduler inserts ON CONFLICT DO NOTHING, so it cannot write a newer run for this organisation mid-test and replace
+  // this one as the latest (it did, whenever its tick beat the test — found 2026-11-20)
+  const now = new Date();
+  const currentPeriod = `${now.getUTCFullYear()}-Q${Math.ceil((now.getUTCMonth() + 1) / 3)}`;
+  await db.query(`INSERT INTO finding_runs (organization_id, period_key, trigger, ran_at, open_after) VALUES ($1, $2, 'scheduled', $3, 2)`, [orgId, currentPeriod, ran.toISOString()]);
   // L5: a bank account with no IBAN, and a held change of the account printed on invoices — neither side has an IBAN
   const bank = await own.post("/api/bank-accounts", { data: { name: "Walk UI Bank", bankName: "SNB", currency: "SAR" } });
   expect(bank.ok(), await bank.text()).toBeTruthy();
@@ -89,6 +94,18 @@ test.beforeAll(async () => {
   changeId = (await db.query(
     `INSERT INTO bank_detail_change_requests (organization_id, company_id, kind, bank_account_id, iban_before, iban_after, status, requested_by)
      VALUES ($1, $2, 'default_bank_account', $3, NULL, NULL, 'pending', $4) RETURNING id`, [orgId, companyId, bankId, adminId])).rows[0].id;
+  await db.query("COMMIT");
+  // L3: the WORST rows a phone can be shown, planted as the newest — a record id that is a 36-character UUID (it cannot
+  // wrap at a space) under the longest Arabic record label. Main's run of 2026-11-20 put such a row first in the shared
+  // tenant and the table overflowed; #350's own run happened to show short ids first. Breadth is seeded, never hoped for.
+  await db.query("BEGIN");
+  // in the SHARED tenant (the audit test reads it; this spec's own tenant keeps its unopened findings run for L4)
+  const me = await (await shared.get("/api/auth/me")).json();
+  const sharedOrg = (await db.query(`SELECT organization_id FROM organization_memberships WHERE user_id = $1 AND status = 'active' ORDER BY id LIMIT 1`, [me.id])).rows[0].organization_id;
+  await db.query(`SELECT set_config('app.current_user_id', $1, true)`, [String(me.id)]);
+  for (const entity of ["vat_return_filing", "zatca_credential"]) {
+    await db.query(`INSERT INTO audit_logs (organization_id, action, entity_type, entity_id) VALUES ($1, 'update', $2, gen_random_uuid()::text)`, [sharedOrg, entity]);
+  }
   await db.query("COMMIT");
   await db.query(`DELETE FROM rate_limit_hits WHERE key LIKE 'auth%'`);
 });
@@ -117,7 +134,8 @@ test.describe("The walk's listed items, in Arabic at 390 px", () => {
 
   test("🔴 L3 Audit trail: actions and records in Arabic, and the action column on screen", async ({ browser }) => {
     const { page, close } = await open(browser, shared, "/audit-trail");
-    const first = page.locator("tbody tr").first();
+    // the planted worst row (the page may also show newer rows, e.g. an on-demand findings run: the table must fit them all)
+    const first = page.locator("tbody tr", { hasText: "شهادة هيئة الزكاة والضريبة والجمارك" }).first();
     await expect(first).toBeVisible();
     const action = first.locator("td").nth(3);
     await expect(action).toHaveText(ARABIC);
@@ -125,6 +143,14 @@ test.describe("The walk's listed items, in Arabic at 390 px", () => {
     await expect(action.getByTestId("audit-action")).not.toHaveText(/[a-z]{3,}/);
     // the record is named in Arabic — on a phone, under its action
     await expect(action.getByTestId("audit-record-compact")).toHaveText(ARABIC);
+    // 🔴 font-independent (main run 44713001354: CI fonts clipped the header by 1.5 px, Windows fonts fitted): a record id
+    // that is a UUID must be able to break, so the table can never be wider than the phone — and the rule is on the ID
+    // ONLY (owner, 2026-11-20): `break-all` on the whole line also broke the Arabic label mid-word (at 11 px «والضريبة»
+    // split into «و» / «الضريبة»). `overflow-wrap: anywhere` breaks the id only where it would overflow, and still
+    // lowers the table's minimum width.
+    const compact = action.getByTestId("audit-record-compact");
+    expect(await compact.locator('span[dir="ltr"]').evaluate((el) => getComputedStyle(el).overflowWrap), "the record id breaks only where it would overflow").toBe("anywhere");
+    expect(await compact.evaluate((el) => getComputedStyle(el).wordBreak), "the Arabic label never breaks mid-word").toBe("normal");
     await expect(page.getByRole("columnheader", { name: "الإجراء" })).toBeInViewport({ ratio: 1 });
     await expect(action, "the whole action cell on screen").toBeInViewport({ ratio: 1 });
     // nothing in the table scrolls sideways, and both filters are on screen
