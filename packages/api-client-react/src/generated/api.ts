@@ -308,6 +308,10 @@ import type {
   MigrationValidation,
   OpenAdvanceInvoice,
   OpeningVatDeclaration,
+  OrgSecuritySettings,
+  OrgSecuritySettingsChangeResult,
+  OrgSecuritySettingsDecision,
+  OrgSecuritySettingsView,
   OwnerEquityReport,
   PayPaymentPlanInput,
   PayPayrollRunGosiInput,
@@ -4651,6 +4655,235 @@ export const useOperatorResetMfa = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getOperatorResetMfaMutationOptions(options));
+    }
+
+export const getGetOrgSecuritySettingsUrl = (orgId: string,) => {
+
+
+
+
+  return `/api/orgs/${orgId}/security-settings`
+}
+
+/**
+ * @summary Phase 19A (19.7): the organization's security settings, for ITS admins only — two-step verification for everyone, the session lifetime, the idle timeout — with the platform's bounds, any change waiting for a second admin, and how many usable admins the organization has.
+
+ */
+export const getOrgSecuritySettings = async (orgId: string, options?: RequestInit): Promise<OrgSecuritySettingsView> => {
+
+  return customFetch<OrgSecuritySettingsView>(getGetOrgSecuritySettingsUrl(orgId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOrgSecuritySettingsQueryKey = (orgId: string,) => {
+    return [
+    `/api/orgs/${orgId}/security-settings`
+    ] as const;
+    }
+
+
+export const getGetOrgSecuritySettingsQueryOptions = <TData = Awaited<ReturnType<typeof getOrgSecuritySettings>>, TError = ErrorType<unknown>>(orgId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrgSecuritySettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOrgSecuritySettingsQueryKey(orgId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOrgSecuritySettings>>> = ({ signal }) => getOrgSecuritySettings(orgId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orgId !== null && orgId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOrgSecuritySettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOrgSecuritySettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getOrgSecuritySettings>>>
+export type GetOrgSecuritySettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 19A (19.7): the organization's security settings, for ITS admins only — two-step verification for everyone, the session lifetime, the idle timeout — with the platform's bounds, any change waiting for a second admin, and how many usable admins the organization has.
+
+ */
+
+export function useGetOrgSecuritySettings<TData = Awaited<ReturnType<typeof getOrgSecuritySettings>>, TError = ErrorType<unknown>>(
+ orgId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrgSecuritySettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOrgSecuritySettingsQueryOptions(orgId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChangeOrgSecuritySettingsUrl = (orgId: string,) => {
+
+
+
+
+  return `/api/orgs/${orgId}/security-settings`
+}
+
+/**
+ * @summary Phase 19A (19.7): change the settings. A value outside the platform's bounds is refused (422 security_setting_out_of_bounds, naming the field). A strengthening change applies at once (200). A weakening change in an organization with two or more admins is held as a request for a second admin (202); 409 security_settings_change_pending while one is waiting.
+
+ */
+export const changeOrgSecuritySettings = async (orgId: string,
+    orgSecuritySettings: OrgSecuritySettings, options?: RequestInit): Promise<OrgSecuritySettingsChangeResult> => {
+
+  return customFetch<OrgSecuritySettingsChangeResult>(getChangeOrgSecuritySettingsUrl(orgId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(orgSecuritySettings)
+  }
+);}
+
+
+
+
+
+export const getChangeOrgSecuritySettingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeOrgSecuritySettings>>, TError,{orgId: string;data: BodyType<OrgSecuritySettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeOrgSecuritySettings>>, TError,{orgId: string;data: BodyType<OrgSecuritySettings>}, TContext> => {
+
+const mutationKey = ['changeOrgSecuritySettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeOrgSecuritySettings>>, {orgId: string;data: BodyType<OrgSecuritySettings>}> = (props) => {
+          const {orgId,data} = props ?? {};
+
+          return  changeOrgSecuritySettings(orgId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeOrgSecuritySettingsMutationResult = NonNullable<Awaited<ReturnType<typeof changeOrgSecuritySettings>>>
+    export type ChangeOrgSecuritySettingsMutationBody = BodyType<OrgSecuritySettings>
+    export type ChangeOrgSecuritySettingsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.7): change the settings. A value outside the platform's bounds is refused (422 security_setting_out_of_bounds, naming the field). A strengthening change applies at once (200). A weakening change in an organization with two or more admins is held as a request for a second admin (202); 409 security_settings_change_pending while one is waiting.
+
+ */
+export const useChangeOrgSecuritySettings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeOrgSecuritySettings>>, TError,{orgId: string;data: BodyType<OrgSecuritySettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeOrgSecuritySettings>>,
+        TError,
+        {orgId: string;data: BodyType<OrgSecuritySettings>},
+        TContext
+      > => {
+      return useMutation(getChangeOrgSecuritySettingsMutationOptions(options));
+    }
+
+export const getDecideOrgSecuritySettingsChangeUrl = (orgId: string,
+    changeId: string,) => {
+
+
+
+
+  return `/api/orgs/${orgId}/security-settings/changes/${changeId}/decision`
+}
+
+/**
+ * @summary Phase 19A (19.7): approve or reject a held change. An approval is a second admin's — never the requester's (409 security_settings_second_admin_required) — and writes the settings in the same transaction. 409 security_settings_change_stale when the settings moved since the request.
+
+ */
+export const decideOrgSecuritySettingsChange = async (orgId: string,
+    changeId: string,
+    orgSecuritySettingsDecision: OrgSecuritySettingsDecision, options?: RequestInit): Promise<OrgSecuritySettingsChangeResult> => {
+
+  return customFetch<OrgSecuritySettingsChangeResult>(getDecideOrgSecuritySettingsChangeUrl(orgId,changeId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(orgSecuritySettingsDecision)
+  }
+);}
+
+
+
+
+
+export const getDecideOrgSecuritySettingsChangeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideOrgSecuritySettingsChange>>, TError,{orgId: string;changeId: string;data: BodyType<OrgSecuritySettingsDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideOrgSecuritySettingsChange>>, TError,{orgId: string;changeId: string;data: BodyType<OrgSecuritySettingsDecision>}, TContext> => {
+
+const mutationKey = ['decideOrgSecuritySettingsChange'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideOrgSecuritySettingsChange>>, {orgId: string;changeId: string;data: BodyType<OrgSecuritySettingsDecision>}> = (props) => {
+          const {orgId,changeId,data} = props ?? {};
+
+          return  decideOrgSecuritySettingsChange(orgId,changeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideOrgSecuritySettingsChangeMutationResult = NonNullable<Awaited<ReturnType<typeof decideOrgSecuritySettingsChange>>>
+    export type DecideOrgSecuritySettingsChangeMutationBody = BodyType<OrgSecuritySettingsDecision>
+    export type DecideOrgSecuritySettingsChangeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.7): approve or reject a held change. An approval is a second admin's — never the requester's (409 security_settings_second_admin_required) — and writes the settings in the same transaction. 409 security_settings_change_stale when the settings moved since the request.
+
+ */
+export const useDecideOrgSecuritySettingsChange = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideOrgSecuritySettingsChange>>, TError,{orgId: string;changeId: string;data: BodyType<OrgSecuritySettingsDecision>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideOrgSecuritySettingsChange>>,
+        TError,
+        {orgId: string;changeId: string;data: BodyType<OrgSecuritySettingsDecision>},
+        TContext
+      > => {
+      return useMutation(getDecideOrgSecuritySettingsChangeMutationOptions(options));
     }
 
 export const getListControlFlagsUrl = (params?: ListControlFlagsParams,) => {

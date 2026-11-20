@@ -18,6 +18,7 @@ import { selectActiveMembership } from "../lib/activeOrg";
 import { membersService } from "../services/members.service";
 import { invitationsService } from "../services/invitations.service";
 import { securityAuditService } from "../services/securityAudit.service";
+import { securitySettingsService } from "../services/securitySettings.service";
 import { requireIdParam } from "../lib/httpParams";
 
 /** Actor context for the security-audit trail, from the authenticated session. */
@@ -207,6 +208,25 @@ router.get("/:orgId/security-events", async (req, res) => {
     limit: limit === undefined ? undefined : Number(limit),
     offset: offset === undefined ? undefined : Number(offset),
   }));
+});
+
+/**
+ * 🔴 Phase 19A (19.7) — the organization's security settings, for ITS admins only (services/securitySettings.service):
+ * GET reads them with the platform's bounds and any change waiting; PUT changes them — applied at once (200), or, a
+ * weakening where a second admin exists, held as a request (202); PUT …/changes/:id/decision approves or rejects it.
+ */
+const settingsActor = (req: { session: { userId?: number; userEmail?: string }; ip?: string }) => ({
+  userId: req.session.userId!, email: req.session.userEmail ?? null, ipAddress: req.ip ?? null,
+});
+router.get("/:orgId/security-settings", async (req, res) => {
+  res.json(await securitySettingsService.get(settingsActor(req), String(req.params.orgId)));
+});
+router.put("/:orgId/security-settings", async (req, res) => {
+  const out = await securitySettingsService.change(settingsActor(req), String(req.params.orgId), req.body);
+  res.status(out.status).json(out.body);
+});
+router.put("/:orgId/security-settings/changes/:changeId/decision", async (req, res) => {
+  res.json(await securitySettingsService.decide(settingsActor(req), String(req.params.orgId), String(req.params.changeId), req.body?.decision));
 });
 
 export default router;

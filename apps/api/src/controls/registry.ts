@@ -1040,4 +1040,27 @@ export const CONTROLS: readonly Control[] = [
     ],
     provingTests: ["phase19a-mfa.test.ts"],
   },
+  {
+    id: "19A-P",
+    title: "An organization's security settings stay inside the platform's bounds and can only be stricter than it; a weakening change where two or more admins exist is held for a second admin, who is never the requester, and the database refuses the weakening itself without that approval; the settings bind sign-in and open sessions (Phase 19A, 19.7, migration 0167; an internal control of the platform)",
+    answers: [],
+    type: "approval",
+    activation: ALWAYS,
+    refusalCodes: [
+      "security_settings_admin_only", "security_setting_out_of_bounds", "security_settings_change_pending",
+      "security_settings_second_admin_required", "security_settings_change_not_found", "security_settings_change_stale",
+      "security_settings_decision_invalid",
+    ],
+    points: [
+      trigger("org_security_settings", "org_security_settings_dual_control"),
+      trigger("org_security_setting_changes", "org_security_setting_change_guard"),
+      check("org_security_settings", "org_security_settings_lifetime_chk"),
+      check("org_security_settings", "org_security_settings_idle_chk"),
+      check("org_security_setting_changes", "org_security_setting_changes_status_chk"),
+      check("org_security_setting_changes", "org_security_setting_changes_decision_chk"),
+      check("org_security_setting_changes", "org_security_setting_changes_after_chk"),
+      code(`${API}/services/securitySettings.service.ts`, "weakens"),
+    ],
+    provingTests: ["phase19a-security-settings.test.ts"],
+  },
 ];

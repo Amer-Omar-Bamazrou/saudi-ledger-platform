@@ -290,6 +290,10 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   if (pgCode === "23514" && constraint === "bank_detail_dual_control") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.requiresSecondAdmin } as DbRefusal["body"] };
   if (pgCode === "23514" && constraint === "bank_detail_change_second_admin") return { status: 409, body: { code: "second_admin_required", error: pgMessage } };
   if (pgCode === "23514" && constraint === "bank_detail_change_linked_approver") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.linkedApprover } as DbRefusal["body"] };
+  // 🔴 Phase 19A (0167): the security settings' dual control, when the database is what refuses
+  if (pgCode === "23514" && (constraint === "security_settings_dual_control" || constraint === "security_settings_second_admin")) {
+    return { status: 409, body: { code: "security_settings_second_admin_required", error: "A weaker security setting needs a second admin's approval. (An internal control of this platform.)", errorAr: "إعداد الأمان الأضعف يحتاج إلى اعتماد مسؤول ثانٍ. (ضابط رقابة داخلية في المنصة.)" } as DbRefusal["body"] };
+  }
   if (pgCode === "23514" && constraint === "bank_detail_change_approver_mfa_reset") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.approverMfaReset } as DbRefusal["body"] };
   if (pgCode === "23514" && constraint === "bank_detail_change_request_flow") return { status: 409, body: { code: "bank_detail_change_refused", error: pgMessage } };
   // 🔴 R-11b (DR-20, 0155): a bookkeeper's cash, tax or equity posting where the organisation has two or more approvers

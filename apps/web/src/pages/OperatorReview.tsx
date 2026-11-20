@@ -1,5 +1,6 @@
 import { OperatorSessionsCard } from "@/components/sessions/OperatorSessionsCard";
 import { OperatorMfaResetCard } from "@/components/mfa/OperatorMfaResetCard";
+import { PlatformSecurityCard } from "@/components/sessions/PlatformSecurityCard";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -223,6 +224,7 @@ export default function OperatorReview() {
       <BreakGlassResetCard />
       <OperatorSessionsCard />
       <OperatorMfaResetCard />
+      <PlatformSecurityCard />
     </div>
   );
 }

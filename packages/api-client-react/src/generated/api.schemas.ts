@@ -4496,6 +4496,68 @@ export interface MfaResetResult {
   notified: MfaResetResultNotified;
 }
 
+export interface OrgSecuritySettings {
+  /** Two-step verification for every member (admins always need it) */
+  mfaRequiredForAll: boolean;
+  /**
+     * @minimum 1
+     * @maximum 12
+     */
+  sessionLifetimeHours: number;
+  /**
+     * @minimum 15
+     * @maximum 480
+     */
+  idleTimeoutMinutes: number;
+}
+
+export interface SecuritySettingBound {
+  min: number;
+  max: number;
+}
+
+export type OrgSecuritySettingsPendingChangeRequestedBy = {
+  id: number;
+  name: string;
+};
+
+export interface OrgSecuritySettingsPendingChange {
+  id: string;
+  requestedBy: OrgSecuritySettingsPendingChangeRequestedBy;
+  requestedAt: string;
+  before: OrgSecuritySettings;
+  after: OrgSecuritySettings;
+}
+
+export type OrgSecuritySettingsViewBounds = {
+  sessionLifetimeHours: SecuritySettingBound;
+  idleTimeoutMinutes: SecuritySettingBound;
+};
+
+export interface OrgSecuritySettingsView {
+  settings: OrgSecuritySettings;
+  bounds: OrgSecuritySettingsViewBounds;
+  pendingChange: OrgSecuritySettingsPendingChange | null;
+  usableAdmins: number;
+}
+
+export type OrgSecuritySettingsChangeResult = OrgSecuritySettingsView & {
+  applied: boolean;
+  held?: boolean;
+};
+
+export type OrgSecuritySettingsDecisionDecision = typeof OrgSecuritySettingsDecisionDecision[keyof typeof OrgSecuritySettingsDecisionDecision];
+
+
+export const OrgSecuritySettingsDecisionDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface OrgSecuritySettingsDecision {
+  decision: OrgSecuritySettingsDecisionDecision;
+}
+
 export interface SecurityEventPage {
   events: SecurityEvent[];
   total: number;
