@@ -106,7 +106,7 @@ export default function SecuritySessions() {
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <div className="text-sm font-medium text-foreground" dir="auto">{who.name}</div>
-                        <div className="text-xs text-muted-foreground break-all" dir="ltr">{who.email}</div>
+                        <div className="text-xs text-muted-foreground wrap-anywhere" dir="ltr" data-testid="member-email">{who.email}</div>
                       </div>
                       <Button
                         variant="outline" size="sm" className="self-start sm:self-center shrink-0"

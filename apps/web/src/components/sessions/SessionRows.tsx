@@ -51,7 +51,7 @@ export function SessionRows({
               <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
                 <span>{kind ? t(kind[0], kind[1]) : s.kind}: <When iso={s.createdAt} /></span>
                 <span>{t("Last seen", "آخر نشاط")}: <When iso={s.lastSeenAt} /></span>
-                {s.ipAddress && <span>{t("IP", "عنوان IP")}: <span dir="ltr">{s.ipAddress}</span></span>}
+                {s.ipAddress && <span>{t("IP", "عنوان IP")}: <span dir="ltr" className="wrap-anywhere" data-testid="session-ip">{s.ipAddress}</span></span>}
               </div>
             </div>
             {onEnd && !s.current && (

@@ -81,7 +81,7 @@ export function MfaEnrolment({ onDone }: { onDone: () => void | Promise<void> })
               className="h-44 w-44 rounded bg-white p-1" alt={t("Set-up QR code", "رمز QR للإعداد")} data-testid="mfa-qr"
               src={`data:image/svg+xml;utf8,${encodeURIComponent(enrolment.qrSvg)}`}
             />
-            <code className="block break-all rounded border border-border bg-background px-2 py-1 font-mono text-xs" dir="ltr" data-testid="mfa-secret">
+            <code className="block wrap-anywhere rounded border border-border bg-background px-2 py-1 font-mono text-xs" dir="ltr" data-testid="mfa-secret">
               {enrolment.secret.replace(/(.{4})/g, "$1 ").trim()}
             </code>
           </div>

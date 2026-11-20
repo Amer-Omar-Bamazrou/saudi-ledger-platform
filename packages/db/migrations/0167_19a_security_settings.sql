@@ -52,6 +52,18 @@ BEGIN
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', t);
   END LOOP;
 END $$;--> statement-breakpoint
+-- Tenancy (the 0154 pattern, as journal_source_reviews): RLS and the tenant policy, for any reader that ever reads these
+-- as the application — which holds nothing on them today (revoked above); the identity layer reads them as the owner.
+ALTER TABLE public.org_security_settings ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+DROP POLICY IF EXISTS "tenant_isolation" ON public.org_security_settings;--> statement-breakpoint
+CREATE POLICY "tenant_isolation" ON public.org_security_settings
+  USING ( (organization_id)::text = current_setting('app.current_org_id', true) )
+  WITH CHECK ( (organization_id)::text = current_setting('app.current_org_id', true) );--> statement-breakpoint
+ALTER TABLE public.org_security_setting_changes ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+DROP POLICY IF EXISTS "tenant_isolation" ON public.org_security_setting_changes;--> statement-breakpoint
+CREATE POLICY "tenant_isolation" ON public.org_security_setting_changes
+  USING ( (organization_id)::text = current_setting('app.current_org_id', true) )
+  WITH CHECK ( (organization_id)::text = current_setting('app.current_org_id', true) );--> statement-breakpoint
 -- 🔴 THE REQUEST'S OWN RULES (the 0151 pattern): what was asked is never rewritten; a decision is made once, by the
 -- person acting (the connection's declared actor); an APPROVAL is a usable admin of the organization who is NOT the
 -- requester; a rejection is the requester's or a usable admin's.
