@@ -9,6 +9,8 @@
  *   - each act writes EXACTLY ONE security event, with actor, target, organization and the request id;
  *   - an ended record stays ended at the database; a session with no record fails closed.
  *
+ * The proving test of control 19A-S (controls/registry.ts).
+ *
  * DB-backed (sl_test / CI); skips on the DB-free placeholder. Nine logins — inside the per-process login limit of 10
  * (never raised to pass a test).
  */

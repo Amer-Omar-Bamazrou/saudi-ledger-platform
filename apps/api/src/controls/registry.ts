@@ -1004,4 +1004,20 @@ export const CONTROLS: readonly Control[] = [
     ],
     provingTests: ["dr45-correction-keeps-cash.test.ts", "phase18-s1b-dr45-wht-correction-cash.test.ts"],
   },
+  {
+    id: "19A-S",
+    title: "A session is a record a person can see and end: it ends at its next request once its record has ended (by its owner, an admin of a confined account, or an operator), a session with no record fails closed, an ended record stays ended and who, how, when and from where it was opened are fixed (Phase 19A, 19.4/19.5, migration 0165)",
+    answers: [],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: ["session_not_found", "session_is_current", "sessions_admin_only"],
+    points: [
+      trigger("session_records", "session_records_guard"),
+      check("session_records", "session_records_kind_chk"),
+      check("session_records", "session_records_end_chk"),
+      check("session_records", "session_records_reason_chk"),
+      code(`${API}/lib/auth.ts`, "endEndedSessions"),
+    ],
+    provingTests: ["phase19a-sessions-events.test.ts"],
+  },
 ];
