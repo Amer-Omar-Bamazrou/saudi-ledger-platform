@@ -40,6 +40,8 @@ describeMaybe("Phase 19A slice 2 — MFA: enrolment, verification, recovery, the
   let orgA = "";
   let companyA = "";
   let orgB = "";
+  /** The exact code activation accepted — replayed later, never recomputed (a step boundary would make it a new code). */
+  let activationCode = "";
   /** A code for a step nobody has used yet (each call moves one step on, inside the accepted drift). */
   const code = (who: string, at = 0) => totpAt(secrets[who]!, currentTotpStep() + at);
   /**
@@ -124,7 +126,8 @@ describeMaybe("Phase 19A slice 2 — MFA: enrolment, verification, recovery, the
     expect(wrong.body).toMatchObject({ code: "mfa_code_invalid", errorAr: expect.any(String) });
     expect((await pool.query(`SELECT state FROM user_mfa_factors WHERE user_id = $1`, [ids.admin])).rows[0].state).toBe("pending");
     const sidBefore = (await pool.query(`SELECT sid FROM user_sessions WHERE (sess ->> 'userId')::int = $1`, [ids.admin])).rows.map((r) => r.sid);
-    const done = await h.api("admin", "POST", "/auth/mfa/activate", { code: code("admin") });
+    activationCode = code("admin");
+    const done = await h.api("admin", "POST", "/auth/mfa/activate", { code: activationCode });
     expect(done.status, JSON.stringify(done.body)).toBe(200);
     recovery.admin = done.body.recoveryCodes;
     expect(recovery.admin).toHaveLength(10);
@@ -160,7 +163,7 @@ describeMaybe("Phase 19A slice 2 — MFA: enrolment, verification, recovery, the
     }
     expect((await h.api("admin-b", "POST", "/auth/change-password", { currentPassword: PW, newPassword: "Another1Pw!23" })).status, "not even a password change").toBe(403);
     // the step activation accepted is USED: the same code is a replay
-    const replay = await h.api("admin-b", "POST", "/auth/mfa/verify", { code: code("admin") });
+    const replay = await h.api("admin-b", "POST", "/auth/mfa/verify", { code: activationCode });
     expect(replay.status).toBe(422);
     expect(replay.body.code).toBe("mfa_code_invalid");
     expect((await h.api("admin-b", "GET", BUSINESS_GET)).status).toBe(403);

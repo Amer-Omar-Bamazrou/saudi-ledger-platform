@@ -4415,6 +4415,87 @@ export interface EndUserSessionsInput {
   email: string;
 }
 
+export type MfaStatusState = typeof MfaStatusState[keyof typeof MfaStatusState];
+
+
+export const MfaStatusState = {
+  none: 'none',
+  pending: 'pending',
+  active: 'active',
+} as const;
+
+/**
+ * What THIS session still owes
+ */
+export type MfaStatusStep = typeof MfaStatusStep[keyof typeof MfaStatusStep] | null;
+
+
+export const MfaStatusStep = {
+  code: 'code',
+  enrol: 'enrol',
+} as const;
+
+export interface MfaStatus {
+  /** The caller's role requires a second factor */
+  required: boolean;
+  state: MfaStatusState;
+  /** What THIS session still owes */
+  step: MfaStatusStep;
+  recoveryCodesLeft: number;
+  activatedAt: string | null;
+  /** When the platform last reset this account's factor */
+  lastResetAt: string | null;
+}
+
+export interface MfaEnrolment {
+  /** Base32, for typing into an authenticator; shown once */
+  secret: string;
+  otpauthUri: string;
+  /** The key URI as an SVG QR code */
+  qrSvg: string;
+}
+
+export interface MfaCodeInput {
+  /** @maxLength 16 */
+  code: string;
+}
+
+export interface MfaRecoveryCodes {
+  recoveryCodes: string[];
+}
+
+export interface MfaVerified {
+  ok: boolean;
+  recoveryCodesLeft?: number;
+}
+
+export interface MfaResetInput {
+  /** @maxLength 320 */
+  email: string;
+  /** Must be true: the person's identity was verified */
+  identityVerified: boolean;
+  /**
+     * How the identity was verified
+     * @minLength 10
+     * @maxLength 500
+     */
+  basis: string;
+}
+
+export type MfaResetResultNotified = typeof MfaResetResultNotified[keyof typeof MfaResetResultNotified];
+
+
+export const MfaResetResultNotified = {
+  email_and_next_sign_in: 'email_and_next_sign_in',
+  next_sign_in: 'next_sign_in',
+} as const;
+
+export interface MfaResetResult {
+  sessionsEnded: number;
+  recoveryCodesInvalidated: number;
+  notified: MfaResetResultNotified;
+}
+
 export interface SecurityEventPage {
   events: SecurityEvent[];
   total: number;

@@ -282,6 +282,13 @@ import type {
   MatchOverrideInput,
   MatchingApplyResult,
   MemberSessionList,
+  MfaCodeInput,
+  MfaEnrolment,
+  MfaRecoveryCodes,
+  MfaResetInput,
+  MfaResetResult,
+  MfaStatus,
+  MfaVerified,
   MigratedOpenItemCorrection,
   MigratedOpenItemIdentity,
   MigrationAdvances,
@@ -4200,6 +4207,450 @@ export const useOperatorEndUserSessions = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getOperatorEndUserSessionsMutationOptions(options));
+    }
+
+export const getGetMfaStatusUrl = () => {
+
+
+
+
+  return `/api/auth/mfa`
+}
+
+/**
+ * @summary Phase 19A (19.1): the caller's two-step verification — whether their role requires it, the factor's state, what THIS session still owes after its password (the code, or enrolment), and how many recovery codes are left.
+
+ */
+export const getMfaStatus = async ( options?: RequestInit): Promise<MfaStatus> => {
+
+  return customFetch<MfaStatus>(getGetMfaStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMfaStatusQueryKey = () => {
+    return [
+    `/api/auth/mfa`
+    ] as const;
+    }
+
+
+export const getGetMfaStatusQueryOptions = <TData = Awaited<ReturnType<typeof getMfaStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMfaStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMfaStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMfaStatus>>> = ({ signal }) => getMfaStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMfaStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMfaStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getMfaStatus>>>
+export type GetMfaStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Phase 19A (19.1): the caller's two-step verification — whether their role requires it, the factor's state, what THIS session still owes after its password (the code, or enrolment), and how many recovery codes are left.
+
+ */
+
+export function useGetMfaStatus<TData = Awaited<ReturnType<typeof getMfaStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMfaStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMfaStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getBeginMfaEnrolmentUrl = () => {
+
+
+
+
+  return `/api/auth/mfa/enrol`
+}
+
+/**
+ * @summary Phase 19A (19.1): start (or restart) enrolment. A new secret is stored sealed and returned ONCE, with the key URI and its QR. The factor stays inactive until one correct code. 409 mfa_already_active over an active factor.
+
+ */
+export const beginMfaEnrolment = async ( options?: RequestInit): Promise<MfaEnrolment> => {
+
+  return customFetch<MfaEnrolment>(getBeginMfaEnrolmentUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getBeginMfaEnrolmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof beginMfaEnrolment>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof beginMfaEnrolment>>, TError,void, TContext> => {
+
+const mutationKey = ['beginMfaEnrolment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof beginMfaEnrolment>>, void> = () => {
+
+
+          return  beginMfaEnrolment(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BeginMfaEnrolmentMutationResult = NonNullable<Awaited<ReturnType<typeof beginMfaEnrolment>>>
+
+    export type BeginMfaEnrolmentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.1): start (or restart) enrolment. A new secret is stored sealed and returned ONCE, with the key URI and its QR. The factor stays inactive until one correct code. 409 mfa_already_active over an active factor.
+
+ */
+export const useBeginMfaEnrolment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof beginMfaEnrolment>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof beginMfaEnrolment>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getBeginMfaEnrolmentMutationOptions(options));
+    }
+
+export const getActivateMfaUrl = () => {
+
+
+
+
+  return `/api/auth/mfa/activate`
+}
+
+/**
+ * @summary Phase 19A (19.1/19.3): one correct code turns the factor on and issues the recovery codes, shown ONCE. The session id rotates. 422 mfa_code_invalid; 429 after five wrong codes for the account in fifteen minutes.
+
+ */
+export const activateMfa = async (mfaCodeInput: MfaCodeInput, options?: RequestInit): Promise<MfaRecoveryCodes> => {
+
+  return customFetch<MfaRecoveryCodes>(getActivateMfaUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mfaCodeInput)
+  }
+);}
+
+
+
+
+
+export const getActivateMfaMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateMfa>>, TError,{data: BodyType<MfaCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof activateMfa>>, TError,{data: BodyType<MfaCodeInput>}, TContext> => {
+
+const mutationKey = ['activateMfa'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof activateMfa>>, {data: BodyType<MfaCodeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  activateMfa(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ActivateMfaMutationResult = NonNullable<Awaited<ReturnType<typeof activateMfa>>>
+    export type ActivateMfaMutationBody = BodyType<MfaCodeInput>
+    export type ActivateMfaMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.1/19.3): one correct code turns the factor on and issues the recovery codes, shown ONCE. The session id rotates. 422 mfa_code_invalid; 429 after five wrong codes for the account in fifteen minutes.
+
+ */
+export const useActivateMfa = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateMfa>>, TError,{data: BodyType<MfaCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof activateMfa>>,
+        TError,
+        {data: BodyType<MfaCodeInput>},
+        TContext
+      > => {
+      return useMutation(getActivateMfaMutationOptions(options));
+    }
+
+export const getVerifyMfaCodeUrl = () => {
+
+
+
+
+  return `/api/auth/mfa/verify`
+}
+
+/**
+ * @summary Phase 19A (19.2): the code step of a sign-in. A code is accepted once. The session id rotates. 422 mfa_code_invalid; 429 after five wrong codes for the account in fifteen minutes.
+
+ */
+export const verifyMfaCode = async (mfaCodeInput: MfaCodeInput, options?: RequestInit): Promise<MfaVerified> => {
+
+  return customFetch<MfaVerified>(getVerifyMfaCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mfaCodeInput)
+  }
+);}
+
+
+
+
+
+export const getVerifyMfaCodeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyMfaCode>>, TError,{data: BodyType<MfaCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyMfaCode>>, TError,{data: BodyType<MfaCodeInput>}, TContext> => {
+
+const mutationKey = ['verifyMfaCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyMfaCode>>, {data: BodyType<MfaCodeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyMfaCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyMfaCodeMutationResult = NonNullable<Awaited<ReturnType<typeof verifyMfaCode>>>
+    export type VerifyMfaCodeMutationBody = BodyType<MfaCodeInput>
+    export type VerifyMfaCodeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.2): the code step of a sign-in. A code is accepted once. The session id rotates. 422 mfa_code_invalid; 429 after five wrong codes for the account in fifteen minutes.
+
+ */
+export const useVerifyMfaCode = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyMfaCode>>, TError,{data: BodyType<MfaCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyMfaCode>>,
+        TError,
+        {data: BodyType<MfaCodeInput>},
+        TContext
+      > => {
+      return useMutation(getVerifyMfaCodeMutationOptions(options));
+    }
+
+export const getUseMfaRecoveryCodeUrl = () => {
+
+
+
+
+  return `/api/auth/mfa/recovery`
+}
+
+/**
+ * @summary Phase 19A (19.3): a single-use recovery code in place of the code. 422 mfa_recovery_code_invalid.
+
+ */
+export const useMfaRecoveryCode = async (mfaCodeInput: MfaCodeInput, options?: RequestInit): Promise<MfaVerified> => {
+
+  return customFetch<MfaVerified>(getUseMfaRecoveryCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mfaCodeInput)
+  }
+);}
+
+
+
+
+
+export const getUseMfaRecoveryCodeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof useMfaRecoveryCode>>, TError,{data: BodyType<MfaCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof useMfaRecoveryCode>>, TError,{data: BodyType<MfaCodeInput>}, TContext> => {
+
+const mutationKey = ['useMfaRecoveryCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof useMfaRecoveryCode>>, {data: BodyType<MfaCodeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  useMfaRecoveryCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UseMfaRecoveryCodeMutationResult = NonNullable<Awaited<ReturnType<typeof useMfaRecoveryCode>>>
+    export type UseMfaRecoveryCodeMutationBody = BodyType<MfaCodeInput>
+    export type UseMfaRecoveryCodeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.3): a single-use recovery code in place of the code. 422 mfa_recovery_code_invalid.
+
+ */
+export const useUseMfaRecoveryCode = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof useMfaRecoveryCode>>, TError,{data: BodyType<MfaCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof useMfaRecoveryCode>>,
+        TError,
+        {data: BodyType<MfaCodeInput>},
+        TContext
+      > => {
+      return useMutation(getUseMfaRecoveryCodeMutationOptions(options));
+    }
+
+export const getOperatorResetMfaUrl = () => {
+
+
+
+
+  return `/api/operator/users/mfa-reset`
+}
+
+/**
+ * @summary Phase 19A (19.3): the ASSISTED RESET of a person's two-step verification — a platform security operator only, after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes, ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409 mfa_reset_own_refused.
+
+ */
+export const operatorResetMfa = async (mfaResetInput: MfaResetInput, options?: RequestInit): Promise<MfaResetResult> => {
+
+  return customFetch<MfaResetResult>(getOperatorResetMfaUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mfaResetInput)
+  }
+);}
+
+
+
+
+
+export const getOperatorResetMfaMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof operatorResetMfa>>, TError,{data: BodyType<MfaResetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof operatorResetMfa>>, TError,{data: BodyType<MfaResetInput>}, TContext> => {
+
+const mutationKey = ['operatorResetMfa'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof operatorResetMfa>>, {data: BodyType<MfaResetInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  operatorResetMfa(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OperatorResetMfaMutationResult = NonNullable<Awaited<ReturnType<typeof operatorResetMfa>>>
+    export type OperatorResetMfaMutationBody = BodyType<MfaResetInput>
+    export type OperatorResetMfaMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Phase 19A (19.3): the ASSISTED RESET of a person's two-step verification — a platform security operator only, after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes, ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409 mfa_reset_own_refused.
+
+ */
+export const useOperatorResetMfa = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof operatorResetMfa>>, TError,{data: BodyType<MfaResetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof operatorResetMfa>>,
+        TError,
+        {data: BodyType<MfaResetInput>},
+        TContext
+      > => {
+      return useMutation(getOperatorResetMfaMutationOptions(options));
     }
 
 export const getListControlFlagsUrl = (params?: ListControlFlagsParams,) => {

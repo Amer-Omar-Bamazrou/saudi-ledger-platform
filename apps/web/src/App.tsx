@@ -92,6 +92,8 @@ import ZatcaOnboarding from '@/pages/ZatcaOnboarding';
 import Approvals from '@/pages/Approvals';
 import ChangePassword from '@/pages/ChangePassword';
 import SecuritySessions from '@/pages/SecuritySessions';
+import SecurityTwoStep from '@/pages/SecurityTwoStep';
+import SecondFactor from '@/pages/SecondFactor';
 import TrialBalance from '@/pages/TrialBalance';
 import IncomeStatement from '@/pages/IncomeStatement';
 import BalanceSheet from '@/pages/BalanceSheet';
@@ -227,6 +229,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) return null;
+
+  // 🔴 Phase 19A (19.1/19.2): the second factor comes before everything — the code, or enrolment where the role
+  // requires one. Shown on its own: until the step is done the server refuses every other request.
+  if (user.mfaStep) {
+    return (
+      <div className="min-h-screen bg-background flex items-start justify-center p-6">
+        <SecondFactor step={user.mfaStep} />
+      </div>
+    );
+  }
 
   // H-15 (DR-06, DR-27): a password someone else set is changed before anything else. Shown on its own — inside
   // Layout the sidebar's queries would all be refused while the change is owed.
@@ -407,6 +419,7 @@ function Router() {
               <Route path="/users" component={UserManagement} />
               <Route path="/change-password" component={ChangePassword} />
               <Route path="/security/sessions" component={SecuritySessions} />
+              <Route path="/security/two-step" component={SecurityTwoStep} />
               {/*
                 Every COMING SOON entry in the navigation resolves here, by
                 slug. One route rather than forty, for the reason given in

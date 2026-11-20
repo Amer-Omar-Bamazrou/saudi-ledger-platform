@@ -7,6 +7,8 @@ servers:
   - url: /api
     description: Base API path
 tags:
+  - name: mfa
+    description: Phase 19A — two-step verification
   - name: sessions
     description: Phase 19A — a person's sessions, seen and ended
   - name: health
@@ -1141,6 +1143,121 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SessionsEnded"
+
+  /auth/mfa:
+    get:
+      operationId: getMfaStatus
+      tags: [mfa]
+      summary: >
+        Phase 19A (19.1): the caller's two-step verification — whether their role requires it, the factor's state, what
+        THIS session still owes after its password (the code, or enrolment), and how many recovery codes are left.
+      responses:
+        "200":
+          description: The caller's second-factor state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaStatus"
+
+  /auth/mfa/enrol:
+    post:
+      operationId: beginMfaEnrolment
+      tags: [mfa]
+      summary: >
+        Phase 19A (19.1): start (or restart) enrolment. A new secret is stored sealed and returned ONCE, with the key
+        URI and its QR. The factor stays inactive until one correct code. 409 mfa_already_active over an active factor.
+      responses:
+        "200":
+          description: The secret, shown once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaEnrolment"
+
+  /auth/mfa/activate:
+    post:
+      operationId: activateMfa
+      tags: [mfa]
+      summary: >
+        Phase 19A (19.1/19.3): one correct code turns the factor on and issues the recovery codes, shown ONCE. The
+        session id rotates. 422 mfa_code_invalid; 429 after five wrong codes for the account in fifteen minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaCodeInput"
+      responses:
+        "200":
+          description: The recovery codes, shown once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaRecoveryCodes"
+
+  /auth/mfa/verify:
+    post:
+      operationId: verifyMfaCode
+      tags: [mfa]
+      summary: >
+        Phase 19A (19.2): the code step of a sign-in. A code is accepted once. The session id rotates. 422
+        mfa_code_invalid; 429 after five wrong codes for the account in fifteen minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaCodeInput"
+      responses:
+        "200":
+          description: The session is whole
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaVerified"
+
+  /auth/mfa/recovery:
+    post:
+      operationId: useMfaRecoveryCode
+      tags: [mfa]
+      summary: >
+        Phase 19A (19.3): a single-use recovery code in place of the code. 422 mfa_recovery_code_invalid.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaCodeInput"
+      responses:
+        "200":
+          description: The session is whole
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaVerified"
+
+  /operator/users/mfa-reset:
+    post:
+      operationId: operatorResetMfa
+      tags: [mfa]
+      summary: >
+        Phase 19A (19.3): the ASSISTED RESET of a person's two-step verification — a platform security operator only,
+        after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes,
+        ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409
+        mfa_reset_own_refused.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaResetInput"
+      responses:
+        "200":
+          description: What the reset ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaResetResult"
 
   /control-flags:
     get:
@@ -11915,6 +12032,62 @@ components:
       required: [email]
       properties:
         email: { type: string, maxLength: 320 }
+
+    MfaStatus:
+      type: object
+      required: [required, state, step, recoveryCodesLeft, activatedAt, lastResetAt]
+      properties:
+        required: { type: boolean, description: "The caller's role requires a second factor" }
+        state: { type: string, enum: [none, pending, active] }
+        step: { type: string, nullable: true, enum: [code, enrol, null], description: "What THIS session still owes" }
+        recoveryCodesLeft: { type: integer }
+        activatedAt: { type: string, nullable: true }
+        lastResetAt: { type: string, nullable: true, description: "When the platform last reset this account's factor" }
+
+    MfaEnrolment:
+      type: object
+      required: [secret, otpauthUri, qrSvg]
+      properties:
+        secret: { type: string, description: "Base32, for typing into an authenticator; shown once" }
+        otpauthUri: { type: string }
+        qrSvg: { type: string, description: "The key URI as an SVG QR code" }
+
+    MfaCodeInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, maxLength: 16 }
+
+    MfaRecoveryCodes:
+      type: object
+      required: [recoveryCodes]
+      properties:
+        recoveryCodes:
+          type: array
+          items: { type: string }
+
+    MfaVerified:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+        recoveryCodesLeft: { type: integer }
+
+    MfaResetInput:
+      type: object
+      required: [email, identityVerified, basis]
+      properties:
+        email: { type: string, maxLength: 320 }
+        identityVerified: { type: boolean, description: "Must be true: the person's identity was verified" }
+        basis: { type: string, minLength: 10, maxLength: 500, description: "How the identity was verified" }
+
+    MfaResetResult:
+      type: object
+      required: [sessionsEnded, recoveryCodesInvalidated, notified]
+      properties:
+        sessionsEnded: { type: integer }
+        recoveryCodesInvalidated: { type: integer }
+        notified: { type: string, enum: [email_and_next_sign_in, next_sign_in] }
 
     SecurityEventPage:
       type: object

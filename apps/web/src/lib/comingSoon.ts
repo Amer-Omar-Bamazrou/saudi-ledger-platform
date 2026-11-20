@@ -457,16 +457,6 @@ export const COMING_SOON: readonly ComingSoonEntry[] = [
     capabilityLiveAr: "تغيير كلمة مرور تعرفها يعمل اليوم. غير الموجود هو الاستعادة عند نسيانها.",
   },
   {
-    slug: "two-factor",
-    title: "Two-factor authentication",
-    titleAr: "التحقق بخطوتين",
-    summary: "A second factor at sign-in, beyond the password.",
-    summaryAr: "عامل تحقق ثانٍ عند تسجيل الدخول، إضافة إلى كلمة المرور.",
-    blocker: "build",
-    whenCleared: "Zero code. Sequence it after password recovery — a second factor with no recovery path locks people out permanently.",
-    whenClearedAr: "لا توجد شيفرة. يُنفَّذ بعد استعادة كلمة المرور — عامل ثانٍ بلا مسار استعادة يحبس المستخدمين خارج حساباتهم نهائيًا.",
-  },
-  {
     slug: "ip-restrictions",
     title: "IP restrictions",
     titleAr: "تقييد عناوين IP",

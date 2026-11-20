@@ -71,6 +71,8 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/change-password": "app",
   // Phase 19A (19.4): your sessions, and — for an admin — the members' sessions
   "/security/sessions": "app",
+  // Phase 19A (19.1): two-step verification — its status, and set-up where it is off
+  "/security/two-step": "app",
   "/closed-months": "app",
   "/company": "app",
   "/migration": "app",
