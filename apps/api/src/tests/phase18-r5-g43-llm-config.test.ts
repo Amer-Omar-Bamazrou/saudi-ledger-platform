@@ -52,6 +52,8 @@ function goodProductionEnv(): void {
   delete process.env.GROQ_API_KEY;
   delete process.env.GROQ_DATA_BOUNDARY_ACK;
   process.env.DEMO_MODE = "false";
+  // Phase 19A: production states nothing and gets the default, `required` (the suites' own config sets `optional`)
+  delete process.env.MFA_ENFORCEMENT;
   delete process.env.LLM_MODEL;
   delete process.env.OLLAMA_URL;
 }
