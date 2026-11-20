@@ -328,6 +328,9 @@ jobs:
       # A throwaway tenant's fixture password, not a secret — the suite creates
       # the account it logs into, and CI must reproduce the run exactly.
       E2E_PASSWORD: e2e-smoke-password-2026
+      # Phase 19A: the suite signs in as admins without a phone; the MFA specs enrol their own accounts and a
+      # factor is always asked for once it exists. Refused in production by loadEnv.
+      MFA_ENFORCEMENT: optional
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

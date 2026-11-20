@@ -13,7 +13,8 @@ import { resetAllRateLimitStores } from "../lib/rateLimitStore";
 import { ownerDb as db } from "@workspace/db";
 import { usersTable, organizationMembershipsTable, organizationsTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
-import { requireAuth, credentialOf, sessionStampFor } from "../lib/auth";
+import { requireAuth, credentialOf, sessionStampFor, completeSecondFactor } from "../lib/auth";
+import { mfaService } from "../services/mfa.service";
 import { refuseSignupInDemo } from "../lib/demoMode";
 import { selectActiveMembership } from "../lib/activeOrg";
 import { securityAuditService } from "../services/securityAudit.service";
@@ -87,6 +88,16 @@ const changePasswordAccountLimiter = preSessionLimiter({
  * so it gets its own STRICTER limiter than the credential endpoints: creating
  * organizations is expensive and abusable. IP-keyed, 5 per hour.
  */
+/**
+ * 🔴 Phase 19A (19.2): the code step is limited per ACCOUNT — five wrong codes in fifteen minutes, whichever session or
+ * address they come from, and a right code is refused too until the window passes. Works before the trusted-proxy
+ * count is known (C1), which a per-IP limit would not.
+ */
+const mfaAccountLimiter = preSessionLimiter({
+  name: "mfa-account", dimension: "account", windowMs: 15 * 60 * 1000, limit: 5, countFailuresOnly: true,
+  accountOf: (req) => req.session.userEmail ?? null,
+});
+
 const signupRateLimiter = preSessionLimiter({ name: "signup", dimension: "ip", windowMs: 60 * 60 * 1000, limit: 5 });
 
 /**
@@ -326,7 +337,8 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
           .catch((e) => req.log.error({ err: e }, "sign-in not recorded"));
         // H-15: the web app sets its user from this response, so it carries the flag /auth/me carries (found by the
         // browser spec: without it the app opened its layout and every request was refused)
-        res.json({ user: { ...safeUser(user), passwordChangeRequired: user.passwordChangeRequired }, message: "Logged in successfully." });
+        // 19.2: the web app routes on this — the code step, enrolment, or straight in
+        res.json({ user: { ...safeUser(user), passwordChangeRequired: user.passwordChangeRequired, mfaStep: stamp.mfaStep ?? null }, message: "Logged in successfully." });
       });
     });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
@@ -413,6 +425,8 @@ router.get("/me", requireAuth, async (req, res) => {
       organizationVerificationStatus,
       // H-15: the web app holds a session that owes a change of password on the way to change it
       passwordChangeRequired: user.passwordChangeRequired,
+      // 🔴 Phase 19A: what this session still owes after its password ("code" | "enrol"), or null — for rendering
+      mfaStep: req.session.mfaStep ?? null,
     });
   } catch (err) { req.log.error({ err }); res.status(500).json({ error: "Internal server error" }); }
 });
@@ -457,6 +471,37 @@ router.post("/sessions/:id/end", userAdminRateLimiter, requireAuth, async (req, 
 });
 router.post("/users/:id/sessions/end", userAdminRateLimiter, requireAuth, async (req, res) => {
   res.json(await sessionsService.endMember(sessionActor(req), requireIdParam(req)));
+});
+
+/**
+ * 🔴 Phase 19A (19.1–19.3) — the second factor (services/mfa.service.ts). GET /auth/mfa: the state and what this
+ * session owes. POST /auth/mfa/enrol: a new sealed secret, returned once with its QR. POST /auth/mfa/activate: one
+ * correct code turns it on and issues the recovery codes, once. POST /auth/mfa/verify and /auth/mfa/recovery: the
+ * code step of a sign-in. A success rotates the session id. Attempts are limited per ACCOUNT.
+ */
+const mfaActor = (req: Request) => ({
+  userId: req.session.userId!, email: req.session.userEmail ?? null, ipAddress: req.ip ?? null, activeOrgId: req.session.activeOrgId ?? null,
+});
+router.get("/mfa", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(await mfaService.status(mfaActor(req), req.session.mfaStep ?? null));
+});
+router.post("/mfa/enrol", userAdminRateLimiter, requireAuth, async (req, res) => {
+  res.json(await mfaService.beginEnrolment(mfaActor(req)));
+});
+router.post("/mfa/activate", requireAuth, mfaAccountLimiter, async (req, res) => {
+  const out = await mfaService.activate(mfaActor(req), req.body?.code);
+  await completeSecondFactor(req);
+  res.json(out);
+});
+router.post("/mfa/verify", requireAuth, mfaAccountLimiter, async (req, res) => {
+  await mfaService.verify(mfaActor(req), req.body?.code);
+  await completeSecondFactor(req);
+  res.json({ ok: true });
+});
+router.post("/mfa/recovery", requireAuth, mfaAccountLimiter, async (req, res) => {
+  const out = await mfaService.useRecoveryCode(mfaActor(req), req.body?.code);
+  await completeSecondFactor(req);
+  res.json({ ok: true, ...out });
 });
 
 /** POST /auth/change-password — logged-in user changes their own password */

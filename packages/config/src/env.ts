@@ -137,6 +137,17 @@ const EnvSchema = z.object({
     .string()
     .min(32, "SESSION_SECRET must be at least 32 characters for a secure signing key"),
 
+  /**
+   * 🔴 Phase 19A (19.1; owner, 2026-11-17): two-step verification is MANDATORY for platform operators and for every
+   * organization admin — an account in either role without a factor reaches only enrolment. `required` is the
+   * default, and `optional` is REFUSED in production by the superRefine below.
+   *
+   * `optional` exists for development and the automated suites only: their fixtures sign in as admins hundreds of
+   * times without a phone. It relaxes ONE thing — being made to enrol. An account that HAS a factor owes its code at
+   * every sign-in under either value, and nothing else about the second factor changes.
+   */
+  MFA_ENFORCEMENT: z.enum(["required", "optional"]).default("required"),
+
   // Explicit CORS allow-list (replaces the old reflect-any `origin: true`).
   // Comma-separated list of exact origins, e.g. "http://localhost:5173,https://app.example.sa".
   // 🔴 Phase 18 R-7 (G45; register §11.102): these are also THE APPLICATION ORIGINS the CSRF check compares an
@@ -456,6 +467,15 @@ const EnvSchema = z.object({
     // token that travels in clear text on any downgraded request. The audit
     // found the old NODE_ENV gate shipped exactly that on a "staging" deploy;
     // making it settable must not make it disable-able where it matters.
+    if (env.NODE_ENV === "production" && env.MFA_ENFORCEMENT !== "required") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["MFA_ENFORCEMENT"],
+        message:
+          "MFA_ENFORCEMENT cannot be 'optional' in production — platform operators and organization admins " +
+          "must hold a second factor (Phase 19A). Remove the setting; 'required' is the default.",
+      });
+    }
     if (env.NODE_ENV === "production" && env.SESSION_COOKIE_SECURE === false) {
       ctx.addIssue({
         code: "custom",

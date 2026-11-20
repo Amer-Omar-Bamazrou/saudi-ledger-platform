@@ -63,3 +63,4 @@ export * from "./migrationBatches";
 export * from "./journalSourceBackfill";
 export * from "./journalSourceReviews";
 export * from "./sessionRecords";
+export * from "./userMfa";

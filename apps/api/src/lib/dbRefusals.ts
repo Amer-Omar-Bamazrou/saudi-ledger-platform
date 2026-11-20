@@ -251,6 +251,12 @@ export const BANK_DETAIL_REFUSALS = {
     error: "You cannot approve this bank-detail change: the admin who asked for it created, re-activated or reset your account within the last 30 days. Another admin of this organisation approves it. (An internal control of this platform.)",
     errorAr: "لا يمكنك اعتماد تغيير البيانات البنكية هذا: المسؤول الذي طلبه أنشأ حسابك أو أعاد تفعيله أو أعاد تعيين كلمة مروره خلال آخر 30 يوماً. يعتمده مسؤول آخر في هذه المنشأة. (ضابط رقابة داخلية في المنصة.)",
   },
+  // 🔴 Phase 19A (0166; owner 2026-11-17: an MFA reset is an A1 qualifying event). An internal control.
+  approverMfaReset: {
+    code: "bank_detail_approver_mfa_reset",
+    error: "You cannot approve this bank-detail change: the two-step verification on your account was reset within the last 30 days. Another admin of this organisation approves it. (An internal control of this platform.)",
+    errorAr: "لا يمكنك اعتماد تغيير البيانات البنكية هذا: أُعيد تعيين التحقق بخطوتين لحسابك خلال آخر 30 يوماً. يعتمده مسؤول آخر في هذه المنشأة. (ضابط رقابة داخلية في المنصة.)",
+  },
   requiresSecondAdmin: {
     code: "bank_detail_change_requires_second_admin",
     error: "In an organisation with two or more admins, a bank-detail change waits for a second admin's approval. Make the change again so it is recorded as a request.",
@@ -284,6 +290,7 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   if (pgCode === "23514" && constraint === "bank_detail_dual_control") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.requiresSecondAdmin } as DbRefusal["body"] };
   if (pgCode === "23514" && constraint === "bank_detail_change_second_admin") return { status: 409, body: { code: "second_admin_required", error: pgMessage } };
   if (pgCode === "23514" && constraint === "bank_detail_change_linked_approver") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.linkedApprover } as DbRefusal["body"] };
+  if (pgCode === "23514" && constraint === "bank_detail_change_approver_mfa_reset") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.approverMfaReset } as DbRefusal["body"] };
   if (pgCode === "23514" && constraint === "bank_detail_change_request_flow") return { status: 409, body: { code: "bank_detail_change_refused", error: pgMessage } };
   // 🔴 R-11b (DR-20, 0155): a bookkeeper's cash, tax or equity posting where the organisation has two or more approvers
   // is an approver's act — an AUTHORITY refusal (403), in the database's words naming what the entry touches.
