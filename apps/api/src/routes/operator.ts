@@ -11,6 +11,7 @@ import { Router } from "express";
 import { refuseNonUuidParam } from "../middleware/refuseUnusableInput";
 import { operatorService } from "../services/operator.service";
 import { sessionsService } from "../services/sessions.service";
+import { mfaService } from "../services/mfa.service";
 import { operatorZatcaService } from "../services/operatorZatca.service";
 import { documentsService } from "../services/documents.service";
 import { sendDocument } from "./documentHttp";
@@ -76,6 +77,18 @@ router.post("/sessions/:id/end", async (req, res) => {
 });
 router.post("/users/end-sessions", async (req, res) => {
   res.json(await sessionsService.operatorEndUser(operatorSessionActor(req), req.body?.email));
+});
+
+/**
+ * 🔴 Phase 19A (19.3) — POST /api/operator/users/mfa-reset { email, identityVerified: true, basis }: the ASSISTED RESET
+ * of a person's second factor, by a platform security operator only, after the person's identity was verified. It
+ * removes the factor and the recovery codes, ends every session of the account, is recorded, and the person is told.
+ */
+router.post("/users/mfa-reset", async (req, res) => {
+  res.json(await mfaService.operatorReset(
+    { userId: req.session.userId!, email: req.session.userEmail ?? null, ipAddress: req.ip ?? null },
+    { email: req.body?.email, identityVerified: req.body?.identityVerified, basis: req.body?.basis },
+  ));
 });
 
 /** POST /api/operator/applications/:orgId/approve — grant the org full access. */

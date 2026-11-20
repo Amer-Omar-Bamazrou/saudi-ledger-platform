@@ -41,6 +41,8 @@ function goodProductionEnv(): void {
   delete process.env.GROQ_API_KEY;
   delete process.env.GROQ_DATA_BOUNDARY_ACK;
   process.env.DEMO_MODE = "false";
+  // Phase 19A: production states nothing and gets the default, `required` (the suites' own config sets `optional`)
+  delete process.env.MFA_ENFORCEMENT;
 }
 
 describe("loadEnv — the production boot refusals B1/B2/C1/AI-1a lean on", () => {
@@ -55,6 +57,17 @@ describe("loadEnv — the production boot refusals B1/B2/C1/AI-1a lean on", () =
 
   it("the baseline production env BOOTS — so each refusal below is the flipped variable, not noise", () => {
     expect(() => loadEnv()).not.toThrow();
+  });
+
+  it("🔴 Phase 19A: MFA_ENFORCEMENT=optional is refused in production, and the default is required", () => {
+    expect(loadEnv().MFA_ENFORCEMENT).toBe("required");
+    process.env.MFA_ENFORCEMENT = "optional";
+    resetEnvCache();
+    expect(() => loadEnv()).toThrowError(/MFA_ENFORCEMENT/);
+    // outside production it is accepted: development and the automated suites
+    process.env.NODE_ENV = "test";
+    resetEnvCache();
+    expect(loadEnv().MFA_ENFORCEMENT).toBe("optional");
   });
 
   it("🔴 B1: MAIL_PROVIDER=none is refused in production — an alarm delivered to nobody", () => {

@@ -27,6 +27,12 @@ export interface AuthUser {
    */
   passwordChangeRequired?: boolean;
   /**
+   * 🔴 Phase 19A (19.1/19.2): what this session still owes after its password — the code of an enrolled factor, or
+   * enrolment where the role requires one; null on a whole session. Until it is done the server answers every other
+   * request 403, so the app shows only that step. For rendering only.
+   */
+  mfaStep?: "code" | "enrol" | null;
+  /**
    * N-3: the active organization's verification status (`pending_review`, `needs_info`, `rejected`, `approved`);
    * `null` with no organization. Anything but `approved` keeps the user on the review screen (AuthGuard). For
    * rendering only: the server refuses the business routes itself.

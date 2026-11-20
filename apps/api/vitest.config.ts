@@ -57,6 +57,9 @@ export default defineConfig({
       // added two more and they failed in CI while passing locally, where a
       // developer's `.env` happened to supply it.
       ZATCA_KMS_PROVIDER: process.env["ZATCA_KMS_PROVIDER"] ?? "local-dev",
+      // Phase 19A: the suites' fixtures sign in as admins without a phone; the MFA suites set "required" themselves.
+      // Refused in production by loadEnv.
+      MFA_ENFORCEMENT: process.env["MFA_ENFORCEMENT"] ?? "optional",
       ZATCA_DEV_MASTER_KEY:
         process.env["ZATCA_DEV_MASTER_KEY"] ?? "vitest-master-key-not-a-real-secret-0123456789",
     },

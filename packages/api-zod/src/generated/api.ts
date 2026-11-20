@@ -2010,6 +2010,108 @@ export const OperatorEndUserSessionsResponse = zod.object({
 
 
 /**
+ * @summary Phase 19A (19.1): the caller's two-step verification — whether their role requires it, the factor's state, what THIS session still owes after its password (the code, or enrolment), and how many recovery codes are left.
+
+ */
+export const GetMfaStatusResponse = zod.object({
+  "required": zod.boolean().describe('The caller\'s role requires a second factor'),
+  "state": zod.enum(['none', 'pending', 'active']),
+  "step": zod.union([zod.literal('code'),zod.literal('enrol'),zod.literal(null)]).nullable().describe('What THIS session still owes'),
+  "recoveryCodesLeft": zod.number(),
+  "activatedAt": zod.string().nullable(),
+  "lastResetAt": zod.string().nullable().describe('When the platform last reset this account\'s factor')
+})
+
+
+/**
+ * @summary Phase 19A (19.1): start (or restart) enrolment. A new secret is stored sealed and returned ONCE, with the key URI and its QR. The factor stays inactive until one correct code. 409 mfa_already_active over an active factor.
+
+ */
+export const BeginMfaEnrolmentResponse = zod.object({
+  "secret": zod.string().describe('Base32, for typing into an authenticator; shown once'),
+  "otpauthUri": zod.string(),
+  "qrSvg": zod.string().describe('The key URI as an SVG QR code')
+})
+
+
+/**
+ * @summary Phase 19A (19.1/19.3): one correct code turns the factor on and issues the recovery codes, shown ONCE. The session id rotates. 422 mfa_code_invalid; 429 after five wrong codes for the account in fifteen minutes.
+
+ */
+export const activateMfaBodyCodeMax = 16;
+
+
+
+export const ActivateMfaBody = zod.object({
+  "code": zod.string().max(activateMfaBodyCodeMax)
+})
+
+export const ActivateMfaResponse = zod.object({
+  "recoveryCodes": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Phase 19A (19.2): the code step of a sign-in. A code is accepted once. The session id rotates. 422 mfa_code_invalid; 429 after five wrong codes for the account in fifteen minutes.
+
+ */
+export const verifyMfaCodeBodyCodeMax = 16;
+
+
+
+export const VerifyMfaCodeBody = zod.object({
+  "code": zod.string().max(verifyMfaCodeBodyCodeMax)
+})
+
+export const VerifyMfaCodeResponse = zod.object({
+  "ok": zod.boolean(),
+  "recoveryCodesLeft": zod.number().optional()
+})
+
+
+/**
+ * @summary Phase 19A (19.3): a single-use recovery code in place of the code. 422 mfa_recovery_code_invalid.
+
+ */
+export const useMfaRecoveryCodeBodyCodeMax = 16;
+
+
+
+export const UseMfaRecoveryCodeBody = zod.object({
+  "code": zod.string().max(useMfaRecoveryCodeBodyCodeMax)
+})
+
+export const UseMfaRecoveryCodeResponse = zod.object({
+  "ok": zod.boolean(),
+  "recoveryCodesLeft": zod.number().optional()
+})
+
+
+/**
+ * @summary Phase 19A (19.3): the ASSISTED RESET of a person's two-step verification — a platform security operator only, after the person's identity was verified (stated, with its basis). Removes the factor and the recovery codes, ends every session of the account, is recorded, and tells the person. 422 mfa_reset_identity_unverified; 409 mfa_reset_own_refused.
+
+ */
+export const operatorResetMfaBodyEmailMax = 320;
+
+export const operatorResetMfaBodyBasisMin = 10;
+export const operatorResetMfaBodyBasisMax = 500;
+
+
+
+export const OperatorResetMfaBody = zod.object({
+  "email": zod.string().max(operatorResetMfaBodyEmailMax),
+  "identityVerified": zod.boolean().describe('Must be true: the person\'s identity was verified'),
+  "basis": zod.string().min(operatorResetMfaBodyBasisMin).max(operatorResetMfaBodyBasisMax).describe('How the identity was verified')
+})
+
+export const OperatorResetMfaResponse = zod.object({
+  "sessionsEnded": zod.number(),
+  "recoveryCodesInvalidated": zod.number(),
+  "notified": zod.enum(['email_and_next_sign_in', 'next_sign_in'])
+})
+
+
+/**
  * @summary Phase 18 R-11a (DR-14): the active company's control flags, newest first - each a record that one person did both halves of something a second person usually does (approved a document they made, or did both acts of one of the five pairs). A flag never blocks an act. Read by the approvers (admin, accountant) only.
 
  */

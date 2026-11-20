@@ -8,6 +8,7 @@ import { loadEnv } from "@workspace/config";
 import { userAdminRepository } from "../repositories/userAdmin.repository";
 import { sessionRecordsRepository } from "../repositories/sessionRecords.repository";
 import { describeClient } from "./sessionClient";
+import { MFA_REFUSALS, mfaService, type MfaStep } from "../services/mfa.service";
 
 export type UserRole = "admin" | "accountant" | "bookkeeper" | "viewer";
 
@@ -25,6 +26,12 @@ declare module "express-session" {
     credential: string;
     /** 🔴 Phase 19A (19.4/19.5): this session's record — what the person sees and ends. Never the session id itself. */
     sessionRecordId: string;
+    /**
+     * 🔴 Phase 19A (19.1/19.2): what this session still owes after its password — the code of an enrolled factor, or
+     * enrolment where the role requires one. ABSENT on a whole session. Set at every sign-in, cleared only by the
+     * step itself (which rotates the session id).
+     */
+    mfaStep?: MfaStep;
   }
 }
 
@@ -48,14 +55,17 @@ export function credentialOf(passwordHash: string): string {
 export async function sessionStampFor(
   userId: number,
   opened: { kind: "sign_in" | "signup" | "invitation"; req: Request },
-): Promise<{ authenticatedAt: number; credential: string; sessionRecordId: string }> {
+): Promise<{ authenticatedAt: number; credential: string; sessionRecordId: string; mfaStep?: MfaStep }> {
   const account = await userAdminRepository.sessionAccount(userId);
   if (!account) throw new Error(`sessionStampFor: no account ${userId}`);
   // 🔴 Phase 19A (19.4): one record per sign-in — the sign-in IP and a coarse client description, never the user-agent
   const sessionRecordId = await sessionRecordsRepository.create({
     userId, kind: opened.kind, ipAddress: opened.req.ip ?? null, client: describeClient(opened.req.get("user-agent")),
   });
-  return { authenticatedAt: Date.now(), credential: credentialOf(account.passwordHash), sessionRecordId };
+  // 🔴 Phase 19A (19.2): a password — an operator's break-glass password included — satisfies the PASSWORD step only.
+  // Asked here, at the one place every session is born, so no way of signing in can leave it out.
+  const mfaStep = await mfaService.stepAfterPassword(userId);
+  return { authenticatedAt: Date.now(), credential: credentialOf(account.passwordHash), sessionRecordId, ...(mfaStep ? { mfaStep } : {}) };
 }
 
 /** 19.4: how often a session's "last seen" is written — at most once in this window, not on every request. */
@@ -108,6 +118,40 @@ export async function endEndedSessions(req: Request, res: Response, next: NextFu
   s.regenerate((err) => next(err));
 }
 
+/** The only routes a session that owes its CODE reaches (19.2). */
+const WHILE_THE_CODE_IS_OWED = new Set(["/auth/me", "/auth/logout", "/auth/login", "/auth/mfa", "/auth/mfa/verify", "/auth/mfa/recovery"]);
+/** The only routes a session that owes ENROLMENT reaches (19.1). */
+const WHILE_ENROLMENT_IS_OWED = new Set(["/auth/me", "/auth/logout", "/auth/login", "/auth/mfa", "/auth/mfa/enrol", "/auth/mfa/activate"]);
+
+/**
+ * 🔴 Phase 19A (19.1/19.2) — a session that owes its second factor reaches NOTHING but the step it owes. Mounted
+ * before every router but the public ones, and BEFORE the password-change gate: a break-glass password opens a
+ * session that owes the code first, then the change. A refusal naming the next step, never a hidden control.
+ */
+export function refuseUntilSecondFactor(req: Request, res: Response, next: NextFunction): void {
+  const step = req.session?.userId ? req.session.mfaStep : undefined;
+  if (!step) return next();
+  const allowed = step === "code" ? WHILE_THE_CODE_IS_OWED : WHILE_ENROLMENT_IS_OWED;
+  if (allowed.has(req.path)) return next();
+  const r = step === "code" ? MFA_REFUSALS.codeRequired : MFA_REFUSALS.enrolmentRequired;
+  res.status(r.status).json({ code: r.code, error: r.error, errorAr: r.errorAr });
+}
+
+/**
+ * 🔴 Phase 19A (19.2): the second factor is satisfied — the session id ROTATES (the half-authenticated id is never
+ * the whole session's id) and the owed step is gone. Everything else the session carried is kept.
+ */
+export function completeSecondFactor(req: Request): Promise<void> {
+  const { cookie: _cookie, mfaStep: _step, ...kept } = req.session as unknown as Record<string, unknown>;
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((regenErr) => {
+      if (regenErr) return reject(regenErr);
+      Object.assign(req.session, kept);
+      req.session.save((saveErr) => (saveErr ? reject(saveErr) : resolve()));
+    });
+  });
+}
+
 /** The only routes a session that owes a change of password reaches (H-15). */
 const WHILE_A_CHANGE_IS_OWED = new Set(["/auth/me", "/auth/logout", "/auth/change-password", "/auth/login"]);
 /** The only routes a session whose break-glass window has passed reaches (R-1): not the change. */
@@ -133,6 +177,10 @@ export function refuseUntilPasswordChanged(req: Request, res: Response, next: Ne
     });
     return;
   }
+  // 🔴 Phase 19A (19.2): a session that still owes its second factor is already confined to that step by
+  // refuseUntilSecondFactor, mounted before this — and the step must be reachable: after a break-glass password the
+  // order is the CODE first, then the change (found by phase19a-mfa.test.ts: this gate refused the code step itself).
+  if (req.session?.mfaStep) return next();
   if (req.session?.userId && res.locals.passwordChangeRequired === true && !WHILE_A_CHANGE_IS_OWED.has(req.path)) {
     res.status(403).json({
       code: "password_change_required",

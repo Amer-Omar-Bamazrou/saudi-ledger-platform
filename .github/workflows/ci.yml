@@ -328,6 +328,13 @@ jobs:
       # A throwaway tenant's fixture password, not a secret — the suite creates
       # the account it logs into, and CI must reproduce the run exactly.
       E2E_PASSWORD: e2e-smoke-password-2026
+      # Phase 19A: the suite signs in as admins without a phone; the MFA specs enrol their own accounts and a
+      # factor is always asked for once it exists. Refused in production by loadEnv.
+      MFA_ENFORCEMENT: optional
+      # Phase 19A: enrolling a second factor SEALS its secret with the key wrapper, which needs a development master
+      # key outside production (found by this job: without it enrolment could not seal, and the MFA spec failed).
+      # A throwaway value, not a secret; the development wrapper is refused in production.
+      ZATCA_DEV_MASTER_KEY: e2e-master-key-not-a-real-secret-0123456789
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

@@ -1020,4 +1020,24 @@ export const CONTROLS: readonly Control[] = [
     ],
     provingTests: ["phase19a-sessions-events.test.ts"],
   },
+  {
+    id: "19A-M",
+    title: "Two-step verification: a session owes what its password did not prove (the code of an enrolled factor, or enrolment for a platform operator or an organization admin) and reaches nothing else until then, a break-glass password included; the secret is sealed and shown once; a code is accepted once and attempts are limited per account; recovery codes are single-use hashes; only a platform operator resets a factor, stating the identity check, and for 30 days the reset account approves no held bank-detail change (Phase 19A, 19.1-19.3, migration 0166; internal controls of the platform)",
+    answers: [],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: [
+      "mfa_code_required", "mfa_enrolment_required", "mfa_code_invalid", "mfa_recovery_code_invalid", "mfa_already_active",
+      "mfa_not_enrolling", "mfa_reset_identity_unverified", "mfa_reset_own_refused", "bank_detail_approver_mfa_reset",
+    ],
+    points: [
+      trigger("user_mfa_factors", "user_mfa_factors_guard"),
+      trigger("user_mfa_recovery_codes", "user_mfa_recovery_codes_guard"),
+      check("user_mfa_factors", "user_mfa_factors_state_chk"),
+      check("user_mfa_factors", "user_mfa_factors_activated_chk"),
+      code(`${API}/lib/auth.ts`, "refuseUntilSecondFactor"),
+      code(`${API}/services/mfa.service.ts`, "stepAfterPassword"),
+    ],
+    provingTests: ["phase19a-mfa.test.ts"],
+  },
 ];

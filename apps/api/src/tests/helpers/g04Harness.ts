@@ -79,6 +79,8 @@ export function g04Harness(prefix: string) {
       await c.query(`DELETE FROM platform_operators WHERE user_id IN ${USERS}`);
       await c.query(`DELETE FROM user_sessions WHERE (sess ->> 'userId')::int IN ${USERS}`);
       await c.query(`DELETE FROM session_records WHERE user_id IN ${USERS}`); // Phase 19A: replica mode skips the cascade
+      await c.query(`DELETE FROM user_mfa_recovery_codes WHERE user_id IN ${USERS}`);
+      await c.query(`DELETE FROM user_mfa_factors WHERE user_id IN ${USERS}`);
       await c.query(`DELETE FROM organizations WHERE slug LIKE '${prefix}-%'`);
       await c.query(`DELETE FROM users WHERE email LIKE '${prefix}-%'`);
       await c.query("COMMIT");
