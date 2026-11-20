@@ -240,7 +240,12 @@ describeMaybe("Batch 1C — Phase 3: commit, R1–R10, OBE, reversal, atomicity"
     // A5: every line lands on a NAMED account — a system code, a created/merged account code, or a bank leaf. No balancing line exists (R6, blocking).
     expect(lines.every((l) => l.system_code != null || l.account_code != null || l.bank_account_id != null)).toBe(true);
     expect(check(rec, "R6")).toMatchObject({ status: "pass", actual: 0 });
-    expect(lines.filter((l) => l.bank_account_id != null).map((l) => [l.bank_account_id, Number(l.dr)])).toEqual([[bank1, 50000], [bank2, 20000]]);
+    // 🔴 BY BANK, NOT BY LINE ORDER: the commit orders the journal's lines by the text key "bank:<id>", so "bank:100"
+    // comes before "bank:99" — which bank's line is first depends on the ids the database hands out. It failed when
+    // this test's banks were given ids 99 and 100 (#354's verify, 2026-11-20); reproduced at 999/1000 and 9999/10000.
+    const bankLines = lines.filter((l) => l.bank_account_id != null);
+    expect(bankLines, "one opening line per bank").toHaveLength(2);
+    expect(Object.fromEntries(bankLines.map((l) => [l.bank_account_id, Number(l.dr)]))).toEqual({ [bank1]: 50000, [bank2]: 20000 });
     expect(lines.filter((l) => l.account_code != null).map((l) => [l.account_code, Number(l.dr), Number(l.cr)]).sort()).toEqual([["1400", 3000, 0], ["3100", 0, 60000], ["5200", 8500, 0]]);
     expect(byCode("RETAINED_EARNINGS").map((l) => Number(l.cr))).toEqual([20000]);
     expect(byCode("SALES").map((l) => Number(l.cr))).toEqual([40000]);
