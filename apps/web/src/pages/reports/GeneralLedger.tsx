@@ -18,6 +18,7 @@ import { ReportExportButtons } from "@/components/reports/ReportExport";
 import { journalEntryHref } from "@/lib/reportDrill";
 
 import { useListCustomers, useListVendors, type Category, type GeneralLedgerReport } from "@workspace/api-client-react";
+import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
 
 type PartyType = "none" | "customer" | "vendor";
 type Applied = { accountId: string; from: string; to: string; partyType: PartyType; partyId: string };
@@ -108,7 +109,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">
-          <div className="flex items-end gap-4 flex-wrap">
+          <ReportFilterRow>
             <div className="min-w-56">
               <Label className="text-xs text-muted-foreground">{t("Account", "الحساب")}</Label>
               <Select value={draft.accountId} onValueChange={(v) => setDraft({ ...draft, accountId: v })}>
@@ -151,7 +152,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
               </div>
             )}
             <Button size="sm" className="h-8" onClick={() => setApplied({ ...draft })} data-testid="gl-generate">{t("Generate", "إنشاء")}</Button>
-          </div>
+          </ReportFilterRow>
           <div className="mt-3">
             <PeriodShortcuts from={draft.from} to={draft.to} onSelect={(r) => { const next = { ...draft, from: r.from, to: r.to }; setDraft(next); setApplied(next); }} />
           </div>

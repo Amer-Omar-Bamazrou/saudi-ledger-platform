@@ -4,6 +4,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 import { EXPECTATIONS, ROWS_EXPECTED, type Kind } from "./routes";
+import { fitsAtPhoneWidth } from "./phoneFit";
 
 /**
  * THE SMOKE CRAWL — every route, authenticated, failing on a page error or an
@@ -230,4 +231,45 @@ test.describe("anonymous routes", () => {
       expect(problems.serverErrors, `${route} 5xx'd`).toEqual([]);
     });
   }
+});
+
+/**
+ * 🔴 EVERY ROUTE FITS A 390 PX PHONE, IN ARABIC (owner, 2026-11-21).
+ *
+ * The app's content area clips sideways (Layout.tsx `overflow-x-hidden`), so a row wider than the phone loses its
+ * last controls off screen and nothing scrolls: the document-width check every walk used was true by construction.
+ * A sweep of all 95 routes (2026-11-21) found five report pages whose Generate button lay 44 of its 49 px past the
+ * edge. `fitsAtPhoneWidth` measures the content area itself and names what does not fit. It runs here, over every
+ * route this crawl classifies, so a new page is measured the day it is added. Frame: each page as it first renders
+ * (default tab, no dialog opened). `/operator` is measured by `p19a-walk-390.spec.ts` as an operator.
+ */
+const PHONE = { width: 390, height: 844 };
+async function openInArabic(page: Page, url: string): Promise<void> {
+  await page.addInitScript(() => { try { localStorage.setItem("ksa_lang", "ar"); } catch { /* the default language */ } });
+  await page.goto(url, { waitUntil: "networkidle" });
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+}
+
+test.describe("every route fits a 390 px phone, in Arabic", () => {
+  test.describe("signed in", () => {
+    test.use({ storageState: E2E.storageState, viewport: PHONE, locale: "ar-SA" });
+    for (const [route, kind] of Object.entries(EXPECTATIONS)) {
+      if (kind !== "app" && kind !== "param" && kind !== "authenticated-no-shell") continue;
+      test(`${route} fits at 390 px`, async ({ page }) => {
+        await openInArabic(page, concrete(route));
+        await fitsAtPhoneWidth(page, route);
+      });
+    }
+  });
+
+  test.describe("signed out", () => {
+    test.use({ storageState: { cookies: [], origins: [] }, viewport: PHONE, locale: "ar-SA" });
+    for (const [route, kind] of Object.entries(EXPECTATIONS)) {
+      if (kind !== "anonymous") continue;
+      test(`${route} fits at 390 px, signed out`, async ({ page }) => {
+        await openInArabic(page, route);
+        await fitsAtPhoneWidth(page, route);
+      });
+    }
+  });
 });
