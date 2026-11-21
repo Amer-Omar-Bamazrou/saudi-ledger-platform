@@ -23,6 +23,7 @@ because it was already wrong once (it read "not four" while carrying five).
 | **J** | S-1 | Qawaem's XBRL mapping. **Closed** |
 | **K** | Owner's regulatory review, 2026-11-19 | 🔴 The accountant FIRST: correcting an approved payroll run. Then the framework per tenant, the `manual` policy for untraceable entries, and (tax adviser) an identified advance's VAT period |
 | **L** | VAT Implementing Regulations, Tenth Edition (`docs/zatca/README.md`) | Five amended articles our records still read the old way — the tax adviser |
+| **M** | Owner, 2026-11-21: Art. 40(10) is never applied (CLAUDE.md §5) | 🔴 The accountant: how the 40(10) reversal posts, and how the VAT is re-claimed when the bill is later paid |
 
 ## 🔴 If one firm cannot cover both specialisms — SEQUENCE, do not split
 
@@ -923,6 +924,14 @@ entries, and no run's status is changed to make a reversal look resolved (owner,
 - **L3 — Art. 40(10)–(11), amended (Res. 01-06-24):** a buyer's input VAT on a purchase still not paid in full twelve months after the month following the supply's month is reversed in the return for the month in which those twelve months end, except goods under financing contracts (finance lease, murabaha, lease ending in ownership) paid in periodic instalments under the stated conditions — is that the reading, and what must a buyer hold to use the exception?
 - **L4 — Art. 9(5), amended (Res. 1-4-23):** a government body is outside economic activity only when all three conditions hold (a legal instrument authorises the activity, it is not run on economic or commercial criteria, and it is exclusive to government) — do the statutory fees a business pays to government still carry no VAT under that test?
 - **L5 — Art. 40(7)(d), amended (Res. 1-4-23):** for bad-debt relief ZATCA may accept other supporting documents in place of the certified accountant's certificate from a supplier not obliged to appoint an auditor — what evidence is accepted in practice?
+
+---
+
+## Block M — posting the Art. 40(10) reversal and the 40(11) re-claim (added 2026-11-21)
+
+**Why.** The platform never reverses input VAT on a purchase still unpaid twelve months after the month following its supply, so a company with old unpaid bills keeps VAT it must give back (CLAUDE.md §5, owner 2026-11-21). The regulation sets the duty and the periods: the reversal goes in the return for the month the twelve months end (40(10)); after a later payment the VAT may be deducted again, in that payment's period or a later one (40(11)). It is silent on the booking. The design recorded in 2026-09 ([`phase-13b-vat-claim-ledger-architecture.md`](phase-13b-vat-claim-ledger-architecture.md) §5 and §11, not built) posts the reversal Dr the purchase's cost / Cr `VAT Adjustment – Non-Payment (Art. 40(10))`, and the re-claim as the mirror, proportional to the amount paid; it covers expense purchases only. Nothing is built until the accountant answers.
+
+- **M1 — for the accountant:** how should the 40(10) reversal post, and how is the VAT re-claimed when the bill is later paid in full or in part — is the recorded design right (Dr the purchase's cost / Cr the separate adjustment account, and its proportional mirror on payment), and what changes when the purchase was capitalised as a fixed asset or is held in inventory, or when the purchase's own period is already closed?
 
 ---
 

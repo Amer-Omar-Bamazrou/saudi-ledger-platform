@@ -516,7 +516,7 @@ its as-built record goes to
 [`known-issues-and-audit-findings.md`](docs/history/known-issues-and-audit-findings.md),
 which holds every closed item with its full reasoning.
 
-🔴 **The owner's plan labels map onto THIS queue**: P1-1 = L1 · P1-2 = L2 · P1-4 = password recovery (rank 1).
+🔴 **The owner's plan labels map onto THIS queue**: P1-1 = L1 · P1-4 = password recovery (rank 1).
 
 ### 🔴 THE BOARD (owner-ordered record, 2026-09-04; the pool closed 2026-09-14)
 
@@ -573,9 +573,10 @@ the order is not the severity order.**
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
 | **1** | **Password recovery** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
-| **2** | 🔴 **The generic journal reverse accepts an entry a receipt, depreciation or recognition OWNS** — the document reads live while its entry is cancelled (DR-34 refuses invoices, notes, write-offs; A15 payroll, unclassified). | posts + hides. | DR-34; Phase 12 §7 #8. |
-| **3** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | Official identity documents. | Audited, operator-only. P6: no statutory expiry. |
-| **4** | **M-5** magic-byte sniff is header-only (closes with C4) · **L-2** signup 409 leaks account existence (accepted) · **L-4** operator queue list unaudited (accepted). | — | The long tail. |
+| **2** | 🔴 **Art. 40(10) is unbuilt**: input VAT on a bill unpaid 12 months after its supply month is never reversed, so the company keeps VAT it must give back. | files + hides. | Advisor Block M; 13B arch. §11. |
+| **3** | 🔴 **The generic journal reverse accepts an entry a receipt, depreciation or recognition OWNS** — the document reads live while its entry is cancelled (DR-34 refuses invoices, notes, write-offs; A15 payroll, unclassified). | posts + hides. | DR-34; Phase 12 §7 #8. |
+| **4** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | Official identity documents. | Audited, operator-only. P6: no statutory expiry. |
+| **5** | **M-5** magic-byte sniff is header-only (closes with C4). | — | The long tail. |
 
 **Open DECISION:** `platform-alarms` is NOT operator-runnable (one-line flip).
 
@@ -602,7 +603,6 @@ readers labelled English (#346): each needs real Arabic.
 
 - 🔴 **Our VAT-return boxes are NOT ZATCA's** (P13-N1).
 - Manual transaction create has no `kind`/`taxTreatment`: every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
-- Sub-cent amounts via the raw API can mark a document paid with a 1-halala GL residual (UI-unreachable; round `paid` at the gate).
 - The Categories UI cannot mark system accounts (no edit routes exist).
 - **Deferred:** action-level permissions (post-to-GL / pay / approve, gateable separately).
 - 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local stack where the grants were measured.
