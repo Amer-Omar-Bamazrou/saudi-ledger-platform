@@ -171,7 +171,7 @@ export function ChartSection({ batchId, editable }: { batchId: number; editable:
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {[
           [t("Rows", "الصفوف"), String(s.rows)],
           [t("Unmapped", "غير مربوطة"), String(s.unmapped), s.unmapped > 0 ? "text-negative" : "text-positive"],

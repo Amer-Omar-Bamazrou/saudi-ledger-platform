@@ -26,6 +26,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 import type { ActivityReport as ActivityReportData } from "@workspace/api-client-react";
 import { businessToday, businessDateShift } from "@workspace/shared";
+import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
 
 const STATUS_STYLES: Record<string, string> = { posted: "bg-positive-surface/20 text-positive", draft: "bg-secondary text-muted-foreground", reversed: "bg-negative-surface/20 text-negative" };
 
@@ -59,11 +60,11 @@ export default function ActivityReport() {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">
-          <div className="flex items-end gap-4">
+          <ReportFilterRow>
             <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
-          </div>
+          </ReportFilterRow>
           <div className="mt-3">
             <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
           </div>
@@ -71,7 +72,7 @@ export default function ActivityReport() {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             [t("Total Entries", "إجمالي القيود"), data.count, "text-primary"],
             [t("Posted", "مرحّلة"), data.hasPosted, "text-positive"],

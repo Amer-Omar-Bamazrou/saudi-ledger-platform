@@ -267,7 +267,7 @@ export default function BankMatching() {
         <div><p className="text-xs text-muted-foreground mb-1">{t("To", "إلى")}</p><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 text-sm" /></div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <button type="button" onClick={() => setOnly("all")} className={`rounded-md border p-3 text-start ${only === "all" ? "border-primary" : "border-border"}`} data-testid="filter-all">
           <p className="text-xs text-muted-foreground">{t("All rows", "كل الأسطر")}</p><p className="text-xl font-mono font-semibold">{rows.length}</p>
         </button>

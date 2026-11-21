@@ -13,6 +13,7 @@ import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeN
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 
 import type { OwnerEquityReport } from "@workspace/api-client-react";
+import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
 
 export default function OwnerEquity() {
   // M20.1 — the report does not mount until its default window is known, so a
@@ -36,7 +37,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             {t("Change in Owner Equity Statement", "قائمة التغير في حقوق الملكية")}
@@ -50,11 +51,11 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">
-          <div className="flex items-end gap-4">
+          <ReportFilterRow>
             <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
-          </div>
+          </ReportFilterRow>
           <div className="mt-3">
             <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
           </div>
@@ -62,7 +63,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             [t("Opening Equity", "حقوق الملكية الافتتاحية"), fmtNum(data.openingEquity), "text-primary"],
             [t("Net Income / (Loss)", "صافي الدخل / (الخسارة)"), fmtNum(data.netIncome), data.netIncome >= 0 ? "text-positive" : "text-negative"],
@@ -116,7 +117,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
                 "mt-6 p-4 rounded-lg border",
                 data.closingEquity >= 0 ? "border-positive-surface/30 bg-positive-surface/5" : "border-negative-surface/30 bg-negative-surface/5"
               )}>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                   <span className={cn("font-bold text-sm uppercase tracking-wide", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>{t("Closing Equity", "حقوق الملكية الختامية")}</span>
                   <span className={cn("font-mono font-bold text-2xl", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>{fmtNum(data.closingEquity)}</span>
                 </div>

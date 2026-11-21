@@ -49,7 +49,7 @@ export function AdvancesSection({ batchId, editable }: { batchId: number; editab
           {can && <Button size="sm" onClick={() => setImporting(true)} data-testid="advances-import"><Upload className="w-3.5 h-3.5 me-1" />{t("Import advances", "استيراد الدفعات المقدمة")}</Button>}
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {[[t("Advances", "الدفعات"), String(s.rows)], [t("Customers", "العملاء"), String(s.customers)], [t("Total", "الإجمالي"), <Money key="t" v={s.total} />], [t("VAT position unknown", "موقف ضريبي غير معروف"), String(s.unknown), s.unknown > 0 ? "text-attention" : ""]].map(([l, v, c], i) => (
           <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-lg font-semibold font-mono ${c ?? ""}`}>{v}</div></CardContent></Card>
         ))}
