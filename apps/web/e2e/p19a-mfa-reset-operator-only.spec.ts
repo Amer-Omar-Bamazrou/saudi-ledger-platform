@@ -2,11 +2,12 @@ import { test, expect, request as pwRequest, type APIRequestContext, type Browse
 import { fitsAtPhoneWidth } from "./phoneFit";
 
 /**
- * 🔴 Phase 19A follow-up (owner, 2026-11-20) — who resets a second factor, CLICKED, in Arabic at 390 px:
- *   - an admin resets a member's two-step verification from the Users page: the member's factor is gone and their
- *     session ends;
- *   - the admin's own row offers the same control, and the server's refusal is shown in Arabic (explain, never hide);
- *   - the operator's card shows the platform's refusal in Arabic while the organization has an admin who can do it.
+ * 🔴 Phase 19A — who resets a second factor (the owner's MFA policy of 2026-11-17, restored 2026-11-21), CLICKED, in
+ * Arabic at 390 px:
+ *   - the Users page offers an admin NO way to reset anyone's two-step verification — no control on any row, their own
+ *     included — and every row fits the phone (the row's controls take their own line: e2e/phoneFit.ts);
+ *   - the platform operator's card resets a member of an organization that HAS an admin: the member's factor is gone,
+ *     their session ends, and the card says how the person is told.
  * Its OWN tenant and operator, removed afterwards. Factors are planted as rows (a reset never opens the secret).
  */
 
@@ -110,51 +111,41 @@ async function open(browser: Browser, state: APIRequestContext, path: string): P
 /** Nothing clipped sideways at 390 px: the document, the app's content area, an open dialog (e2e/phoneFit.ts). */
 const fits = (page: Page) => fitsAtPhoneWidth(page);
 
-test.describe.serial("Phase 19A follow-up — who resets a second factor", () => {
-  test("🔴 an admin resets a member's two-step verification from the Users page; the factor goes and the member's session ends", async ({ browser }) => {
+test.describe.serial("Phase 19A — only the platform operator resets a second factor", () => {
+  test("🔴 the Users page offers an admin no way to reset anyone's two-step verification; every row fits at 390 px", async ({ browser }) => {
+    const { page, close } = await open(browser, admin, "/users");
+    for (const id of [ids.admin, ids.member, ids.member2]) {
+      await expect(page.getByTestId(`user-row-${id}`), "anti-vacuity: the row is on the page").toBeVisible();
+    }
+    await expect(page.locator('[data-testid^="user-mfa-reset-"]'), "no reset control, on any row").toHaveCount(0);
+    await expect(page.getByLabel("إعادة تعيين التحقق بخطوتين"), "under any name").toHaveCount(0);
+    await expect(page.getByTitle("إعادة تعيين التحقق بخطوتين")).toHaveCount(0);
+    // the row's other controls are still offered, and reachable at phone width (the wrap fix this check found)
+    await expect(page.getByTestId(`user-row-${ids.member}`).locator("select")).toBeVisible();
+    await page.getByTestId(`user-row-${ids.member2}`).scrollIntoViewIfNeeded();
+    await fits(page);
+    await close();
+    expect(await factorRows(ids.member!), "nothing changed").toBe(1);
+  });
+
+  test("🔴 the operator resets a member of an organization that has an admin; the factor goes and the member's session ends", async ({ browser }) => {
     expect((await member.get("/api/auth/me")).status(), "anti-vacuity: the member's session exists before the reset").toBe(200);
     expect(await factorRows(ids.member!)).toBe(1);
-    const { page, close } = await open(browser, admin, "/users");
-    const control = page.getByTestId(`user-mfa-reset-${ids.member}`);
-    await control.scrollIntoViewIfNeeded();
-    await fits(page);
-    await control.click();
-    const dialog = page.getByTestId("user-mfa-reset-dialog");
-    await expect(dialog).toContainText("لمن فقد تطبيق المصادقة ورموز الاسترداد");
-    await fits(page);
-    await dialog.getByTestId("user-mfa-reset-confirm").click();
-    await expect(dialog.getByTestId("user-mfa-reset-result")).toContainText("تمت إعادة التعيين");
-    await expect(dialog.getByTestId("user-mfa-reset-result")).toContainText("سيراه الشخص عند دخوله التالي");
+    const { page, close } = await open(browser, op, "/operator");
+    const card = page.getByTestId("operator-mfa-reset");
+    await card.scrollIntoViewIfNeeded();
+    await card.getByTestId("mfa-reset-email").fill(MEMBER);
+    await card.getByTestId("mfa-reset-basis").fill("مكالمة مرئية ومطابقة الهوية الوطنية");
+    await card.getByTestId("mfa-reset-verified").check();
+    await card.getByTestId("mfa-reset-submit").click();
+    await expect(card.getByTestId("mfa-reset-result")).toContainText("تمت إعادة التعيين");
+    await expect(card.getByTestId("mfa-reset-result")).toContainText("سيراه الشخص عند دخوله التالي");
+    await expect(card, "the card does not send the operator to the organization's admins").not.toContainText("فقط إذا لم يستطع ذلك أي مسؤول");
     await fits(page);
     await close();
     expect(await factorRows(ids.member!), "the factor is removed").toBe(0);
     expect((await member.get("/api/auth/me")).status(), "the member's session ended").toBe(401);
-  });
-
-  test("🔴 the admin's own row offers the control, and the refusal is explained in Arabic", async ({ browser }) => {
-    const { page, close } = await open(browser, admin, "/users");
-    const control = page.getByTestId(`user-mfa-reset-${ids.admin}`);
-    await control.scrollIntoViewIfNeeded();
-    await control.click();
-    const dialog = page.getByTestId("user-mfa-reset-dialog");
-    await dialog.getByTestId("user-mfa-reset-confirm").click();
-    await expect(dialog.getByTestId("user-mfa-reset-error")).toContainText("لا يمكنك إعادة تعيين التحقق بخطوتين لحسابك");
-    await fits(page);
-    await close();
-  });
-
-  test("🔴 the operator is refused by name, in Arabic, while the organization has an admin who can reset", async ({ browser }) => {
-    const { page, close } = await open(browser, op, "/operator");
-    const card = page.getByTestId("operator-mfa-reset");
-    await card.scrollIntoViewIfNeeded();
-    await expect(card).toContainText("فقط إذا لم يستطع ذلك أي مسؤول في منشأة الشخص");
-    await card.getByTestId("mfa-reset-email").fill(MEMBER2);
-    await card.getByTestId("mfa-reset-basis").fill("مكالمة مرئية ومطابقة الهوية الوطنية");
-    await card.getByTestId("mfa-reset-verified").check();
-    await card.getByTestId("mfa-reset-submit").click();
-    await expect(card.getByTestId("mfa-reset-error")).toContainText("صفحة المستخدمين");
-    await fits(page);
-    await close();
-    expect(await factorRows(ids.member2!), "nothing changed").toBe(1);
+    // movement: the other member, nobody reset, keeps their factor
+    expect(await factorRows(ids.member2!)).toBe(1);
   });
 });

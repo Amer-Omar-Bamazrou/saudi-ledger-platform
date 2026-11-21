@@ -5,7 +5,6 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
-import type { MfaStatusLastResetBy } from './mfaStatusLastResetBy';
 import type { MfaStatusState } from './mfaStatusState';
 import type { MfaStatusStep } from './mfaStatusStep';
 
@@ -17,8 +16,6 @@ export interface MfaStatus {
   step: MfaStatusStep;
   recoveryCodesLeft: number;
   activatedAt: string | null;
-  /** When this account's factor was last reset */
+  /** When the platform last reset this account's factor */
   lastResetAt: string | null;
-  /** Who reset it: an admin of the person's organization, or the platform */
-  lastResetBy: MfaStatusLastResetBy;
 }

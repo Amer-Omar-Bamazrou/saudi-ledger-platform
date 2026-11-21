@@ -1022,14 +1022,14 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "19A-M",
-    title: "Two-step verification: a session owes what its password did not prove (the code of an enrolled factor, or enrolment for a platform operator or an organization admin) and reaches nothing else until then, a break-glass password included; the secret is sealed and shown once; a code is accepted once and attempts are limited per account; recovery codes are single-use hashes; an organization admin resets another member's factor (never their own, never an account that also belongs elsewhere), and a platform operator, stating the identity check, only when no admin can; for 30 days the reset account approves no held bank-detail change (Phase 19A, 19.1-19.3, migration 0166; owner 2026-11-20; internal controls of the platform)",
+    title: "Two-step verification: a session owes what its password did not prove (the code of an enrolled factor, or enrolment for a platform operator or an organization admin) and reaches nothing else until then, a break-glass password included; the secret is sealed and shown once; a code is accepted once and attempts are limited per account; recovery codes are single-use hashes; only a platform operator resets a factor (an org admin has no path to it), stating the identity check, and only an active one; for 30 days the reset account approves no held bank-detail change (Phase 19A, 19.1-19.3, migration 0166; the owner's MFA policy, 2026-11-17, restored 2026-11-21; internal controls of the platform)",
     answers: [],
     type: "preventive",
     activation: ALWAYS,
     refusalCodes: [
       "mfa_code_required", "mfa_enrolment_required", "mfa_code_invalid", "mfa_recovery_code_invalid", "mfa_already_active",
       "mfa_not_enrolling", "mfa_reset_identity_unverified", "mfa_reset_own_refused", "bank_detail_approver_mfa_reset",
-      "mfa_reset_admin_only", "mfa_reset_account_shared", "mfa_reset_admin_available", "mfa_not_set_up",
+      "mfa_not_set_up",
     ],
     points: [
       trigger("user_mfa_factors", "user_mfa_factors_guard"),
@@ -1038,9 +1038,8 @@ export const CONTROLS: readonly Control[] = [
       check("user_mfa_factors", "user_mfa_factors_activated_chk"),
       code(`${API}/lib/auth.ts`, "refuseUntilSecondFactor"),
       code(`${API}/services/mfa.service.ts`, "stepAfterPassword"),
-      code(`${API}/services/mfa.service.ts`, "adminResetScope"),
     ],
-    provingTests: ["phase19a-mfa.test.ts", "phase19a-admin-mfa-reset.test.ts"],
+    provingTests: ["phase19a-mfa.test.ts", "phase19a-mfa-reset-operator-only.test.ts"],
   },
   {
     id: "19A-P",
