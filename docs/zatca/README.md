@@ -122,10 +122,14 @@ silent edit:
   law to provide to employees at the workplace is deductible. Treated as always
   blocked: `vat-blocked-input.test.ts`, `VatReport.tsx`, `FOOD_MEALS` in
   `schema/categories.ts`, C9 in the known-issues file, migration `0048`.
-- **Art. 40(10)** (bad-debt relief: the twelve months count from the month after
-  the supply's, reported in the return for the month they end, financing
-  contracts excepted): the Batch 1C pack's "twelve months from the date of
-  Supply".
+- **Art. 40(10)–(11)** (the BUYER's reversal of input VAT on a purchase still
+  not paid in full twelve months after the month following the supply's month,
+  reported in the return for the month they end, financing contracts excepted;
+  restored in the period of a later payment or after, 40(11)) — not bad-debt
+  relief, which is the SELLER's, Art. 40(7)(c), unamended and still counted from
+  the supply date: the Batch 1C pack's "twelve months from the date of Supply".
+  🔴 The platform never makes the reversal (CLAUDE.md §5; advisor Blocks L3
+  and M).
 - **Art. 9(5)** (Res. 1-4-23: a government body acts outside economic activity
   only when three conditions hold) — the GOVT_FEES reasoning that "no
   sovereign-capacity article exists" (`docs/tax/gcc-framework-verification.md`,
