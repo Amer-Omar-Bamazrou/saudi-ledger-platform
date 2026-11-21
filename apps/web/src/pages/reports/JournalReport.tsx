@@ -74,7 +74,7 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
           {[[t("Entries", "القيود"), data.count, "text-primary"], [t("Total Debits", "إجمالي المدين"), fmtNum(data.grandDebit), "text-info"], [t("Total Credits", "إجمالي الدائن"), fmtNum(data.grandCredit), "text-positive"]].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-xl font-bold font-mono [overflow-wrap:anywhere] ${c}`}>{v}</div></CardContent>
+              <CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent>
             </Card>
           ))}
         </div>

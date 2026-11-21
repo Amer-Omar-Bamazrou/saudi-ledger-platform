@@ -205,10 +205,10 @@ export default function CustomerStatement() {
                         <span className="font-mono">{money(l.amount)}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">{l.description}</p>
-                      <div className="grid grid-cols-3 gap-2 text-xs pt-1 border-t border-border/50">
-                        <div className="min-w-0"><p className="text-muted-foreground">{t("AR", "الذمم")}</p><p className="font-mono [overflow-wrap:anywhere]">{money(l.receivable)}</p></div>
-                        <div className="min-w-0"><p className="text-muted-foreground">{t("Credits", "أرصدة دائنة")}</p><p className="font-mono [overflow-wrap:anywhere]">{money(l.creditBalance)}</p></div>
-                        <div className="min-w-0"><p className="text-muted-foreground">{t("Deposits", "عرابين")}</p><p className="font-mono [overflow-wrap:anywhere]">{money(l.depositBalance)}</p></div>
+                      <div className="space-y-1 text-xs pt-1 border-t border-border/50">
+                        <div className="flex flex-wrap justify-between gap-x-2"><p className="text-muted-foreground">{t("AR", "الذمم")}</p><p className="font-mono">{money(l.receivable)}</p></div>
+                        <div className="flex flex-wrap justify-between gap-x-2"><p className="text-muted-foreground">{t("Credits", "أرصدة دائنة")}</p><p className="font-mono">{money(l.creditBalance)}</p></div>
+                        <div className="flex flex-wrap justify-between gap-x-2"><p className="text-muted-foreground">{t("Deposits", "عرابين")}</p><p className="font-mono">{money(l.depositBalance)}</p></div>
                       </div>
                     </div>
                   );

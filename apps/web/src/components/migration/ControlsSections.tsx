@@ -91,7 +91,7 @@ export function ValidationSection({ batch }: { batch: MigrationBatchDetail }) {
         </div>
         {editable && canRun && <Button size="sm" disabled={run.isPending} onClick={() => run.mutate()} data-testid="run-validation"><ShieldCheck className="w-3.5 h-3.5 me-1" />{run.isPending ? t("Validating…", "جارٍ التحقق…") : validation ? t("Validate again", "إعادة التحقق") : t("Run validation", "تشغيل التحقق")}</Button>}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {[[t("Blocking", "محظور"), s.blocking, s.blocking > 0 ? "text-negative" : "text-positive"], [t("Warnings", "تحذيرات"), s.warnings, s.warnings > 0 ? "text-attention" : ""], [t("Passed", "ناجح"), s.passed, "text-positive"], [t("Last run", "آخر تشغيل"), validation?.at ? new Date(validation.at).toLocaleString(lang === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-SA") : t("never", "لم يُشغَّل")]].map(([l, v, c], i) => (
           <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-base font-semibold ${c ?? ""}`} data-testid={`validation-kpi-${i}`}>{v}</div></CardContent></Card>
         ))}
@@ -146,7 +146,7 @@ export function ReconciliationSection({ batch }: { batch: MigrationBatchDetail }
           <div className="space-y-2" data-testid="reconciliation-checks">{rec.checks.map((c) => <CheckRow key={c.id} c={c} />)}</div>
           {figures && (
             <Card><CardHeader className="pb-2"><CardTitle className="text-sm">{t("Committed figures", "الأرقام المعتمدة")}</CardTitle></CardHeader><CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-sm">{Object.entries(figures).map(([k, v]) => <div key={k} className="rounded border border-border/60 p-2"><p className="text-[11px] text-muted-foreground font-mono">{k}</p><Money v={v} /></div>)}</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-sm">{Object.entries(figures).map(([k, v]) => <div key={k} className="rounded border border-border/60 p-2"><p className="text-[11px] text-muted-foreground font-mono">{k}</p><Money v={v} /></div>)}</div>
             </CardContent></Card>
           )}
         </>

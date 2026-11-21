@@ -59,7 +59,7 @@ export default function InvoiceDetail() {
     <div className="space-y-4 max-w-3xl mx-auto" data-testid="invoice-detail">
       {back}
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold font-mono [overflow-wrap:anywhere] break-all">{inv.invoiceNumber}</h1>
+        <h1 className="text-2xl font-bold font-mono break-all">{inv.invoiceNumber}</h1>
         <Badge variant="outline" data-testid="invoice-detail-status">{statusLabel(inv.status, lang)}</Badge>
       </div>
 

@@ -156,7 +156,7 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
           </Button>
         )}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <Fact k={t("Invoiced (VAT declared)", "صدرت فاتورته (الضريبة مقرَّرة)")} v={<span className="font-mono">{fmtNum(payment.advanceInvoicedAmount)}</span>} testId={`advance-invoiced-${payment.id}`} />
         <Fact k={t("Applied on final invoices", "طُبِّق على فواتير نهائية")} v={<span className="font-mono">{fmtNum(payment.advanceAdjustedAmount)}</span>} testId={`advance-adjusted-${payment.id}`} />
         <Fact k={t("Awaiting the final invoice", "بانتظار الفاتورة النهائية")} v={<span className="font-mono text-info">{fmtNum(payment.advanceOpenAmount)}</span>} testId={`advance-open-${payment.id}`} />
@@ -279,7 +279,7 @@ export function PaymentDetail({ payment, customerName, invoiceNumbers }: { payme
           <p className="text-xs uppercase text-muted-foreground">{t("Payment", "الدفعة")}</p>
           <PaymentStateBadge p={payment} />
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <Fact k={t("Receipt", "الإيصال")} v={<span className="font-mono">{number}</span>} />
           <Fact k={t("Customer", "العميل")} v={customerName} />
           <Fact k={t("Received on", "تاريخ الاستلام")} v={<DualDate date={payment.paidAt} inline />} />

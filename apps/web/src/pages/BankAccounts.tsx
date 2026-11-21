@@ -112,10 +112,10 @@ export default function BankAccounts() {
           : t("No account is set to appear on invoices — invoices you issue will carry no bank details until you choose one below.", "لم يُحدَّد حساب للظهور على الفواتير — ستصدر الفواتير بدون بيانات بنكية حتى تختار حسابًا أدناه.")}
       </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Cash (SAR)", "إجمالي النقد (ر.س)")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere]" data-testid="total-ledger-balance">{totalBalance == null ? "—" : fmtNum(totalBalance)}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Accounts", "الحسابات")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere] text-primary">{accounts.length}</div></CardContent></Card>
-        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Banks", "البنوك")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere] text-foreground">{new Set(accounts.map(a=>a.bankName)).size}</div></CardContent></Card>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Total Cash (SAR)", "إجمالي النقد (ر.س)")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono" data-testid="total-ledger-balance">{totalBalance == null ? "—" : fmtNum(totalBalance)}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Accounts", "الحسابات")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-primary">{accounts.length}</div></CardContent></Card>
+        <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t("Banks", "البنوك")}</CardTitle></CardHeader><CardContent><div className="text-xl sm:text-2xl font-bold font-mono text-foreground">{new Set(accounts.map(a=>a.bankName)).size}</div></CardContent></Card>
       </div>
 
       {isLoading ? <div className="text-muted-foreground text-sm p-4">{t("Loading...", "جارٍ التحميل...")}</div> : accounts.length === 0 ? (

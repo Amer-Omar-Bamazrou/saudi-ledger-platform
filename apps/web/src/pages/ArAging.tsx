@@ -69,12 +69,12 @@ export default function ArAging() {
 
       {data && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
             {Object.entries(BUCKET_LABELS).map(([key, label]) => (
               <Card key={key} className="border-border bg-card">
                 <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{t(label.en, label.ar)}</CardTitle></CardHeader>
                 <CardContent>
-                  <div className={`text-lg font-bold font-mono [overflow-wrap:anywhere] ${BUCKET_COLORS[key]}`}>{fmtNum((data.buckets as any)[key] ?? 0)}</div>
+                  <div className={`text-lg font-bold font-mono ${BUCKET_COLORS[key]}`}>{fmtNum((data.buckets as any)[key] ?? 0)}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {((((data.buckets as any)[key] ?? 0) / (data.total || 1)) * 100).toFixed(0)}%
                   </div>

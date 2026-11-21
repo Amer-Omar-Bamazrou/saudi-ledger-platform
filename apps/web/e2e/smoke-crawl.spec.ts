@@ -298,3 +298,34 @@ test.describe("every route fits a 390 px phone, in Arabic", () => {
     }
   });
 });
+
+/**
+ * 🔴 A KPI FIGURE IN THE HUNDREDS OF MILLIONS STAYS ON ONE LINE AT 360 PX (owner, 2026-11-21). The phone-fit tenant's
+ * balance sheet totals are planted that large; the figure must be whole (never broken between digits), inside its
+ * card, and the page must fit. 360 px is narrower than the 390 px every route is measured at: the margin.
+ */
+test.describe("a nine-figure KPI at 360 px", () => {
+  test.use({ storageState: E2E_PHONE.state, viewport: { width: 360, height: 800 }, locale: "ar-SA" });
+  test("the balance sheet's total assets is one unbroken figure inside its card", async ({ page }) => {
+    await openInArabic(page, "/balance-sheet");
+    const kpi = page.getByTestId("bs-kpi-assets");
+    await expect(kpi).toBeVisible();
+    const m = await kpi.evaluate((el) => {
+      const text = (el.textContent ?? "").trim();
+      const digits = /\d[\d,]*\.\d{2}/.exec(text);
+      const node = Array.from(el.childNodes).find((n) => n.nodeType === Node.TEXT_NODE && digits && (n.nodeValue ?? "").includes(digits[0])) ?? el.firstChild!;
+      const range = document.createRange();
+      const at = (node.nodeValue ?? "").indexOf(digits?.[0] ?? "");
+      range.setStart(node, Math.max(at, 0));
+      range.setEnd(node, Math.max(at, 0) + (digits?.[0].length ?? 0));
+      const lines = new Set(Array.from(range.getClientRects()).filter((r) => r.width > 0).map((r) => Math.round(r.top))).size;
+      const card = el.closest(".rounded-lg")!.getBoundingClientRect();
+      const box = range.getBoundingClientRect();
+      return { text, value: Number((digits?.[0] ?? "0").replace(/,/g, "")), lines, inside: box.left >= card.left && box.right <= card.right };
+    });
+    expect(m.value, `anti-vacuity: the planted total is in the hundreds of millions (${m.text})`).toBeGreaterThanOrEqual(100_000_000);
+    expect(m.lines, `the amount ${m.text} is on one line`).toBe(1);
+    expect(m.inside, "and inside its card").toBe(true);
+    await fitsAtPhoneWidth(page, "/balance-sheet at 360 px");
+  });
+});

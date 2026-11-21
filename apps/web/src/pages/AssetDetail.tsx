@@ -205,7 +205,7 @@ export default function AssetDetail() {
         </CardContent></Card>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {facts.map(([l, v, id]) => (
           <Card key={id} className="border-border bg-card"><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className="text-sm font-semibold font-mono" data-testid={id}>{v}</div></CardContent></Card>
         ))}

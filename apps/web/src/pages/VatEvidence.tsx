@@ -262,7 +262,7 @@ export default function VatEvidence() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
           [t("Documents held", "المستندات المعلّقة"), all ? String(all.page.total) : "—", "held-count"],
           [t("VAT not claimed while held", "ضريبة لم تُخصم أثناء التعليق"), all ? fmtNum(all.totals.heldVat) : "—", "held-vat"],
@@ -271,7 +271,7 @@ export default function VatEvidence() {
         ].map(([l, v, id]) => (
           <Card key={id} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className="text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere]" data-testid={id} dir="ltr">{v}</div></CardContent>
+            <CardContent><div className="text-xl sm:text-2xl font-bold font-mono" data-testid={id} dir="ltr">{v}</div></CardContent>
           </Card>
         ))}
       </div>

@@ -84,7 +84,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[
             [t("Account", "الحساب"), data.account.name, "text-primary"],
             [t("Opening Balance", "الرصيد الافتتاحي"), fmtNum(data.openingBalance), data.openingBalance >= 0 ? "text-info" : "text-negative"],
@@ -93,7 +93,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-lg font-bold font-mono [overflow-wrap:anywhere] ${c} truncate`}>{v}</div></CardContent>
+              <CardContent><div className={`text-lg font-bold font-mono ${c} truncate`}>{v}</div></CardContent>
             </Card>
           ))}
         </div>

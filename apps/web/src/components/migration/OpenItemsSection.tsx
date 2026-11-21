@@ -83,7 +83,7 @@ export function OpenItemsSection({ batchId, editable, side, openingDate, committ
           {can && <Button size="sm" onClick={() => setImporting(true)} data-testid={`${side}-import`}><Upload className="w-3.5 h-3.5 me-1" />{t("Import open items", "استيراد البنود المفتوحة")}</Button>}
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {[[t("Items", "البنود"), String(s.items)], [t("Parties", "الأطراف"), String(s.parties)], [t("Total outstanding", "إجمالي المتبقي"), <Money key="t" v={s.total} />], [t("Composition unknown", "التكوين غير معروف"), String(s.compositionUnknown)]].map(([l, v], i) => (
           <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className="text-lg font-semibold font-mono" data-testid={`${side}-kpi-${i}`}>{v}</div></CardContent></Card>
         ))}

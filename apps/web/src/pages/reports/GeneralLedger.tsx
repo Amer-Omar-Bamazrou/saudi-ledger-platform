@@ -169,7 +169,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
               </Button>
             </div>
           )}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             {[
               [t("Account", "الحساب"), n(data.accountName, data.accountNameAr), "text-primary", "gl-kpi-account"],
               [t("Opening Balance", "الرصيد الافتتاحي"), fmtNum(data.openingBalance), "text-primary", "gl-kpi-opening"],
@@ -178,7 +178,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
             ].map(([l, v, c, id]) => (
               <Card key={String(l)} className="border-border bg-card">
                 <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-                <CardContent><div className={cn("text-lg font-bold font-mono [overflow-wrap:anywhere] truncate", c)} data-testid={id}>{v}</div></CardContent>
+                <CardContent><div className={cn("text-lg font-bold font-mono truncate", c)} data-testid={id}>{v}</div></CardContent>
               </Card>
             ))}
           </div>

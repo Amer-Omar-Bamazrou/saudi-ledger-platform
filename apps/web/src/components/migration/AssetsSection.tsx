@@ -52,7 +52,7 @@ export function AssetsSection({ batchId, editable }: { batchId: number; editable
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {[[t("Assets", "الأصول"), String(s.assets)], [t("Cost", "التكلفة"), <Money key="c" v={s.cost} />], [t("Accumulated depreciation", "مجمع الإهلاك"), <Money key="a" v={s.accumulated} />], [t("Net book value", "صافي القيمة الدفترية"), <Money key="n" v={s.netBookValue} />]].map(([l, v], i) => (
           <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className="text-lg font-semibold font-mono" data-testid={`assets-kpi-${i}`}>{v}</div></CardContent></Card>
         ))}

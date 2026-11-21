@@ -106,7 +106,7 @@ export function CommitSection({ batch, companyName }: { batch: MigrationBatchDet
             ]} />
           </CardContent>
         </Card>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="created-counts">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="created-counts">
           {[[t("Customers", "العملاء"), counts.customers, "/customers"], [t("Suppliers", "الموردون"), counts.vendors, "/vendors"], [t("Opening receivables", "الذمم المدينة الافتتاحية"), counts.ar, "/invoices"], [t("Opening bills", "الفواتير الافتتاحية"), counts.ap, "/bills"], [t("Deposits", "الدفعات المقدمة"), counts.advances, "/payments"], [t("Bank accounts", "الحسابات البنكية"), counts.banks, "/bank-accounts"]].map(([l, v, href], i) => (
             <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className="text-lg font-semibold font-mono">{v}</div><Link href={String(href)} className="text-xs text-primary">{t("Open →", "فتح ←")}</Link></CardContent></Card>
           ))}
