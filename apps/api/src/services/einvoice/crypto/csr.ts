@@ -48,6 +48,7 @@ import {
 import { Attributes, CertificationRequest, CertificationRequestInfo } from "@peculiar/asn1-csr";
 import { createSign, type KeyObject } from "crypto";
 import { assertZatcaCurve } from "./keys";
+import { pemArmour } from "./pem";
 
 const OID = {
   commonName: "2.5.4.3",
@@ -195,6 +196,5 @@ export function buildZatcaCsr(
 }
 
 function toPem(der: Buffer, label: string): string {
-  const b64 = der.toString("base64").replace(/(.{64})/g, "$1\n");
-  return `-----BEGIN ${label}-----\n${b64}${b64.endsWith("\n") ? "" : "\n"}-----END ${label}-----\n`;
+  return pemArmour(label, der.toString("base64"));
 }

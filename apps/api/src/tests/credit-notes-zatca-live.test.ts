@@ -36,6 +36,7 @@ import { generateZatcaKeyPair } from "../services/einvoice/crypto/keys";
 import { buildZatcaCsr } from "../services/einvoice/crypto/csr";
 import { createApproved } from "./helpers/createApproved";
 import { replica } from "./helpers/replica";
+import { tokenToPem } from "../services/einvoice/onboarding/zatcaOnboardingClient";
 
 const BASE =
   process.env.ZATCA_SANDBOX_BASE ?? "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal";
@@ -127,8 +128,8 @@ async function obtainCsid(): Promise<void> {
   if (res.status !== 200 || !body.binarySecurityToken) {
     throw new Error(`no compliance CSID: ${res.status}`);
   }
-  const inner = Buffer.from(body.binarySecurityToken, "base64").toString();
-  certPem = `-----BEGIN CERTIFICATE-----\n${inner.replace(/(.{64})/g, "$1\n")}\n-----END CERTIFICATE-----\n`;
+  // the production conversion (one definition; it never leaves a blank line — tests/zatca-pem-wrap.test.ts)
+  certPem = tokenToPem(body.binarySecurityToken);
   auth = "Basic " + Buffer.from(`${body.binarySecurityToken}:${body.secret}`).toString("base64");
 }
 

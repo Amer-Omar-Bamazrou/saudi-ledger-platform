@@ -7,6 +7,7 @@
  */
 import { loadEnv } from "@workspace/config";
 import type { ZatcaEnvironment } from "@workspace/db";
+import { pemArmour } from "../crypto/pem";
 
 const HOST = "https://gw-fatoora.zatca.gov.sa/e-invoicing";
 
@@ -62,10 +63,12 @@ function apiError(message: string, httpStatus: number | null, body: unknown): Za
   return Object.assign(new Error(message), { httpStatus, body: sanitizeBody(body) }) as ZatcaApiError;
 }
 
-/** ZATCA returns base64(base64(DER)); unwrap one layer and PEM-wrap the rest. */
+/**
+ * ZATCA returns base64(base64(DER)); unwrap one layer and PEM-wrap the rest — through the one armour (crypto/pem.ts),
+ * which never leaves the blank line a multiple-of-64 certificate used to get (signing refused it, 2026-11-21).
+ */
 export function tokenToPem(binarySecurityToken: string): string {
-  const inner = Buffer.from(binarySecurityToken, "base64").toString();
-  return `-----BEGIN CERTIFICATE-----\n${inner.replace(/(.{64})/g, "$1\n")}\n-----END CERTIFICATE-----\n`;
+  return pemArmour("CERTIFICATE", Buffer.from(binarySecurityToken, "base64").toString());
 }
 
 export function basicAuth(binarySecurityToken: string, secret: string): string {

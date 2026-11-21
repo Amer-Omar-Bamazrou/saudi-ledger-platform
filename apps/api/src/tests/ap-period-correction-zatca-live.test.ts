@@ -37,6 +37,7 @@ import { badDebtService } from "../services/badDebt.service";
 import { SELLER, advanceInvoice, standardInvoice } from "../services/einvoice/__fixtures__/sampleInput";
 import { createApproved } from "./helpers/createApproved";
 import type { EInvoiceInput } from "../services/einvoice/types";
+import { tokenToPem } from "../services/einvoice/onboarding/zatcaOnboardingClient";
 
 const BASE = process.env.ZATCA_SANDBOX_BASE ?? "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal";
 const LIVE_DISABLED = process.env.ZATCA_LIVE_TESTS === "0";
@@ -63,8 +64,8 @@ async function obtainCsid(): Promise<void> {
   const res = await fetch(`${BASE}/compliance`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", "Accept-Version": "V2", OTP: "123456" }, body: JSON.stringify({ csr: Buffer.from(csrPem, "utf8").toString("base64") }) });
   const body = (await res.json()) as Record<string, string>;
   if (res.status !== 200 || body.dispositionMessage !== "ISSUED") throw new Error(`compliance CSID not issued: ${res.status}`);
-  const inner = Buffer.from(body.binarySecurityToken, "base64").toString();
-  certPem = `-----BEGIN CERTIFICATE-----\n${inner.replace(/(.{64})/g, "$1\n")}\n-----END CERTIFICATE-----\n`;
+  // the production conversion (one definition; it never leaves a blank line — tests/zatca-pem-wrap.test.ts)
+  certPem = tokenToPem(body.binarySecurityToken);
   auth = "Basic " + Buffer.from(`${body.binarySecurityToken}:${body.secret}`).toString("base64");
 }
 
