@@ -175,7 +175,7 @@ export default function Assets() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[[t("In service", "في الخدمة"), String(totals?.inService ?? 0), "text-primary", "kpi-in-service"], [t("Cost", "التكلفة"), fmtNum(totals?.cost ?? 0), "text-foreground", "kpi-cost"], [t("Accumulated depreciation", "مجمع الإهلاك"), fmtNum(totals?.accumulatedDepreciation ?? 0), "text-muted-foreground", "kpi-accumulated"], [t("Carrying amount", "القيمة الدفترية"), fmtNum(totals?.carryingAmount ?? 0), "text-attention", "kpi-carrying"]].map(([l, v, c, id]) => (
-          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`} data-testid={id}>{v}</div></CardContent></Card>
+          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono [overflow-wrap:anywhere] ${c}`} data-testid={id}>{v}</div></CardContent></Card>
         ))}
       </div>
 

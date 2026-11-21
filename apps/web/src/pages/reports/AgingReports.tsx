@@ -49,7 +49,7 @@ function AgingTable({ data, type }: { data: AgingView; type: "ar" | "ap" }) {
         {BUCKET_LABELS.map(b => (
           <Card key={b.key} className="border-border bg-card">
             <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{t(b.en, b.ar)}</CardTitle></CardHeader>
-            <CardContent><div className={cn("text-lg font-bold font-mono", b.color)}>{fmtNum(data.buckets[b.key])}</div></CardContent>
+            <CardContent><div className={cn("text-lg font-bold font-mono [overflow-wrap:anywhere]", b.color)}>{fmtNum(data.buckets[b.key])}</div></CardContent>
           </Card>
         ))}
       </div>

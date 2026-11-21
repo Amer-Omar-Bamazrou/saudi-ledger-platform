@@ -610,7 +610,7 @@ export default function Invoices() {
           [t("Collected", "المحصّل"), totals ? fmtNum(totals.collected) : "—", "text-positive"],
           [t("Overdue", "متأخر"), totals?.overdue ?? "—", "text-negative"],
         ].map(([l,v,c])=>(
-          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
+          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere] ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
 

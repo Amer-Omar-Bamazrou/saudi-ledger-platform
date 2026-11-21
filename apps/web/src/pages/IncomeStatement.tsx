@@ -193,7 +193,7 @@ function IncomeStatementInner({ range }: { range: ReportDefaultRange }) {
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent>
+              <CardContent><div className={`text-xl font-bold font-mono [overflow-wrap:anywhere] ${c}`}>{v}</div></CardContent>
             </Card>
           ))}
         </div>

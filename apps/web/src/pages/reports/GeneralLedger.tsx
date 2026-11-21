@@ -178,7 +178,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
             ].map(([l, v, c, id]) => (
               <Card key={String(l)} className="border-border bg-card">
                 <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-                <CardContent><div className={cn("text-lg font-bold font-mono truncate", c)} data-testid={id}>{v}</div></CardContent>
+                <CardContent><div className={cn("text-lg font-bold font-mono [overflow-wrap:anywhere] truncate", c)} data-testid={id}>{v}</div></CardContent>
               </Card>
             ))}
           </div>

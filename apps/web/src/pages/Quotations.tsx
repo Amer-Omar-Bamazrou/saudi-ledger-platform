@@ -314,7 +314,7 @@ export default function Quotations() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Converted and Expired are DERIVED — the server answers both, one
               from the conversion rows and one from `valid_until`. */}
           <Select value={statusFilter} onValueChange={applyFilter}>

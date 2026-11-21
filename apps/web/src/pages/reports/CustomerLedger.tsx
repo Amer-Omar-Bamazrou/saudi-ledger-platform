@@ -37,7 +37,7 @@ function CustomerRow({ cust }: { cust: CustomerLedgerCustomer }) {
           {cust.taxNumber && <span className="text-xs text-muted-foreground">{t("VAT:", "الرقم الضريبي:")} {cust.taxNumber}</span>}
           <Badge variant="outline" className="text-xs">{cust.invoices.length} {t(cust.invoices.length !== 1 ? "invoices" : "invoice", cust.invoices.length !== 1 ? "فواتير" : "فاتورة")}</Badge>
         </div>
-        <div className="flex items-center gap-6 text-sm font-mono">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-mono">
           <span className="text-muted-foreground">{t("Invoiced:", "المفوتر:")} <span className="text-foreground">{fmtNum(cust.totalInvoiced)}</span></span>
           <span className="text-muted-foreground">{t("Paid:", "المدفوع:")} <span className="text-positive">{fmtNum(cust.totalPaid)}</span></span>
           <span className="text-muted-foreground">{t("Balance:", "الرصيد:")} <span className={cust.balance > 0 ? "text-negative font-bold" : "text-positive"}>{fmtNum(cust.balance)}</span></span>
@@ -169,7 +169,7 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
+              <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere] ${c}`}>{v}</div></CardContent>
             </Card>
           ))}
         </div>

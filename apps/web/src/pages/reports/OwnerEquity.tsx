@@ -37,7 +37,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             {t("Change in Owner Equity Statement", "قائمة التغير في حقوق الملكية")}
@@ -63,7 +63,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             [t("Opening Equity", "حقوق الملكية الافتتاحية"), fmtNum(data.openingEquity), "text-primary"],
             [t("Net Income / (Loss)", "صافي الدخل / (الخسارة)"), fmtNum(data.netIncome), data.netIncome >= 0 ? "text-positive" : "text-negative"],
@@ -72,7 +72,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
           ].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent>
+              <CardContent><div className={`text-xl font-bold font-mono [overflow-wrap:anywhere] ${c}`}>{v}</div></CardContent>
             </Card>
           ))}
         </div>
@@ -117,7 +117,7 @@ function OwnerEquityInner({ range }: { range: ReportDefaultRange }) {
                 "mt-6 p-4 rounded-lg border",
                 data.closingEquity >= 0 ? "border-positive-surface/30 bg-positive-surface/5" : "border-negative-surface/30 bg-negative-surface/5"
               )}>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                   <span className={cn("font-bold text-sm uppercase tracking-wide", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>{t("Closing Equity", "حقوق الملكية الختامية")}</span>
                   <span className={cn("font-mono font-bold text-2xl", data.closingEquity >= 0 ? "text-positive" : "text-negative")}>{fmtNum(data.closingEquity)}</span>
                 </div>

@@ -548,12 +548,12 @@ export default function Bills() {
   return (
     <div className="space-y-6">
       {/* ── header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("Bills", "فواتير الموردين")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Vendor bills · Accounts Payable", "فواتير الموردين · الذمم الدائنة")}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {/*
             Scan Receipt — hidden on the demo, where POST /capture is refused
             at the route (D3). Capture is the one act a demo could make
@@ -805,7 +805,7 @@ export default function Bills() {
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
+            <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere] ${c}`}>{v}</div></CardContent>
           </Card>
         ))}
       </div>

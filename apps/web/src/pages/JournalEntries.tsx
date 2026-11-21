@@ -304,7 +304,7 @@ export default function JournalEntries() {
             <CardTitle className="text-sm text-muted-foreground">{t("Entries", "القيود")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold font-mono text-primary">
+            <div className="text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere] text-primary">
               {jePageInfo ? fmtCount(jePageInfo.total) : "—"}
             </div>
           </CardContent>

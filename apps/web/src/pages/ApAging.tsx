@@ -109,7 +109,7 @@ export default function ApAging() {
               <CardTitle className="text-xs text-muted-foreground">{t(BUCKET_LABELS[key].en, BUCKET_LABELS[key].ar)}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-xl font-bold font-mono ${BUCKET_COLORS[key]}`}>{fmtNum(totals[key])}</div>
+              <div className={`text-xl font-bold font-mono [overflow-wrap:anywhere] ${BUCKET_COLORS[key]}`}>{fmtNum(totals[key])}</div>
             </CardContent>
           </Card>
         ))}

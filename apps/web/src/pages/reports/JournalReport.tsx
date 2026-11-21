@@ -70,11 +70,11 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[[t("Entries", "القيود"), data.count, "text-primary"], [t("Total Debits", "إجمالي المدين"), fmtNum(data.grandDebit), "text-info"], [t("Total Credits", "إجمالي الدائن"), fmtNum(data.grandCredit), "text-positive"]].map(([l, v, c]) => (
             <Card key={String(l)} className="border-border bg-card">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-              <CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent>
+              <CardContent><div className={`text-xl font-bold font-mono [overflow-wrap:anywhere] ${c}`}>{v}</div></CardContent>
             </Card>
           ))}
         </div>
@@ -96,13 +96,13 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
           {data.entries.map(entry => (
             <Card key={entry.id} className="border-border bg-card">
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-xs text-primary font-semibold">{entry.entryNumber}</span>
-                    <span className="text-sm font-medium text-foreground">{entry.description}</span>
-                    {entry.reference && <span className="text-xs text-muted-foreground">· {entry.reference}</span>}
+                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+                    <span className="font-mono text-xs text-primary font-semibold [overflow-wrap:anywhere]">{entry.entryNumber}</span>
+                    <span className="text-sm font-medium text-foreground min-w-0 break-words">{entry.description}</span>
+                    {entry.reference && <span className="text-xs text-muted-foreground min-w-0 [overflow-wrap:anywhere]">· {entry.reference}</span>}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground"><DualDate date={entry.date} /></span>
                     <Badge variant="outline" className={`text-xs ${entry.balanced ? "border-positive-surface/30 text-positive" : "border-negative-surface/30 text-negative"}`}>
                       {entry.balanced ? t("✓ Balanced", "✓ متوازن") : t("✗ Unbalanced", "✗ غير متوازن")}

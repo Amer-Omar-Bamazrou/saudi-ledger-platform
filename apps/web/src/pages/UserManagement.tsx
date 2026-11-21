@@ -272,7 +272,7 @@ export default function UserManagement() {
                     <Icon className="w-4 h-4 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="text-xl sm:text-2xl font-bold font-mono text-foreground">{count}</p>
+                    <p className="text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere] text-foreground">{count}</p>
                     <p className="text-xs text-muted-foreground">{({ viewer: t("Viewers", "المشاهدون"), bookkeeper: t("Bookkeepers", "مدخلو البيانات"), accountant: t("Accountants", "المحاسبون"), admin: t("Admins", "المسؤولون") } as Record<string, string>)[role] ?? role}</p>
                   </div>
                 </div>

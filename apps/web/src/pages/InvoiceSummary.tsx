@@ -14,6 +14,7 @@ import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import type { Invoice, ListInvoices200 } from "@workspace/api-client-react";
+import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -79,12 +80,12 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4 pb-4">
-          <div className="flex gap-4 items-end">
+          <ReportFilterRow>
             <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label>
               <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label>
               <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-          </div>
+          </ReportFilterRow>
           <div className="mt-3">
             <PeriodShortcuts from={from} to={to} onSelect={(r)=>{setFrom(r.from);setTo(r.to);}} />
           </div>
@@ -105,7 +106,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
         ].map(([l, v, c]) => (
           <Card key={String(l)} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono ${c}`}>{v}</div></CardContent>
+            <CardContent><div className={`text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere] ${c}`}>{v}</div></CardContent>
           </Card>
         ))}
       </div>

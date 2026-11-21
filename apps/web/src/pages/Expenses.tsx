@@ -191,7 +191,7 @@ export default function Expenses() {
         ].map(([l, v, id]) => (
           <Card key={id} className="border-border bg-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader>
-            <CardContent><div className="text-xl sm:text-2xl font-bold font-mono" data-testid={id} dir="ltr">{v}</div></CardContent>
+            <CardContent><div className="text-xl sm:text-2xl font-bold font-mono [overflow-wrap:anywhere]" data-testid={id} dir="ltr">{v}</div></CardContent>
           </Card>
         ))}
       </div>

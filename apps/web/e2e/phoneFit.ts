@@ -30,10 +30,13 @@ export async function fitsAtPhoneWidth(page: Page, where = "page"): Promise<void
     if (content.scrollWidth > content.clientWidth) {
       // a clipping container can still be scrolled by a script (scrollIntoView did it): measure it as a person sees it
       content.scrollLeft = 0;
-      const box = content.getBoundingClientRect();
+      // the CONTENT box (inside the padding): a child reaching into the padding already makes the area scroll
+      const outer = content.getBoundingClientRect();
+      const pad = getComputedStyle(content);
+      const box = { left: outer.left + parseFloat(pad.paddingLeft), right: outer.right - parseFloat(pad.paddingRight) };
       for (const el of Array.from(content.querySelectorAll("*"))) {
         const r = el.getBoundingClientRect();
-        if (r.width === 0 || (r.left >= box.left - 1 && r.right <= box.right + 1)) continue;
+        if (r.width === 0 || (r.left >= box.left - 0.5 && r.right <= box.right + 0.5)) continue;
         // inside a container that really scrolls sideways: its overflow is its own
         let scroller = false;
         for (let n = el.parentElement; n && n !== content; n = n.parentElement) {

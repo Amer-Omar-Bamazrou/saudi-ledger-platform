@@ -2,7 +2,8 @@ import { test, expect, type Page, type ConsoleMessage } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
+import { E2E, E2E_PHONE, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
+import type { SeededBooks } from "./seedBooks";
 import { EXPECTATIONS, ROWS_EXPECTED, type Kind } from "./routes";
 import { fitsAtPhoneWidth } from "./phoneFit";
 
@@ -242,8 +243,32 @@ test.describe("anonymous routes", () => {
  * edge. `fitsAtPhoneWidth` measures the content area itself and names what does not fit. It runs here, over every
  * route this crawl classifies, so a new page is measured the day it is added. Frame: each page as it first renders
  * (default tab, no dialog opened). `/operator` is measured by `p19a-walk-390.spec.ts` as an operator.
+ *
+ * 🔴 DETERMINISTIC (owner, 2026-11-21): it measures the PHONE-FIT tenant (global-setup.ts `E2E_PHONE`), seeded with
+ * the worst values a page plausibly meets (seedBooks.ts `PHONE_BOOKS`: the longest names, unbroken references, long
+ * narratives, large amounts) and written to by nothing else — so the result cannot depend on what other specs left in
+ * the shared tenant. CI's fonts are the reference; `E2E_PHONE_WIDTH` narrows the viewport to check a fix leaves margin.
  */
-const PHONE = { width: 390, height: 844 };
+const PHONE = { width: Number(process.env.E2E_PHONE_WIDTH ?? 390), height: 844 };
+function phoneUrl(route: string): string {
+  const b = JSON.parse(readFileSync(E2E_PHONE.ids, "utf8")) as SeededBooks;
+  const map: Record<string, string> = {
+    "/migration/:id": `/migration/${b.migrationBatchId}`,
+    "/customers/:id": `/customers/${b.customerId}`,
+    "/customers/:id/statement": `/customers/${b.customerId}/statement`,
+    "/vendors/:id": `/vendors/${b.vendorId}`,
+    "/budgets/:id": `/budgets/${b.budgetId}`,
+    "/tax/computations/:id": `/tax/computations/${b.taxComputationId}`,
+    "/supplier-statements/:vendorId": `/supplier-statements/${b.vendorId}`,
+    "/invoices/:id": `/invoices/${b.invoiceId}`,
+    "/assets/:id": `/assets/${b.assetId}`,
+    "/coming-soon/:slug": "/coming-soon/transfers",
+  };
+  if (!route.includes(":")) return route;
+  const url = map[route];
+  if (!url) throw new Error(`the 390 px crawl has no phone-fit id for ${route}: add it to seedBooks and this map`);
+  return url;
+}
 async function openInArabic(page: Page, url: string): Promise<void> {
   await page.addInitScript(() => { try { localStorage.setItem("ksa_lang", "ar"); } catch { /* the default language */ } });
   await page.goto(url, { waitUntil: "networkidle" });
@@ -252,11 +277,11 @@ async function openInArabic(page: Page, url: string): Promise<void> {
 
 test.describe("every route fits a 390 px phone, in Arabic", () => {
   test.describe("signed in", () => {
-    test.use({ storageState: E2E.storageState, viewport: PHONE, locale: "ar-SA" });
+    test.use({ storageState: E2E_PHONE.state, viewport: PHONE, locale: "ar-SA" });
     for (const [route, kind] of Object.entries(EXPECTATIONS)) {
       if (kind !== "app" && kind !== "param" && kind !== "authenticated-no-shell") continue;
       test(`${route} fits at 390 px`, async ({ page }) => {
-        await openInArabic(page, concrete(route));
+        await openInArabic(page, phoneUrl(route));
         await fitsAtPhoneWidth(page, route);
       });
     }
