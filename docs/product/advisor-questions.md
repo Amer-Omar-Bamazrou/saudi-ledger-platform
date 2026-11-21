@@ -22,6 +22,7 @@ because it was already wrong once (it read "not four" while carrying five).
 | **I** | §5 | Still to ask, and to watch |
 | **J** | S-1 | Qawaem's XBRL mapping. **Closed** |
 | **K** | Owner's regulatory review, 2026-11-19 | 🔴 The accountant FIRST: correcting an approved payroll run. Then the framework per tenant, the `manual` policy for untraceable entries, and (tax adviser) an identified advance's VAT period |
+| **L** | VAT Implementing Regulations, Tenth Edition (`docs/zatca/README.md`) | Five amended articles our records still read the old way — the tax adviser |
 
 ## 🔴 If one firm cannot cover both specialisms — SEQUENCE, do not split
 
@@ -910,6 +911,18 @@ entries, and no run's status is changed to make a reversal look resolved (owner,
   VAT.
 - **If the identification's period:** the 386's tax point for an identified unknown receipt
   becomes the identification date, and the 423 refusal no longer applies to it.
+
+---
+
+## Block L — five amended VAT articles our records still read the old way (added 2026-11-20)
+
+**Why.** The VAT Implementing Regulations were pinned in their current Arabic edition (Tenth Edition, April 2025; the Arabic prevails) and every citation in the repo was reviewed against it on 2026-11-19. Art. 63(3) was corrected that day; these five stay open (owner, 2026-11-20). The amended text, the resolution and every local line that cites the old text are in [`docs/zatca/README.md`](../zatca/README.md). All five are for the tax adviser.
+
+- **L1 — Art. 50(1)(c), new (Res. 01-06-24):** input VAT on insurance or healthcare provided to employees and their dependants is now blocked unless a law in force obliges the employer to provide it — which of an employer's usual premiums (employees' and dependants' medical cover under the Cooperative Health Insurance Law, and any other) does a law oblige, so that their VAT stays deductible?
+- **L2 — Art. 50(1)(b), amended (Res. 01-06-24):** catering and food and drink become deductible where a law in force obliges the employer to provide them to employees at the workplace — which obligations qualify in practice?
+- **L3 — Art. 40(10)–(11), amended (Res. 01-06-24):** a buyer's input VAT on a purchase still not paid in full twelve months after the month following the supply's month is reversed in the return for the month in which those twelve months end, except goods under financing contracts (finance lease, murabaha, lease ending in ownership) paid in periodic instalments under the stated conditions — is that the reading, and what must a buyer hold to use the exception?
+- **L4 — Art. 9(5), amended (Res. 1-4-23):** a government body is outside economic activity only when all three conditions hold (a legal instrument authorises the activity, it is not run on economic or commercial criteria, and it is exclusive to government) — do the statutory fees a business pays to government still carry no VAT under that test?
+- **L5 — Art. 40(7)(d), amended (Res. 1-4-23):** for bad-debt relief ZATCA may accept other supporting documents in place of the certified accountant's certificate from a supplier not obliged to appoint an auditor — what evidence is accepted in practice?
 
 ---
 
