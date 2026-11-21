@@ -4435,17 +4435,6 @@ export const MfaStatusStep = {
   enrol: 'enrol',
 } as const;
 
-/**
- * Who reset it: an admin of the person's organization, or the platform
- */
-export type MfaStatusLastResetBy = typeof MfaStatusLastResetBy[keyof typeof MfaStatusLastResetBy] | null;
-
-
-export const MfaStatusLastResetBy = {
-  admin: 'admin',
-  platform: 'platform',
-} as const;
-
 export interface MfaStatus {
   /** The caller's role requires a second factor */
   required: boolean;
@@ -4454,10 +4443,8 @@ export interface MfaStatus {
   step: MfaStatusStep;
   recoveryCodesLeft: number;
   activatedAt: string | null;
-  /** When this account's factor was last reset */
+  /** When the platform last reset this account's factor */
   lastResetAt: string | null;
-  /** Who reset it: an admin of the person's organization, or the platform */
-  lastResetBy: MfaStatusLastResetBy;
 }
 
 export interface MfaEnrolment {

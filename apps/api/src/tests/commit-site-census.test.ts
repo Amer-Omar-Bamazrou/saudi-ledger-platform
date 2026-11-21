@@ -61,7 +61,7 @@ const SITES: Record<string, Site> = {
   // ── drizzle .transaction(): NOT covered by B-O6's seam ───────────────────
   "apps/api/src/repositories/invitations.repository.ts": drizzleTx(1, "POST /invitations/:token/accept"),
   "apps/api/src/repositories/members.repository.ts": drizzleTx(1, "withLastAdminGuard: the org member routes and account deactivation"),
-  "apps/api/src/repositories/mfa.repository.ts": drizzleTx(3, "Phase 19A: POST /auth/mfa/enrol (the pending factor), POST /auth/mfa/activate (the recovery codes), POST /auth/users/:id/mfa-reset and POST /operator/users/mfa-reset (the factor and its codes removed)"),
+  "apps/api/src/repositories/mfa.repository.ts": drizzleTx(3, "Phase 19A: POST /auth/mfa/enrol (the pending factor), POST /auth/mfa/activate (the recovery codes), POST /operator/users/mfa-reset (the factor and its codes removed)"),
   "apps/api/src/repositories/securitySettings.repository.ts": drizzleTx(2, "Phase 19A: PUT /orgs/:orgId/security-settings (applied directly) and PUT …/changes/:id/decision (the decision, and on approval the settings, in one transaction)"),
   "apps/api/src/repositories/signup.repository.ts": drizzleTx(1, "POST /auth/signup"),
   "apps/api/src/repositories/userAdmin.repository.ts": drizzleTx(1, "POST /auth/register"),
