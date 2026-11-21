@@ -615,9 +615,12 @@ Full text and history: [`docs/history/known-issues-and-audit-findings.md`](../hi
 - **Audit leftovers (2026-08-14, deliberately not fixed — tracked):** manual
   transaction create has no `kind`/`taxTreatment` fields, so every manual
   VAT-bearing entry is a null-treatment row with user-asserted VAT (by-design-
-  adjacent; fields worth adding); sub-cent amounts via raw API can mark a
-  document paid with a 1-halala GL residual (round `paid` at the validation
-  gate — unreachable from UI/settlement); ~~budget actuals `sum(amount)` ignores
+  adjacent; fields worth adding); ~~sub-cent amounts via raw API can mark a
+  document paid with a 1-halala GL residual~~ **✅ FIXED by Phase 18 audit A4
+  (#322, 2026-11-10)** — every request amount is parsed once by
+  `lib/money.ts` `moneyInput`, so the value checked, posted and stored is one
+  value; a 1.01 bill paid 1.005 records 1.00 and stays open (its CLAUDE.md §5
+  line left on 2026-11-21, with the 40(10) finding); ~~budget actuals `sum(amount)` ignores
   debit/credit so a refund increases "spent"~~ **✅ FIXED in M19.0** — actuals
   are now signed by account type (expense/asset debit-natural, income/liability/
   equity credit-natural), and a negative actual is reported rather than clamped;
