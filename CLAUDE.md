@@ -573,11 +573,10 @@ the order is not the severity order.**
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
 | **1** | **Password recovery** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
-| **2** | 🔴 **No zero-rated, exempt or out-of-scope line can carry its reason**: the invoice API drops it, so an onboarded company is refused at issuance. | issues + hides. | Fix in progress (with BR-KSA-49). |
-| **3** | 🔴 **Art. 40(10) is unbuilt**: input VAT on a bill unpaid 12 months after its supply month is never reversed, so the company keeps VAT it must give back. | files + hides. | Advisor Block M. |
-| **4** | 🔴 **The generic journal reverse accepts an entry a receipt, depreciation or recognition OWNS** — the document reads live while its entry is cancelled. | posts + hides. | DR-34; Phase 12 §7 #8. |
-| **5** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | Official identity documents. | Audited, operator-only. P6: no statutory expiry. |
-| **6** | **M-5** magic-byte sniff is header-only (closes with C4). | — | The long tail. |
+| **2** | 🔴 **Art. 40(10) is unbuilt**: input VAT on a bill unpaid 12 months after its supply month is never reversed, so the company keeps VAT it must give back. | files + hides. | Advisor Block M. |
+| **3** | 🔴 **The generic journal reverse accepts an entry a receipt, depreciation or recognition OWNS** — the document reads live while its entry is cancelled. | posts + hides. | DR-34; Phase 12 §7 #8. |
+| **4** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | Official identity documents. | Audited, operator-only. P6: no statutory expiry. |
+| **5** | **M-5** magic-byte sniff is header-only (closes with C4). | — | The long tail. |
 
 **Open DECISION:** `platform-alarms` is NOT operator-runnable (one-line flip).
 

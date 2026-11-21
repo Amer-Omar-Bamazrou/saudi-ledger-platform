@@ -2,7 +2,8 @@
  * 🔴 BR-KSA-49, LIVE — education and healthcare invoices built from REAL LEDGER ROWS pass ZATCA's sandbox with the
  * buyer's Saudi national ID as BT-46 scheme NAT (2026-11-21).
  *
- *   over REAL HTTP into the app: create the customer, create, submit and approve the invoice → read the issued ROW BACK
+ *   over REAL HTTP into the app, with THE FORM'S OWN REQUEST (@workspace/shared invoiceFormLines.ts `invoiceLinesBody`, the
+ *   function the invoice form sends its lines with): create the customer, create, submit and approve the invoice → read the issued ROW BACK
  *   OUT OF POSTGRES → assemble → sign → submit to ZATCA's compliance endpoint — once for VATEX-SA-EDU and once for
  *   VATEX-SA-HEA, each to a citizen with a national ID. This is standing rule 3's live verification pass for the path
  *   (real HTTP → engine → Postgres → ZATCA, observed values).
@@ -31,6 +32,8 @@ import { buildInvoiceXml } from "../services/einvoice/ubl/buildInvoiceXml";
 import { assembleSignedInvoice } from "../services/einvoice/crypto/assembleSignedInvoice";
 import { generateZatcaKeyPair } from "../services/einvoice/crypto/keys";
 import { buildZatcaCsr } from "../services/einvoice/crypto/csr";
+import { tokenToPem } from "../services/einvoice/onboarding/zatcaOnboardingClient";
+import { emptyInvoiceLine, invoiceLinesBody, withCategory } from "@workspace/shared";
 
 const BASE = process.env.ZATCA_SANDBOX_BASE ?? "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal";
 const url = process.env.DATABASE_URL;
@@ -78,11 +81,7 @@ async function obtainCsid(): Promise<void> {
   });
   const body = (await res.json()) as Record<string, string>;
   if (res.status !== 200 || !body.binarySecurityToken) throw new Error(`no compliance CSID: ${res.status}`);
-  const inner = Buffer.from(body.binarySecurityToken, "base64").toString();
-  // 64-character lines and NO blank line before END. Wrapping with replace() adds a trailing newline when the
-  // length is a multiple of 64, and OpenSSL refuses the blank line that leaves (a 704-character sandbox certificate,
-  // 2026-11-21; the same wrapping elsewhere is reported to the owner as its own finding)
-  certPem = `-----BEGIN CERTIFICATE-----\n${inner.match(/.{1,64}/g)!.join("\n")}\n-----END CERTIFICATE-----\n`;
+  certPem = tokenToPem(body.binarySecurityToken); // the production conversion (one definition, #362)
   auth = "Basic " + Buffer.from(`${body.binarySecurityToken}:${body.secret}`).toString("base64");
 }
 
@@ -157,11 +156,11 @@ beforeAll(async () => {
     ["VATEX-SA-EDU", "School tuition, term 1", "Private education to citizen"],
     ["VATEX-SA-HEA", "Outpatient consultation", "Private healthcare to citizen"],
   ] as const) {
-    const draft = await h.api("admin", "POST", "/invoices", {
-      date: "2026-08-01", dueDate: "2026-08-31", customerId: citizen.body.id,
-      // private education and healthcare to citizens are ZERO-RATED in ZATCA's code list (XML Standard v1.2, 11.2.4)
-      items: [{ description, quantity: 1, unitPrice: 1000, vatRate: 0, taxCategoryCode: "Z", taxExemptionReasonCode: code, taxExemptionReasonText: reason, unitCode: "PCE" }],
-    });
+    // the form's line: a description, 1 × 1,000, set to zero-rated (ZATCA lists private education and healthcare to
+    // citizens as ZERO-RATED, XML Standard v1.2 §11.2.4) and its reason chosen from the list
+    const formLine = { ...withCategory({ ...emptyInvoiceLine(), description, quantity: "1", unitPrice: "1000" }, "Z"), taxExemptionReasonCode: code };
+    void reason;
+    const draft = await h.api("admin", "POST", "/invoices", { date: "2026-08-01", dueDate: "2026-08-31", customerId: citizen.body.id, items: invoiceLinesBody([formLine]) });
     expect(draft.status, JSON.stringify(draft.body)).toBe(201);
     expect((await h.api("admin", "POST", `/invoices/${draft.body.id}/submit`)).status).toBe(200);
     const approved = await h.api("admin", "POST", `/invoices/${draft.body.id}/approve`);

@@ -40,6 +40,7 @@ import { assertNotReversedOpening, assertNotReservedOpeningNumber } from "./acco
 import { businessToday, isAdvanceInvoiceType, isAdvanceDocumentType, isAdvanceCreditNoteType, isRecoveryInvoiceType, isVatOnlyDocumentType } from "@workspace/shared";
 import { advanceInvoicesService, prepaymentsOf, shapePrepayment, type PreparedPrepayment } from "./advanceInvoices.service";
 import { advanceInvoicesRepository } from "../repositories/advanceInvoices.repository";
+import { normalizeLineReason } from "./invoiceLineReasons";
 
 /** The refusal a PATCH gets on anything but a draft — sequentially, and when it loses a race to an approval. */
 const ONLY_DRAFTS_EDITABLE = "Only draft invoices can be edited. Use a credit note to correct an issued invoice.";
@@ -218,7 +219,7 @@ export const invoicesService = {
     // summing the rounded values makes header = Σ lines by construction.
     let subtotal = 0;
     let vatTotal = 0;
-    const preparedItems = items.map((it: any) => {
+    const preparedItems = items.map((it: any, i: number) => {
       const lineTotal = Number(it.quantity) * Number(it.unitPrice);
       const disc = Number(it.discount ?? 0);
       const base = round2(lineTotal - disc);
@@ -249,6 +250,8 @@ export const invoicesService = {
         // the caller to state explicitly, and issuance demands an answer rather
         // than guessing a tax fact. An explicit code from the caller always wins.
         taxCategoryCode: it.taxCategoryCode ?? (vatRate > 0 ? "S" : null),
+        // 🔴 the reason of a Z/E/O line, from ZATCA's list (invoiceLineReasons.ts)
+        ...normalizeLineReason(it, i),
       };
     });
     // Exact by construction: subtotal and vatTotal are sums of 2dp values, so
@@ -501,6 +504,7 @@ export const invoicesService = {
           vatAmount: vat.toFixed(2),
           total: round2(base + vat).toFixed(2),
           taxCategoryCode: it.taxCategoryCode ?? (vatRate > 0 ? "S" : null),
+          ...normalizeLineReason(it, i),
         };
       });
       const total = round2(subtotal + vatTotal - Number(existing.discount ?? 0));

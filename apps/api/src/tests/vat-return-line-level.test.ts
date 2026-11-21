@@ -123,7 +123,7 @@ describeMaybe("VAT return — line-level classification + header=Σlines", () =>
     // document — and its 15.00 of GL-posted output VAT — was on no box.
     await issue("VL-MIX", "2026-01-15", [
       { description: "Standard service", quantity: 1, unitPrice: 100, vatRate: 15 },
-      { description: "Zero-rated export leg", quantity: 1, unitPrice: 100, vatRate: 0, taxCategoryCode: "Z" },
+      { description: "Zero-rated export leg", quantity: 1, unitPrice: 100, vatRate: 0, taxCategoryCode: "Z", taxExemptionReasonCode: "VATEX-SA-32" },
     ]);
     const r = await inTenant(() => reportsService.vatReturn("2026-01", "2026-01"));
     expect(r.salesSection.box1_standardRatedDomesticSales).toBe(100);
@@ -143,7 +143,7 @@ describeMaybe("VAT return — line-level classification + header=Σlines", () =>
 
   it("an EXEMPT line files in box 3, not the zero-rated box", async () => {
     await issue("VL-EXEMPT", "2026-03-10", [
-      { description: "Exempt financial service", quantity: 1, unitPrice: 250, vatRate: 0, taxCategoryCode: "E" },
+      { description: "Exempt financial service", quantity: 1, unitPrice: 250, vatRate: 0, taxCategoryCode: "E", taxExemptionReasonCode: "VATEX-SA-29" },
     ]);
     const r = await inTenant(() => reportsService.vatReturn("2026-03", "2026-03"));
     expect(r.salesSection.box3_exemptSales).toBe(250);
@@ -154,7 +154,7 @@ describeMaybe("VAT return — line-level classification + header=Σlines", () =>
   it("🔴 a credit note against a MIXED document reduces the right boxes (incl. output VAT)", async () => {
     const originalId = await issue("VL-MIX2", "2026-04-05", [
       { description: "Standard", quantity: 1, unitPrice: 200, vatRate: 15 },
-      { description: "Zero-rated", quantity: 1, unitPrice: 100, vatRate: 0, taxCategoryCode: "Z" },
+      { description: "Zero-rated", quantity: 1, unitPrice: 100, vatRate: 0, taxCategoryCode: "Z", taxExemptionReasonCode: "VATEX-SA-32" },
     ]);
     // Note dated in its own month so the period isolates the reduction.
     await issue(
@@ -162,7 +162,7 @@ describeMaybe("VAT return — line-level classification + header=Σlines", () =>
       "2026-05-02",
       [
         { description: "Partial credit standard", quantity: 1, unitPrice: 50, vatRate: 15 },
-        { description: "Partial credit zero-rated", quantity: 1, unitPrice: 25, vatRate: 0, taxCategoryCode: "Z" },
+        { description: "Partial credit zero-rated", quantity: 1, unitPrice: 25, vatRate: 0, taxCategoryCode: "Z", taxExemptionReasonCode: "VATEX-SA-32" },
       ],
       { documentType: "credit_note", originalInvoiceId: originalId, noteReason: "price correction" },
     );
@@ -194,7 +194,7 @@ describeMaybe("VAT return — line-level classification + header=Σlines", () =>
     // Dr 9.69 vs Cr 9.68 ⇒ imbalance 0.01 > 0.005 ⇒ "GL entry does not balance".
     await issue("VL-BAL", "2026-07-03", [
       { description: "Fractional qty standard", quantity: 6.687, unitPrice: 1.0, vatRate: 15 },
-      { description: "Fractional qty zero-rated", quantity: 1.997, unitPrice: 1.0, vatRate: 0, taxCategoryCode: "Z" },
+      { description: "Fractional qty zero-rated", quantity: 1.997, unitPrice: 1.0, vatRate: 0, taxCategoryCode: "Z", taxExemptionReasonCode: "VATEX-SA-32" },
     ]);
     const tb = await inTenant(() => reportsService.trialBalance("2026-07-01", "2026-07-31"));
     expect((tb as { totalDebit: number }).totalDebit).toBe((tb as { totalCredit: number }).totalCredit);

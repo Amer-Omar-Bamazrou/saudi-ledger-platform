@@ -22,11 +22,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { invalidatePaymentQueries, newIdempotencyKey, receiptNumber } from "./shared";
 
 import type { CreateAdvanceInvoiceInput, CustomerPayment, Invoice } from "@workspace/api-client-react";
+import { exemptionReasonsFor } from "@workspace/shared";
 
 const json = (b: CreateAdvanceInvoiceInput) => JSON.stringify(b);
 
 export function AdvanceInvoiceDialog({ payment, customerName, open, onClose }: { payment: CustomerPayment; customerName: string; open: boolean; onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const category = payment.classification?.vatCategory ?? null;
@@ -34,7 +35,6 @@ export function AdvanceInvoiceDialog({ payment, customerName, open, onClose }: {
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
   const [exemptionCode, setExemptionCode] = useState("");
-  const [exemptionText, setExemptionText] = useState("");
   const [key] = useState(() => newIdempotencyKey("advance-invoice"));
   const amountNum = Number(amount);
   const rate = category === "S" ? 15 : 0;
@@ -49,8 +49,8 @@ export function AdvanceInvoiceDialog({ payment, customerName, open, onClose }: {
           amount: amountNum,
           date: date || null,
           description: description.trim() || null,
-          taxExemptionReasonCode: exemptionCode.trim() || null,
-          taxExemptionReasonText: exemptionText.trim() || null,
+          // the code from ZATCA's list; the server stores ZATCA's own text for it
+          taxExemptionReasonCode: exemptionCode || null,
           idempotencyKey: key,
         }),
       }),
@@ -61,7 +61,7 @@ export function AdvanceInvoiceDialog({ payment, customerName, open, onClose }: {
     },
   });
 
-  const valid = Number.isFinite(amountNum) && amountNum > 0 && amountNum <= payment.uninvoicedAmount + 0.005 && (category === "S" || exemptionCode.trim() || exemptionText.trim());
+  const valid = Number.isFinite(amountNum) && amountNum > 0 && amountNum <= payment.uninvoicedAmount + 0.005 && (category === "S" || Boolean(exemptionCode));
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -99,15 +99,21 @@ export function AdvanceInvoiceDialog({ payment, customerName, open, onClose }: {
             <Input value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 h-9" placeholder={t("Advance payment received…", "دفعة مقدمة مستلمة…")} data-testid="advance-description" />
           </div>
           {category && category !== "S" && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs text-muted-foreground">{t("Exemption code", "رمز الإعفاء")}</Label>
-                <Input value={exemptionCode} onChange={(e) => setExemptionCode(e.target.value)} className="mt-1 h-9" placeholder="VATEX-SA-…" />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">{t("Exemption reason", "سبب الإعفاء")}</Label>
-                <Input value={exemptionText} onChange={(e) => setExemptionText(e.target.value)} className="mt-1 h-9" />
-              </div>
+            <div>
+              {/* 🔴 ZATCA's reason for the advance's category, from its list (@workspace/shared vatExemptionReasons) */}
+              <Label className="text-xs text-muted-foreground" htmlFor="advance-exemption-reason">{t("Exemption reason (ZATCA)", "سبب الإعفاء (هيئة الزكاة والضريبة والجمارك)")}</Label>
+              <select
+                id="advance-exemption-reason"
+                className="mt-1 h-9 w-full min-w-0 text-sm rounded-md border border-input bg-background px-2"
+                value={exemptionCode}
+                onChange={(e) => setExemptionCode(e.target.value)}
+                data-testid="advance-exemption-reason"
+              >
+                <option value="">{t("Choose the reason", "اختر السبب")}</option>
+                {exemptionReasonsFor(category).map((r) => (
+                  <option key={r.code} value={r.code}>{`${r.code} — ${lang === "ar" ? r.ar : r.en}`}</option>
+                ))}
+              </select>
             </div>
           )}
           {mut.error && <p className="text-sm text-destructive" data-testid="advance-error">{(mut.error as Error).message}</p>}

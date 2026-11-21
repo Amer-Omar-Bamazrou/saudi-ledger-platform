@@ -123,6 +123,9 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
         vatAmount: toNum(it.vatAmount),
         discount: toNum(it.discount),
         total: toNum(it.total),
+        taxCategoryCode: it.taxCategoryCode ?? null,
+        taxExemptionReasonCode: it.taxExemptionReasonCode ?? null,
+        taxExemptionReasonText: it.taxExemptionReasonText ?? null,
       })) ?? [],
     createdAt: inv.createdAt.toISOString(),
   };

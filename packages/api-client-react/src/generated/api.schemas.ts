@@ -3991,6 +3991,21 @@ export interface InvoiceItem {
   vatAmount: number;
   discount?: number;
   total: number;
+  /**
+     * S, Z, E or O
+     * @nullable
+     */
+  taxCategoryCode?: string | null;
+  /**
+     * BT-121, from ZATCA's list
+     * @nullable
+     */
+  taxExemptionReasonCode?: string | null;
+  /**
+     * BT-120
+     * @nullable
+     */
+  taxExemptionReasonText?: string | null;
 }
 
 export interface Invoice {
@@ -7174,6 +7189,16 @@ export interface InvoiceLineInput {
      * @nullable
      */
   taxCategoryCode?: string | null;
+  /**
+     * BT-121 — a zero-rated, exempt or out-of-scope line's reason, from ZATCA's list (XML Implementation Standard v1.2 §11.2.4; @workspace/shared vatExemptionReasons). It must belong to the line's category; a standard-rated line takes none (422 line_exemption_reason_invalid / line_exemption_reason_mismatch). Required before approval on every Z/E/O line (422 line_exemption_reason_missing).
+     * @nullable
+     */
+  taxExemptionReasonCode?: string | null;
+  /**
+     * BT-120 — VATEX-SA-OOS's free text (required before approval). For a coded reason the server stores ZATCA's own text.
+     * @nullable
+     */
+  taxExemptionReasonText?: string | null;
   /** @nullable */
   unitCode?: string | null;
 }

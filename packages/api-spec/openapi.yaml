@@ -12741,6 +12741,9 @@ components:
           type: number
         total:
           type: number
+        taxCategoryCode: { type: ["string", "null"], description: "S, Z, E or O" }
+        taxExemptionReasonCode: { type: ["string", "null"], description: "BT-121, from ZATCA's list" }
+        taxExemptionReasonText: { type: ["string", "null"], description: "BT-120" }
 
     Invoice:
       type: object
@@ -14525,6 +14528,16 @@ components:
         taxCategoryCode:
           type: ["string", "null"]
           description: ZATCA category (S, Z, E, O). Defaults to S when the rate is above zero.
+        taxExemptionReasonCode:
+          type: ["string", "null"]
+          description: >
+            BT-121 — a zero-rated, exempt or out-of-scope line's reason, from ZATCA's list (XML Implementation Standard
+            v1.2 §11.2.4; @workspace/shared vatExemptionReasons). It must belong to the line's category; a standard-rated
+            line takes none (422 line_exemption_reason_invalid / line_exemption_reason_mismatch). Required before
+            approval on every Z/E/O line (422 line_exemption_reason_missing).
+        taxExemptionReasonText:
+          type: ["string", "null"]
+          description: BT-120 — VATEX-SA-OOS's free text (required before approval). For a coded reason the server stores ZATCA's own text.
         unitCode: { type: ["string", "null"] }
 
     InvoiceHeaderInput:

@@ -1,4 +1,3 @@
-import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
@@ -28,7 +27,7 @@ import { ZatcaRejectionDialog } from "@/components/invoices/ZatcaRejectionDialog
 const PAGE_SIZE = 50;
 
 import type { CreateInvoiceInput, Customer, Invoice, ListInvoices200, OpenAdvanceInvoice, PaymentInput, UpdateInvoiceInput } from "@workspace/api-client-react";
-import { businessToday } from "@workspace/shared";
+import { businessToday, exemptionReasonsFor, isExemptionCategory, emptyInvoiceLine, invoiceLineFromItem, invoiceLinesBody, withCategory, type InvoiceFormLine, type LineCategory } from "@workspace/shared";
 
 /**
  * Request bodies go through the GENERATED input types (contract batch 3), so
@@ -72,8 +71,8 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 // (legacy imports), and the DB constraint judges it.
 const emptyForm = { invoiceNumber: "", date: businessToday(), dueDate: "", customerId: "", notes: "" };
 
-/** One definition of a fresh line — the default VAT rate comes from @workspace/shared, never a literal. */
-const emptyLine = () => ({ description: "", descriptionAr: "", quantity: "1", unitPrice: "", vatRate: String(DEFAULT_VAT_RATE) });
+/** One definition of a fresh line (@workspace/shared invoiceFormLines.ts) — the default VAT rate comes from @workspace/shared, never a literal. */
+const emptyLine = emptyInvoiceLine;
 
 export default function Invoices() {
   /**
@@ -136,7 +135,7 @@ export default function Invoices() {
   // L1: `descriptionAr` joins the line — real Arabic is CAPTURED going
   // forward; where it is absent the Arabic PDF falls back to the English
   // description (the sentinel default is never prefilled and never printed).
-  const [lines, setLines] = useState<Array<{ description: string; descriptionAr: string; quantity: string; unitPrice: string; vatRate: string }>>([emptyLine()]);
+  const [lines, setLines] = useState<InvoiceFormLine[]>([emptyLine()]);
   const lineTotal = (l: { quantity: string; unitPrice: string; vatRate: string }) => {
     const net = (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0);
     return net + (net * (Number(l.vatRate) || 0)) / 100;
@@ -219,15 +218,7 @@ export default function Invoices() {
           notes: body.notes || null,
           customerId: Number(body.customerId),
           ...(sellAsset ? { disposesAssetId: sellAsset.id } : {}),
-          items: lines
-            .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
-            .map((l) => ({
-              description: l.description.trim(),
-              ...(l.descriptionAr.trim() ? { descriptionAr: l.descriptionAr.trim() } : {}),
-              quantity: Number(l.quantity) || 1,
-              unitPrice: Number(l.unitPrice),
-              vatRate: Number(l.vatRate) || 0,
-            })),
+          items: invoiceLinesBody(lines),
           ...(selectedPrepayments.length > 0 ? { prepayments: prepaymentsBody() } : {}),
         }),
       }),
@@ -310,15 +301,7 @@ export default function Invoices() {
           dueDate: body.dueDate || undefined,
           customerId: body.customerId ? Number(body.customerId) : undefined,
           notes: body.notes || undefined,
-          items: lines
-            .filter((l) => l.description.trim() && Number(l.unitPrice) > 0)
-            .map((l) => ({
-              description: l.description.trim(),
-              ...(l.descriptionAr.trim() ? { descriptionAr: l.descriptionAr.trim() } : {}),
-              quantity: Number(l.quantity) || 1,
-              unitPrice: Number(l.unitPrice),
-              vatRate: Number(l.vatRate) || 0,
-            })),
+          items: invoiceLinesBody(lines),
           // The selection is replaced whole, like the lines (an empty list clears it).
           prepayments: prepaymentsBody(),
         }),
@@ -368,17 +351,7 @@ export default function Invoices() {
         customerId: String(detail.customerId ?? ""),
         notes: detail.notes ?? "",
       });
-      setLines(
-        (detail.items ?? []).map((i: any) => ({
-          description: i.description ?? "",
-          // the stored default "(not yet translated)" is a sentinel, not a
-          // value — an empty input is the honest prefill.
-          descriptionAr: i.descriptionAr === "(not yet translated)" ? "" : (i.descriptionAr ?? ""),
-          quantity: String(i.quantity ?? 1),
-          unitPrice: String(i.unitPrice ?? ""),
-          vatRate: String(i.vatRate ?? DEFAULT_VAT_RATE),
-        })),
-      );
+      setLines((detail.items ?? []).map((i: any) => invoiceLineFromItem(i)));
       // AP-2: the draft's current prepayment selection, prefilled so a save keeps it.
       setPrepayments(Object.fromEntries(((detail.prepayments ?? []) as Array<{ advanceInvoiceId: number; amount: number }>).map((p) => [p.advanceInvoiceId, { on: true, amount: String(p.amount) }])));
       setEditing(row);
@@ -482,8 +455,50 @@ export default function Invoices() {
                       aria-label={t("VAT %", "الضريبة %")}
                       placeholder={t("VAT %", "الضريبة %")}
                       value={l.vatRate}
+                      disabled={isExemptionCategory(l.taxCategoryCode)}
                       onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, vatRate: e.target.value } : x)))}
                     />
+                    {/* 🔴 ZATCA's VAT category, and for a zero-rated, exempt or out-of-scope line its reason from ZATCA's
+                        list (@workspace/shared invoiceFormLines.ts; required before approval — the server names a missing one) */}
+                    <select
+                      className="col-span-12 sm:col-span-4 h-8 text-sm rounded-md border border-input bg-background px-2"
+                      aria-label={t("VAT category", "فئة الضريبة")}
+                      data-testid={`invoice-line-${i}-category`}
+                      value={l.taxCategoryCode}
+                      onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? withCategory(x, e.target.value as LineCategory) : x)))}
+                    >
+                      {l.taxCategoryCode === "" && <option value="">{t("Choose the VAT category", "اختر فئة الضريبة")}</option>}
+                      <option value="S">{t("Standard rated", "خاضع للنسبة الأساسية")}</option>
+                      <option value="Z">{t("Zero-rated", "خاضع لنسبة الصفر")}</option>
+                      <option value="E">{t("Exempt", "معفى من الضريبة")}</option>
+                      <option value="O">{t("Out of scope", "غير خاضع للضريبة")}</option>
+                    </select>
+                    {(l.taxCategoryCode === "Z" || l.taxCategoryCode === "E") && (
+                      <select
+                        className="col-span-12 sm:col-span-8 h-8 text-sm rounded-md border border-input bg-background px-2 min-w-0"
+                        aria-label={t("Exemption reason (ZATCA)", "سبب الإعفاء (هيئة الزكاة والضريبة والجمارك)")}
+                        aria-required="true"
+                        data-testid={`invoice-line-${i}-reason`}
+                        value={l.taxExemptionReasonCode}
+                        onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, taxExemptionReasonCode: e.target.value } : x)))}
+                      >
+                        <option value="">{t("Choose the reason — required before approval", "اختر السبب — مطلوب قبل الاعتماد")}</option>
+                        {exemptionReasonsFor(l.taxCategoryCode).map((r) => (
+                          <option key={r.code} value={r.code}>{`${r.code} — ${lang === "ar" ? r.ar : r.en}`}</option>
+                        ))}
+                      </select>
+                    )}
+                    {l.taxCategoryCode === "O" && (
+                      <Input
+                        className="col-span-12 sm:col-span-8 h-8 text-sm"
+                        aria-label={t("Reason it is out of scope (required before approval)", "سبب عدم الخضوع للضريبة (مطلوب قبل الاعتماد)")}
+                        aria-required="true"
+                        placeholder={t("Reason it is out of scope — your own explanation", "سبب عدم الخضوع للضريبة — شرحك الخاص")}
+                        data-testid={`invoice-line-${i}-reason-text`}
+                        value={l.taxExemptionReasonText}
+                        onChange={(e) => setLines((p) => p.map((x, j) => (j === i ? { ...x, taxExemptionReasonText: e.target.value } : x)))}
+                      />
+                    )}
                   </div>
                 ))}
                 <div className="flex items-center justify-between">
