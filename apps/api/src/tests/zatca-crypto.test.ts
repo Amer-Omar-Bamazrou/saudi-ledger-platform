@@ -26,6 +26,7 @@ import { generateZatcaKeyPair, assertZatcaCurve } from "../services/einvoice/cry
 import { buildZatcaQr, decodeZatcaQr } from "../services/einvoice/crypto/qr";
 import { qrTimestamp, splitIssuedAt } from "../services/einvoice/issuedAt";
 import { assembleSignedInvoice } from "../services/einvoice/crypto/assembleSignedInvoice";
+import { pemArmour } from "../services/einvoice/crypto/pem";
 
 const SDK_ROOT = resolve(__dirname, "../../../../docs/zatca/sdk/extracted/zatca-envoice-sdk-203");
 const JAR = join(SDK_ROOT, "Apps", "cli-3.0.8-jar-with-dependencies.jar");
@@ -38,9 +39,7 @@ const KEY_PEM = join(SDK_ROOT, "Data", "Certificates", "ec-secp256k1-priv-key.pe
  * no PEM armour, so Node refuses to load them until it is added back.
  */
 function armour(body: string, label: string): string {
-  const b64 = body.replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
-  const wrapped = b64.replace(/(.{64})/g, "$1\n");
-  return `-----BEGIN ${label}-----\n${wrapped}\n-----END ${label}-----\n`;
+  return pemArmour(label, body.replace(/-----[^-]+-----/g, ""));
 }
 
 function hasJava(): boolean {
