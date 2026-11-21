@@ -188,6 +188,9 @@ describe("BR-KSA-49 — education and healthcare invoices from REAL LEDGER ROWS 
       if (!ready) ctx.skip();
       const { xml, v } = await submitFromLedger(issued[code]!);
       expect(xml, "anti-vacuity: the document names the buyer's national ID").toContain(`<cbc:ID schemeID="NAT">${NATIONAL_ID}</cbc:ID>`);
+      // the OBSERVED result, with the endpoint that produced it (standing rule 3): it attests document CONSTRUCTION
+      // (the compliance check), not the clearance/reporting path, which has never been called
+      console.info(`[BR-KSA-49 LIVE] ${code} → POST /compliance/invoices (sandbox): status ${v.status}; errors [${(v.errorMessages ?? []).map((m) => m.code).join(", ")}]; warnings [${(v.warningMessages ?? []).map((m) => m.code).join(", ")}]`);
       expectAccepted(`${code} invoice`, v);
     }, 120_000);
   }
