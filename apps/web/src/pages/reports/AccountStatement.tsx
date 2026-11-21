@@ -14,6 +14,7 @@ import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 
 import type { AccountStatementReport, Category } from "@workspace/api-client-react";
+import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
 
 export default function AccountStatement() {
   // M20.1 — the report does not mount until its default window is known, so a
@@ -58,7 +59,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">
-          <div className="flex items-end gap-4 flex-wrap">
+          <ReportFilterRow>
             <div className="min-w-56">
               <Label className="text-xs text-muted-foreground">{t("Account", "الحساب")}</Label>
               <Select value={accountId} onValueChange={setAccountId}>
@@ -75,7 +76,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
             <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" disabled={!accountId} onClick={() => setApplied({ accountId, from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
-          </div>
+          </ReportFilterRow>
           <div className="mt-3">
             <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);if(accountId)setApplied({accountId,from:r.from,to:r.to});}} />
           </div>
@@ -83,7 +84,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[
             [t("Account", "الحساب"), data.account.name, "text-primary"],
             [t("Opening Balance", "الرصيد الافتتاحي"), fmtNum(data.openingBalance), data.openingBalance >= 0 ? "text-info" : "text-negative"],

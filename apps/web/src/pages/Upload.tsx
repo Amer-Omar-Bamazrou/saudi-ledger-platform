@@ -302,7 +302,7 @@ export default function Upload() {
           <p className="text-muted-foreground text-sm mt-1">{t("Upload CSV or Excel, paste data, or enter rows manually.", "ارفع ملف CSV أو Excel، أو الصق البيانات، أو أدخل الصفوف يدوياً.")}</p>
         </div>
         {/* template downloads */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={downloadCsvTemplate}>
             <Download className="w-3.5 h-3.5" /> {t("CSV Template", "قالب CSV")}
           </Button>
@@ -313,13 +313,13 @@ export default function Upload() {
       </div>
 
       {/* import settings */}
-      <div className="flex items-center justify-between p-4 rounded-lg bg-card border gap-6">
+      <div className="flex flex-wrap items-center justify-between p-4 rounded-lg bg-card border gap-x-6 gap-y-3">
         <div>
           <Label className="font-medium">{t("Auto-categorise on import", "تصنيف تلقائي عند الاستيراد")}</Label>
           <p className="text-xs text-muted-foreground mt-0.5">{t("Runs the categorisation engine immediately after upload.", "يُشغّل محرك التصنيف فور الرفع.")}</p>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="w-56">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 min-w-0">
+          <div className="w-full max-w-56">
             <Label className="text-xs text-muted-foreground">{t("Bank account * (which account is this statement for?)", "الحساب البنكي * (لأي حساب هذا الكشف؟)")}</Label>
             <Select value={bankAccountId} onValueChange={setBankAccountId}>
               <SelectTrigger className="h-9 mt-1" data-testid="upload-bank-account">
@@ -389,7 +389,7 @@ export default function Upload() {
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">{t("or click to browse — CSV, XLS, XLSX supported", "أو انقر للتصفح — يدعم CSV وXLS وXLSX")}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {[".csv", ".xlsx", ".xls"].map(ext => (
                       <span key={ext} className="text-xs font-mono px-2 py-0.5 rounded bg-secondary text-muted-foreground border border-border">{ext}</span>
                     ))}

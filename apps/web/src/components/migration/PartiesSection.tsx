@@ -91,7 +91,7 @@ export function PartiesSection({ batchId, editable }: { batchId: number; editabl
           {can && <Button size="sm" onClick={() => setImporting(true)} data-testid="parties-import"><Upload className="w-3.5 h-3.5 me-1" />{t("Import parties", "استيراد الأطراف")}</Button>}
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {[[t("Customers", "العملاء"), s.customers], [t("Suppliers", "الموردون"), s.vendors], [t("Undecided", "لم يُقرَّر"), s.undecided, s.undecided > 0 ? "text-negative" : "text-positive"], [t("Using existing", "يستخدم قائمًا"), s.useExisting]].map(([l, v, c], i) => (
           <Card key={i}><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-lg font-semibold font-mono ${c ?? ""}`}>{v}</div></CardContent></Card>
         ))}

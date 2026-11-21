@@ -24,6 +24,7 @@ import {
   Validity,
 } from "@peculiar/asn1-x509";
 import { createSign, type KeyObject } from "node:crypto";
+import { pemArmour } from "../../services/einvoice/crypto/pem";
 
 const ECDSA_WITH_SHA256 = "1.2.840.10045.4.3.2";
 const OID_CN = "2.5.4.3";
@@ -80,6 +81,5 @@ export function selfSignedCertificate(
   });
 
   const der = Buffer.from(AsnConvert.serialize(cert));
-  const b64 = der.toString("base64").replace(/(.{64})/g, "$1\n");
-  return `-----BEGIN CERTIFICATE-----\n${b64}${b64.endsWith("\n") ? "" : "\n"}-----END CERTIFICATE-----\n`;
+  return pemArmour("CERTIFICATE", der.toString("base64"));
 }

@@ -14,6 +14,7 @@ import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 
 import type { TaxJournalEntriesReport } from "@workspace/api-client-react";
+import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
 
 export default function TaxJournalEntries() {
   // M20.1 — the report does not mount until its default window is known, so a
@@ -40,7 +41,7 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             {t("Tax Journal Entries", "قيود اليومية الضريبية")}
@@ -54,11 +55,11 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">
-          <div className="flex items-end gap-4">
+          <ReportFilterRow>
             <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
-          </div>
+          </ReportFilterRow>
           <div className="mt-3">
             <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied(r);}} />
           </div>
@@ -66,7 +67,7 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             [t("Tax Entries", "القيود الضريبية"), data.count, "text-primary"],
             [t("Total VAT Debited", "إجمالي الضريبة المدينة"), fmtNum(totalVatDebit), "text-info"],
@@ -97,13 +98,13 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
           {data.entries.map(entry => (
             <Card key={entry.id} className="border-border bg-card">
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-xs text-primary font-semibold">{entry.entryNumber}</span>
-                    <span className="text-sm font-medium text-foreground">{entry.description}</span>
-                    {entry.reference && <span className="text-xs text-muted-foreground">· {entry.reference}</span>}
+                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+                    <span className="font-mono text-xs text-primary font-semibold [overflow-wrap:anywhere]">{entry.entryNumber}</span>
+                    <span className="text-sm font-medium text-foreground min-w-0 break-words">{entry.description}</span>
+                    {entry.reference && <span className="text-xs text-muted-foreground min-w-0 [overflow-wrap:anywhere]">· {entry.reference}</span>}
                   </div>
-                  <span className="text-xs text-muted-foreground"><DualDate date={entry.date} /></span>
+                  <span className="text-xs text-muted-foreground shrink-0"><DualDate date={entry.date} /></span>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">

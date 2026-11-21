@@ -35,6 +35,7 @@ import { buildInvoiceXml } from "../services/einvoice/ubl/buildInvoiceXml";
 import { assembleSignedInvoice } from "../services/einvoice/crypto/assembleSignedInvoice";
 import { SELLER, standardInvoice, simplifiedInvoice } from "../services/einvoice/__fixtures__/sampleInput";
 import type { EInvoiceInput } from "../services/einvoice/types";
+import { tokenToPem } from "../services/einvoice/onboarding/zatcaOnboardingClient";
 
 const BASE =
   process.env.ZATCA_SANDBOX_BASE ?? "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal";
@@ -91,8 +92,8 @@ async function obtainComplianceCsid(): Promise<void> {
     throw new Error(`compliance CSID not issued: ${res.status} ${JSON.stringify(body).slice(0, 300)}`);
   }
 
-  const inner = Buffer.from(body.binarySecurityToken, "base64").toString();
-  certPem = `-----BEGIN CERTIFICATE-----\n${inner.replace(/(.{64})/g, "$1\n")}\n-----END CERTIFICATE-----\n`;
+  // the production conversion (one definition; it never leaves a blank line — tests/zatca-pem-wrap.test.ts)
+  certPem = tokenToPem(body.binarySecurityToken);
   auth = "Basic " + Buffer.from(`${body.binarySecurityToken}:${body.secret}`).toString("base64");
 
   // The CCSID must bind OUR key — unlike the sandbox PCSID, which does not.

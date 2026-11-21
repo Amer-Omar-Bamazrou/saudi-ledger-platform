@@ -45,7 +45,7 @@ export function CreditNoteDetail({ noteId, customer, invoiceNumbers, originalInv
 
   return (
     <div className="space-y-3" data-testid={`credit-note-detail-${noteId}`}>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-md border border-border p-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 rounded-md border border-border p-3">
         <Fact k={t("Credit note", "إشعار الدائن")} v={data.invoiceNumber} />
         <Fact k={t("Note total", "إجمالي الإشعار")} v={fmtNum(data.total)} />
         <Fact k={t("Applied", "المطبَّق")} v={fmtNum(data.appliedAmount)} testId="credit-applied" />

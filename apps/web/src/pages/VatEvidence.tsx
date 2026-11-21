@@ -262,7 +262,7 @@ export default function VatEvidence() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
           [t("Documents held", "المستندات المعلّقة"), all ? String(all.page.total) : "—", "held-count"],
           [t("VAT not claimed while held", "ضريبة لم تُخصم أثناء التعليق"), all ? fmtNum(all.totals.heldVat) : "—", "held-vat"],

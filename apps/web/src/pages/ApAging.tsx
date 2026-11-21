@@ -102,7 +102,7 @@ export default function ApAging() {
         </p>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
         {(Object.keys(BUCKET_LABELS) as (keyof ApAgingReport["buckets"])[]).map((key) => (
           <Card key={key} className="border-border bg-card">
             <CardHeader className="pb-2">

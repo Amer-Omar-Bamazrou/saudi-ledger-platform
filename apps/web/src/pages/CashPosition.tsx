@@ -103,7 +103,7 @@ export default function CashPosition() {
               </p>
               <ul className="divide-y">
                 {x.lines.items.slice(0, SHOWN).map((i) => (
-                  <li key={i.transactionId} className="flex justify-between gap-3 py-2">
+                  <li key={i.transactionId} className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-2">
                     <Link href="/bank-reconciliation" className="underline min-w-0 truncate"><span dir="ltr" className="me-2">{i.date}</span>{i.description}</Link>
                     <span className="whitespace-nowrap">{i.kind === "partial" ? <Badge variant="outline" className="me-2">{t("partial", "جزئي")}</Badge> : null}<Money v={i.direction === "in" ? i.amount : -i.amount} /></span>
                   </li>
@@ -123,8 +123,8 @@ export default function CashPosition() {
                 {x.transfersMissingLegs.length > SHOWN && t(` — showing the first ${SHOWN}`, ` — يُعرض أول ${SHOWN}`)}</p>
               <ul className="divide-y">
                 {x.transfersMissingLegs.slice(0, SHOWN).map((tr) => (
-                  <li key={tr.transferId} className="flex justify-between gap-3 py-2">
-                    <Link href="/bank-transfers" className="underline"><span dir="ltr" className="me-2">{tr.transferDate}</span>{tr.from} → {tr.to}</Link>
+                  <li key={tr.transferId} className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-2">
+                    <Link href="/bank-transfers" className="underline min-w-0 [overflow-wrap:anywhere]"><span dir="ltr" className="me-2">{tr.transferDate}</span>{tr.from} → {tr.to}</Link>
                     <span>{t(`${tr.reconciledLegs} of 2`, `${tr.reconciledLegs} من 2`)} · <Money v={tr.amount} /></span>
                   </li>
                 ))}
@@ -152,8 +152,8 @@ export default function CashPosition() {
               </p>
               <ul className="divide-y">
                 {x.ledgerLines.items.slice(0, SHOWN).map((l) => (
-                  <li key={l.journalLineId} className="flex justify-between gap-3 py-2">
-                    <Link href={`/journal-entries?entry=${l.journalEntryId}`} className="underline"><span dir="ltr" className="me-2">{l.date}</span>{l.entryNumber}</Link>
+                  <li key={l.journalLineId} className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-2">
+                    <Link href={`/journal-entries?entry=${l.journalEntryId}`} className="underline min-w-0 [overflow-wrap:anywhere]"><span dir="ltr" className="me-2">{l.date}</span>{l.entryNumber}</Link>
                     <Money v={l.outstanding} />
                   </li>
                 ))}

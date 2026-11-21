@@ -67,6 +67,7 @@ import { advanceInvoicesService } from "../services/advanceInvoices.service";
 import { SELLER, advanceCreditNote, advanceInvoice, finalInvoiceWithPrepayment, standardInvoice } from "../services/einvoice/__fixtures__/sampleInput";
 import { createApproved } from "./helpers/createApproved";
 import type { EInvoiceInput } from "../services/einvoice/types";
+import { tokenToPem } from "../services/einvoice/onboarding/zatcaOnboardingClient";
 
 const BASE = process.env.ZATCA_SANDBOX_BASE ?? "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal";
 const LIVE_DISABLED = process.env.ZATCA_LIVE_TESTS === "0";
@@ -121,8 +122,8 @@ async function obtainComplianceCsid(sellerVat: string): Promise<void> {
   if (res.status !== 200 || body.dispositionMessage !== "ISSUED") {
     throw new Error(`compliance CSID not issued: ${res.status} ${JSON.stringify(body).slice(0, 200)}`);
   }
-  const inner = Buffer.from(body.binarySecurityToken, "base64").toString();
-  certPem = `-----BEGIN CERTIFICATE-----\n${inner.replace(/(.{64})/g, "$1\n")}\n-----END CERTIFICATE-----\n`;
+  // the production conversion (one definition; it never leaves a blank line — tests/zatca-pem-wrap.test.ts)
+  certPem = tokenToPem(body.binarySecurityToken);
   auth = "Basic " + Buffer.from(`${body.binarySecurityToken}:${body.secret}`).toString("base64");
 }
 

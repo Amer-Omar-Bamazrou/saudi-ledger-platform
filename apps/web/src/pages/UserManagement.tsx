@@ -260,7 +260,7 @@ export default function UserManagement() {
       </div>
 
       {/* Stats — by membership role in the active org */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {MEMBERSHIP_ROLES.map(role => {
           const Icon = ROLE_ICON[role];
           const count = (membersData?.members ?? []).filter(m => m.role === role).length;

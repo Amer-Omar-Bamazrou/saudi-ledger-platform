@@ -178,7 +178,7 @@ export default function BalanceSheet() {
           {data.warning && (
             <p className="text-sm text-negative rounded-md border border-negative-surface/30 px-3 py-2" data-testid="bs-warning">{data.warning}</p>
           )}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               [t("Total Assets", "إجمالي الأصول"), fmtNum(data.assets.total), "text-info", "bs-kpi-assets"],
               [t("Total Liabilities", "إجمالي الخصوم"), fmtNum(data.liabilities.total), "text-attention", "bs-kpi-liabilities"],

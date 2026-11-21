@@ -14,6 +14,7 @@ import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import type { Invoice, ListInvoices200 } from "@workspace/api-client-react";
+import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -79,12 +80,12 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4 pb-4">
-          <div className="flex gap-4 items-end">
+          <ReportFilterRow>
             <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label>
               <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label>
               <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
-          </div>
+          </ReportFilterRow>
           <div className="mt-3">
             <PeriodShortcuts from={from} to={to} onSelect={(r)=>{setFrom(r.from);setTo(r.to);}} />
           </div>
@@ -96,7 +97,7 @@ function InvoiceSummaryInner({ range }: { range: ReportDefaultRange }) {
           {t("Showing", "يعرض")} {invoices.length} {t("of", "من")} {setTotal} {t("invoices in this range — the figures below cover only the rows shown. Narrow the range for a complete total.", "فاتورة في هذه الفترة — الأرقام أدناه تغطي الصفوف المعروضة فقط. ضيّق الفترة للحصول على إجمالي كامل.")}
         </p>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
           [t("Total Invoices", "إجمالي الفواتير"), filtered.length, "text-primary"],
           [t("Revenue (excl. VAT)", "الإيراد (دون الضريبة)"), fmtNum(totalRevenue), "text-primary"],

@@ -1,7 +1,8 @@
-import { request, type APIRequestContext } from "@playwright/test";
+import { request } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PHONE_BOOKS, SMOKE_BOOKS, api, seedBooks, type SeededBooks } from "./seedBooks";
 
 /**
  * Seed the suite's own tenant THROUGH THE PRODUCT, log in once, save the session.
@@ -94,6 +95,20 @@ export const E2E_ANSWERS = {
   adminState: join(dirname(fileURLToPath(import.meta.url)), ".auth", "answers-admin.json"),
 };
 
+/**
+ * The phone-fit tenant (2026-11-21): the books the smoke tenant has, written with the WORST values a page plausibly
+ * meets (seedBooks.ts, PHONE_BOOKS), and read by ONE spec only — the route crawl's 390 px pass. Nothing else writes to
+ * it, so what that pass measures cannot depend on what other specs left behind (#360 went red on rows the local frame
+ * never had).
+ */
+export const E2E_PHONE = {
+  slug: "e2e-phone-fit",
+  email: "e2e-phone-fit@smoke.local",
+  password: process.env.E2E_PASSWORD ?? "e2e-smoke-password-2026",
+  state: join(dirname(fileURLToPath(import.meta.url)), ".auth", "phone-fit.json"),
+  ids: join(dirname(fileURLToPath(import.meta.url)), ".auth", "phone-fit-ids.json"),
+};
+
 export const E2E = {
   slug: "e2e-smoke",
   email: "e2e@smoke.local",
@@ -128,14 +143,6 @@ export interface SeededIds {
 
 export const SEEDED_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), ".auth", "ids.json");
 
-/** One API call; any non-2xx is a seed failure that names the call and the server's answer. */
-async function api<T = any>(ctx: APIRequestContext, method: "GET" | "POST" | "PATCH" | "PUT", path: string, data?: unknown): Promise<T> {
-  const res = await ctx.fetch(`/api${path}`, { method, data, headers: { "content-type": "application/json" } });
-  if (!res.ok()) throw new Error(`e2e seed: ${method} ${path} → ${res.status()} ${(await res.text()).slice(0, 400)}`);
-  const text = await res.text();
-  return (text ? JSON.parse(text) : undefined) as T;
-}
-
 export default async function globalSetup(): Promise<void> {
   const { Client } = await import("pg");
   const connectionString = process.env.DATABASE_URL;
@@ -166,7 +173,7 @@ export default async function globalSetup(): Promise<void> {
    */
   const { rows: orgRows } = await db.query<{ id: string }>(
     `SELECT id FROM organizations WHERE slug = ANY($1::text[])`,
-    [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_ANSWERS.slug]],
+    [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_ANSWERS.slug, E2E_PHONE.slug]],
   );
 
   if (orgRows.length > 0) {
@@ -196,13 +203,13 @@ export default async function globalSetup(): Promise<void> {
         // information_schema, not from input, and are quoted.
         await db.query(`DELETE FROM "${table_name}" WHERE organization_id = ANY($1::uuid[])`, [ids]);
       }
-      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_ANSWERS.adminEmail]]);
-      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_ANSWERS.slug]]);
+      await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_ANSWERS.adminEmail, E2E_PHONE.email]]);
+      await db.query(`DELETE FROM organizations WHERE slug = ANY($1::text[])`, [[E2E.slug, E2E_MIGRATION.slug, E2E_S1.slug, E2E_ANSWERS.slug, E2E_PHONE.slug]]);
     } finally {
       await db.query(`SET session_replication_role = DEFAULT`);
     }
   } else {
-    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_ANSWERS.adminEmail]]);
+    await db.query(`DELETE FROM users WHERE email = ANY($1::text[])`, [[E2E.email, E2E_MIGRATION.adminEmail, E2E_MIGRATION.accountantEmail, E2E_S1.adminEmail, E2E_S1.accountantEmail, E2E_S1.bookkeeperEmail, E2E_ANSWERS.adminEmail, E2E_PHONE.email]]);
   }
 
   // ── The identity layer: the only rows written directly ─────────────────────
@@ -253,6 +260,11 @@ export default async function globalSetup(): Promise<void> {
   await db.query(`INSERT INTO companies (organization_id, name, name_ar, fiscal_year_start, fiscal_calendar) VALUES ($1,'E2E Answers Co','شركة إجابات المحاسب',1,'gregorian')`, [q3OrgId]);
   const q3Uid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,'E2E Answers Admin','${hash}','viewer', true) RETURNING id`, [E2E_ANSWERS.adminEmail])).rows[0].id as number;
   await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,'admin','active')`, [q3OrgId, q3Uid]);
+  // ── The phone-fit tenant: identity only; its books are seeded below, through the product, with the worst values ──
+  const phoneOrgId = (await db.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('E2E Phone Fit Org', $1, 'approved') RETURNING id`, [E2E_PHONE.slug])).rows[0].id as string;
+  await db.query(`INSERT INTO companies (organization_id, name) VALUES ($1,'E2E Phone Fit Co')`, [phoneOrgId]);
+  const phoneUid = (await db.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,'عبدالرحمن بن عبدالعزيز بن محمد الحربي','${hash}','viewer', true) RETURNING id`, [E2E_PHONE.email])).rows[0].id as number;
+  await db.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1,$2,'admin','active')`, [phoneOrgId, phoneUid]);
   // The suite now logs three users in per run (Batch 1C added a second tenant);
   // the login limiter is 10 per 15 minutes per IP, so a few local re-runs would
   // start answering 429 for reasons that are not regressions. This is the
@@ -288,239 +300,8 @@ export default async function globalSetup(): Promise<void> {
   const login = await ctx.post("/api/auth/login", { data: { email: E2E.email, password: E2E.password } });
   if (!login.ok()) throw new Error(`e2e login failed: ${login.status()} ${await login.text()}`);
 
-  // ── Everything below is the product writing its own rows ───────────────────
-
-  // Issuing an invoice fails closed without the company's VAT number (the
-  // walk of 2026-09-15 hit exactly this 400). Set the legal identity first.
-  await api(ctx, "PATCH", "/companies/current", {
-    name: "E2E Smoke Co",
-    nameAr: "شركة الاختبار",
-    crNumber: "1010101010",
-    vatNumber: "300000000000003",
-    // R-2 (G23; register §11.85): the fiscal year is declared HERE, before anything is posted — once an entry is in
-    // the books the start is fixed, so the seed can no longer declare it later for the budget and withdraw it after.
-    // The shared tenant is therefore DECLARED (January, Gregorian) for every spec.
-    fiscalYearStart: 1,
-    fiscalCalendar: "gregorian",
-  });
-
-  const customer = await api(ctx, "POST", "/customers", { name: "E2E Customer", taxNumber: "310000000000003" });
-  // Phase 13A: a tax invoice names its supplier's VAT number (IR Art. 53(5)(c)) — without one, every bill is held for evidence.
-  const vendor = await api(ctx, "POST", "/vendors", { name: "E2E Vendor", taxNumber: "302222222222223" });
-  const customerId = customer.id as number;
-  const vendorId = vendor.id as number;
-
-  // The chart: the seeded system accounts plus one equity account for the
-  // opening entry (the seeded chart's only equity account is the transfers
-  // one, which is not where owner capital goes).
-  // D-3: cash lives on a bank's OWN GL account, so the bank account comes
-  // first; the opening entry's cash line names that account, never the
-  // "Cash and Bank" header (which accepts no postings).
-  const bank = await api(ctx, "POST", "/bank-accounts", {
-    name: "E2E Current Account",
-    bankName: "Al Rajhi Bank",
-    currency: "SAR",
-    balance: 25000,
-    openingBalance: 20000,
-  });
-  const categories: Array<{ id: number; name: string; systemCode: string | null; type: string; bankAccountId: number | null }> = await api(ctx, "GET", "/categories");
-  const cash = categories.find((c) => c.bankAccountId === bank.id);
-  if (!cash) throw new Error("e2e seed: the bank account has no GL cash account");
-  const equity = await api(ctx, "POST", "/categories", {
-    name: "Owner Equity",
-    nameAr: "حقوق الملكية",
-    type: "equity",
-    vatApplicable: false,
-  });
-
-  // Opening entry — real account ids, posted through the JE path.
-  const je = await api(ctx, "POST", "/journal-entries", {
-    entryNumber: "E2E-JE-001",
-    date: "2026-07-15",
-    description: "Opening balance entry",
-    lines: [
-      { accountId: cash.id, accountName: cash.name, debitAmount: 5000, creditAmount: 0 },
-      { accountId: equity.id, accountName: equity.name, debitAmount: 0, creditAmount: 5000 },
-    ],
-  });
-  await api(ctx, "POST", `/journal-entries/${je.id}/post`);
-
-  // Money on both sides, one of each shape a page might get wrong: fully paid,
-  // partly paid, unpaid, and a draft that must move nothing. Approved in date
-  // order so the ICV chain is the one a tenant would have.
-  const line = (description: string, unitPrice: number) => [{ description, quantity: 1, unitPrice, vatRate: 15 }];
-  const invoice = async (invoiceNumber: string, date: string, dueDate: string, subtotal: number) =>
-    api(ctx, "POST", "/invoices", { invoiceNumber, date, dueDate, customerId, items: line("Consulting services", subtotal) });
-  const issue = async (id: number) => {
-    await api(ctx, "POST", `/invoices/${id}/submit`);
-    await api(ctx, "POST", `/invoices/${id}/approve`);
-  };
-
-  const inv1 = await invoice("E2E-INV-001", "2026-06-01", "2026-06-30", 1000);
-  await issue(inv1.id);
-  await api(ctx, "POST", `/invoices/${inv1.id}/pay`, { amount: 1150, paidAt: "2026-06-28", bankAccountId: bank.id });
-
-  const inv2 = await invoice("E2E-INV-002", "2026-07-01", "2026-07-31", 2000);
-  await issue(inv2.id);
-  await api(ctx, "POST", `/invoices/${inv2.id}/pay`, { amount: 1000, paidAt: "2026-07-20", bankAccountId: bank.id });
-
-  const inv3 = await invoice("E2E-INV-003", "2026-08-01", "2026-08-31", 3000);
-  await issue(inv3.id);
-
-  await invoice("E2E-INV-004", "2026-08-15", "2026-09-15", 500); // stays a draft
-
-  // A credit note against the PAID invoice — the shape aging must show as a
-  // negative receivable (item 7 of the 2026-09-15 walk).
-  const cn = await api(ctx, "POST", "/invoices", {
-    invoiceNumber: "E2E-CN-001",
-    documentType: "credit_note",
-    originalInvoiceId: inv1.id,
-    noteReason: "Goods returned",
-    date: "2026-08-20",
-    customerId,
-    items: line("Goods returned", 100),
-  });
-  await issue(cn.id);
-
-  // Bills: posted through the bill path (PURCHASES by default), one paid.
-  const bill = async (billNumber: string, date: string, dueDate: string, subtotal: number) =>
-    api(ctx, "POST", "/bills", {
-      billNumber,
-      // Phase 13A: each is the supplier's full tax invoice, with its own number.
-      supplierDocumentKind: "tax_invoice",
-      vendorReference: `SUP-${billNumber}`,
-      date,
-      dueDate,
-      vendorId,
-      subtotal,
-      vatAmount: subtotal * 0.15,
-      total: subtotal * 1.15,
-      items: line("Office supplies", subtotal),
-    });
-  const bill1 = await bill("E2E-BILL-001", "2026-06-05", "2026-07-05", 400);
-  await api(ctx, "POST", `/bills/${bill1.id}/post`, {});
-  await api(ctx, "POST", `/bills/${bill1.id}/pay`, { amount: 460, paidAt: "2026-07-06", bankAccountId: bank.id });
-  const bill2 = await bill("E2E-BILL-002", "2026-07-10", "2026-08-10", 800);
-  await api(ctx, "POST", `/bills/${bill2.id}/post`, {});
-
-  // Three imported movements on the bank account created above — the upload
-  // path is what lands rows in review, which is the state the review page
-  // exists for.
-  await api(ctx, "POST", "/transactions/upload", {
-    bankAccountId: bank.id,
-    rows: [
-      { date: "2026-07-02", description: "Customer payment received", amount: 1150, type: "credit", currency: "SAR" },
-      { date: "2026-07-06", description: "Supplier payment", amount: 460, type: "debit", currency: "SAR" },
-      { date: "2026-08-03", description: "Office rent", amount: 3000, type: "debit", currency: "SAR" },
-    ],
-  });
-
-  // Batch 1B Phase F (2026-09-17): a receipt ON ACCOUNT — a customer deposit
-  // with no allocation — and statement rows that classify one way each:
-  // DETERMINISTIC (the narrative names the receipt's reference; same bank,
-  // exact amount, next day) and AMBIGUOUS (agrees with the 1,000 partial
-  // payment of INV-002 on bank, amount and date, but nothing in the narrative
-  // identifies it — amount and date alone never match). The 1,150 row above
-  // is UNMATCHED: its receipt is dated 2026-06-28, outside the ±3-day window.
-  const deposit = await api(ctx, "POST", "/payments", {
-    customerId,
-    amount: 800,
-    bankAccountId: bank.id,
-    paidAt: "2026-08-25",
-    method: "transfer",
-    reference: "E2E-DEP-800",
-    allocations: [],
-  });
-  await api(ctx, "POST", "/transactions/upload", {
-    bankAccountId: bank.id,
-    rows: [
-      { date: "2026-08-26", description: "Incoming transfer E2E-DEP-800", amount: 800, type: "credit", currency: "SAR" },
-      { date: "2026-07-21", description: "Incoming transfer", amount: 1000, type: "credit", currency: "SAR" },
-    ],
-  });
-
-  await api(ctx, "POST", "/products", {
-    name: "Consulting hour",
-    type: "service",
-    unit: "unit",
-    description: "Professional services",
-    unitPrice: 500,
-    vatApplicable: true,
-    stockQty: 0,
-  });
-
-  // GOSI (Phase 18): a Saudi employee (the default nationality) carries a stated GOSI law, or payroll refuses to run.
-  await api(ctx, "POST", "/employees", { employeeNumber: "E2E-EMP-001", name: "E2E Employee", basicSalary: 8000, status: "active", gosiRegime: "law_1421h" });
-
-  // A payroll run: created from the employees, approved through the workflow
-  // (which posts the GL — the old seed's "approved" run had none).
-  const run = await api(ctx, "POST", "/payroll", { period: "2026-07" });
-  await api(ctx, "POST", `/payroll/${run.id}/submit`);
-  await api(ctx, "POST", `/payroll/${run.id}/approve`);
-
-  // FA-A (2026-09-22): a category (the account triple + the Art. 17 group + the
-  // Art. 52 class) and a DRAFT asset — nothing posted; capitalisation and the
-  // monthly run arrive with FA-B and seed their own rows then.
-  const assetCategory = await api(ctx, "POST", "/asset-categories", { name: "Computers and equipment", nameAr: "حواسيب ومعدات", defaultUsefulLifeMonths: 48, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" });
-  await api(ctx, "POST", "/assets", {
-    assetNumber: "E2E-FA-001",
-    name: "Office laptop",
-    categoryId: assetCategory.id,
-    acquisitionDate: "2026-01-15",
-    availableForUseDate: "2026-01-15",
-    cost: 12000,
-    residualValue: 0,
-    vatInputTaxAmount: 1800,
-  });
-
-  // Phase 15: an APPROVED 2026 base budget — so /budgets lists a row, /budgets/:id is crawlable and the
-  // Analytics card has figures. A budget needs a DECLARED fiscal year (D15-15) — declared with the company's
-  // identity above (R-2, G23: it cannot be declared or withdrawn once anything is posted). The budget FREEZES its
-  // year (D15-01).
-  const budget = await api<{ id: number; version: { id: number } }>(ctx, "POST", "/budgets", { name: "E2E Operating Budget", nameAr: "ميزانية التشغيل", fiscalYearLabel: 2026 });
-  // Phase 16: a DRAFT Zakat computation for FY 2025 (a computation also freezes its year at creation), so
-  // /zakat lists a row and /tax/computations/:id is crawlable. A draft moves nothing in the books.
-  const taxComputation = await api<{ id: number }>(ctx, "POST", "/tax/computations", { kind: "zakat", fiscalYearLabel: 2025 });
-  const budgetAccounts = await api<Array<{ id: number; name: string }>>(ctx, "GET", "/budgets/accounts");
-  const salesAccount = budgetAccounts.find((a) => a.name === "Sales Revenue");
-  const purchasesAccount = budgetAccounts.find((a) => a.name === "Purchases");
-  if (!salesAccount || !purchasesAccount) throw new Error("e2e seed: the Sales Revenue / Purchases system accounts are missing from /budgets/accounts");
-  await api(ctx, "PUT", `/budgets/${budget.id}/versions/${budget.version.id}/lines`, {
-    lines: [
-      { accountId: salesAccount.id, periods: [1000, 1000, 1000, 1000, 1000, 2000, 3000, 3000, 1000, 1000, 1000, 1000] },
-      { accountId: purchasesAccount.id, annualAmount: 6000 },
-    ],
-  });
-  await api(ctx, "POST", `/budgets/${budget.id}/versions/${budget.version.id}/approve`);
-
-  const quotation = await api(ctx, "POST", "/quotations", {
-    date: "2026-08-01",
-    validUntil: "2026-12-31",
-    customerId,
-    items: line("Proposed engagement", 2000),
-  });
-  await api(ctx, "POST", `/quotations/${quotation.id}/submit`);
-
-  const po = await api(ctx, "POST", "/purchase-orders", { date: "2026-08-02", vendorId, items: line("Hardware order", 1500) });
-  await api(ctx, "POST", `/purchase-orders/${po.id}/submit`);
-  await api(ctx, "POST", `/purchase-orders/${po.id}/approve`);
-
-  // A recurring rule. Drafts-only by design, and dated so the scheduler never
-  // generates from it — it exists so `/recurring` renders a row.
-  await api(ctx, "POST", "/recurring", {
-    entity: "invoice",
-    template: { customerId, items: line("Retainer", 1000) },
-    frequency: "monthly",
-    dayOfMonth: 1,
-    startsOn: "2099-01-01",
-  });
-
-  // A closed month, so `/closed-months` has something to show. Deliberately a
-  // period no seeded document falls in, so nothing above becomes unpostable.
-  await api(ctx, "POST", "/period-locks", { period: "2025-12" });
-
-  // Batch 1C: a draft batch (zero ledger effect) so the crawl can render `/migration/:id`.
-  const migrationBatch = await api(ctx, "POST", "/migration/batches", { sourceSystem: "E2E Previous System", cutoverDate: "2025-01-01" });
+  // ── Everything below is the product writing its own rows (the sequence lives in seedBooks.ts) ──
+  const smoke: SeededBooks = await seedBooks(ctx, SMOKE_BOOKS);
 
   mkdirSync(dirname(E2E.storageState), { recursive: true });
   await ctx.storageState({ path: E2E.storageState });
@@ -560,5 +341,14 @@ export default async function globalSetup(): Promise<void> {
   await q3.storageState({ path: E2E_ANSWERS.adminState });
   await q3.dispose();
 
-  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId, vendorId, bankId: bank.id, depositPaymentId: deposit.id, migrationBatchId: migrationBatch.id, migrationBankId: migBank.id, budgetId: budget.id, taxComputationId: taxComputation.id } satisfies SeededIds, null, 2));
+  // The phone-fit tenant: one session, and the books with the worst values (seedBooks.ts, PHONE_BOOKS).
+  const phone = await request.newContext({ baseURL: API, extraHTTPHeaders: { origin: API } });
+  const phoneLogin = await phone.post("/api/auth/login", { data: { email: E2E_PHONE.email, password: E2E_PHONE.password } });
+  if (!phoneLogin.ok()) throw new Error(`e2e phone-fit login failed: ${phoneLogin.status()}`);
+  const phoneBooks = await seedBooks(phone, PHONE_BOOKS);
+  await phone.storageState({ path: E2E_PHONE.state });
+  await phone.dispose();
+  writeFileSync(E2E_PHONE.ids, JSON.stringify(phoneBooks, null, 2));
+
+  writeFileSync(SEEDED_IDS_PATH, JSON.stringify({ customerId: smoke.customerId, vendorId: smoke.vendorId, bankId: smoke.bankId, depositPaymentId: smoke.depositPaymentId, migrationBatchId: smoke.migrationBatchId, migrationBankId: migBank.id, budgetId: smoke.budgetId, taxComputationId: smoke.taxComputationId } satisfies SeededIds, null, 2));
 }

@@ -602,7 +602,7 @@ export default function Invoices() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
           // Every figure here is the SERVER's, over the whole filtered set.
           [t("Total Invoices", "إجمالي الفواتير"), pageInfo?.total ?? "—", "text-primary"],

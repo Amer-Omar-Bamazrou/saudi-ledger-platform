@@ -200,15 +200,15 @@ export default function CustomerStatement() {
                         <Badge className={`text-xs ${k.cls}`}>{t(k.en, k.ar)}</Badge>
                         <span className="text-xs text-muted-foreground"><DualDate date={l.date} inline /></span>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs">{l.documentNumber}</span>
+                      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                        <span className="font-mono text-xs min-w-0 [overflow-wrap:anywhere]">{l.documentNumber}</span>
                         <span className="font-mono">{money(l.amount)}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">{l.description}</p>
-                      <div className="grid grid-cols-3 gap-2 text-xs pt-1 border-t border-border/50">
-                        <div><p className="text-muted-foreground">{t("AR", "الذمم")}</p><p className="font-mono">{money(l.receivable)}</p></div>
-                        <div><p className="text-muted-foreground">{t("Credits", "أرصدة دائنة")}</p><p className="font-mono">{money(l.creditBalance)}</p></div>
-                        <div><p className="text-muted-foreground">{t("Deposits", "عرابين")}</p><p className="font-mono">{money(l.depositBalance)}</p></div>
+                      <div className="space-y-1 text-xs pt-1 border-t border-border/50">
+                        <div className="flex flex-wrap justify-between gap-x-2"><p className="text-muted-foreground">{t("AR", "الذمم")}</p><p className="font-mono">{money(l.receivable)}</p></div>
+                        <div className="flex flex-wrap justify-between gap-x-2"><p className="text-muted-foreground">{t("Credits", "أرصدة دائنة")}</p><p className="font-mono">{money(l.creditBalance)}</p></div>
+                        <div className="flex flex-wrap justify-between gap-x-2"><p className="text-muted-foreground">{t("Deposits", "عرابين")}</p><p className="font-mono">{money(l.depositBalance)}</p></div>
                       </div>
                     </div>
                   );

@@ -2,8 +2,10 @@ import { test, expect, type Page, type ConsoleMessage } from "./fixtures";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
+import { E2E, E2E_PHONE, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
+import type { SeededBooks } from "./seedBooks";
 import { EXPECTATIONS, ROWS_EXPECTED, type Kind } from "./routes";
+import { fitsAtPhoneWidth } from "./phoneFit";
 
 /**
  * THE SMOKE CRAWL — every route, authenticated, failing on a page error or an
@@ -230,4 +232,100 @@ test.describe("anonymous routes", () => {
       expect(problems.serverErrors, `${route} 5xx'd`).toEqual([]);
     });
   }
+});
+
+/**
+ * 🔴 EVERY ROUTE FITS A 390 PX PHONE, IN ARABIC (owner, 2026-11-21).
+ *
+ * The app's content area clips sideways (Layout.tsx `overflow-x-hidden`), so a row wider than the phone loses its
+ * last controls off screen and nothing scrolls: the document-width check every walk used was true by construction.
+ * A sweep of all 95 routes (2026-11-21) found five report pages whose Generate button lay 44 of its 49 px past the
+ * edge. `fitsAtPhoneWidth` measures the content area itself and names what does not fit. It runs here, over every
+ * route this crawl classifies, so a new page is measured the day it is added. Frame: each page as it first renders
+ * (default tab, no dialog opened). `/operator` is measured by `p19a-walk-390.spec.ts` as an operator.
+ *
+ * 🔴 DETERMINISTIC (owner, 2026-11-21): it measures the PHONE-FIT tenant (global-setup.ts `E2E_PHONE`), seeded with
+ * the worst values a page plausibly meets (seedBooks.ts `PHONE_BOOKS`: the longest names, unbroken references, long
+ * narratives, large amounts) and written to by nothing else — so the result cannot depend on what other specs left in
+ * the shared tenant. CI's fonts are the reference; `E2E_PHONE_WIDTH` narrows the viewport to check a fix leaves margin.
+ */
+const PHONE = { width: Number(process.env.E2E_PHONE_WIDTH ?? 390), height: 844 };
+function phoneUrl(route: string): string {
+  const b = JSON.parse(readFileSync(E2E_PHONE.ids, "utf8")) as SeededBooks;
+  const map: Record<string, string> = {
+    "/migration/:id": `/migration/${b.migrationBatchId}`,
+    "/customers/:id": `/customers/${b.customerId}`,
+    "/customers/:id/statement": `/customers/${b.customerId}/statement`,
+    "/vendors/:id": `/vendors/${b.vendorId}`,
+    "/budgets/:id": `/budgets/${b.budgetId}`,
+    "/tax/computations/:id": `/tax/computations/${b.taxComputationId}`,
+    "/supplier-statements/:vendorId": `/supplier-statements/${b.vendorId}`,
+    "/invoices/:id": `/invoices/${b.invoiceId}`,
+    "/assets/:id": `/assets/${b.assetId}`,
+    "/coming-soon/:slug": "/coming-soon/transfers",
+  };
+  if (!route.includes(":")) return route;
+  const url = map[route];
+  if (!url) throw new Error(`the 390 px crawl has no phone-fit id for ${route}: add it to seedBooks and this map`);
+  return url;
+}
+async function openInArabic(page: Page, url: string): Promise<void> {
+  await page.addInitScript(() => { try { localStorage.setItem("ksa_lang", "ar"); } catch { /* the default language */ } });
+  await page.goto(url, { waitUntil: "networkidle" });
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+}
+
+test.describe("every route fits a 390 px phone, in Arabic", () => {
+  test.describe("signed in", () => {
+    test.use({ storageState: E2E_PHONE.state, viewport: PHONE, locale: "ar-SA" });
+    for (const [route, kind] of Object.entries(EXPECTATIONS)) {
+      if (kind !== "app" && kind !== "param" && kind !== "authenticated-no-shell") continue;
+      test(`${route} fits at 390 px`, async ({ page }) => {
+        await openInArabic(page, phoneUrl(route));
+        await fitsAtPhoneWidth(page, route);
+      });
+    }
+  });
+
+  test.describe("signed out", () => {
+    test.use({ storageState: { cookies: [], origins: [] }, viewport: PHONE, locale: "ar-SA" });
+    for (const [route, kind] of Object.entries(EXPECTATIONS)) {
+      if (kind !== "anonymous") continue;
+      test(`${route} fits at 390 px, signed out`, async ({ page }) => {
+        await openInArabic(page, route);
+        await fitsAtPhoneWidth(page, route);
+      });
+    }
+  });
+});
+
+/**
+ * 🔴 A KPI FIGURE IN THE HUNDREDS OF MILLIONS STAYS ON ONE LINE AT 360 PX (owner, 2026-11-21). The phone-fit tenant's
+ * balance sheet totals are planted that large; the figure must be whole (never broken between digits), inside its
+ * card, and the page must fit. 360 px is narrower than the 390 px every route is measured at: the margin.
+ */
+test.describe("a nine-figure KPI at 360 px", () => {
+  test.use({ storageState: E2E_PHONE.state, viewport: { width: 360, height: 800 }, locale: "ar-SA" });
+  test("the balance sheet's total assets is one unbroken figure inside its card", async ({ page }) => {
+    await openInArabic(page, "/balance-sheet");
+    const kpi = page.getByTestId("bs-kpi-assets");
+    await expect(kpi).toBeVisible();
+    const m = await kpi.evaluate((el) => {
+      const text = (el.textContent ?? "").trim();
+      const digits = /\d[\d,]*\.\d{2}/.exec(text);
+      const node = Array.from(el.childNodes).find((n) => n.nodeType === Node.TEXT_NODE && digits && (n.nodeValue ?? "").includes(digits[0])) ?? el.firstChild!;
+      const range = document.createRange();
+      const at = (node.nodeValue ?? "").indexOf(digits?.[0] ?? "");
+      range.setStart(node, Math.max(at, 0));
+      range.setEnd(node, Math.max(at, 0) + (digits?.[0].length ?? 0));
+      const lines = new Set(Array.from(range.getClientRects()).filter((r) => r.width > 0).map((r) => Math.round(r.top))).size;
+      const card = el.closest(".rounded-lg")!.getBoundingClientRect();
+      const box = range.getBoundingClientRect();
+      return { text, value: Number((digits?.[0] ?? "0").replace(/,/g, "")), lines, inside: box.left >= card.left && box.right <= card.right };
+    });
+    expect(m.value, `anti-vacuity: the planted total is in the hundreds of millions (${m.text})`).toBeGreaterThanOrEqual(100_000_000);
+    expect(m.lines, `the amount ${m.text} is on one line`).toBe(1);
+    expect(m.inside, "and inside its card").toBe(true);
+    await fitsAtPhoneWidth(page, "/balance-sheet at 360 px");
+  });
 });

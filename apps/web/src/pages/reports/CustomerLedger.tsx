@@ -18,6 +18,7 @@ import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 
 import type { Customer, CustomerLedgerCustomer, CustomerLedgerReport } from "@workspace/api-client-react";
+import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
 
 const STATUS_STYLES: Record<string, string> = { draft: "bg-secondary text-muted-foreground", sent: "bg-info-surface/20 text-info", paid: "bg-positive-surface/20 text-positive", partial: "bg-attention-surface/20 text-attention" };
 
@@ -36,7 +37,7 @@ function CustomerRow({ cust }: { cust: CustomerLedgerCustomer }) {
           {cust.taxNumber && <span className="text-xs text-muted-foreground">{t("VAT:", "الرقم الضريبي:")} {cust.taxNumber}</span>}
           <Badge variant="outline" className="text-xs">{cust.invoices.length} {t(cust.invoices.length !== 1 ? "invoices" : "invoice", cust.invoices.length !== 1 ? "فواتير" : "فاتورة")}</Badge>
         </div>
-        <div className="flex items-center gap-6 text-sm font-mono">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-mono">
           <span className="text-muted-foreground">{t("Invoiced:", "المفوتر:")} <span className="text-foreground">{fmtNum(cust.totalInvoiced)}</span></span>
           <span className="text-muted-foreground">{t("Paid:", "المدفوع:")} <span className="text-positive">{fmtNum(cust.totalPaid)}</span></span>
           <span className="text-muted-foreground">{t("Balance:", "الرصيد:")} <span className={cust.balance > 0 ? "text-negative font-bold" : "text-positive"}>{fmtNum(cust.balance)}</span></span>
@@ -138,7 +139,7 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">
-          <div className="flex items-end gap-4 flex-wrap">
+          <ReportFilterRow>
             <div className="min-w-48">
               <Label className="text-xs text-muted-foreground">{t("Customer", "العميل")}</Label>
               <Select value={customerId} onValueChange={setCustomerId}>
@@ -152,7 +153,7 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
             <div><Label className="text-xs text-muted-foreground">{t("From", "من")}</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <div><Label className="text-xs text-muted-foreground">{t("To", "إلى")}</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 h-8 text-sm w-40" /></div>
             <Button size="sm" className="h-8" onClick={() => setApplied({ customerId, from: dateFrom, to: dateTo })}>{t("Generate", "إنشاء")}</Button>
-          </div>
+          </ReportFilterRow>
           <div className="mt-3">
             <PeriodShortcuts from={dateFrom} to={dateTo} onSelect={(r)=>{setDateFrom(r.from);setDateTo(r.to);setApplied({customerId,from:r.from,to:r.to});}} />
           </div>
@@ -160,7 +161,7 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
       </Card>
 
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             [t("Customers", "العملاء"), data.customers.length, "text-primary"],
             [t("Total AR Balance", "إجمالي رصيد الذمم"), fmtNum(data.totalBalance), "text-negative"],
