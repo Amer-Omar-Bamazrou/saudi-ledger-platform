@@ -3110,3 +3110,20 @@ turned into is open and stays in §5: the retention register, deletion after ret
 controller or processor, official identity documents, and read-only permissions. Nothing
 was built by the answers; B3's deletable staging and the archive's class distinction
 are now required before inbound captures can be destroyed.
+
+## A ZERO-RATED, EXEMPT OR OUT-OF-SCOPE INVOICE LINE CANNOT CARRY ITS REASON — CLOSED 2026-11-22 (with BR-KSA-49)
+
+**Found** 2026-11-21, by BR-KSA-49's live verification pass run over real HTTP (standing rule 3): the invoice API's
+line input had no `taxExemptionReasonCode` or text, so the request validator dropped them, and the invoice form could
+not state a line's VAT category at all. An onboarded company was refused at issuance for every Z/E/O line
+(`line_exemption_reason_missing`, the assembler); one not onboarded issued the line without its reason. Every earlier
+test built the line through the service, below the layer that dropped it. Recorded in CLAUDE.md §5 (rank 2) until this
+closed it.
+
+**Closed:** ZATCA's reason list, once, in `@workspace/shared` `vatExemptionReasons` (XML Implementation Standard v1.2,
+§11.2.4, pp. 32–33, English and Arabic as printed); the contract carries the code and text on every line and returns
+them; a code must be on the list and belong to its line's category (422, named); a coded reason stores ZATCA's text,
+VATEX-SA-OOS the taxpayer's; approval refuses a Z/E/O line without its reason, for every company, before the ICV; the
+invoice form states each line's category and chooses the reason from the list in the reader's language
+(`@workspace/shared` `invoiceFormLines.ts`, whose request builder the live ZATCA pass uses). Not covered: a quotation
+converted into an invoice carries no reason (its lines have none) — the invoice's approval then names the missing one.

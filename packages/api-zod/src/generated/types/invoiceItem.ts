@@ -20,4 +20,19 @@ export interface InvoiceItem {
   vatAmount: number;
   discount?: number;
   total: number;
+  /**
+     * S, Z, E or O
+     * @nullable
+     */
+  taxCategoryCode?: string | null;
+  /**
+     * BT-121, from ZATCA's list
+     * @nullable
+     */
+  taxExemptionReasonCode?: string | null;
+  /**
+     * BT-120
+     * @nullable
+     */
+  taxExemptionReasonText?: string | null;
 }

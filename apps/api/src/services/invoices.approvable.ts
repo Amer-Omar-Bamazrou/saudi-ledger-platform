@@ -36,6 +36,7 @@ import { requireIssuanceSeller } from "./sellerIdentity";
 import { captureIssuedParties } from "./issuedParties";
 import { assertCorrectionIssuable, mirrorRejectedInvoiceEntries } from "./invoiceCorrections.service";
 import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
+import { assertBuyerNationalIdForExemptions } from "./einvoice/buyerNationalId";
 import { BusinessRuleError, ConflictError } from "../lib/errors";
 import { logger } from "../lib/logger";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
@@ -47,6 +48,7 @@ import { advanceInvoicesService, prepaymentsOf, assertTaxPointPeriodOpen } from 
 import type { GLLine } from "./accounting/glPosting";
 import { assetDisposalService } from "./assets/disposal.service";
 import { auditContext } from "../lib/auditContext";
+import { assertLineReasons } from "./invoiceLineReasons";
 
 type Invoice = typeof InvoicesTable.$inferSelect;
 type Customer = typeof customersTable.$inferSelect;
@@ -229,6 +231,12 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
   if (isAdvance) await assertAdvanceInvoiceIssuable(inv);
   // Phase 18 (the PR C correction route): a correction names a rejected invoice of its own customer and date.
   await assertCorrectionIssuable(inv);
+  // 🔴 BR-KSA-49 (2026-11-21): a private education or healthcare line needs the buyer's Saudi national ID — for EVERY
+  // company, onboarded to ZATCA or not, and before the ICV: a refusal issues, writes and sends nothing.
+  const issuingItems = await invoicesRepository.itemsByInvoice(inv.id);
+  // 🔴 each zero-rated, exempt or out-of-scope line names its reason from ZATCA's list (invoiceLineReasons.ts)
+  assertLineReasons(issuingItems);
+  assertBuyerNationalIdForExemptions(issuingItems, row.cust?.nationalId);
   const prepayments = !isAdvance && !isNoteType(inv.documentType) ? await assertPrepaymentsIssuable(inv, total) : [];
 
   // The tenant's real ZATCA identity — fails closed if unconfigured, so an

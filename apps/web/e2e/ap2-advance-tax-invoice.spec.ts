@@ -118,8 +118,8 @@ async function settleReceipt(id: number) {
 const TODAY = businessToday();
 const PERIOD = TODAY.slice(0, 7);
 
-/** Record a receipt on account classified as an ADVANCE (S) in the receipt dialog; returns its id. */
-async function recordAdvance(page: Page, amount: number, lang: "en" | "ar"): Promise<number> {
+/** Record a receipt on account classified as an ADVANCE (S, or Z) in the receipt dialog; returns its id. */
+async function recordAdvance(page: Page, amount: number, lang: "en" | "ar", category: "S" | "Z" = "S"): Promise<number> {
   const reference = `AP2-RCPT-${Date.now()}`;
   await page.getByTestId("record-receipt").click();
   const dialog = page.getByTestId("receive-dialog");
@@ -128,7 +128,7 @@ async function recordAdvance(page: Page, amount: number, lang: "en" | "ar"): Pro
   await pickOption(page, dialog.getByTestId("receive-bank-account"), /E2E Current Account/);
   await dialog.getByTestId("receive-reference").fill(reference);
   await pickOption(page, dialog.getByTestId("receive-classification"), lang === "ar" ? /دفعة مقدمة لتوريد/ : /Advance for a supply/);
-  await pickOption(page, dialog.getByTestId("receive-vat-category"), lang === "ar" ? /النسبة الأساسية/ : /standard rate/);
+  await pickOption(page, dialog.getByTestId("receive-vat-category"), category === "Z" ? (lang === "ar" ? /نسبة الصفر/ : /zero-rated/) : lang === "ar" ? /النسبة الأساسية/ : /standard rate/);
   await dialog.getByTestId("receive-submit").click();
   await expect(toast(page, lang === "ar" ? "تم تسجيل الإيصال" : "Receipt recorded")).toBeVisible();
   await expect(dialog).toBeHidden();
@@ -403,6 +403,40 @@ test.describe("AP-2 — Arabic / RTL phone", () => {
     await page.goto("/vat?period=all", { waitUntil: "networkidle" });
     await expect(page.getByTestId(`deposit-review-${id}`)).toContainText("صدرت فاتورتها الضريبية");
     await noSidewaysScroll(page, PHONE.width, "VAT page in Arabic on a phone");
+    await settleReceipt(id);
+  });
+});
+
+/**
+ * 🔴 A ZERO-RATED ADVANCE'S REASON IS CHOSEN FROM ZATCA'S LIST, IN ARABIC (2026-11-22). The dialog's free-typed code
+ * became a select of ZATCA's reasons for the advance's category (@workspace/shared vatExemptionReasons); the server
+ * stores ZATCA's own text. Drafted only, then deleted and the receipt refunded — the customer is left as found.
+ */
+test.describe("AP-2 — a zero-rated advance's reason, Arabic phone", () => {
+  test.use({ viewport: PHONE });
+  test("🔴 the 386 dialog needs ZATCA's reason for a zero-rated advance, offers the list in Arabic, and sends the chosen code", async ({ page }) => {
+    await page.goto(`/customers/${ids.customerId}`, { waitUntil: "networkidle" });
+    await switchToArabicOnPhone(page);
+    const id = await recordAdvance(page, 500, "ar", "Z");
+    const detail = await openReceipt(page, id);
+    await detail.getByTestId(`advance-invoices-${id}`).getByTestId(`issue-advance-${id}`).click();
+    const dialog = page.getByTestId("advance-invoice-dialog");
+    const reason = dialog.getByTestId("advance-exemption-reason");
+    await expect(dialog.getByTestId("advance-submit"), "no reason chosen: nothing to send").toBeDisabled();
+    await expect(reason, "ZATCA's zero-rated reasons, in Arabic").toContainText("صادرات السلع من المملكة");
+    await expect(reason, "never an exempt reason on a zero-rated advance").not.toContainText("الخدمات المالية");
+    await reason.selectOption("VATEX-SA-32");
+    await expectFits(dialog, PHONE.width, "the Arabic advance dialog with its reason fits the phone");
+    const sent = page.waitForRequest((r) => r.method() === "POST" && new URL(r.url()).pathname === `/api/payments/${id}/advance-invoices`);
+    await dialog.getByTestId("advance-submit").click();
+    const body = (await sent).postDataJSON();
+    expect(body).toMatchObject({ taxExemptionReasonCode: "VATEX-SA-32" });
+    expect(body, "the code alone; the server stores ZATCA's text").not.toHaveProperty("taxExemptionReasonText");
+    await expect(toast(page, "أُنشئت مسودة الفاتورة الضريبية للدفعة المقدمة")).toBeVisible();
+    const draft = (await payment(id)).advanceInvoices.find((a) => a.status === "draft")!;
+    const stored = (await (await api.get(`/api/invoices/${draft.id}`)).json()) as { items: Array<Record<string, unknown>> };
+    expect(stored.items[0]).toMatchObject({ taxCategoryCode: "Z", taxExemptionReasonCode: "VATEX-SA-32", taxExemptionReasonText: "Export of goods" });
+    expect((await api.delete(`/api/invoices/${draft.id}`)).ok(), "the draft is removed").toBeTruthy();
     await settleReceipt(id);
   });
 });

@@ -8,6 +8,7 @@
  */
 import { BusinessRuleError } from "../../lib/errors";
 import { GENESIS_PIH } from "./ubl/buildInvoiceXml";
+import { BUYER_IDENTIFIED_EXEMPTIONS, assertBuyerNationalIdForExemptions, usesBuyerIdentifiedExemption } from "./buyerNationalId";
 import type {
   EInvoiceInput,
   EInvoiceLine,
@@ -57,14 +58,9 @@ function percent(value: unknown): string {
 const VALID_CATEGORIES: readonly string[] = ["S", "Z", "E", "O"];
 
 /**
- * Exemption codes ZATCA permits ONLY when the buyer is identified.
- *
- * BR-KSA-49 requires the buyer's national ID (BT-46, scheme NAT) and BR-KSA-25
- * requires the buyer name whenever one of these is used — so they cannot appear
- * on an anonymous simplified invoice. Established in M12.4 from a live rejection,
- * not from the rule text.
+ * Exemption codes ZATCA permits ONLY when the buyer is identified (BR-KSA-25 the name, BR-KSA-49 the Saudi national
+ * ID as BT-46 scheme NAT). The rule and its format live in ./buyerNationalId.ts, shared with issuance.
  */
-const BUYER_IDENTIFIED_EXEMPTIONS: readonly string[] = ["VATEX-SA-EDU", "VATEX-SA-HEA"];
 
 export interface AssembleRows {
   invoice: {
@@ -310,14 +306,8 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
           code: "exemption_requires_buyer_name",
         });
       }
-      if (!customer?.nationalId?.trim()) {
-        throw new BusinessRuleError(400, {
-          error:
-            `Line ${i + 1} uses exemption ${it.taxExemptionReasonCode}, which requires the buyer's ` +
-            "national ID (BR-KSA-49). Add it to the customer record before issuing.",
-          code: "exemption_requires_buyer_national_id",
-        });
-      }
+      // BR-KSA-49: a Saudi national ID (10 digits starting with 1) — an iqama or a malformed value is refused by name
+      assertBuyerNationalIdForExemptions([it], customer?.nationalId);
     }
 
     const net = Number(it.total ?? 0) - Number(it.vatAmount ?? 0);
@@ -349,7 +339,12 @@ export function assembleEInvoiceInput(rows: AssembleRows): EInvoiceInput {
     ? {
         legalName: customer.name,
         vatNumber: customer.taxNumber,
-        identification: customer.crNumber ? { schemeId: "CRN", value: customer.crNumber } : null,
+        // 🔴 BR-KSA-49: on a private education or healthcare invoice the buyer's other ID (BT-46) IS the Saudi
+        // national ID, scheme NAT — checked above, written here (it used to be checked and never written, so ZATCA
+        // would have rejected the invoice it was checked for). Otherwise the CR number, when the buyer has one.
+        identification: usesBuyerIdentifiedExemption(rows.items)
+          ? { schemeId: "NAT", value: String(customer.nationalId).trim() }
+          : customer.crNumber ? { schemeId: "CRN", value: customer.crNumber } : null,
         address: addressOf(customer),
       }
     : null;
