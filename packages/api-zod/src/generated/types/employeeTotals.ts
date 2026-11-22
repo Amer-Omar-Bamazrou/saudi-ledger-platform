@@ -11,6 +11,8 @@ export interface EmployeeTotals {
   grossSalary: number;
   /** Employer GOSI for the current period over the employees whose law is stated. */
   gosiEmployer: number;
-  /** GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer. */
+  /** GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer. An employee whose pay is not set is counted in payNotSetCount instead. */
   gosiUnstatedCount: number;
+  /** 19B S2a (D8 O2): matching employees whose pay is not set — a payroll run leaves them out and names them. Their pay is in no total here. */
+  payNotSetCount: number;
 }

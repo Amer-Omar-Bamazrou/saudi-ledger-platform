@@ -248,7 +248,7 @@ describeMaybe("Phase 17 — treasury on real rows", () => {
     // the instrument sees: a broken response FAILS the same schema
     expect(GetTreasuryForecastResponse.safeParse({ ...JSON.parse(JSON.stringify(f)), buckets: "nope" }).success).toBe(false);
     // the forecast CSV carries every bucket's closing, as the screen shows it
-    const csv = (await inA(() => exportReport("treasury-forecast", { weeks: "13" }, "csv", "en"))).body.toString("utf8");
+    const csv = (await inA(() => exportReport("treasury-forecast", { weeks: "13" }, "csv", "en", () => "read"))).body.toString("utf8");
     for (const b of f.buckets) expect(csv, `bucket ${b.index}'s closing`).toContain(b.closing.toFixed(2));
     expect(csv).toContain("a projection, never cash");
   });

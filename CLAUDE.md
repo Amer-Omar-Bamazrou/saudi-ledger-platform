@@ -358,7 +358,7 @@ doing the thing it governs rather than only once you know its name.
   ambient global role.
 - **🔴 A PLATFORM OPERATOR IS A MEMBER OF NO ORGANIZATION** — the database refuses the membership and the grant either way (0121); confinement treats operator status as foreign to every tenant.
 - **🔴 AN ACCOUNT IS BORN WITH ITS FIRST MEMBERSHIP** — it joins another org only by invitation → acceptance (`POST /orgs/:id/members` never creates one); operators hold none.
-- 🔴 **`PERMISSION_MATRIX` IS THE ONE DEFINITION OF THE GRANTS** — the API refuses to start on drift; migrations never write `permissions`, only `permissions:reconcile` does ([runbook](docs/product/permissions-reconcile-runbook.md)).
+- 🔴 **`PERMISSION_MATRIX` IS THE ONE GRANT DEFINITION** — drift stops the API; only `permissions:reconcile` writes them ([runbook](docs/product/permissions-reconcile-runbook.md)).
 - **🔴 `db` REFUSES a query outside a tenant transaction** — it used to fall back SILENTLY to the owner connection (RLS bypassed, no error). A deliberately cross-tenant caller imports **`ownerDb`** and says so. 🔴 **Never re-add a fallback here.** (findings file, "RANK 1 FIXED".)
 - **🔴 APPROVAL IS AN ACT ABOUT A DOCUMENT, NEVER A PROPERTY OF THE CALLER** — auto-approve made issuing a legal document a consequence of *who created it*, and was removed entirely (§4). A one-call path that mints an ICV is not a convenience; it is the leg that made AUD-13 unrecoverable.
 - **🔴 MONEY ROUNDING GOES THROUGH `lib/money.ts` — ONE SEAM** (N2). `round2` to compute, `money2` to store; never a bare `.toFixed(2)` on an unrounded float (it rounds DIFFERENTLY), never a local `round2`. Headers that must equal their stored lines accumulate ROUNDED addends, and `postJournalEntry` checks balance on the rounded lines it persists.
@@ -574,10 +574,10 @@ the order is not the severity order.**
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
 | **1** | **Password recovery** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
-| **2** | 🔴 **Art. 40(10) is unbuilt**: input VAT on a bill unpaid 12 months after its supply month is never reversed, so the company keeps VAT it must give back. | files + hides. | Advisor Block M. |
-| **3** | 🔴 **The generic journal reverse accepts an entry a receipt, depreciation or recognition OWNS** — the document reads live while its entry is cancelled. | posts + hides. | DR-34; Phase 12 §7 #8. |
-| **4** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | Official identity documents. | Audited, operator-only. P6: no statutory expiry. |
-| **5** | **M-5** magic-byte sniff is header-only (closes with C4). | — | The long tail. |
+| **2** | 🔴 **Payroll ignores the end date**: an `active` leaver is paid a full month and GOSI every month; a leaving month's pay is never pro-rated; `inactive` drops the final part-month. Deleting a paid employee: 500. | posts + hides. | Final pay: accountant. |
+| **3** | 🔴 **Art. 40(10) is unbuilt**: input VAT on a bill unpaid 12 months after its supply month is never reversed, so the company keeps VAT it must give back. | files + hides. | Advisor Block M. |
+| **4** | 🔴 **The generic journal reverse accepts an entry a receipt, depreciation or recognition OWNS** — the document reads live while its entry is cancelled. | posts + hides. | DR-34; Phase 12 §7 #8. |
+| **5** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | Official identity documents. | Audited, operator-only. P6: no statutory expiry. |
 
 **Open DECISION:** `platform-alarms` is NOT operator-runnable (one-line flip).
 
@@ -585,8 +585,7 @@ the order is not the severity order.**
 render-blocking script in `index.html` sets `dir`/`lang` — React runs after the
 paint. **Do not delete it as an oddity**; a test fails on its removal.
 
-🔴 **P4's `KNOWN_GAPS` and `KNOWN_GAP_TRANSITIONS` are both EMPTY.** A new entry
-needs a checkable reason and leaves the day it is fixed.
+🔴 **P4's `KNOWN_GAPS`/`KNOWN_GAP_TRANSITIONS` are EMPTY**: an entry needs a checkable reason and leaves when fixed.
 
 ### Arabic coverage
 
@@ -600,13 +599,13 @@ readers labelled English (#346): each needs real Arabic.
 
 - **S6/S7:** `feature_flags`, `branches`, `departments` have **no consumer** — build one or drop.
 - 🔴 **Pre-D-3 cash history stays on the `CASH` header until the per-company cut-over (`scripts/cashCutover.ts`, dry-run first) runs clean.** Every local company is blocked by rows naming no bank; NO override mechanism exists (an open accountant decision). Record: known-issues file, "THE CASH CUT-OVER IS BLOCKED".
-- 🔴 **The business calendar day is ONE ZONE, `Asia/Riyadh`, a constant in `@workspace/shared` `businessDate.ts`** — a named IANA zone (not a `+03:00` literal), with no per-company setting or column anywhere. When a tenant zone is needed it becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
+- 🔴 **The business day is ONE ZONE, `Asia/Riyadh`** (`@workspace/shared` `businessDate.ts`; a named IANA zone, never `+03:00`; no per-company column). A tenant zone becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
 
 - 🔴 **Our VAT-return boxes are NOT ZATCA's** (P13-N1).
 - Manual transaction create has no `kind`/`taxTreatment`: every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
 - The Categories UI cannot mark system accounts (no edit routes exist).
 - **Deferred:** action-level permissions (post-to-GL / pay / approve, gateable separately).
-- 🔴 **Re-check the hosted project's default privileges when it exists** — they may differ from the local stack where the grants were measured.
+- 🔴 **Re-check the hosted project's default privileges when it exists** (the grants were measured on the local stack only).
 
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
 

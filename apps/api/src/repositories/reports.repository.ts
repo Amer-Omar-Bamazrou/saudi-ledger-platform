@@ -129,6 +129,14 @@ const partyCondition = (p: GlParty) =>
     : and(eq(journalEntryLinesTable.partyType, "vendor"), eq(journalEntryLinesTable.vendorId, p.id))!;
 
 export const reportsRepository = {
+  /** 19B S2a: each entry's source tag, for the export's bank-text condition (lib/fieldClasses/conditions.ts). */
+  entrySourceTypes(entryIds: number[]) {
+    if (entryIds.length === 0) return Promise.resolve([] as { id: number; sourceType: string | null }[]);
+    return db
+      .select({ id: journalEntriesTable.id, sourceType: journalEntriesTable.sourceType })
+      .from(journalEntriesTable)
+      .where(inArray(journalEntriesTable.id, entryIds));
+  },
   allCategories() {
     return db.select().from(categoriesTable);
   },

@@ -58,8 +58,25 @@ export const payrollService = {
 
   async create(body: { period: string; notes?: string | null }, userId: number | null) {
     const { period, notes } = body;
-    const employees = await payrollRepository.activeEmployees();
-    if (employees.length === 0) throw new BadRequestError("No active employees found");
+    const active = await payrollRepository.activeEmployees();
+    if (active.length === 0) throw new BadRequestError("No active employees found");
+    /**
+     * 🔴 19B S2a (v4 §10.1, D8 O2): an active employee whose pay is NOT SET is LEFT OUT and NAMED in the run — no
+     * payroll line is written for them, so nothing is ever computed at zero. Setting their pay brings them into the next
+     * run. A run that would leave EVERY active employee out is refused by name: it would pay nobody.
+     */
+    const leftOut = active
+      .filter((e) => e.basicSalary == null)
+      .map((e) => ({ employeeId: e.id, employeeNumber: e.employeeNumber, name: e.name, reason: "pay_not_set" as const }));
+    const employees = active.filter((e) => e.basicSalary != null);
+    if (employees.length === 0) {
+      throw new BusinessRuleError(422, {
+        code: "payroll_no_pay_set",
+        error: `No payroll run for ${period}: the pay of every active employee is not set (${leftOut.map((e) => e.name).join(", ")}). An accountant or admin sets each one's pay on the Employees page. Nothing was created.`,
+        errorAr: `لا يُنشأ مسير رواتب لـ ${period}: لم يُحدَّد راتب أي موظف نشط (${leftOut.map((e) => e.name).join("، ")}). يحدّد المحاسب أو المسؤول راتب كل منهم من صفحة الموظفين. لم يُنشأ شيء.`,
+        leftOut,
+      });
+    }
 
     let totalBasic = 0;
     let totalAllowances = 0;
@@ -190,6 +207,7 @@ export const payrollService = {
       totalDeductions: "0",
       totalNetPay: money2(totalNet),
       createdBy: userId ?? null,
+      leftOut,
     } as Parameters<typeof payrollRepository.insertRun>[0]);
     await payrollRepository.insertItems(items.map((i) => ({ ...i, payrollRunId: run.id })));
     await auditService.created("payroll_run", run.id, run);

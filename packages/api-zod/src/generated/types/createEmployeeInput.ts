@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CreateEmployeeInputGosiRegime } from './createEmployeeInputGosiRegime';
+import type { CreateEmployeeInputStatus } from './createEmployeeInputStatus';
 
+/**
+ * 19B S2a (D8 O2): pay is optional — an employee created without basicSalary is 'pay not set' until an accountant or admin sets it.
+ */
 export interface CreateEmployeeInput {
   /** @minLength 1 */
   employeeNumber: string;
@@ -23,7 +27,7 @@ export interface CreateEmployeeInput {
   /** @nullable */
   department?: string | null;
   /** @minimum 0 */
-  basicSalary: number;
+  basicSalary?: number;
   /** @minimum 0 */
   housingAllowance?: number;
   /** @minimum 0 */
@@ -38,9 +42,13 @@ export interface CreateEmployeeInput {
   bank?: string | null;
   /** @nullable */
   joiningDate?: string | null;
-  /** @nullable */
+  /**
+     * The last day of employment (YYYY-MM-DD); not before the joining date.
+     * @nullable
+     */
   endDate?: string | null;
-  status?: string;
+  /** Who a payroll run includes: only 'active' employees. Writing it needs compensation (D1). */
+  status?: CreateEmployeeInputStatus;
   /** @nullable */
   notes?: string | null;
   /** @nullable */

@@ -4,6 +4,8 @@ import { payrollController } from "../controllers/payroll.controller";
 const router = Router();
 
 router.get("/", payrollController.list);
+// 19B S2a: what the reader may read of each payroll line field — before /:id, which would take it as an id.
+router.get("/field-access", payrollController.fieldAccess);
 router.get("/:id", payrollController.get);
 router.post("/", payrollController.create);
 // Draft/approval workflow (M10.5): submit is a create-level (bookkeeper) action;

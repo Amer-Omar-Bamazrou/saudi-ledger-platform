@@ -26,7 +26,12 @@ export const employeesTable = pgTable(
     jobTitle: text("job_title"),
     jobTitleAr: text("job_title_ar"),
     department: text("department"),
-    basicSalary: numeric("basic_salary", { precision: 15, scale: 2 }).notNull(),
+    /**
+     * 🔴 19B S2a (v4 §10, D8 O2): NULL = PAY NOT SET. A bookkeeper creates an employee without pay; an accountant or
+     * admin sets it. Such an employee shows "pay not set" wherever it appears, and a payroll run names it and leaves it
+     * out (payroll_runs.left_out) — never computing it at zero. The 0049 CHECK (basic_salary >= 0) admits NULL.
+     */
+    basicSalary: numeric("basic_salary", { precision: 15, scale: 2 }),
     housingAllowance: numeric("housing_allowance", { precision: 15, scale: 2 }).default("0"),
     transportAllowance: numeric("transport_allowance", { precision: 15, scale: 2 }).default("0"),
     otherAllowances: numeric("other_allowances", { precision: 15, scale: 2 }).default("0"),
@@ -66,7 +71,7 @@ export const employeesTable = pgTable(
 export const insertEmployeeSchema = createInsertSchema(employeesTable)
   .omit({ id: true, createdAt: true })
   .extend({
-    basicSalary: z.string().or(z.number()),
+    basicSalary: z.string().or(z.number()).nullable().optional(),
     housingAllowance: z.string().or(z.number()).optional(),
     transportAllowance: z.string().or(z.number()).optional(),
     otherAllowances: z.string().or(z.number()).optional(),

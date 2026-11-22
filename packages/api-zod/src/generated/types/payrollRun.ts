@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { PayrollLeftOutEmployee } from './payrollLeftOutEmployee';
 import type { PayrollRunStatus } from './payrollRunStatus';
 
 export interface PayrollRun {
@@ -44,4 +45,6 @@ export interface PayrollRun {
   /** @nullable */
   notes: string | null;
   createdAt: string;
+  /** 19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated. */
+  leftOut: PayrollLeftOutEmployee[];
 }

@@ -32,6 +32,8 @@ const MEMBERSHIP = { standard: "organizationId userId role status" };
 const DOCUMENT_META = "id organizationId type fileName mimeType sizeBytes uploadedByUserId createdAt";
 const APPLICATION_HEADER = "organizationId name slug status reason reviewedBy reviewedAt submittedAt createdAt";
 const prefixed = (prefix: string, keys: string) => keys.split(" ").map((k) => `${prefix}${k}`).join(" ");
+/** An e-invoice outbox row as the operator sees it (operatorZatca.service.ts overdue / needsReview). */
+const OUTBOX_ROW = "id organizationId companyId invoiceId flow status attemptCount ambiguous";
 
 /**
  * Classified from the test lane's own traffic (2026-11-22, every API test, the capture in seam.ts). A route that shares
@@ -94,6 +96,21 @@ export const OUTSIDE_CONTRACT_ROUTES: Record<string, NodeClasses> = {
   "GET /products/{id}": { standard: PRODUCT_KEYS },
   "POST /products": { standard: PRODUCT_KEYS },
   "PATCH /products/{id}": { standard: PRODUCT_KEYS },
+  // ── 2026-11-22 (owner, item 6): the routes S1's measurement left unreached, now reached by
+  // tests/field-class-unreached-routes.test.ts. Item keys of a list the test leaves empty are the service's own
+  // projection (operatorZatca.service.ts), read from the code.
+  "GET /products": { standard: [prefixed("items[].", PRODUCT_KEYS), "page.limit page.offset page.total totals.productCount totals.serviceCount totals.vatApplicableCount"].join(" ") },
+  "GET /llm/status": { standard: "activModel llmBackendConfigured mode model note reachable" },
+  "GET /llm/demo": { standard: "activeModel note summary.agreed summary.disagreed summary.total transactions[].amount transactions[].description transactions[].type transactions[].match transactions[].deterministic.category transactions[].deterministic.confidence transactions[].deterministic.rule transactions[].hybrid.category transactions[].hybrid.confidence transactions[].hybrid.model transactions[].hybrid.source" },
+  // The caller's own input, echoed (no stored record is read).
+  "POST /llm/categorize": { standard: "categoryName categoryNameAr confidence matchedRule source suggestedVatRate systemCode vatApplicable" },
+  "POST /llm/compare": { standard: "agreed agreementRate disagreed model total results[].agreement results[].input.amount results[].input.description results[].input.type results[].deterministic.categoryName results[].deterministic.confidence results[].deterministic.matchedRule results[].hybrid.categoryName results[].hybrid.confidence results[].hybrid.llmModel results[].hybrid.matchedRule results[].hybrid.source" },
+  // The operator's ZATCA views: operational metadata — never a tenant's figures, XML or keys.
+  "GET /operator/zatca/health": { standard: "overdueMinutes needsReview workerEnabled overdue.total overdue.breakdownCoversFirst overdue.oldestAgeMinutes overdue.byFlow.clearance overdue.byFlow.reporting archive.archived archive.pendingArchive" },
+  "GET /operator/zatca/overdue": { standard: prefixed("[].", OUTBOX_ROW) },
+  "GET /operator/zatca/needs-review": { standard: prefixed("[].", OUTBOX_ROW) },
+  "GET /operator/zatca/certificates": { standard: prefixed("[].", "credentialId companyId companyName organizationId environment notAfter daysRemaining expired remindersRaised remindersMissing") },
+  "GET /operator/zatca/onboarding": { standard: [prefixed("items[].", "companyId companyName organizationId organizationName hasVatNumber egsSerialNumber environment credentialStatus notAfter readyToOnboard"), "page.limit page.offset page.total"].join(" ") },
 };
 
 // isPlainObject: one definition (shapes.ts) — a Date is one value, never an object to walk into.

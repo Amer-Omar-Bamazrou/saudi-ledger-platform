@@ -345,9 +345,9 @@ describeMaybe("Phase 16 — withholding tax on real rows", () => {
     // the instrument sees: a broken response FAILS the same schema
     expect(GetWhtReturnResponse.safeParse({ ...JSON.parse(JSON.stringify(ret)), totals: null }).success).toBe(false);
     // the CSV exports carry the screen's figures — the return's withheld total, the annual return's per-beneficiary WHT
-    const csv = (await inA(() => exportReport("wht-return", { period: "2026-07" }, "csv", "en"))).body.toString("utf8");
+    const csv = (await inA(() => exportReport("wht-return", { period: "2026-07" }, "csv", "en", () => "read"))).body.toString("utf8");
     expect(csv).toContain(ret.totals.taxWithheld.toFixed(2));
-    const annualCsv = (await inA(() => exportReport("wht-annual", { fiscal_year: "2026" }, "csv", "en"))).body.toString("utf8");
+    const annualCsv = (await inA(() => exportReport("wht-annual", { fiscal_year: "2026" }, "csv", "en", () => "read"))).body.toString("utf8");
     expect(annualCsv).toContain("London Consulting Ltd");
     expect(annualCsv).toContain(annual.totals.wht.toFixed(2));
   });

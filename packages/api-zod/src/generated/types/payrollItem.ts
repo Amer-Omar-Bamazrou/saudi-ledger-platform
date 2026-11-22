@@ -7,28 +7,31 @@
  */
 import type { PayrollItemGosiRegime } from './payrollItemGosiRegime';
 
+/**
+ * 19B (v4 §5.2): the pay figures are compensation — ABSENT for a role that cannot read pay (X-Withheld names them); the line's identity and the statutory rates are standard.
+ */
 export interface PayrollItem {
   id: number;
   payrollRunId: number;
   /** @nullable */
   employeeId: number | null;
-  basicSalary: number;
-  housingAllowance: number;
-  transportAllowance: number;
-  otherAllowances: number;
-  grossSalary: number;
-  gosiEmployee: number;
-  gosiEmployer: number;
+  basicSalary?: number;
+  housingAllowance?: number;
+  transportAllowance?: number;
+  otherAllowances?: number;
+  grossSalary?: number;
+  gosiEmployee?: number;
+  gosiEmployer?: number;
   /**
      * GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated).
      * @nullable
      */
-  gosiRegime: PayrollItemGosiRegime;
+  gosiRegime?: PayrollItemGosiRegime;
   /**
      * The contributory wage used: basic + housing, capped at SAR 45,000.
      * @nullable
      */
-  gosiWageBase: number | null;
+  gosiWageBase?: number | null;
   /**
      * The employee rate used, as a fraction.
      * @nullable
@@ -43,32 +46,32 @@ export interface PayrollItem {
      * GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none.
      * @nullable
      */
-  gosiInKindHousing: number | null;
+  gosiInKindHousing?: number | null;
   /**
      * GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply.
      * @nullable
      */
-  gosiPensionFloorWage: number | null;
+  gosiPensionFloorWage?: number | null;
   /** GOSI decision 21: a non-Saudi line below the 1421H Regulation Art. 19(1) SAR 400 occupational-hazards minimum — a WARNING only, an open GOSI question; the line's figures are never changed by it. */
-  gosiHazardsFloorOpen: boolean;
+  gosiHazardsFloorOpen?: boolean;
   /**
      * GO-12 (both laws: 2024 Regulation Art. 20(2); 1421H Regulation Art. 21(3)): the days of service in a joining or leaving month. Null for a full month.
      * @nullable
      */
-  gosiServiceDays: number | null;
+  gosiServiceDays?: number | null;
   /**
      * GO-12: the month's actual days, the divisor of gosiServiceDays. Null for a full month.
      * @nullable
      */
-  gosiPeriodDays: number | null;
+  gosiPeriodDays?: number | null;
   /**
      * GO-12 (1421H law): the period whose line fixed the year's contributory wage, which this line used. Null for other laws.
      * @nullable
      */
-  gosiWageFixedPeriod: string | null;
-  additions: number;
-  deductions: number;
-  netPay: number;
+  gosiWageFixedPeriod?: string | null;
+  additions?: number;
+  deductions?: number;
+  netPay?: number;
   /** @nullable */
   employeeName: string | null;
   /** @nullable */

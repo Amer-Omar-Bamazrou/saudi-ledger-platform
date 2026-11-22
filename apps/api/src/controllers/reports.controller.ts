@@ -2,6 +2,8 @@ import type { NextFunction, Request, Response } from "express";
 import { reportsService, reportParty } from "../services/reports.service";
 import { exportReport } from "../services/reporting/reportExport.service";
 import { BadRequestError } from "../lib/errors";
+import { peekPermissions } from "../lib/rbac";
+import { deciderFor } from "../lib/fieldClasses/seam";
 
 /**
  * 🔴 The error-handling work package (2026-11-17): every failure goes to the central errorHandler. This wrapper used
@@ -33,7 +35,7 @@ export const reportsController = {
     const lang = String(req.query.lang ?? "en");
     if (format !== "csv" && format !== "pdf") throw new BadRequestError("format must be 'csv' or 'pdf'.");
     if (lang !== "en" && lang !== "ar") throw new BadRequestError("lang must be 'en' or 'ar'.");
-    const out = await exportReport(String(req.params.report), q(req), format, lang);
+    const out = await exportReport(String(req.params.report), q(req), format, lang, deciderFor(req.tenant?.role, peekPermissions()));
     res
       .status(200)
       .type(out.contentType)

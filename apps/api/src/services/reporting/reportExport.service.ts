@@ -36,6 +36,9 @@ import { whtService } from "../tax/wht.service";
 import { taxComputationsService } from "../tax/taxComputations.service";
 import { treasuryService } from "../treasury/treasury.service";
 import { auditService } from "../audit.service";
+import { isBankDerivedEntry } from "../../lib/fieldClasses/conditions";
+import type { ReadDecider } from "../../lib/fieldClasses/walk";
+import { reportsRepository } from "../../repositories/reports.repository";
 
 export const EXPORTABLE_REPORTS = ["trial-balance", "income-statement", "balance-sheet", "cash-flow", "general-ledger", "ar-aging", "ap-aging", "budget-vs-actual", "wht-return", "wht-annual", "tax-computation", "treasury-forecast"] as const;
 export type ExportableReport = (typeof EXPORTABLE_REPORTS)[number];
@@ -74,7 +77,11 @@ const MAX_ROWS: Record<ExportFormat, number> = { csv: 50_000, pdf: 3_000 };
 type Bi = { en: string; ar: string };
 type Cell = string | number | null;
 type ColumnKind = "text" | "money" | "int" | "date";
-type Row = { kind: "section" | "row" | "subtotal" | "total" | "note"; cells: Cell[] };
+/**
+ * `subjectTo[i] === false`: column i's protected class does not apply to this row (its class's condition does not
+ * hold — a ledger line that did not come from a bank line carries no bank text). Absent: the class applies.
+ */
+type Row = { kind: "section" | "row" | "subtotal" | "total" | "note"; cells: Cell[]; subjectTo?: Record<number, boolean> };
 /**
  * 🔴 19B S1 (v4 §4): EVERY EXPORT COLUMN DECLARES ITS CLASS — `"standard"`, or a protected class with the resource whose
  * field grants decide it. Required by the type, so a column added without one does not compile; the export applies the
@@ -263,6 +270,9 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
       const party = reportParty(q.party_type, q.customer_id, q.vendor_id);
       const accountId = q.account_id ? String(reportAccountId(q.account_id)) : undefined;
       const gl = await reportsService.generalLedger(accountId, undefined, from, to, party);
+      // 19B S2a (v4 §5.2, D1/D9; D11 amended 2026-11-22): a line's text is BANK TEXT where its entry came from a bank
+      // line — withheld from a role without bank_narrative on journal entries (applyWithholding below).
+      const sources = new Map((await reportsRepository.entrySourceTypes([...new Set(gl.movements.map((m) => m.jeId).filter((id): id is number => id != null))])).map((r) => [r.id, r.sourceType]));
       return {
         report: "general-ledger",
         title: L("General ledger", "دفتر الأستاذ العام"),
@@ -272,7 +282,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
           columns: [col("Date", "التاريخ", "date", "standard"), col("Entry", "القيد", "text", "standard"), col("Description", "البيان", "text", { cls: "bank_narrative", resource: "journal_entries" }), col("Account", "الحساب", "text", "standard"), col("Debit", "مدين", "money", "standard"), col("Credit", "دائن", "money", "standard"), col("Balance", "الرصيد", "money", "standard")],
           rows: [
             { kind: "subtotal", cells: [from ?? "", "", pick(L("Opening balance", "الرصيد الافتتاحي"), lang), "", null, null, gl.openingBalance] },
-            ...gl.movements.map((m) => ({ kind: "row" as const, cells: [m.date, m.entryNumber, m.description ?? "", lang === "ar" && m.accountNameAr ? m.accountNameAr : m.accountName, m.debit, m.credit, m.balance] })),
+            ...gl.movements.map((m) => ({ kind: "row" as const, cells: [m.date, m.entryNumber, m.description ?? "", lang === "ar" && m.accountNameAr ? m.accountNameAr : m.accountName, m.debit, m.credit, m.balance], subjectTo: { 2: isBankDerivedEntry(m.jeId == null ? null : sources.get(m.jeId)) } })),
             { kind: "total", cells: [to ?? "", "", pick(L("Closing balance", "الرصيد الختامي"), lang), "", gl.totalDebit, gl.totalCredit, gl.closingBalance] },
           ],
         }],
@@ -529,9 +539,44 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
   }
 }
 
-/** The export: the document model rendered to the requested format. */
-export async function exportReport(report: string, q: Q, format: ExportFormat, lang: ExportLang): Promise<{ contentType: string; filename: string; body: Buffer }> {
+/**
+ * 🔴 19B S2a (v4 §4, D4): the class table drives the export as it drives the screen. Each cell of a column with a
+ * protected class — on a row its class applies to — that the reader's role may not read is replaced by a marker that
+ * names what was withheld (a file has no "absent" cell); the document's notes say so. Nothing else is touched.
+ * Returns how many cells were withheld.
+ */
+export function applyWithholding(doc: ReportDocument, decide: ReadDecider, lang: ExportLang): number {
+  let withheld = 0;
+  const classes = new Set<string>();
+  for (const t of doc.tables) {
+    t.columns.forEach((c, i) => {
+      if (c.class === "standard") return;
+      const { cls, resource } = c.class;
+      if (decide(cls, resource) === "read") return;
+      for (const r of t.rows) {
+        if (r.kind !== "row" || r.subjectTo?.[i] === false || r.cells[i] == null || r.cells[i] === "") continue;
+        r.cells[i] = pick(WITHHELD_MARKER[cls] ?? WITHHELD_MARKER.default!, lang);
+        withheld++;
+        classes.add(cls);
+      }
+    });
+  }
+  if (withheld) doc.notes.push(L(
+    `${withheld} cell(s) are withheld for your role (${[...classes].join(", ")}).`,
+    `حُجبت ${withheld} خانة لدورك (${[...classes].join("، ")}).`,
+  ));
+  return withheld;
+}
+const WITHHELD_MARKER: Record<string, Bi> = {
+  bank_narrative: L("[withheld: bank text]", "[محجوب: نص كشف البنك]"),
+  contact: L("[withheld: contact details]", "[محجوب: بيانات الاتصال]"),
+  default: L("[withheld]", "[محجوب]"),
+};
+
+/** The export: the document model rendered to the requested format, after withholding (19B S2a). */
+export async function exportReport(report: string, q: Q, format: ExportFormat, lang: ExportLang, decide: ReadDecider): Promise<{ contentType: string; filename: string; body: Buffer }> {
   const doc = await buildReportDocument(report, q, lang);
+  const withheldCells = applyWithholding(doc, decide, lang);
   const rowCount = doc.tables.reduce((s, t) => s + t.rows.length, 0);
   if (rowCount > MAX_ROWS[format]) {
     throw new BusinessRuleError(422, {
@@ -547,7 +592,7 @@ export async function exportReport(report: string, q: Q, format: ExportFormat, l
     : { contentType: "application/pdf", filename: `${doc.filenameStem}.pdf`, body: await htmlToPdf(toHtml(doc, lang, companyName, stamp), { margin: { top: "14mm", bottom: "14mm", left: "12mm", right: "12mm" } }) };
   // 🔴 DR-26: recorded BEFORE the file is sent — the request commits before it responds, so a failed record sends no file.
   const params = Object.fromEntries(Object.entries(q).filter(([k]) => k !== "format" && k !== "lang"));
-  await auditService.record({ action: "export", entityType: "report_export", entityId: report, after: { format, lang, filename: out.filename, rows: rowCount, params } });
+  await auditService.record({ action: "export", entityType: "report_export", entityId: report, after: { format, lang, filename: out.filename, rows: rowCount, params, withheldCells } });
   return out;
 }
 

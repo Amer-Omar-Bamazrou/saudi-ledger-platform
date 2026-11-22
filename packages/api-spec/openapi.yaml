@@ -3711,6 +3711,20 @@ paths:
               schema: { $ref: "#/components/schemas/PayrollRun" }
         "400":
           description: Body failed validation, or no active employees
+        "422":
+          description: Every active employee is left out (pay not set), or a GOSI law or rate is missing — named, nothing created
+
+  /payroll/field-access:
+    get:
+      operationId: getPayrollFieldAccess
+      tags: [payroll]
+      summary: What the reader's role may read and write of each payroll line field (19B S2a)
+      responses:
+        "200":
+          description: Per field, its class, the read level and whether the role may write it
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FieldAccess" }
 
   /payroll/{id}:
     get:
@@ -3773,6 +3787,18 @@ paths:
               schema: { $ref: "#/components/schemas/Employee" }
         "400":
           description: Body failed validation
+
+  /employees/field-access:
+    get:
+      operationId: getEmployeeFieldAccess
+      tags: [employees]
+      summary: What the reader's role may read and write of each employee field (19B S2a)
+      responses:
+        "200":
+          description: Per field, its class, the read level and whether the role may write it
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FieldAccess" }
 
   /employees/{id}:
     parameters:
@@ -13062,7 +13088,7 @@ components:
 
     PayrollRun:
       type: object
-      required: [id, period, status, totalBasicSalary, totalAllowances, totalGosiEmployee, totalGosiEmployer, totalDeductions, totalNetPay, processedAt, reviewNote, notes, gosiPaidAt, gosiInvoicedAmount, gosiInvoiceReference, gosiReconcilingDifference, createdAt]
+      required: [id, period, status, totalBasicSalary, totalAllowances, totalGosiEmployee, totalGosiEmployer, totalDeductions, totalNetPay, processedAt, reviewNote, notes, gosiPaidAt, gosiInvoicedAmount, gosiInvoiceReference, gosiReconcilingDifference, createdAt, leftOut]
       properties:
         id:
           type: integer
@@ -13097,6 +13123,37 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+        leftOut:
+          type: array
+          description: "19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated."
+          items: { $ref: "#/components/schemas/PayrollLeftOutEmployee" }
+
+    PayrollLeftOutEmployee:
+      type: object
+      required: [employeeId, employeeNumber, name, reason]
+      properties:
+        employeeId: { type: integer }
+        employeeNumber: { type: string }
+        name: { type: string }
+        reason: { type: string, enum: [pay_not_set] }
+
+    FieldAccess:
+      type: object
+      description: "19B S2a (v4 §4): what the reader's role may do with each field of one kind of record, from the one class table and the one matrix — so a page shows only what the role may write, and marks what it may not read. Never a field's value."
+      required: [record, fields]
+      properties:
+        record: { type: string, enum: [employees, payroll] }
+        fields:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/FieldAccessEntry" }
+
+    FieldAccessEntry:
+      type: object
+      required: [class, read, write]
+      properties:
+        class: { type: string, enum: [standard, contact, identity, compensation, bank_account, bank_narrative, member_security, by_entity] }
+        read: { type: string, enum: [read, last4, none] }
+        write: { type: boolean, description: "False when the field is read-only for every role, or the role lacks a class its write needs." }
 
     # ── Report schemas (2026-09-01) — shaped from reports.service.ts, verified
     #    against real rows by tests/report-contract-conformance.test.ts ────────
@@ -14888,10 +14945,8 @@ components:
 
     PayrollItem:
       type: object
-      required: [id, payrollRunId, employeeId, basicSalary, housingAllowance, transportAllowance, otherAllowances,
-                 grossSalary, gosiEmployee, gosiEmployer, gosiRegime, gosiWageBase, gosiEmployeeRate, gosiEmployerRate,
-                 gosiInKindHousing, gosiPensionFloorWage, gosiHazardsFloorOpen, gosiServiceDays, gosiPeriodDays, gosiWageFixedPeriod,
-                 additions, deductions, netPay, employeeName, employeeNumber]
+      description: "19B (v4 §5.2): the pay figures are compensation — ABSENT for a role that cannot read pay (X-Withheld names them); the line's identity and the statutory rates are standard."
+      required: [id, payrollRunId, employeeId, gosiEmployeeRate, gosiEmployerRate, employeeName, employeeNumber]
       properties:
         id: { type: integer }
         payrollRunId: { type: integer }
@@ -14970,11 +15025,12 @@ components:
 
     Employee:
       type: object
-      required: [id, employeeNumber, name, nameAr, nationalId, nationality, jobTitle, jobTitleAr, department,
-                 basicSalary, housingAllowance, transportAllowance, otherAllowances, gosiNumber, iban, bank,
-                 joiningDate, endDate, status, notes, createdAt, grossSalary, gosiEmployee, gosiEmployer,
-                 gosiRegime, gosiRegimeSetBy, gosiRegimeSetAt, gosiRegimeBasis, gosiWageBase,
-                 gosiInKindHousing, gosiInKindHousingExempt]
+      description: >-
+        19B (v4 §4, D4): a field of a class the reader's role may not read is ABSENT — never null, never zero — and the
+        X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served
+        as its last four digits. So only the standard fields are required.
+      required: [id, employeeNumber, name, nameAr, jobTitle, jobTitleAr, department,
+                 joiningDate, endDate, status, createdAt, payNotSet]
       properties:
         id: { type: integer }
         employeeNumber: { type: string }
@@ -14985,7 +15041,7 @@ components:
         jobTitle: { type: ["string", "null"] }
         jobTitleAr: { type: ["string", "null"] }
         department: { type: ["string", "null"] }
-        basicSalary: { type: number }
+        basicSalary: { type: ["number", "null"], description: "Null = pay not set (19B S2a, D8 O2): see payNotSet." }
         housingAllowance: { type: number }
         transportAllowance: { type: number }
         otherAllowances: { type: number }
@@ -14997,9 +15053,12 @@ components:
         status: { type: string }
         notes: { type: ["string", "null"] }
         createdAt: { type: string }
+        payNotSet:
+          type: boolean
+          description: "19B S2a (D8 O2): the employee has no basic salary yet. Shown as 'pay not set' wherever the employee appears; a payroll run leaves the employee out and names it (PayrollRun.leftOut), never computing it at zero. Standard: every role sees it, a role that cannot read pay included."
         grossSalary:
-          type: number
-          description: DERIVED — basic + the three allowances.
+          type: ["number", "null"]
+          description: DERIVED — basic + the three allowances. Null when pay is not set (never a computed zero).
         gosiEmployee:
           type: ["number", "null"]
           description: "DERIVED (Phase 18): the current period's employee rate for the employee's GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated."
@@ -15021,15 +15080,20 @@ components:
 
     EmployeeTotals:
       type: object
-      required: [saudiCount, grossSalary, gosiEmployer, gosiUnstatedCount]
+      required: [saudiCount, grossSalary, gosiEmployer, gosiUnstatedCount, payNotSetCount]
       properties:
         saudiCount: { type: integer }
         grossSalary: { type: number }
         gosiEmployer: { type: number, description: "Employer GOSI for the current period over the employees whose law is stated." }
-        gosiUnstatedCount: { type: integer, description: "GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer." }
+        gosiUnstatedCount: { type: integer, description: "GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer. An employee whose pay is not set is counted in payNotSetCount instead." }
+        payNotSetCount: { type: integer, description: "19B S2a (D8 O2): matching employees whose pay is not set — a payroll run leaves them out and names them. Their pay is in no total here." }
 
     EmployeeInputFields:
       type: object
+      description: >-
+        19B (v4 §4): a field of a class the role may not WRITE is refused by name (403 field_write_not_granted), never
+        dropped. An employee's status, joining and end dates, nationality and GOSI number also need compensation to write
+        (D1, D2). Send only the fields that change.
       properties:
         employeeNumber: { type: string, minLength: 1 }
         name: { type: string, minLength: 1 }
@@ -15047,8 +15111,8 @@ components:
         iban: { type: ["string", "null"] }
         bank: { type: ["string", "null"] }
         joiningDate: { type: ["string", "null"] }
-        endDate: { type: ["string", "null"] }
-        status: { type: string }
+        endDate: { type: ["string", "null"], description: "The last day of employment (YYYY-MM-DD); not before the joining date." }
+        status: { type: string, enum: [active, inactive, terminated], description: "Who a payroll run includes: only 'active' employees. Writing it needs compensation (D1)." }
         notes: { type: ["string", "null"] }
         gosiRegime: { type: ["string", "null"], enum: [law_1421h, law_2024, null] }
         gosiRegimeBasis: { type: ["string", "null"] }
@@ -15057,7 +15121,8 @@ components:
 
     CreateEmployeeInput:
       type: object
-      required: [employeeNumber, name, basicSalary]
+      description: "19B S2a (D8 O2): pay is optional — an employee created without basicSalary is 'pay not set' until an accountant or admin sets it."
+      required: [employeeNumber, name]
       properties:
         employeeNumber: { type: string, minLength: 1 }
         name: { type: string, minLength: 1 }
@@ -15075,8 +15140,8 @@ components:
         iban: { type: ["string", "null"] }
         bank: { type: ["string", "null"] }
         joiningDate: { type: ["string", "null"] }
-        endDate: { type: ["string", "null"] }
-        status: { type: string }
+        endDate: { type: ["string", "null"], description: "The last day of employment (YYYY-MM-DD); not before the joining date." }
+        status: { type: string, enum: [active, inactive, terminated], description: "Who a payroll run includes: only 'active' employees. Writing it needs compensation (D1)." }
         notes: { type: ["string", "null"] }
         gosiRegime: { type: ["string", "null"], enum: [law_1421h, law_2024, null] }
         gosiRegimeBasis: { type: ["string", "null"] }

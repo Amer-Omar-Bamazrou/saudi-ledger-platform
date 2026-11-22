@@ -146,6 +146,7 @@ import type {
   ErrorResponse,
   ExpensesPage,
   ExportReportParams,
+  FieldAccess,
   FileWhtReturnInput,
   FinancialSummary,
   Finding,
@@ -14168,6 +14169,83 @@ export const useCreatePayrollRun = <TError = ErrorType<void>,
       return useMutation(getCreatePayrollRunMutationOptions(options));
     }
 
+export const getGetPayrollFieldAccessUrl = () => {
+
+
+
+
+  return `/api/payroll/field-access`
+}
+
+/**
+ * @summary What the reader's role may read and write of each payroll line field (19B S2a)
+ */
+export const getPayrollFieldAccess = async ( options?: RequestInit): Promise<FieldAccess> => {
+
+  return customFetch<FieldAccess>(getGetPayrollFieldAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollFieldAccessQueryKey = () => {
+    return [
+    `/api/payroll/field-access`
+    ] as const;
+    }
+
+
+export const getGetPayrollFieldAccessQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollFieldAccess>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollFieldAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollFieldAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollFieldAccess>>> = ({ signal }) => getPayrollFieldAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollFieldAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollFieldAccessQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollFieldAccess>>>
+export type GetPayrollFieldAccessQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary What the reader's role may read and write of each payroll line field (19B S2a)
+ */
+
+export function useGetPayrollFieldAccess<TData = Awaited<ReturnType<typeof getPayrollFieldAccess>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollFieldAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollFieldAccessQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetPayrollRunUrl = (id: number,) => {
 
 
@@ -14393,6 +14471,83 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getCreateEmployeeMutationOptions(options));
     }
+
+export const getGetEmployeeFieldAccessUrl = () => {
+
+
+
+
+  return `/api/employees/field-access`
+}
+
+/**
+ * @summary What the reader's role may read and write of each employee field (19B S2a)
+ */
+export const getEmployeeFieldAccess = async ( options?: RequestInit): Promise<FieldAccess> => {
+
+  return customFetch<FieldAccess>(getGetEmployeeFieldAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmployeeFieldAccessQueryKey = () => {
+    return [
+    `/api/employees/field-access`
+    ] as const;
+    }
+
+
+export const getGetEmployeeFieldAccessQueryOptions = <TData = Awaited<ReturnType<typeof getEmployeeFieldAccess>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeeFieldAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmployeeFieldAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmployeeFieldAccess>>> = ({ signal }) => getEmployeeFieldAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmployeeFieldAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmployeeFieldAccessQueryResult = NonNullable<Awaited<ReturnType<typeof getEmployeeFieldAccess>>>
+export type GetEmployeeFieldAccessQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary What the reader's role may read and write of each employee field (19B S2a)
+ */
+
+export function useGetEmployeeFieldAccess<TData = Awaited<ReturnType<typeof getEmployeeFieldAccess>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeeFieldAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmployeeFieldAccessQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetEmployeeUrl = (id: number,) => {
 

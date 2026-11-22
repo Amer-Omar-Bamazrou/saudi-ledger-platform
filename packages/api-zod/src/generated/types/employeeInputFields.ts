@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EmployeeInputFieldsGosiRegime } from './employeeInputFieldsGosiRegime';
+import type { EmployeeInputFieldsStatus } from './employeeInputFieldsStatus';
 
+/**
+ * 19B (v4 §4): a field of a class the role may not WRITE is refused by name (403 field_write_not_granted), never dropped. An employee's status, joining and end dates, nationality and GOSI number also need compensation to write (D1, D2). Send only the fields that change.
+ */
 export interface EmployeeInputFields {
   /** @minLength 1 */
   employeeNumber?: string;
@@ -40,9 +44,13 @@ export interface EmployeeInputFields {
   bank?: string | null;
   /** @nullable */
   joiningDate?: string | null;
-  /** @nullable */
+  /**
+     * The last day of employment (YYYY-MM-DD); not before the joining date.
+     * @nullable
+     */
   endDate?: string | null;
-  status?: string;
+  /** Who a payroll run includes: only 'active' employees. Writing it needs compensation (D1). */
+  status?: EmployeeInputFieldsStatus;
   /** @nullable */
   notes?: string | null;
   /** @nullable */
