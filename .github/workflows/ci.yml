@@ -265,6 +265,19 @@ jobs:
       - name: Apply migrations
         run: pnpm --filter @workspace/db run migrate
 
+      # 🔴 19B S0 — THE SUITES RUN AGAINST THE PRODUCTION MATRIX. Migrations write only the grants of the seven pinned
+      # grant-writing migrations (50 of PERMISSION_MATRIX's rows); this job never ran the seed. So every suite started
+      # on those 50 until one of the seven suites that call `seedPermissions()` happened to fill the table — a test's
+      # answer depended on which suite ran first, and a refusal could pass only because its grant was missing.
+      # Measured 2026-11-22, every API test on each table, the seven run last: 17 tests in 3 suites FAILED on the 50
+      # (the database's approver count read no roles, so bookkeeper postings were not refused; an admin was refused
+      # creates) and passed on the matrix; none passed only because a grant was missing.
+      # Additions only: a removal needs the owner's approval, so the command refuses it (exit 2) and fails this job
+      # rather than delete a grant. The API suites' global setup (src/tests/globalSetup.ts) refuses to start while
+      # the table differs from the matrix, so a drifted table can never again be what the suites test.
+      - name: Reconcile the permission grants to the matrix (additions only)
+        run: pnpm --filter @workspace/db run permissions:reconcile --env ci-test --apply --actor ci
+
       - name: API tests (DB-free)
         run: pnpm --filter @workspace/api-server run test
 

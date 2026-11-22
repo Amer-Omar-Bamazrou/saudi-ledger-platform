@@ -67,6 +67,8 @@ It runs in **one transaction** on the owner connection, under the advisory lock 
 
 The demo deployment (`railway.json`) runs steps 1–3 as its pre-deploy command, additions only: `migrate`, then `permissions:reconcile --env demo --apply`. A release whose matrix removes a grant fails there, refused by name, until the owner's approval is passed for `demo`.
 
+**CI's test job** runs steps 1 and 3 the same way (`--env ci-test --apply`, additions only), so the API suites run against the matrix, never against the grants migrations happen to insert (owner, 2026-11-22). **The API suites refuse to start** while a real database's table differs from the matrix — their global setup is the API's own startup check (`apps/api/src/tests/globalSetup.ts`). On a local or scratch database after a matrix change: dry run, then `--apply` (with the owner's approval for any removal), then run the suites.
+
 ## Recovery
 
 ### A reconcile that fails part-way

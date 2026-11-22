@@ -6,6 +6,9 @@ export default defineConfig({
     environment: "node",
     include: ["src/tests/**/*.test.ts"],
     reporters: ["verbose"],
+    // 🔴 19B S0: the suites refuse to start while a real database's `permissions` table differs from
+    // PERMISSION_MATRIX — the API's own startup rule, applied to what the suites test (src/tests/globalSetup.ts).
+    globalSetup: ["src/tests/globalSetup.ts"],
     // `ubl-zatca-validator.test.ts` shells out to ZATCA's Java SDK — several
     // JVM launches plus schematron transforms, each taking tens of CPU-heavy
     // seconds. That contention starved the DB-backed suites, whose `beforeAll`
