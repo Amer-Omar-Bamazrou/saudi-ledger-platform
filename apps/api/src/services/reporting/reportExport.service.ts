@@ -24,6 +24,7 @@
  * - Too large to render is REFUSED with the count, never truncated: a partial
  *   ledger presented as the ledger is a false document.
  */
+import type { ProtectedFieldClass } from "@workspace/db";
 import { BusinessRuleError, BadRequestError } from "../../lib/errors";
 import { businessToday } from "@workspace/shared";
 import { companiesRepository } from "../../repositories/companies.repository";
@@ -74,7 +75,15 @@ type Bi = { en: string; ar: string };
 type Cell = string | number | null;
 type ColumnKind = "text" | "money" | "int" | "date";
 type Row = { kind: "section" | "row" | "subtotal" | "total" | "note"; cells: Cell[] };
-type Table = { title?: Bi; columns: { label: Bi; kind: ColumnKind }[]; rows: Row[] };
+/**
+ * 🔴 19B S1 (v4 §4): EVERY EXPORT COLUMN DECLARES ITS CLASS — `"standard"`, or a protected class with the resource whose
+ * field grants decide it. Required by the type, so a column added without one does not compile; the export applies the
+ * same class table as the screen. S1 withholds nothing (every role holds every grant); the WHT annual export's address
+ * is switched on with S2b (D9 d), and the ledger's bank text with S2c.
+ */
+export type ExportColumnClass = "standard" | { cls: ProtectedFieldClass; resource: string };
+type Column = { label: Bi; kind: ColumnKind; class: ExportColumnClass };
+type Table = { title?: Bi; columns: Column[]; rows: Row[] };
 export type ReportDocument = { report: ExportableReport; title: Bi; scope: Bi; tables: Table[]; notes: Bi[]; filenameStem: string };
 
 const L = (en: string, ar: string): Bi => ({ en, ar });
@@ -96,7 +105,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         scope: windowScope(from, to),
         filenameStem: `trial-balance_${from ?? "start"}_${to ?? "end"}`,
         tables: [{
-          columns: [col("Account", "الحساب", "text"), col("Opening", "الرصيد الافتتاحي", "money"), col("Debit", "مدين", "money"), col("Credit", "دائن", "money"), col("Closing", "الرصيد الختامي", "money")],
+          columns: [col("Account", "الحساب", "text", "standard"), col("Opening", "الرصيد الافتتاحي", "money", "standard"), col("Debit", "مدين", "money", "standard"), col("Credit", "دائن", "money", "standard"), col("Closing", "الرصيد الختامي", "money", "standard")],
           rows: [
             ...tb.accounts.map((a) => ({ kind: "row" as const, cells: [nameIn(a, lang), a.openingBalance, a.debit, a.credit, a.closingBalance] })),
             { kind: "total", cells: [pick(L("Total", "الإجمالي"), lang), tb.totalOpening, tb.totalDebit, tb.totalCredit, tb.totalClosing] },
@@ -118,7 +127,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
       const pRev = priorBy(prior?.revenue), pExp = priorBy(prior?.expenses), pTax = priorBy(prior?.zakatAndIncomeTax.items);
       const keysRev = mergeKeys(cur.revenue, prior?.revenue), keysExp = mergeKeys(cur.expenses, prior?.expenses);
       const keysTax = mergeKeys(cur.zakatAndIncomeTax.items, prior?.zakatAndIncomeTax.items);
-      const amountCols = prior ? [col(windowLabel(from, to), windowLabel(from, to), "money"), col(windowLabel(cmpWin!.from, cmpWin!.to), windowLabel(cmpWin!.from, cmpWin!.to), "money")] : [col("Amount", "المبلغ", "money")];
+      const amountCols = prior ? [col(windowLabel(from, to), windowLabel(from, to), "money", "standard"), col(windowLabel(cmpWin!.from, cmpWin!.to), windowLabel(cmpWin!.from, cmpWin!.to), "money", "standard")] : [col("Amount", "المبلغ", "money", "standard")];
       const line = (x: { key: string; name: string; nameAr: string; amount: number } | undefined, key: string, prev: Map<string, number>, fallbackName: string): Row =>
         ({ kind: "row", cells: [x ? nameIn(x, lang) : fallbackName, x?.amount ?? 0, ...(prior ? [prev.get(key) ?? 0] : [])] });
       return {
@@ -127,7 +136,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         scope: windowScope(from, to),
         filenameStem: `profit-or-loss_${from ?? "start"}_${to ?? "end"}`,
         tables: [{
-          columns: [col("Account", "الحساب", "text"), ...amountCols],
+          columns: [col("Account", "الحساب", "text", "standard"), ...amountCols],
           rows: [
             { kind: "section", cells: [pick(L("Revenue", "الإيرادات"), lang)] },
             ...keysRev.map((k) => line(cur.revenue.find((r) => r.key === k), k, pRev, prior?.revenue.find((r) => r.key === k) ? nameIn(prior.revenue.find((r) => r.key === k)!, lang) : k)),
@@ -160,7 +169,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
       const prior = cmpAsOf ? await reportsService.balanceSheet(cmpAsOf) : null;
       type It = { key: string; name: string; nameAr: string; amount: number };
       const prevMap = (xs: It[] | undefined) => new Map((xs ?? []).map((x) => [x.key, x]));
-      const amountCols = prior ? [col(asOf, asOf, "money"), col(cmpAsOf!, cmpAsOf!, "money")] : [col(`As of ${asOf}`, `كما في ${asOf}`, "money")];
+      const amountCols = prior ? [col(asOf, asOf, "money", "standard"), col(cmpAsOf!, cmpAsOf!, "money", "standard")] : [col(`As of ${asOf}`, `كما في ${asOf}`, "money", "standard")];
       const rowsOf = (curItems: It[], priorItems: It[] | undefined): Row[] => {
         const pm = prevMap(priorItems);
         const keys = mergeKeys(curItems, priorItems);
@@ -180,7 +189,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         scope: L(`As of ${asOf}`, `كما في ${asOf}`),
         filenameStem: `financial-position_${asOf}`,
         tables: [{
-          columns: [col("Line", "البند", "text"), ...amountCols],
+          columns: [col("Line", "البند", "text", "standard"), ...amountCols],
           rows: [
             { kind: "section", cells: [pick(L("Current assets", "الأصول المتداولة"), lang)] },
             ...rowsOf(cur.assets.current.items, prior?.assets.current.items),
@@ -232,7 +241,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         scope: windowScope(from, to),
         filenameStem: `cash-flows_${from ?? "start"}_${to ?? "end"}`,
         tables: [{
-          columns: [col("Line", "البند", "text"), col("Amount", "المبلغ", "money")],
+          columns: [col("Line", "البند", "text", "standard"), col("Amount", "المبلغ", "money", "standard")],
           rows: [
             { kind: "row", cells: [pick(L("Cash at the beginning of the period", "النقد في بداية الفترة"), lang), cf.openingCash] },
             ...section(L("operating activities", "الأنشطة التشغيلية"), cf.operating),
@@ -260,7 +269,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         scope: L(`${gl.accountName} · ${windowScope(from, to).en}`, `${gl.accountNameAr || gl.accountName} · ${windowScope(from, to).ar}`),
         filenameStem: `general-ledger_${accountId ?? "all"}_${from ?? "start"}_${to ?? "end"}`,
         tables: [{
-          columns: [col("Date", "التاريخ", "date"), col("Entry", "القيد", "text"), col("Description", "البيان", "text"), col("Account", "الحساب", "text"), col("Debit", "مدين", "money"), col("Credit", "دائن", "money"), col("Balance", "الرصيد", "money")],
+          columns: [col("Date", "التاريخ", "date", "standard"), col("Entry", "القيد", "text", "standard"), col("Description", "البيان", "text", { cls: "bank_narrative", resource: "journal_entries" }), col("Account", "الحساب", "text", "standard"), col("Debit", "مدين", "money", "standard"), col("Credit", "دائن", "money", "standard"), col("Balance", "الرصيد", "money", "standard")],
           rows: [
             { kind: "subtotal", cells: [from ?? "", "", pick(L("Opening balance", "الرصيد الافتتاحي"), lang), "", null, null, gl.openingBalance] },
             ...gl.movements.map((m) => ({ kind: "row" as const, cells: [m.date, m.entryNumber, m.description ?? "", lang === "ar" && m.accountNameAr ? m.accountNameAr : m.accountName, m.debit, m.credit, m.balance] })),
@@ -284,7 +293,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         tables: [
           {
             title: L("Buckets (days past due)", "الفئات (أيام التأخر)"),
-            columns: [col("Bucket", "الفئة", "text"), col("Outstanding", "المستحق", "money")],
+            columns: [col("Bucket", "الفئة", "text", "standard"), col("Outstanding", "المستحق", "money", "standard")],
             rows: [
               { kind: "row", cells: [pick(L("Not yet due", "غير مستحق بعد"), lang), b.current] },
               { kind: "row", cells: [pick(L("1–30 days", "1–30 يوماً"), lang), b.days_1_30] },
@@ -296,7 +305,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
           },
           {
             title: L("Documents", "المستندات"),
-            columns: [col("Document", "المستند", "text"), col(isAr ? "Customer" : "Supplier", isAr ? "العميل" : "المورد", "text"), col("Due", "الاستحقاق", "date"), col("Days past due", "أيام التأخر", "int"), col("Outstanding", "المستحق", "money")],
+            columns: [col("Document", "المستند", "text", "standard"), col(isAr ? "Customer" : "Supplier", isAr ? "العميل" : "المورد", "text", "standard"), col("Due", "الاستحقاق", "date", "standard"), col("Days past due", "أيام التأخر", "int", "standard"), col("Outstanding", "المستحق", "money", "standard")],
             rows: items.map((i) => ({ kind: "row" as const, cells: [
               (isAr ? i.invoiceNumber : i.billNumber) ?? "",
               isAr ? (lang === "ar" && i.customerNameAr ? i.customerNameAr : (i.customerName ?? "")) : (lang === "ar" && i.vendorNameAr ? i.vendorNameAr : (i.vendorName ?? "")),
@@ -344,9 +353,9 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         filenameStem: `budget-vs-actual_${vs.budgetId}_v${vs.version.versionNo}_p${vs.throughPeriod}`,
         tables: [{
           columns: [
-            col("Account", "الحساب", "text"), col("Budgeted", "أساس الميزانية", "text"),
-            col("YTD budget", "ميزانية حتى تاريخه", "money"), col("YTD actual", "الفعلي حتى تاريخه", "money"), col("Variance", "الانحراف", "money"), col("Variance %", "نسبة الانحراف", "text"), col("Judgement", "التقييم", "text"),
-            col("Full-year budget", "ميزانية السنة", "money"), col("Actual to date", "الفعلي حتى الآن", "money"), col("Forecast", "التوقع", "money"),
+            col("Account", "الحساب", "text", "standard"), col("Budgeted", "أساس الميزانية", "text", "standard"),
+            col("YTD budget", "ميزانية حتى تاريخه", "money", "standard"), col("YTD actual", "الفعلي حتى تاريخه", "money", "standard"), col("Variance", "الانحراف", "money", "standard"), col("Variance %", "نسبة الانحراف", "text", "standard"), col("Judgement", "التقييم", "text", "standard"),
+            col("Full-year budget", "ميزانية السنة", "money", "standard"), col("Actual to date", "الفعلي حتى الآن", "money", "standard"), col("Forecast", "التوقع", "money", "standard"),
           ],
           rows: [
             { kind: "section", cells: [pick(L("Income", "الإيرادات"), lang)] },
@@ -386,7 +395,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         tables: [
           {
             title: L("Return lines", "بنود الإقرار"),
-            columns: [col("Row", "البند", "text"), col("Payment", "نوع الدفعة", "text"), col("Payment total", "إجمالي المدفوع", "money"), col("Tax withheld", "الضريبة المستقطعة", "money")],
+            columns: [col("Row", "البند", "text", "standard"), col("Payment", "نوع الدفعة", "text", "standard"), col("Payment total", "إجمالي المدفوع", "money", "standard"), col("Tax withheld", "الضريبة المستقطعة", "money", "standard")],
             rows: [
               ...r.lines.map((l) => ({ kind: "row" as const, cells: [l.formRow, lang === "ar" ? l.nameAr : l.nameEn, l.paymentTotal, l.taxWithheld] })),
               { kind: "total", cells: [pick(L("Monthly total", "الإجمالي الشهري"), lang), "", r.totals.paymentTotal, r.totals.taxWithheld] },
@@ -394,17 +403,17 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
           },
           {
             title: L("Schedule of beneficiaries", "جدول المستفيدين"),
-            columns: [col("Date", "التاريخ", "date"), col("Beneficiary", "المستفيد", "text"), col("Country", "الدولة", "text"), col("Registration no.", "رقم التسجيل", "text"), col("Nature", "النوع", "text"), col("Base", "المبلغ", "money"), col("Rate", "النسبة", "text"), col("WHT", "الضريبة", "money"), col("Document", "المستند", "text")],
+            columns: [col("Date", "التاريخ", "date", "standard"), col("Beneficiary", "المستفيد", "text", "standard"), col("Country", "الدولة", "text", "standard"), col("Registration no.", "رقم التسجيل", "text", "standard"), col("Nature", "النوع", "text", "standard"), col("Base", "المبلغ", "money", "standard"), col("Rate", "النسبة", "text", "standard"), col("WHT", "الضريبة", "money", "standard"), col("Document", "المستند", "text", "standard")],
             rows: r.schedule.map((w) => ({ kind: "row" as const, cells: [w.paymentDate, nameIn({ name: w.vendorName, nameAr: w.vendorNameAr }, lang), w.vendorCountry ?? "—", w.vendorForeignTaxId ?? "—", w.paymentType ?? "—", w.baseAmount, `${(w.rate * 100).toFixed(2)}%${w.treatyReliefId ? " (treaty)" : ""}`, w.whtAmount, w.document ?? "—"] })),
           },
           ...(r.excluded.length ? [{
             title: L("Payments to non-residents not subject, with the reason", "مدفوعات لغير مقيمين غير خاضعة، مع السبب"),
-            columns: [col("Date", "التاريخ", "date"), col("Beneficiary", "المستفيد", "text"), col("Reason", "السبب", "text"), col("Amount", "المبلغ", "money")],
+            columns: [col("Date", "التاريخ", "date", "standard"), col("Beneficiary", "المستفيد", "text", "standard"), col("Reason", "السبب", "text", "standard"), col("Amount", "المبلغ", "money", "standard")],
             rows: r.excluded.map((w) => ({ kind: "row" as const, cells: [w.paymentDate, nameIn({ name: w.vendorName, nameAr: w.vendorNameAr }, lang), reason(w.notSubjectReason), w.baseAmount] })),
           }] : []),
           ...(r.pending.length ? [{
             title: L("Payments to non-residents pending classification — nothing withheld or claimed", "مدفوعات لغير مقيمين بانتظار التصنيف — لا استقطاع ولا مطالبة"),
-            columns: [col("Date", "التاريخ", "date"), col("Beneficiary", "المستفيد", "text"), col("Document", "المستند", "text"), col("Amount", "المبلغ", "money")],
+            columns: [col("Date", "التاريخ", "date", "standard"), col("Beneficiary", "المستفيد", "text", "standard"), col("Document", "المستند", "text", "standard"), col("Amount", "المبلغ", "money", "standard")],
             rows: r.pending.map((w) => ({ kind: "row" as const, cells: [w.paymentDate, nameIn({ name: w.vendorName, nameAr: w.vendorNameAr }, lang), w.document ?? "—", w.baseAmount] })),
           }] : []),
         ],
@@ -423,7 +432,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         scope: L(`Fiscal year ${a.fiscalYear.startDate} – ${a.fiscalYear.endDate} · due ${a.dueDate}`, `السنة المالية ${a.fiscalYear.startDate} – ${a.fiscalYear.endDate} · الاستحقاق ${a.dueDate}`),
         filenameStem: `wht-annual_${a.fiscalYear.label}`,
         tables: [{
-          columns: [col("Beneficiary", "المستفيد", "text"), col("Country", "الدولة", "text"), col("Address", "العنوان", "text"), col("Registration no.", "رقم التسجيل", "text"), col("Nature", "النوع", "text"), col("Payments", "عدد الدفعات", "int"), col("Paid", "المدفوع", "money"), col("WHT", "الضريبة", "money")],
+          columns: [col("Beneficiary", "المستفيد", "text", "standard"), col("Country", "الدولة", "text", "standard"), col("Address", "العنوان", "text", { cls: "contact", resource: "vendors" }), col("Registration no.", "رقم التسجيل", "text", "standard"), col("Nature", "النوع", "text", "standard"), col("Payments", "عدد الدفعات", "int", "standard"), col("Paid", "المدفوع", "money", "standard"), col("WHT", "الضريبة", "money", "standard")],
           rows: [
             ...a.beneficiaries.map((b) => ({ kind: "row" as const, cells: [nameIn({ name: b.vendorName, nameAr: b.vendorNameAr }, lang), b.country ?? "—", b.address ?? "—", b.foreignTaxId ?? "—", b.paymentType, b.payments, b.base, b.wht] })),
             { kind: "total", cells: [pick(L("Total", "الإجمالي"), lang), "", "", "", "", a.totals.payments, a.totals.base, a.totals.wht] },
@@ -452,23 +461,23 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
       if (isZakat && comp.zakat) {
         tables.push({
           title: L("Balance-sheet accounts at the year-end, by class", "حسابات المركز المالي في نهاية السنة، حسب الفئة"),
-          columns: [col("Account", "الحساب", "text"), col("Class", "الفئة", "text"), col("Article", "المادة", "text"), col("Amount", "المبلغ", "money")],
+          columns: [col("Account", "الحساب", "text", "standard"), col("Class", "الفئة", "text", "standard"), col("Article", "المادة", "text", "standard"), col("Amount", "المبلغ", "money", "standard")],
           rows: comp.zakat.lines.map((l) => ({ kind: "row" as const, cells: [nameIn({ name: l.name, nameAr: l.nameAr }, lang), l.zakatClass, l.article, l.amount] })),
         });
         if (comp.zakat.result) tables.push({
           title: L("The Zakat base (Implementing Regulations, MoF Decision 1007)", "الوعاء الزكوي (اللائحة التنفيذية، القرار 1007)"),
-          columns: [col("Step", "الخطوة", "text"), col("Article", "المادة", "text"), col("Amount", "المبلغ", "money")],
+          columns: [col("Step", "الخطوة", "text", "standard"), col("Article", "المادة", "text", "standard"), col("Amount", "المبلغ", "money", "standard")],
           rows: [...stepRows(comp.zakat.result.steps), { kind: "note", cells: [`${pick(L("Rate", "النسبة"), lang)}: ${comp.zakat.result.rate.display}`] }],
         });
       }
       if (!isZakat && comp.incomeTax) tables.push({
         title: L("Income tax on the non-Saudi share (Income Tax Law)", "ضريبة الدخل على حصة غير السعوديين (نظام ضريبة الدخل)"),
-        columns: [col("Step", "الخطوة", "text"), col("Article", "المادة", "text"), col("Amount", "المبلغ", "money")],
+        columns: [col("Step", "الخطوة", "text", "standard"), col("Article", "المادة", "text", "standard"), col("Amount", "المبلغ", "money", "standard")],
         rows: stepRows(comp.incomeTax.steps),
       });
       if (comp.adjustments.length) tables.push({
         title: L("Tax adjustments", "التعديلات الضريبية"),
-        columns: [col("Target", "البند", "text"), col("Effect", "الأثر", "text"), col("Amount", "المبلغ", "money"), col("Reason", "السبب", "text"), col("Article", "المادة", "text"), col("Source", "المستند", "text")],
+        columns: [col("Target", "البند", "text", "standard"), col("Effect", "الأثر", "text", "standard"), col("Amount", "المبلغ", "money", "standard"), col("Reason", "السبب", "text", "standard"), col("Article", "المادة", "text", "standard"), col("Source", "المستند", "text", "standard")],
         rows: comp.adjustments.map((a) => ({ kind: "row" as const, cells: [a.target, a.effect, a.amount, a.reason, a.legalReference, a.sourceReference ?? "—"] })),
       });
       return {
@@ -500,12 +509,12 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
         tables: [
           {
             title: L("By week — a projection, never cash", "حسب الأسبوع — إسقاط وليس نقدًا"),
-            columns: [col("Bucket", "الفترة", "text"), col("From", "من", "date"), col("To", "إلى", "date"), col("Opening", "الافتتاحي", "money"), col("In", "داخل", "money"), col("Out", "خارج", "money"), col("Closing", "الختامي", "money")],
+            columns: [col("Bucket", "الفترة", "text", "standard"), col("From", "من", "date", "standard"), col("To", "إلى", "date", "standard"), col("Opening", "الافتتاحي", "money", "standard"), col("In", "داخل", "money", "standard"), col("Out", "خارج", "money", "standard"), col("Closing", "الختامي", "money", "standard")],
             rows: f.buckets.map((b) => ({ kind: "row" as const, cells: [lang === "ar" ? b.labelAr : b.label, b.from ?? "—", b.to ?? "—", b.opening, b.inflow.total, b.outflow.total, b.closing] })),
           },
           {
             title: L("Every row, typed and sourced", "كل بند، بنوعه ومصدره"),
-            columns: [col("Bucket", "الفترة", "int"), col("Date", "التاريخ", "date"), col("Type", "النوع", "text"), col("Category", "الفئة", "text"), col("Item", "البند", "text"), col("In", "داخل", "money"), col("Out", "خارج", "money")],
+            columns: [col("Bucket", "الفترة", "int", "standard"), col("Date", "التاريخ", "date", "standard"), col("Type", "النوع", "text", "standard"), col("Category", "الفئة", "text", "standard"), col("Item", "البند", "text", "standard"), col("In", "داخل", "money", "standard"), col("Out", "خارج", "money", "standard")],
             rows: f.rows.map((r) => ({ kind: "row" as const, cells: [r.bucket, r.date ?? "—", kindLabel(r.kind), r.category, lang === "ar" ? r.labelAr : r.label, r.direction === "in" ? r.amount : null, r.direction === "out" ? r.amount : null] })),
           },
         ],
@@ -544,7 +553,7 @@ export async function exportReport(report: string, q: Q, format: ExportFormat, l
 
 // ── rendering ────────────────────────────────────────────────────────────────
 
-function col(en: string, ar: string, kind: ColumnKind) { return { label: L(en, ar), kind }; }
+function col(en: string, ar: string, kind: ColumnKind, cls: ExportColumnClass): Column { return { label: L(en, ar), kind, class: cls }; }
 function windowLabel(from?: string, to?: string) { return `${from ?? "…"} – ${to ?? "…"}`; }
 function windowScope(from?: string, to?: string): Bi {
   if (from && to) return L(`${from} to ${to}`, `من ${from} إلى ${to}`);

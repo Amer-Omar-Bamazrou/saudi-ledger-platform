@@ -97,7 +97,11 @@ describe("the permission matrix's GRANTS, not its enforcement", () => {
   // ── OVER-GRANT ───────────────────────────────────────────────────────────
 
   it("🔴 a VIEWER holds `read` and nothing else", () => {
-    const nonRead = rows.filter((r) => r.role === "viewer" && r.action !== "read");
+    // 19B S1 (2026-11-22): a FIELD-level read — `field.<class>.read`, or an IBAN's `field.bank_account.last4` — is a
+    // read: it decides which of a record's fields the viewer SEES, and changes nothing. A field `write` is not a read,
+    // and still fails this assertion (the matrix grants a viewer none; field-class-grants.test.ts pins it too).
+    const isRead = (action: string) => action === "read" || /^field\.[a-z_]+\.(read|last4)$/.test(action);
+    const nonRead = rows.filter((r) => r.role === "viewer" && !isRead(r.action));
     expect(
       nonRead.map((r) => `${r.resource}:${r.action}`),
       "A viewer holds a non-read grant. The role's entire meaning is that it " +
