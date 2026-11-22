@@ -136,8 +136,12 @@ exact situation where "just for now" gets typed.
 
 ### 2.3 Deploy
 
-Railway builds the image, runs `pnpm --filter @workspace/db run migrate` as the
-**pre-deploy command** (from `railway.json`), then starts the API.
+Railway builds the image, runs `pnpm --filter @workspace/db run migrate` and then
+`pnpm --filter @workspace/db run permissions:reconcile --env demo --apply` as the
+**pre-deploy command** (from `railway.json`), then starts the API. The reconcile adds the
+permission grants the matrix defines; the API refuses to start while they differ
+([`permissions-reconcile-runbook.md`](permissions-reconcile-runbook.md)). A release that
+REMOVES a grant fails here, by name, until the owner's approval is given for `demo`.
 
 On first boot the API **seeds the demo tenant itself** — org
 `DEMO — Falcon Trading Est.`, seven months of invoices and bills posted through

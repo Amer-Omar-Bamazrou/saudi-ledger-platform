@@ -172,12 +172,14 @@ Authorization is centralized, data-driven, and fail-closed.
   seeded **`permissions`** table.
 - **Fail-closed:** no matching grant ⇒ 403.
 - **Policy lives in data, not code.** The matrix is
-  `PERMISSION_MATRIX` in `packages/db/src/permissions.ts`, seeded idempotently by
+  `PERMISSION_MATRIX` in `packages/db/src/permissions.ts` (reconciled into the table by `permissions:reconcile`;
+  the API refuses to start while they differ — `docs/product/permissions-reconcile-runbook.md`), seeded idempotently by
   `pnpm --filter @workspace/db run seed`. The API caches it in memory on first
   use — **restart the API to pick up a re-seed.**
 
 The current roles are `admin | accountant | viewer`. To change who can do what,
-edit the matrix and re-seed — you don't touch route files. To add a **new
+edit the matrix and reconcile (`pnpm --filter @workspace/db run permissions:reconcile --env <environment>`, a dry
+run first; removals need the owner's approval) — you don't touch route files. To add a **new
 resource**, add its rows to the matrix (see the cookbook, §7).
 
 > Method-based actions are deliberately coarse (a tracked deferral — CLAUDE.md §5 'action-level permissions'): posting to the GL,

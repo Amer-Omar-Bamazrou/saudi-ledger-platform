@@ -65,3 +65,4 @@ export * from "./journalSourceReviews";
 export * from "./sessionRecords";
 export * from "./userMfa";
 export * from "./orgSecuritySettings";
+export * from "./permissionReconciliations";

@@ -20,6 +20,21 @@ const env = loadEnv();
 const { assertHijriCalendarAvailable } = await import("./lib/hijriCalendar");
 assertHijriCalendarAvailable();
 
+// 🔴 Phase 19B S0 (D10) — refuse to start while the permissions table differs from PERMISSION_MATRIX, naming every
+// difference. Fail-closed like the two checks above, and it NEVER inserts or deletes: the one fix is the explicit
+// reconcile command (lib/permissionStartupCheck.ts; docs/product/permissions-reconcile-runbook.md).
+{
+  const { pool } = await import("@workspace/db");
+  const { assertPermissionsMatchMatrix } = await import("./lib/permissionStartupCheck");
+  try {
+    await assertPermissionsMatchMatrix(pool);
+  } catch (err) {
+    logger.fatal({ err }, "refusing to start: the permissions table differs from PERMISSION_MATRIX");
+    await pool.end();
+    throw err;
+  }
+}
+
 // Import the app only after config has validated, so any boot failure surfaces
 // as the config error rather than a downstream module-load error.
 const { default: app } = await import("./app");

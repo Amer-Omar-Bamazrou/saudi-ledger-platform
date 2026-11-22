@@ -5,7 +5,8 @@ import { permissionsTable } from "./schema";
  * RBAC permission matrix — the seeded role → resource → action mapping the API
  * enforces (via `requirePermission`). This is the **source of truth for policy
  * data**; a future phase can extend/adjust access by changing these rows (and
- * re-seeding) without touching route code.
+ * reconciling — `permissions:reconcile`, 19B S0) without touching route code. The API refuses to start while the
+ * table differs from this matrix; docs/product/permissions-reconcile-runbook.md.
  *
  * Roles (4-role model, M10): admin | accountant | bookkeeper | viewer.
  *   - GET/read      → all roles (admin, accountant, bookkeeper, viewer)
@@ -245,7 +246,7 @@ export interface SeededPermissions {
  * Idempotently seed the permission matrix. New (role, resource, action) grants
  * are inserted; existing ones are left untouched (unique constraint on the
  * triple). Safe to re-run. Rows removed from the matrix are NOT deleted here —
- * pruning stale grants is a deliberate, separate operation.
+ * pruning stale grants is the reconcile command's, with the owner's approval (./permissionReconcile.ts).
  */
 export async function seedPermissions(): Promise<SeededPermissions> {
   const inserted = await ownerDb

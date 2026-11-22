@@ -17,11 +17,13 @@
  * `create`, which a bookkeeper holds.
  *
  * Policy lives in DATA (the `permissions` table, seeded from `PERMISSION_MATRIX`
- * in @workspace/db), not in code — a future phase changes access by re-seeding.
+ * in @workspace/db), not in code — access changes by changing the matrix and running the reconcile command
+ * (19B S0; docs/product/permissions-reconcile-runbook.md).
  * The check is FAIL-CLOSED: if no matching grant exists, access is denied.
  *
  * The mapping is loaded once into an in-memory cache (permissions are global
- * reference data seeded at deploy). Restart the process to pick up re-seeds.
+ * reference data). Restart the process after a reconcile: the startup check (lib/permissionStartupCheck.ts) refuses to
+ * start while the table differs from the matrix, and the cache is loaded once, from the table.
  */
 import type { Request, Response, NextFunction } from "express";
 import { db, permissionsTable, type PermissionAction } from "@workspace/db";
