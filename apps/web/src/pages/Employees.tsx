@@ -74,10 +74,13 @@ export default function Employees() {
   const headcount = paged?.page.total ?? 0;
   const canEdit = !!access && Object.values(access.fields).some((f) => f.write);
 
-  /** A money cell: withheld (the role cannot read pay), pay not set, or the figure. */
+  /**
+   * A money cell: pay not set (a STANDARD flag — every role sees it, one that cannot read pay included, v4 §10.1),
+   * else withheld (the role cannot read pay), else the figure.
+   */
   const money = (e: Employee, f: "basicSalary" | "grossSalary", bold = false) =>
-    !readable(f) ? <Withheld cls={cls(f)} testId={`withheld-${f}-${e.id}`} />
-      : e.payNotSet ? <PayNotSet testId={`employee-pay-not-set-${e.id}`} />
+    e.payNotSet ? <PayNotSet testId={`employee-pay-not-set-${e.id}`} />
+      : !readable(f) ? <Withheld cls={cls(f)} testId={`withheld-${f}-${e.id}`} />
       : <span className={bold ? "font-semibold" : ""}>{fmtNum(e[f] ?? 0)}</span>;
 
   return (

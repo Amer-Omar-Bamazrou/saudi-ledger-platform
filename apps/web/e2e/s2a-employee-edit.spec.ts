@@ -118,7 +118,8 @@ test.describe.serial("19B S2a — the employee form, by role, through the browse
     await expect.poll(() => sent.length).toBe(1);
     expect(sent[0]!.method).toBe("POST");
     for (const k of ["basicSalary", "housingAllowance", "transportAllowance", "otherAllowances"]) expect(k in sent[0]!.body, `no ${k} leaves the page`).toBe(false);
-    await expect.poll(async () => (await row())?.basic_salary ?? "missing").toBeNull();
+    // The row exists, and its salary is NULL (pay not set) — "no row" and NULL are told apart.
+    await expect.poll(async () => { const r = await row(); return r ? { saved: true, basicSalary: r.basic_salary } : "no row"; }).toEqual({ saved: true, basicSalary: null });
     const id = (await row()).id;
     await expect(page.getByTestId(`employee-pay-not-set-${id}`).first()).toHaveText("الراتب غير محدد");
     await ctx.close();
