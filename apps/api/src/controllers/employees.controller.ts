@@ -3,6 +3,8 @@ import { CreateEmployeeBody, UpdateEmployeeBody } from "@workspace/api-zod";
 import { employeesService } from "../services/employees.service";
 import { pageParams, requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
+import { peekPermissions } from "../lib/rbac";
+import { fieldAccess } from "../lib/fieldClasses/access";
 
 /** Contract batch 4: the declared body constraint is the enforced one. */
 function parseOr400<T>(result: { success: true; data: T } | { success: false; error: { issues: { path: (string | number)[]; message: string }[] } }): T {
@@ -24,6 +26,10 @@ export const employeesController = {
   },
   async get(req: Request, res: Response) {
     res.json(await employeesService.getById(requireIdParam(req)));
+  },
+  /** 19B S2a: the reader role's read level and write ability for each employee field (never a value). */
+  fieldAccess(req: Request, res: Response) {
+    res.json(fieldAccess("employees", req.tenant!.role, peekPermissions()));
   },
   async create(req: Request, res: Response) {
     res.status(201).json(await employeesService.create(parseOr400(CreateEmployeeBody.safeParse(req.body))));

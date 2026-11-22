@@ -403,22 +403,22 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
 
   it("🔴 exports carry EXACTLY the screen's figures: CSV (BOM, Arabic names for lang=ar, the totals), the comparative column, and a too-large export is refused, never cut short", async () => {
     const tb = await inA(() => reportsService.trialBalance(FY.from, FY.to));
-    const csv = await inA(() => exportReport("trial-balance", { date_from: FY.from, date_to: FY.to }, "csv", "en"));
+    const csv = await inA(() => exportReport("trial-balance", { date_from: FY.from, date_to: FY.to }, "csv", "en", () => "read"));
     const text = csv.body.toString("utf8");
     expect(text.charCodeAt(0)).toBe(0xfeff);
     expect(csv.filename).toBe(`trial-balance_${FY.from}_${FY.to}.csv`);
     expect(text).toContain(`Total,${tb.totalOpening.toFixed(2)},${tb.totalDebit.toFixed(2)},${tb.totalCredit.toFixed(2)},${tb.totalClosing.toFixed(2)}`);
-    const ar = await inA(() => exportReport("trial-balance", { date_from: FY.from, date_to: FY.to }, "csv", "ar"));
+    const ar = await inA(() => exportReport("trial-balance", { date_from: FY.from, date_to: FY.to }, "csv", "ar", () => "read"));
     expect(ar.body.toString("utf8")).toContain("رأس المال");
     // the P&L with a comparative window: both columns, merged by account
     const doc = await inA(() => buildReportDocument("income-statement", { date_from: FY.from, date_to: FY.to, compare_from: "2025-01-01", compare_to: "2025-12-31" }, "en"));
     const salesRow = doc.tables[0]!.rows.find((r) => r.cells[0] === "Sales Revenue")!;
     expect(salesRow.cells.slice(1)).toEqual([3000, 500]);
     // company scoping holds in an export too
-    const b = await inB(() => exportReport("income-statement", { date_from: FY.from, date_to: FY.to }, "csv", "en"));
+    const b = await inB(() => exportReport("income-statement", { date_from: FY.from, date_to: FY.to }, "csv", "en", () => "read"));
     expect(b.body.toString("utf8")).toContain("9000.00");
     expect(b.body.toString("utf8")).not.toContain("3000.00");
-    await expect(inA(() => exportReport("no-such-report", {}, "csv", "en"))).rejects.toMatchObject({ statusCode: 400 });
+    await expect(inA(() => exportReport("no-such-report", {}, "csv", "en", () => "read"))).rejects.toMatchObject({ statusCode: 400 });
   });
 
   // Split out of the export test above (2026-10-07) so that a run with no
@@ -426,7 +426,7 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
   it("🔴 exports: the balance-sheet PDF is rendered — or the named 503 and the check is SKIPPED, never a broken file", async (ctx) => {
     let pdf: Awaited<ReturnType<typeof exportReport>>;
     try {
-      pdf = await inA(() => exportReport("balance-sheet", { as_of: FY.to }, "pdf", "ar"));
+      pdf = await inA(() => exportReport("balance-sheet", { as_of: FY.to }, "pdf", "ar", () => "read"));
     } catch (err) {
       expect(err).toBeInstanceOf(RendererUnavailableError);
       return ctx.skip("no Chromium executable — the PDF export did not run");

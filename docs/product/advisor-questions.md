@@ -110,7 +110,7 @@ Every answer carries two labels:
 | P3 | B3 | settled that no fixed PDPL period applies; each period open | — |
 | P4 | B3 | settled in principle | The §11.63 note (an account that has signed in can never be deleted) |
 | P5 | B4 (new) | duties settled; masking method open | DR-25 (G42's masking half) |
-| P6 | B5 (new), CLAUDE.md §5 rank 3 | settled in principle; no fixed expiry | G46, with the official-documents question (PD-2) |
+| P6 | B5 (new), CLAUDE.md §5 (operator application access) | settled in principle; no fixed expiry | G46, with the official-documents question (PD-2) |
 | P7 | Block G, queue C6 | framework settled; each provider case-specific | — |
 | T38 | Block J, S-1 | settled; S-1 closed | — |
 | G1, G2 | Block H: GQ-1, GQ-2 | open, a GOSI question | — |
@@ -344,7 +344,7 @@ statutory deadline.
 - **Source status:** VERIFIED: PDPL Arts. 18 and 19; Implementing Regulation
   Art. 19.
 - **Branch:** this is a new item, so no "What changes" row was written for it.
-  CLAUDE.md §5 rank 3 stays open.
+  CLAUDE.md §5's operator-application-access row stays open.
 - **Still open:** PD-2 in Block I, which neither answer document raised, decides
   whether the copies are destroyed after approval rather than only access-limited.
 
@@ -761,8 +761,8 @@ open there: July 2026 is 20% in total, and each step falls on 1 July. No rate ch
   except to implement a law or at a competent public body's request. Implementing Regulation
   Art. 31: such copies are protected, and destroyed once their purpose ends unless a law
   requires keeping them. The platform stores `cr_certificate`, `vat_certificate` and other
-  uploads in `verification_documents`, readable by operators with no expiry (CLAUDE.md §5
-  rank 3). Neither answer document raised this. **The answer decides whether verification
+  uploads in `verification_documents`, readable by operators with no expiry (CLAUDE.md §5,
+  operator application access). Neither answer document raised this. **The answer decides whether verification
   copies are destroyed after approval, rather than only access-limited.** **Status:** open.
   **Source status:** VERIFIED: both articles.
 

@@ -57,10 +57,11 @@ test("🔴 New Employee with Joining Date cleared CREATES — the same class, dy
 
   // The name + basic salary are the minimum; CLEAR the prefilled joining
   // date — the optional field whose "" the spread used to send.
-  await dialog.locator("input").nth(1).fill("Blank Joining Probe");
-  const dateInput = dialog.locator('input[type="date"]');
+  // 19B S2a: the form now has two date fields (joining, and the new end date) — address each by its own test id.
+  await dialog.getByTestId("employee-form-name").fill("Blank Joining Probe");
+  const dateInput = dialog.getByTestId("employee-form-joiningDate");
   await dateInput.fill("");
-  await dialog.locator('input[type="number"]').first().fill("4000");
+  await dialog.getByTestId("employee-form-basicSalary").fill("4000");
 
   await dialog.getByRole("button", { name: /add employee/i }).click();
   await expect

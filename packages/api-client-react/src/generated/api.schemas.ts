@@ -5359,6 +5359,20 @@ export const PayrollRunStatus = {
   paid: 'paid',
 } as const;
 
+export type PayrollLeftOutEmployeeReason = typeof PayrollLeftOutEmployeeReason[keyof typeof PayrollLeftOutEmployeeReason];
+
+
+export const PayrollLeftOutEmployeeReason = {
+  pay_not_set: 'pay_not_set',
+} as const;
+
+export interface PayrollLeftOutEmployee {
+  employeeId: number;
+  employeeNumber: string;
+  name: string;
+  reason: PayrollLeftOutEmployeeReason;
+}
+
 export interface PayrollRun {
   id: number;
   period: string;
@@ -5396,6 +5410,56 @@ export interface PayrollRun {
   /** @nullable */
   notes: string | null;
   createdAt: string;
+  /** 19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated. */
+  leftOut: PayrollLeftOutEmployee[];
+}
+
+export type FieldAccessRecord = typeof FieldAccessRecord[keyof typeof FieldAccessRecord];
+
+
+export const FieldAccessRecord = {
+  employees: 'employees',
+  payroll: 'payroll',
+} as const;
+
+export type FieldAccessEntryClass = typeof FieldAccessEntryClass[keyof typeof FieldAccessEntryClass];
+
+
+export const FieldAccessEntryClass = {
+  standard: 'standard',
+  contact: 'contact',
+  identity: 'identity',
+  compensation: 'compensation',
+  bank_account: 'bank_account',
+  bank_narrative: 'bank_narrative',
+  member_security: 'member_security',
+  by_entity: 'by_entity',
+} as const;
+
+export type FieldAccessEntryRead = typeof FieldAccessEntryRead[keyof typeof FieldAccessEntryRead];
+
+
+export const FieldAccessEntryRead = {
+  read: 'read',
+  last4: 'last4',
+  none: 'none',
+} as const;
+
+export interface FieldAccessEntry {
+  class: FieldAccessEntryClass;
+  read: FieldAccessEntryRead;
+  /** False when the field is read-only for every role, or the role lacks a class its write needs. */
+  write: boolean;
+}
+
+export type FieldAccessFields = {[key: string]: FieldAccessEntry};
+
+/**
+ * 19B S2a (v4 §4): what the reader's role may do with each field of one kind of record, from the one class table and the one matrix — so a page shows only what the role may write, and marks what it may not read. Never a field's value.
+ */
+export interface FieldAccess {
+  record: FieldAccessRecord;
+  fields: FieldAccessFields;
 }
 
 /**
@@ -7668,28 +7732,31 @@ export const PayrollItemGosiRegime = {
   non_saudi: 'non_saudi',
 } as const;
 
+/**
+ * 19B (v4 §5.2): the pay figures are compensation — ABSENT for a role that cannot read pay (X-Withheld names them); the line's identity and the statutory rates are standard.
+ */
 export interface PayrollItem {
   id: number;
   payrollRunId: number;
   /** @nullable */
   employeeId: number | null;
-  basicSalary: number;
-  housingAllowance: number;
-  transportAllowance: number;
-  otherAllowances: number;
-  grossSalary: number;
-  gosiEmployee: number;
-  gosiEmployer: number;
+  basicSalary?: number;
+  housingAllowance?: number;
+  transportAllowance?: number;
+  otherAllowances?: number;
+  grossSalary?: number;
+  gosiEmployee?: number;
+  gosiEmployer?: number;
   /**
      * GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated).
      * @nullable
      */
-  gosiRegime: PayrollItemGosiRegime;
+  gosiRegime?: PayrollItemGosiRegime;
   /**
      * The contributory wage used: basic + housing, capped at SAR 45,000.
      * @nullable
      */
-  gosiWageBase: number | null;
+  gosiWageBase?: number | null;
   /**
      * The employee rate used, as a fraction.
      * @nullable
@@ -7704,32 +7771,32 @@ export interface PayrollItem {
      * GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none.
      * @nullable
      */
-  gosiInKindHousing: number | null;
+  gosiInKindHousing?: number | null;
   /**
      * GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply.
      * @nullable
      */
-  gosiPensionFloorWage: number | null;
+  gosiPensionFloorWage?: number | null;
   /** GOSI decision 21: a non-Saudi line below the 1421H Regulation Art. 19(1) SAR 400 occupational-hazards minimum — a WARNING only, an open GOSI question; the line's figures are never changed by it. */
-  gosiHazardsFloorOpen: boolean;
+  gosiHazardsFloorOpen?: boolean;
   /**
      * GO-12 (both laws: 2024 Regulation Art. 20(2); 1421H Regulation Art. 21(3)): the days of service in a joining or leaving month. Null for a full month.
      * @nullable
      */
-  gosiServiceDays: number | null;
+  gosiServiceDays?: number | null;
   /**
      * GO-12: the month's actual days, the divisor of gosiServiceDays. Null for a full month.
      * @nullable
      */
-  gosiPeriodDays: number | null;
+  gosiPeriodDays?: number | null;
   /**
      * GO-12 (1421H law): the period whose line fixed the year's contributory wage, which this line used. Null for other laws.
      * @nullable
      */
-  gosiWageFixedPeriod: string | null;
-  additions: number;
-  deductions: number;
-  netPay: number;
+  gosiWageFixedPeriod?: string | null;
+  additions?: number;
+  deductions?: number;
+  netPay?: number;
   /** @nullable */
   employeeName: string | null;
   /** @nullable */
@@ -7798,6 +7865,9 @@ export const EmployeeGosiRegime = {
   law_2024: 'law_2024',
 } as const;
 
+/**
+ * 19B (v4 §4, D4): a field of a class the reader's role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.
+ */
 export interface Employee {
   id: number;
   employeeNumber: string;
@@ -7805,68 +7875,77 @@ export interface Employee {
   /** @nullable */
   nameAr: string | null;
   /** @nullable */
-  nationalId: string | null;
+  nationalId?: string | null;
   /** @nullable */
-  nationality: string | null;
+  nationality?: string | null;
   /** @nullable */
   jobTitle: string | null;
   /** @nullable */
   jobTitleAr: string | null;
   /** @nullable */
   department: string | null;
-  basicSalary: number;
-  housingAllowance: number;
-  transportAllowance: number;
-  otherAllowances: number;
+  /**
+     * Null = pay not set (19B S2a, D8 O2): see payNotSet.
+     * @nullable
+     */
+  basicSalary?: number | null;
+  housingAllowance?: number;
+  transportAllowance?: number;
+  otherAllowances?: number;
   /** @nullable */
-  gosiNumber: string | null;
+  gosiNumber?: string | null;
   /** @nullable */
-  iban: string | null;
+  iban?: string | null;
   /** @nullable */
-  bank: string | null;
+  bank?: string | null;
   /** @nullable */
   joiningDate: string | null;
   /** @nullable */
   endDate: string | null;
   status: string;
   /** @nullable */
-  notes: string | null;
+  notes?: string | null;
   createdAt: string;
-  /** DERIVED — basic + the three allowances. */
-  grossSalary: number;
+  /** 19B S2a (D8 O2): the employee has no basic salary yet. Shown as 'pay not set' wherever the employee appears; a payroll run leaves the employee out and names it (PayrollRun.leftOut), never computing it at zero. Standard: every role sees it, a role that cannot read pay included. */
+  payNotSet: boolean;
+  /**
+     * DERIVED — basic + the three allowances. Null when pay is not set (never a computed zero).
+     * @nullable
+     */
+  grossSalary?: number | null;
   /**
      * DERIVED (Phase 18): the current period's employee rate for the employee's GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.
      * @nullable
      */
-  gosiEmployee: number | null;
+  gosiEmployee?: number | null;
   /**
      * DERIVED: the current period's employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.
      * @nullable
      */
-  gosiEmployer: number | null;
+  gosiEmployer?: number | null;
   /**
      * DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.
      * @nullable
      */
-  gosiWageBase: number | null;
+  gosiWageBase?: number | null;
   /**
      * GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.
      * @nullable
      */
-  gosiRegime: EmployeeGosiRegime;
+  gosiRegime?: EmployeeGosiRegime;
   /** @nullable */
-  gosiRegimeSetBy: number | null;
+  gosiRegimeSetBy?: number | null;
   /** @nullable */
-  gosiRegimeSetAt: string | null;
+  gosiRegimeSetAt?: string | null;
   /**
      * What the statement rests on, e.g. the GOSI contribution certificate.
      * @nullable
      */
-  gosiRegimeBasis: string | null;
+  gosiRegimeBasis?: string | null;
   /** GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage. */
-  gosiInKindHousing: boolean;
+  gosiInKindHousing?: boolean;
   /** GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing. */
-  gosiInKindHousingExempt: boolean;
+  gosiInKindHousingExempt?: boolean;
 }
 
 export interface EmployeeTotals {
@@ -7874,9 +7953,23 @@ export interface EmployeeTotals {
   grossSalary: number;
   /** Employer GOSI for the current period over the employees whose law is stated. */
   gosiEmployer: number;
-  /** GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer. */
+  /** GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer. An employee whose pay is not set is counted in payNotSetCount instead. */
   gosiUnstatedCount: number;
+  /** 19B S2a (D8 O2): matching employees whose pay is not set — a payroll run leaves them out and names them. Their pay is in no total here. */
+  payNotSetCount: number;
 }
+
+/**
+ * Who a payroll run includes: only 'active' employees. Writing it needs compensation (D1).
+ */
+export type EmployeeInputFieldsStatus = typeof EmployeeInputFieldsStatus[keyof typeof EmployeeInputFieldsStatus];
+
+
+export const EmployeeInputFieldsStatus = {
+  active: 'active',
+  inactive: 'inactive',
+  terminated: 'terminated',
+} as const;
 
 /**
  * @nullable
@@ -7889,6 +7982,9 @@ export const EmployeeInputFieldsGosiRegime = {
   law_2024: 'law_2024',
 } as const;
 
+/**
+ * 19B (v4 §4): a field of a class the role may not WRITE is refused by name (403 field_write_not_granted), never dropped. An employee's status, joining and end dates, nationality and GOSI number also need compensation to write (D1, D2). Send only the fields that change.
+ */
 export interface EmployeeInputFields {
   /** @minLength 1 */
   employeeNumber?: string;
@@ -7922,9 +8018,13 @@ export interface EmployeeInputFields {
   bank?: string | null;
   /** @nullable */
   joiningDate?: string | null;
-  /** @nullable */
+  /**
+     * The last day of employment (YYYY-MM-DD); not before the joining date.
+     * @nullable
+     */
   endDate?: string | null;
-  status?: string;
+  /** Who a payroll run includes: only 'active' employees. Writing it needs compensation (D1). */
+  status?: EmployeeInputFieldsStatus;
   /** @nullable */
   notes?: string | null;
   /** @nullable */
@@ -7934,6 +8034,18 @@ export interface EmployeeInputFields {
   gosiInKindHousing?: boolean;
   gosiInKindHousingExempt?: boolean;
 }
+
+/**
+ * Who a payroll run includes: only 'active' employees. Writing it needs compensation (D1).
+ */
+export type CreateEmployeeInputStatus = typeof CreateEmployeeInputStatus[keyof typeof CreateEmployeeInputStatus];
+
+
+export const CreateEmployeeInputStatus = {
+  active: 'active',
+  inactive: 'inactive',
+  terminated: 'terminated',
+} as const;
 
 /**
  * @nullable
@@ -7946,6 +8058,9 @@ export const CreateEmployeeInputGosiRegime = {
   law_2024: 'law_2024',
 } as const;
 
+/**
+ * 19B S2a (D8 O2): pay is optional — an employee created without basicSalary is 'pay not set' until an accountant or admin sets it.
+ */
 export interface CreateEmployeeInput {
   /** @minLength 1 */
   employeeNumber: string;
@@ -7962,7 +8077,7 @@ export interface CreateEmployeeInput {
   /** @nullable */
   department?: string | null;
   /** @minimum 0 */
-  basicSalary: number;
+  basicSalary?: number;
   /** @minimum 0 */
   housingAllowance?: number;
   /** @minimum 0 */
@@ -7977,9 +8092,13 @@ export interface CreateEmployeeInput {
   bank?: string | null;
   /** @nullable */
   joiningDate?: string | null;
-  /** @nullable */
+  /**
+     * The last day of employment (YYYY-MM-DD); not before the joining date.
+     * @nullable
+     */
   endDate?: string | null;
-  status?: string;
+  /** Who a payroll run includes: only 'active' employees. Writing it needs compensation (D1). */
+  status?: CreateEmployeeInputStatus;
   /** @nullable */
   notes?: string | null;
   /** @nullable */

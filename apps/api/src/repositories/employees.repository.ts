@@ -66,7 +66,10 @@ export const employeesRepository = {
       const floor = rates.entry.pensionFloorWage ?? 0;
       return sql`(${wage} * ${rates.employerRate}::numeric + GREATEST(${floor}::numeric - ${wage}, 0) * ${rates.entry.employer.pension}::numeric)`;
     };
+    // 🔴 19B S2a (found by mutant P4): a PAY-NOT-SET employee has no GOSI figure. Without this arm Postgres's LEAST()
+    // IGNORES the NULL wage and returns the SAR 45,000 ceiling — counting the employee at the MAXIMUM contribution.
     const gosiEmployer = sql`(CASE
+      WHEN ${employeesTable.basicSalary} IS NULL THEN NULL
       WHEN ${employeesTable.nationality} IS DISTINCT FROM 'SA' THEN ${employerOf("non_saudi")}
       WHEN ${employeesTable.gosiRegime} = 'law_1421h' THEN ${employerOf("law_1421h")}
       WHEN ${employeesTable.gosiRegime} = 'law_2024' THEN ${employerOf("law_2024")}
@@ -77,7 +80,10 @@ export const employeesRepository = {
         saudiCount: sql<number>`COUNT(*) FILTER (WHERE ${employeesTable.nationality} = 'SA')::int`,
         grossSalary: sql<number>`COALESCE(SUM(${gross}), 0)::float8`,
         gosiEmployer: sql<number>`COALESCE(SUM(${gosiEmployer}), 0)::float8`,
-        gosiUnstatedCount: sql<number>`COUNT(*) FILTER (WHERE ${gosiEmployer} IS NULL)::int`,
+        // 19B S2a: a pay-not-set employee has no GOSI figure because it has no pay — counted as such, never as a
+        // Saudi employee whose GOSI law is missing.
+        gosiUnstatedCount: sql<number>`COUNT(*) FILTER (WHERE ${employeesTable.basicSalary} IS NOT NULL AND ${gosiEmployer} IS NULL)::int`,
+        payNotSetCount: sql<number>`COUNT(*) FILTER (WHERE ${employeesTable.basicSalary} IS NULL)::int`,
       })
       .from(employeesTable)
       .where(employeeListConditions(filter));
@@ -87,6 +93,7 @@ export const employeesRepository = {
       grossSalary: Number(row?.grossSalary ?? 0),
       gosiEmployer: Number(row?.gosiEmployer ?? 0),
       gosiUnstatedCount: Number(row?.gosiUnstatedCount ?? 0),
+      payNotSetCount: Number(row?.payNotSetCount ?? 0),
     };
   },
   findById(id: number) {

@@ -8,7 +8,7 @@
  *    each step's removals are listed, dry-run per environment and approved by the owner before they apply (D10).
  */
 import { describe, expect, it } from "vitest";
-import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, fieldGrantAction, type ProtectedFieldClass } from "@workspace/db";
+import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, S2A_PENDING_REMOVALS, fieldGrantAction, type ProtectedFieldClass } from "@workspace/db";
 import { FIELD_CLASS_TABLE, indexTable } from "../lib/fieldClasses/classTable";
 import { OUTSIDE_CONTRACT_ROUTES } from "../lib/fieldClasses/outsideContract";
 
@@ -63,5 +63,30 @@ describe("field-class grants in PERMISSION_MATRIX (19B S1)", () => {
   it("🔴 a viewer holds no field WRITE level (presence: it holds the read levels)", () => {
     expect(fieldRows.filter((r) => r.role === "viewer" && r.action.endsWith(".write")).map((r) => `${r.resource}:${r.action}`)).toEqual([]);
     expect(fieldRows.some((r) => r.role === "viewer" && r.action.endsWith(".read"))).toBe(true);
+  });
+});
+
+/**
+ * 🔴 19B S2a (owner, 2026-11-22): the removals that switch withholding on for employees and payroll are DECLARED and
+ * NOT APPLIED until the owner approves each environment after the pre-removal review. This pins both halves: the set is
+ * exactly these twelve grants, and every one is still in the matrix. The step that removes them changes this test.
+ */
+describe("S2a's pending removals (declared, not applied)", () => {
+  const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
+  it("🔴 the set is exactly these twelve", () => {
+    expect(S2A_PENDING_REMOVALS.map(key).sort()).toEqual([
+      "bookkeeper:employees:field.bank_account.read", "bookkeeper:employees:field.compensation.read", "bookkeeper:employees:field.compensation.write",
+      "bookkeeper:employees:field.identity.read", "bookkeeper:payroll:create", "bookkeeper:payroll:field.compensation.read",
+      "bookkeeper:payroll:field.compensation.write", "viewer:employees:field.bank_account.last4", "viewer:employees:field.bank_account.read",
+      "viewer:employees:field.compensation.read", "viewer:employees:field.identity.read", "viewer:payroll:field.compensation.read",
+    ]);
+  });
+  it("🔴 NOT APPLIED: every one is still granted by PERMISSION_MATRIX", () => {
+    const granted = new Set(PERMISSION_MATRIX.map(key));
+    expect(S2A_PENDING_REMOVALS.filter((r) => !granted.has(key(r))).map(key)).toEqual([]);
+  });
+  it("the bookkeeper keeps writing the national ID and the IBAN (held from S3), and reads the IBAN's last four", () => {
+    const pending = new Set(S2A_PENDING_REMOVALS.map(key));
+    for (const a of ["field.identity.write", "field.bank_account.write", "field.bank_account.last4"]) expect(pending.has(`bookkeeper:employees:${a}`), a).toBe(false);
   });
 });

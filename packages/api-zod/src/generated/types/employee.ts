@@ -7,6 +7,9 @@
  */
 import type { EmployeeGosiRegime } from './employeeGosiRegime';
 
+/**
+ * 19B (v4 §4, D4): a field of a class the reader's role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.
+ */
 export interface Employee {
   id: number;
   employeeNumber: string;
@@ -14,66 +17,75 @@ export interface Employee {
   /** @nullable */
   nameAr: string | null;
   /** @nullable */
-  nationalId: string | null;
+  nationalId?: string | null;
   /** @nullable */
-  nationality: string | null;
+  nationality?: string | null;
   /** @nullable */
   jobTitle: string | null;
   /** @nullable */
   jobTitleAr: string | null;
   /** @nullable */
   department: string | null;
-  basicSalary: number;
-  housingAllowance: number;
-  transportAllowance: number;
-  otherAllowances: number;
+  /**
+     * Null = pay not set (19B S2a, D8 O2): see payNotSet.
+     * @nullable
+     */
+  basicSalary?: number | null;
+  housingAllowance?: number;
+  transportAllowance?: number;
+  otherAllowances?: number;
   /** @nullable */
-  gosiNumber: string | null;
+  gosiNumber?: string | null;
   /** @nullable */
-  iban: string | null;
+  iban?: string | null;
   /** @nullable */
-  bank: string | null;
+  bank?: string | null;
   /** @nullable */
   joiningDate: string | null;
   /** @nullable */
   endDate: string | null;
   status: string;
   /** @nullable */
-  notes: string | null;
+  notes?: string | null;
   createdAt: string;
-  /** DERIVED — basic + the three allowances. */
-  grossSalary: number;
+  /** 19B S2a (D8 O2): the employee has no basic salary yet. Shown as 'pay not set' wherever the employee appears; a payroll run leaves the employee out and names it (PayrollRun.leftOut), never computing it at zero. Standard: every role sees it, a role that cannot read pay included. */
+  payNotSet: boolean;
+  /**
+     * DERIVED — basic + the three allowances. Null when pay is not set (never a computed zero).
+     * @nullable
+     */
+  grossSalary?: number | null;
   /**
      * DERIVED (Phase 18): the current period's employee rate for the employee's GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.
      * @nullable
      */
-  gosiEmployee: number | null;
+  gosiEmployee?: number | null;
   /**
      * DERIVED: the current period's employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.
      * @nullable
      */
-  gosiEmployer: number | null;
+  gosiEmployer?: number | null;
   /**
      * DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.
      * @nullable
      */
-  gosiWageBase: number | null;
+  gosiWageBase?: number | null;
   /**
      * GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.
      * @nullable
      */
-  gosiRegime: EmployeeGosiRegime;
+  gosiRegime?: EmployeeGosiRegime;
   /** @nullable */
-  gosiRegimeSetBy: number | null;
+  gosiRegimeSetBy?: number | null;
   /** @nullable */
-  gosiRegimeSetAt: string | null;
+  gosiRegimeSetAt?: string | null;
   /**
      * What the statement rests on, e.g. the GOSI contribution certificate.
      * @nullable
      */
-  gosiRegimeBasis: string | null;
+  gosiRegimeBasis?: string | null;
   /** GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage. */
-  gosiInKindHousing: boolean;
+  gosiInKindHousing?: boolean;
   /** GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing. */
-  gosiInKindHousingExempt: boolean;
+  gosiInKindHousingExempt?: boolean;
 }

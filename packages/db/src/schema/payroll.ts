@@ -1,10 +1,18 @@
-import { pgTable, serial, text, timestamp, integer, numeric, uuid, index, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric, uuid, index, boolean, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { employeesTable } from "./employees";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
+
+/** One employee a payroll run left out (payroll_runs.left_out). */
+export interface PayrollLeftOutEmployee {
+  employeeId: number;
+  employeeNumber: string;
+  name: string;
+  reason: "pay_not_set";
+}
 
 export const payrollRunsTable = pgTable(
   "payroll_runs",
@@ -46,6 +54,12 @@ export const payrollRunsTable = pgTable(
      */
     gosiInvoicedAmount: numeric("gosi_invoiced_amount", { precision: 15, scale: 2 }),
     gosiInvoiceReference: text("gosi_invoice_reference"),
+    /**
+     * 🔴 19B S2a (v4 §10.1, D8 O2): the active employees this run LEFT OUT and why — today only `pay_not_set` (no basic
+     * salary). Written once, at generation, as the run saw them; no payroll line exists for them, so nothing is computed
+     * at zero. The run shows them by name.
+     */
+    leftOut: jsonb("left_out").$type<PayrollLeftOutEmployee[]>().notNull().default(sql`'[]'::jsonb`),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("payroll_runs_org_idx").on(t.organizationId)],

@@ -78,6 +78,8 @@ const toNum = (v: unknown) => (v != null ? Number(v) : 0);
  * previewed. Null where the regime is not stated or its rate not established.
  */
 function gosiPreview(e: Employee) {
+  // 19B S2a: pay not set — no preview at all, never one computed on a zero salary.
+  if (e.basicSalary == null) return { gosiWageBase: null, gosiEmployee: null, gosiEmployer: null };
   const regime: GosiRegime | null = e.nationality === "SA" ? ((e.gosiRegime as GosiRegime | null) ?? null) : "non_saudi";
   const rates = regime ? gosiRatesFor(regime, businessToday().slice(0, 7)) : null;
   if (!rates) return { gosiWageBase: null, gosiEmployee: null, gosiEmployer: null };
@@ -88,16 +90,37 @@ function gosiPreview(e: Employee) {
   return { gosiWageBase: wage, gosiEmployee: round2(amounts.employee), gosiEmployer: round2(amounts.employer) };
 }
 
-const toView = (e: Employee) => ({
-  ...e,
-  basicSalary: toNum(e.basicSalary),
-  housingAllowance: toNum(e.housingAllowance),
-  transportAllowance: toNum(e.transportAllowance),
-  otherAllowances: toNum(e.otherAllowances),
-  grossSalary:
-    toNum(e.basicSalary) + toNum(e.housingAllowance) + toNum(e.transportAllowance) + toNum(e.otherAllowances),
-  ...gosiPreview(e),
-});
+/**
+ * 🔴 19B S2a (D8 O2): an employee without a basic salary is PAY NOT SET — `payNotSet: true`, `basicSalary` and
+ * `grossSalary` null, no GOSI preview. Never a computed zero: a zero would read as a salary of nothing.
+ */
+const toView = (e: Employee) => {
+  const payNotSet = e.basicSalary == null;
+  return {
+    ...e,
+    basicSalary: payNotSet ? null : toNum(e.basicSalary),
+    housingAllowance: toNum(e.housingAllowance),
+    transportAllowance: toNum(e.transportAllowance),
+    otherAllowances: toNum(e.otherAllowances),
+    payNotSet,
+    grossSalary: payNotSet
+      ? null
+      : toNum(e.basicSalary) + toNum(e.housingAllowance) + toNum(e.transportAllowance) + toNum(e.otherAllowances),
+    ...gosiPreview(e),
+  };
+};
+
+/** The last day of employment is never before the first (both YYYY-MM-DD; refused by name, nothing saved). */
+function assertEmploymentDates(joiningDate: unknown, endDate: unknown) {
+  if (typeof joiningDate === "string" && typeof endDate === "string" && endDate < joiningDate) {
+    throw new BusinessRuleError(422, {
+      code: "employee_end_before_joining",
+      error: `The end date (${endDate}) is before the joining date (${joiningDate}). Nothing was saved.`,
+      errorAr: `تاريخ انتهاء الخدمة (${endDate}) يسبق تاريخ الالتحاق (${joiningDate}). لم يُحفظ شيء.`,
+      field: "endDate",
+    });
+  }
+}
 
 export const employeesService = {
   async list(filter: EmployeeListFilter) {
@@ -124,10 +147,12 @@ export const employeesService = {
     // into payroll/GOSI math; `String(undefined)` → 500.
     const picked = nullifyEmptyText(pick<Record<string, unknown>>(data, EMPLOYEE_FIELDS), ["nameAr", "jobTitleAr"]);
     for (const f of ["joiningDate", "endDate"] as const) if (data[f] != null) assertDateString(data[f], f);
+    assertEmploymentDates(data.joiningDate, data.endDate);
     assertInKindHousing(data, null);
     const values = {
       ...picked,
-      basicSalary: assertAmount(data.basicSalary, "basicSalary", { min: 0, allowZero: true }).toFixed(2),
+      // 19B S2a (D8 O2): no basic salary = pay not set (NULL), set later by an accountant or admin.
+      basicSalary: data.basicSalary == null ? null : assertAmount(data.basicSalary, "basicSalary", { min: 0, allowZero: true }).toFixed(2),
       housingAllowance: assertAmount(data.housingAllowance ?? 0, "housingAllowance", { min: 0, allowZero: true }).toFixed(2),
       transportAllowance: assertAmount(data.transportAllowance ?? 0, "transportAllowance", { min: 0, allowZero: true }).toFixed(2),
       otherAllowances: assertAmount(data.otherAllowances ?? 0, "otherAllowances", { min: 0, allowZero: true }).toFixed(2),
@@ -143,6 +168,7 @@ export const employeesService = {
     if (!before) throw new NotFoundError("Not found");
     const updates = nullifyEmptyText(pick<Record<string, unknown>>(data, EMPLOYEE_FIELDS), ["nameAr", "jobTitleAr"]);
     for (const f of ["joiningDate", "endDate"] as const) if (updates[f] != null) assertDateString(updates[f], f);
+    assertEmploymentDates("joiningDate" in updates ? updates.joiningDate : before.joiningDate, "endDate" in updates ? updates.endDate : before.endDate);
     assertInKindHousing(updates, before);
     for (const f of ["basicSalary", "housingAllowance", "transportAllowance", "otherAllowances"] as const) {
       if (updates[f] != null) updates[f] = assertAmount(updates[f], f, { min: 0, allowZero: true }).toFixed(2);

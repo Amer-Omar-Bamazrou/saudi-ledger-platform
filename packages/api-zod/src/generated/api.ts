@@ -6698,7 +6698,13 @@ export const ListPayrollRunsResponseItem = zod.object({
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "leftOut": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "reason": zod.enum(['pay_not_set'])
+})).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 }).and(zod.object({
   "employeeCount": zod.number(),
   "grossSalary": zod.number()
@@ -6734,8 +6740,27 @@ export const CreatePayrollRunResponse = zod.object({
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "leftOut": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "reason": zod.enum(['pay_not_set'])
+})).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
+
+
+/**
+ * @summary What the reader's role may read and write of each payroll line field (19B S2a)
+ */
+export const GetPayrollFieldAccessResponse = zod.object({
+  "record": zod.enum(['employees', 'payroll']),
+  "fields": zod.record(zod.string(), zod.object({
+  "class": zod.enum(['standard', 'contact', 'identity', 'compensation', 'bank_account', 'bank_narrative', 'member_security', 'by_entity']),
+  "read": zod.enum(['read', 'last4', 'none']),
+  "write": zod.boolean().describe('False when the field is read-only for every role, or the role lacks a class its write needs.')
+}))
+}).describe('19B S2a (v4 §4): what the reader\'s role may do with each field of one kind of record, from the one class table and the one matrix — so a page shows only what the role may write, and marks what it may not read. Never a field\'s value.')
 
 
 /**
@@ -6762,36 +6787,42 @@ export const GetPayrollRunResponse = zod.object({
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "leftOut": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "reason": zod.enum(['pay_not_set'])
+})).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 }).and(zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "payrollRunId": zod.number(),
   "employeeId": zod.number().nullable(),
-  "basicSalary": zod.number(),
-  "housingAllowance": zod.number(),
-  "transportAllowance": zod.number(),
-  "otherAllowances": zod.number(),
-  "grossSalary": zod.number(),
-  "gosiEmployee": zod.number(),
-  "gosiEmployer": zod.number(),
-  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal('non_saudi'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated).'),
-  "gosiWageBase": zod.number().nullable().describe('The contributory wage used: basic + housing, capped at SAR 45,000.'),
+  "basicSalary": zod.number().optional(),
+  "housingAllowance": zod.number().optional(),
+  "transportAllowance": zod.number().optional(),
+  "otherAllowances": zod.number().optional(),
+  "grossSalary": zod.number().optional(),
+  "gosiEmployee": zod.number().optional(),
+  "gosiEmployer": zod.number().optional(),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal('non_saudi'),zod.literal(null)]).nullish().describe('GOSI (Phase 18): the regime the line was computed under. Null on lines computed before migration 0127 (such a run is refused at approval until regenerated).'),
+  "gosiWageBase": zod.number().nullish().describe('The contributory wage used: basic + housing, capped at SAR 45,000.'),
   "gosiEmployeeRate": zod.number().nullable().describe('The employee rate used, as a fraction.'),
   "gosiEmployerRate": zod.number().nullable().describe('The employer rate used, as a fraction.'),
-  "gosiInKindHousing": zod.number().nullable().describe('GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none.'),
-  "gosiPensionFloorWage": zod.number().nullable().describe('GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply.'),
-  "gosiHazardsFloorOpen": zod.boolean().describe('GOSI decision 21: a non-Saudi line below the 1421H Regulation Art. 19(1) SAR 400 occupational-hazards minimum — a WARNING only, an open GOSI question; the line\'s figures are never changed by it.'),
-  "gosiServiceDays": zod.number().nullable().describe('GO-12 (both laws: 2024 Regulation Art. 20(2); 1421H Regulation Art. 21(3)): the days of service in a joining or leaving month. Null for a full month.'),
-  "gosiPeriodDays": zod.number().nullable().describe('GO-12: the month\'s actual days, the divisor of gosiServiceDays. Null for a full month.'),
-  "gosiWageFixedPeriod": zod.string().nullable().describe('GO-12 (1421H law): the period whose line fixed the year\'s contributory wage, which this line used. Null for other laws.'),
-  "additions": zod.number(),
-  "deductions": zod.number(),
-  "netPay": zod.number(),
+  "gosiInKindHousing": zod.number().nullish().describe('GO-13: the value of in-kind housing counted inside gosiWageBase (basic × 2 ÷ 12 a month, an interpretation). Null when none.'),
+  "gosiPensionFloorWage": zod.number().nullish().describe('GO-10 (1421H law): the wage the pension share was charged on (SAR 1,500) when gosiWageBase was below it. Null when the floor did not apply.'),
+  "gosiHazardsFloorOpen": zod.boolean().optional().describe('GOSI decision 21: a non-Saudi line below the 1421H Regulation Art. 19(1) SAR 400 occupational-hazards minimum — a WARNING only, an open GOSI question; the line\'s figures are never changed by it.'),
+  "gosiServiceDays": zod.number().nullish().describe('GO-12 (both laws: 2024 Regulation Art. 20(2); 1421H Regulation Art. 21(3)): the days of service in a joining or leaving month. Null for a full month.'),
+  "gosiPeriodDays": zod.number().nullish().describe('GO-12: the month\'s actual days, the divisor of gosiServiceDays. Null for a full month.'),
+  "gosiWageFixedPeriod": zod.string().nullish().describe('GO-12 (1421H law): the period whose line fixed the year\'s contributory wage, which this line used. Null for other laws.'),
+  "additions": zod.number().optional(),
+  "deductions": zod.number().optional(),
+  "netPay": zod.number().optional(),
   "employeeName": zod.string().nullable(),
   "employeeNumber": zod.string().nullable(),
   "createdAt": zod.string().optional()
-}))
+}).describe('19B (v4 §5.2): the pay figures are compensation — ABSENT for a role that cannot read pay (X-Withheld names them); the line\'s identity and the statutory rates are standard.'))
 }))
 
 
@@ -6820,34 +6851,35 @@ export const ListEmployeesResponse = zod.object({
   "employeeNumber": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
-  "nationalId": zod.string().nullable(),
-  "nationality": zod.string().nullable(),
+  "nationalId": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
   "jobTitle": zod.string().nullable(),
   "jobTitleAr": zod.string().nullable(),
   "department": zod.string().nullable(),
-  "basicSalary": zod.number(),
-  "housingAllowance": zod.number(),
-  "transportAllowance": zod.number(),
-  "otherAllowances": zod.number(),
-  "gosiNumber": zod.string().nullable(),
-  "iban": zod.string().nullable(),
-  "bank": zod.string().nullable(),
+  "basicSalary": zod.number().nullish().describe('Null = pay not set (19B S2a, D8 O2): see payNotSet.'),
+  "housingAllowance": zod.number().optional(),
+  "transportAllowance": zod.number().optional(),
+  "otherAllowances": zod.number().optional(),
+  "gosiNumber": zod.string().nullish(),
+  "iban": zod.string().nullish(),
+  "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullable(),
   "endDate": zod.string().nullable(),
   "status": zod.string(),
-  "notes": zod.string().nullable(),
+  "notes": zod.string().nullish(),
   "createdAt": zod.string(),
-  "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
-  "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
-  "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
-  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
-  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
-  "gosiRegimeSetBy": zod.number().nullable(),
-  "gosiRegimeSetAt": zod.string().nullable(),
-  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
-  "gosiInKindHousing": zod.boolean().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
-  "gosiInKindHousingExempt": zod.boolean().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
-})),
+  "payNotSet": zod.boolean().describe('19B S2a (D8 O2): the employee has no basic salary yet. Shown as \'pay not set\' wherever the employee appears; a payroll run leaves the employee out and names it (PayrollRun.leftOut), never computing it at zero. Standard: every role sees it, a role that cannot read pay included.'),
+  "grossSalary": zod.number().nullish().describe('DERIVED — basic + the three allowances. Null when pay is not set (never a computed zero).'),
+  "gosiEmployee": zod.number().nullish().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
+  "gosiEmployer": zod.number().nullish().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
+  "gosiWageBase": zod.number().nullish().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
+  "gosiRegimeSetBy": zod.number().nullish(),
+  "gosiRegimeSetAt": zod.string().nullish(),
+  "gosiRegimeBasis": zod.string().nullish().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
+  "gosiInKindHousing": zod.boolean().optional().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
+  "gosiInKindHousingExempt": zod.boolean().optional().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
+}).describe('19B (v4 §4, D4): a field of a class the reader\'s role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.')),
   "page": zod.object({
   "limit": zod.number(),
   "offset": zod.number(),
@@ -6857,7 +6889,8 @@ export const ListEmployeesResponse = zod.object({
   "saudiCount": zod.number(),
   "grossSalary": zod.number(),
   "gosiEmployer": zod.number().describe('Employer GOSI for the current period over the employees whose law is stated.'),
-  "gosiUnstatedCount": zod.number().describe('GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer.')
+  "gosiUnstatedCount": zod.number().describe('GOSI (Phase 18): Saudi employees whose law is not stated, left out of gosiEmployer. An employee whose pay is not set is counted in payNotSetCount instead.'),
+  "payNotSetCount": zod.number().describe('19B S2a (D8 O2): matching employees whose pay is not set — a payroll run leaves them out and names them. Their pay is in no total here.')
 })
 })
 
@@ -6883,7 +6916,7 @@ export const CreateEmployeeBody = zod.object({
   "jobTitle": zod.string().nullish(),
   "jobTitleAr": zod.string().optional(),
   "department": zod.string().nullish(),
-  "basicSalary": zod.number().min(createEmployeeBodyBasicSalaryMin),
+  "basicSalary": zod.number().min(createEmployeeBodyBasicSalaryMin).optional(),
   "housingAllowance": zod.number().min(createEmployeeBodyHousingAllowanceMin).optional(),
   "transportAllowance": zod.number().min(createEmployeeBodyTransportAllowanceMin).optional(),
   "otherAllowances": zod.number().min(createEmployeeBodyOtherAllowancesMin).optional(),
@@ -6891,48 +6924,62 @@ export const CreateEmployeeBody = zod.object({
   "iban": zod.string().nullish(),
   "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullish(),
-  "endDate": zod.string().nullish(),
-  "status": zod.string().optional(),
+  "endDate": zod.string().nullish().describe('The last day of employment (YYYY-MM-DD); not before the joining date.'),
+  "status": zod.enum(['active', 'inactive', 'terminated']).optional().describe('Who a payroll run includes: only \'active\' employees. Writing it needs compensation (D1).'),
   "notes": zod.string().nullish(),
   "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish(),
   "gosiRegimeBasis": zod.string().nullish(),
   "gosiInKindHousing": zod.boolean().optional(),
   "gosiInKindHousingExempt": zod.boolean().optional()
-})
+}).describe('19B S2a (D8 O2): pay is optional — an employee created without basicSalary is \'pay not set\' until an accountant or admin sets it.')
 
 export const CreateEmployeeResponse = zod.object({
   "id": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
-  "nationalId": zod.string().nullable(),
-  "nationality": zod.string().nullable(),
+  "nationalId": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
   "jobTitle": zod.string().nullable(),
   "jobTitleAr": zod.string().nullable(),
   "department": zod.string().nullable(),
-  "basicSalary": zod.number(),
-  "housingAllowance": zod.number(),
-  "transportAllowance": zod.number(),
-  "otherAllowances": zod.number(),
-  "gosiNumber": zod.string().nullable(),
-  "iban": zod.string().nullable(),
-  "bank": zod.string().nullable(),
+  "basicSalary": zod.number().nullish().describe('Null = pay not set (19B S2a, D8 O2): see payNotSet.'),
+  "housingAllowance": zod.number().optional(),
+  "transportAllowance": zod.number().optional(),
+  "otherAllowances": zod.number().optional(),
+  "gosiNumber": zod.string().nullish(),
+  "iban": zod.string().nullish(),
+  "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullable(),
   "endDate": zod.string().nullable(),
   "status": zod.string(),
-  "notes": zod.string().nullable(),
+  "notes": zod.string().nullish(),
   "createdAt": zod.string(),
-  "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
-  "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
-  "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
-  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
-  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
-  "gosiRegimeSetBy": zod.number().nullable(),
-  "gosiRegimeSetAt": zod.string().nullable(),
-  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
-  "gosiInKindHousing": zod.boolean().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
-  "gosiInKindHousingExempt": zod.boolean().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
-})
+  "payNotSet": zod.boolean().describe('19B S2a (D8 O2): the employee has no basic salary yet. Shown as \'pay not set\' wherever the employee appears; a payroll run leaves the employee out and names it (PayrollRun.leftOut), never computing it at zero. Standard: every role sees it, a role that cannot read pay included.'),
+  "grossSalary": zod.number().nullish().describe('DERIVED — basic + the three allowances. Null when pay is not set (never a computed zero).'),
+  "gosiEmployee": zod.number().nullish().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
+  "gosiEmployer": zod.number().nullish().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
+  "gosiWageBase": zod.number().nullish().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
+  "gosiRegimeSetBy": zod.number().nullish(),
+  "gosiRegimeSetAt": zod.string().nullish(),
+  "gosiRegimeBasis": zod.string().nullish().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
+  "gosiInKindHousing": zod.boolean().optional().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
+  "gosiInKindHousingExempt": zod.boolean().optional().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
+}).describe('19B (v4 §4, D4): a field of a class the reader\'s role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.')
+
+
+/**
+ * @summary What the reader's role may read and write of each employee field (19B S2a)
+ */
+export const GetEmployeeFieldAccessResponse = zod.object({
+  "record": zod.enum(['employees', 'payroll']),
+  "fields": zod.record(zod.string(), zod.object({
+  "class": zod.enum(['standard', 'contact', 'identity', 'compensation', 'bank_account', 'bank_narrative', 'member_security', 'by_entity']),
+  "read": zod.enum(['read', 'last4', 'none']),
+  "write": zod.boolean().describe('False when the field is read-only for every role, or the role lacks a class its write needs.')
+}))
+}).describe('19B S2a (v4 §4): what the reader\'s role may do with each field of one kind of record, from the one class table and the one matrix — so a page shows only what the role may write, and marks what it may not read. Never a field\'s value.')
 
 
 export const GetEmployeeParams = zod.object({
@@ -6944,34 +6991,35 @@ export const GetEmployeeResponse = zod.object({
   "employeeNumber": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
-  "nationalId": zod.string().nullable(),
-  "nationality": zod.string().nullable(),
+  "nationalId": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
   "jobTitle": zod.string().nullable(),
   "jobTitleAr": zod.string().nullable(),
   "department": zod.string().nullable(),
-  "basicSalary": zod.number(),
-  "housingAllowance": zod.number(),
-  "transportAllowance": zod.number(),
-  "otherAllowances": zod.number(),
-  "gosiNumber": zod.string().nullable(),
-  "iban": zod.string().nullable(),
-  "bank": zod.string().nullable(),
+  "basicSalary": zod.number().nullish().describe('Null = pay not set (19B S2a, D8 O2): see payNotSet.'),
+  "housingAllowance": zod.number().optional(),
+  "transportAllowance": zod.number().optional(),
+  "otherAllowances": zod.number().optional(),
+  "gosiNumber": zod.string().nullish(),
+  "iban": zod.string().nullish(),
+  "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullable(),
   "endDate": zod.string().nullable(),
   "status": zod.string(),
-  "notes": zod.string().nullable(),
+  "notes": zod.string().nullish(),
   "createdAt": zod.string(),
-  "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
-  "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
-  "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
-  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
-  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
-  "gosiRegimeSetBy": zod.number().nullable(),
-  "gosiRegimeSetAt": zod.string().nullable(),
-  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
-  "gosiInKindHousing": zod.boolean().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
-  "gosiInKindHousingExempt": zod.boolean().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
-})
+  "payNotSet": zod.boolean().describe('19B S2a (D8 O2): the employee has no basic salary yet. Shown as \'pay not set\' wherever the employee appears; a payroll run leaves the employee out and names it (PayrollRun.leftOut), never computing it at zero. Standard: every role sees it, a role that cannot read pay included.'),
+  "grossSalary": zod.number().nullish().describe('DERIVED — basic + the three allowances. Null when pay is not set (never a computed zero).'),
+  "gosiEmployee": zod.number().nullish().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
+  "gosiEmployer": zod.number().nullish().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
+  "gosiWageBase": zod.number().nullish().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
+  "gosiRegimeSetBy": zod.number().nullish(),
+  "gosiRegimeSetAt": zod.string().nullish(),
+  "gosiRegimeBasis": zod.string().nullish().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
+  "gosiInKindHousing": zod.boolean().optional().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
+  "gosiInKindHousingExempt": zod.boolean().optional().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
+}).describe('19B (v4 §4, D4): a field of a class the reader\'s role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.')
 
 
 export const UpdateEmployeeParams = zod.object({
@@ -7007,48 +7055,49 @@ export const UpdateEmployeeBody = zod.object({
   "iban": zod.string().nullish(),
   "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullish(),
-  "endDate": zod.string().nullish(),
-  "status": zod.string().optional(),
+  "endDate": zod.string().nullish().describe('The last day of employment (YYYY-MM-DD); not before the joining date.'),
+  "status": zod.enum(['active', 'inactive', 'terminated']).optional().describe('Who a payroll run includes: only \'active\' employees. Writing it needs compensation (D1).'),
   "notes": zod.string().nullish(),
   "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish(),
   "gosiRegimeBasis": zod.string().nullish(),
   "gosiInKindHousing": zod.boolean().optional(),
   "gosiInKindHousingExempt": zod.boolean().optional()
-})
+}).describe('19B (v4 §4): a field of a class the role may not WRITE is refused by name (403 field_write_not_granted), never dropped. An employee\'s status, joining and end dates, nationality and GOSI number also need compensation to write (D1, D2). Send only the fields that change.')
 
 export const UpdateEmployeeResponse = zod.object({
   "id": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
   "nameAr": zod.string().nullable(),
-  "nationalId": zod.string().nullable(),
-  "nationality": zod.string().nullable(),
+  "nationalId": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
   "jobTitle": zod.string().nullable(),
   "jobTitleAr": zod.string().nullable(),
   "department": zod.string().nullable(),
-  "basicSalary": zod.number(),
-  "housingAllowance": zod.number(),
-  "transportAllowance": zod.number(),
-  "otherAllowances": zod.number(),
-  "gosiNumber": zod.string().nullable(),
-  "iban": zod.string().nullable(),
-  "bank": zod.string().nullable(),
+  "basicSalary": zod.number().nullish().describe('Null = pay not set (19B S2a, D8 O2): see payNotSet.'),
+  "housingAllowance": zod.number().optional(),
+  "transportAllowance": zod.number().optional(),
+  "otherAllowances": zod.number().optional(),
+  "gosiNumber": zod.string().nullish(),
+  "iban": zod.string().nullish(),
+  "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullable(),
   "endDate": zod.string().nullable(),
   "status": zod.string(),
-  "notes": zod.string().nullable(),
+  "notes": zod.string().nullish(),
   "createdAt": zod.string(),
-  "grossSalary": zod.number().describe('DERIVED — basic + the three allowances.'),
-  "gosiEmployee": zod.number().nullable().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
-  "gosiEmployer": zod.number().nullable().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
-  "gosiWageBase": zod.number().nullable().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
-  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullable().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
-  "gosiRegimeSetBy": zod.number().nullable(),
-  "gosiRegimeSetAt": zod.string().nullable(),
-  "gosiRegimeBasis": zod.string().nullable().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
-  "gosiInKindHousing": zod.boolean().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
-  "gosiInKindHousingExempt": zod.boolean().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
-})
+  "payNotSet": zod.boolean().describe('19B S2a (D8 O2): the employee has no basic salary yet. Shown as \'pay not set\' wherever the employee appears; a payroll run leaves the employee out and names it (PayrollRun.leftOut), never computing it at zero. Standard: every role sees it, a role that cannot read pay included.'),
+  "grossSalary": zod.number().nullish().describe('DERIVED — basic + the three allowances. Null when pay is not set (never a computed zero).'),
+  "gosiEmployee": zod.number().nullish().describe('DERIVED (Phase 18): the current period\'s employee rate for the employee\'s GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.'),
+  "gosiEmployer": zod.number().nullish().describe('DERIVED: the current period\'s employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.'),
+  "gosiWageBase": zod.number().nullish().describe('DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.'),
+  "gosiRegime": zod.union([zod.literal('law_1421h'),zod.literal('law_2024'),zod.literal(null)]).nullish().describe('GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.'),
+  "gosiRegimeSetBy": zod.number().nullish(),
+  "gosiRegimeSetAt": zod.string().nullish(),
+  "gosiRegimeBasis": zod.string().nullish().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
+  "gosiInKindHousing": zod.boolean().optional().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
+  "gosiInKindHousingExempt": zod.boolean().optional().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
+}).describe('19B (v4 §4, D4): a field of a class the reader\'s role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.')
 
 
 export const DeleteEmployeeParams = zod.object({
@@ -16215,7 +16264,13 @@ export const SubmitPayrollRunResponse = zod.object({
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "leftOut": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "reason": zod.enum(['pay_not_set'])
+})).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
 
@@ -16248,7 +16303,13 @@ export const SendBackPayrollRunResponse = zod.object({
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "leftOut": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "reason": zod.enum(['pay_not_set'])
+})).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
 
@@ -16277,7 +16338,13 @@ export const ApprovePayrollRunResponse = zod.object({
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "leftOut": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "reason": zod.enum(['pay_not_set'])
+})).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
 
@@ -16313,7 +16380,13 @@ export const PayPayrollRunGosiResponse = zod.object({
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "leftOut": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "reason": zod.enum(['pay_not_set'])
+})).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
 
@@ -16347,7 +16420,13 @@ export const PayPayrollRunResponse = zod.object({
   "processedAt": zod.string().nullable(),
   "reviewNote": zod.string().nullable(),
   "notes": zod.string().nullable(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "leftOut": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "name": zod.string(),
+  "reason": zod.enum(['pay_not_set'])
+})).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
 

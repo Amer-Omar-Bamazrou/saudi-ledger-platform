@@ -20,7 +20,8 @@ import { primePermissionCache } from "../../lib/rbac";
 import { auditContext } from "../../lib/auditContext";
 import { appOriginHeader } from "./appOrigin";
 
-export type Res = { status: number; body: any };
+/** `text` and `headers` (19B S2a): the raw answer, so a test can search what was SERVED, not only what parsed. */
+export type Res = { status: number; body: any; text: string; headers: Record<string, string> };
 
 export function g04Harness(prefix: string) {
   const state = { server: null as http.Server | null, base: "" };
@@ -54,7 +55,9 @@ export function g04Harness(prefix: string) {
     const text = await res.text();
     let json: any;
     try { json = JSON.parse(text); } catch { json = text; }
-    return { status: res.status, body: json };
+    const headers: Record<string, string> = {};
+    res.headers.forEach((v, k) => { headers[k] = v; });
+    return { status: res.status, body: json, text, headers };
   }
 
   async function login(who: string, mail: string, password: string): Promise<number> {

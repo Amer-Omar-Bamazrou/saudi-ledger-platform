@@ -381,7 +381,7 @@ describeMaybe("Phase 16 — Zakat and income-tax computations on real rows", () 
     const frozenAmount = (z.approvedSnapshot as { computation: { amount: number } }).computation.amount;
     expect(frozenAmount).toBe(9_760.05);
     expect(z.live!.amount, "the live reading moved").not.toBe(frozenAmount);
-    const csv = (await inZ(() => exportReport("tax-computation", { computation_id: String(compId), version_id: String(z.version!.id) }, "csv", "en"))).body.toString("utf8");
+    const csv = (await inZ(() => exportReport("tax-computation", { computation_id: String(compId), version_id: String(z.version!.id) }, "csv", "en", () => "read"))).body.toString("utf8");
     expect(csv).toContain("9,760.05".replace(",", "")) ;
     expect(csv).toContain("frozen approved working paper");
   });

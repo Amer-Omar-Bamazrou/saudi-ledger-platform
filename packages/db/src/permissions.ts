@@ -296,6 +296,32 @@ const FIELD_SPEC: Record<string, Partial<Record<ProtectedFieldClass, Partial<Rec
   },
 };
 
+/**
+ * 🔴 19B S2a — THE REMOVALS THAT SWITCH WITHHOLDING ON FOR EMPLOYEES AND PAYROLL (v4 §6.1 D2, §10 D8 O2).
+ *
+ * 🔴 NOT APPLIED. PERMISSION_MATRIX still grants every row below. They leave the matrix only after the owner has read
+ * the pre-removal review and approved the removal for each environment (owner, 2026-11-22). Declared ONCE, here, so the
+ * per-environment dry run, the tests that run with these grants removed, and the step that finally removes them all
+ * name the same set (field-class-grants.test.ts pins that each row is still granted, and that the set is exactly this).
+ *
+ * The bookkeeper KEEPS `field.bank_account.write` and `field.bank_account.last4` on employees: IBAN entry stays as it is
+ * until S3 holds it for an approver (owner, 2026-11-22), and reads show the last four digits.
+ */
+export const S2A_PENDING_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFieldClass | null; why: string })[] = [
+  { role: "viewer", resource: "employees", action: "field.identity.read", fieldClass: "identity", why: "viewer: identity none (D2)" },
+  { role: "viewer", resource: "employees", action: "field.compensation.read", fieldClass: "compensation", why: "viewer: compensation none (D2)" },
+  { role: "viewer", resource: "employees", action: "field.bank_account.read", fieldClass: "bank_account", why: "viewer: bank_account none (D2)" },
+  { role: "viewer", resource: "employees", action: "field.bank_account.last4", fieldClass: "bank_account", why: "viewer: bank_account none — not even the last four (D2)" },
+  { role: "bookkeeper", resource: "employees", action: "field.identity.read", fieldClass: "identity", why: "bookkeeper: writes the national ID, never reads it back (D2)" },
+  { role: "bookkeeper", resource: "employees", action: "field.compensation.read", fieldClass: "compensation", why: "bookkeeper: compensation none (D2, O2)" },
+  { role: "bookkeeper", resource: "employees", action: "field.compensation.write", fieldClass: "compensation", why: "bookkeeper: compensation none — so no pay, GOSI, status, dates, nationality or GOSI number (D1, D2, O2)" },
+  { role: "bookkeeper", resource: "employees", action: "field.bank_account.read", fieldClass: "bank_account", why: "bookkeeper: the last four digits only (D2)" },
+  { role: "viewer", resource: "payroll", action: "field.compensation.read", fieldClass: "compensation", why: "viewer: no pay lines (D2)" },
+  { role: "bookkeeper", resource: "payroll", action: "field.compensation.read", fieldClass: "compensation", why: "bookkeeper: no pay lines (D2, O2)" },
+  { role: "bookkeeper", resource: "payroll", action: "field.compensation.write", fieldClass: "compensation", why: "bookkeeper: no pay lines (D2, O2)" },
+  { role: "bookkeeper", resource: "payroll", action: "create", fieldClass: null, why: "bookkeeper: no longer prepares payroll runs (D8 O2)" },
+];
+
 /** The flattened matrix: one row per (role, resource, action) grant — the route grants, then the field grants. */
 export const PERMISSION_MATRIX: PermissionRow[] = [
   ...Object.entries(SPEC).flatMap(([resource, actions]) =>

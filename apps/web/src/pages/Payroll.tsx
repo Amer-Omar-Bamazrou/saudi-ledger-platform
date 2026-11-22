@@ -14,8 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 import { submittedToast } from "@/components/SubmittedToast";
 import { BankPicker } from "@/components/payments/shared";
 import { ApiError } from "@/lib/api";
+import { Withheld } from "@/components/Withheld";
 
-import type { CreatePayrollRunInput, PayPayrollRunGosiInput, PayPayrollRunInput, PayrollRunDetail, PayrollRunListItem } from "@workspace/api-client-react";
+import type { CreatePayrollRunInput, EmployeeTotals, FieldAccess, PayPayrollRunGosiInput, PayPayrollRunInput, PayrollItem, PayrollLeftOutEmployee, PayrollRunDetail, PayrollRunListItem } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
@@ -51,6 +52,16 @@ function runRefusal(e: Error, t: (en: string, ar: string) => string): { title: s
       description: t(
         `Set the GOSI law (from contribution history, not the hire date) for: ${names.map((n) => n.name).join(", ")} — on the Employees page, then generate again. Nothing was created.`,
         `حدّد نظام التأمينات (من سجل الاشتراكات، لا من تاريخ التعيين) للموظفين: ${names.map((n) => n.nameAr || n.name).join("، ")} — من صفحة الموظفين، ثم أنشئ المسير مجددًا. لم يُنشأ شيء.`,
+      ),
+    };
+  }
+  if (e.code === "payroll_no_pay_set") {
+    const names = ((e.body?.leftOut ?? []) as PayrollLeftOutEmployee[]).map((n) => n.name);
+    return {
+      title: t("No employee has pay set", "لم يُحدَّد راتب أي موظف"),
+      description: t(
+        `Every active employee's pay is not set (${names.join(", ")}). An accountant or admin sets each one's pay on the Employees page. Nothing was created.`,
+        `لم يُحدَّد راتب أي موظف نشط (${names.join("، ")}). يحدّد المحاسب أو المسؤول راتب كل منهم من صفحة الموظفين. لم يُنشأ شيء.`,
       ),
     };
   }
@@ -98,10 +109,21 @@ export default function Payroll() {
 
   const { data: runs = [], isLoading } = useQuery<PayrollRunListItem[]>({ queryKey: ["payroll"], queryFn: () => apiFetch("/payroll") });
   const { data: detail } = useQuery<PayrollRunDetail>({ queryKey: ["payroll", selectedId], queryFn: () => apiFetch(`/payroll/${selectedId}`), enabled: selectedId !== null });
+  // 🔴 19B S2a: what this role may read of a payroll line (a pay figure it may not read is absent from the response,
+  // and marked here, never shown blank or zero), and how many active employees a run would leave out (pay not set).
+  const { data: access } = useQuery<FieldAccess>({ queryKey: ["payroll", "field-access"], queryFn: () => apiFetch("/payroll/field-access") });
+  const { data: activeTotals } = useQuery<{ totals: EmployeeTotals }>({ queryKey: ["employees", "active-totals"], queryFn: () => apiFetch("/employees?status=active&limit=1"), enabled: open });
+  const payCell = (item: PayrollItem, f: "basicSalary" | "gosiEmployee" | "gosiEmployer" | "netPay") =>
+    item[f] === undefined ? <Withheld cls={access?.fields[f]?.class ?? "compensation"} testId={`payroll-withheld-${f}-${item.id}`} /> : fmtNum(item[f] as number);
 
   const generateMut = useMutation({
     mutationFn: (p: string) => apiFetch("/payroll", { method: "POST", body: json.create({ period: p }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll"] }); setOpen(false); toast({ title: t("Payroll run generated", "تم إنشاء مسير الرواتب") }); },
+    onSuccess: (run) => {
+      qc.invalidateQueries({ queryKey: ["payroll"] });
+      setOpen(false);
+      const left = ((run as { leftOut?: PayrollLeftOutEmployee[] })?.leftOut ?? []).map((l) => l.name);
+      toast({ title: t("Payroll run generated", "تم إنشاء مسير الرواتب"), description: left.length ? t(`${left.length} employee(s) left out — pay not set: ${left.join(", ")}`, `استُبعد ${left.length} موظف — لم يُحدَّد الراتب: ${left.join("، ")}`) : undefined });
+    },
     onError: (e: Error) => { const r = runRefusal(e, t); toast({ title: r?.title ?? t("Error", "خطأ"), description: r?.description ?? e.message, variant: "destructive" }); },
   });
 
@@ -154,6 +176,9 @@ export default function Payroll() {
             <DialogHeader><DialogTitle>{t("Generate Payroll Run", "إنشاء مسير رواتب")}</DialogTitle></DialogHeader>
             <div className="mt-2 space-y-3">
               <div><Label className="text-xs text-muted-foreground">{t("Period (YYYY-MM)", "الفترة (السنة-الشهر)")}</Label><Input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1 h-8 text-sm" /></div>
+              {(activeTotals?.totals.payNotSetCount ?? 0) > 0 && (
+                <p className="text-xs text-attention" data-testid="payroll-generate-pay-not-set">{t(`${activeTotals!.totals.payNotSetCount} active employee(s) have no pay set: the run leaves them out and names them — nothing is computed at zero.`, `${activeTotals!.totals.payNotSetCount} من الموظفين النشطين لم يُحدَّد راتبهم: يستبعدهم المسير ويذكر أسماءهم — لا يُحتسب لهم صفر.`)}</p>
+              )}
               <p className="text-xs text-muted-foreground">{t("This will generate payroll items for all active employees from their current salary setup. GOSI is computed for the period from each employee's GOSI law, on basic pay plus housing up to SAR 45,000.", "سيُنشئ هذا بنود الرواتب لجميع الموظفين النشطين من إعداد الراتب الحالي. وتُحسب التأمينات للفترة وفق نظام التأمينات لكل موظف، على الأساسي مع السكن حتى 45,000 ريال.")}</p>
             </div>
             <Button className="w-full mt-4" onClick={()=>generateMut.mutate(period)} disabled={generateMut.isPending}>{generateMut.isPending ? t("Generating...", "جارٍ الإنشاء...") : t("Generate Payroll", "إنشاء مسير الرواتب")}</Button>
@@ -218,6 +243,7 @@ export default function Payroll() {
                     <div>
                       <div className="font-mono text-sm font-semibold">{r.period}</div>
                       <div className="text-xs text-muted-foreground mt-0.5">{fmtNum(r.totalNetPay)} {t("net", "صافي")}</div>
+                      {r.leftOut.length > 0 && <div className="text-xs text-attention mt-0.5" data-testid={`payroll-left-out-count-${r.id}`}>{t(`${r.leftOut.length} left out — pay not set`, `${r.leftOut.length} مستبعد — لم يُحدَّد الراتب`)}</div>}
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
@@ -239,15 +265,22 @@ export default function Payroll() {
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{detail ? `${t("Payslips", "قسائم الراتب")} — ${detail.period}` : t("Select a Run", "اختر مسير رواتب")}</CardTitle></CardHeader>
           <CardContent>
             {!detail ? <div className="text-center py-12 text-muted-foreground text-sm">{t("Select a payroll run to view payslips", "اختر مسير رواتب لعرض قسائم الراتب")}</div> : (
-              <div className="overflow-x-auto"><table className="w-full text-xs">
+              <div className="overflow-x-auto">
+              {detail.leftOut.length > 0 && (
+                <div className="mb-3 rounded-md border border-attention/40 p-2 text-xs" data-testid="payroll-left-out">
+                  <p className="font-medium text-attention">{t(`${detail.leftOut.length} employee(s) left out: pay not set`, `${detail.leftOut.length} موظف خارج المسير: لم يُحدَّد الراتب`)}</p>
+                  <ul className="mt-1 text-muted-foreground">{detail.leftOut.map((l) => <li key={l.employeeId}>{l.name} <span className="font-mono">{l.employeeNumber}</span></li>)}</ul>
+                </div>
+              )}
+              <table className="w-full text-xs">
                 <thead><tr className="border-b border-border text-muted-foreground uppercase">{[t("Employee", "الموظف"), t("Basic", "الأساسي"), t("GOSI (Emp)", "GOSI (موظف)"), t("GOSI (Er)", "GOSI (صاحب عمل)"), t("Net Pay", "صافي الراتب")].map(h=><th key={h} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
                 <tbody>{detail.items.map(item=>(
                   <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/10">
                     <td className="py-2 pe-3"><div className="font-medium text-sm">{item.employeeName}</div><div className="text-muted-foreground font-mono">{item.employeeNumber}</div>{item.gosiHazardsFloorOpen && <div className="text-xs text-muted-foreground" data-testid={`payroll-hazards-note-${item.id}`}>{t("Below the SAR 400 occupational-hazards minimum of the 1421H Regulation Art. 19(1); whether it applies to this employee is an open question for GOSI. Nothing was changed.", "دون الحد الأدنى لفرع الأخطار المهنية (400 ريال) في المادة 19(1) من لائحة 1421هـ؛ وانطباقه على هذا الموظف مسألة مفتوحة لدى التأمينات. لم يُغيَّر شيء.")}</div>}</td>
-                    <td className="py-2 pe-3 font-mono">{fmtNum(item.basicSalary)}</td>
-                    <td className="py-2 pe-3 font-mono text-attention">{fmtNum(item.gosiEmployee)}</td>
-                    <td className="py-2 pe-3 font-mono text-negative">{fmtNum(item.gosiEmployer)}</td>
-                    <td className="py-2 font-mono font-semibold text-positive text-sm">{fmtNum(item.netPay)}</td>
+                    <td className="py-2 pe-3 font-mono">{payCell(item, "basicSalary")}</td>
+                    <td className="py-2 pe-3 font-mono text-attention">{payCell(item, "gosiEmployee")}</td>
+                    <td className="py-2 pe-3 font-mono text-negative">{payCell(item, "gosiEmployer")}</td>
+                    <td className="py-2 font-mono font-semibold text-positive text-sm">{payCell(item, "netPay")}</td>
                   </tr>
                 ))}</tbody>
                 <tfoot>

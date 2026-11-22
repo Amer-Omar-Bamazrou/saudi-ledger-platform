@@ -3,6 +3,8 @@ import { CreatePayrollRunBody, PayPayrollRunBody, PayPayrollRunGosiBody } from "
 import { payrollService } from "../services/payroll.service";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
+import { peekPermissions } from "../lib/rbac";
+import { fieldAccess } from "../lib/fieldClasses/access";
 
 /** Contract batch 4: the declared body constraint is the enforced one. */
 function parseOr400<T>(result: { success: true; data: T } | { success: false; error: { issues: { path: (string | number)[]; message: string }[] } }): T {
@@ -16,6 +18,10 @@ export const payrollController = {
   },
   async get(req: Request, res: Response) {
     res.json(await payrollService.getById(requireIdParam(req)));
+  },
+  /** 19B S2a: the reader role's read level for each payroll line field (never a value). */
+  fieldAccess(req: Request, res: Response) {
+    res.json(fieldAccess("payroll", req.tenant!.role, peekPermissions()));
   },
   async create(req: Request, res: Response) {
     res.status(201).json(await payrollService.create(parseOr400(CreatePayrollRunBody.safeParse(req.body)), req.session?.userId ?? null));
