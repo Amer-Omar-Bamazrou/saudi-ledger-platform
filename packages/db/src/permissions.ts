@@ -32,7 +32,29 @@ import { permissionsTable } from "./schema";
  */
 
 export type PermissionRole = "admin" | "accountant" | "bookkeeper" | "viewer";
-export type PermissionAction = "read" | "create" | "update" | "delete" | "approve";
+
+/**
+ * 🔴 19B S1 (v4 §4–§6) — FIELD-CLASS GRANTS. Every field a record serves carries a class
+ * (apps/api/src/lib/fieldClasses/classTable.ts). Reading a protected class's field needs `field.<class>.read` on the
+ * record's resource — `field.bank_account.last4` shows an IBAN's last four digits only — and writing it needs
+ * `field.<class>.write`. `standard` needs nothing beyond the record's own grant.
+ */
+export const PROTECTED_FIELD_CLASSES = ["contact", "identity", "compensation", "bank_account", "bank_narrative", "member_security"] as const;
+export type ProtectedFieldClass = (typeof PROTECTED_FIELD_CLASSES)[number];
+export type FieldLevel = "read" | "write" | "last4";
+/** The levels each class has: only an IBAN has a partial level (v4 §4). */
+export const FIELD_CLASS_LEVELS: Record<ProtectedFieldClass, readonly FieldLevel[]> = {
+  contact: ["read", "write"],
+  identity: ["read", "write"],
+  compensation: ["read", "write"],
+  bank_account: ["read", "last4", "write"],
+  bank_narrative: ["read", "write"],
+  member_security: ["read", "write"],
+};
+export type FieldGrantAction = `field.${ProtectedFieldClass}.${FieldLevel}`;
+export const fieldGrantAction = (cls: ProtectedFieldClass, level: FieldLevel): FieldGrantAction => `field.${cls}.${level}`;
+
+export type PermissionAction = "read" | "create" | "update" | "delete" | "approve" | FieldGrantAction;
 
 export interface PermissionRow {
   role: PermissionRole;
@@ -229,13 +251,66 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   ask: { read: READ_ALL, create: WRITE },
 };
 
-/** The flattened matrix: one row per (role, resource, action) grant. */
-export const PERMISSION_MATRIX: PermissionRow[] = Object.entries(SPEC).flatMap(
-  ([resource, actions]) =>
+/**
+ * 🔴 19B S1 — the field-class grants, PER RESOURCE, so each S2 step switches withholding on for its own records only
+ * (2a: employees and payroll) and never for a record whose screens have not been adapted yet.
+ *
+ * 🔴 S1: EVERY ROLE READS EVERY CLASS, AND EVERY ROLE THAT WRITES WRITES EVERY CLASS. Nothing is withheld and no field
+ * write is refused — nothing anyone sees changes. A viewer holds no `write` level: it holds no write grant on any
+ * record either, so the level could never be used, and "a viewer holds read and nothing else" stays true
+ * (tests/permission-seed-grants.test.ts). Narrowing a role is a REMOVAL: the reconcile applies it per environment only with the owner's approval
+ * of the exact set (D10, docs/product/permissions-reconcile-runbook.md). The (resource, class) pairs here are exactly
+ * the ones the class tables use (apps/api/src/tests/field-class-grants.test.ts, both directions).
+ */
+const FIELD_SPEC: Record<string, Partial<Record<ProtectedFieldClass, Partial<Record<FieldLevel, readonly PermissionRole[]>>>>> = {
+  employees: {
+    identity: { read: READ_ALL, write: WRITE },
+    compensation: { read: READ_ALL, write: WRITE },
+    bank_account: { read: READ_ALL, last4: READ_ALL, write: WRITE },
+  },
+  payroll: {
+    compensation: { read: READ_ALL, write: WRITE },
+  },
+  customers: {
+    contact: { read: READ_ALL, write: WRITE },
+    identity: { read: READ_ALL, write: WRITE },
+  },
+  vendors: {
+    contact: { read: READ_ALL, write: WRITE },
+    bank_account: { read: READ_ALL, last4: READ_ALL, write: WRITE },
+  },
+  migration: {
+    contact: { read: READ_ALL, write: WRITE },
+  },
+  transactions: {
+    bank_narrative: { read: READ_ALL, write: WRITE },
+  },
+  journal_entries: {
+    bank_narrative: { read: READ_ALL, write: WRITE },
+  },
+  audit_logs: {
+    member_security: { read: READ_ALL, write: WRITE },
+  },
+  users: {
+    member_security: { read: READ_ALL, write: WRITE },
+  },
+};
+
+/** The flattened matrix: one row per (role, resource, action) grant — the route grants, then the field grants. */
+export const PERMISSION_MATRIX: PermissionRow[] = [
+  ...Object.entries(SPEC).flatMap(([resource, actions]) =>
     Object.entries(actions).flatMap(([action, roles]) =>
       (roles ?? []).map((role) => ({ role, resource, action: action as PermissionAction })),
     ),
-);
+  ),
+  ...Object.entries(FIELD_SPEC).flatMap(([resource, classes]) =>
+    Object.entries(classes).flatMap(([cls, levels]) =>
+      Object.entries(levels ?? {}).flatMap(([level, roles]) =>
+        (roles ?? []).map((role) => ({ role, resource, action: fieldGrantAction(cls as ProtectedFieldClass, level as FieldLevel) })),
+      ),
+    ),
+  ),
+];
 
 export interface SeededPermissions {
   inserted: number;

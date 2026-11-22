@@ -27,6 +27,7 @@
  */
 import type { Request, Response, NextFunction } from "express";
 import { db, permissionsTable, type PermissionAction } from "@workspace/db";
+import { fieldWriteRefusal } from "./fieldClasses/writeCheck";
 
 /** HTTP method → permission action. */
 const METHOD_ACTION: Record<string, PermissionAction> = {
@@ -118,6 +119,15 @@ export async function can(role: string, resource: string, action: PermissionActi
   return permissions.has(permKey(role, resource, action));
 }
 
+/**
+ * 🔴 19B S1: the loaded grants, read synchronously — for the response seam (lib/fieldClasses/seam.ts), which decides as
+ * a handler answers, after this request's guard has already loaded them. Null when nothing has loaded them yet; the
+ * seam then decides a role-holding reader holds nothing (fail closed).
+ */
+export function peekPermissions(): ReadonlySet<string> | null {
+  return cache;
+}
+
 /** Test/ops hook: seed the cache directly (bypasses the DB). */
 export function primePermissionCache(
   rows: ReadonlyArray<{ role: string; resource: string; action: string }>,
@@ -199,6 +209,13 @@ export function requirePermission(resource: string) {
          * what the API allows is the defect D4 was written about.
          */
         res.status(403).json(permissionRefusal(role, resource, action, permissions));
+        return;
+      }
+      // 🔴 19B S1 (v4 §4): the field-level write check, at the write boundary every business route passes — a body that
+      // sets a protected field this role may not write is refused by name, never silently dropped.
+      const fieldRefusal = fieldWriteRefusal(req.method, req.originalUrl, req.body, (r, a) => permissions.has(permKey(role, r, a)));
+      if (fieldRefusal) {
+        res.status(403).json(fieldRefusal);
         return;
       }
       next();

@@ -14,6 +14,7 @@ import { endEndedSessions } from "./lib/auth";
 import { bindRequestContext } from "./lib/requestContext";
 import { refuseCrossSiteWrites } from "./lib/csrf";
 import { refuseUnusableInput } from "./middleware/refuseUnusableInput";
+import { fieldClassSeam } from "./lib/fieldClasses/seam";
 
 const env = loadEnv();
 const isProduction = env.NODE_ENV === "production";
@@ -71,6 +72,12 @@ app.use(
 
 // 🔴 Phase 19A (19.8): the request id, for the code that cannot see `req` — every security event carries it.
 app.use(bindRequestContext);
+
+// 🔴 19B S1 (v4 §4): every 2xx JSON response is classified field by field and withholds what the reader's role may not
+// read (lib/fieldClasses/seam.ts). Mounted before every router, so no route answers around it. Mounted BEFORE
+// `errorBodies` on purpose: its wrapper then sits inside that one, so the test lane's `field_unclassified` answer keeps
+// the names of the fields it could not classify (errorBodies strips a 5xx body to its safe sentence).
+app.use(fieldClassSeam);
 
 // 🔴 Every error response, whichever line sends it, in one shape — code, English, Arabic, request id; a 5xx never
 // carries its exception's text (middleware/errorBodies.ts). Before every guard and router, so they are all covered.

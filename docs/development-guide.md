@@ -182,6 +182,15 @@ edit the matrix and reconcile (`pnpm --filter @workspace/db run permissions:reco
 run first; removals need the owner's approval) — you don't touch route files. To add a **new
 resource**, add its rows to the matrix (see the cookbook, §7).
 
+**Every field has a class (19B S1).** Every 2xx JSON response passes through one seam
+(`apps/api/src/lib/fieldClasses/seam.ts`, mounted in `app.ts`), which classifies each served key by the class table
+(`lib/fieldClasses/classTable.ts`) and withholds what the reader's role may not read (`field.<class>.read` on the
+record's resource). `requirePermission` refuses, by name, a body that sets a field the role may not write. **When you
+add a field, give it its class in the same commit:** `tests/field-class-table.test.ts` fails on a contract field with
+no row, and in the test lane the seam answers 500 `field_unclassified` for any served key it cannot classify. A route
+outside the contract is classified in `outsideContract.ts`; a key a contract route serves without declaring it, in
+`SERVED_BEYOND_CONTRACT`. Both lists can only shrink. Report-export columns declare their class in `col()`.
+
 > Method-based actions are deliberately coarse (a tracked deferral — CLAUDE.md §5 'action-level permissions'): posting to the GL,
 > reversing, paying a bill, and approving payroll all resolve to `create`.
 > Finer, action-level separation-of-duties controls are a deferred feature
