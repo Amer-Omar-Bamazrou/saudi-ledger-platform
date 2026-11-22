@@ -68,6 +68,12 @@ function report(r: ReconcileResult): void {
 
 const opts = parse(process.argv.slice(2));
 const client = await pool.connect();
+// A checked-out client's socket error is not covered by the pool's listener (tests/severance-amplifier.test.ts): name it
+// and fail the run — the open transaction dies with the connection, so nothing is half-applied.
+client.on("error", (err) => {
+  console.error(`FAILED — the database connection broke; nothing was changed (the transaction died with it): ${err.message}`);
+  process.exitCode = 1;
+});
 let code = 0;
 try {
   const result =

@@ -17,7 +17,7 @@ import {
 } from "@workspace/db";
 
 /**
- * 🔴 Phase 19B S0 (D10, owner 2026-11-21) — the reconcile command, against a real database.
+ * 🔴 Phase 19B S0 (control 19B-S0; D10, owner 2026-11-21) — the reconcile command, against a real database.
  *
  * The `permissions` table is global and shared with every other suite (and this suite runs beside them, in parallel), so each case runs inside ONE transaction that
  * is rolled back: it first sets the table to exactly the matrix (CI's test database is migrated but not seeded, so its

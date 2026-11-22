@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * 🔴 Phase 19B S0 (D10, owner 2026-11-21) — MIGRATIONS DO NOT WRITE THE `permissions` TABLE.
+ * 🔴 Phase 19B S0 (control 19B-S0; D10, owner 2026-11-21) — MIGRATIONS DO NOT WRITE THE `permissions` TABLE.
  *
  * `PERMISSION_MATRIX` (packages/db/src/permissions.ts) is the one definition of the grants, and the reconcile command
  * (packages/db/src/permissionReconcile.ts) is the one writer that makes the table agree with it — recorded, and with the

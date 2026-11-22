@@ -1064,4 +1064,25 @@ export const CONTROLS: readonly Control[] = [
     ],
     provingTests: ["phase19a-security-settings.test.ts"],
   },
+  {
+    id: "19B-S0",
+    title: "One authoritative permission matrix: the API refuses to start while the permissions table differs from PERMISSION_MATRIX, naming each difference; only the reconcile command changes the table, in one transaction under an advisory lock — additions freely, removals only with the owner's approval for that environment and that exact set — and only when the database's posting checks then answer as the matrix does; every change is recorded append-only, removed grants in full and restorable; migrations never write grants (Phase 19B S0, D10, migration 0168; an internal control of the platform)",
+    answers: [],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: [
+      "environment_invalid", "reconcile_in_progress", "removal_needs_approval", "removal_approval_mismatch",
+      "posting_checks_disagree", "drift_remains", "reconciliation_not_found", "nothing_to_restore",
+    ],
+    points: [
+      trigger("permission_reconciliations", "permission_reconciliations_append_only"),
+      trigger("permission_reconciliations", "permission_reconciliations_no_truncate"),
+      check("permission_reconciliations", "permission_reconciliations_kind_chk"),
+      check("permission_reconciliations", "permission_reconciliations_restores_chk"),
+      check("permission_reconciliations", "permission_reconciliations_approval_chk"),
+      code(`${API}/lib/permissionStartupCheck.ts`, "assertPermissionsMatchMatrix"),
+      code("packages/db/src/permissionReconcile.ts", "reconcileInTransaction"),
+    ],
+    provingTests: ["permission-reconcile.test.ts", "permission-startup-check.test.ts", "permission-grant-migration-ratchet.test.ts"],
+  },
 ];

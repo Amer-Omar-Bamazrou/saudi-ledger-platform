@@ -7,7 +7,7 @@ import { assertPermissionsMatchMatrix, PermissionDriftError } from "../lib/permi
 import { can, resetPermissionCache } from "../lib/rbac";
 
 /**
- * 🔴 Phase 19B S0 (D10, owner 2026-11-21).
+ * 🔴 Phase 19B S0 (control 19B-S0; D10, owner 2026-11-21).
  *
  * 1. The API REFUSES TO START while the `permissions` table differs from PERMISSION_MATRIX, naming every difference,
  *    and starts when they agree — checked inside a rolled-back transaction that first sets the table to exactly the
