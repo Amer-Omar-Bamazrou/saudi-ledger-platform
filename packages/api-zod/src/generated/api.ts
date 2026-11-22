@@ -1021,7 +1021,10 @@ export const ConvertQuotationResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 }).optional()
 })
@@ -9757,7 +9760,10 @@ export const ListInvoicesResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })),
   "page": zod.object({
@@ -9818,6 +9824,8 @@ export const CreateInvoiceBody = zod.object({
   "vatRate": zod.number().min(createInvoiceBodyTwoItemsItemVatRateMin).max(createInvoiceBodyTwoItemsItemVatRateMax).optional().describe('Percent. Defaults to 15.'),
   "discount": zod.number().min(createInvoiceBodyTwoItemsItemDiscountMin).optional(),
   "taxCategoryCode": zod.string().nullish().describe('ZATCA category (S, Z, E, O). Defaults to S when the rate is above zero.'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121 — a zero-rated, exempt or out-of-scope line\'s reason, from ZATCA\'s list (XML Implementation Standard v1.2 §11.2.4; @workspace\/shared vatExemptionReasons). It must belong to the line\'s category; a standard-rated line takes none (422 line_exemption_reason_invalid \/ line_exemption_reason_mismatch). Required before approval on every Z\/E\/O line (422 line_exemption_reason_missing).\n'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120 — VATEX-SA-OOS\'s free text (required before approval). For a coded reason the server stores ZATCA\'s own text.'),
   "unitCode": zod.string().nullish()
 })).min(1),
   "prepayments": zod.array(zod.object({
@@ -9921,7 +9929,10 @@ export const CreateInvoiceResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -10027,7 +10038,10 @@ export const GetInvoiceResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -10080,6 +10094,8 @@ export const UpdateInvoiceBody = zod.object({
   "vatRate": zod.number().min(updateInvoiceBodyItemsItemVatRateMin).max(updateInvoiceBodyItemsItemVatRateMax).optional().describe('Percent. Defaults to 15.'),
   "discount": zod.number().min(updateInvoiceBodyItemsItemDiscountMin).optional(),
   "taxCategoryCode": zod.string().nullish().describe('ZATCA category (S, Z, E, O). Defaults to S when the rate is above zero.'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121 — a zero-rated, exempt or out-of-scope line\'s reason, from ZATCA\'s list (XML Implementation Standard v1.2 §11.2.4; @workspace\/shared vatExemptionReasons). It must belong to the line\'s category; a standard-rated line takes none (422 line_exemption_reason_invalid \/ line_exemption_reason_mismatch). Required before approval on every Z\/E\/O line (422 line_exemption_reason_missing).\n'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120 — VATEX-SA-OOS\'s free text (required before approval). For a coded reason the server stores ZATCA\'s own text.'),
   "unitCode": zod.string().nullish()
 })).min(1).optional()
 }).describe('Draft only. `items`, when present, replaces the whole line set (min 1) and the totals are recomputed; `prepayments`, when present, replaces the whole adjustment selection (AP-2).')
@@ -10178,7 +10194,10 @@ export const UpdateInvoiceResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -11029,7 +11048,10 @@ export const CreateAdvanceInvoiceResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -14042,7 +14064,10 @@ export const WriteOffBadDebtResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -14166,7 +14191,10 @@ export const CreateBadDebtRecoveryResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -14298,7 +14326,10 @@ export const CreateInvoiceCorrectionResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -14421,7 +14452,10 @@ export const CreateAdvanceCreditNoteResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -14540,7 +14574,10 @@ export const PayInvoiceResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -15910,7 +15947,10 @@ export const SubmitInvoiceResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -16021,7 +16061,10 @@ export const SendBackInvoiceResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 
@@ -16128,7 +16171,10 @@ export const ApproveInvoiceResponse = zod.object({
   "vatRate": zod.number().optional(),
   "vatAmount": zod.number(),
   "discount": zod.number().optional(),
-  "total": zod.number()
+  "total": zod.number(),
+  "taxCategoryCode": zod.string().nullish().describe('S, Z, E or O'),
+  "taxExemptionReasonCode": zod.string().nullish().describe('BT-121, from ZATCA\'s list'),
+  "taxExemptionReasonText": zod.string().nullish().describe('BT-120')
 })).optional()
 })
 

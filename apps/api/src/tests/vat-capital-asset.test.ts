@@ -74,7 +74,9 @@ describeMaybe("FA-F — the VAT IR Art. 52 capital-asset adjustment (real rows)"
     const inv = await inTenant(() => invoicesService.create({
       invoiceNumber: number, date, dueDate: date, customerId,
       subtotal: net, vatAmount: vat, total: net + vat,
-      items: [{ description: "Supply", quantity: 1, unitPrice: net, vatAmount: vat, total: net + vat, taxCategoryCode: code }],
+      items: [{ description: "Supply", quantity: 1, unitPrice: net, vatAmount: vat, total: net + vat, taxCategoryCode: code,
+        // a Z/E line names its reason from ZATCA's list before approval (invoiceLineReasons.ts)
+        ...(code === "S" ? {} : { taxExemptionReasonCode: code === "E" ? "VATEX-SA-29" : "VATEX-SA-32" }) }],
     } as never, userId));
     return inTenant(() => invoicesService.approve(inv.id, userId));
   };

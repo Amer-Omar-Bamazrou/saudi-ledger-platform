@@ -58,6 +58,7 @@ import { buildInvoiceOut, type PrepaymentOut } from "./invoices.presenter";
 import { isNoteType } from "./creditNotes";
 import type { Payment } from "@workspace/db";
 import { isIntegerId } from "../lib/inputGuards";
+import { normalizeLineReason } from "./invoiceLineReasons";
 
 export type AdvanceVatCategory = "S" | "Z" | "E";
 
@@ -256,15 +257,18 @@ export const advanceInvoicesService = {
         field: "paymentId",
       });
     }
-    const exemptionCode = body.taxExemptionReasonCode?.trim() || null;
-    const exemptionText = body.taxExemptionReasonText?.trim() || null;
-    if (category !== "S" && !exemptionCode && !exemptionText) {
+    // 🔴 the reason is ZATCA's code from its list, for the advance's category — the same rule as every invoice line
+    // (invoiceLineReasons.ts): approval requires the code, so text alone would make a draft that can never be issued
+    if (category !== "S" && !body.taxExemptionReasonCode?.trim()) {
       throw new BusinessRuleError(422, {
-        error: `A ${category === "Z" ? "zero-rated" : "exempt"} advance needs a VAT exemption reason (code or text) — ZATCA requires it on every non-standard line.`,
+        error: `A ${category === "Z" ? "zero-rated" : "exempt"} advance needs its VAT exemption reason code from ZATCA's list — ZATCA requires it on every non-standard line.`,
+        errorAr: `الدفعة المقدمة ${category === "Z" ? "الخاضعة لنسبة الصفر" : "المعفاة"} تحتاج رمز سبب الإعفاء من قائمة هيئة الزكاة والضريبة والجمارك — تشترطه الهيئة على كل بند غير خاضع للنسبة الأساسية.`,
         code: "advance_exemption_reason_required",
         field: "taxExemptionReasonCode",
       });
     }
+    const { taxExemptionReasonCode: exemptionCode, taxExemptionReasonText: exemptionText } =
+      category === "S" ? { taxExemptionReasonCode: null, taxExemptionReasonText: null } : normalizeLineReason({ taxCategoryCode: category, taxExemptionReasonCode: body.taxExemptionReasonCode, taxExemptionReasonText: body.taxExemptionReasonText }, 0);
 
     const figures = await this.figuresFor(payment);
     if (gross > figures.uninvoiced + TOL) {

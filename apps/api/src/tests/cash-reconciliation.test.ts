@@ -239,7 +239,7 @@ describeMaybe("M19.7 — the cash gap is itemised, not merely shown", () => {
           invoiceNumber: `CASH-SET-${++seq}`,
           date: "2026-02-01",
           customerId,
-          items: [{ description: "Settled work", quantity: 1, unitPrice: 3_000, vatRate: 0, taxCategoryCode: "O" }],
+          items: [{ description: "Settled work", quantity: 1, unitPrice: 3_000, vatRate: 0, taxCategoryCode: "O", taxExemptionReasonCode: "VATEX-SA-OOS", taxExemptionReasonText: "Settlement outside the scope of VAT" }],
         },
         userId),
     );

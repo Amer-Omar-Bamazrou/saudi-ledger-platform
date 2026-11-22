@@ -323,6 +323,20 @@ describeMaybe("AP-2 — advance tax invoice 386 and the prepayment adjustment (r
     await expectRefusal(draftAdvance((await receiveAdvance(custB, 500, "E")).id, 500), 422, "advance_exemption_reason_required");
   });
 
+  // 🔴 the advance's reason is ZATCA's CODE from its list (@workspace/shared vatExemptionReasons), belonging to the
+  // advance's category — the same rule as every invoice line (invoiceLineReasons.ts); text alone no longer suffices,
+  // because approval requires the code and the advance would otherwise be a draft that can never be issued
+  it("🔴 a zero-rated or exempt advance names ZATCA's code for its category: text alone, an unlisted code and another category's code are refused at creation", async () => {
+    await expectRefusal(draftAdvance((await receiveAdvance(custB, 500, "Z")).id, 500, { taxExemptionReasonText: "Export of goods" }), 422, "advance_exemption_reason_required");
+    await expectRefusal(draftAdvance((await receiveAdvance(custB, 500, "Z")).id, 500, { taxExemptionReasonCode: "VATEX-SA-99" }), 422, "line_exemption_reason_invalid");
+    await expectRefusal(draftAdvance((await receiveAdvance(custB, 500, "E")).id, 500, { taxExemptionReasonCode: "VATEX-SA-32" }), 422, "line_exemption_reason_mismatch");
+    // the code from the list issues, and the stored text is ZATCA's own (not the request's)
+    const pe = await receiveAdvance(custB, 800, "E");
+    const e = await issueAdvance(pe.id, 800, { taxExemptionReasonCode: "VATEX-SA-29", taxExemptionReasonText: "anything typed" });
+    const [line] = (await pool.query(`SELECT tax_category_code, tax_exemption_reason_code, tax_exemption_reason_text FROM invoice_items WHERE invoice_id = $1`, [e.id])).rows;
+    expect(line).toEqual({ tax_category_code: "E", tax_exemption_reason_code: "VATEX-SA-29", tax_exemption_reason_text: "Financial services mentioned in Article 29 of the VAT Regulations" });
+  });
+
   // ── 8: the document ──────────────────────────────────────────────────
   it("🔴 the 386's UBL from REAL rows carries InvoiceTypeCode 386 (subtype 01 — a VAT-registered buyer), the split, PrepaidAmount 0.00 and no adjustment line", async () => {
     const p = await receiveAdvance(custA, 4_600);
