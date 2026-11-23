@@ -5,8 +5,10 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { TextOrigin } from './textOrigin';
 
 export interface JournalReportLine {
+  textOrigin?: TextOrigin;
   id: number;
   accountName: string;
   /** @nullable */

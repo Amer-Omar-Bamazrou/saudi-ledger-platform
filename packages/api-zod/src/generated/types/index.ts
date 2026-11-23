@@ -932,6 +932,7 @@ export * from './taxObligationsReport';
 export * from './taxObligationVatPosition';
 export * from './taxSendBackInput';
 export * from './taxStep';
+export * from './textOrigin';
 export * from './transaction';
 export * from './transactionInput';
 export * from './transactionInputType';

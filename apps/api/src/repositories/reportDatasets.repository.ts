@@ -8,6 +8,7 @@ import { db, categoriesTable, journalEntriesTable, journalEntryLinesTable } from
 import { and, asc, desc, eq, gte, inArray, lte, sql, type AnyColumn } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 import { JE_IN_BOOKS } from "./reports.repository";
+import { textOriginSql } from "./entryTextOrigin";
 
 export interface JournalLinesFilter { dateFrom?: string; dateTo?: string; accountId?: number; sourceType?: string }
 export type JournalLinesSortKey = "date" | "entryNumber" | "accountCode" | "debit" | "credit";
@@ -18,6 +19,7 @@ export interface JournalLineRow {
   entryNumber: string;
   status: string;
   sourceType: string | null;
+  textOrigin: string;
   reference: string | null;
   accountId: number | null;
   accountCode: string | null;
@@ -56,6 +58,7 @@ export const reportDatasetsRepository = {
         entryNumber: journalEntriesTable.entryNumber,
         status: journalEntriesTable.status,
         sourceType: journalEntriesTable.sourceType,
+        textOrigin: textOriginSql(),
         reference: journalEntriesTable.reference,
         accountId: journalEntryLinesTable.accountId,
         accountCode: categoriesTable.accountCode,

@@ -10,12 +10,19 @@ type JournalEntryLine = typeof journalEntryLinesTable.$inferSelect;
 
 const toNum = (v: unknown) => (v != null ? Number(v) : 0);
 
-export function buildJEOut(je: JournalEntry, lines?: JournalEntryLine[]) {
+/**
+ * `textOrigin` (review follow-up, 2026-11-24): where the entry's texts came from, served beside them on the reads that
+ * pass it (the list and the detail) — `bank_narrative` applies per row by it. A response without it is treated as bank
+ * text by the response seam (the safe error).
+ */
+export function buildJEOut(je: JournalEntry, lines?: JournalEntryLine[], textOrigin?: string) {
+  const origin = textOrigin ? { textOrigin } : {};
   return {
     id: je.id,
     entryNumber: je.entryNumber,
     date: je.date,
     description: je.description,
+    ...origin,
     reference: je.reference,
     status: je.status,
     reversalOf: je.reversalOf,
@@ -34,6 +41,7 @@ export function buildJEOut(je: JournalEntry, lines?: JournalEntryLine[]) {
     lines: (lines ?? []).map((l) => ({
       id: l.id,
       journalEntryId: l.journalEntryId,
+      ...origin,
       accountId: l.accountId,
       accountName: l.accountName,
       description: l.description,

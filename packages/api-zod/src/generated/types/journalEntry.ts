@@ -8,8 +8,10 @@
 import type { JournalEntryCorrectionKind } from './journalEntryCorrectionKind';
 import type { JournalEntryLine } from './journalEntryLine';
 import type { JournalEntryStatus } from './journalEntryStatus';
+import type { TextOrigin } from './textOrigin';
 
 export interface JournalEntry {
+  textOrigin?: TextOrigin;
   id: number;
   entryNumber: string;
   date: string;

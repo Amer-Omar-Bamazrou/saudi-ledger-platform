@@ -29,7 +29,7 @@
  * per environment only with the owner's approval of the exact set (D10).
  */
 import { PROTECTED_FIELD_CLASSES, type ProtectedFieldClass } from "@workspace/db";
-import { BANK_DERIVED_SOURCE_TYPES } from "./conditions";
+import { BANK_TEXT_ORIGINS } from "./conditions";
 
 export const FIELD_CLASSES = ["standard", ...PROTECTED_FIELD_CLASSES, "by_entity"] as const;
 export type FieldClass = (typeof FIELD_CLASSES)[number];
@@ -84,13 +84,15 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   AcceptPendingInput: { standard: "ids" },
   AcceptPendingRejection: { standard: "id date reason code period lockedAt" },
   AcceptPendingResult: { standard: "accepted posted" },
-  AccountStatementMovement: { standard: "date entryNumber reference description debit credit balance" },
+  // 🔴 Review follow-up (owner 2026-11-24, item 1): a report row built from a journal entry or line carries the bank's
+  // own text where the entry came from a bank line — bank_narrative on those rows (rowConditions), by the row's textOrigin.
+  AccountStatementMovement: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "date entryNumber reference textOrigin debit credit balance", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   AccountStatementReport: { standard: "openingBalance closingBalance totalDebit totalCredit" },
   "AccountStatementReport.account": { standard: "id name nameAr type" },
   AccountSummaryReport: { standard: "count" },
   AccountSummaryRow: { standard: "key accountId name nameAr type openingBalance periodDebit periodCredit closingBalance" },
   ActivityReport: { standard: "count hasPosted hasDraft" },
-  ActivityRow: { standard: "id entryNumber date description reference status lineCount totalDebit accounts" },
+  ActivityRow: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id entryNumber date textOrigin reference status lineCount totalDebit accounts", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   AdvanceCreditNoteSummary: { standard: "id invoiceNumber status date total vatAmount noteReason" },
   AgingBuckets: { standard: "current days_1_30 days_31_60 days_61_90 over_90" },
   AllocatePaymentInput: { standard: "idempotencyKey" },
@@ -318,7 +320,7 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   ForecastAssumption: { standard: "id entryDate direction amount category description notes createdBy createdAt updatedBy updatedAt" },
   ForecastAssumptionInput: { standard: "entryDate direction amount category description notes" },
   ForfeitSupplierDepositInput: { standard: "forfeitedOn amount classification reason paymentType" },
-  GeneralLedgerMovement: { standard: "date entryNumber jeId description reference accountName accountId debit credit balance accountNameAr partyType customerId vendorId" },
+  GeneralLedgerMovement: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "date entryNumber jeId textOrigin reference accountName accountId debit credit balance accountNameAr partyType customerId vendorId", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   GeneralLedgerParty: { standard: "type id" },
   GeneralLedgerReport: { standard: "plResetFrom accountId accountName accountNameAr openingBalance closingBalance totalDebit totalCredit" },
   "GroundedAnswersPage.answers": { standard: "id question toolUsed refused refusalReason createdAt" },
@@ -353,22 +355,18 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   InvoicePrepayment: { standard: "id advanceInvoiceId advanceInvoiceNumber advanceInvoiceDate amount taxableAmount taxAmount taxCategoryCode vatRate allocationId" },
   InvoiceRejection: { standard: "id invoiceId zatcaResponse reason zatcaRejectedAt recordedBy recordedAt" },
   InvoiceRejectionInput: { standard: "zatcaResponse reason zatcaRejectedAt" },
-  JournalEntry: { standard: "id entryNumber date description reference status reversalOf correctionKind originFiscalYearStart originFiscalYearEnd originAuthorisedOn originAuthorisedBy originVatFilingReference notes postedAt createdAt totalDebit totalCredit" },
-  JournalEntryLine: { resource: "journal_entries", standard: "id journalEntryId accountId accountName debitAmount creditAmount partyType customerId vendorId partyNoneReason", bank_narrative: "description", conditions: {
-      description: "the bank's own text only where the row is a bank statement line or was built from one; standard otherwise (implemented with the bank_narrative switch, S2c)",
-    } },
+  JournalEntry: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id entryNumber date textOrigin reference status reversalOf correctionKind originFiscalYearStart originFiscalYearEnd originAuthorisedOn originAuthorisedBy originVatFilingReference notes postedAt createdAt totalDebit totalCredit", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
+  JournalEntryLine: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id journalEntryId textOrigin accountId accountName debitAmount creditAmount partyType customerId vendorId partyNoneReason", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   JournalEntryLineInput: { standard: "accountId accountName description debitAmount creditAmount customerId vendorId partyNoneReason" },
   JournalEntryReversal: { standard: "message reversalId" },
   // 🔴 19B S4: the journal-lines dataset. ONE definition of each column's class: the dataset's columns are this node's fields
   // (lib/reports/datasets.ts reads them from here; a test fails when they disagree). The line text is the bank's own text
   // only on an entry built from a bank line, or of unknown origin — applied PER ROW by the dataset (D11 amended).
-  JournalLinesDatasetRow: { resource: "journal_entries", rowConditions: { description: { by: "sourceType", in: BANK_DERIVED_SOURCE_TYPES } }, standard: "lineId date entryNumber status sourceType reference accountId accountCode accountName accountNameAr debit credit", bank_narrative: "description", conditions: {
-      description: "the bank's own text only where the entry came from a bank line (bank_transaction) or its origin is unknown (legacy_unclassified); standard otherwise — applied per row by the dataset",
-    } },
+  JournalLinesDatasetRow: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "lineId date entryNumber status sourceType textOrigin reference accountId accountCode accountName accountNameAr debit credit", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   JournalLinesDatasetRows: { standard: "dataset total limit offset" },
   JournalReport: { standard: "count grandDebit grandCredit balanced" },
-  JournalReportEntry: { standard: "id entryNumber date description reference status totalDebit totalCredit balanced" },
-  JournalReportLine: { standard: "id accountName accountId description debit credit" },
+  JournalReportEntry: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id entryNumber date textOrigin reference status totalDebit totalCredit balanced", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
+  JournalReportLine: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id textOrigin accountName accountId debit credit", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   Liquidity: { standard: "asOf currentAssets quickAssets currentLiabilities workingCapital currentRatio quickRatio claimable" },
   "Liquidity.blockers": { standard: "code amount count" },
   "Liquidity.observations": { standard: "code severity ratio" },
@@ -598,7 +596,7 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   TaxComputationVersion: { standard: "id versionNo status basedOnVersionId notes sendBackNote lossCarryforwardAvailable lossCarryforwardReference createdBy createdAt submittedBy submittedAt approvedBy approvedAt supersededAt resultAmount accruedAmount accrualDate accrualJournalEntryId" },
   TaxFiscalYear: { standard: "calendar startMonth label startDate endDate" },
   TaxJournalEntriesReport: { standard: "count" },
-  TaxJournalEntry: { standard: "id entryNumber date description reference totalVatDebit totalVatCredit" },
+  TaxJournalEntry: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id entryNumber date textOrigin reference totalVatDebit totalVatCredit", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   TaxJournalLine: { standard: "accountName debit credit isTaxLine" },
   TaxLossesInput: { standard: "amount reference" },
   TaxObligation: { standard: "kind reference amount dueDate note overdue vatPosition returnNet paidSince fineEstimate" },
@@ -634,7 +632,8 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   TrialBalanceReport: { standard: "fiscalYearDeclared plResetFrom totalDebit totalCredit totalOpening totalClosing balanced" },
   TrialBalanceRow: { standard: "key name nameAr accountId type computed openingBalance debit credit balance closingBalance" },
   UnallocateInput: { standard: "reason idempotencyKey" },
-  UnclassifiedJournalEntry: { standard: "id entryNumber date status description total currentSourceType currentSourceId reviewStatus backfillOutcome backfillEvidence" },
+  // review follow-up item 1: every unclassified entry's origin is unknown by construction (A15 rule U) — its text is bank text, always
+  UnclassifiedJournalEntry: { resource: "journal_entries", standard: "id entryNumber date status total currentSourceType currentSourceId reviewStatus backfillOutcome backfillEvidence", bank_narrative: "description" },
   UnclassifiedJournalEntryCandidate: { standard: "rule type sourceId checksPass classifiable evidence" },
   UnclassifiedJournalEntryList: { standard: "total limit offset" },
   UnclassifiedJournalEntryReview: { standard: "id newSourceType newSourceId rule reviewedAt" },

@@ -36,7 +36,7 @@ import { whtService } from "../tax/wht.service";
 import { taxComputationsService } from "../tax/taxComputations.service";
 import { treasuryService } from "../treasury/treasury.service";
 import { auditService } from "../audit.service";
-import { isBankDerivedEntry } from "../../lib/fieldClasses/conditions";
+import { isBankText } from "../../lib/fieldClasses/conditions";
 import type { ReadDecider } from "../../lib/fieldClasses/walk";
 import { reportsRepository } from "../../repositories/reports.repository";
 
@@ -271,8 +271,8 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
       const accountId = q.account_id ? String(reportAccountId(q.account_id)) : undefined;
       const gl = await reportsService.generalLedger(accountId, undefined, from, to, party);
       // 19B S2a (v4 §5.2, D1/D9; D11 amended 2026-11-22): a line's text is BANK TEXT where its entry came from a bank
-      // line — withheld from a role without bank_narrative on journal entries (applyWithholding below).
-      const sources = new Map((await reportsRepository.entrySourceTypes([...new Set(gl.movements.map((m) => m.jeId).filter((id): id is number => id != null))])).map((r) => [r.id, r.sourceType]));
+      // line — withheld from a role without bank_narrative on journal entries (applyWithholding below). Review follow-up
+      // (2026-11-24): by the movement's TEXT ORIGIN, which follows a mirror to its original (conditions.ts).
       return {
         report: "general-ledger",
         title: L("General ledger", "دفتر الأستاذ العام"),
@@ -282,7 +282,7 @@ export async function buildReportDocument(report: string, q: Q, lang: ExportLang
           columns: [col("Date", "التاريخ", "date", "standard"), col("Entry", "القيد", "text", "standard"), col("Description", "البيان", "text", { cls: "bank_narrative", resource: "journal_entries" }), col("Account", "الحساب", "text", "standard"), col("Debit", "مدين", "money", "standard"), col("Credit", "دائن", "money", "standard"), col("Balance", "الرصيد", "money", "standard")],
           rows: [
             { kind: "subtotal", cells: [from ?? "", "", pick(L("Opening balance", "الرصيد الافتتاحي"), lang), "", null, null, gl.openingBalance] },
-            ...gl.movements.map((m) => ({ kind: "row" as const, cells: [m.date, m.entryNumber, m.description ?? "", lang === "ar" && m.accountNameAr ? m.accountNameAr : m.accountName, m.debit, m.credit, m.balance], subjectTo: { 2: isBankDerivedEntry(m.jeId == null ? null : sources.get(m.jeId)) } })),
+            ...gl.movements.map((m) => ({ kind: "row" as const, cells: [m.date, m.entryNumber, m.description ?? "", lang === "ar" && m.accountNameAr ? m.accountNameAr : m.accountName, m.debit, m.credit, m.balance], subjectTo: { 2: isBankText(m.textOrigin) } })),
             { kind: "total", cells: [to ?? "", "", pick(L("Closing balance", "الرصيد الختامي"), lang), "", gl.totalDebit, gl.totalCredit, gl.closingBalance] },
           ],
         }],

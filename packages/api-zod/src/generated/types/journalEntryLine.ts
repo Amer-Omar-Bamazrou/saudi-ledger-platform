@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { JournalEntryLinePartyType } from './journalEntryLinePartyType';
+import type { TextOrigin } from './textOrigin';
 
 export interface JournalEntryLine {
+  textOrigin?: TextOrigin;
   id: number;
   journalEntryId: number;
   /** @nullable */

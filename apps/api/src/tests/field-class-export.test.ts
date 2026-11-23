@@ -9,7 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool, PERMISSION_MATRIX, fieldGrantAction } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
-import { isBankDerivedEntry } from "../lib/fieldClasses/conditions";
+import { isBankText } from "../lib/fieldClasses/conditions";
 import { g04Harness } from "./helpers/g04Harness";
 
 const url = process.env.DATABASE_URL;
@@ -21,10 +21,12 @@ const TYPED_TEXT = "Typed accrual for October";
 const withoutViewerBankText = PERMISSION_MATRIX.filter((r) => !(r.role === "viewer" && r.resource === "journal_entries" && r.action === fieldGrantAction("bank_narrative", "read")));
 const GL = "/reports/export/general-ledger?format=csv&date_from=2026-10-01&date_to=2026-10-31";
 
+// Restated (review follow-up, 2026-11-24): the condition reads a row's TEXT ORIGIN, which follows a mirror to its original
+// (repositories/entryTextOrigin.ts; proven on real rows in review-bank-text.test.ts). A row that does not say is bank text.
 describe("the bank-text condition", () => {
-  it("bank_transaction and legacy (unknown) entries are bank text; every other source writes its own", () => {
-    expect(["bank_transaction", "legacy_unclassified", null].map(isBankDerivedEntry)).toEqual([true, true, true]);
-    expect(["manual", "invoice", "payroll_run", "bank_transfer"].map(isBankDerivedEntry)).toEqual([false, false, false, false]);
+  it("a bank line's text and text of unknown origin are bank text; a document's own text is not", () => {
+    expect(["bank_line", "unknown", null, undefined].map(isBankText)).toEqual([true, true, true, true]);
+    expect(["document"].map(isBankText)).toEqual([false]);
   });
 });
 

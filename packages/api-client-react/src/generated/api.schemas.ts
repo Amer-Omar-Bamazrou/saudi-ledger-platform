@@ -5,6 +5,18 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * 19B (review follow-up, 2026-11-24): where an entry's text came from — a bank line (the bank's own text), unknown (written before the source tag, or a mirror of such an entry), or a document's own text. A mirror takes its original's origin. The bank's text is withheld from a role without bank_narrative on journal entries.
+ */
+export type TextOrigin = typeof TextOrigin[keyof typeof TextOrigin];
+
+
+export const TextOrigin = {
+  bank_line: 'bank_line',
+  unknown: 'unknown',
+  document: 'document',
+} as const;
+
 export type ReportDatasetColumnKind = typeof ReportDatasetColumnKind[keyof typeof ReportDatasetColumnKind];
 
 
@@ -122,6 +134,7 @@ export interface ReportDatasetRefusal {
  * 19B S4 — one journal line in the books. Only the shown columns are present; a withheld column's key is absent (D4). The line text is the bank's own text where the entry came from a bank line (bank_narrative).
  */
 export interface JournalLinesDatasetRow {
+  textOrigin?: TextOrigin;
   lineId?: number;
   date?: string;
   entryNumber?: string;
@@ -3361,6 +3374,7 @@ export const JournalEntryLinePartyType = {
 } as const;
 
 export interface JournalEntryLine {
+  textOrigin?: TextOrigin;
   id: number;
   journalEntryId: number;
   /** @nullable */
@@ -3409,6 +3423,7 @@ export const JournalEntryCorrectionKind = {
 } as const;
 
 export interface JournalEntry {
+  textOrigin?: TextOrigin;
   id: number;
   entryNumber: string;
   date: string;
@@ -5874,6 +5889,7 @@ export interface CashFlowReport {
 }
 
 export interface JournalReportLine {
+  textOrigin?: TextOrigin;
   id: number;
   accountName: string;
   /** @nullable */
@@ -5885,6 +5901,7 @@ export interface JournalReportLine {
 }
 
 export interface JournalReportEntry {
+  textOrigin?: TextOrigin;
   id: number;
   entryNumber: string;
   date: string;
@@ -5907,6 +5924,7 @@ export interface JournalReport {
 }
 
 export interface GeneralLedgerMovement {
+  textOrigin?: TextOrigin;
   date: string;
   entryNumber: string;
   jeId: number;
@@ -5965,6 +5983,7 @@ export interface GeneralLedgerReport {
 }
 
 export interface AccountStatementMovement {
+  textOrigin?: TextOrigin;
   date: string;
   entryNumber: string;
   /** @nullable */
@@ -6246,6 +6265,7 @@ export interface TaxJournalLine {
 }
 
 export interface TaxJournalEntry {
+  textOrigin?: TextOrigin;
   id: number;
   entryNumber: string;
   date: string;
@@ -6263,6 +6283,7 @@ export interface TaxJournalEntriesReport {
 }
 
 export interface ActivityRow {
+  textOrigin?: TextOrigin;
   id: number;
   entryNumber: string;
   date: string;

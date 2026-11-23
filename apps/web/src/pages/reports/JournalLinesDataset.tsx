@@ -83,7 +83,7 @@ function JournalLinesInner({ range }: { range: ReportDefaultRange }) {
     return String(v);
   };
 
-  const columns = (data?.columns ?? []).filter((c) => c.key !== "accountNameAr" && c.key !== "lineId" && c.key !== "accountId");
+  const columns = (data?.columns ?? []).filter((c) => c.key !== "accountNameAr" && c.key !== "lineId" && c.key !== "accountId" && c.key !== "textOrigin");
 
   return (
     <div className="space-y-6">

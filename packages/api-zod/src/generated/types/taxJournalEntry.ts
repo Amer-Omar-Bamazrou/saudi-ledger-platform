@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TaxJournalLine } from './taxJournalLine';
+import type { TextOrigin } from './textOrigin';
 
 export interface TaxJournalEntry {
+  textOrigin?: TextOrigin;
   id: number;
   entryNumber: string;
   date: string;

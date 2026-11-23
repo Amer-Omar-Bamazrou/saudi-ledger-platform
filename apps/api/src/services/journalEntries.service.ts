@@ -25,6 +25,7 @@ import { approvalService } from "./approval";
 import { journalEntryApprovable } from "./journalEntries.approvable";
 import { buildJEOut } from "./journalEntries.presenter";
 import { journalEntriesRepository, DEFAULT_PAGE as JE_PAGE, type JournalEntryOwner } from "../repositories/journalEntries.repository";
+import { entryTextOriginRepository } from "../repositories/entryTextOrigin";
 import { categoriesRepository } from "../repositories/categories.repository";
 import { customersRepository } from "../repositories/customers.repository";
 import { vendorsRepository } from "../repositories/vendors.repository";
@@ -206,8 +207,9 @@ export const journalEntriesService = {
     // lines were not loaded (see lineTotals). Lines themselves stay off the
     // list; the detail endpoint carries them.
     const totals = await journalEntriesRepository.lineTotals(rows.map((r) => r.id));
+    const origins = await entryTextOriginRepository.textOrigins(rows.map((r) => r.id)); // review follow-up, 2026-11-24
     return {
-      items: rows.map((r) => ({ ...buildJEOut(r), ...(totals.get(r.id) ?? { totalDebit: 0, totalCredit: 0 }) })),
+      items: rows.map((r) => ({ ...buildJEOut(r, undefined, origins.get(r.id) ?? "unknown"), ...(totals.get(r.id) ?? { totalDebit: 0, totalCredit: 0 }) })),
       page: { limit: filter.limit ?? JE_PAGE, offset: filter.offset ?? 0, total: meta.total },
     };
   },
@@ -216,7 +218,8 @@ export const journalEntriesService = {
     const [je] = await journalEntriesRepository.findById(id);
     if (!je) throw new NotFoundError("Not found");
     const lines = await journalEntriesRepository.linesByEntry(id);
-    return buildJEOut(je, lines);
+    const origins = await entryTextOriginRepository.textOrigins([id]); // review follow-up, 2026-11-24
+    return buildJEOut(je, lines, origins.get(id) ?? "unknown");
   },
 
   async create(body: Record<string, unknown>, userId: number | null, origin?: { sourceType: "recurring" }) {

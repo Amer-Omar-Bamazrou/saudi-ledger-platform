@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { JournalReportLine } from './journalReportLine';
+import type { TextOrigin } from './textOrigin';
 
 export interface JournalReportEntry {
+  textOrigin?: TextOrigin;
   id: number;
   entryNumber: string;
   date: string;
