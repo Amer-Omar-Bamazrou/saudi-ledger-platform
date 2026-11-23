@@ -91,7 +91,8 @@ describe("19B S4 — decide(): uses", () => {
     expect(d.allowed).toBe(true);
     if (!d.allowed) return;
     // the source, which decides on which rows the line text is bank text, is served beside it (the seam applies the same row condition)
-    expect(d.columns.map((c) => [c.column.key, c.level])).toEqual([["date", "read"], ["description", "none"], ["debit", "read"], ["sourceType", "read"]]);
+    // restated (review follow-up, 2026-11-24): the condition reads the row's TEXT ORIGIN (a mirror follows its original)
+    expect(d.columns.map((c) => [c.column.key, c.level])).toEqual([["date", "read"], ["description", "none"], ["debit", "read"], ["textOrigin", "read"]]);
     expect(d.withheld.map((c) => [c.column.key, c.cls])).toEqual([["description", "bank_narrative"]]);
   });
 

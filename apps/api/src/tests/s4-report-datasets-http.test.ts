@@ -107,8 +107,9 @@ describeDb("19B S4 — the journal-lines dataset, and the refusal events", () =>
     expect(r.body.columns.find((c: { key: string }) => c.key === "description")).toMatchObject({ level: "none", class: "bank_narrative" });
     // asked for the line text ALONE: the source comes with it, so the typed text is still served — by the dataset AND the seam
     const alone = await h.api("viewer", "GET", `${ROWS}?date_from=2026-10-01&date_to=2026-10-31&columns=description`);
-    expect(alone.body.columns.map((c: { key: string }) => c.key)).toEqual(["description", "sourceType"]);
-    expect((alone.body.rows as Record<string, unknown>[]).filter((x) => "description" in x).map((x) => [x.sourceType, x.description])).toEqual([["manual", TYPED_TEXT], ["manual", TYPED_TEXT]]);
+    // restated (review follow-up, 2026-11-24): the field the condition reads is the row's TEXT ORIGIN
+    expect(alone.body.columns.map((c: { key: string }) => c.key)).toEqual(["description", "textOrigin"]);
+    expect((alone.body.rows as Record<string, unknown>[]).filter((x) => "description" in x).map((x) => [x.textOrigin, x.description])).toEqual([["document", TYPED_TEXT], ["document", TYPED_TEXT]]);
     // a filter id past the column's range is a 400 by name, never a database error
     const huge = await h.api("viewer", "GET", `${ROWS}?account_id=99999999999`);
     expect([huge.status, huge.body.code]).toEqual([400, "report_bad_filter"]);

@@ -5,11 +5,13 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { TextOrigin } from './textOrigin';
 
 /**
  * 19B S4 — one journal line in the books. Only the shown columns are present; a withheld column's key is absent (D4). The line text is the bank's own text where the entry came from a bank line (bank_narrative).
  */
 export interface JournalLinesDatasetRow {
+  textOrigin?: TextOrigin;
   lineId?: number;
   date?: Date;
   entryNumber?: string;

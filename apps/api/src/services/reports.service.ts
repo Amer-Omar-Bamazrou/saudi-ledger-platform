@@ -4,6 +4,7 @@
  * pre-M6 route handlers; only the DB access now goes through reportsRepository.
  */
 import { BadRequestError } from "../lib/errors";
+import { entryTextOriginRepository } from "../repositories/entryTextOrigin";
 import { reportsRepository, documentSign, type GlParty } from "../repositories/reports.repository";
 import { supplierStatementService } from "./accounting/supplierStatement.service";
 import { customersRepository } from "../repositories/customers.repository";
@@ -581,8 +582,11 @@ export const reportsService = {
       linesByEntry.get(l.journalEntryId)!.push(l);
     }
 
+    // review follow-up (2026-11-24): each entry's TEXT ORIGIN beside its texts — bank_narrative applies per row by it
+    const origins = await entryTextOriginRepository.textOrigins(entries.map((e) => e.id));
     const result = entries.map((e) => {
       const entryLines = linesByEntry.get(e.id) ?? [];
+      const textOrigin = origins.get(e.id) ?? "unknown";
       const totalDebit = fmt2(entryLines.reduce((s, l) => s + toNum(l.debitAmount), 0));
       const totalCredit = fmt2(entryLines.reduce((s, l) => s + toNum(l.creditAmount), 0));
       return {
@@ -590,9 +594,10 @@ export const reportsService = {
         entryNumber: e.entryNumber,
         date: e.date,
         description: e.description,
+        textOrigin,
         reference: e.reference,
         status: e.status,
-        lines: entryLines.map((l) => ({ id: l.id, accountName: l.accountName, accountId: l.accountId, description: l.description, debit: fmt2(toNum(l.debitAmount)), credit: fmt2(toNum(l.creditAmount)) })),
+        lines: entryLines.map((l) => ({ id: l.id, textOrigin, accountName: l.accountName, accountId: l.accountId, description: l.description, debit: fmt2(toNum(l.debitAmount)), credit: fmt2(toNum(l.creditAmount)) })),
         totalDebit,
         totalCredit,
         balanced: Math.abs(totalDebit - totalCredit) <= GL_BALANCE_TOLERANCE,
@@ -640,13 +645,15 @@ export const reportsService = {
 
     const rows = await reportsRepository.glRows(from, to, accountId != null ? String(accountId) : undefined, account_name, party);
 
+    // review follow-up (2026-11-24): each movement's TEXT ORIGIN — its text is the bank's own on a bank line's entry
+    const origins = await entryTextOriginRepository.textOrigins(rows.map((r) => r.jeId).filter((id): id is number => id != null));
     let runningH = openingH, debitH = 0, creditH = 0;
     const movements = rows.map((r) => {
       const d = toHalalas(r.debit), c = toHalalas(r.credit);
       runningH += d - c; debitH += d; creditH += c;
       return {
         date: r.date, entryNumber: r.entryNumber, jeId: r.jeId,
-        description: r.lineDesc ?? r.description, reference: r.reference,
+        description: r.lineDesc ?? r.description, textOrigin: (r.jeId != null ? origins.get(r.jeId) : undefined) ?? "unknown", reference: r.reference,
         accountName: r.accountName, accountId: r.accountId,
         accountNameAr: (r.accountId ? catMap.get(r.accountId)?.nameAr : undefined) ?? "",
         partyType: r.partyType, customerId: r.customerId, vendorId: r.vendorId,
@@ -676,9 +683,11 @@ export const reportsService = {
     const gl = await reportsService.generalLedger(account_id, account_name, date_from, date_to);
     const cat = gl.accountId != null ? await reportsRepository.categoryById(gl.accountId) : [];
     return {
-      account: cat[0] ?? { name: account_name ?? "Unknown", type: "other" },
+      // the account as the contract declares it (id, name, nameAr, type) — never the whole category row: its other columns
+      // were served beyond the contract, which the response seam cannot classify (review follow-up, 2026-11-24)
+      account: cat[0] ? { id: cat[0].id, name: cat[0].name, nameAr: cat[0].nameAr ?? null, type: cat[0].type } : { name: account_name ?? "Unknown", type: "other" },
       openingBalance: gl.openingBalance,
-      movements: gl.movements.map((m) => ({ date: m.date, entryNumber: m.entryNumber, reference: m.reference, description: m.description, debit: m.debit, credit: m.credit, balance: m.balance })),
+      movements: gl.movements.map((m) => ({ date: m.date, entryNumber: m.entryNumber, reference: m.reference, description: m.description, textOrigin: m.textOrigin, debit: m.debit, credit: m.credit, balance: m.balance })),
       closingBalance: gl.closingBalance,
       totalDebit: gl.totalDebit,
       totalCredit: gl.totalCredit,
@@ -1016,10 +1025,11 @@ export const reportsService = {
     // renamed VAT account.
     const taxIds = new Set((await reportsRepository.taxAccountIds()).map((r) => r.id));
     const isTax = (l: { accountId: number | null }) => l.accountId != null && taxIds.has(l.accountId);
+    const origins = await entryTextOriginRepository.textOrigins(entries.map((e) => e.id)); // review follow-up, 2026-11-24
     const result = entries.map((e) => {
       const entryLines = linesByEntry.get(e.id) ?? [];
       return {
-        id: e.id, entryNumber: e.entryNumber, date: e.date, description: e.description, reference: e.reference,
+        id: e.id, entryNumber: e.entryNumber, date: e.date, description: e.description, textOrigin: origins.get(e.id) ?? "unknown", reference: e.reference,
         lines: entryLines.map((l) => ({ accountName: l.accountName, debit: fmt2(toNum(l.debitAmount)), credit: fmt2(toNum(l.creditAmount)), isTaxLine: isTax(l) })),
         totalVatDebit: fmt2(entryLines.filter(isTax).reduce((s, l) => s + toNum(l.debitAmount), 0)),
         totalVatCredit: fmt2(entryLines.filter(isTax).reduce((s, l) => s + toNum(l.creditAmount), 0)),
@@ -1039,10 +1049,11 @@ export const reportsService = {
       linesByEntry.get(l.journalEntryId)!.push(l);
     }
 
+    const origins = await entryTextOriginRepository.textOrigins(entries.map((e) => e.id)); // review follow-up, 2026-11-24
     const result = entries.map((e) => {
       const el = linesByEntry.get(e.id) ?? [];
       return {
-        id: e.id, entryNumber: e.entryNumber, date: e.date, description: e.description, reference: e.reference, status: e.status,
+        id: e.id, entryNumber: e.entryNumber, date: e.date, description: e.description, textOrigin: origins.get(e.id) ?? "unknown", reference: e.reference, status: e.status,
         lineCount: el.length,
         totalDebit: fmt2(el.reduce((s, l) => s + toNum(l.debitAmount), 0)),
         accounts: [...new Set(el.map((l) => l.accountName))].slice(0, 3),

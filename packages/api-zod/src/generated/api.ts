@@ -5914,6 +5914,7 @@ export const GetJournalReportQueryParams = zod.object({
 
 export const GetJournalReportResponse = zod.object({
   "entries": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "entryNumber": zod.string(),
   "date": zod.string(),
@@ -5921,6 +5922,7 @@ export const GetJournalReportResponse = zod.object({
   "reference": zod.string().nullable(),
   "status": zod.string(),
   "lines": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "accountName": zod.string(),
   "accountId": zod.number().nullable(),
@@ -5967,6 +5969,7 @@ export const GetGeneralLedgerResponse = zod.object({
   "accountNameAr": zod.string(),
   "openingBalance": zod.number(),
   "movements": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "date": zod.string(),
   "entryNumber": zod.string(),
   "jeId": zod.number(),
@@ -6007,6 +6010,7 @@ export const GetAccountStatementResponse = zod.object({
 }).describe('The category row when account_id was given; otherwise `{ name, type }` built from account_name.'),
   "openingBalance": zod.number(),
   "movements": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "date": zod.string(),
   "entryNumber": zod.string(),
   "reference": zod.string().nullable(),
@@ -6309,6 +6313,7 @@ export const RunJournalLinesDatasetResponse = zod.object({
   "sortable": zod.boolean()
 }).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).')),
   "rows": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "lineId": zod.number().optional(),
   "date": zod.coerce.date().optional(),
   "entryNumber": zod.string().optional(),
@@ -6363,6 +6368,7 @@ export const GetTaxJournalEntriesQueryParams = zod.object({
 
 export const GetTaxJournalEntriesResponse = zod.object({
   "entries": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "entryNumber": zod.string(),
   "date": zod.string(),
@@ -6391,6 +6397,7 @@ export const GetActivityReportQueryParams = zod.object({
 
 export const GetActivityReportResponse = zod.object({
   "activities": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "entryNumber": zod.string(),
   "date": zod.string(),
@@ -6430,6 +6437,7 @@ export const ListJournalEntriesQueryParams = zod.object({
 
 export const ListJournalEntriesResponse = zod.object({
   "items": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "entryNumber": zod.string(),
   "date": zod.string(),
@@ -6449,6 +6457,7 @@ export const ListJournalEntriesResponse = zod.object({
   "totalDebit": zod.number(),
   "totalCredit": zod.number(),
   "lines": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "journalEntryId": zod.number(),
   "accountId": zod.number().nullish(),
@@ -6506,6 +6515,7 @@ export const CreateJournalEntryBody = zod.object({
 })
 
 export const CreateJournalEntryResponse = zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "entryNumber": zod.string(),
   "date": zod.string(),
@@ -6525,6 +6535,7 @@ export const CreateJournalEntryResponse = zod.object({
   "totalDebit": zod.number(),
   "totalCredit": zod.number(),
   "lines": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "journalEntryId": zod.number(),
   "accountId": zod.number().nullish(),
@@ -6548,6 +6559,7 @@ export const GetJournalEntryParams = zod.object({
 })
 
 export const GetJournalEntryResponse = zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "entryNumber": zod.string(),
   "date": zod.string(),
@@ -6567,6 +6579,7 @@ export const GetJournalEntryResponse = zod.object({
   "totalDebit": zod.number(),
   "totalCredit": zod.number(),
   "lines": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "journalEntryId": zod.number(),
   "accountId": zod.number().nullish(),
@@ -6600,6 +6613,7 @@ export const PostJournalEntryParams = zod.object({
 })
 
 export const PostJournalEntryResponse = zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "entryNumber": zod.string(),
   "date": zod.string(),
@@ -6619,6 +6633,7 @@ export const PostJournalEntryResponse = zod.object({
   "totalDebit": zod.number(),
   "totalCredit": zod.number(),
   "lines": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "journalEntryId": zod.number(),
   "accountId": zod.number().nullish(),
@@ -6655,6 +6670,7 @@ export const ReverseJournalEntryResponse = zod.object({
   "message": zod.string(),
   "reversalId": zod.number(),
   "reversal": zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "entryNumber": zod.string(),
   "date": zod.string(),
@@ -6674,6 +6690,7 @@ export const ReverseJournalEntryResponse = zod.object({
   "totalDebit": zod.number(),
   "totalCredit": zod.number(),
   "lines": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "journalEntryId": zod.number(),
   "accountId": zod.number().nullish(),
@@ -8113,6 +8130,7 @@ export const ApproveJournalEntryParams = zod.object({
 })
 
 export const ApproveJournalEntryResponse = zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "entryNumber": zod.string(),
   "date": zod.string(),
@@ -8132,6 +8150,7 @@ export const ApproveJournalEntryResponse = zod.object({
   "totalDebit": zod.number(),
   "totalCredit": zod.number(),
   "lines": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
   "id": zod.number(),
   "journalEntryId": zod.number(),
   "accountId": zod.number().nullish(),

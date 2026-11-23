@@ -54,6 +54,8 @@ export const JOURNAL_LINES: DatasetDef = {
     text("entryNumber", "Entry", "رقم القيد", { sortable: true }),
     text("status", "Status", "الحالة"),
     text("sourceType", "Source", "المصدر", { filterable: true }),
+    // review follow-up (2026-11-24): where the line text came from — the bank's own text on a bank line or unknown origin
+    text("textOrigin", "Text origin", "مصدر النص"),
     text("reference", "Reference", "المرجع"),
     text("accountId", "Account id", "معرّف الحساب", { kind: "int", filterable: true }),
     text("accountCode", "Account code", "رمز الحساب", { sortable: true }),

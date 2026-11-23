@@ -8658,6 +8658,13 @@ paths:
 
 components:
   schemas:
+    TextOrigin:
+      type: string
+      enum: [bank_line, unknown, document]
+      description: >
+        19B (review follow-up, 2026-11-24): where an entry's text came from — a bank line (the bank's own text), unknown
+        (written before the source tag, or a mirror of such an entry), or a document's own text. A mirror takes its
+        original's origin. The bank's text is withheld from a role without bank_narrative on journal entries.
     ReportDatasetColumn:
       type: object
       description: 19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).
@@ -8718,6 +8725,7 @@ components:
         19B S4 — one journal line in the books. Only the shown columns are present; a withheld column's key is absent
         (D4). The line text is the bank's own text where the entry came from a bank line (bank_narrative).
       properties:
+        textOrigin: { $ref: "#/components/schemas/TextOrigin" }
         lineId: { type: integer }
         date: { type: string, format: date }
         entryNumber: { type: string }
@@ -11560,6 +11568,7 @@ components:
       type: object
       required: [id, journalEntryId, accountName, debitAmount, creditAmount]
       properties:
+        textOrigin: { $ref: "#/components/schemas/TextOrigin" }
         id:
           type: integer
         journalEntryId:
@@ -11599,6 +11608,7 @@ components:
         - totalCredit
         - lines
       properties:
+        textOrigin: { $ref: "#/components/schemas/TextOrigin" }
         id:
           type: integer
         entryNumber:
@@ -13569,6 +13579,7 @@ components:
       type: object
       required: [id, accountName, accountId, description, debit, credit]
       properties:
+        textOrigin: { $ref: "#/components/schemas/TextOrigin" }
         id: { type: integer }
         accountName: { type: string }
         accountId: { type: ["integer", "null"] }
@@ -13580,6 +13591,7 @@ components:
       type: object
       required: [id, entryNumber, date, description, reference, status, lines, totalDebit, totalCredit, balanced]
       properties:
+        textOrigin: { $ref: "#/components/schemas/TextOrigin" }
         id: { type: integer }
         entryNumber: { type: string }
         date: { type: string }
@@ -13609,6 +13621,7 @@ components:
       type: object
       required: [date, entryNumber, jeId, description, reference, accountName, accountId, debit, credit, balance, accountNameAr, partyType, customerId, vendorId]
       properties:
+        textOrigin: { $ref: "#/components/schemas/TextOrigin" }
         date: { type: string }
         entryNumber: { type: string }
         jeId: { type: integer }
@@ -13661,6 +13674,7 @@ components:
       type: object
       required: [date, entryNumber, reference, description, debit, credit, balance]
       properties:
+        textOrigin: { $ref: "#/components/schemas/TextOrigin" }
         date: { type: string }
         entryNumber: { type: string }
         reference: { type: ["string", "null"] }
@@ -13902,6 +13916,7 @@ components:
       type: object
       required: [id, entryNumber, date, description, reference, lines, totalVatDebit, totalVatCredit]
       properties:
+        textOrigin: { $ref: "#/components/schemas/TextOrigin" }
         id: { type: integer }
         entryNumber: { type: string }
         date: { type: string }
@@ -13926,6 +13941,7 @@ components:
       type: object
       required: [id, entryNumber, date, description, reference, status, lineCount, totalDebit, accounts]
       properties:
+        textOrigin: { $ref: "#/components/schemas/TextOrigin" }
         id: { type: integer }
         entryNumber: { type: string }
         date: { type: string }
