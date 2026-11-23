@@ -23,8 +23,11 @@
  *    action (rbac.ts:61), which a BOOKKEEPER holds.
  *
  * The test is driven over HTTP on the real app, as the roles that do this
- * work. The bookkeeper drafts payroll, uploads the statement and accepts; the
- * admin approves payroll.
+ * work. The admin drafts and approves payroll (restated for 19B S2a, D8 O2,
+ * 2026-11-23: the bookkeeper drafted it, and no longer may; the admin, the org's
+ * only approver, so the bookkeeper's acceptance below still meets A1's one-approver
+ * rule — its own approval is flagged self_approval, never refused); the bookkeeper
+ * uploads the statement and accepts.
  *
  * The SAFE invariant: **salaries are expensed ONCE.** After one payroll run and
  * the bank line that pays its net salaries, the SALARIES expense equals the
@@ -118,10 +121,10 @@ describeMaybe("Phase 18 S1 · DR-41 proof — payroll run, then the salary bank 
   });
 
   it("PREMISE (control): the approved payroll run posts the gross ONCE to SALARIES and the net to SALARIES_PAYABLE", async () => {
-    const created = await h.api("bookkeeper", "POST", "/payroll", { period: "2026-09" });
+    const created = await h.api("admin", "POST", "/payroll", { period: "2026-09" }); // D8 O2
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     const runId = created.body.id as number;
-    expect((await h.api("bookkeeper", "POST", `/payroll/${runId}/submit`, {})).status).toBe(200);
+    expect((await h.api("admin", "POST", `/payroll/${runId}/submit`, {})).status).toBe(200);
     const approved = await h.api("admin", "POST", `/payroll/${runId}/approve`, {});
     expect(approved.status, JSON.stringify(approved.body)).toBe(200);
     // Gross as the approval itself computes it (payroll.approvable.ts:27): basic + allowances.

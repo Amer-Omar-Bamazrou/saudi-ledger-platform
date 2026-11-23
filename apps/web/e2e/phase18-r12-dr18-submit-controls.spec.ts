@@ -7,6 +7,9 @@ import { test, expect, request as pwRequest, type APIRequestContext, type Page }
  * For each of the five — invoice, bill, payroll run, quotation, purchase order — a BOOKKEEPER makes a draft and
  * submits it from the document's own page: the success notice shows, the document reads submitted, and (for the
  * three the approvals queue carries) the queue lists it for the admin. One walk in Arabic on a phone.
+ * 🔴 Restated for 19B S2a (D8 O2, 2026-11-23): a PAYROLL RUN is prepared and submitted by an accountant or admin. Its
+ * leg: the admin prepares it; the bookkeeper's Submit on the payroll page is refused with the explanation (it stays a
+ * draft); the admin submits it from the same page, and the queue lists it. An employee WITH pay is the admin's to create.
  * 🔴 Its OWN tenant, created and removed here.
  */
 
@@ -24,6 +27,7 @@ let db: Db;
 let alphaApi: APIRequestContext;
 let keeperApi: APIRequestContext;
 let keeperState: Awaited<ReturnType<APIRequestContext["storageState"]>>;
+let alphaState: Awaited<ReturnType<APIRequestContext["storageState"]>>;
 let orgId = "";
 const ids = { invoice: 0, bill: 0, payroll: 0, quotation: 0, po: 0 };
 
@@ -82,12 +86,13 @@ test.beforeAll(async () => {
   // The BOOKKEEPER prepares five drafts (create is a preparer's act).
   const customer = (await json<{ id: number }>(keeperApi.post("/api/customers", { data: { name: `R12 Customer ${STAMP}` } }), "customer")).id;
   const vendor = (await json<{ id: number }>(keeperApi.post("/api/vendors", { data: { name: `R12 Supplier ${STAMP}` } }), "vendor")).id;
-  await json(keeperApi.post("/api/employees", { data: { employeeNumber: `R12-EMP-${STAMP}`, name: "R12 Employee", basicSalary: 6000, status: "active", gosiRegime: "law_1421h" } }), "employee");
+  // D2, O2: an employee WITH pay is created by an accountant or admin (a bookkeeper's pay write is refused by name)
+  await json(alphaApi.post("/api/employees", { data: { employeeNumber: `R12-EMP-${STAMP}`, name: "R12 Employee", basicSalary: 6000, status: "active", gosiRegime: "law_1421h" } }), "employee");
   ids.invoice = (await json<{ id: number }>(keeperApi.post("/api/invoices", { data: { invoiceNumber: `R12-INV-${STAMP}`, date: "2026-10-05", dueDate: "2026-10-31", customerId: customer,
     items: [{ description: "Work", quantity: 1, unitPrice: 1000, vatRate: 15 }] } }), "invoice")).id;
   ids.bill = (await json<{ id: number }>(keeperApi.post("/api/bills", { data: { billNumber: `R12-B-${STAMP}`, date: "2026-10-05", vendorId: vendor,
     items: [{ description: "Supply", quantity: 1, unitPrice: 500, vatRate: 0 }] } }), "bill")).id;
-  ids.payroll = (await json<{ id: number }>(keeperApi.post("/api/payroll", { data: { period: "2026-09" } }), "payroll run")).id;
+  ids.payroll = (await json<{ id: number }>(alphaApi.post("/api/payroll", { data: { period: "2026-09" } }), "payroll run")).id; // D8 O2: the admin prepares
   ids.quotation = (await json<{ id: number }>(keeperApi.post("/api/quotations", { data: { date: "2026-10-05", customerId: customer,
     items: [{ description: "Offer", quantity: 1, unitPrice: 100, vatRate: 15 }] } }), "quotation")).id;
   ids.po = (await json<{ id: number }>(keeperApi.post("/api/purchase-orders", { data: { date: "2026-10-05", vendorId: vendor,
@@ -96,6 +101,7 @@ test.beforeAll(async () => {
     expect(await statusOf(table, id), `${table} starts as a draft`).toBe("draft");
   }
   keeperState = await keeperApi.storageState();
+  alphaState = await alphaApi.storageState();
   await db.query(`DELETE FROM rate_limit_hits WHERE key LIKE 'auth%'`);
 });
 
@@ -108,8 +114,8 @@ test.afterAll(async () => {
   }
 });
 
-async function submitFrom(browser: import("@playwright/test").Browser, path: string, testid: string, lang: "en" | "ar" = "en") {
-  const ctx = await browser.newContext({ storageState: keeperState, viewport: lang === "ar" ? PHONE : DESKTOP });
+async function submitFrom(browser: import("@playwright/test").Browser, path: string, testid: string, lang: "en" | "ar" = "en", state = keeperState) {
+  const ctx = await browser.newContext({ storageState: state, viewport: lang === "ar" ? PHONE : DESKTOP });
   const page = await ctx.newPage();
   await page.goto(path, { waitUntil: "networkidle" });
   await setLang(page, lang);
@@ -138,8 +144,17 @@ test.describe.serial("R-12 (DR-18 c) — a bookkeeper submits each document from
     expect((await pending()).some((r) => r.entity === "bills" && r.id === ids.bill)).toBe(true);
   });
 
-  test("🔴 a payroll run: submitted from the payroll page, and the queue lists it", async ({ browser }) => {
-    await submitFrom(browser, "/payroll", `payroll-submit-${ids.payroll}`);
+  test("🔴 a payroll run (D8 O2): the bookkeeper's Submit is refused with the explanation; the admin submits it from the payroll page, and the queue lists it", async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: keeperState, viewport: DESKTOP });
+    const page = await ctx.newPage();
+    await page.goto("/payroll", { waitUntil: "networkidle" });
+    await setLang(page, "en");
+    await page.getByTestId(`payroll-submit-${ids.payroll}`).click();
+    await expect(page.getByText("An accountant or admin prepares payroll").first()).toBeVisible();
+    await expect(page.getByTestId(`payroll-submit-${ids.payroll}`), "still a draft: Submit is still offered").toHaveCount(1);
+    await ctx.close();
+    expect(await statusOf("payroll_runs", ids.payroll)).toBe("draft");
+    await submitFrom(browser, "/payroll", `payroll-submit-${ids.payroll}`, "en", alphaState);
     expect(await statusOf("payroll_runs", ids.payroll)).toBe("submitted");
     expect((await pending()).some((r) => r.entity === "payroll" && r.id === ids.payroll)).toBe(true);
   });

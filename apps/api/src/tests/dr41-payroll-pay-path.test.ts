@@ -55,8 +55,13 @@ describeMaybe("DR-41 / DR-39 — salaries are expensed once; paying them settles
   )).rows[0].v);
   const entries = async () => Number((await pool.query(`SELECT count(*)::int AS n FROM journal_entries WHERE organization_id = $1`, [orgId])).rows[0].n);
 
+  // 🔴 Restated for 19B S2a (D8 O2, 2026-11-23): an accountant or admin prepares a payroll run; the preparer here was a
+  // bookkeeper, who no longer may. It is the ADMIN — the organisation's only approver — so the bookkeeper's acceptance of
+  // the salary bank line below still meets A1's one-approver rule (a second approver, an accountant, would make that
+  // posting an approver's). The admin then approves its own run: flagged self_approval, never refused. Nothing this file
+  // asserts about the pay path changes.
   async function approvedRun(period: string) {
-    const created = await h.api("bookkeeper", "POST", "/payroll", { period });
+    const created = await h.api("admin", "POST", "/payroll", { period });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     const id = created.body.id as number;
     expect((await h.api("admin", "POST", `/payroll/${id}/approve`, {})).status).toBe(200);
@@ -105,7 +110,8 @@ describeMaybe("DR-41 / DR-39 — salaries are expensed once; paying them settles
 
   it("the run's PERIOD is validated: a month (YYYY-MM), never free text", async () => {
     for (const bad of ["2026-13", "September", "2026-9", ""]) {
-      expect((await h.api("bookkeeper", "POST", "/payroll", { period: bad })).status, `period ${JSON.stringify(bad)}`).toBe(400);
+      // D8 O2: the preparer is the admin (a bookkeeper now meets the route grant before validation, 403)
+      expect((await h.api("admin", "POST", "/payroll", { period: bad })).status, `period ${JSON.stringify(bad)}`).toBe(400);
     }
   }, 60_000);
 
@@ -137,7 +143,7 @@ describeMaybe("DR-41 / DR-39 — salaries are expensed once; paying them settles
   }, 60_000);
 
   it("🔴 a draft run cannot be paid; a run whose salary line is already waiting against the payable cannot be paid twice over", async () => {
-    const draft = await h.api("bookkeeper", "POST", "/payroll", { period: "2026-07" });
+    const draft = await h.api("admin", "POST", "/payroll", { period: "2026-07" }); // D8 O2: the preparer
     expect(draft.status).toBe(201);
     const r1 = await h.api("admin", "POST", `/payroll/${draft.body.id}/pay`, { bankAccountId: bankId });
     expect([r1.status, r1.body?.code]).toEqual([409, "payroll_not_approved"]);

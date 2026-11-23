@@ -164,8 +164,9 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
 
   // Read + create only (no update/delete routes today).
   categories: { read: READ_ALL, create: WRITE },
-  // payroll: the /:id/approve activation needs approver authority.
-  payroll: { read: READ_ALL, create: WRITE, approve: APPROVE },
+  // payroll: the /:id/approve activation needs approver authority. 🔴 19B S2a (D8 O2): an accountant or admin PREPARES
+  // a run too — create (generate and submit: `submit` resolves to create) is no longer a bookkeeper's (S2A_REMOVALS).
+  payroll: { read: READ_ALL, create: APPROVE, approve: APPROVE },
   llm: { read: READ_ALL, create: WRITE },
 
   // Company settings (M11.6): everyone may READ the company profile (it is
@@ -255,21 +256,23 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
  * 🔴 19B S1 — the field-class grants, PER RESOURCE, so each S2 step switches withholding on for its own records only
  * (2a: employees and payroll) and never for a record whose screens have not been adapted yet.
  *
- * 🔴 S1: EVERY ROLE READS EVERY CLASS, AND EVERY ROLE THAT WRITES WRITES EVERY CLASS. Nothing is withheld and no field
- * write is refused — nothing anyone sees changes. A viewer holds no `write` level: it holds no write grant on any
- * record either, so the level could never be used, and "a viewer holds read and nothing else" stays true
- * (tests/permission-seed-grants.test.ts). Narrowing a role is a REMOVAL: the reconcile applies it per environment only with the owner's approval
- * of the exact set (D10, docs/product/permissions-reconcile-runbook.md). The (resource, class) pairs here are exactly
- * the ones the class tables use (apps/api/src/tests/field-class-grants.test.ts, both directions).
+ * 🔴 S1: EVERY ROLE READS EVERY CLASS, AND EVERY ROLE THAT WRITES WRITES EVERY CLASS — except where an S2 step has
+ * narrowed it. 🔴 S2a (v4 §6.1 D2, §10 D8 O2): on employees and payroll, only an accountant or admin reads identity and
+ * pay or writes pay; a bookkeeper writes the national ID without reading it back and sees an IBAN's last four digits
+ * (S2A_REMOVALS). A viewer holds no `write` level: it holds no write grant on any record either, so the level could
+ * never be used, and "a viewer holds read and nothing else" stays true (tests/permission-seed-grants.test.ts).
+ * Narrowing a role is a REMOVAL: the reconcile applies it per environment only with the owner's approval of the exact
+ * set (D10, docs/product/permissions-reconcile-runbook.md). The (resource, class) pairs here are exactly the ones the
+ * class tables use (apps/api/src/tests/field-class-grants.test.ts, both directions).
  */
 const FIELD_SPEC: Record<string, Partial<Record<ProtectedFieldClass, Partial<Record<FieldLevel, readonly PermissionRole[]>>>>> = {
   employees: {
-    identity: { read: READ_ALL, write: WRITE },
-    compensation: { read: READ_ALL, write: WRITE },
-    bank_account: { read: READ_ALL, last4: READ_ALL, write: WRITE },
+    identity: { read: APPROVE, write: WRITE },
+    compensation: { read: APPROVE, write: APPROVE },
+    bank_account: { read: APPROVE, last4: WRITE, write: WRITE },
   },
   payroll: {
-    compensation: { read: READ_ALL, write: WRITE },
+    compensation: { read: APPROVE, write: APPROVE },
   },
   customers: {
     contact: { read: READ_ALL, write: WRITE },
@@ -299,15 +302,16 @@ const FIELD_SPEC: Record<string, Partial<Record<ProtectedFieldClass, Partial<Rec
 /**
  * 🔴 19B S2a — THE REMOVALS THAT SWITCH WITHHOLDING ON FOR EMPLOYEES AND PAYROLL (v4 §6.1 D2, §10 D8 O2).
  *
- * 🔴 NOT APPLIED. PERMISSION_MATRIX still grants every row below. They leave the matrix only after the owner has read
- * the pre-removal review and approved the removal for each environment (owner, 2026-11-22). Declared ONCE, here, so the
- * per-environment dry run, the tests that run with these grants removed, and the step that finally removes them all
- * name the same set (field-class-grants.test.ts pins that each row is still granted, and that the set is exactly this).
+ * 🔴 REMOVED FROM PERMISSION_MATRIX (SPEC's payroll create, FIELD_SPEC's employees and payroll). A database's table
+ * loses them only through the reconcile with the owner's approval string for THAT environment and this exact set
+ * (sha256 b92b750c…63d7, D10); until then main's API refuses to start against it (the startup check names the twelve).
+ * Declared ONCE, here, so the per-environment dry run, the approval string and the tests name the same set
+ * (field-class-grants.test.ts pins that none is granted any more, and the set's hash).
  *
  * The bookkeeper KEEPS `field.bank_account.write` and `field.bank_account.last4` on employees: IBAN entry stays as it is
  * until S3 holds it for an approver (owner, 2026-11-22), and reads show the last four digits.
  */
-export const S2A_PENDING_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFieldClass | null; why: string })[] = [
+export const S2A_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFieldClass | null; why: string })[] = [
   { role: "viewer", resource: "employees", action: "field.identity.read", fieldClass: "identity", why: "viewer: identity none (D2)" },
   { role: "viewer", resource: "employees", action: "field.compensation.read", fieldClass: "compensation", why: "viewer: compensation none (D2)" },
   { role: "viewer", resource: "employees", action: "field.bank_account.read", fieldClass: "bank_account", why: "viewer: bank_account none (D2)" },

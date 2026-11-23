@@ -1,8 +1,10 @@
 /**
  * 🔴 19B S1 — THE SEAM END TO END, through the real application over HTTP.
  *
- *  1. S1's own matrix: every role reads the employee whole, and every role allowed to edit employees writes every
- *     field — nothing visibly changes.
+ *  1. S1's matrix (PERMISSION_MATRIX with S2a's twelve restored): every role reads the employee whole, and every role
+ *     allowed to edit employees writes every field. 🔴 S2a's matrix (PERMISSION_MATRIX since the removal, restated
+ *     2026-11-23): an accountant and an admin still do; a bookkeeper reads no identity or pay and the IBAN's last four,
+ *     a viewer no identity, pay or IBAN at all, X-Withheld naming each; a bookkeeper's pay write is refused by name.
  *  2. With a grant removed, as an approved S2 removal would leave the table: the field is absent from the response
  *     (never null), the `X-Withheld` header names it, and the rest is served; a write of a field the role may not write
  *     is refused by name and NOTHING is saved; the same request without that field succeeds. Movement: restoring the
@@ -13,7 +15,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
 import express from "express";
-import { PERMISSION_MATRIX, fieldGrantAction } from "@workspace/db";
+import { PERMISSION_MATRIX, S2A_REMOVALS, fieldGrantAction } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { fieldClassSeam, WITHHELD_HEADER } from "../lib/fieldClasses/seam";
 import { g04Harness } from "./helpers/g04Harness";
@@ -25,8 +27,10 @@ const describeDb = REAL_DB ? describe : describe.skip;
 
 const PW = "s1-seam-password-2026";
 const h = g04Harness("s1-seam");
+/** S1's matrix: today's PERMISSION_MATRIX with S2a's twelve removals restored — the base the mechanism tests below need. */
+const S1_MATRIX = [...PERMISSION_MATRIX, ...S2A_REMOVALS.map(({ role, resource, action }) => ({ role, resource, action }))];
 const without = (...grants: [role: string, resource: string, action: string][]) =>
-  PERMISSION_MATRIX.filter((r) => !grants.some(([role, resource, action]) => r.role === role && r.resource === resource && r.action === action));
+  S1_MATRIX.filter((r) => !grants.some(([role, resource, action]) => r.role === role && r.resource === resource && r.action === action));
 
 describeDb("19B S1 — the seam through the application", () => {
   let employeeId = 0;
@@ -53,8 +57,9 @@ describeDb("19B S1 — the seam through the application", () => {
     await h.cleanup();
   });
 
-  it("🔴 S1's matrix: every role reads the employee whole; every role that edits employees writes every field", async () => {
-    primePermissionCache(PERMISSION_MATRIX);
+  // Restated for S2a (2026-11-23): this read PERMISSION_MATRIX, which no longer holds the twelve; S1's matrix is rebuilt.
+  it("🔴 S1's matrix (the twelve restored): every role reads the employee whole; every role that edits employees writes every field", async () => {
+    primePermissionCache(S1_MATRIX);
     for (const role of ["admin", "accountant", "bookkeeper", "viewer"]) {
       const r = await h.api(role, "GET", `/employees/${employeeId}`);
       expect(r.status, role).toBe(200);
@@ -64,6 +69,27 @@ describeDb("19B S1 — the seam through the application", () => {
       const r = await h.api(role, "PATCH", `/employees/${employeeId}`, { basicSalary: 9000, nationalId: "1012345678", status: "active" });
       expect(r.status, `${role}: ${JSON.stringify(r.body)}`).toBe(200);
     }
+    primePermissionCache(PERMISSION_MATRIX);
+  });
+
+  it("🔴 S2a's matrix (PERMISSION_MATRIX): the accountant and the admin read and write it whole; the bookkeeper and the viewer are served exactly their classes, named", async () => {
+    primePermissionCache(PERMISSION_MATRIX);
+    for (const role of ["admin", "accountant"]) {
+      const r = await h.api(role, "GET", `/employees/${employeeId}`);
+      expect([r.body.nationalId, r.body.basicSalary, r.body.iban, r.headers["x-withheld"] ?? null], role).toEqual(["1012345678", 9000, "SA0380000000608010167519", null]);
+      const w = await h.api(role, "PATCH", `/employees/${employeeId}`, { basicSalary: 9000, nationalId: "1012345678", status: "active" });
+      expect(w.status, `${role}: ${JSON.stringify(w.body)}`).toBe(200);
+    }
+    const keeper = await h.api("bookkeeper", "GET", `/employees/${employeeId}`);
+    expect([keeper.status, keeper.body.name, keeper.body.iban, "nationalId" in keeper.body, "basicSalary" in keeper.body]).toEqual([200, "Hala", "•••• 7519", false, false]);
+    const keeperWithheld = JSON.parse(keeper.headers["x-withheld"] ?? "[]") as { path: string; class: string; level: string }[];
+    expect(keeperWithheld).toEqual(expect.arrayContaining([{ path: "nationalId", class: "identity", level: "none" }, { path: "basicSalary", class: "compensation", level: "none" }, { path: "iban", class: "bank_account", level: "last4" }]));
+    const viewer = await h.api("viewer", "GET", `/employees/${employeeId}`);
+    expect([viewer.status, viewer.body.name, "iban" in viewer.body, "nationalId" in viewer.body, "basicSalary" in viewer.body]).toEqual([200, "Hala", false, false, false]);
+    expect(JSON.parse(viewer.headers["x-withheld"] ?? "[]")).toEqual(expect.arrayContaining([{ path: "iban", class: "bank_account", level: "none" }]));
+    const refused = await h.api("bookkeeper", "PATCH", `/employees/${employeeId}`, { basicSalary: 1 });
+    expect([refused.status, refused.body.code]).toEqual([403, "field_write_not_granted"]);
+    expect((await h.api("bookkeeper", "PATCH", `/employees/${employeeId}`, { nationalId: "1012345678" })).status).toBe(200); // written, never read back
   });
 
   it("🔴 a removed read grant: the field is ABSENT and named; the rest is served; restoring it serves it again", async () => {
@@ -76,8 +102,9 @@ describeDb("19B S1 — the seam through the application", () => {
     expect(r.body.nationalId).toBe("1012345678");
     const admin = await h.api("admin", "GET", `/employees/${employeeId}`); // the role the removal did not touch
     expect(admin.body.basicSalary).toBe(9000);
-    primePermissionCache(PERMISSION_MATRIX);
+    primePermissionCache(S1_MATRIX); // restored (S1's matrix: the viewer then reads pay)
     expect((await h.api("viewer", "GET", `/employees/${employeeId}`)).body.basicSalary).toBe(9000);
+    primePermissionCache(PERMISSION_MATRIX);
   });
 
   it("🔴 a removed write grant: the write is REFUSED BY NAME and nothing is saved; without that field it saves", async () => {
@@ -119,8 +146,11 @@ describe("the seam on a bare app (no database)", () => {
     await new Promise<void>((r) => server.close(() => r()));
   });
 
-  it("withholds by the role's grants and names it in X-Withheld; S1's matrix sends no header", async () => {
-    primePermissionCache(PERMISSION_MATRIX);
+  it("withholds by the role's grants and names it in X-Withheld; S1's matrix sends no header; S2a's withholds the viewer's national ID", async () => {
+    primePermissionCache(PERMISSION_MATRIX); // S2a's matrix: the viewer reads no identity (restated 2026-11-23)
+    const s2a = await fetch(`${base}/employees/1`);
+    expect(JSON.parse(s2a.headers.get(WITHHELD_HEADER) ?? "[]")).toEqual([{ path: "nationalId", class: "identity", level: "none" }]);
+    primePermissionCache(S1_MATRIX);
     const full = await fetch(`${base}/employees/1`, { headers: { ...appOriginHeader() } });
     expect(full.headers.get(WITHHELD_HEADER)).toBeNull();
     expect((await full.json()).nationalId).toBe("1012345678");

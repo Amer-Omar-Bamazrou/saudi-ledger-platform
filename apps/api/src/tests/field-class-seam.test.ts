@@ -7,7 +7,8 @@
  * (field-class-seam-http.test.ts) proves it end to end, and that S1's own matrix changes nothing.
  */
 import { describe, expect, it } from "vitest";
-import { PERMISSION_MATRIX, fieldGrantAction } from "@workspace/db";
+import { PERMISSION_MATRIX, S2A_REMOVALS, fieldGrantAction } from "@workspace/db";
+import { fieldSpec } from "../lib/fieldClasses/classTable";
 import { walkValue, lastFour, type FieldLookup, type ReadDecider } from "../lib/fieldClasses/walk";
 import type { Shape } from "../lib/fieldClasses/shapes";
 import { classifyResponse, deciderFor } from "../lib/fieldClasses/seam";
@@ -135,7 +136,12 @@ describe("the walk (planted shapes)", () => {
 
 // ── the real contract ────────────────────────────────────────────────────────────────────────────────────────────
 const grantsOf = (rows: readonly { role: string; resource: string; action: string }[]) => new Set(rows.map((r) => `${r.role}:${r.resource}:${r.action}`));
-const without = (role: string, resource: string, action: string) => PERMISSION_MATRIX.filter((r) => !(r.role === role && r.resource === resource && r.action === action));
+/**
+ * S1's matrix: PERMISSION_MATRIX with S2a's twelve removals restored (restated 2026-11-23, when the matrix lost them) — the
+ * every-grant-held base the mechanism tests below were written against. S2a's own matrix is PERMISSION_MATRIX.
+ */
+const S1_MATRIX = [...PERMISSION_MATRIX, ...S2A_REMOVALS.map(({ role, resource, action }) => ({ role, resource, action }))];
+const without = (role: string, resource: string, action: string) => S1_MATRIX.filter((r) => !(r.role === role && r.resource === resource && r.action === action));
 const employee = () => ({
   id: 1, employeeNumber: "E-1", name: "Hala", nameAr: null, nationalId: "1012345678", nationality: "SA", jobTitle: null, jobTitleAr: null,
   department: null, basicSalary: 9000, housingAllowance: 2250, transportAllowance: 900, otherAllowances: 0, gosiNumber: null,
@@ -145,14 +151,34 @@ const employee = () => ({
 });
 
 describe("the real contract — GET /employees/{id}", () => {
-  it("🔴 S1's own matrix: every role is served the response UNCHANGED (the same object), nothing withheld or unclassified", () => {
+  it("🔴 S1's matrix (the twelve restored): every role is served the response UNCHANGED (the same object), nothing withheld or unclassified", () => {
     for (const role of ["admin", "accountant", "bookkeeper", "viewer"]) {
       const body = employee();
-      const r = classifyResponse("GET", "/api/employees/1", 200, body, deciderFor(role, grantsOf(PERMISSION_MATRIX)));
+      const r = classifyResponse("GET", "/api/employees/1", 200, body, deciderFor(role, grantsOf(S1_MATRIX)));
       expect(r.value, role).toBe(body);
       expect(r.withheld, role).toEqual([]);
       expect(r.unclassified, role).toEqual([]);
     }
+  });
+
+  // 🔴 Restated for S2a (2026-11-23): PERMISSION_MATRIX is S2a's. What each role is served is exactly its classes (D2).
+  it("🔴 S2a's matrix: the accountant and the admin get the same object; the bookkeeper and the viewer lose exactly their classes, named", () => {
+    const keysOf = (...classes: string[]) => Object.keys(employee()).filter((k) => classes.includes(fieldSpec("Employee", k)?.cls ?? "")).sort();
+    for (const role of ["admin", "accountant"]) {
+      const body = employee();
+      const r = classifyResponse("GET", "/api/employees/1", 200, body, deciderFor(role, grantsOf(PERMISSION_MATRIX)));
+      expect([r.value === body, r.withheld, r.unclassified], role).toEqual([true, [], []]);
+    }
+    const keeper = classifyResponse("GET", "/api/employees/1", 200, employee(), deciderFor("bookkeeper", grantsOf(PERMISSION_MATRIX)));
+    const kv = keeper.value as Record<string, unknown>;
+    for (const k of keysOf("identity", "compensation")) expect(k in kv, `bookkeeper: ${k}`).toBe(false);
+    expect([kv.iban, kv.name]).toEqual(["•••• 7519", "Hala"]);
+    expect(keeper.withheld.filter((w) => w.class !== "bank_account").map((w) => w.path).sort()).toEqual(keysOf("identity", "compensation"));
+    const viewer = classifyResponse("GET", "/api/employees/1", 200, employee(), deciderFor("viewer", grantsOf(PERMISSION_MATRIX)));
+    const vv = viewer.value as Record<string, unknown>;
+    expect(viewer.withheld.map((w) => w.path).sort()).toEqual(keysOf("identity", "compensation", "bank_account"));
+    for (const k of keysOf("identity", "compensation", "bank_account")) expect(k in vv, `viewer: ${k}`).toBe(false);
+    expect(keysOf("identity", "compensation", "bank_account").length).toBeGreaterThan(10); // not vacuous
   });
 
   it("🔴 with ONE grant removed (as an approved S2 removal would): only that class goes, named; every other field is served", () => {
@@ -187,13 +213,32 @@ describe("the real contract — GET /employees/{id}", () => {
     expect(r.unclassified).toEqual([]);
     expect((r.value as any).items.map((e: any) => e.iban)).toEqual(["•••• 7519", "•••• 7519"]);
     expect(r.withheld.filter((w) => w.class === "bank_account" && w.path === "items[].iban")).toHaveLength(2);
-    expect((r.value as any).totals.grossSalary).toBe(12150); // run totals are standard (v4 §5.2)
+    // Restated for S2a (owner item 2, 2026-11-23): under S1's matrix the bookkeeper still reads pay, so the totals are served.
+    expect((r.value as any).totals.grossSalary).toBe(12150);
   });
 
+  it("🔴 S2a (owner item 2): the list's money totals and the two identity counts are withheld from a role without that read, named; the rest is served", () => {
+    const page = () => ({ ...employeePage([employee()]), totals: { saudiCount: 1, grossSalary: 12150, gosiEmployer: 1062.5, gosiUnstatedCount: 0, payNotSetCount: 0 } });
+    for (const role of ["bookkeeper", "viewer"]) {
+      const r = classifyResponse("GET", "/api/employees", 200, page(), deciderFor(role, grantsOf(PERMISSION_MATRIX)));
+      expect(r.unclassified, role).toEqual([]);
+      expect((r.value as any).totals, role).toEqual({ payNotSetCount: 0 });
+      expect((r.value as any).page.total, role).toBe(1);
+      expect(r.withheld.filter((w) => w.path.startsWith("totals.")).map((w) => `${w.path}:${w.class}:${w.level}`).sort(), role).toEqual([
+        "totals.gosiEmployer:compensation:none", "totals.gosiUnstatedCount:compensation:none", "totals.grossSalary:compensation:none", "totals.saudiCount:identity:none",
+      ]);
+    }
+    for (const role of ["admin", "accountant"]) {
+      const body = page();
+      expect(classifyResponse("GET", "/api/employees", 200, body, deciderFor(role, grantsOf(PERMISSION_MATRIX))).value, role).toBe(body);
+    }
+  });
+
+  // Restated for S2a (2026-11-23): "every grant held" is S1's matrix; PERMISSION_MATRIX no longer holds the viewer's.
   it("🔴 the PERFORMANCE BUDGET (stated before the build): 2,000 employee rows, every grant held, in under 500 ms", () => {
     const rows = Array.from({ length: 2_000 }, employee);
     const body = employeePage(rows);
-    const decide = deciderFor("viewer", grantsOf(PERMISSION_MATRIX));
+    const decide = deciderFor("viewer", grantsOf(S1_MATRIX));
     classifyResponse("GET", "/api/employees", 200, employeePage(rows.slice(0, 10)), decide); // warm the shape caches
     const t0 = performance.now();
     const r = classifyResponse("GET", "/api/employees", 200, body, decide);
@@ -202,7 +247,9 @@ describe("the real contract — GET /employees/{id}", () => {
     expect(r.unclassified).toEqual([]);
     // Not vacuous: the same rows with one grant removed are walked to the last row (3 identity fields each).
     const cut = classifyResponse("GET", "/api/employees", 200, employeePage(rows), deciderFor("viewer", grantsOf(without("viewer", "employees", fieldGrantAction("identity", "read")))));
-    expect(cut.withheld).toHaveLength(2_000 * 3);
+    // + 1 (owner item 2, 2026-11-23): the page's Saudi count is identity too — narrowed to one person it is their nationality.
+    expect(cut.withheld).toHaveLength(2_000 * 3 + 1);
+    expect(cut.withheld.filter((w) => w.path.startsWith("totals.")).map((w) => w.path)).toEqual(["totals.saudiCount"]);
     console.log(`[19B S1 budget] 2,000 employee rows (${2_000 * Object.keys(employee()).length} keys), every grant held: ${ms.toFixed(1)} ms`);
     expect(ms).toBeLessThan(500);
   });
@@ -221,10 +268,19 @@ describe("the field-level write check", () => {
     expect(written).toEqual(["name", "nationalId"]);
   });
 
-  it("🔴 S1's own matrix refuses no write, for any role that writes (a viewer's route grants refuse it first)", () => {
+  it("🔴 S1's matrix (the twelve restored) refuses no write, for any role that writes (a viewer's route grants refuse it first)", () => {
     for (const role of ["admin", "accountant", "bookkeeper"]) {
-      expect(fieldWriteRefusal("PATCH", "/api/employees/1", { nationalId: "1", basicSalary: 1, status: "active", iban: "SA1" }, has(PERMISSION_MATRIX, role))).toBeNull();
+      expect(fieldWriteRefusal("PATCH", "/api/employees/1", { nationalId: "1", basicSalary: 1, status: "active", iban: "SA1" }, has(S1_MATRIX, role))).toBeNull();
     }
+  });
+
+  // 🔴 Restated for S2a (O2, D1, D2; 2026-11-23): PERMISSION_MATRIX is S2a's.
+  it("🔴 S2a's matrix: the accountant and the admin write every field; the bookkeeper writes the national ID and the IBAN, and is refused pay and status by name", () => {
+    const body = { nationalId: "1", basicSalary: 1, status: "active", iban: "SA1" };
+    for (const role of ["admin", "accountant"]) expect(fieldWriteRefusal("PATCH", "/api/employees/1", body, has(PERMISSION_MATRIX, role)), role).toBeNull();
+    const refused = fieldWriteRefusal("PATCH", "/api/employees/1", body, has(PERMISSION_MATRIX, "bookkeeper")) as { fields: { field: string }[] } | null;
+    expect(refused?.fields.map((f) => f.field).sort()).toEqual(["basicSalary", "status"]);
+    expect(fieldWriteRefusal("PATCH", "/api/employees/1", { nationalId: "1", iban: "SA1", name: "x" }, has(PERMISSION_MATRIX, "bookkeeper"))).toBeNull();
   });
 
   it("🔴 a field the role may not write is REFUSED BY NAME (field_write_not_granted), never dropped; the rest alone passes", () => {

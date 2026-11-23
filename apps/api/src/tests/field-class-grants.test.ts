@@ -4,11 +4,12 @@
  *  - The (resource, class) pairs PERMISSION_MATRIX grants are EXACTLY the pairs the class tables use — both ways, so a
  *    protected field never lacks the grants that decide it, and no grant decides nothing.
  *  - Each pair carries every level its class has (`last4` for an IBAN only).
- *  - 🔴 S1: EVERY ROLE HOLDS EVERY ONE OF THEM. This is the assertion that keeps S1 invisible. S2 changes it on purpose:
- *    each step's removals are listed, dry-run per environment and approved by the owner before they apply (D10).
+ *  - 🔴 S1: EVERY ROLE HOLDS EVERY ONE OF THEM — except EXACTLY the removals an S2 step makes (S2a: S2A_REMOVALS, the
+ *    owner's approved set; restated for S2a, 2026-11-23). Each step's removals are listed, dry-run per environment and
+ *    applied to a database only with the owner's approval string for it (D10).
  */
 import { describe, expect, it } from "vitest";
-import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, S2A_PENDING_REMOVALS, fieldGrantAction, type ProtectedFieldClass } from "@workspace/db";
+import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, S2A_REMOVALS, fieldGrantAction, removalSetHash, type ProtectedFieldClass } from "@workspace/db";
 import { FIELD_CLASS_TABLE, indexTable } from "../lib/fieldClasses/classTable";
 import { OUTSIDE_CONTRACT_ROUTES } from "../lib/fieldClasses/outsideContract";
 
@@ -47,7 +48,8 @@ describe("field-class grants in PERMISSION_MATRIX (19B S1)", () => {
     expect([...granted].filter((p) => !used.has(p)).sort(), "a grant that decides no field").toEqual([]);
   });
 
-  it("🔴 S1: EVERY ROLE READS EVERY USED CLASS, AND EVERY ROLE THAT WRITES WRITES IT — nothing withheld, no write refused", () => {
+  // 🔴 Restated for S2a (O2, D2; owner 2026-11-23): S1 asserted "nothing lacking"; what lacks is now EXACTLY S2a's field removals.
+  it("🔴 EVERY ROLE READS EVERY USED CLASS, AND EVERY ROLE THAT WRITES WRITES IT — except exactly S2a's field removals", () => {
     const held = new Set(fieldRows.map((r) => `${r.role}:${r.resource}:${r.action}`));
     const lacking: string[] = [];
     for (const pair of pairsUsedByTables()) {
@@ -57,7 +59,9 @@ describe("field-class grants in PERMISSION_MATRIX (19B S1)", () => {
         for (const role of level === "write" ? WRITERS : ROLES) if (!held.has(`${role}:${resource}:${fieldGrantAction(cls, level)}`)) lacking.push(`${role}:${resource}:${fieldGrantAction(cls, level)}`);
       }
     }
-    expect(lacking, "S1 changes nothing anyone sees; a narrowing is an S2 removal the owner approves").toEqual([]);
+    const s2aFieldRemovals = S2A_REMOVALS.filter((r) => r.action.startsWith("field.")).map((r) => `${r.role}:${r.resource}:${r.action}`);
+    expect(s2aFieldRemovals).toHaveLength(11);
+    expect(lacking.sort(), "a narrowing is an S2 removal the owner approves — S2a's, and nothing else").toEqual(s2aFieldRemovals.sort());
   });
 
   it("🔴 a viewer holds no field WRITE level (presence: it holds the read levels)", () => {
@@ -67,26 +71,33 @@ describe("field-class grants in PERMISSION_MATRIX (19B S1)", () => {
 });
 
 /**
- * 🔴 19B S2a (owner, 2026-11-22): the removals that switch withholding on for employees and payroll are DECLARED and
- * NOT APPLIED until the owner approves each environment after the pre-removal review. This pins both halves: the set is
- * exactly these twelve grants, and every one is still in the matrix. The step that removes them changes this test.
+ * 🔴 19B S2a: the removals that switch withholding on for employees and payroll are REMOVED FROM THE MATRIX by this
+ * commit (restated 2026-11-23: until now this pinned them as still granted). A database's table loses them only with the
+ * owner's approval string for that environment and THIS set, whose hash the approval names: b92b750c…63d7.
  */
-describe("S2a's pending removals (declared, not applied)", () => {
+describe("S2a's removals (removed from the matrix; each environment only with the owner's approval)", () => {
   const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
   it("🔴 the set is exactly these twelve", () => {
-    expect(S2A_PENDING_REMOVALS.map(key).sort()).toEqual([
+    expect(S2A_REMOVALS.map(key).sort()).toEqual([
       "bookkeeper:employees:field.bank_account.read", "bookkeeper:employees:field.compensation.read", "bookkeeper:employees:field.compensation.write",
       "bookkeeper:employees:field.identity.read", "bookkeeper:payroll:create", "bookkeeper:payroll:field.compensation.read",
       "bookkeeper:payroll:field.compensation.write", "viewer:employees:field.bank_account.last4", "viewer:employees:field.bank_account.read",
       "viewer:employees:field.compensation.read", "viewer:employees:field.identity.read", "viewer:payroll:field.compensation.read",
     ]);
   });
-  it("🔴 NOT APPLIED: every one is still granted by PERMISSION_MATRIX", () => {
+  it("🔴 APPLIED in the matrix: none of the twelve is granted, and the set's hash is the one the owner reviewed", () => {
     const granted = new Set(PERMISSION_MATRIX.map(key));
-    expect(S2A_PENDING_REMOVALS.filter((r) => !granted.has(key(r))).map(key)).toEqual([]);
+    expect(S2A_REMOVALS.filter((r) => granted.has(key(r))).map(key)).toEqual([]);
+    expect(removalSetHash(S2A_REMOVALS)).toBe("b92b750c39bfea56d800ea7adea8eb037855cdc2bfc6f174f6326674ef0963d7");
+    // presence: the accountant and the admin still hold every one of the twelve actions
+    for (const r of S2A_REMOVALS) for (const role of ["admin", "accountant"]) expect(granted.has(key({ ...r, role })), `${role}:${r.resource}:${r.action}`).toBe(true);
   });
   it("the bookkeeper keeps writing the national ID and the IBAN (held from S3), and reads the IBAN's last four", () => {
-    const pending = new Set(S2A_PENDING_REMOVALS.map(key));
-    for (const a of ["field.identity.write", "field.bank_account.write", "field.bank_account.last4"]) expect(pending.has(`bookkeeper:employees:${a}`), a).toBe(false);
+    const removed = new Set(S2A_REMOVALS.map(key));
+    const granted = new Set(PERMISSION_MATRIX.map(key));
+    for (const a of ["field.identity.write", "field.bank_account.write", "field.bank_account.last4"]) {
+      expect(removed.has(`bookkeeper:employees:${a}`), a).toBe(false);
+      expect(granted.has(`bookkeeper:employees:${a}`), a).toBe(true);
+    }
   });
 });

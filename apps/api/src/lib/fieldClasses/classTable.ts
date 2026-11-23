@@ -253,7 +253,11 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   DisposeAssetInput: { standard: "date kind reason withdrawalReason" },
   Employee: { resource: "employees", standard: "id employeeNumber name nameAr jobTitle jobTitleAr department joiningDate endDate status createdAt payNotSet", identity: "nationalId nationality gosiNumber", compensation: "basicSalary housingAllowance transportAllowance otherAllowances notes grossSalary gosiEmployee gosiEmployer gosiWageBase gosiRegime gosiRegimeSetBy gosiRegimeSetAt gosiRegimeBasis gosiInKindHousing gosiInKindHousingExempt", bank_account: "iban bank", writeAlsoNeeds: { status: ["compensation"], joiningDate: ["compensation"], endDate: ["compensation"], nationality: ["compensation"], gosiNumber: ["compensation"] } },
   EmployeeInputFields: { resource: "employees", standard: "employeeNumber name nameAr jobTitle jobTitleAr department joiningDate endDate status", identity: "nationalId nationality gosiNumber", compensation: "basicSalary housingAllowance transportAllowance otherAllowances notes gosiRegime gosiRegimeBasis gosiInKindHousing gosiInKindHousingExempt", bank_account: "iban bank", writeAlsoNeeds: { status: ["compensation"], joiningDate: ["compensation"], endDate: ["compensation"], nationality: ["compensation"], gosiNumber: ["compensation"] } },
-  EmployeeTotals: { standard: "saudiCount grossSalary gosiEmployer gosiUnstatedCount payNotSetCount" },
+  // 🔴 19B S2a (owner item 2, 2026-11-23): a money total over a set the CALLER chooses (search, department, status) is
+  // pay — a one-person search, or all minus all-but-one, is one person's pay — so it is withheld from roles without pay
+  // read, in every call (the unfiltered figure is not the ledger's: it counts leavers and pay not yet run). The two
+  // counts that, narrowed to one person, state their nationality or GOSI law are withheld with it. Counts stay.
+  EmployeeTotals: { resource: "employees", standard: "payNotSetCount", identity: "saudiCount", compensation: "grossSalary gosiEmployer gosiUnstatedCount" },
   // 19B S2a: what a role may do with each field — classes and levels, never a value.
   FieldAccess: { standard: "record" },
   FieldAccessEntry: { standard: "class read write" },
@@ -427,8 +431,13 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   PaymentPlan: { standard: "id billId billNumber vendorId vendorName vendorNameAr vendorResidency billDueDate billDate billOutstanding plannedDate amount bankAccountId bankName priority status whtPaymentType whtEstimate whtWithheld cashEstimate notes createdBy createdAt approvedBy approvedAt paidBillPaymentId paidBy paidAt cancelledBy cancelledAt cancelReason overdue exceedsOutstanding billReversed" },
   "PaymentPlanPaid.payment": { standard: "billPaymentId journalEntryId amount cashPaid withheld" },
   PaymentReversalRef: { standard: "correctionId correctedOn reason reversalJournalEntryId" },
-  PayrollItem: { resource: "payroll", standard: "id payrollRunId employeeId gosiEmployeeRate gosiEmployerRate employeeName employeeNumber createdAt", compensation: "basicSalary housingAllowance transportAllowance otherAllowances grossSalary gosiEmployee gosiEmployer gosiRegime gosiWageBase gosiInKindHousing gosiPensionFloorWage gosiHazardsFloorOpen gosiServiceDays gosiPeriodDays gosiWageFixedPeriod additions deductions netPay" },
-  PayrollRun: { standard: "id period status totalBasicSalary totalAllowances totalGosiEmployee totalGosiEmployer totalDeductions totalNetPay gosiPaidAt gosiInvoicedAmount gosiInvoiceReference gosiReconcilingDifference processedAt reviewNote notes createdAt" },
+  // 🔴 19B S2a (owner item 2): a named line's GOSI rates state the employee's GOSI law, and a zero employee share marks a
+  // non-Saudi — nationality (identity, D1) by another name — so the rates are compensation, like gosiRegime.
+  PayrollItem: { resource: "payroll", standard: "id payrollRunId employeeId employeeName employeeNumber createdAt", compensation: "basicSalary housingAllowance transportAllowance otherAllowances grossSalary gosiEmployee gosiEmployer gosiRegime gosiEmployeeRate gosiEmployerRate gosiWageBase gosiInKindHousing gosiPensionFloorWage gosiHazardsFloorOpen gosiServiceDays gosiPeriodDays gosiWageFixedPeriod additions deductions netPay" },
+  // 🔴 19B S2a (owner item 2): a whole run's totals stay standard (D1: the run's journal entry carries gross, net and both
+  // GOSI shares — so a one-Saudi run's employee GOSI too); the basic/allowances SPLIT is not in the ledger, and with one
+  // person drawing allowances it is that person's figure, so it is compensation.
+  PayrollRun: { resource: "payroll", standard: "id period status totalGosiEmployee totalGosiEmployer totalDeductions totalNetPay gosiPaidAt gosiInvoicedAmount gosiInvoiceReference gosiReconcilingDifference processedAt reviewNote notes createdAt", compensation: "totalBasicSalary totalAllowances" },
   PayrollRunListItem: { standard: "employeeCount grossSalary" },
   // 19B S2a (D8 O2): the employees a run left out, by name — standard, like the employee's own name and number.
   PayrollLeftOutEmployee: { standard: "employeeId employeeNumber name reason" },

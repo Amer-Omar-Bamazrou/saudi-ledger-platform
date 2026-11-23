@@ -46,7 +46,8 @@ describeMaybe("B-G08R-P (d) — two removals of one draft at once", () => {
       { accountId: debitAccount, accountName: "debit", debitAmount: 10, creditAmount: 0 },
       { accountId: creditAccount, accountName: "credit", debitAmount: 0, creditAmount: 10 },
     ] })).body.id as number,
-    payroll: async () => (await h.api("bookkeeper", "POST", "/payroll", { period: `2024-${String((n++ % 12) + 1).padStart(2, "0")}` })).body.id as number,
+    // 🔴 Restated for 19B S2a (D8 O2, 2026-11-23): an accountant prepares a payroll run; a bookkeeper no longer may.
+    payroll: async () => (await h.api("accountant", "POST", "/payroll", { period: `2024-${String((n++ % 12) + 1).padStart(2, "0")}` })).body.id as number,
   };
   const table = { invoice: "invoices", bill: "bills", je: "journal_entries", payroll: "payroll_runs" } as const;
   const route = { invoice: "/invoices", bill: "/bills", je: "/journal-entries", payroll: "/payroll" } as const;

@@ -2,9 +2,10 @@
  * 🔴 19B S2a — THE PRE-REMOVAL REVIEW, RUN WITH THE TWELVE GRANTS REMOVED (owner, 2026-11-22: "each is shown by a test
  * run with the grants actually removed").
  *
- * The grants are removed from the API's own grant cache — the set the response seam and the write check read for every
- * request — exactly as S2A_PENDING_REMOVALS will remove them from the table. Nothing is removed from any database
- * table: that waits for the owner's approval per environment.
+ * 🔴 Restated for the removal (2026-11-23): the twelve are out of PERMISSION_MATRIX itself (S2A_REMOVALS), so this
+ * process's grant cache — the set the response seam and the write check read for every request — lacks them as every
+ * fresh database reconciled to the matrix does. An existing database's table loses them only with the owner's approval
+ * string for it.
  *
  *  B. A bookkeeper still lists, opens, searches (the only employee picker: the list's search) and references employees
  *     by name, number, job and department, and creates one — without pay.
@@ -20,7 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { pool, PERMISSION_MATRIX, S2A_PENDING_REMOVALS } from "@workspace/db";
+import { pool, PERMISSION_MATRIX, S2A_REMOVALS } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { CONTRACT } from "../lib/fieldClasses/contractShapes.generated";
 import { EXPORTABLE_REPORTS } from "../services/reporting/reportExport.service";
@@ -31,7 +32,7 @@ const describeDb = !!url && !url.includes("placeholder") ? describe : describe.s
 const PW = "s2a-review-password-2026";
 const h = g04Harness("s2a-rev");
 const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
-const REMOVED = new Set(S2A_PENDING_REMOVALS.map(key));
+const REMOVED = new Set(S2A_REMOVALS.map(key));
 const S2A_MATRIX = PERMISSION_MATRIX.filter((r) => !REMOVED.has(key(r)));
 
 /**
@@ -86,8 +87,12 @@ describeDb("19B S2a pre-removal review — with the twelve grants removed", () =
 
   const leaks = (text: string) => secrets.filter((s) => text.includes(s));
 
-  it("the twelve are removed from what this process enforces, and nothing else is", () => {
-    expect(PERMISSION_MATRIX.length - S2A_MATRIX.length).toBe(12);
+  // Restated for the removal (2026-11-23): S1's matrix held 395 grants and this test removed the twelve from the cache;
+  // the matrix itself now lacks exactly them.
+  it("the twelve are out of what this process enforces — PERMISSION_MATRIX itself — and nothing else is", () => {
+    expect(PERMISSION_MATRIX.filter((r) => REMOVED.has(key(r))).map(key)).toEqual([]);
+    expect(REMOVED.size).toBe(12);
+    expect([PERMISSION_MATRIX.length, S2A_MATRIX.length]).toEqual([395 - 12, 395 - 12]);
   });
 
   // ── B ──

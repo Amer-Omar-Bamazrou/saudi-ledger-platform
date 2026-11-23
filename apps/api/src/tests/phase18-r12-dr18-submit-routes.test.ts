@@ -3,8 +3,9 @@
  * exercised the way the page calls it — over HTTP, as the preparer.
  *
  * For each of the five documents with a submit route and a page control (invoice, bill, payroll run, quotation,
- * purchase order): a BOOKKEEPER creates a draft and submits it (the document reads submitted); a VIEWER is refused
- * by the permission layer, by name; a second submit of the same document is refused (it is no longer a draft). The
+ * purchase order): a BOOKKEEPER creates a draft and submits it (the document reads submitted) — except a payroll run,
+ * which an ACCOUNTANT prepares and submits since 19B S2a (D8 O2), the bookkeeper's submit refused by name; a VIEWER is
+ * refused by the permission layer, by name; a second submit of the same document is refused (it is no longer a draft). The
  * three the approvals queue carries are listed there afterwards. The browser spec
  * (`e2e/phase18-r12-dr18-submit-controls.spec.ts`) walks the same five through their pages.
  *
@@ -35,22 +36,28 @@ describeMaybe("Phase 18 R-12 (DR-18 c) — each document's submit route, as its 
     await h.cleanup();
     orgId = await h.mkOrg("org");
     await h.mkCompany(orgId, "R12 Co", "319191919196003");
-    for (const r of ["admin", "bookkeeper", "viewer"]) await h.mkUser(r, PW, orgId, r);
+    for (const r of ["admin", "accountant", "bookkeeper", "viewer"]) await h.mkUser(r, PW, orgId, r);
     await h.start();
-    for (const r of ["admin", "bookkeeper", "viewer"]) expect(await h.login(r, h.email(r), PW), `login ${r}`).toBe(200);
+    for (const r of ["admin", "accountant", "bookkeeper", "viewer"]) expect(await h.login(r, h.email(r), PW), `login ${r}`).toBe(200);
     customer = ok(await h.api("bookkeeper", "POST", "/customers", { name: "R12 Customer" }), 201, "customer").id;
     vendor = ok(await h.api("bookkeeper", "POST", "/vendors", { name: "R12 Supplier" }), 201, "vendor").id;
-    ok(await h.api("bookkeeper", "POST", "/employees", { employeeNumber: "R12-EMP-1", name: "R12 Employee", basicSalary: 6000, status: "active", gosiRegime: "law_1421h" }), 201, "employee");
+    // 🔴 19B S2a (D2, O2): an employee WITH pay is created by an accountant; a bookkeeper's pay write is refused by name.
+    ok(await h.api("accountant", "POST", "/employees", { employeeNumber: "R12-EMP-1", name: "R12 Employee", basicSalary: 6000, status: "active", gosiRegime: "law_1421h" }), 201, "employee");
   }, 180_000);
   afterAll(async () => { await h.stop(); await h.cleanup(); });
 
-  const DOCS: Array<{ name: string; path: string; table: string; queue: string | null; create: () => Promise<number> }> = [
+  /**
+   * 🔴 Restated for 19B S2a (D8 O2, 2026-11-23): a payroll run is PREPARED and SUBMITTED by an accountant or admin — a
+   * bookkeeper's submit of it is refused by name (submit resolves to create). Every other document is still the
+   * bookkeeper's to submit. `preparer` names who prepares and submits each.
+   */
+  const DOCS: Array<{ name: string; path: string; table: string; queue: string | null; preparer?: "accountant"; create: () => Promise<number> }> = [
     { name: "an invoice", path: "/invoices", table: "invoices", queue: "invoices",
       create: async () => ok(await h.api("bookkeeper", "POST", "/invoices", { invoiceNumber: `R12-INV-${Date.now()}`, date: "2026-10-05", dueDate: "2026-10-31", customerId: customer, items: [{ description: "Work", quantity: 1, unitPrice: 1000, vatRate: 15 }] }), 201, "invoice").id },
     { name: "a bill", path: "/bills", table: "bills", queue: "bills",
       create: async () => ok(await h.api("bookkeeper", "POST", "/bills", { billNumber: `R12-B-${Date.now()}`, date: "2026-10-05", vendorId: vendor, items: [{ description: "Supply", quantity: 1, unitPrice: 500, vatRate: 0 }] }), 201, "bill").id },
-    { name: "a payroll run", path: "/payroll", table: "payroll_runs", queue: "payroll",
-      create: async () => ok(await h.api("bookkeeper", "POST", "/payroll", { period: "2026-09" }), 201, "payroll run").id },
+    { name: "a payroll run", path: "/payroll", table: "payroll_runs", queue: "payroll", preparer: "accountant",
+      create: async () => ok(await h.api("accountant", "POST", "/payroll", { period: "2026-09" }), 201, "payroll run").id },
     { name: "a quotation", path: "/quotations", table: "quotations", queue: null,
       create: async () => ok(await h.api("bookkeeper", "POST", "/quotations", { date: "2026-10-05", customerId: customer, items: [{ description: "Offer", quantity: 1, unitPrice: 100, vatRate: 15 }] }), 201, "quotation").id },
     { name: "a purchase order", path: "/purchase-orders", table: "purchase_orders", queue: null,
@@ -58,15 +65,21 @@ describeMaybe("Phase 18 R-12 (DR-18 c) — each document's submit route, as its 
   ];
 
   for (const d of DOCS) {
-    it(`${d.name}: the bookkeeper submits the draft; a viewer is refused by name; a second submit is refused`, async () => {
+    const who = d.preparer ?? "bookkeeper";
+    it(`${d.name}: ${who === "bookkeeper" ? "the bookkeeper" : "an accountant (D8 O2; the bookkeeper is refused by name)"} submits the draft; a viewer is refused by name; a second submit is refused`, async () => {
       const id = await d.create();
       expect(await statusOf(d.table, id)).toBe("draft");
       const viewer = await h.api("viewer", "POST", `${d.path}/${id}/submit`, {});
       expect([viewer.status, viewer.body?.code], "a viewer is refused by the permission layer").toEqual([403, "requires_approval_authority"]);
       expect(await statusOf(d.table, id)).toBe("draft");
-      ok(await h.api("bookkeeper", "POST", `${d.path}/${id}/submit`, {}), 200, `${d.name} submit`);
+      if (who !== "bookkeeper") {
+        const keeper = await h.api("bookkeeper", "POST", `${d.path}/${id}/submit`, {});
+        expect([keeper.status, keeper.body?.code, keeper.body?.resource, keeper.body?.action], "D8 O2: a bookkeeper no longer submits a payroll run").toEqual([403, "requires_approval_authority", "payroll", "create"]);
+        expect(await statusOf(d.table, id)).toBe("draft");
+      }
+      ok(await h.api(who, "POST", `${d.path}/${id}/submit`, {}), 200, `${d.name} submit`);
       expect(await statusOf(d.table, id)).toBe("submitted");
-      expect((await h.api("bookkeeper", "POST", `${d.path}/${id}/submit`, {})).status, "no longer a draft").toBe(409);
+      expect((await h.api(who, "POST", `${d.path}/${id}/submit`, {})).status, "no longer a draft").toBe(409);
       if (d.queue) {
         const queue = ok(await h.api("admin", "GET", "/approvals/pending"), 200, "queue") as Array<{ entity: string; id: number }>;
         expect(queue.some((r) => r.entity === d.queue && r.id === id), "the approvals queue lists it").toBe(true);

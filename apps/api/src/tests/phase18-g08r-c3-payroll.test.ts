@@ -35,7 +35,10 @@ describeMaybe("B-G08R-P (c3) — the G08 races on PAYROLL RUNS", () => {
 
   async function draftRun(): Promise<Run> {
     const period = `2025-${String(++month).padStart(2, "0")}`;
-    const r = await h.api("bookkeeper", "POST", "/payroll", { period });
+    // 🔴 Restated for 19B S2a (D8 O2, 2026-11-23): an accountant prepares (and submits) a payroll run; a bookkeeper no
+    // longer may. A SECOND accountant, "preparer", so no approval below is by the run's own preparer (no self-approval
+    // flag joins the evidence). The races asserted below are unchanged.
+    const r = await h.api("preparer", "POST", "/payroll", { period });
     expect([200, 201], `create run ${period}: ${JSON.stringify(r.body)}`).toContain(r.status);
     return { id: r.body.id as number, period };
   }
@@ -46,7 +49,7 @@ describeMaybe("B-G08R-P (c3) — the G08 races on PAYROLL RUNS", () => {
   }
   const approve = (who: string, id: number) => h.api(who, "POST", `/payroll/${id}/approve`, {});
   const reject = (id: number) => h.api("accountant", "POST", `/payroll/${id}/reject`, {});
-  const submit = (id: number) => h.api("bookkeeper", "POST", `/payroll/${id}/submit`, {});
+  const submit = (id: number) => h.api("preparer", "POST", `/payroll/${id}/submit`, {}); // D8 O2
   const sendBack = (id: number) => h.api("accountant", "POST", `/payroll/${id}/send-back`, { note: "please correct" });
 
   beforeAll(async () => {
@@ -57,9 +60,9 @@ describeMaybe("B-G08R-P (c3) — the G08 races on PAYROLL RUNS", () => {
       `INSERT INTO employees (organization_id, company_id, employee_number, name, nationality, basic_salary, status, gosi_regime) VALUES ($1,$2,'E1','G08R Employee','SA','8000.00','active','law_1421h')`,
       [orgId, companyId],
     );
-    for (const [who, role] of [["admin", "admin"], ["accountant", "accountant"], ["bookkeeper", "bookkeeper"]]) await h.mkUser(who, PW, orgId, role);
+    for (const [who, role] of [["admin", "admin"], ["accountant", "accountant"], ["bookkeeper", "bookkeeper"], ["preparer", "accountant"]]) await h.mkUser(who, PW, orgId, role);
     await h.start();
-    for (const who of ["admin", "accountant", "bookkeeper"]) expect(await h.login(who, h.email(who), PW), `login ${who}`).toBe(200);
+    for (const who of ["admin", "accountant", "bookkeeper", "preparer"]) expect(await h.login(who, h.email(who), PW), `login ${who}`).toBe(200);
   }, 120_000);
   afterAll(async () => { await h.stop(); await h.cleanup(); });
 
